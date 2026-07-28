@@ -7,6 +7,7 @@ from app.schemas.rag import RAGDocumentItem, RAGDocumentList
 from app.services.rag.models import (
     CollectionInfo,
     Document,
+    DocumentChunk,
     DocumentInfo,
     DocumentPageChunk,
     SearchResult,
@@ -48,6 +49,17 @@ class BaseVectorStore(ABC):
     @abstractmethod
     async def get_documents(self, collection_name: str) -> list[DocumentInfo]:
         pass
+
+    @abstractmethod
+    async def get_document_chunks(
+        self, collection_name: str, document_id: str
+    ) -> list[DocumentChunk]:
+        """Every stored chunk of one document, in document order.
+
+        Document order means (page_num, chunk_num) ascending - the order the
+        splitter produced them - so callers can reconstruct what the parse
+        looked like. An unknown document or collection is an empty list.
+        """
 
     async def get_document_list(self, collection_name: str) -> RAGDocumentList:
         docs = await self.get_documents(collection_name)
@@ -375,6 +387,35 @@ class PgVectorStore(BaseVectorStore):
             for row in rows
         ]
         return self._group_documents(results)
+
+    async def get_document_chunks(
+        self, collection_name: str, document_id: str
+    ) -> list[DocumentChunk]:
+        # Same answer for "no such collection" as get_documents: empty, not an
+        # UndefinedTableError dressed up as a 500.
+        if not await self._collection_exists(collection_name):
+            return []
+        table = self._table(collection_name)
+        async with self.async_session() as session:
+            result = await session.execute(
+                text(f"SELECT content, metadata FROM {table} WHERE parent_doc_id = :doc_id"),
+                {"doc_id": self._sanitize_id(document_id)},
+            )
+            rows = result.fetchall()
+        chunks = []
+        for row in rows:
+            meta = row[1] if isinstance(row[1], dict) else json.loads(row[1])
+            chunks.append(
+                DocumentChunk(
+                    content=row[0] or "",
+                    page_num=int(meta.get("page_num", 0)),
+                    chunk_num=int(meta.get("chunk_num", 0)),
+                )
+            )
+        # Sorted here rather than in SQL: page_num and chunk_num live inside the
+        # metadata JSONB, and a `(metadata->>'page_num')::int` ORDER BY fails on
+        # any row where the key is absent instead of sorting it first.
+        return sorted(chunks, key=lambda chunk: (chunk.page_num, chunk.chunk_num))
 
     async def list_collections(self) -> list[str]:
         async with self.async_session() as session:

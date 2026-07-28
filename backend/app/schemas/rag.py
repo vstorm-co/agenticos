@@ -108,6 +108,33 @@ class RAGTrackedDocumentList(BaseSchema):
     total: int
 
 
+class RAGParsedPage(BaseSchema):
+    """One page of a document as the parser left it, chunk by chunk.
+
+    Chunks are returned separately rather than joined because that is what was
+    actually indexed - adjacent chunks repeat their configured overlap, and a
+    silent join would present the duplication as the parser's mistake.
+    """
+
+    page_num: int
+    chunks: list[str]
+    # Whether anything on this page is worth embedding. Markdown reconstruction
+    # wraps an unreadable scan in an empty fenced block, which `.strip()` keeps,
+    # so this is `has_indexable_text`, not "the content is non-empty".
+    has_text: bool
+
+
+class RAGParsedContent(BaseSchema):
+    """How a document parsed: the stored chunks, reconstructed in page order."""
+
+    id: str
+    filename: str
+    parser: str | None = None
+    chunk_count: int
+    has_text: bool
+    pages: list[RAGParsedPage]
+
+
 class RAGIngestResponse(BaseSchema):
     """Response for document ingestion (async or sync)."""
 

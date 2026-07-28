@@ -95,30 +95,62 @@ export function IngestionSettings({
       )}
 
       <Group label="Parsing">
-        <OptionalSetting
-          htmlFor={id("parser")}
-          label="PDF parser"
-          description={`${parser?.hint ?? ""} Text, Markdown and Word files use the built-in readers whichever is chosen.`}
-          error={errors.pdf_parser}
-          disabled={disabled}
-        >
-          <Select
-            value={value.pdf_parser}
+        {/* The parser and its tier are one decision, so they share a row; the
+            toggles below are yes/no sentences and read better at full width. */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <OptionalSetting
+            htmlFor={id("parser")}
+            label="PDF parser"
+            description={`${parser?.hint ?? ""} Text, Markdown and Word files use the built-in readers whichever is chosen.`}
+            error={errors.pdf_parser}
             disabled={disabled}
-            onValueChange={(next) => set("pdf_parser", next as PdfParser)}
           >
-            <SelectTrigger id={id("parser")} aria-invalid={errors.pdf_parser !== undefined}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PDF_PARSERS.map((choice) => (
-                <SelectItem key={choice.value} value={choice.value}>
-                  {choice.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </OptionalSetting>
+            <Select
+              value={value.pdf_parser}
+              disabled={disabled}
+              onValueChange={(next) => set("pdf_parser", next as PdfParser)}
+            >
+              <SelectTrigger id={id("parser")} aria-invalid={errors.pdf_parser !== undefined}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PDF_PARSERS.map((choice) => (
+                  <SelectItem key={choice.value} value={choice.value}>
+                    {choice.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </OptionalSetting>
+
+          {value.pdf_parser === "llamaparse" && (
+            <OptionalSetting
+              htmlFor={id("tier")}
+              label="LlamaParse tier"
+              description={
+                LLAMAPARSE_TIERS.find((t) => t.value === value.llamaparse_tier)?.hint ?? ""
+              }
+              disabled={disabled}
+            >
+              <Select
+                value={value.llamaparse_tier}
+                disabled={disabled}
+                onValueChange={(next) => set("llamaparse_tier", next as LlamaParseTier)}
+              >
+                <SelectTrigger id={id("tier")}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {LLAMAPARSE_TIERS.map((choice) => (
+                    <SelectItem key={choice.value} value={choice.value}>
+                      {choice.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </OptionalSetting>
+          )}
+        </div>
 
         <Toggle
           htmlFor={id("ocr")}
@@ -128,34 +160,6 @@ export function IngestionSettings({
           disabled={disabled}
           onChange={(next) => set("ocr", next)}
         />
-
-        {value.pdf_parser === "llamaparse" && (
-          <OptionalSetting
-            htmlFor={id("tier")}
-            label="LlamaParse tier"
-            description={
-              LLAMAPARSE_TIERS.find((t) => t.value === value.llamaparse_tier)?.hint ?? ""
-            }
-            disabled={disabled}
-          >
-            <Select
-              value={value.llamaparse_tier}
-              disabled={disabled}
-              onValueChange={(next) => set("llamaparse_tier", next as LlamaParseTier)}
-            >
-              <SelectTrigger id={id("tier")}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {LLAMAPARSE_TIERS.map((choice) => (
-                  <SelectItem key={choice.value} value={choice.value}>
-                    {choice.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </OptionalSetting>
-        )}
 
         {value.pdf_parser === "liteparse" && value.ocr && (
           <Toggle
@@ -290,7 +294,7 @@ export function IngestionSettings({
       </Group>
 
       <Group label="Chunking">
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-3">
           <OptionalSetting
             htmlFor={id("chunk-size")}
             label="Chunk size"
@@ -334,33 +338,33 @@ export function IngestionSettings({
               onChange={(event) => set("chunk_overlap", toNumber(event.target.value))}
             />
           </OptionalSetting>
-        </div>
 
-        <OptionalSetting
-          htmlFor={id("strategy")}
-          label="Strategy"
-          description={
-            CHUNKING_STRATEGIES.find((c) => c.value === value.chunking_strategy)?.hint ?? ""
-          }
-          disabled={disabled}
-        >
-          <Select
-            value={value.chunking_strategy}
+          <OptionalSetting
+            htmlFor={id("strategy")}
+            label="Strategy"
+            description={
+              CHUNKING_STRATEGIES.find((c) => c.value === value.chunking_strategy)?.hint ?? ""
+            }
             disabled={disabled}
-            onValueChange={(next) => set("chunking_strategy", next as ChunkingStrategy)}
           >
-            <SelectTrigger id={id("strategy")}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {CHUNKING_STRATEGIES.map((choice) => (
-                <SelectItem key={choice.value} value={choice.value}>
-                  {choice.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </OptionalSetting>
+            <Select
+              value={value.chunking_strategy}
+              disabled={disabled}
+              onValueChange={(next) => set("chunking_strategy", next as ChunkingStrategy)}
+            >
+              <SelectTrigger id={id("strategy")}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CHUNKING_STRATEGIES.map((choice) => (
+                  <SelectItem key={choice.value} value={choice.value}>
+                    {choice.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </OptionalSetting>
+        </div>
       </Group>
 
       <Group label="Images">
@@ -406,48 +410,50 @@ export function IngestionSettings({
               />
             </OptionalSetting>
 
-            <OptionalSlider
-              id={id("temperature")}
-              label="Temperature"
-              description="How varied each description is. Left alone the parameter is not sent at all, which is not the same as sending zero - reasoning models reject it outright."
-              max={INGESTION_LIMITS.temperature.max}
-              value={value.image_description.temperature ?? undefined}
-              resting={1}
-              disabled={disabled}
-              onChange={(next) => setImage("temperature", next ?? null)}
-            />
-
-            <OptionalSetting
-              htmlFor={id("thinking")}
-              label="Reasoning"
-              description="How hard the model thinks before describing an image. A level a provider does not have maps to its closest one."
-              disabled={disabled}
-            >
-              {/*
-                Not a switch, and not a slider: the resting state is "no
-                reasoning was asked for", which is a third answer rather than the
-                bottom of the ladder - `minimal` still requests it.
-              */}
-              <Select
-                value={value.image_description.thinking ?? NOT_REQUESTED}
+            <div className="grid gap-6 sm:grid-cols-2">
+              <OptionalSlider
+                id={id("temperature")}
+                label="Temperature"
+                description="How varied each description is. Left alone the parameter is not sent at all, which is not the same as sending zero - reasoning models reject it outright."
+                max={INGESTION_LIMITS.temperature.max}
+                value={value.image_description.temperature ?? undefined}
+                resting={1}
                 disabled={disabled}
-                onValueChange={(next) =>
-                  setImage("thinking", next === NOT_REQUESTED ? null : (next as ThinkingEffort))
-                }
+                onChange={(next) => setImage("temperature", next ?? null)}
+              />
+
+              <OptionalSetting
+                htmlFor={id("thinking")}
+                label="Reasoning"
+                description="How hard the model thinks before describing an image. A level a provider does not have maps to its closest one."
+                disabled={disabled}
               >
-                <SelectTrigger id={id("thinking")}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NOT_REQUESTED}>Not requested</SelectItem>
-                  {THINKING_EFFORTS.map((effort) => (
-                    <SelectItem key={effort} value={effort}>
-                      {effort}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </OptionalSetting>
+                {/*
+                  Not a switch, and not a slider: the resting state is "no
+                  reasoning was asked for", which is a third answer rather than
+                  the bottom of the ladder - `minimal` still requests it.
+                */}
+                <Select
+                  value={value.image_description.thinking ?? NOT_REQUESTED}
+                  disabled={disabled}
+                  onValueChange={(next) =>
+                    setImage("thinking", next === NOT_REQUESTED ? null : (next as ThinkingEffort))
+                  }
+                >
+                  <SelectTrigger id={id("thinking")}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NOT_REQUESTED}>Not requested</SelectItem>
+                    {THINKING_EFFORTS.map((effort) => (
+                      <SelectItem key={effort} value={effort}>
+                        {effort}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </OptionalSetting>
+            </div>
           </div>
         )}
       </Group>

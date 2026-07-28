@@ -38,8 +38,12 @@ logger = logging.getLogger(__name__)
 _MARKDOWN_NOISE = re.compile(r"```[a-z]*|`|\s+")
 
 
-def _has_text(content: str) -> bool:
-    """Whether a parsed page carries anything worth embedding."""
+def has_indexable_text(content: str) -> bool:
+    """Whether a parsed page carries anything worth embedding.
+
+    Public because it is also the honest answer to "did this document parse to
+    anything" when the stored chunks are read back for display.
+    """
     return bool(_MARKDOWN_NOISE.sub("", content))
 
 
@@ -518,7 +522,7 @@ class LiteParseParser(BaseDocumentParser):
         for page in result.pages:
             content = page.markdown if self.output_format == "markdown" and page.markdown else ""
             content = content or page.text
-            if _has_text(content):
+            if has_indexable_text(content):
                 pages.append(DocumentPage(page_num=page.page_num, content=content))
 
         return Document(

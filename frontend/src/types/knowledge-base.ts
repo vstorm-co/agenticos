@@ -160,3 +160,31 @@ export interface KBDocumentList {
   items: KBDocument[];
   total: number;
 }
+
+/**
+ * One page of a document as the parser left it, chunk by chunk.
+ *
+ * Chunks arrive separately rather than joined because that is what was actually
+ * indexed - adjacent chunks repeat their configured overlap, and a silent join
+ * would present the duplication as the parser's mistake.
+ */
+export interface KBParsedPage {
+  page_num: number;
+  chunks: string[];
+  /**
+   * Whether anything on this page is worth embedding. An unreadable scan comes
+   * back as an empty fenced code block - not whitespace - so this is the
+   * server's answer, not something a `.trim()` on the client can reproduce.
+   */
+  has_text: boolean;
+}
+
+/** How a document parsed: the stored chunks, reconstructed in page order. */
+export interface KBParsedContent {
+  id: string;
+  filename: string;
+  parser: string | null;
+  chunk_count: number;
+  has_text: boolean;
+  pages: KBParsedPage[];
+}

@@ -3,6 +3,7 @@
  */
 
 import { apiClient, ApiError } from "./api-client";
+import type { KBParsedContent } from "@/types";
 
 export interface RAGCollectionList {
   items: string[];
@@ -126,6 +127,16 @@ export async function downloadKBDocument(
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   }
+}
+
+/**
+ * How a KB document parsed: the indexed chunks, grouped back into pages.
+ *
+ * The counterpart of the download URL above - original bytes there, what the
+ * parser made of them here. 404 for a document still processing or failed.
+ */
+export async function getParsedKBDocument(kbId: string, docId: string): Promise<KBParsedContent> {
+  return apiClient.get<KBParsedContent>(`/kb/${kbId}/documents/${docId}/parsed`);
 }
 
 export interface RAGTrackedDocumentList {

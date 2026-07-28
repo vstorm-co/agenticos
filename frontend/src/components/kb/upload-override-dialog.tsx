@@ -57,7 +57,9 @@ export function UploadOverrideDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-lg">
+      {/* Wide on purpose: the settings form lays its fields out in columns, and
+          a narrow dialog stacks them into a cramped single file. */}
+      <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>Parse the next upload differently</DialogTitle>
           <DialogDescription>

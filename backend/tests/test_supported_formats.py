@@ -39,7 +39,7 @@ from app.services.rag.documents import (
     LiteParseParser,
     LlamaParseParser,
     PyMuPDFParser,
-    _has_text,
+    has_indexable_text,
 )
 
 pytestmark = pytest.mark.anyio
@@ -128,12 +128,12 @@ def test_a_page_of_markdown_scaffolding_is_not_text(content: str) -> None:
     and matches nothing - the whole document looking ingested and answering no
     question.
     """
-    assert not _has_text(content)
+    assert not has_indexable_text(content)
 
 
 def test_real_content_survives_the_same_filter() -> None:
-    assert _has_text("# Heading\n\nRevenue grew 12 percent.")
-    assert _has_text("```python\nx = 1\n```")
+    assert has_indexable_text("# Heading\n\nRevenue grew 12 percent.")
+    assert has_indexable_text("```python\nx = 1\n```")
 
 
 def test_get_supported_formats_falls_back_to_pymupdf() -> None:

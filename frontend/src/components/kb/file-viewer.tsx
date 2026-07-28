@@ -2,11 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { Download, ExternalLink, FileText, Loader2, X } from "lucide-react";
+import { Download, ExternalLink, FileText, Loader2, ScanText, X } from "lucide-react";
 
 import { MarkdownContent } from "@/components/chat/markdown-content";
 import { Button } from "@/components/ui/button";
 import { DialogOverlay, DialogPortal } from "@/components/ui/dialog";
+import { getParsedKBDocument } from "@/lib/rag-api";
+import { cn } from "@/lib/utils";
+import type { KBParsedContent } from "@/types";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Viewer type detection
@@ -114,6 +117,14 @@ export function FileViewer({ kbId, doc, open, onClose }: FileViewerProps) {
   const [mimeType, setMimeType] = useState("application/octet-stream");
   const blobUrlRef = useRef<string | null>(null);
 
+  // The other half of the comparison this dialog exists for: the original
+  // bytes above, and here what the parser made of them. Fetched lazily on the
+  // first switch to the tab, then kept - a stored parse does not change.
+  const [tab, setTab] = useState<"original" | "parsed">("original");
+  const [parsed, setParsed] = useState<KBParsedContent | null>(null);
+  const [parsedLoading, setParsedLoading] = useState(false);
+  const [parsedError, setParsedError] = useState<string | null>(null);
+
   useEffect(() => {
     return () => {
       if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
@@ -130,6 +141,10 @@ export function FileViewer({ kbId, doc, open, onClose }: FileViewerProps) {
       setTextContent(null);
       setError(null);
       setLoading(false);
+      setTab("original");
+      setParsed(null);
+      setParsedError(null);
+      setParsedLoading(false);
       return;
     }
 
@@ -180,6 +195,31 @@ export function FileViewer({ kbId, doc, open, onClose }: FileViewerProps) {
     };
   }, [open, doc?.id, kbId]);
 
+  useEffect(() => {
+    if (!open || !doc || tab !== "parsed" || parsed !== null || parsedError !== null) return;
+
+    let cancelled = false;
+    const currentDoc = doc;
+
+    (async () => {
+      setParsedLoading(true);
+      try {
+        const data = await getParsedKBDocument(kbId, currentDoc.id);
+        if (!cancelled) setParsed(data);
+      } catch (e) {
+        if (!cancelled) {
+          setParsedError(e instanceof Error ? e.message : "Failed to load parsed content");
+        }
+      } finally {
+        if (!cancelled) setParsedLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, doc, tab, parsed, parsedError, kbId]);
+
   // ── Action helpers ──────────────────────────────────────────────────────────
 
   const makeTempUrl = (): string | null => {
@@ -226,6 +266,26 @@ export function FileViewer({ kbId, doc, open, onClose }: FileViewerProps) {
             <DialogPrimitive.Title className="text-foreground flex-1 truncate text-sm font-medium">
               {doc?.filename ?? ""}
             </DialogPrimitive.Title>
+            {/* Original vs parsed is the comparison this dialog is for, so the
+                switch lives in the header rather than behind a menu. */}
+            <div className="bg-muted flex shrink-0 items-center gap-0.5 rounded-lg p-0.5">
+              {(["original", "parsed"] as const).map((choice) => (
+                <button
+                  key={choice}
+                  type="button"
+                  aria-pressed={tab === choice}
+                  onClick={() => setTab(choice)}
+                  className={cn(
+                    "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+                    tab === choice
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {choice === "original" ? "Original" : "Parsed"}
+                </button>
+              ))}
+            </div>
             <div className="flex shrink-0 items-center gap-0.5">
               {hasContent && (
                 <>
@@ -264,23 +324,27 @@ export function FileViewer({ kbId, doc, open, onClose }: FileViewerProps) {
 
           {/* Body */}
           <div className="relative min-h-0 flex-1 overflow-hidden">
-            {loading && (
+            {tab === "parsed" && (
+              <ParsedView parsed={parsed} loading={parsedLoading} error={parsedError} />
+            )}
+
+            {tab === "original" && loading && (
               <div className="flex h-full items-center justify-center">
                 <Loader2 className="text-muted-foreground h-6 w-6 animate-spin" />
               </div>
             )}
 
-            {!loading && error && (
+            {tab === "original" && !loading && error && (
               <div className="flex h-full flex-col items-center justify-center gap-4 px-8 text-center">
                 <p className="text-destructive text-sm">{error}</p>
               </div>
             )}
 
-            {!loading && !error && viewerKind === "pdf" && blobUrl && (
+            {tab === "original" && !loading && !error && viewerKind === "pdf" && blobUrl && (
               <iframe src={blobUrl} className="h-full w-full border-0" title={doc?.filename} />
             )}
 
-            {!loading && !error && viewerKind === "image" && blobUrl && (
+            {tab === "original" && !loading && !error && viewerKind === "image" && blobUrl && (
               <div className="flex h-full items-center justify-center overflow-auto p-4">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
@@ -291,7 +355,7 @@ export function FileViewer({ kbId, doc, open, onClose }: FileViewerProps) {
               </div>
             )}
 
-            {!loading && !error && viewerKind === "html" && blobUrl && (
+            {tab === "original" && !loading && !error && viewerKind === "html" && blobUrl && (
               <iframe
                 src={blobUrl}
                 className="h-full w-full border-0"
@@ -300,21 +364,21 @@ export function FileViewer({ kbId, doc, open, onClose }: FileViewerProps) {
               />
             )}
 
-            {!loading && !error && viewerKind === "video" && blobUrl && (
+            {tab === "original" && !loading && !error && viewerKind === "video" && blobUrl && (
               <div className="flex h-full items-center justify-center p-4">
                 {}
                 <video src={blobUrl} controls className="max-h-full max-w-full rounded" />
               </div>
             )}
 
-            {!loading && !error && viewerKind === "audio" && blobUrl && (
+            {tab === "original" && !loading && !error && viewerKind === "audio" && blobUrl && (
               <div className="flex h-full items-center justify-center p-4">
                 {}
                 <audio src={blobUrl} controls className="w-full max-w-md" />
               </div>
             )}
 
-            {!loading && !error && viewerKind === "markdown" && textContent !== null && (
+            {tab === "original" && !loading && !error && viewerKind === "markdown" && textContent !== null && (
               <div className="h-full overflow-auto p-6">
                 <div className="prose prose-sm dark:prose-invert max-w-none">
                   <MarkdownContent content={textContent} />
@@ -322,7 +386,7 @@ export function FileViewer({ kbId, doc, open, onClose }: FileViewerProps) {
               </div>
             )}
 
-            {!loading && !error && viewerKind === "text" && textContent !== null && (
+            {tab === "original" && !loading && !error && viewerKind === "text" && textContent !== null && (
               <div className="h-full overflow-auto">
                 <pre className="text-foreground p-4 font-mono text-xs leading-relaxed break-words whitespace-pre-wrap">
                   {textContent}
@@ -330,7 +394,7 @@ export function FileViewer({ kbId, doc, open, onClose }: FileViewerProps) {
               </div>
             )}
 
-            {!loading && !error && viewerKind === "unknown" && blobUrl && (
+            {tab === "original" && !loading && !error && viewerKind === "unknown" && blobUrl && (
               <div className="flex h-full flex-col items-center justify-center gap-4 px-8 text-center">
                 <p className="text-muted-foreground text-sm">
                   This file type cannot be previewed inline.
@@ -352,5 +416,115 @@ export function FileViewer({ kbId, doc, open, onClose }: FileViewerProps) {
         </DialogPrimitive.Content>
       </DialogPortal>
     </DialogPrimitive.Root>
+  );
+}
+
+/**
+ * The reconstructed markdown a document parsed into, page by page.
+ *
+ * Chunks render separately with hairline dividers rather than joined, because
+ * that is what was actually indexed: adjacent chunks repeat their configured
+ * overlap, and a silent join would present the duplication as a parse bug.
+ *
+ * `has_text` comes from the server, which knows that an unreadable scan comes
+ * back as an empty fenced block - not whitespace - and must not be shown as a
+ * document that parsed fine.
+ */
+function ParsedView({
+  parsed,
+  loading,
+  error,
+}: {
+  parsed: KBParsedContent | null;
+  loading: boolean;
+  error: string | null;
+}) {
+  if (loading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Loader2 className="text-muted-foreground h-6 w-6 animate-spin" />
+      </div>
+    );
+  }
+
+  if (error) {
+    // Most often "No parsed content for this document": still processing, or
+    // ingestion failed. A refusal to show a parse is not a broken screen.
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-2 px-8 text-center">
+        <p className="text-foreground text-sm font-medium">No parsed content to show</p>
+        <p className="text-muted-foreground max-w-md text-xs">{error}</p>
+      </div>
+    );
+  }
+
+  if (!parsed) return null;
+
+  if (!parsed.has_text) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-4 px-8 text-center">
+        <span className="bg-muted text-muted-foreground inline-flex h-12 w-12 items-center justify-center rounded-xl">
+          <ScanText className="h-5 w-5" />
+        </span>
+        <div>
+          <p className="text-foreground text-sm font-medium">
+            Nothing readable came out of this parse
+          </p>
+          <p className="text-muted-foreground mx-auto mt-1 max-w-md text-xs">
+            {parsed.chunk_count > 0
+              ? "Every page came back as empty scaffolding, which is what an unreadable scan looks like. If this file is a scan or a photo, turn on reading scanned pages in the parse options and upload it again."
+              : "Nothing is indexed for this document. Its vectors may have been removed since it was ingested."}
+          </p>
+          {parsed.parser && (
+            <p className="text-muted-foreground mt-2 font-mono text-xs">
+              parsed with {parsed.parser}
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  const multiPage = parsed.pages.length > 1 || (parsed.pages[0]?.page_num ?? 1) !== 1;
+
+  return (
+    <div className="h-full overflow-auto">
+      <div className="text-muted-foreground border-border bg-card sticky top-0 z-10 border-b px-6 py-2 text-xs">
+        What was indexed: {parsed.chunk_count} {parsed.chunk_count === 1 ? "chunk" : "chunks"}
+        {parsed.parser && (
+          <>
+            {" "}
+            · parsed with <span className="font-mono">{parsed.parser}</span>
+          </>
+        )}
+        {parsed.chunk_count > 1 &&
+          " · adjacent chunks repeat their overlap, so boundary text appears twice"}
+      </div>
+      <div className="space-y-6 p-6">
+        {parsed.pages.map((page) => (
+          <section key={page.page_num}>
+            {multiPage && (
+              <p className="text-muted-foreground mb-2 text-xs font-medium tracking-wide uppercase">
+                Page {page.page_num}
+              </p>
+            )}
+            {!page.has_text && (
+              <p className="text-muted-foreground border-border mb-2 rounded-lg border border-dashed px-3 py-2 text-xs">
+                This page parsed to nothing readable - likely an unreadable scan.
+              </p>
+            )}
+            <div className="divide-border divide-y">
+              {page.chunks.map((chunk, index) => (
+                <div key={index} className="py-4 first:pt-0 last:pb-0">
+                  <div className="prose prose-sm dark:prose-invert max-w-none">
+                    <MarkdownContent content={chunk} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+    </div>
   );
 }

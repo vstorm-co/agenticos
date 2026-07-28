@@ -16,8 +16,16 @@ from app.core.permissions import AuthContext
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.rag_document import RAGDocument
 from app.services.rag.config import get_supported_formats
+from app.services.rag.documents import has_indexable_text
+from app.services.rag.vectorstore import BaseVectorStore
 from app.repositories import rag_document_repo
-from app.schemas.rag import RAGIngestResponse, RAGTrackedDocumentItem, RAGTrackedDocumentList
+from app.schemas.rag import (
+    RAGIngestResponse,
+    RAGParsedContent,
+    RAGParsedPage,
+    RAGTrackedDocumentItem,
+    RAGTrackedDocumentList,
+)
 from app.services.file_storage import get_file_storage
 from app.services.ingestion_config import (
     IngestionConfig,
@@ -331,6 +339,50 @@ class RAGDocumentService:
             Number of deleted records.
         """
         return await rag_document_repo.delete_by_collection(self.db, collection_name)
+
+    async def get_parsed_content(
+        self, doc_id: str, vector_store: BaseVectorStore
+    ) -> RAGParsedContent:
+        """How a document parsed: its stored chunks, grouped back into pages.
+
+        The chunks in the vector store are the parse - there is no other record
+        of what the parser produced - so this reads them back in document order
+        rather than re-running a parse that may involve OCR or a paid API.
+
+        ``has_text`` uses ``has_indexable_text``, not ``.strip()``: markdown
+        reconstruction wraps an unreadable scan in an empty fenced block, which
+        is not whitespace and would otherwise pass for content.
+
+        Raises:
+            NotFoundError: If the document does not exist, or has not (yet)
+                been ingested - a parse that is still running or failed has no
+                parsed content to show.
+        """
+        doc = await self.get_document(doc_id)
+        if doc.status != "done" or not doc.vector_document_id:
+            raise NotFoundError(
+                message="No parsed content for this document",
+                details={"doc_id": doc_id, "status": doc.status},
+            )
+
+        chunks = await vector_store.get_document_chunks(doc.collection_name, doc.vector_document_id)
+
+        pages: list[RAGParsedPage] = []
+        for chunk in chunks:
+            if not pages or pages[-1].page_num != chunk.page_num:
+                pages.append(RAGParsedPage(page_num=chunk.page_num, chunks=[], has_text=False))
+            pages[-1].chunks.append(chunk.content)
+            if has_indexable_text(chunk.content):
+                pages[-1].has_text = True
+
+        return RAGParsedContent(
+            id=str(doc.id),
+            filename=doc.filename,
+            parser=str(doc.ingestion_config["pdf_parser"]) if doc.ingestion_config else None,
+            chunk_count=len(chunks),
+            has_text=any(page.has_text for page in pages),
+            pages=pages,
+        )
 
     async def get_download_info(self, doc_id: str) -> tuple[str, str, str]:
         """Get file download information for a document.

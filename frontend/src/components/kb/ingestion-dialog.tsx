@@ -77,8 +77,9 @@ export function IngestionDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {/* Header and footer stay put; only the settings scroll. Save is the way
-          out of a long form and must not be the thing that scrolls away. */}
-      <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-lg">
+          out of a long form and must not be the thing that scrolls away. Wide
+          because the settings form lays its fields out in columns. */}
+      <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>Ingestion settings</DialogTitle>
           <DialogDescription>

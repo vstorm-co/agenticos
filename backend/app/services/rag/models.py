@@ -68,6 +68,14 @@ class Document(BaseModel):
         return self
 
 
+class DocumentChunk(BaseModel):
+    """A stored chunk read back from a vector store, as it was indexed."""
+
+    content: str
+    page_num: int = 0
+    chunk_num: int = 0
+
+
 class SearchResult(BaseModel):
     """A schema of vector store query output."""
 

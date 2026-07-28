@@ -34,6 +34,7 @@ from app.schemas.knowledge_base import (
 )
 from app.schemas.rag import (
     RAGIngestResponse,
+    RAGParsedContent,
     RAGSyncLogItem,
     RAGSyncLogList,
     RAGSyncResponse,
@@ -264,6 +265,33 @@ async def download_kb_document(
         # viewer is opened is a round trip for bytes the browser already has.
         headers={"Cache-Control": "private, max-age=3600"},
     )
+
+
+@router.get("/{kb_id}/documents/{doc_id}/parsed", response_model=RAGParsedContent)
+async def get_kb_document_parsed(
+    kb_id: UUID,
+    doc_id: UUID,
+    service: KnowledgeBaseSvc,
+    rag_doc_svc: RAGDocumentSvc,
+    vector_store: VectorStoreSvc,
+    current_user: CurrentUser,
+    active_org: ActiveOrg,
+) -> Any:
+    """How a KB document parsed: the indexed chunks, grouped back into pages.
+
+    The counterpart of ``download`` above - original bytes there, what the
+    parser made of them here - so the two can be compared side by side. A
+    document still processing, or one whose ingestion failed, is a 404: there
+    is no parse to show yet.
+    """
+    kb = await service.get(kb_id, user_id=current_user.id, organization_id=active_org.id)
+    doc = await rag_doc_svc.get_document(str(doc_id))
+    if doc.collection_name != kb.collection_name:
+        raise NotFoundError(
+            message="Document not found in this knowledge base",
+            details={"kb_id": str(kb_id), "doc_id": str(doc_id)},
+        )
+    return await rag_doc_svc.get_parsed_content(str(doc_id), vector_store)
 
 
 @router.delete(
