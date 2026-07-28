@@ -29,6 +29,9 @@ export const qk = {
     version: (id: string, versionId: string) => ["agents", id, "versions", versionId] as const,
     capabilityCatalog: () => ["agents", "capability-catalog"] as const,
   },
+  channelBots: {
+    list: () => ["channel-bots"] as const,
+  },
   exposures: {
     all: () => ["exposures"] as const,
     list: (agentId: string) => ["exposures", agentId] as const,
@@ -74,8 +77,13 @@ export const qk = {
   },
   skills: {
     all: () => ["skills"] as const,
-    list: (query: { search: string; skip: number; limit: number }) =>
-      ["skills", "list", query] as const,
+    list: (query: {
+      search: string;
+      category: string;
+      sort: string;
+      skip: number;
+      limit: number;
+    }) => ["skills", "list", query] as const,
     detail: (id: string) => ["skills", id] as const,
     resource: (skillId: string, resourceId: string) =>
       ["skills", skillId, "resources", resourceId] as const,

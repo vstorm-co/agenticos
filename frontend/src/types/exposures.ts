@@ -7,8 +7,8 @@
  * added, because a surface is a row here and not a field on the spec.
  */
 
-/** A place an agent can be made available. */
-export type ExposureSurface = "slack" | "telegram";
+/** A place an agent can be made available. Mirrors the backend's ExposureSurface. */
+export type ExposureSurface = "slack" | "telegram" | "mattermost";
 
 /**
  * What one binding may spend, metered against its own runs and nobody else's.

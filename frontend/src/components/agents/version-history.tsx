@@ -70,22 +70,31 @@ export function VersionHistory({
 
   return (
     <div className="space-y-4">
-      <ol className="space-y-2">
+      <ol className="divide-y rounded-md border">
         {versions.map((version) => (
           <li
             key={version.id}
-            className="flex flex-wrap items-center gap-3 rounded-md border p-3 text-sm"
+            className={cn(
+              "flex flex-wrap items-center gap-3 p-3 text-sm",
+              // The live row is the one fact somebody scans this list for.
+              version.id === currentVersionId && "bg-brand-subtle/40",
+            )}
           >
-            <span className="font-mono">v{version.version}</span>
-            <span className="text-muted-foreground min-w-0 flex-1 truncate">
-              {version.note ?? "-"}
+            <span className="bg-muted w-12 shrink-0 rounded-md px-2 py-1 text-center font-mono text-xs font-semibold">
+              v{version.version}
             </span>
-            <span className="text-muted-foreground text-xs">
-              {/* Who and when, together: a timeline that says only "when" makes
-                  the next question ("who did this?") a database query. */}
-              {version.published_by_email ?? "unknown author"}
-              {version.created_at ? ` · ${formatDate(version.created_at)}` : ""}
-            </span>
+            <div className="min-w-0 flex-1">
+              {/* The note is the row's headline - it is the "why" somebody
+                  wrote at publish - and the who/when reads under it instead of
+                  competing with it on one line. */}
+              <p className={cn("truncate", !version.note && "text-muted-foreground italic")}>
+                {version.note ?? "No note"}
+              </p>
+              <p className="text-muted-foreground mt-0.5 text-xs">
+                {version.published_by_email ?? "unknown author"}
+                {version.created_at ? ` · ${formatDate(version.created_at)}` : ""}
+              </p>
+            </div>
             {version.id === currentVersionId && <Badge>live</Badge>}
             <Button
               size="sm"

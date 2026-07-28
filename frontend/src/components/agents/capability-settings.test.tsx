@@ -100,7 +100,7 @@ const binding = (
 const toolRow = (id: string) => screen.getByRole("listitem", { name: id });
 
 /** One control inside that row. Every row names its fields the same way. */
-const toolField = (id: string, label: "Name" | "Description" | "Approval") =>
+const toolField = (id: string, label: "Name" | "Description the model reads" | "Approval") =>
   within(toolRow(id)).getByLabelText(label);
 
 describe("CapabilitySettings", () => {
@@ -280,11 +280,41 @@ describe("CapabilitySettings tools", () => {
     );
 
     expect(toolField("draft_email", "Name")).toHaveValue("draft_email");
-    expect(toolField("draft_email", "Description")).toHaveValue(
+    expect(toolField("draft_email", "Description the model reads")).toHaveValue(
       "Write a message without sending it.",
     );
     expect(toolField("send_email", "Name")).toHaveValue("send_email");
-    expect(toolField("send_email", "Description")).toHaveValue("Send a message to its recipients.");
+    expect(toolField("send_email", "Description the model reads")).toHaveValue(
+      "Send a message to its recipients.",
+    );
+  });
+
+  it("an untouched description holds the whole contract, not its first sentence", () => {
+    // An override replaces everything the model is told about a tool, so the
+    // editor must hold everything: editing a field that showed only the
+    // summary silently deleted the Args and Returns sections under it.
+    render(
+      <CapabilitySettings
+        catalog={[
+          {
+            ...EMAIL,
+            contracts: [
+              {
+                tool_id: "draft_email",
+                description: "Write a message without sending it.\n\nArgs:\n    body: What to say.",
+                parameters: {},
+              },
+            ],
+          },
+        ]}
+        selected={[binding("email")]}
+        onChange={vi.fn()}
+      />,
+    );
+
+    expect(toolField("draft_email", "Description the model reads")).toHaveValue(
+      "Write a message without sending it.\n\nArgs:\n    body: What to say.",
+    );
   });
 
   it("shows no tool list for a capability that is not tools", () => {
@@ -438,7 +468,7 @@ describe("CapabilitySettings tool renaming", () => {
       <CapabilitySettings catalog={[EMAIL]} selected={[binding("email")]} onChange={onChange} />,
     );
 
-    await userEvent.type(toolField("draft_email", "Description"), "!");
+    await userEvent.type(toolField("draft_email", "Description the model reads"), "!");
 
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({
@@ -466,7 +496,9 @@ describe("CapabilitySettings tool renaming", () => {
     );
 
     expect(toolField("send_email", "Name")).toHaveValue("send_invoice");
-    expect(toolField("send_email", "Description")).toHaveValue("Send the invoice we drafted.");
+    expect(toolField("send_email", "Description the model reads")).toHaveValue(
+      "Send the invoice we drafted.",
+    );
     expect(toolField("draft_email", "Name")).toHaveValue("draft_email");
   });
 

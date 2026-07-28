@@ -15,6 +15,7 @@ import {
 import { toast } from "sonner";
 
 import { InviteLinkDialog, InviteMemberDialog, OrgSpendingLimit } from "@/components/teams";
+import { ChannelBotsPanel } from "@/components/teams/channel-bots-panel";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { EmptyState } from "@/components/states";
 import {
@@ -332,6 +333,11 @@ export default function OrgMembersPage({ params }: PageProps) {
       {/* The workspace's own spending ceiling sits with its other settings. It
           hides itself from anyone who may not change them. */}
       {org && <OrgSpendingLimit org={org} />}
+
+      {/* Bots are organization resources - one bot serves many agents - so they
+          are registered here and bound to agents in the Builder. The panel
+          hides itself from anyone without channels:manage. */}
+      <ChannelBotsPanel canManage={can(Perm.channelsManage)} />
 
       {/* The table draws its own skeleton from the same column definitions, so
           the header and every column width are already right while it loads -

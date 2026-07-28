@@ -36,6 +36,7 @@ interface ExposuresPanelProps {
 const SURFACE_LABEL: Record<ExposureSurface, string> = {
   slack: "Slack",
   telegram: "Telegram",
+  mattermost: "Mattermost",
 };
 
 /**

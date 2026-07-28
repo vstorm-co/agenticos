@@ -30,5 +30,6 @@ export { useApprovals, useRuns, useSpend } from "./use-runs";
 export { useSkill, useSkillLibrary, useSkillResource, useSkills } from "./use-skills";
 export { useSharing } from "./use-sharing";
 export { useEmbeds } from "./use-embeds";
+export { useChannelBots } from "./use-channel-bots";
 export { useExposures } from "./use-exposures";
 export { usePollWhileIngesting, type IngestingDocument } from "./use-poll-while-ingesting";

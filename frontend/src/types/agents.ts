@@ -124,7 +124,7 @@ export interface AgentSpec {
   collection_ids: string[];
   skill_ids: string[];
   mcp_server_ids: string[];
-  /** Model requests one run may make; null uses the platform default of 50. */
+  /** Model requests one run may make; null uses the platform default of 100. */
   max_steps?: number | null;
   budget?: BudgetSpec | null;
   observability?: ObservabilitySpec | null;

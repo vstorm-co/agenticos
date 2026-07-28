@@ -727,15 +727,26 @@ function ToolRow({ binding, tool, contract, sideEffecting, onChange, disabled }:
 
       <ToolField
         htmlFor={fieldId("description")}
-        label="Description"
+        label="Description the model reads"
         reset={resetFor("description", "Reset description")}
         disabled={disabled}
       >
+        {/* One field, holding the whole text. An override replaces everything
+            the model is told about this tool, so an editor showing only the
+            summary sentence was an editor for a value that does not exist -
+            editing "the short one" silently deleted the rest. The default
+            shown is the full contract, which is exactly what an untouched
+            binding sends. */}
         <Textarea
           id={fieldId("description")}
-          value={effectiveText(binding, tool, "description")}
+          value={
+            binding.tool_overrides[tool.id]?.description ??
+            contract?.description ??
+            tool.description
+          }
           disabled={disabled}
-          rows={3}
+          rows={6}
+          className="text-xs leading-relaxed"
           onChange={(event) => edit("description", event.target.value)}
         />
       </ToolField>
@@ -746,13 +757,12 @@ function ToolRow({ binding, tool, contract, sideEffecting, onChange, disabled }:
 }
 
 /**
- * What the code says, under what this agent says.
+ * The half of the contract a spec cannot rewrite.
  *
- * The field above holds one sentence because that is what a form can hold. The
- * model is handed the whole docstring and a schema of the arguments, and an
- * author rewording the sentence is rewriting the opening of that - so the rest
- * of it has to be readable without leaving the page. Read-only on purpose:
- * arguments come from the function signature, and a spec cannot rename them.
+ * The description lives in the editable field above - the whole of it, since
+ * an override replaces the whole of it. What remains here are the arguments,
+ * read-only on purpose: they come from the function signature, and a spec
+ * cannot rename them.
  */
 function ToolContract({ contract }: { contract: CapabilityToolContract }) {
   const properties = contract.parameters.properties ?? {};
@@ -761,16 +771,6 @@ function ToolContract({ contract }: { contract: CapabilityToolContract }) {
 
   return (
     <div className="space-y-1.5">
-      <details className="group">
-        <summary className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-1.5 text-xs">
-          <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
-          Full description the model reads
-        </summary>
-        <pre className="text-muted-foreground bg-muted/50 mt-1.5 max-h-56 overflow-auto rounded-md p-3 text-xs whitespace-pre-wrap">
-          {contract.description}
-        </pre>
-      </details>
-
       {names.length > 0 && (
         <details className="group">
           <summary className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-1.5 text-xs">

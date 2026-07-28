@@ -1,0 +1,164 @@
+"use client";
+
+import { useState } from "react";
+import { Pause, Play, Plus, Trash2 } from "lucide-react";
+
+import {
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  Input,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui";
+import { useChannelBots } from "@/hooks";
+import type { ChannelPlatform } from "@/types/channels";
+
+const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
+  telegram: "Telegram",
+  slack: "Slack",
+  mattermost: "Mattermost",
+};
+
+/** What to paste, per platform - the one thing people get stuck on. */
+const TOKEN_HINT: Record<ChannelPlatform, string> = {
+  telegram: "The token @BotFather gives you when you create a bot",
+  slack: "The bot user OAuth token (xoxb-...) from your Slack app",
+  mattermost: "The bot account's access token",
+};
+
+/**
+ * The organization's channel bots - registered here, bound to agents in the
+ * Builder.
+ *
+ * This panel is the missing half of the Builder's "where is this agent
+ * available" section: that select can only offer bots, and until this existed
+ * there was no way to create one outside the API. It lives with the other
+ * organization settings because a bot is an organization resource - one bot
+ * serves many agents.
+ *
+ * The token is write-only: sent once at registration, encrypted at rest, never
+ * read back - the same bargain as the Vault.
+ */
+export function ChannelBotsPanel({ canManage }: { canManage: boolean }) {
+  const { bots, isLoading, create, setActive, remove } = useChannelBots(canManage);
+  const [platform, setPlatform] = useState<ChannelPlatform>("telegram");
+  const [name, setName] = useState("");
+  const [token, setToken] = useState("");
+
+  if (!canManage) return null;
+
+  async function register() {
+    await create.mutateAsync({ platform, name: name.trim(), token: token.trim() });
+    setName("");
+    setToken("");
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Channel bots</CardTitle>
+        <CardDescription>
+          A bot connects this workspace to a chat platform; which agents answer on it is chosen per
+          agent in the Builder. The token is encrypted on arrival and never shown again.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {!isLoading && bots.length === 0 && (
+          <p className="text-muted-foreground text-sm">
+            No bots yet. Register one below and every agent&apos;s &quot;where is this agent
+            available&quot; section can bind to it.
+          </p>
+        )}
+
+        {bots.map((bot) => (
+          <div key={bot.id} className="flex items-center gap-3 rounded-md border p-3">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm">
+                {PLATFORM_LABEL[bot.platform] ?? bot.platform} - {bot.name}
+              </p>
+              <p className="text-muted-foreground text-xs">
+                {bot.webhook_mode ? "Webhook" : "Polling"}
+              </p>
+            </div>
+            {!bot.is_active && <Badge variant="secondary">inactive</Badge>}
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={setActive.isPending}
+              aria-label={bot.is_active ? `Deactivate ${bot.name}` : `Activate ${bot.name}`}
+              onClick={() => setActive.mutate({ botId: bot.id, isActive: !bot.is_active })}
+            >
+              {bot.is_active ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={remove.isPending}
+              aria-label={`Remove ${bot.name}`}
+              onClick={() => remove.mutate(bot.id)}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        ))}
+
+        <div className="grid items-end gap-3 border-t pt-3 sm:grid-cols-[10rem_1fr_1fr_auto]">
+          <div className="space-y-1">
+            <Label htmlFor="bot-platform">Platform</Label>
+            <Select
+              value={platform}
+              onValueChange={(value) => setPlatform(value as ChannelPlatform)}
+            >
+              <SelectTrigger id="bot-platform">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.keys(PLATFORM_LABEL) as ChannelPlatform[]).map((key) => (
+                  <SelectItem key={key} value={key}>
+                    {PLATFORM_LABEL[key]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="bot-name">Name</Label>
+            <Input
+              id="bot-name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="Support bot"
+              maxLength={255}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="bot-token">Bot token</Label>
+            <Input
+              id="bot-token"
+              type="password"
+              value={token}
+              onChange={(event) => setToken(event.target.value)}
+              placeholder={TOKEN_HINT[platform]}
+            />
+          </div>
+          <Button
+            onClick={register}
+            disabled={!name.trim() || token.trim().length < 10 || create.isPending}
+          >
+            <Plus className="h-4 w-4" />
+            Register
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}

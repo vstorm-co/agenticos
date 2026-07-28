@@ -563,6 +563,18 @@
 .pop-in {
   animation: pop-in var(--duration-base) var(--ease-spring) both;
 }
+
+/* Dashes travelling along the agent map's edges - flow, from source to sink.
+   The offset is one dash period (4 + 4), so the loop is seamless. Stripped by
+   the reduced-motion block below like every other long-running animation. */
+.map-flow {
+  animation: map-flow 0.9s linear infinite;
+}
+@keyframes map-flow {
+  to {
+    stroke-dashoffset: -8;
+  }
+}
 @keyframes pop-in {
   from {
     opacity: 0;

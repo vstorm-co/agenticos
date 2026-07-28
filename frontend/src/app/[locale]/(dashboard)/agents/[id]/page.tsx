@@ -14,7 +14,6 @@ import {
   MessageSquare,
   MoreHorizontal,
   Network,
-  Save,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -55,6 +54,10 @@ import {
   CardTitle,
   Input,
   Label,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
   Textarea,
 } from "@/components/ui";
 import {
@@ -73,7 +76,7 @@ import {
 } from "@/hooks";
 import { SKILLS_ID, THINKING_ID, withCapability, withSkills } from "@/lib/agent-spec";
 import { ROUTES } from "@/lib/constants";
-import { useAgentSelectionStore } from "@/stores";
+import { useAgentSelectionStore, useConversationStore } from "@/stores";
 import { cn } from "@/lib/utils";
 import type { AgentSpec, CapabilityBindingSpec } from "@/types/agents";
 import { Perm } from "@/types/permissions";
@@ -105,6 +108,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const { exposures } = useExposures(id);
   const { servers: mcpCatalog } = useMcpCatalog();
   const selectAgentForChat = useAgentSelectionStore((state) => state.select);
+  const resetConversation = useConversationStore((state) => state.reset);
 
   const [spec, setSpec] = useState<AgentSpec | null>(null);
   const [problems, setProblems] = useState<string[]>([]);
@@ -115,9 +119,13 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const [avatarVersion, setAvatarVersion] = useState(0);
   const avatarInput = useRef<HTMLInputElement>(null);
 
+  // Adopt the server's draft once, not on every refetch: every autosave
+  // invalidates the agent query, and re-adopting the answer would overwrite
+  // whatever was typed while the save was in flight. `setSpec(null)` is how a
+  // flow that really does replace the draft (rollback) asks to adopt again.
   useEffect(() => {
-    if (agent?.draft_spec) setSpec(agent.draft_spec);
-  }, [agent?.draft_spec]);
+    if (agent?.draft_spec && spec === null) setSpec(agent.draft_spec);
+  }, [agent?.draft_spec, spec]);
 
   const canEdit = can(Perm.agentsEdit);
   const canPublish = can(Perm.agentsPublish);
@@ -128,6 +136,21 @@ export default function AgentBuilderPage({ params }: PageProps) {
     () => JSON.stringify(spec) !== JSON.stringify(agent?.draft_spec),
     [spec, agent?.draft_spec],
   );
+
+  // The draft stores itself. A Builder with a Save button is a Builder where
+  // the tab closed on twenty minutes of instructions; the debounce means a
+  // burst of typing is one request, and the effect re-arms after every
+  // invalidation until the spec and the stored draft agree.
+  const { mutateAsync: storeDraft } = saveDraft;
+  useEffect(() => {
+    if (!canEdit || !spec || !agent?.draft_spec || !isDirty) return;
+    const timer = setTimeout(() => {
+      // Errors already toast in the hook; the badge only needs to keep saying
+      // "unsaved", which `isDirty` staying true does on its own.
+      void storeDraft(spec).catch(() => null);
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [spec, agent?.draft_spec, isDirty, canEdit, storeDraft]);
 
   // Names, never ids: the map exists to be read, and a row of uuids is the
   // thing it replaces. Anything the spec references but the organization no
@@ -262,10 +285,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
     }
   }
 
-  async function handleSave() {
-    if (await persist()) setProblems(await validate());
-  }
-
   async function handlePublish() {
     if (!(await persist())) return;
     const found = await validate();
@@ -274,15 +293,16 @@ export default function AgentBuilderPage({ params }: PageProps) {
   }
 
   /**
-   * Address the chat to this agent, then open it.
+   * Address the chat to this agent, then open it on a fresh thread.
    *
    * Selecting first is the whole point: the chat sends whichever agent the
-   * selection names, so navigating without it would land the reader in a
-   * conversation with the general assistant - a different product answering
-   * the question they came here to ask.
+   * selection names. Resetting the conversation matters just as much - the
+   * store keeps whichever thread was open last, and landing in an old
+   * conversation reads as the agent answering with somebody else's context.
    */
   function openInChat() {
     selectAgentForChat(id);
+    resetConversation();
     router.push(ROUTES.CHAT);
   }
 
@@ -325,7 +345,15 @@ export default function AgentBuilderPage({ params }: PageProps) {
             </span>
             {agent.name}
             <AgentStatusBadge status={agent.status} />
-            {isDirty && <Badge variant="secondary">unsaved</Badge>}
+            {/* The draft saves itself; this says where that stands. Quiet when
+                everything is stored - "saved" as a permanent label reads as a
+                button. */}
+            {canEdit &&
+              (saveDraft.isPending ? (
+                <Badge variant="secondary">Saving…</Badge>
+              ) : (
+                isDirty && <Badge variant="secondary">Unsaved</Badge>
+              ))}
           </span>
         }
         description={agent.description ?? undefined}
@@ -363,12 +391,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 Export YAML
               </a>
             </Button>
-            {canEdit && (
-              <Button variant="outline" onClick={handleSave} disabled={saveDraft.isPending}>
-                <Save className="h-4 w-4" />
-                Save draft
-              </Button>
-            )}
             {canPublish && (
               <Button onClick={handlePublish} disabled={publish.isPending}>
                 <Upload className="h-4 w-4" />
@@ -493,312 +515,344 @@ export default function AgentBuilderPage({ params }: PageProps) {
         </Card>
       )}
 
-      <div className="space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Instructions</CardTitle>
-            <CardDescription>
-              The agent&apos;s behaviour lives here, not in code. Be specific about what it should
-              do, what it should refuse, and how it should cite.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Textarea
-              // Named, because a placeholder is not a label: it is the only
-              // accessible name this control had, and it is the one thing that
-              // disappears the moment somebody types into it.
-              aria-label="Instructions"
-              value={spec.instructions}
-              onChange={(event) => update({ instructions: event.target.value })}
-              rows={10}
-              disabled={!canEdit}
-              placeholder="You are Support Copilot. Answer from the product wiki and cite the document you used. If the wiki does not cover it, say so rather than guessing."
-              className="font-mono text-sm"
-            />
-            <div className="space-y-2">
-              <Label>Model</Label>
-              <ModelProfilePicker
-                allowAdd
-                profiles={profiles}
-                value={spec.model_profile_id ?? null}
-                onChange={(model_profile_id) => update({ model_profile_id })}
+      {/* Tabs, because the alternative was a single column of eleven cards and
+          a page of scroll between the instructions and the version history.
+          Grouped by the question being answered, not by implementation. */}
+      <Tabs defaultValue="build">
+        <TabsList>
+          <TabsTrigger value="build">Build</TabsTrigger>
+          <TabsTrigger value="toolbox">Toolbox</TabsTrigger>
+          <TabsTrigger value="knowledge">Knowledge</TabsTrigger>
+          <TabsTrigger value="limits">Limits</TabsTrigger>
+          <TabsTrigger value="availability">Availability</TabsTrigger>
+          <TabsTrigger value="history">History</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="build" className="mt-4 space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Instructions</CardTitle>
+              <CardDescription>
+                The agent&apos;s behaviour lives here, not in code. Be specific about what it should
+                do, what it should refuse, and how it should cite.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Textarea
+                // Named, because a placeholder is not a label: it is the only
+                // accessible name this control had, and it is the one thing that
+                // disappears the moment somebody types into it.
+                aria-label="Instructions"
+                value={spec.instructions}
+                onChange={(event) => update({ instructions: event.target.value })}
+                rows={10}
                 disabled={!canEdit}
+                placeholder="You are Support Copilot. Answer from the product wiki and cite the document you used. If the wiki does not cover it, say so rather than guessing."
+                className="font-mono text-sm"
               />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Model settings</CardTitle>
-            <CardDescription>
-              How this agent asks its model to behave, on top of whatever the model profile already
-              sets. A setting nobody touches is not sent at all - that is deliberate rather than
-              tidy: reasoning models reject a temperature outright, so an agent that never chose one
-              must not have one sent on its behalf. A provider that does not implement a setting
-              ignores it. Reasoning itself is a capability, below.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <ModelSettingsForm
-              value={spec.model_settings}
-              onChange={(model_settings) => update({ model_settings })}
-              disabled={!canEdit}
-            />
-            <ThinkingSetting
-              definition={capabilities.find((entry) => entry.id === THINKING_ID)}
-              binding={spec.capabilities.find((binding) => binding.id === THINKING_ID)}
-              onToggle={() => toggleCapability(THINKING_ID)}
-              onChange={updateCapability}
-              disabled={!canEdit}
-            />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Capabilities</CardTitle>
-            <CardDescription>
-              What this agent can do. Anything that acts on the outside world needs a human approval
-              before it runs.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <CapabilityWorkbench
-              catalog={grantable}
-              selected={spec.capabilities}
-              onToggle={toggleCapability}
-              onChange={updateCapability}
-              disabled={!canEdit}
-            />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>MCP servers</CardTitle>
-            <CardDescription>
-              External tools this agent may call, from the servers{" "}
-              <Link href={ROUTES.MCP_SERVERS} className="underline">
-                your organization has connected
-              </Link>
-              . Only the organization&apos;s servers appear here - an agent everyone runs cannot
-              depend on whose credential is behind it, so a personal connection is refused at
-              publish.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <McpServerPicker
-              connections={mcpConnections}
-              catalog={mcpCatalog}
-              selectedIds={spec.mcp_server_ids}
-              onToggle={(connectionId) =>
-                update({ mcp_server_ids: toggleId(spec.mcp_server_ids, connectionId) })
-              }
-              disabled={!canEdit}
-            />
-            <p className="text-muted-foreground mt-4 text-xs">
-              Two limits worth knowing before you rely on this. Which of a server&apos;s tools are
-              exposed is set on the connection, so every agent bound to it gets the same ones - not
-              the per-agent choice the capabilities above offer. And MCP tools are outside the
-              approval gate entirely: an approval set on a capability does not cover them, so
-              anything these servers can do, this agent can do without asking.
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Collections</CardTitle>
-            <CardDescription>
-              What this agent may search. The model chooses what to look for; it can never widen
-              where it looks.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {collections.length === 0 && (
-              <p className="text-muted-foreground text-sm">No collections yet.</p>
-            )}
-            {collections.map((collection) => (
-              <label
-                key={collection.id}
-                className="hover:bg-muted/50 flex cursor-pointer items-center gap-3 rounded-md border p-3"
-              >
-                <input
-                  type="checkbox"
-                  aria-label={collection.name}
-                  checked={spec.collection_ids.includes(collection.id)}
-                  onChange={() =>
-                    update({ collection_ids: toggleId(spec.collection_ids, collection.id) })
-                  }
+              <div className="space-y-2">
+                <Label>Model</Label>
+                <ModelProfilePicker
+                  allowAdd
+                  profiles={profiles}
+                  value={spec.model_profile_id ?? null}
+                  onChange={(model_profile_id) => update({ model_profile_id })}
                   disabled={!canEdit}
                 />
-                <span className="text-sm">{collection.name}</span>
-              </label>
-            ))}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Skills</CardTitle>
-            <CardDescription>
-              Written know-how the agent loads only when it decides a skill is relevant, so twenty
-              skills cost almost nothing in context. Picking one gives the agent the tools to read
-              them - that used to be a separate capability somebody had to know to switch on, and
-              skills chosen without it were resolved and then dropped on the floor.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <SkillGallery
-              skills={skills}
-              total={skillCount}
-              selectedIds={spec.skill_ids}
-              onToggle={(skillId) => setSkills(toggleId(spec.skill_ids, skillId))}
-              disabled={!canEdit}
-            />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Run limits</CardTitle>
-            <CardDescription>
-              Two spending limits, because they fail differently: a per-run cap stops one runaway
-              conversation, a monthly cap stops a slow leak nobody is watching. The
-              organization&apos;s own limit still applies on top - an agent can tighten it, never
-              loosen it. The step limit is the third kind of runaway: a tool loop that is cheap per
-              call and never finishes.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="per-run">Max per run (USD)</Label>
-              <Input
-                id="per-run"
-                type="number"
-                step="0.01"
-                min="0"
-                value={spec.budget?.max_per_run_usd ?? ""}
-                disabled={!canEdit}
-                onChange={(event) =>
-                  update({
-                    budget: {
-                      ...spec.budget,
-                      max_per_run_usd: event.target.value ? Number(event.target.value) : null,
-                    },
-                  })
-                }
-                placeholder="No limit"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="monthly">Monthly (USD)</Label>
-              <Input
-                id="monthly"
-                type="number"
-                step="1"
-                min="0"
-                value={spec.budget?.monthly_usd ?? ""}
-                disabled={!canEdit}
-                onChange={(event) =>
-                  update({
-                    budget: {
-                      ...spec.budget,
-                      monthly_usd: event.target.value ? Number(event.target.value) : null,
-                    },
-                  })
-                }
-                placeholder="No limit"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="max-steps">Max steps per run</Label>
-              <Input
-                id="max-steps"
-                type="number"
-                step="1"
-                min="1"
-                max="200"
-                value={spec.max_steps ?? ""}
-                disabled={!canEdit}
-                onChange={(event) =>
-                  update({ max_steps: event.target.value ? Number(event.target.value) : null })
-                }
-                placeholder="50 (default)"
-              />
-              <p className="text-muted-foreground text-xs">
-                How many model requests one run may make. A tool loop hits this long before it costs
-                enough to hit a budget.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-        <ObservabilityCard
-          value={spec.observability}
-          onChange={(observability) => update({ observability })}
-          disabled={!canEdit}
-          agentName={spec.name}
-        />
-        <ExposuresPanel agentId={id} canManage={canPublish} />
-        <EmbedsPanel agentId={id} canManage={canPublish} />
-        <SharingPanel resourceType="agent" resourceId={id} canManage={canEdit} />
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <History className="h-4 w-4" />
-              Versions
-            </CardTitle>
-            <CardDescription>
-              Each publish freezes a spec. Runs record the version, so what an agent did last
-              Tuesday stays answerable after a dozen edits. Restoring publishes a new version copied
-              from the old one - the timeline shows that a rollback happened rather than pretending
-              the bad version never existed.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <VersionHistory
-              agentId={id}
-              versions={versions}
-              currentVersionId={agent.current_version_id}
-              draftSpec={spec}
-              canRestore={canPublish}
-              onRestore={(versionId) => rollback.mutate(versionId)}
-              restoring={rollback.isPending}
-            />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent runs</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {runs.length === 0 && <p className="text-muted-foreground text-sm">No runs yet.</p>}
-            {runs.slice(0, 10).map((agentRun) => (
-              <div
-                key={agentRun.id}
-                className="flex items-center justify-between gap-3 rounded-md border p-3 text-sm"
-              >
-                <RunStatusBadge status={agentRun.status} />
-                <span className="text-muted-foreground font-mono text-xs">
-                  {agentRun.model_label ?? "-"}
-                </span>
-                <span className="font-mono text-xs">
-                  ${Number(agentRun.cost_usd).toFixed(4)}
-                  {agentRun.cost_is_partial && (
-                    <span
-                      className="text-muted-foreground"
-                      title="A model in this run had no price; the cost is a floor"
-                    >
-                      {" "}
-                      +
-                    </span>
-                  )}
-                </span>
               </div>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Model settings</CardTitle>
+              <CardDescription>
+                How this agent asks its model to behave, on top of whatever the model profile
+                already sets. A setting nobody touches is not sent at all - that is deliberate
+                rather than tidy: reasoning models reject a temperature outright, so an agent that
+                never chose one must not have one sent on its behalf. A provider that does not
+                implement a setting ignores it. Reasoning itself is a capability, below.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <ModelSettingsForm
+                value={spec.model_settings}
+                onChange={(model_settings) => update({ model_settings })}
+                disabled={!canEdit}
+              />
+              <ThinkingSetting
+                definition={capabilities.find((entry) => entry.id === THINKING_ID)}
+                binding={spec.capabilities.find((binding) => binding.id === THINKING_ID)}
+                onToggle={() => toggleCapability(THINKING_ID)}
+                onChange={updateCapability}
+                disabled={!canEdit}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="toolbox" className="mt-4 space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Capabilities</CardTitle>
+              <CardDescription>
+                What this agent can do. Anything that acts on the outside world needs a human
+                approval before it runs.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <CapabilityWorkbench
+                catalog={grantable}
+                selected={spec.capabilities}
+                onToggle={toggleCapability}
+                onChange={updateCapability}
+                disabled={!canEdit}
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>MCP servers</CardTitle>
+              <CardDescription>
+                External tools this agent may call, from the servers{" "}
+                <Link href={ROUTES.MCP_SERVERS} className="underline">
+                  your organization has connected
+                </Link>
+                . Only the organization&apos;s servers appear here - an agent everyone runs cannot
+                depend on whose credential is behind it, so a personal connection is refused at
+                publish.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <McpServerPicker
+                connections={mcpConnections}
+                catalog={mcpCatalog}
+                selectedIds={spec.mcp_server_ids}
+                onToggle={(connectionId) =>
+                  update({ mcp_server_ids: toggleId(spec.mcp_server_ids, connectionId) })
+                }
+                disabled={!canEdit}
+              />
+              <p className="text-muted-foreground mt-4 text-xs">
+                Two limits worth knowing before you rely on this. Which of a server&apos;s tools are
+                exposed is set on the connection, so every agent bound to it gets the same ones -
+                not the per-agent choice the capabilities above offer. And MCP tools are outside the
+                approval gate entirely: an approval set on a capability does not cover them, so
+                anything these servers can do, this agent can do without asking.
+              </p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="knowledge" className="mt-4 space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Collections</CardTitle>
+              <CardDescription>
+                What this agent may search. The model chooses what to look for; it can never widen
+                where it looks.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {collections.length === 0 && (
+                <p className="text-muted-foreground text-sm">No collections yet.</p>
+              )}
+              {collections.map((collection) => (
+                <label
+                  key={collection.id}
+                  className="hover:bg-muted/50 flex cursor-pointer items-center gap-3 rounded-md border p-3"
+                >
+                  <input
+                    type="checkbox"
+                    aria-label={collection.name}
+                    checked={spec.collection_ids.includes(collection.id)}
+                    onChange={() =>
+                      update({ collection_ids: toggleId(spec.collection_ids, collection.id) })
+                    }
+                    disabled={!canEdit}
+                  />
+                  <span className="text-sm">{collection.name}</span>
+                </label>
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Skills</CardTitle>
+              <CardDescription>
+                Written know-how the agent loads only when it decides a skill is relevant, so twenty
+                skills cost almost nothing in context. Picking one gives the agent the tools to read
+                them - that used to be a separate capability somebody had to know to switch on, and
+                skills chosen without it were resolved and then dropped on the floor.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <SkillGallery
+                skills={skills}
+                total={skillCount}
+                selectedIds={spec.skill_ids}
+                onToggle={(skillId) => setSkills(toggleId(spec.skill_ids, skillId))}
+                disabled={!canEdit}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="limits" className="mt-4 space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Run limits</CardTitle>
+              <CardDescription>
+                Two spending limits, because they fail differently: a per-run cap stops one runaway
+                conversation, a monthly cap stops a slow leak nobody is watching. The
+                organization&apos;s own limit still applies on top - an agent can tighten it, never
+                loosen it. The step limit is the third kind of runaway: a tool loop that is cheap
+                per call and never finishes.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="per-run">Max per run (USD)</Label>
+                <Input
+                  id="per-run"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={spec.budget?.max_per_run_usd ?? ""}
+                  disabled={!canEdit}
+                  onChange={(event) =>
+                    update({
+                      budget: {
+                        ...spec.budget,
+                        max_per_run_usd: event.target.value ? Number(event.target.value) : null,
+                      },
+                    })
+                  }
+                  placeholder="No limit"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="monthly">Monthly (USD)</Label>
+                <Input
+                  id="monthly"
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={spec.budget?.monthly_usd ?? ""}
+                  disabled={!canEdit}
+                  onChange={(event) =>
+                    update({
+                      budget: {
+                        ...spec.budget,
+                        monthly_usd: event.target.value ? Number(event.target.value) : null,
+                      },
+                    })
+                  }
+                  placeholder="No limit"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="max-steps">Max steps per run</Label>
+                <Input
+                  id="max-steps"
+                  type="number"
+                  step="1"
+                  min="1"
+                  max="200"
+                  value={spec.max_steps ?? ""}
+                  disabled={!canEdit}
+                  onChange={(event) =>
+                    update({ max_steps: event.target.value ? Number(event.target.value) : null })
+                  }
+                  placeholder="100 (default)"
+                />
+                <p className="text-muted-foreground text-xs">
+                  How many model requests one run may make. A tool loop hits this long before it
+                  costs enough to hit a budget.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+          <ObservabilityCard
+            value={spec.observability}
+            onChange={(observability) => update({ observability })}
+            disabled={!canEdit}
+            agentName={spec.name}
+          />
+        </TabsContent>
+
+        <TabsContent value="availability" className="mt-4 space-y-6">
+          <ExposuresPanel agentId={id} canManage={canPublish} />
+          <EmbedsPanel agentId={id} canManage={canPublish} />
+          <SharingPanel resourceType="agent" resourceId={id} canManage={canEdit} />
+        </TabsContent>
+
+        <TabsContent value="history" className="mt-4 space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <History className="h-4 w-4" />
+                Versions
+              </CardTitle>
+              <CardDescription>
+                Each publish freezes a spec. Runs record the version, so what an agent did last
+                Tuesday stays answerable after a dozen edits. Restoring publishes a new version
+                copied from the old one - the timeline shows that a rollback happened rather than
+                pretending the bad version never existed.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <VersionHistory
+                agentId={id}
+                versions={versions}
+                currentVersionId={agent.current_version_id}
+                draftSpec={spec}
+                canRestore={canPublish}
+                onRestore={(versionId) =>
+                  // Restoring replaces the draft server-side; clearing the local
+                  // spec is the once-only adoption effect's cue to take the new one.
+                  rollback.mutate(versionId, { onSuccess: () => setSpec(null) })
+                }
+                restoring={rollback.isPending}
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Recent runs</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {runs.length === 0 && <p className="text-muted-foreground text-sm">No runs yet.</p>}
+              {runs.slice(0, 10).map((agentRun) => (
+                <div
+                  key={agentRun.id}
+                  className="flex items-center justify-between gap-3 rounded-md border p-3 text-sm"
+                >
+                  <RunStatusBadge status={agentRun.status} />
+                  <span className="text-muted-foreground font-mono text-xs">
+                    {agentRun.model_label ?? "-"}
+                  </span>
+                  <span className="font-mono text-xs">
+                    ${Number(agentRun.cost_usd).toFixed(4)}
+                    {agentRun.cost_is_partial && (
+                      <span
+                        className="text-muted-foreground"
+                        title="A model in this run had no price; the cost is a floor"
+                      >
+                        {" "}
+                        +
+                      </span>
+                    )}
+                  </span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

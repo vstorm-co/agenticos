@@ -134,12 +134,15 @@ describe("the capability workbench", () => {
     expect(screen.queryByRole("group", { name: "Skills" })).not.toBeInTheDocument();
   });
 
-  it("offers the whole description the model reads, not its first line", async () => {
+  it("offers the whole description the model reads, not its first line", () => {
+    // The description editor holds the full contract text: an override
+    // replaces everything the model is told, so editing a summary-only field
+    // would silently drop the rest.
     renderWorkbench({ selected: [binding("charts")] });
 
-    await userEvent.click(screen.getByText("Full description the model reads"));
-
-    expect(screen.getByText(/give every row a numeric x and y/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Description the model reads")).toHaveValue(
+      "Draw a chart of numbers you already have.\n\nFor a scatter chart, give every row a numeric x and y.",
+    );
   });
 
   it("names the arguments the model has to fill in", async () => {

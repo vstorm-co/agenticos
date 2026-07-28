@@ -43,10 +43,11 @@ from app.core.secret_kinds import ApiKeySecret, StorableSecret
 
 logger = logging.getLogger(__name__)
 
-# How many model requests a run may make when its spec does not say. Matches
-# Pydantic AI's own default, so making the limit explicit did not quietly change
-# what every existing agent was already running under.
-DEFAULT_MAX_STEPS = 50
+# How many model requests a run may make when its spec does not say. Raised
+# from Pydantic AI's own 50: real agents with skills and MCP tools were hitting
+# the ceiling mid-task, and the budget caps are what guard cost - this guards
+# only the never-finishing loop, which 100 still catches.
+DEFAULT_MAX_STEPS = 100
 
 
 @dataclass
