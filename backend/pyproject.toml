@@ -1,0 +1,495 @@
+[project]
+name = "agenticos"
+version = "0.1.0"
+description = "OS for your agents."
+requires-python = ">=3.12"
+license = { text = "Apache-2.0" }
+authors = [
+    { name = "DEENUU1", email = "kacper.wlodarczyk@vstorm.co" },
+]
+
+dependencies = [
+    # Pinned below 0.137, and verified on 0.140.7: a router included with a
+    # prefix whose routes are declared as `path=""` — which is every collection
+    # endpoint in this API — is silently dropped. The app came up serving 5
+    # routes instead of 231, with no error. Re-test before lifting this; the
+    # alternative is trailing slashes on every collection URL, which is a
+    # breaking change to the public API to work around somebody else's bug.
+    "fastapi>=0.135.3,<0.137",
+    "uvicorn[standard]>=0.43.0",
+    "pydantic[email]>=2.12.0",
+    "pydantic-settings>=2.14.2",
+    "python-multipart>=0.0.20",
+    "logfire[fastapi,asyncpg,redis,httpx]>=4.30.0",
+    "sqlalchemy[asyncio]>=2.0.40",
+    "asyncpg>=0.31.0",
+    "psycopg2-binary>=2.9.0",
+    "alembic>=1.18.0",
+    "greenlet>=3.2.0",
+    # HMAC HS256 only — no asymmetric keys, no `cryptography` extra.
+    "pyjwt>=2.9.0",
+    "bcrypt>=4.0.0",
+    "python-multipart>=0.0.12",
+    "authlib>=1.3.0",
+    "httpx>=0.28.0",
+    "redis>=5.2.0",
+    "fastapi-cache2>=0.2.2",
+    # fastapi_cache imports starlette.templating which requires Jinja2 even
+    # when no templates are rendered.
+    "jinja2>=3.1.0",
+    "slowapi>=0.1.9",
+    "aiosmtplib>=3.0.0",
+    "itsdangerous>=2.2.0",
+    "prefect>=3.4.0",
+    "pydantic-ai-slim[openrouter,anthropic,google,duckduckgo,web-fetch,groq,mistral,cohere,huggingface,xai]>=1.80.0",
+    # Model prices. Arrives transitively with pydantic-ai-slim, but the budget
+    # capability imports it directly, and a direct import is a direct dependency
+    # — otherwise a change upstream can drop it and the cost tracker with it.
+    "genai-prices>=0.0.72",
+    # MCP client transports + toolset support (Settings → Integrations).
+    "pydantic-ai-slim[mcp]>=1.80.0",
+    # Mattermost's event stream. Arrives transitively with uvicorn today;
+    # named here because a channel adapter depends on it directly, and a
+    # transitive dependency is one somebody else may drop.
+    "websockets>=15.0",
+    # Vector store
+    # pgvector uses existing asyncpg + sqlalchemy (no extra dep needed)
+    # Text splitting
+    "langchain-text-splitters>=0.4.0",
+    # BM25 for hybrid search
+    "rank-bm25>=0.2.2",
+    # Uses existing openai dependency
+    "pymupdf>=1.25.0",
+    "pillow>=10.0.0",
+    "python-docx>=1.1.0",
+    "llama-cloud>=1.0.0",
+    "liteparse>=0.1.0",
+    "google-api-python-client>=2.0.0",
+    "google-auth>=2.0.0",
+    "boto3>=1.42.0",
+    "httpx>=0.28.0",
+    "click>=8.1.0",
+    "tabulate>=0.9.0",
+    "tqdm>=4.66.0",
+    "tavily-python>=0.5.0",
+    "matplotlib>=3.9.0",
+    "pydantic-monty>=0.0.19",
+    "pydantic-ai-skills>=0.11.0",
+    "cryptography>=44.0.0",
+    "aiogram>=3.17,<4.0",
+    "slack-sdk>=3.35.0",
+]
+
+# PEP 735 dependency group — installed by `uv sync` / `uv sync --dev` and
+# excluded by `--no-dev`. (A `dev` extra under [project.optional-dependencies]
+# only installed via uv's deprecated dev-extra special-casing, so `uv sync --dev`
+# could skip it on some uv versions and leave pre-commit/ruff/ty unspawnable.)
+[dependency-groups]
+dev = [
+    "pytest>=9.0.0",
+    "anyio[trio]>=4.9.0",
+    "pytest-cov>=6.1.0",
+    "httpx>=0.28.0",
+    "ruff>=0.15.0",
+    "ty>=0.0.29",
+    "pre-commit>=4.0.0",
+]
+
+[project.scripts]
+agenticos = "cli.commands:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app", "cli"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+# The rule set is deliberately wide. A linter that only catches formatting is a
+# linter people stop reading; these are the categories that catch real defects
+# in an async, multi-tenant service — swallowed exceptions, blocking calls in a
+# coroutine, mutable defaults, SQL built by string concatenation.
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear — mutable defaults, unused loop vars, except sequencing
+    "C4",   # flake8-comprehensions
+    "UP",   # pyupgrade
+    "SIM",  # flake8-simplify
+    "RUF",  # ruff-specific
+    "ASYNC",# flake8-async — blocking calls inside coroutines
+    "S",    # flake8-bandit — the security rules that are not noise
+    "A",    # flake8-builtins — shadowing `id`, `type`, `list`
+    "DTZ",  # flake8-datetimez — naive datetimes, which corrupt spend windows
+    "T20",  # flake8-print — stray print() in a service
+    "LOG",  # flake8-logging — logger misuse
+    "G",    # flake8-logging-format — f-strings in log calls
+    "PIE",  # flake8-pie
+    "RET",  # flake8-return
+    "TID",  # flake8-tidy-imports
+    "PTH",  # flake8-use-pathlib
+    "ERA",  # eradicate — commented-out code
+    "TRY",  # tryceratops — swallowed and over-broad exception handling
+]
+ignore = [
+    "E501",   # line length is the formatter's job
+    "E402",   # module-level import not at top — the template's conditional imports
+    "B008",   # call in a default argument — this is how FastAPI Depends works
+    "B905",   # zip() without strict=
+    "RUF012", # mutable class attribute without ClassVar
+    "RUF059", # unpacked variable never used
+    "TRY003", # long message outside the exception class — our errors carry context
+    "TRY400", # logger.error vs logger.exception — both are used deliberately
+    "S101",   # assert — used in tests, and allowed there by the per-file rules
+    # S105/S106 fire on any identifier containing "token", "password" or
+    # "secret". In an auth service that is `token_type="bearer"`, an enum member
+    # named TOKEN, and a help string called token_hint. The signal-to-noise
+    # ratio makes the rule unreadable rather than useful; real secret handling
+    # is covered by the vault tests, which assert no key reaches a response.
+    "S105",
+    "S106",
+    # Our own async surface is fully typed; ASYNC109/240 fire on the template's
+    # RAG pipeline, where a `timeout` parameter and pathlib are deliberate and
+    # rewriting them is a separate piece of work.
+    "ASYNC109",
+    "ASYNC240",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests legitimately do things production code must not: assert, hardcoded
+# credentials in fixtures, reaching into private helpers to pin a branch.
+# Migrations are generated-ish and read top to bottom; the usual structural
+# rules make them harder to follow, not easier.
+"alembic/**" = ["ERA001", "S608"]
+# Postgres cannot parameterise an identifier, so a table name must be
+# interpolated. `_validate_collection_name` rejects anything but
+# [a-zA-Z0-9_] before it reaches a query, and every *value* is bound. This is
+# the correct pattern, not an exception to it.
+"app/services/rag/vectorstore.py" = ["S608"]
+# FastAPI exception handlers run while sys.exc_info() is still set, so
+# logger.exception() captures the traceback correctly here despite not being
+# lexically inside an `except` block.
+"app/api/exception_handlers.py" = ["LOG004"]
+# "id" shadows the builtin, but it is the registry's vocabulary and what agent
+# specs store. Any other name would read worse at every call site.
+"app/agents/capabilities/_registry.py" = ["A002"]
+# Fixture helpers name their parameter `id` to mirror the model they stand in
+# for; renaming it would make the fixtures read less like the thing they mock.
+# Fixture and stub classes name their parameter `id` to mirror the model they
+# stand in for; renaming it would make them read less like the thing they mock.
+# Also relaxed here: the style rules whose whole value is readability in long
+# production functions, which short test bodies do not have.
+"tests/**" = [
+    "S105",
+    "S106",
+    # A default like `password="secret"` in a fixture helper is the fixture, not
+    # a leak. Real secret handling is asserted in tests/test_vault.py.
+    "S107",
+    "S311",
+    # tests/test_migrations.py shells out to alembic on purpose; the "untrusted
+    # input" is a literal argv this file wrote.
+    "S603",
+    # tests/test_ssrf.py names 0.0.0.0 because refusing to reach it is the
+    # behaviour under test.
+    "S104",
+    "A002",
+    "TRY300",
+    "RET504",
+    "PLR2004",
+    "SLF001",
+]
+# The RAG pipeline came with the generator. `filter` as a parameter name, md5
+# as a cache key (not a security primitive) and two blocking reads inside
+# third-party SDK calls are its debt, tracked rather than silently accepted:
+# they move out of this list when that subsystem is rewritten.
+"app/services/rag/retrieval.py" = ["A002", "S324"]
+"app/services/file_upload.py" = ["ASYNC230", "TRY300", "PTH123", "PTH108"]
+# Template-inherited subsystems. These are readability rules whose value is
+# real but whose cost right now is churn in code we did not design and are not
+# yet responsible for. They lift file by file as each subsystem is rewritten —
+# the list shrinking is the progress marker.
+"app/core/sanitize.py" = ["TRY300", "TRY301", "PTH119", "S107"]
+"app/services/agent.py" = ["TRY300", "TRY301"]
+"app/services/channels/telegram.py" = ["TRY300", "S107"]
+"app/services/rag/ingestion.py" = ["TRY300", "PTH123"]
+"app/services/rag/documents.py" = ["PTH123"]
+"app/services/rag/sources/google_drive.py" = ["ASYNC230", "PTH123"]
+"app/worker/tasks/rag_tasks.py" = ["TRY300"]
+"app/clients/redis.py" = ["TRY300"]
+"app/core/security.py" = ["TRY300"]
+"app/commands/seed.py" = ["S311"]
+# A polling loop that exits on a flag rather than an Event, and one more
+# blocking read inside a Google SDK call. Same tracked debt as the rest of the
+# generator's channel and connector code.
+"app/services/channels/slack.py" = ["ASYNC110"]
+"app/services/rag/connectors/google_drive.py" = ["PTH123"]
+# The CLI binds 0.0.0.0 because that is what a container needs, and its
+# command bodies read fine as try/except/return.
+"cli/**" = ["S104", "TRY300"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app", "cli"]
+
+[tool.ty.terminal]
+# The "warn" rules below are informational — don't let them fail `ty check`.
+# The platform-layer override further down promotes them back to errors for our
+# own code, and those do fail the run.
+error-on-warning = false
+
+[tool.ty.environment]
+python-version = "3.12"
+
+[tool.ty.src]
+# `app/commands/` used to be here, which quietly took `app/commands/bootstrap.py`
+# — a gated platform module — out of the checker altogether. An exclusion that
+# hides one of the files the gate is supposed to cover is worth 23 warnings from
+# the generator's other commands.
+exclude = [
+    "alembic/",
+    "tests/",
+    "cli/",
+]
+
+[tool.ty.rules]
+# FastAPI Depends() injects at runtime — default=None on typed params is intentional
+invalid-parameter-default = "warn"
+# Starlette/FastAPI handler signatures use Union types that ty flags
+invalid-argument-type = "warn"
+# ORM models with Optional fields trigger on attribute assignment
+invalid-assignment = "warn"
+# Callable[..., Any] doesn't expose __name__ but function objects do
+unresolved-attribute = "warn"
+# datetime.utcnow deprecation warnings
+deprecated = "warn"
+# Optional deps imported inside try/except (pymupdf, docx, faker) and
+# feature-gated models referenced best-effort by the admin dashboard. These are
+# expected to be absent in some configs, so don't surface them at all.
+unresolved-import = "ignore"
+# dict() overload matching on dynamic types from validators
+no-matching-overload = "warn"
+# Template uses mypy-style `# type: ignore` comments which ty doesn't recognize
+unused-type-ignore-comment = "warn"
+# A `# ty: ignore` needed in one database/feature config can be unused in
+# another generated from the same template — don't fail on that.
+unused-ignore-comment = "ignore"
+# Operations on Unknown types from untyped libraries (pymupdf, etc.)
+unsupported-operator = "warn"
+# Third-party libs (langchain, redis-py) ship without complete type stubs;
+# kwargs that work at runtime are flagged as unknown.
+unknown-argument = "warn"
+# redis-py / asyncio overloads return Awaitable[T] | T which ty rejects as awaitable
+invalid-await = "warn"
+# sessionmaker(class_=AsyncSession) returns sync sessionmaker per overloads
+# but the resulting callable still produces an async context manager.
+invalid-context-manager = "warn"
+# Helpers like get_agent accept **kwargs but their stubs only list specific params
+missing-argument = "warn"
+# LangChain BaseMessage subclasses (AIMessage etc.) carry tool_calls only on
+# specific subclasses; ty cannot narrow via hasattr().
+not-iterable = "warn"
+# Return-type widening for langgraph .compile() (StateGraph vs CompiledStateGraph)
+invalid-return-type = "warn"
+# LangGraph/DeepAgents runtime classes use kwargs that ty stubs don't enumerate
+invalid-type-form = "warn"
+
+# Every rule above is downgraded because of a library we did not choose and do
+# not own. None of those reasons apply to the code we wrote, so the platform
+# layer — everything AgenticOS adds on top of the generated template — gets them
+# back as errors, and `ty check` can fail a build again.
+#
+# The list below is `[tool.coverage.run] include`, verbatim and in the same
+# order. It is the same definition of "ours" for both gates on purpose: a module
+# held to 100% coverage is held to the type checker too, and a module added to
+# one list belongs in the other. `tests/test_coverage_gate.py` keeps the two
+# from drifting.
+[[tool.ty.overrides]]
+include = [
+    "app/agents/**",
+    "app/commands/bootstrap.py",
+    "app/core/permissions.py",
+    "app/core/secret_kinds.py",
+    "app/core/vault.py",
+    "app/core/background.py",
+    "app/services/access.py",
+    "app/services/agent_chat.py",
+    "app/services/agent_exposure.py",
+    "app/services/agent_registry.py",
+    "app/services/agent_runner.py",
+    "app/services/channels/mentions.py",
+    "app/services/collection_access.py",
+    "app/services/approvals.py",
+    "app/services/health.py",
+    "app/services/email/templates.py",
+    "app/services/ingestion_config.py",
+    # Who hears that a run stopped on its budget or parked on an approval. The
+    # emails are the only signal for a run nobody was watching — a Slack
+    # mention, a schedule — so a silent failure here is indistinguishable from
+    # an agent that simply had nothing to say.
+    "app/services/notifications.py",
+    "app/services/mcp_catalog.py",
+    "app/services/mcp_connection.py",
+    "app/services/model_profile.py",
+    "app/services/organization_secret.py",
+    "app/services/sharing.py",
+    "app/services/skills.py",
+    "app/repositories/agent_exposure.py",
+    "app/repositories/mcp_connection.py",
+    "app/repositories/organization_secret.py",
+    "app/repositories/resource_grant.py",
+    "app/api/routes/v1/_sharing_routes.py",
+    "app/api/routes/v1/secrets.py",
+    "app/api/routes/v1/agent_exposures.py",
+    "app/api/routes/v1/sharing.py",
+]
+# The template's `app/agents/assistant.py`, `mcp.py` and `mcp_oauth.py` are
+# omitted from the coverage gate for the same reason they are not held here:
+# they are the legacy chat path, slated for replacement by the agent factory.
+exclude = [
+    "app/agents/assistant.py",
+    "app/agents/mcp.py",
+    "app/agents/mcp_oauth.py",
+]
+
+[tool.ty.overrides.rules]
+invalid-parameter-default = "error"
+invalid-argument-type = "error"
+invalid-assignment = "error"
+unresolved-attribute = "error"
+deprecated = "error"
+no-matching-overload = "error"
+unused-type-ignore-comment = "error"
+unsupported-operator = "error"
+unknown-argument = "error"
+invalid-await = "error"
+invalid-context-manager = "error"
+missing-argument = "error"
+not-iterable = "error"
+invalid-return-type = "error"
+invalid-type-form = "error"
+# An ignore comment that has stopped suppressing anything is the failure mode
+# this whole section exists to prevent, one line wide. In our own code it is an
+# error, so a fixed stub or a rewritten call forces the comment out with it.
+unused-ignore-comment = "error"
+# The global "ignore" is for the template's optional parsers (pymupdf, docx,
+# faker), which are genuinely absent in some configurations. Nothing the
+# platform layer imports is optional, so here a name that does not resolve is a
+# typo or a dependency somebody dropped, and both should stop the build.
+unresolved-import = "error"
+
+# The framework agent wrappers (langchain/langgraph/deepagents/pydantic-deep)
+# are thin adapters over heavily-untyped third-party libraries — LangGraph's
+# Pregel.ainvoke/astream, create_agent/create_deep_agent overloads, RunnableConfig
+# TypedDicts, Agent[...] generic variance. ty can't reconcile their stubs, but the
+# calls are correct at runtime; silence those rule families in the adapters only
+# (name-resolution rules stay on, so real typos are still caught).
+[[tool.ty.overrides]]
+include = ["app/agents/*_assistant.py"]
+
+[tool.ty.overrides.rules]
+invalid-argument-type = "ignore"
+no-matching-overload = "ignore"
+invalid-return-type = "ignore"
+invalid-assignment = "ignore"
+unknown-argument = "ignore"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+
+
+[tool.fastapi-fullstack]
+generator_version = "0.2.17"
+generated_at = "2026-07-26T18:01:04.489757+00:00"
+
+[tool.coverage.run]
+# `source` must be packages or directories — coverage silently ignores a file
+# path here, which is how a whole module can sit in this list and never be
+# measured. The platform layer is therefore selected with `include` globs,
+# which do accept files, and CI asserts the measured set matches.
+# `include` rather than `source`: `source` accepts only packages and
+# directories, and silently ignores a file path — which is how a module can sit
+# in this list and never be measured at all. `include` does accept files.
+#
+# The trade-off is that `include` only reports files that were imported, so a
+# platform module nobody imports would drop out just as quietly. That is what
+# tests/test_coverage_gate.py exists to catch.
+include = [
+    "app/agents/**",
+    "app/commands/bootstrap.py",
+    "app/core/permissions.py",
+    "app/core/secret_kinds.py",
+    "app/core/vault.py",
+    "app/core/background.py",
+    "app/services/access.py",
+    "app/services/agent_chat.py",
+    "app/services/agent_exposure.py",
+    "app/services/agent_registry.py",
+    "app/services/agent_runner.py",
+    "app/services/channels/mentions.py",
+    "app/services/collection_access.py",
+    "app/services/approvals.py",
+    # The health probes are ours: the template's version reported a hardcoded
+    # "unknown" for the vector store and read environment variables for a
+    # provider check. A probe nobody has watched fail is not a probe, which is
+    # why this module is gated rather than reported.
+    "app/services/health.py",
+    # Template-inherited, gated anyway. Its fixed `emails/compiled` path pointed
+    # at a directory that never existed, so every email raised
+    # EmailTemplateError — and every caller logs and swallows that, so
+    # registration returned 201 while sending nothing. A pure module whose
+    # silent failure costs the product all of its mail is worth the bar; there
+    # is nothing to mock to reach it.
+    "app/services/email/templates.py",
+    # How a collection parses, chunks and describes its documents. Template
+    # code decides *how* to run a parser; this decides *which* one runs, for
+    # whose collection, on whose model credential — which is platform layer,
+    # and is the difference between a setting and a policy.
+    "app/services/ingestion_config.py",
+    # Who hears that a run stopped on its budget or parked on an approval. The
+    # emails are the only signal for a run nobody was watching — a Slack
+    # mention, a schedule — so a silent failure here is indistinguishable from
+    # an agent that simply had nothing to say.
+    "app/services/notifications.py",
+    "app/services/mcp_catalog.py",
+    "app/services/mcp_connection.py",
+    "app/services/model_profile.py",
+    "app/services/organization_secret.py",
+    "app/services/sharing.py",
+    "app/services/skills.py",
+    "app/repositories/agent_exposure.py",
+    "app/repositories/mcp_connection.py",
+    "app/repositories/organization_secret.py",
+    "app/repositories/resource_grant.py",
+    "app/api/routes/v1/_sharing_routes.py",
+    "app/api/routes/v1/secrets.py",
+    "app/api/routes/v1/agent_exposures.py",
+    "app/api/routes/v1/sharing.py",
+]
+branch = true
+omit = [
+    # Template-inherited and slated for replacement by the agent path:
+    # `assistant.py` is the legacy generic chat, `mcp*.py` the per-user MCP
+    # client, `ask_user_tool` its interactive prompt. They move into the gate
+    # when the WebSocket chat is rebuilt on the factory; testing them now would
+    # mean investing in code with a known end date.
+    "app/agents/assistant.py",
+    "app/agents/mcp.py",
+    "app/agents/mcp_oauth.py",
+]
+
+[tool.coverage.report]
+fail_under = 100
+show_missing = true
+skip_covered = true
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "@overload",
+]

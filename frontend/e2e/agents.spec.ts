@@ -1,0 +1,530 @@
+import type { Locator, Page } from "@playwright/test";
+
+import { expect, test } from "./fixtures";
+
+import {
+  AUTH_STATE,
+  CAPABILITY_TOOL,
+  CAPABILITY_WITH_TOOLS,
+  DRAFT_AGENT_NAME,
+  RENAMED_TOOL,
+  SEEDED_AGENT_HANDLE,
+  SEEDED_AGENT_NAME,
+  SEEDED_MODEL_LABEL,
+  SEEDED_ORG_MCP_NAME,
+  SEEDED_SECRET_HINT,
+  SEEDED_SECRET_NAME,
+  agentCard,
+  expectNoRenderedSecret,
+  openAgent,
+  pageHeading,
+} from "./helpers";
+
+/**
+ * The entry for one capability in the Builder's list, which is what opens its
+ * panel.
+ *
+ * Anchored to the start of the accessible name because the entry prints its
+ * tool count after the name ("Knowledge search 1 tool") and because the panel
+ * for a capability nobody has granted offers a button called "Give this agent
+ * Knowledge search" — the same words, a different control.
+ */
+function capabilityEntry(page: Page, name: string): Locator {
+  return page.getByRole("button", { name: new RegExp(`^${name}\\b`) });
+}
+
+/**
+ * The panel the Builder shows for one capability, opened first.
+ *
+ * The Builder is master–detail now: one panel at a time, for whichever
+ * capability is focused, and switching a capability on deliberately does not
+ * focus it — reading what a capability offers and granting it are different
+ * gestures. Nothing is focused after a reload either, so the click is what
+ * makes the panel below the one a spec means rather than whichever one the
+ * component's fallback happened to pick.
+ */
+async function capabilityPanel(page: Page, name: string): Promise<Locator> {
+  await capabilityEntry(page, name).click();
+  const panel = page.getByRole("group", { name, exact: true });
+  await expect(panel).toBeVisible();
+  return panel;
+}
+
+/**
+ * The row for `CAPABILITY_TOOL`, read off whatever is currently on screen.
+ *
+ * Found by the tool's stable id, which is what the row is labelled with — the
+ * name printed in it is editable, and one of the specs below edits it.
+ */
+async function toolRow(page: Page): Promise<Locator> {
+  const panel = await capabilityPanel(page, CAPABILITY_WITH_TOOLS);
+  const row = panel.getByRole("listitem", { name: CAPABILITY_TOOL });
+  await expect(row).toBeVisible();
+  return row;
+}
+
+/** The checkbox that grants one capability, by the name it is labelled with. */
+function capabilityCheckbox(page: Page, name: string): Locator {
+  return page.getByRole("checkbox", { name: `Give this agent ${name}`, exact: true });
+}
+
+/** The Builder, open on the draft agent with the tool-bearing capability on. */
+async function openToolRow(page: Page): Promise<Locator> {
+  await openAgent(page, DRAFT_AGENT_NAME);
+
+  const capability = capabilityCheckbox(page, CAPABILITY_WITH_TOOLS);
+  await expect(capability).toBeVisible();
+  // These specs save the draft, so a second run opens an agent that already has
+  // the capability on — clicking then would switch it off.
+  if ((await capability.getAttribute("aria-checked")) !== "true") {
+    await capability.click();
+    await expect(capability).toHaveAttribute("aria-checked", "true");
+  }
+
+  return await toolRow(page);
+}
+
+/**
+ * As much of a catalog entry as the secret spec below reads.
+ *
+ * Deliberately not the app's `CapabilityCatalogEntry`: this suite talks to the
+ * API over HTTP and asserts on what came back, so a type imported from the code
+ * under test would make a field the API stopped sending a compile-time fact
+ * rather than a failing test.
+ */
+interface CatalogEntry {
+  name: string;
+  requires_secret: { kind: string; description: string } | null;
+}
+
+type NeedsSecret = CatalogEntry & { requires_secret: { kind: string; description: string } };
+
+/** The Builder's own word for "what is on screen is not what the server holds". */
+function unsaved(page: Page): Locator {
+  return page.getByText("unsaved");
+}
+
+async function saveDraft(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await expect(unsaved(page)).toBeHidden();
+}
+
+test.use({ storageState: AUTH_STATE });
+
+/**
+ * The Builder, on its own.
+ *
+ * The end-to-end path an agent takes — key, model, capability, publish, run —
+ * lives in `journey.spec.ts`. What is checked here is the smaller promise the
+ * Builder makes on every visit: it lists the agents that exist, it will not let
+ * you create a nameless one, and it will not offer to chat with something
+ * nobody published.
+ */
+
+test.describe("Agents", () => {
+  test("lists the agent the seed published, by name and by handle", async ({ page }) => {
+    await page.goto("/agents");
+    await expect(pageHeading(page, "Agents")).toBeVisible();
+
+    // The handle, not just the name: it is what the agent is addressed by from
+    // Slack and the API, it is derived from the name once and then frozen, and
+    // it is the one string on this card nobody could have typed by accident.
+    const card = agentCard(page, SEEDED_AGENT_HANDLE);
+    await expect(card).toBeVisible();
+    await expect(card).toContainText(SEEDED_AGENT_NAME);
+    await expect(card).toContainText("published");
+
+    // Offered only to a role the permission catalog says may create agents, so
+    // its presence also says /me/permissions answered.
+    await expect(page.getByRole("button", { name: "New agent" })).toBeVisible();
+  });
+
+  test("creating an agent requires a name", async ({ page }) => {
+    await page.goto("/agents");
+    await expect(pageHeading(page, "Agents")).toBeVisible();
+
+    await page.getByRole("button", { name: "New agent" }).click();
+
+    const dialog = page.getByRole("dialog");
+    const create = dialog.getByRole("button", { name: "Create", exact: true });
+
+    // The name becomes the handle the agent is mentioned by and cannot be
+    // changed afterwards, so an empty one has to be refused up front rather
+    // than corrected later.
+    await expect(create).toBeDisabled();
+
+    await dialog.getByLabel("Name").fill("   ");
+    await expect(create).toBeDisabled();
+
+    await dialog.getByLabel("Name").fill("E2E Support");
+    await expect(create).toBeEnabled();
+  });
+
+  test("a name whose handle is taken is refused on the field, not in a toast", async ({ page }) => {
+    // The whole journey, end to end: the browser derives a handle, the server
+    // refuses it, the proxy carries the refusal back with its status and body
+    // intact, and the dialog puts it under the input that produced it. Every
+    // link is somewhere else — a unit test can prove the dialog renders what it
+    // is handed and nothing more.
+    await page.goto("/agents");
+    await expect(pageHeading(page, "Agents")).toBeVisible();
+    // Asserted against the seed rather than against whatever is in the
+    // database: the name typed below has to be one that provably exists.
+    await expect(agentCard(page, SEEDED_AGENT_HANDLE)).toBeVisible();
+
+    await page.getByRole("button", { name: "New agent" }).click();
+    const dialog = page.getByRole("dialog");
+    const name = dialog.getByLabel("Name");
+
+    await name.fill(SEEDED_AGENT_NAME);
+    // Before anything is sent: the handle the name will produce is on screen,
+    // which is what makes the refusal below legible rather than a message about
+    // a value nobody entered.
+    await expect(dialog.getByText(SEEDED_AGENT_HANDLE, { exact: true })).toBeVisible();
+
+    await dialog.getByLabel("Description").fill("A second one, which should not be created.");
+    await dialog.getByRole("button", { name: "Create", exact: true }).click();
+
+    // Beside the field and marked on the control, not a red toast that leaves
+    // nothing behind — and naming the handle rather than the name, because the
+    // handle is what was refused and what has to change.
+    await expect(
+      dialog.getByText(new RegExp(`${SEEDED_AGENT_HANDLE} is already taken`)),
+    ).toBeVisible();
+    await expect(name).toHaveAttribute("aria-invalid", "true");
+
+    // Still on the form, still filled in, and nothing was created — a refusal
+    // that cost a keystroke rather than the whole dialog.
+    await expect(name).toHaveValue(SEEDED_AGENT_NAME);
+    await expect(dialog.getByLabel("Description")).toHaveValue(
+      "A second one, which should not be created.",
+    );
+    await expect(page).toHaveURL(/\/agents$/);
+
+    // And it stops being wrong the moment the name does.
+    await name.fill(`${SEEDED_AGENT_NAME} 2`);
+    await expect(name).not.toHaveAttribute("aria-invalid", "true");
+  });
+
+  test("the builder opens on the agent's stored configuration", async ({ page }) => {
+    await openAgent(page, SEEDED_AGENT_NAME);
+
+    // Every one of these came back from the API rather than from a default: the
+    // published state, the description bootstrap wrote, the instructions the
+    // model will actually be given, and the named model a run bills against. A
+    // Builder that renders its shell while the agent fails to load shows the
+    // same headings and none of this.
+    await expect(pageHeading(page)).toContainText("published");
+    await expect(page.getByText("Explains what this platform does")).toBeVisible();
+
+    await expect(page.getByRole("textbox", { name: "Instructions" })).toHaveValue(
+      /You are a helpful assistant running on AgenticOS/,
+    );
+
+    // The model is a list of the organization's profiles now, and the profile
+    // this agent names is the one that must be marked — not merely present.
+    // "Organization default" resolves to the same profile in this deployment,
+    // so a Builder that dropped `model_profile_id` and fell back would render
+    // the same two rows and only differ in which one carries the mark.
+    await expect(
+      page.getByRole("radio", { name: SEEDED_MODEL_LABEL, exact: true }),
+    ).toHaveAttribute("aria-checked", "true");
+    await expect(capabilityCheckbox(page, "Date and time")).toHaveAttribute("aria-checked", "true");
+  });
+
+  test("an unpublished agent cannot be opened in chat", async ({ page }) => {
+    // A draft is the only thing that proves anything here; opening whichever
+    // agent happens to be first would pass or fail on the seed rather than on
+    // the behaviour. `seed.setup.ts` creates one, so this never has to skip.
+    await openAgent(page, DRAFT_AGENT_NAME);
+    await expect(pageHeading(page)).toContainText("draft");
+
+    // The chat runs the published version and its picker offers nothing else, so
+    // a draft has nothing to open — and the control says what unlocks it rather
+    // than dropping the reader into a chat that would answer as somebody else.
+    const openInChat = page.getByRole("button", { name: "Open in chat" });
+    await expect(openInChat).toBeDisabled();
+    await expect(openInChat).toHaveAttribute("title", /Publish this agent/);
+  });
+
+  test("a published agent opens in a chat addressed to it", async ({ page }) => {
+    await openAgent(page, SEEDED_AGENT_NAME);
+    await expect(pageHeading(page)).toContainText("published");
+
+    await page.getByRole("button", { name: "Open in chat" }).click();
+    // Generous, because the client router commits the URL only once /chat has
+    // been fetched — against a dev server that is a first compile, not a hang.
+    await expect(page).toHaveURL(/\/chat$/, { timeout: 30_000 });
+
+    // The URL is not the assertion — landing on /chat with the general
+    // assistant selected would be the failure this replaced the Test tab to
+    // avoid. Who answers is its own control beside the composer now, and it is
+    // labelled with whoever that is, so this is the proof that the agent came
+    // along rather than only the navigation.
+    await expect(
+      page.getByRole("button", { name: `Agent: ${SEEDED_AGENT_NAME}`, exact: true }),
+    ).toBeVisible();
+  });
+
+  test("one tool can be held for approval while the rest of its capability is not", async ({
+    page,
+  }) => {
+    // The only spec that can prove this: jsdom cannot open a Radix select, so
+    // the unit tests assert that a stored mode reaches the control and stop
+    // there. Everything below the click — the spec the Builder assembles, the
+    // draft the API stores, the spec it hands back — is only exercised here.
+    const tool = await openToolRow(page);
+
+    // Establish the starting state rather than assume it. This test asserts on
+    // a *transition* — an unsaved change appearing — so it needs the override
+    // absent to begin with. Cleaning up at the end is not enough: a run that
+    // fails before its teardown leaves the next one with nothing to change,
+    // and then the suite fails for a reason that has nothing to do with the
+    // behaviour under test.
+    if (!(await tool.getByRole("combobox").textContent())?.includes("Follow the capability")) {
+      await tool.getByRole("combobox").click();
+      await page.getByRole("option", { name: "Follow the capability" }).click();
+      await saveDraft(page);
+    }
+
+    await tool.getByRole("combobox").click();
+    await page.getByRole("option", { name: "Always ask" }).click();
+    await expect(tool.getByText("overridden")).toBeVisible();
+
+    // Only then is there anything to save: the badge in the title is the
+    // Builder saying the draft on screen differs from the one on the server.
+    await expect(unsaved(page)).toBeVisible();
+    await saveDraft(page);
+
+    await page.reload();
+
+    // Re-read from scratch, because the point is what came back from the API
+    // rather than what React still had in memory.
+    const saved = await toolRow(page);
+    await expect(saved.getByRole("combobox")).toContainText("Always ask");
+    await expect(saved.getByText("overridden")).toBeVisible();
+
+    // And the capability it belongs to was left alone — an override that
+    // quietly gated everything would look identical on the row that was clicked.
+    // The capability's own control is the first in its panel; the tool rows'
+    // are below it.
+    await expect(
+      page
+        .getByRole("group", { name: CAPABILITY_WITH_TOOLS, exact: true })
+        .getByRole("combobox")
+        .first(),
+    ).toContainText("Follow the capability");
+  });
+
+  test("a tool renamed for one agent sticks, and the code default can be had back", async ({
+    page,
+  }) => {
+    // A tool's name is prompt, not labelling: the model emits it verbatim and
+    // picks differently because of it. Everything between the keystroke and the
+    // name a run would really offer — the override the Builder assembles, the
+    // draft the API stores, the effective name it resolves and hands back —
+    // exists only here; a unit test can prove the field renders and no more.
+    let tool = await openToolRow(page);
+    const name = tool.getByLabel("Name", { exact: true });
+
+    // Establish the starting state rather than assume it, for the same reason
+    // the spec above does: this asserts on a change away from the code default,
+    // so a run that failed before undoing its rename must not leave the next
+    // one with nothing to change. Keyed on the reset button rather than the
+    // row's badge, which a leftover approval override also lights up.
+    // Both fields, not just the name. This cleared the name and then asserted
+    // further down that the *description* was untouched — so a leftover
+    // description override from any earlier run failed the spec on a field it
+    // had just refused to clean. Half a reset is the same bug as no reset.
+    let cleaned = false;
+    for (const field of ["name", "description"] as const) {
+      const reset = tool.getByRole("button", { name: `Reset ${field}` });
+      if (await reset.isVisible()) {
+        await reset.click();
+        cleaned = true;
+      }
+    }
+    if (cleaned) await saveDraft(page);
+    await expect(name).toHaveValue(CAPABILITY_TOOL);
+
+    await name.fill(RENAMED_TOOL);
+    await expect(tool.getByText("overridden")).toBeVisible();
+    await expect(unsaved(page)).toBeVisible();
+    await saveDraft(page);
+
+    await page.reload();
+
+    tool = await toolRow(page);
+    await expect(tool.getByLabel("Name", { exact: true })).toHaveValue(RENAMED_TOOL);
+
+    // The description was never touched, so it is still the one the capability
+    // declares — an override that wrote both would be indistinguishable on the
+    // field that was typed into.
+    await expect(tool.getByRole("button", { name: "Reset description" })).toBeHidden();
+
+    // The way back, without anyone having to remember what the tool was called
+    // an hour ago. Saved and re-read, because a field that only looks reverted
+    // is the failure this is here to catch.
+    await tool.getByRole("button", { name: "Reset name" }).click();
+    await saveDraft(page);
+
+    await page.reload();
+
+    tool = await toolRow(page);
+    await expect(tool.getByLabel("Name", { exact: true })).toHaveValue(CAPABILITY_TOOL);
+    await expect(tool.getByRole("button", { name: "Reset name" })).toBeHidden();
+  });
+
+  test("a capability that needs a secret says so until it has one, and keeps the one it is given", async ({
+    page,
+  }) => {
+    // The only place this can be proved. jsdom cannot open a Radix select, so the
+    // unit tests assert that a stored reference reaches the control and stop
+    // there; everything below the click — the spec the Builder assembles, the
+    // draft the API stores, the reference it hands back — is only exercised here.
+    //
+    // It skips itself while no capability in the deployment declares a secret,
+    // which is every deployment today: no builtin needs one, and the picker
+    // renders only for one that does. A skip with a reason is the honest report —
+    // the alternative is a spec that passes by asserting nothing. The day a
+    // capability declares an API-key secret, this starts exercising it without
+    // anyone remembering to come back for it.
+    const catalog = await page.request.get("/api/agents/capabilities");
+    expect(catalog.ok(), "the capability catalog did not answer").toBeTruthy();
+    const { items } = (await catalog.json()) as { items: CatalogEntry[] };
+    // An api_key one specifically: the seed stores exactly one secret and it is
+    // an API key, and a picker filtered by kind would offer nothing for any other
+    // requirement — correctly, which is a different spec than this one.
+    const needy = items.find(
+      (entry): entry is NeedsSecret => entry.requires_secret?.kind === "api_key",
+    );
+    if (needy === undefined) {
+      test.skip(
+        true,
+        "no capability in this deployment declares an api_key secret, so the Builder renders no picker to drive",
+      );
+      return;
+    }
+
+    await openAgent(page, DRAFT_AGENT_NAME);
+    const capability = capabilityCheckbox(page, needy.name);
+    await expect(capability).toBeVisible();
+
+    // Establish the starting state rather than assume it, as the specs above do —
+    // and off-then-on rather than clearing the choice, because the picker
+    // deliberately offers no way to unselect: unset is the state that blocks
+    // publishing, so it is reached by not having chosen, never by choosing.
+    if ((await capability.getAttribute("aria-checked")) === "true") await capability.click();
+    await capability.click();
+    await expect(capability).toHaveAttribute("aria-checked", "true");
+
+    const group = await capabilityPanel(page, needy.name);
+    const picker = group.getByLabel("Secret");
+
+    // What the capability's author wrote about why it needs a credential, which
+    // is the only explanation whoever picks one will get.
+    await expect(group.getByText(needy.requires_secret.description)).toBeVisible();
+    // And the refusal that would otherwise arrive from a publish attempt, in a
+    // list beside everything else wrong with the agent.
+    await expect(group.getByText(/cannot be published until it has one/)).toBeVisible();
+
+    await picker.click();
+    await page.getByRole("option", { name: new RegExp(SEEDED_SECRET_NAME) }).click();
+
+    // The name and the hint: two keys for the same service are told apart by
+    // nothing else, and neither the API nor this page can show the value.
+    await expect(picker).toContainText(SEEDED_SECRET_NAME);
+    await expect(picker).toContainText(SEEDED_SECRET_HINT);
+    await expect(group.getByText(/cannot be published until it has one/)).toBeHidden();
+
+    await expect(unsaved(page)).toBeVisible();
+    await saveDraft(page);
+    await page.reload();
+
+    // Re-read from scratch, because the point is the reference that came back
+    // from the API rather than what React still had in memory.
+    const saved = await capabilityPanel(page, needy.name);
+    await expect(saved.getByLabel("Secret")).toContainText(SEEDED_SECRET_NAME);
+    await expect(saved.getByText(/cannot be published until it has one/)).toBeHidden();
+
+    // Nowhere on this page, at any point, is the value itself.
+    await expectNoRenderedSecret(page);
+  });
+
+  test("a temperature set in the Builder sticks, and can be given back to the provider", async ({
+    page,
+  }) => {
+    // The one path a unit test cannot cover: the number the slider produces,
+    // the spec the Builder assembles, the draft the API stores, and what comes
+    // back on a fresh load. The state that matters most is the one on the far
+    // side of the reset — a setting given back has to arrive as an *absent*
+    // key, and a `null` that survived the round trip would look identical here
+    // until a reasoning model refused the run.
+    await openAgent(page, DRAFT_AGENT_NAME);
+
+    const temperature = page.getByLabel("Temperature");
+    const reset = page.getByRole("button", { name: "Use provider default" });
+
+    // Establish the starting state rather than assume it: this asserts on a
+    // transition away from unset, and a run that failed before its own cleanup
+    // would otherwise leave the next one with nothing to change.
+    if (await reset.isVisible()) {
+      await reset.click();
+      await saveDraft(page);
+    }
+    await expect(page.getByText("Provider default").first()).toBeVisible();
+
+    // Keyboard, not a drag: jsdom aside, a real slider has a track and this one
+    // moves by its step, so the value is predictable rather than wherever the
+    // pointer landed.
+    await temperature.focus();
+    await temperature.press("ArrowLeft");
+    await expect(temperature).toHaveValue("0.95");
+    await expect(unsaved(page)).toBeVisible();
+    await saveDraft(page);
+
+    await page.reload();
+
+    await expect(page.getByLabel("Temperature")).toHaveValue("0.95");
+    await expect(page.getByText("0.95")).toBeVisible();
+
+    // And the way back, which has to remove the key rather than write a zero:
+    // "no temperature" is the only thing a reasoning model accepts.
+    await page.getByRole("button", { name: "Use provider default" }).click();
+    await saveDraft(page);
+
+    await page.reload();
+
+    await expect(page.getByRole("button", { name: "Use provider default" })).toBeHidden();
+    await expect(page.getByText("Provider default").first()).toBeVisible();
+  });
+
+  test("an MCP server can be bound to an agent, and it survives publishing", async ({ page }) => {
+    // The picker existed and was mounted nowhere, because `mcp_server_ids`
+    // could only be filled with something publish refuses. This asserts the
+    // whole of what changed: the Builder offers the organization's servers, the
+    // choice reaches the stored draft, and the spec publishes with it — which
+    // it could not do while the only connectable servers were personal.
+    await openAgent(page, DRAFT_AGENT_NAME);
+
+    const server = page.getByRole("checkbox", { name: SEEDED_ORG_MCP_NAME, exact: true });
+    await expect(server).toBeVisible();
+
+    if ((await server.getAttribute("aria-checked")) !== "true") {
+      await server.click();
+      await expect(unsaved(page)).toBeVisible();
+      await saveDraft(page);
+    }
+
+    await page.reload();
+    await expect(
+      page.getByRole("checkbox", { name: SEEDED_ORG_MCP_NAME, exact: true }),
+    ).toHaveAttribute("aria-checked", "true");
+
+    // The refusal this whole change was blocked on. Publishing a spec that
+    // named an org server used to be impossible because no org server could
+    // exist; if it is still impossible, the problems panel says so.
+    await page.getByRole("button", { name: "Publish" }).click();
+    await expect(page.getByText("This agent cannot be published yet")).toBeHidden();
+  });
+});

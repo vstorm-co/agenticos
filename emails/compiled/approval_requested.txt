@@ -1,0 +1,12 @@
+Subject: [[agent_name]] is waiting on your approval
+
+[[agent_name]] parked a tool call and cannot go on until somebody decides:
+[[tools]]
+
+The run is held, not failed. It resumes from where it stopped once the call is
+approved, and ends there if it is denied.
+
+Review it here:
+[[approvals_url]]
+
+— The [[app_name]] Team

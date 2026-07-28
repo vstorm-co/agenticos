@@ -1,0 +1,63 @@
+name: Bug report
+description: Something behaves differently than it should
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A bug report is useful when someone else can reproduce it. The fields
+        below are the ones that usually decide whether that is possible.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you observed, and what you expected instead.
+      placeholder: |
+        Publishing an agent with a knowledge capability returns 400 "no default model",
+        even though a default model profile exists in the organization.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: The shortest path from a fresh install to the problem.
+      placeholder: |
+        1. make dev && make seed
+        2. Create an agent with the knowledge capability
+        3. POST /api/v1/agents/{id}/publish
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Git commit or release tag.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where
+      options:
+        - Backend API
+        - Builder UI
+        - Agent run / playground
+        - Channels (Slack, Telegram)
+        - Deployment (Docker, migrations)
+        - Somewhere else
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or trace
+      description: |
+        Relevant output. If the run reached Logfire, its trace id is more useful
+        than a screenshot. Redact secrets — we do not need them and cannot use them.
+      render: shell

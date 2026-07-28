@@ -1,0 +1,384 @@
+
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync --directory backend --dev
+
+      - name: Run ruff check
+        run: uv run --directory backend ruff check app tests cli
+
+      - name: Run ruff format check
+        run: uv run --directory backend ruff format app tests cli --check
+
+      - name: Run ty
+        run: uv run --directory backend ty check
+
+      - name: Verify the coverage gate is actually enforced
+        # A gate that silently stops measuring a file is worse than no gate.
+        # coverage's `source` accepts modules and directories; a file path is
+        # ignored with a warning, so assert none were emitted.
+        run: |
+          if uv run --directory backend coverage run -m pytest tests/ -q 2>&1 \
+             | grep -q "module-not-imported"; then
+            echo "A module in [tool.coverage.run].source is not being measured."
+            exit 1
+          fi
+
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        # pgvector, not stock postgres: the RAG store runs
+        # `CREATE EXTENSION IF NOT EXISTS vector` the first time a collection
+        # is written to, and stock postgres answers `extension "vector" is
+        # not available` — so an ingestion test would 500 before asserting
+        # anything, and the E2E upload journey could never run at all.
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync --directory backend --dev
+
+      - name: Apply migrations against a real database
+        # The only way to know a migration works. Backfills, check constraints
+        # and the loud failures they raise cannot be verified by importing the
+        # module — they need a database with the previous schema in it.
+        run: uv run --directory backend alembic upgrade head
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+
+      - name: Verify migrations roll back
+        # A downgrade nobody runs is a downgrade that does not work. Cycling the
+        # whole chain catches a missing drop long before an operator needs it.
+        run: |
+          uv run --directory backend alembic downgrade base
+          uv run --directory backend alembic upgrade head
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+
+      - name: Run tests with the coverage gate
+        # --cov with no argument uses the source list in pyproject.toml: the
+        # platform layer, held at 100%. Template-inherited subsystems are
+        # reported by the next step but do not gate the build.
+        run: uv run --directory backend pytest tests/ -v --cov --cov-report=xml
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+
+      - name: Report coverage of template-inherited code
+        # Informational. Holding code we did not design to the platform bar
+        # would mean mock-heavy tests that buy a number rather than confidence.
+        if: always()
+        run: uv run --directory backend pytest tests/ -q --cov=app --cov-report=term --cov-fail-under=0
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./backend/coverage.xml
+          fail_ci_if_error: false
+
+  test-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+        working-directory: frontend
+
+      - name: Run lint
+        # `bun run lint` is `eslint . --max-warnings 0`. A warning nobody has to
+        # fix is a warning everybody learns to scroll past.
+        run: bun run lint
+        working-directory: frontend
+
+      - name: Check formatting
+        run: bunx prettier --check "src/**/*.{ts,tsx}" "e2e/**/*.ts"
+        working-directory: frontend
+
+      - name: Run type check
+        run: bun run type-check
+        working-directory: frontend
+
+      - name: Run unit and integration tests with the coverage gate
+        run: bun run test:coverage
+        working-directory: frontend
+
+      - name: Build
+        # `next build` type-checks the route tree and fails on a server
+        # component that cannot render — neither of which tsc or vitest sees.
+        run: bun run build
+        working-directory: frontend
+
+  e2e:
+    # Split out of test-frontend on purpose. E2E needs Postgres, Redis, Python,
+    # uv, a migrated database, a seeded organization and a running backend;
+    # linting needs none of that, and making a formatting error wait on a
+    # database pull — or hiding it behind a browser timeout — helps nobody.
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        # pgvector, not stock postgres: the RAG store runs
+        # `CREATE EXTENSION IF NOT EXISTS vector` the first time a collection
+        # is written to, and stock postgres answers `extension "vector" is
+        # not available` — so an ingestion test would 500 before asserting
+        # anything, and the E2E upload journey could never run at all.
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: e2e_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: e2e_db
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+      # The browser talks to Next, Next proxies to FastAPI, and the chat
+      # websocket goes to FastAPI directly — so the backend port has to match
+      # what the client bundle was built with. 8000 is the default for both.
+      BACKEND_URL: http://localhost:8000
+      NEXT_PUBLIC_WS_URL: ws://localhost:8000
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install backend dependencies
+        run: uv sync --directory backend --dev
+
+      - name: Apply migrations
+        run: uv run --directory backend alembic upgrade head
+
+      - name: Seed an organization, a model and a published agent
+        # Idempotent, and the fixture the whole suite asserts against: an owner
+        # to sign in as, an organization to be scoped to, and the published
+        # agent @getting-started. Without this the suite has nothing real to
+        # assert on and quietly falls back to asserting on page furniture.
+        run: uv run --directory backend agenticos cmd bootstrap
+
+      - name: Start the backend
+        # `--ws websockets-sansio` because uvicorn's `auto` picks the legacy
+        # websockets implementation, which fails the handshake against
+        # websockets >= 14 — and the chat specs need that socket up.
+        run: |
+          uv run --directory backend uvicorn app.main:app \
+            --host 127.0.0.1 --port 8000 --ws websockets-sansio \
+            > "$RUNNER_TEMP/backend.log" 2>&1 &
+          echo "$!" > "$RUNNER_TEMP/backend.pid"
+
+      - name: Wait for the backend to be healthy
+        # Polled, not slept. A fixed wait is either too short on a cold runner
+        # or wasted on a warm one, and the failure it produces is a browser
+        # timeout thirty tests later rather than a message saying the backend
+        # never came up.
+        run: |
+          for attempt in $(seq 1 60); do
+            if curl -sf http://localhost:8000/api/v1/health > /dev/null; then
+              echo "backend healthy after ${attempt}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "backend did not become healthy"
+          cat "$RUNNER_TEMP/backend.log"
+          exit 1
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install frontend dependencies
+        run: bun install --frozen-lockfile
+        working-directory: frontend
+
+      - name: Build the frontend
+        # Playwright serves this build with `next start`. A dev server would
+        # compile each route on first hit, which turns the first visit to every
+        # page into a timeout waiting to happen.
+        run: bun run build
+        working-directory: frontend
+
+      - name: Install Playwright browsers
+        run: bunx playwright install --with-deps chromium
+        working-directory: frontend
+
+      - name: Run E2E tests
+        # `webServer` in playwright.config.ts starts `next start` and waits for
+        # it. This job used to run with no frontend at all: `webServer` was
+        # disabled under CI, so Playwright drove a closed port.
+        run: bun run test:e2e
+        working-directory: frontend
+        env:
+          CI: true
+          # The full journey needs a real provider key to be worth running; it
+          # skips itself without one rather than asserting against a fake.
+          E2E_PROVIDER_API_KEY: ${{ secrets.E2E_PROVIDER_API_KEY }}
+
+      - name: Upload the Playwright report when a journey fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 7
+
+      - name: Show the backend log when a journey fails
+        # Half of an E2E failure is on the other side of the proxy.
+        if: failure()
+        run: cat "$RUNNER_TEMP/backend.log"
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync --directory backend --dev
+
+      - name: Install pip-audit
+        run: uv pip install pip-audit
+
+      - name: Run pip-audit
+        run: uv run pip-audit --require-hashes=false --progress-spinner=off
+        working-directory: backend
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: false
+          load: true
+          tags: agenticos:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: agenticos:latest
+          format: table
+          exit-code: 0
+          severity: CRITICAL,HIGH

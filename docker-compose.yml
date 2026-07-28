@@ -1,0 +1,139 @@
+
+# Backend development configuration
+# Usage: docker-compose up -d
+
+services:
+  app:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: agenticos_backend:dev
+    container_name: agenticos_backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/app:/app/app:ro
+      - ./backend/cli:/app/cli:ro
+      - media_data:/app/media
+      # email/templates.py reads pre-compiled HTML/text from /app/emails/compiled.
+      # Build context is ./backend so the dir isn't in the image — mount it.
+      - ./emails:/app/emails:ro
+    env_file:
+      - ./backend/.env
+    environment:
+      - DEBUG=true
+      - ENVIRONMENT=local
+      - POSTGRES_HOST=db
+      - REDIS_HOST=redis
+      - PREFECT_API_URL=http://prefect-server:4200/api
+    # --ws websockets-sansio: uvicorn's `auto` picks the legacy websockets impl,
+    # which is broken with websockets >=14 (handshake → HTTP 500). The sansio
+    # implementation is the modern, compatible one. Required for the chat WS.
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --ws websockets-sansio
+    networks:
+      - backend
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+
+  db:
+    # pgvector, not stock postgres: the RAG store runs
+    # `CREATE EXTENSION IF NOT EXISTS vector` when a collection is first
+    # written to, and on postgres:16-alpine that fails with
+    # `extension "vector" is not available` — so every document upload 500s
+    # before a row is committed. Same major version, same data directory.
+    image: pgvector/pgvector:pg16
+    container_name: agenticos_db
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-agenticos}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # Port exposed only for local development - remove in production
+    ports:
+      - "5432:5432"
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: agenticos_redis
+    # Port exposed only for local development - remove in production
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  prefect-server:
+    image: prefecthq/prefect:3-latest
+    container_name: agenticos_prefect_server
+    command: prefect server start --host 0.0.0.0
+    ports:
+      - "4200:4200"
+    volumes:
+      - prefect_data:/root/.local/share/prefect/
+    environment:
+      - PREFECT_UI_URL=http://localhost:4200/api
+      - PREFECT_API_URL=http://localhost:4200/api
+      - PREFECT_SERVER_API_HOST=0.0.0.0
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4200/api/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  prefect-runner:
+    image: agenticos_backend:dev
+    pull_policy: never
+    container_name: agenticos_prefect_runner
+    volumes:
+      - ./backend/app:/app/app:ro
+      - media_data:/app/media
+    command: python -m app.worker.prefect_app
+    env_file:
+      - ./backend/.env
+    environment:
+      - DEBUG=true
+      - POSTGRES_HOST=db
+      - PREFECT_API_URL=http://prefect-server:4200/api
+    networks:
+      - backend
+    depends_on:
+      prefect-server:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+networks:
+  backend:
+    driver: bridge
+
+volumes:
+  media_data:
+  postgres_data:
+  redis_data:
+  prefect_data:

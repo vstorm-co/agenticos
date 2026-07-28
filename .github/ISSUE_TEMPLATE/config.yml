@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/vstorm-co/agenticos/security/advisories/new
+    about: Report privately. Do not open a public issue for a vulnerability.
+  - name: Question or idea
+    url: https://github.com/vstorm-co/agenticos/discussions
+    about: For anything that is not yet a bug or a concrete request.

@@ -1,0 +1,360 @@
+# ruff: noqa: I001 - Imports structured for Jinja2 template conditionals
+"""RAG document service."""
+
+import anyio
+import logging
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+from uuid import UUID
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.config import settings
+from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.permissions import AuthContext
+from app.db.models.knowledge_base import KnowledgeBase
+from app.db.models.rag_document import RAGDocument
+from app.services.rag.config import get_supported_formats
+from app.repositories import rag_document_repo
+from app.schemas.rag import RAGIngestResponse, RAGTrackedDocumentItem, RAGTrackedDocumentList
+from app.services.file_storage import get_file_storage
+from app.services.ingestion_config import (
+    IngestionConfig,
+    IngestionConfigService,
+    IngestionOverride,
+)
+
+logger = logging.getLogger(__name__)
+
+
+def _tracked_item(doc: RAGDocument) -> RAGTrackedDocumentItem:
+    """One tracked document, including what actually read it.
+
+    ``parser`` is projected out of the stored configuration rather than kept in
+    a column of its own, so the headline answer and the full record cannot drift
+    apart. A document ingested before any of this was recorded has an empty
+    configuration and reports ``None``, which is the truth: nobody wrote it down.
+    """
+    return RAGTrackedDocumentItem(
+        id=str(doc.id),
+        collection_name=doc.collection_name,
+        filename=doc.filename,
+        filesize=doc.filesize,
+        filetype=doc.filetype,
+        status=doc.status,
+        error_message=doc.error_message,
+        vector_document_id=doc.vector_document_id,
+        chunk_count=doc.chunk_count,
+        has_file=bool(doc.storage_path),
+        created_at=doc.created_at.isoformat() if doc.created_at else None,
+        completed_at=doc.completed_at.isoformat() if doc.completed_at else None,
+        parser=str(doc.ingestion_config["pdf_parser"]) if doc.ingestion_config else None,
+        image_description_model=doc.image_description_model,
+        embedding_model=doc.embedding_model,
+        was_overridden=doc.ingestion_override is not None,
+    )
+
+
+class RAGDocumentService:
+    """Service for RAG document tracking and lifecycle management."""
+
+    def __init__(self, db: AsyncSession):
+        self.db = db
+
+    async def list_documents(self, *, collections: list[str]) -> RAGTrackedDocumentList:
+        """List tracked RAG documents belonging to the named collections.
+
+        The argument is required and takes no default on purpose: the caller
+        decides which collections it is entitled to see, and there is no way to
+        ask for "all of them" by forgetting to say. An empty list is an empty
+        answer.
+        """
+        docs = await rag_document_repo.get_all(self.db, collections=collections)
+        return RAGTrackedDocumentList(
+            items=[_tracked_item(d) for d in docs],
+            total=len(docs),
+        )
+
+    async def list_for_kb(
+        self, *, kb_id: UUID, skip: int = 0, limit: int = 50
+    ) -> RAGTrackedDocumentList:
+        """List documents ingested into a Knowledge Base, paginated."""
+        rows, total = await rag_document_repo.get_for_kb(self.db, kb_id, skip=skip, limit=limit)
+        return RAGTrackedDocumentList(
+            items=[_tracked_item(d) for d in rows],
+            total=total,
+        )
+
+    async def get_document(self, doc_id: str) -> RAGDocument:
+        """Get a RAG document by ID.
+
+        Raises:
+            NotFoundError: If document does not exist.
+        """
+        doc = await rag_document_repo.get_by_id(self.db, UUID(doc_id))
+        if not doc:
+            raise NotFoundError(
+                message="Document not found",
+                details={"doc_id": doc_id},
+            )
+        return doc
+
+    async def create_document(
+        self,
+        *,
+        collection_name: str,
+        filename: str,
+        filesize: int,
+        filetype: str,
+        storage_path: str | None = None,
+        organization_id: UUID | None = None,
+        knowledge_base_id: UUID | None = None,
+        ingestion_config: IngestionConfig | None = None,
+        ingestion_override: IngestionOverride | None = None,
+        image_description_model: str | None = None,
+        embedding_model: str | None = None,
+    ) -> RAGDocument:
+        """Create a new RAG document tracking record."""
+        return await rag_document_repo.create(
+            self.db,
+            collection_name=collection_name,
+            filename=filename,
+            filesize=filesize,
+            filetype=filetype,
+            storage_path=storage_path or "",
+            organization_id=organization_id,
+            knowledge_base_id=knowledge_base_id,
+            ingestion_config=(
+                None if ingestion_config is None else ingestion_config.model_dump(mode="json")
+            ),
+            ingestion_override=(
+                None
+                if ingestion_override is None or ingestion_override.is_empty
+                else ingestion_override.model_dump(mode="json", exclude_unset=True)
+            ),
+            image_description_model=image_description_model,
+            embedding_model=embedding_model,
+        )
+
+    async def dispatch_upload(
+        self,
+        *,
+        ctx: AuthContext,
+        collection: KnowledgeBase,
+        file_data: bytes,
+        filename: str,
+        replace: bool,
+        vector_store: Any,
+        override: IngestionOverride | None = None,
+        organization_id: UUID | None = None,
+        knowledge_base_id: UUID | None = None,
+    ) -> RAGIngestResponse:
+        """Validate, persist, and queue an uploaded file for ingestion.
+
+        Takes the ``knowledge_bases`` row rather than a collection name, because
+        the row is what says how its documents are read. The caller has already
+        resolved which collection it may write to; looking the name up again
+        here would find whichever row the database returned first, and two
+        organizations may share a collection name.
+
+        Performs:
+          1. refusal if the collection's vectors and this deployment's embedding
+             model no longer agree — nothing else is worth doing if they do not;
+          2. file-extension and size validation, the former against the parser
+             *this upload* resolved to rather than the deployment's;
+          3. resolution of the image-description model, so a bad profile id in
+             an override is refused here and not in a worker an hour later;
+          4. permanent storage via ``FileStorage``;
+          5. a RAGDocument recording the resolved configuration and the override
+             that produced it;
+          6. lazy creation of the target vector collection;
+          7. tmp-copy under ``MEDIA_DIR/_rag_tmp`` (shared with worker container);
+          8. dispatch of the ingestion task on the configured task backend.
+        """
+        collection_name = collection.collection_name
+        ingestion = IngestionConfigService(self.db)
+        ingestion.check_embedding_model(
+            collection=collection_name, built_with=collection.embedding_model
+        )
+
+        config = IngestionConfig.model_validate(collection.ingestion_config)
+        if override is not None:
+            config = override.applied_to(config)
+
+        allowed = get_supported_formats(config.pdf_parser.value)
+        max_size = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
+
+        ext = Path(filename).suffix.lower()
+        if ext not in allowed:
+            raise BadRequestError(
+                message=f"File type '{ext}' not supported",
+                details={"ext": ext, "allowed": sorted(allowed), "parser": config.pdf_parser.value},
+            )
+        if len(file_data) > max_size:
+            raise BadRequestError(
+                message=f"File too large. Maximum {settings.MAX_UPLOAD_SIZE_MB}MB.",
+                details={"size": len(file_data), "max_mb": settings.MAX_UPLOAD_SIZE_MB},
+            )
+
+        image_model = await ingestion.resolved_image_model(ctx.organization_id, config)
+
+        storage = get_file_storage()
+        storage_path = await storage.save(f"rag/{collection_name}", filename, file_data)
+        rag_doc = await self.create_document(
+            collection_name=collection_name,
+            filename=filename,
+            filesize=len(file_data),
+            filetype=ext.lstrip("."),
+            storage_path=storage_path,
+            organization_id=organization_id,
+            knowledge_base_id=knowledge_base_id,
+            ingestion_config=config,
+            ingestion_override=override,
+            image_description_model=image_model,
+            embedding_model=collection.embedding_model,
+        )
+        doc_id = rag_doc.id
+
+        await vector_store.create_collection(collection_name)
+
+        tmp_dir = Path(settings.MEDIA_DIR) / "_rag_tmp"
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+        tmp_path = str(tmp_dir / f"{doc_id!s}{ext}")
+        # anyio, not open(): an upload can be tens of megabytes, and writing it
+        # synchronously stalls every other request on this worker until it lands.
+        async with await anyio.open_file(tmp_path, "wb") as f:
+            await f.write(file_data)
+        from app.core.background import spawn
+        from app.worker.tasks.rag_tasks import ingest_document_flow
+
+        spawn(
+            ingest_document_flow(
+                rag_document_id=str(doc_id),
+                collection_name=collection_name,
+                filepath=tmp_path,
+                source_path=filename,
+                replace=replace,
+            ),
+            name=f"ingest-document-{doc_id}",
+        )
+
+        return RAGIngestResponse(
+            id=str(doc_id),
+            status="processing",
+            filename=filename,
+            collection=collection_name,
+            message="File accepted. Processing in background.",
+        )
+
+    async def complete_ingestion(
+        self,
+        doc_id: str,
+        vector_document_id: str,
+        chunk_count: int = 0,
+    ) -> None:
+        """Mark a document as successfully ingested."""
+        doc = await self.get_document(doc_id)
+        await rag_document_repo.update_status(
+            self.db,
+            doc.id,
+            status="done",
+            vector_document_id=vector_document_id,
+            chunk_count=chunk_count,
+            completed_at=datetime.now(UTC),
+        )
+
+    async def fail_ingestion(self, doc_id: str, error_message: str) -> None:
+        """Mark a document ingestion as failed."""
+        doc = await self.get_document(doc_id)
+        await rag_document_repo.update_status(
+            self.db,
+            doc.id,
+            status="error",
+            error_message=error_message,
+            completed_at=datetime.now(UTC),
+        )
+
+    async def retry_ingestion(self, doc_id: str) -> RAGDocument:
+        """Reset a failed document for re-ingestion.
+
+        Raises:
+            NotFoundError: If document does not exist.
+            ValueError: If document status is not 'error'.
+        """
+        doc = await self.get_document(doc_id)
+        if doc.status != "error":
+            raise ValueError("Only failed documents can be retried")
+        updated = await rag_document_repo.update_status(
+            self.db,
+            doc.id,
+            status="processing",
+            error_message="",
+            completed_at=None,
+        )
+        if updated is None:
+            raise NotFoundError(message="Document not found", details={"doc_id": doc_id})
+        return updated
+
+    async def delete_document(
+        self,
+        doc_id: str,
+        ingestion_service: Any = None,
+    ) -> None:
+        """Delete a document with cascading cleanup.
+
+        Removes the record from the database and attempts to clean up
+        the vector store entry and stored file. Failures in cleanup
+        are logged but do not prevent the DB deletion.
+        """
+        doc = await self.get_document(doc_id)
+
+        if doc.vector_document_id and ingestion_service:
+            try:
+                await ingestion_service.remove_document(doc.collection_name, doc.vector_document_id)
+            except Exception as e:
+                logger.warning("Failed to delete from vector store: %s", e)
+
+        if doc.storage_path:
+            try:
+                storage = get_file_storage()
+                await storage.delete(doc.storage_path)
+            except Exception as e:
+                logger.warning("Failed to delete file: %s", e)
+
+        await rag_document_repo.delete(self.db, doc.id)
+
+    async def delete_by_collection(self, collection_name: str) -> int:
+        """Delete all RAG document records for a collection.
+
+        Returns:
+            Number of deleted records.
+        """
+        return await rag_document_repo.delete_by_collection(self.db, collection_name)
+
+    async def get_download_info(self, doc_id: str) -> tuple[str, str, str]:
+        """Get file download information for a document.
+
+        Returns:
+            Tuple of (file_path, filename, mime_type).
+
+        Raises:
+            NotFoundError: If document or its file does not exist.
+        """
+        doc = await self.get_document(doc_id)
+        if not doc.storage_path:
+            raise NotFoundError(message="No file stored for this document")
+
+        storage = get_file_storage()
+        file_path = storage.get_full_path(doc.storage_path)
+        if not file_path:
+            raise NotFoundError(message="File not found on disk")
+
+        mime_map = {
+            "pdf": "application/pdf",
+            "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "txt": "text/plain",
+            "md": "text/markdown",
+        }
+        mime_type = mime_map.get(doc.filetype, "application/octet-stream")
+        return str(file_path), doc.filename, mime_type

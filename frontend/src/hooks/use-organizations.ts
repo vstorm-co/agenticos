@@ -1,0 +1,174 @@
+"use client";
+
+import { useCallback, useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { apiClient } from "@/lib/api-client";
+import { qk } from "@/lib/query-keys";
+import { useOrgStore } from "@/stores";
+import type { Organization, OrganizationList, CreateOrganizationInput } from "@/types";
+
+/**
+ * Every organization the caller belongs to.
+ *
+ * Split out because it is the one request that survives a broken selection:
+ * `/orgs` is keyed on the caller, not on the `X-Organization-Id` header, so it
+ * still answers when the active organization is one the server refuses. That
+ * makes it the only sound basis for recovering from one — see
+ * `use-active-organization.ts`.
+ *
+ * React Query owns the list: cached across navigations, deduped, no refetch
+ * storms. Mutations patch the cache directly so the UI stays instant.
+ */
+export function useOrganizationList() {
+  return useQuery({
+    queryKey: qk.organizations.list(),
+    queryFn: async () => (await apiClient.get<OrganizationList>("/orgs")).items,
+  });
+}
+
+/**
+ * The organization to select out of `orgs`: the caller's personal one, or
+ * failing that whichever comes first. `null` when there is nothing to pick,
+ * which leaves the header off and lets the server fall back for us.
+ *
+ * `refusedIds` are skipped. Selecting one back would undo a recovery that has
+ * just moved off it, and the two would trade the selection indefinitely.
+ */
+export function preferredOrg(
+  orgs: readonly Organization[],
+  refusedIds: readonly string[] = [],
+): Organization | null {
+  const usable = orgs.filter((o) => !refusedIds.includes(o.id));
+  return usable.find((o) => o.is_personal) ?? usable[0] ?? null;
+}
+
+export function useOrganizations() {
+  const queryClient = useQueryClient();
+  const activeOrgId = useOrgStore((s) => s.activeOrgId);
+  const setActiveOrgId = useOrgStore((s) => s.setActiveOrgId);
+  const refusedOrgIds = useOrgStore((s) => s.refusedOrgIds);
+
+  const { data: orgs = [] } = useOrganizationList();
+
+  // Default the active org once the list loads and nothing is selected yet —
+  // preserves the behavior that used to live inside fetchOrgs, and is also what
+  // settles the selection after a refused organization has been cleared.
+  useEffect(() => {
+    if (activeOrgId) return;
+    const personal = preferredOrg(orgs, refusedOrgIds);
+    if (personal) setActiveOrgId(personal.id);
+  }, [activeOrgId, orgs, refusedOrgIds, setActiveOrgId]);
+
+  const activeOrg = orgs.find((o) => o.id === activeOrgId) ?? null;
+
+  const writeCache = useCallback(
+    (updater: (prev: Organization[]) => Organization[]) =>
+      queryClient.setQueryData<Organization[]>(qk.organizations.list(), (prev = []) =>
+        updater(prev),
+      ),
+    [queryClient],
+  );
+
+  // Kept for API compatibility: the list auto-fetches on mount; this forces a
+  // background refresh. The `force` arg is accepted for call-site compatibility
+  // but invalidation always refetches.
+  const fetchOrgs = useCallback(
+    async (_force = false) => {
+      await queryClient.invalidateQueries({ queryKey: qk.organizations.list() });
+    },
+    [queryClient],
+  );
+
+  /**
+   * Create an organization, and let the caller decide how a refusal is shown.
+   *
+   * This used to swallow the error and toast "Failed to create organization",
+   * which discarded the server's account of what was wrong — a name that is
+   * too short, a slug already in use — and left nothing to put beside a field.
+   */
+  const createOrg = useCallback(
+    async (input: CreateOrganizationInput): Promise<Organization> => {
+      const org = await apiClient.post<Organization>("/orgs", input);
+      writeCache((prev) => [...prev, org]);
+      toast.success("Organization created");
+      return org;
+    },
+    [writeCache],
+  );
+
+  const patchOrg = useCallback(
+    async (id: string, patch: Partial<Pick<Organization, "name" | "avatar_url">>) => {
+      try {
+        const updated = await apiClient.patch<Organization>(`/orgs/${id}`, patch);
+        writeCache((prev) => prev.map((o) => (o.id === id ? updated : o)));
+        toast.success("Organization updated");
+        return updated;
+      } catch {
+        toast.error("Failed to update organization");
+        return null;
+      }
+    },
+    [writeCache],
+  );
+
+  /**
+   * Set the organization's monthly spending ceiling, or lift it with `null`.
+   *
+   * Separate from `patchOrg`, and for the same reason `createOrg` is: this one
+   * can be refused with something a person can act on — a limit below what the
+   * month has already spent, a role that may not change settings — and
+   * `patchOrg` turns every refusal into "Failed to update organization".
+   *
+   * The field is always sent, including as `null`. Omitting it is how every
+   * other update leaves the cap alone, so an omitted field cannot also mean
+   * "remove the limit".
+   */
+  const setMonthlyBudget = useCallback(
+    async (id: string, limitUsd: number | null): Promise<Organization> => {
+      const updated = await apiClient.patch<Organization>(`/orgs/${id}`, {
+        monthly_budget_usd: limitUsd,
+      });
+      writeCache((prev) => prev.map((o) => (o.id === id ? updated : o)));
+      return updated;
+    },
+    [writeCache],
+  );
+
+  const deleteOrg = useCallback(
+    async (id: string) => {
+      try {
+        await apiClient.delete(`/orgs/${id}`);
+        writeCache((prev) => prev.filter((o) => o.id !== id));
+        // Mirror the old store behavior: clear the active selection if it was
+        // the org we just removed.
+        if (useOrgStore.getState().activeOrgId === id) {
+          setActiveOrgId(null);
+        }
+        toast.success("Organization deleted");
+      } catch {
+        toast.error("Failed to delete organization");
+      }
+    },
+    [writeCache, setActiveOrgId],
+  );
+
+  const switchOrg = useCallback(
+    (id: string) => {
+      setActiveOrgId(id);
+    },
+    [setActiveOrgId],
+  );
+
+  return {
+    orgs,
+    activeOrgId,
+    activeOrg,
+    fetchOrgs,
+    createOrg,
+    patchOrg,
+    setMonthlyBudget,
+    deleteOrg,
+    switchOrg,
+  };
+}

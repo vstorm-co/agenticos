@@ -1,0 +1,295 @@
+/**
+ * Types for the agent registry, mirroring the backend's `AgentSpec`.
+ *
+ * The spec is the contract: the Builder edits it, the API versions it, and a
+ * client can export it as YAML into their own repository. Keeping this file a
+ * faithful mirror is what stops the Builder from quietly inventing fields the
+ * backend will reject at publish.
+ */
+
+import type { SecretRequirement } from "./secrets";
+import type { Visibility } from "./sharing";
+
+export type AgentStatus = "draft" | "published" | "archived";
+export type ApprovalMode = "default" | "required" | "never";
+
+/**
+ * What one tool is called and how it is described *for this agent*.
+ *
+ * Both are prompt, not labelling: the description is what the model reads
+ * before deciding whether to call the tool, and the name steers it just as
+ * hard — `search_refund_policy` gets chosen for questions `search_documents`
+ * would be passed over for. An absent key means the value the capability
+ * declared in code.
+ */
+export interface ToolOverride {
+  name?: string;
+  description?: string;
+}
+
+export interface CapabilityBindingSpec {
+  id: string;
+  config: Record<string, unknown>;
+  /** The default for every tool this capability exposes. */
+  approval: ApprovalMode;
+  /**
+   * Approval for individual tools, keyed by the tool's stable id.
+   *
+   * A capability is the right unit to switch on; it is the wrong unit to gate.
+   * `filesystem` reads and writes, `email` drafts and sends, and holding the
+   * safe half for a human is how an approval queue stops being read at all.
+   * An id absent here (or mapped to `default`) follows `approval`.
+   */
+  tool_approval: Record<string, ApprovalMode>;
+  /**
+   * Renamed and rewritten tools, keyed by the tool's stable id.
+   *
+   * The id is what both maps key on precisely so a rename cannot move a gate:
+   * a tool the model calls by another name is still the tool somebody held for
+   * approval.
+   */
+  tool_overrides: Record<string, ToolOverride>;
+  /**
+   * Which of the organization's secrets satisfies this capability's
+   * requirement, or null when nothing has been chosen.
+   *
+   * An id, never a value — a spec is exported as YAML into a client's
+   * repository. Publishing refuses an id that is missing, belongs to another
+   * organization or holds the wrong kind, refuses the absence of one where the
+   * capability declares a requirement, and refuses a reference on a capability
+   * that consumes none.
+   */
+  secret_id: string | null;
+  enabled: boolean;
+}
+
+/** Where this agent's traces go, when not to the deployment's own project. */
+export interface ObservabilitySpec {
+  /** An organization secret holding a Logfire write token — an id, never a token. */
+  token_secret_id?: string | null;
+  /** What the agent is called in Logfire; falls back to the agent's name. */
+  service_name?: string | null;
+  environment?: string | null;
+}
+
+export interface BudgetSpec {
+  max_per_run_usd?: number | null;
+  monthly_usd?: number | null;
+}
+
+/**
+ * What this agent asks of its model, as far as an author may say so.
+ *
+ * A small window onto Pydantic AI's `ModelSettings`: the backend refuses every
+ * key not listed here, so a control invented in the Builder fails at save
+ * rather than at publish.
+ *
+ * **An absent key means the setting is not sent at all**, which is not the same
+ * as sending the provider's default — reasoning models reject `temperature`
+ * outright, so an agent whose author never touched it must produce a request
+ * with no such key. `undefined`, never `null`: `JSON.stringify` drops the
+ * former, and the backend stores what it is given.
+ *
+ * Reasoning is not here. It is the `thinking` capability, one card down.
+ */
+export interface ModelSettingsSpec {
+  /** 0–2. How varied the answer is; rejected outright by reasoning models. */
+  temperature?: number;
+  /** 0–1. Nucleus sampling — set this or `temperature`, not both. */
+  top_p?: number;
+  max_tokens?: number;
+  /** Whether the model may call several tools in one step. */
+  parallel_tool_calls?: boolean;
+  /** Seconds one model request may take before it is abandoned. */
+  timeout?: number;
+}
+
+export interface AgentSpec {
+  /**
+   * Stamped by the server, never authored here.
+   *
+   * Present on everything the API returns and omitted when creating, so the
+   * current version has one definition — in `backend/app/agents/spec.py` — and
+   * the next bump is one edit rather than two repositories agreeing by hand.
+   * A spec read at version 2 and saved back keeps its 2: re-saving a draft is
+   * not the moment to quietly migrate what somebody published.
+   */
+  spec_version?: number;
+  name: string;
+  description?: string | null;
+  instructions: string;
+  model_profile_id?: string | null;
+  model_settings: ModelSettingsSpec;
+  capabilities: CapabilityBindingSpec[];
+  collection_ids: string[];
+  skill_ids: string[];
+  mcp_server_ids: string[];
+  /** Model requests one run may make; null uses the platform default of 50. */
+  max_steps?: number | null;
+  budget?: BudgetSpec | null;
+  observability?: ObservabilitySpec | null;
+}
+
+export interface Agent {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  status: AgentStatus;
+  visibility: Visibility;
+  owner_user_id: string | null;
+  current_version_id: string | null;
+  /** Whether `/api/agents/{id}/avatar` will answer with an image. */
+  has_avatar?: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface AgentDetail extends Agent {
+  draft_spec: AgentSpec;
+}
+
+export interface AgentList {
+  items: Agent[];
+  total: number;
+}
+
+export interface AgentVersion {
+  id: string;
+  version: number;
+  note: string | null;
+  published_by_user_id: string | null;
+  /**
+   * Who published it, resolved server-side.
+   *
+   * A uuid answers "who changed this" with another question, and that question
+   * is the reason a history is read at all. Null means the account has since
+   * left the organization — itself an answer worth showing.
+   */
+  published_by_email?: string | null;
+  created_at?: string;
+}
+
+/** One version with the spec it froze — what a diff is read from. */
+export interface AgentVersionDetail extends AgentVersion {
+  spec: AgentSpec;
+}
+
+export interface AgentVersionList {
+  items: AgentVersion[];
+  total: number;
+}
+
+/** One tool a capability exposes, as the model is offered it. */
+export interface CapabilityTool {
+  /** Defined in code and never configurable — what both per-tool maps key on. */
+  id: string;
+  /**
+   * The name the model calls, with this agent's override already applied.
+   *
+   * The API resolves it, so a client never has to merge the binding into the
+   * catalog to know what a run will really offer.
+   */
+  name: string;
+  /** The text the model reads before calling it, override applied the same way. */
+  description: string;
+}
+
+/**
+ * One tool as the *model* meets it.
+ *
+ * `CapabilityTool` carries the summary line, which is what a list needs. This
+ * is the rest — the whole docstring the model reads before deciding to call,
+ * and the schema of the arguments. Someone rewording a tool for their agent is
+ * rewriting against this, and its first sentence is not it.
+ */
+export interface CapabilityToolContract {
+  tool_id: string;
+  description: string;
+  /** JSON Schema of the arguments, as the model is given them. */
+  parameters: ToolParameterSchema;
+}
+
+/** One capability an agent can be given, as the picker shows it. */
+export interface CapabilityCatalogEntry {
+  id: string;
+  name: string;
+  category: string;
+  description: string;
+  side_effecting: boolean;
+  scopes: string[];
+  /** Empty for a capability that is not tools at all — a guardrail, or instructions. */
+  tools: CapabilityTool[];
+  /** What each tool above tells the model, in full. Keyed by `tool_id`. */
+  contracts: CapabilityToolContract[];
+  /** JSON Schema. The configuration form is generated from this, never hand-written. */
+  config_schema: JsonSchema | null;
+  /**
+   * The credential this capability cannot work without, declared as a kind, or
+   * null for one that needs none — which is every builtin so far.
+   *
+   * A binding answers it with `secret_id`. The value itself never reaches the
+   * catalog, the spec or the model; only the agent runner ever reads one.
+   */
+  requires_secret: SecretRequirement | null;
+}
+
+export interface CapabilityCatalog {
+  items: CapabilityCatalogEntry[];
+  total: number;
+}
+
+/**
+ * A JSON Schema node as a tool's arguments arrive.
+ *
+ * Wider than `JsonSchema` on purpose: that one is the subset the generated
+ * forms can render controls for, and it is allowed to stay small because
+ * anything it cannot render is a capability config nobody can fill in. Tool
+ * arguments come from a Python signature and are only ever read, so they carry
+ * `$ref`, nested `anyOf` and arrays of models that no form has to handle.
+ */
+export interface ToolParameterSchema {
+  type?: string;
+  title?: string;
+  description?: string;
+  properties?: Record<string, ToolParameterSchema>;
+  required?: string[];
+  items?: ToolParameterSchema;
+  anyOf?: ToolParameterSchema[];
+  enum?: unknown[];
+  $ref?: string;
+}
+
+/** The subset of JSON Schema the generated forms understand. */
+export interface JsonSchema {
+  type?: string;
+  title?: string;
+  description?: string;
+  properties?: Record<string, JsonSchemaProperty>;
+  required?: string[];
+}
+
+export interface JsonSchemaProperty {
+  type?: string | string[];
+  title?: string;
+  description?: string;
+  default?: unknown;
+  minimum?: number;
+  maximum?: number;
+  maxLength?: number;
+  enum?: unknown[];
+  /**
+   * The single value this field may take — a Pydantic `Literal` of one, which
+   * is how every secret payload carries its own `kind`. A control for it could
+   * only ever be wrong, so the form omits it and the caller supplies it.
+   */
+  const?: unknown;
+  /**
+   * JSON Schema's `format`. Only `password` is acted on: Pydantic stamps it
+   * onto every `SecretStr`, which is exactly the set of fields that must be
+   * masked while they are typed.
+   */
+  format?: string;
+  /** A `Literal | None` arrives as branches, one carrying the values. */
+  anyOf?: { type?: string; enum?: unknown[]; format?: string }[];
+}

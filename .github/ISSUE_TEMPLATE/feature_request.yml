@@ -1,0 +1,42 @@
+name: Feature request
+description: Something the platform should be able to do
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The most useful feature requests describe a problem someone has, not a
+        solution someone likes. The solution is usually the easy part.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do that you cannot do today?
+      placeholder: |
+        We run agents for three clients from one deployment and cannot tell which
+        client's spend caused a bill.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you have in mind
+      description: Optional. If you already have a shape in mind, describe it.
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you tried instead
+      description: |
+        Workarounds you have already used, and why they are not enough. This is
+        often what shows whether the feature is worth its weight.
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - label: I have checked this is not already possible with an existing capability
+        - label: I would be willing to implement this
