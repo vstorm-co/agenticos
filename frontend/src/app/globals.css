@@ -4,20 +4,20 @@
    Design tokens.
 
    Surfaces are neutral. ONE accent hue carries meaning, and retheming the
-   whole product is `--brand-h` below (optionally `--brand-c`) — nothing else.
+   whole product is `--brand-h` below (optionally `--brand-c`) - nothing else.
 
    Three layers, and the distinction between them is the whole design:
 
-     1. PALETTE — `--brand-50 … --brand-950`, an 11-step ramp of the accent
+     1. PALETTE - `--brand-50 … --brand-950`, an 11-step ramp of the accent
         hue. Deliberately plain custom properties rather than `@theme`:
         Tailwind tree-shakes `@theme` colours that no utility references, so a
         step named only by a theme-override block below would vanish from the
         build. Components never name these.
-     2. ROLES — `--color-brand*`, `--color-primary*`, `--color-ring`,
+     2. ROLES - `--color-brand*`, `--color-primary*`, `--color-ring`,
         `--color-chart`. What the accent *means*. Declared in `@theme` with
         the light-theme mapping, remapped per theme further down. A role name
         is all a component ever writes.
-     3. THEMES — the blocks below repoint roles at different palette steps.
+     3. THEMES - the blocks below repoint roles at different palette steps.
         Role names never change; only which step they resolve to.
 
    Why roles rather than shades: no single lightness can be both a fill under
@@ -35,7 +35,7 @@
 
 /* --- Layer 1: the accent ramp. This is the retheme knob. ----------------- */
 :root {
-  /* Accent: BLUE (hue 259 — the Stripe/Vercel/Tailwind-blue family).
+  /* Accent: BLUE (hue 259 - the Stripe/Vercel/Tailwind-blue family).
      Chroma is scaled per step because sRGB holds far less chroma at the pale
      and deep ends; the factors keep all 11 steps inside the gamut so the
      browser never clips. The previous single `oklch(65% 0.2 250)` was outside
@@ -67,7 +67,7 @@
      brand-foreground        text and icons ON a solid accent fill
      brand-subtle            a selected row, a chosen card, a tinted panel
      brand-subtle-hover      that surface, hovered
-     brand-line              the edge of a tinted panel (decorative only —
+     brand-line              the edge of a tinted panel (decorative only -
                              never the sole indicator of a control)
      ring                    the focus ring on every interactive element
      chart                   data strokes and fills
@@ -81,12 +81,14 @@
   --color-brand-subtle: var(--brand-50);
   --color-brand-subtle-hover: var(--brand-100);
   --color-brand-line: var(--brand-300);
-  /* Chart strokes/fills — one step deeper than the accent so data reads on a
+  /* Chart strokes/fills - one step deeper than the accent so data reads on a
      white card without becoming navy. Dark themes repoint it upward. */
   --color-chart: var(--brand-600);
 
-  /* Light theme — cream */
-  --color-background: oklch(96% 0.005 90);
+  /* Light theme - cool near-white, Logfire-family neutrals. White cards and a
+     white sidebar sit on a faintly cooler page so the layers read without a
+     visible seam. */
+  --color-background: oklch(97.5% 0.003 250);
   --color-foreground: oklch(15% 0 0);
   --color-card: oklch(100% 0 0);
   --color-card-foreground: oklch(15% 0 0);
@@ -94,27 +96,27 @@
   --color-popover-foreground: oklch(15% 0 0);
   /* `primary` is the shadcn-era name for the accent, kept as a role alias
      because ~6 app call sites and the third-party-shaped primitives already
-     write `bg-primary`. It is not a second palette — it always equals brand,
+     write `bg-primary`. It is not a second palette - it always equals brand,
      and it follows brand through every theme override because `@theme` emits
      var() references verbatim rather than inlining them. */
   --color-primary: var(--color-brand);
   --color-primary-foreground: var(--color-brand-foreground);
-  --color-secondary: oklch(93% 0.005 90);
+  --color-secondary: oklch(94% 0.004 250);
   --color-secondary-foreground: oklch(20% 0 0);
-  --color-muted: oklch(93% 0.005 90);
+  --color-muted: oklch(94% 0.004 250);
   --color-muted-foreground: oklch(45% 0 0);
-  --color-accent: oklch(93% 0.005 90);
+  --color-accent: oklch(94% 0.004 250);
   --color-accent-foreground: oklch(20% 0 0);
   --color-destructive: oklch(57.7% 0.245 27.325);
   --color-destructive-foreground: oklch(98.5% 0 0);
-  /* Status tones. Off the accent hue on purpose — an accent that also means
+  /* Status tones. Off the accent hue on purpose - an accent that also means
      "warning" means neither. Single values rather than per-theme ones because
      both are only ever icons or low-alpha fills, never body text, and each
      clears 3:1 against all four surfaces (light bg/card, dark bg/card). */
   --color-warning: oklch(62% 0.136 68);
   --color-success: oklch(60% 0.15 150);
-  --color-border: oklch(88% 0.005 90);
-  --color-input: oklch(88% 0.005 90);
+  --color-border: oklch(89% 0.004 250);
+  --color-input: oklch(89% 0.004 250);
   --color-ring: var(--color-brand);
 
   /* Radius */
@@ -135,17 +137,20 @@
   --duration-slow: 400ms;
 }
 
-/* Dark theme — softer near-black */
+/* Dark theme - cool graphite. The old mapping jumped from an 8% page to 23%
+   cards with 36% borders, which read as gray boxes floating on black; these
+   surfaces stay within a few points of each other so the layers feel like one
+   material, and borders drop low enough to divide without glowing. */
 @media (prefers-color-scheme: dark) {
   :root:not(.light) {
-    --color-background: oklch(8% 0.005 90);
-    --color-foreground: oklch(95% 0.005 90);
-    --color-card: oklch(23% 0.005 90);
-    --color-card-foreground: oklch(95% 0.005 90);
-    --color-popover: oklch(23% 0.005 90);
-    --color-popover-foreground: oklch(95% 0.005 90);
-    /* Accent roles, dark mapping. The fill lightens — a bright accent reads as
-       forward on near-black — and its foreground flips to near-black ink,
+    --color-background: oklch(14% 0.006 250);
+    --color-foreground: oklch(95% 0.005 250);
+    --color-card: oklch(17.5% 0.006 250);
+    --color-card-foreground: oklch(95% 0.005 250);
+    --color-popover: oklch(19% 0.006 250);
+    --color-popover-foreground: oklch(95% 0.005 250);
+    /* Accent roles, dark mapping. The fill lightens - a bright accent reads as
+       forward on near-black - and its foreground flips to near-black ink,
        which buys more contrast than white-on-blue reaches at any lightness.
        `primary` is absent on purpose: it resolves through `--color-brand`. */
     --color-brand: var(--brand-400);
@@ -155,27 +160,27 @@
     --color-brand-subtle: var(--brand-950);
     --color-brand-subtle-hover: var(--brand-900);
     --color-brand-line: var(--brand-800);
-    --color-secondary: oklch(27% 0.005 90);
+    --color-secondary: oklch(22% 0.006 250);
     --color-secondary-foreground: oklch(95% 0 0);
-    --color-muted: oklch(27% 0.005 90);
-    --color-muted-foreground: oklch(63% 0.005 90);
-    --color-accent: oklch(29% 0.005 90);
+    --color-muted: oklch(22% 0.006 250);
+    --color-muted-foreground: oklch(68% 0.008 250);
+    --color-accent: oklch(24% 0.006 250);
     --color-accent-foreground: oklch(95% 0 0);
-    --color-border: oklch(36% 0.005 90);
-    --color-input: oklch(33% 0.005 90);
+    --color-border: oklch(28% 0.008 250);
+    --color-input: oklch(27% 0.008 250);
     --color-chart: var(--color-brand);
   }
 }
 
 :root.dark {
-  --color-background: oklch(8% 0.005 90);
-  --color-foreground: oklch(95% 0.005 90);
-  --color-card: oklch(23% 0.005 90);
-  --color-card-foreground: oklch(95% 0.005 90);
-  --color-popover: oklch(23% 0.005 90);
-  --color-popover-foreground: oklch(95% 0.005 90);
+  --color-background: oklch(14% 0.006 250);
+  --color-foreground: oklch(95% 0.005 250);
+  --color-card: oklch(17.5% 0.006 250);
+  --color-card-foreground: oklch(95% 0.005 250);
+  --color-popover: oklch(19% 0.006 250);
+  --color-popover-foreground: oklch(95% 0.005 250);
   /* Keep in sync with the `prefers-color-scheme: dark` block above and with
-     `.theme-dark` below — three places, one mapping. */
+     `.theme-dark` below - three places, one mapping. */
   --color-brand: var(--brand-400);
   --color-brand-hover: var(--brand-300);
   --color-brand-active: var(--brand-200);
@@ -183,30 +188,30 @@
   --color-brand-subtle: var(--brand-950);
   --color-brand-subtle-hover: var(--brand-900);
   --color-brand-line: var(--brand-800);
-  --color-secondary: oklch(27% 0.005 90);
+  --color-secondary: oklch(22% 0.006 250);
   --color-secondary-foreground: oklch(95% 0 0);
-  --color-muted: oklch(27% 0.005 90);
-  --color-muted-foreground: oklch(63% 0.005 90);
-  --color-accent: oklch(29% 0.005 90);
+  --color-muted: oklch(22% 0.006 250);
+  --color-muted-foreground: oklch(68% 0.008 250);
+  --color-accent: oklch(24% 0.006 250);
   --color-accent-foreground: oklch(95% 0 0);
-  --color-border: oklch(36% 0.005 90);
-  --color-input: oklch(33% 0.005 90);
+  --color-border: oklch(28% 0.008 250);
+  --color-input: oklch(27% 0.008 250);
   --color-chart: var(--color-brand);
 }
 
 /* =========================================================================
-   Section-level theme switching — a panel can pin its own light/dark.
+   Section-level theme switching - a panel can pin its own light/dark.
    `.theme-dark` and `.theme-light` work regardless of root theme.
    ========================================================================= */
 
 .theme-light {
-  --color-background: oklch(96% 0.005 90);
+  --color-background: oklch(97.5% 0.003 250);
   --color-foreground: oklch(15% 0 0);
   --color-card: oklch(100% 0 0);
   --color-card-foreground: oklch(15% 0 0);
-  --color-muted: oklch(93% 0.005 90);
+  --color-muted: oklch(94% 0.004 250);
   --color-muted-foreground: oklch(45% 0 0);
-  --color-border: oklch(88% 0.005 90);
+  --color-border: oklch(89% 0.004 250);
   /* A pinned-light subtree inside a dark root needs the light accent mapping
      too, or its buttons and links keep the root theme's accent. */
   --color-brand: var(--brand-700);
@@ -220,13 +225,13 @@
 }
 
 .theme-dark {
-  --color-background: oklch(8% 0.005 90);
-  --color-foreground: oklch(95% 0.005 90);
-  --color-card: oklch(23% 0.005 90);
-  --color-card-foreground: oklch(95% 0.005 90);
-  --color-muted: oklch(27% 0.005 90);
-  --color-muted-foreground: oklch(63% 0.005 90);
-  --color-border: oklch(36% 0.005 90);
+  --color-background: oklch(14% 0.006 250);
+  --color-foreground: oklch(95% 0.005 250);
+  --color-card: oklch(17.5% 0.006 250);
+  --color-card-foreground: oklch(95% 0.005 250);
+  --color-muted: oklch(22% 0.006 250);
+  --color-muted-foreground: oklch(68% 0.008 250);
+  --color-border: oklch(28% 0.008 250);
   --color-brand: var(--brand-400);
   --color-brand-hover: var(--brand-300);
   --color-brand-active: var(--brand-200);
@@ -242,7 +247,7 @@
     @apply border-border;
   }
   /* Smooth scroll on document. The dashboard scrolls its <main> element, not
-     the document, so this only affects the pages that scroll <html> — the auth
+     the document, so this only affects the pages that scroll <html> - the auth
      and legal screens. */
   html {
     scroll-behavior: smooth;
@@ -259,7 +264,7 @@
     -moz-osx-font-smoothing: grayscale;
     font-optical-sizing: auto;
     text-rendering: optimizeLegibility;
-    /* Disable iOS tap highlight — focus rings + active states do the job. */
+    /* Disable iOS tap highlight - focus rings + active states do the job. */
     -webkit-tap-highlight-color: transparent;
   }
   /* Crafted default: tabular figures so numeric data/labels align cleanly. */
@@ -284,7 +289,7 @@
     border: 0;
   }
 
-  /* Route transition — subtle fade + slide-up on each page change.
+  /* Route transition - subtle fade + slide-up on each page change.
      Keyed on pathname in components/layout/page-transition.tsx so it replays
      on navigation. Neutralized under prefers-reduced-motion below. */
   .page-enter {
@@ -301,7 +306,7 @@
     }
   }
 
-  /* Skip link — hidden until focused. Used in [locale]/layout.tsx. */
+  /* Skip link - hidden until focused. Used in [locale]/layout.tsx. */
   .skip-link {
     position: fixed;
     top: 0.75rem;
@@ -391,7 +396,7 @@
   }
 }
 
-/* Custom scrollbar — theme-aware, derived from --color-foreground.
+/* Custom scrollbar - theme-aware, derived from --color-foreground.
    Subtle at rest, more visible while the user is hovering the scroll area. */
 @layer utilities {
   .scrollbar-thin {
@@ -442,7 +447,7 @@
 }
 
 /* =========================================================================
-   Decorative utilities — backdrops and motion used by the app shell.
+   Decorative utilities - backdrops and motion used by the app shell.
    ========================================================================= */
 
 @layer utilities {
@@ -466,7 +471,7 @@
     }
   }
 
-  /* Subtle background grid — fades on the edges so it doesn't fight the content */
+  /* Subtle background grid - fades on the edges so it doesn't fight the content */
   .bg-grid {
     background-image:
       linear-gradient(
@@ -485,7 +490,7 @@
     -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 50%, black 40%, transparent 100%);
   }
 
-  /* Dot grid — subtler than line grid, good for textural sections */
+  /* Dot grid - subtler than line grid, good for textural sections */
   .bg-dots {
     background-image: radial-gradient(
       oklch(from var(--color-foreground) l c h / 0.1) 1px,
@@ -507,7 +512,7 @@
     box-shadow: 0 12px 32px -16px oklch(0% 0 0 / 0.18);
   }
 
-  /* Hover lift only when the device supports hover — touch devices skip the
+  /* Hover lift only when the device supports hover - touch devices skip the
      transform so taps don't feel sticky. */
   @media (hover: none) {
     .lift:hover {
@@ -518,7 +523,7 @@
 }
 
 /* =========================================================================
-   Agent step animations — used by ToolCallCard.
+   Agent step animations - used by ToolCallCard.
    step-card-in  : card entrance (tool call appears in the timeline)
    step-progress : indeterminate shimmer bar on the card bottom while running
    pop-in        : small icon pop (outcome marker ✓ / ✕)
@@ -570,7 +575,7 @@
 }
 
 /* =========================================================================
-   Reduced-motion — strip every long-running animation. Honors a11y opt-in.
+   Reduced-motion - strip every long-running animation. Honors a11y opt-in.
    ========================================================================= */
 
 @media (prefers-reduced-motion: reduce) {
@@ -582,7 +587,7 @@
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
-  /* Route transitions add no information — disable so navigation is instant. */
+  /* Route transitions add no information - disable so navigation is instant. */
   .page-enter {
     opacity: 1 !important;
     transform: none !important;
@@ -591,7 +596,7 @@
 }
 
 /* =========================================================================
-   Long-form prose — used by the legal pages.
+   Long-form prose - used by the legal pages.
    Keeps line-length comfortable, preserves typographic rhythm.
    ========================================================================= */
 

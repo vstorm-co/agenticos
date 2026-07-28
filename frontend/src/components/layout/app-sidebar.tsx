@@ -5,7 +5,7 @@
  *
  * It replaces a top nav bar, and the reason is not taste. The platform has
  * eleven destinations across four concerns, and a horizontal bar cannot hold
- * them — which is why half of them had ended up behind dropdowns and the other
+ * them - which is why half of them had ended up behind dropdowns and the other
  * half (Agents, Skills, Activity) had fallen out of the primary nav entirely,
  * reachable only from a mobile drawer nobody opens on a desktop. A column has
  * room to show every destination at once, grouped, with the group label doing
@@ -15,7 +15,7 @@
  * existing slide-over, because a fixed column is most of a phone screen.
  *
  * What it shows is filtered by permission. That is presentation, never
- * enforcement — the server refuses regardless — but a Viewer given a link to a
+ * enforcement - the server refuses regardless - but a Viewer given a link to a
  * page that will only refuse them has been told to try something that cannot
  * work. While permissions are loading `can()` answers false, so the sidebar
  * reveals entries rather than briefly offering ones about to disappear.
@@ -134,7 +134,7 @@ function isInside(path: string, href: string): boolean {
  * Whether `pathname` belongs to the section `href` names.
  *
  * A sub-page lights its section, and that is the default rather than something
- * an entry opts into — the old opt-in was remembered for five of the eleven
+ * an entry opts into - the old opt-in was remembered for five of the eleven
  * entries, so opening a knowledge base left the sidebar claiming you were
  * nowhere. Where two entries both contain the path the longer href wins, which
  * is the whole exception, stated once here instead of per entry: a `/settings`
@@ -144,7 +144,7 @@ function isInside(path: string, href: string): boolean {
  * wrong in either direction.
  *
  * Which section a URL falls in is a fact about the route table, so every
- * declared destination counts — including ones the caller's permissions hide.
+ * declared destination counts - including ones the caller's permissions hide.
  *
  * `hrefs` is a parameter only so the rule can be exercised against a nav table
  * this one does not happen to contain today.
@@ -173,7 +173,7 @@ function NavLink({ item, onNavigate }: { item: NavItem; onNavigate?: () => void 
         "flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm transition-colors",
         // Selected is the accent's other job: a tinted surface plus accent
         // label, so "where am I" reads without a second glance. Hover stays
-        // neutral — it is a pointer state, not a selection.
+        // neutral - it is a pointer state, not a selection.
         active
           ? "bg-brand-subtle text-brand font-medium"
           : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
@@ -220,7 +220,10 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
 
 export function AppSidebar() {
   return (
-    <aside className="bg-background hidden w-[240px] shrink-0 border-r md:flex md:flex-col">
+    // `bg-card`, not `bg-background`: the column reads as its own light panel
+    // (white in light theme, one step above the page in dark) the way
+    // Logfire's does, instead of dissolving into the content behind it.
+    <aside className="bg-card hidden w-[240px] shrink-0 border-r md:flex md:flex-col">
       {/* The brand heads the column because there is no top bar above `md` for
           it to head instead. */}
       <div className="flex h-14 shrink-0 items-center border-b px-3">
