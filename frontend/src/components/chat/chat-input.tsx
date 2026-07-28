@@ -393,7 +393,6 @@ export function ChatInput({
               type="submit"
               size="icon"
               disabled={disabled || isUploading || (!message.trim() && attachedFiles.length === 0)}
-              className="h-9 w-9 rounded-lg"
             >
               {isProcessing ? <Spinner className="h-4 w-4" /> : <Send className="h-4 w-4" />}
               <span className="sr-only">Send message</span>
