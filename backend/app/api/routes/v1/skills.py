@@ -17,6 +17,8 @@ from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 
 from app.api.deps import Auth, SkillSvc, require
 from app.core.permissions import Perm
+from app.db.models.skill import Skill
+from app.repositories.skill import SkillSort
 from app.schemas.skill import (
     LibrarySkillList,
     LibrarySkillRead,
@@ -28,6 +30,7 @@ from app.schemas.skill import (
     SkillResourceRead,
     SkillResourceSummary,
     SkillResourceUpdate,
+    SkillSummary,
     SkillUpdate,
 )
 from app.services import skill_library
@@ -35,21 +38,51 @@ from app.services import skill_library
 router = APIRouter()
 
 
+def _summary(skill: Skill, bundled_names: frozenset[str]) -> SkillSummary:
+    """A skill as the listing shows it.
+
+    ``built_in`` is a name match against the shipped library because that is
+    all installing keeps: an install copies the folder into an ordinary row,
+    and the name - unique per organization, never editable - is the one trace
+    of where it came from.
+    """
+    return SkillSummary(
+        id=skill.id,
+        name=skill.name,
+        description=skill.description,
+        category=skill.category,
+        enabled=skill.enabled,
+        file_count=len(skill.resources),
+        built_in=skill.name in bundled_names,
+    )
+
+
 @router.get("", response_model=SkillList, dependencies=[Depends(require(Perm.SKILLS_VIEW))])
 async def list_skills(
     service: SkillSvc,
     ctx: Auth,
     q: str | None = Query(None, max_length=100, description="Match on name or description"),
+    category: str | None = Query(None, max_length=64, description="Exact category to filter to"),
+    sort: SkillSort = Query("name", description="`name` A-Z, or `updated` newest change first"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
     """Names and descriptions - the Builder's picker, not the bodies.
 
     ``total`` is the count before paging, which is what a pager needs and a page
-    cannot supply.
+    cannot supply. ``categories`` is the whole organization's, not the page's:
+    a filter chip that vanished with the page it filtered would strand whoever
+    pressed it.
     """
-    items, total = await service.list_skills(ctx, search=q, skip=skip, limit=limit)
-    return SkillList(items=items, total=total)
+    items, total = await service.list_skills(
+        ctx, search=q, category=category, sort=sort, skip=skip, limit=limit
+    )
+    bundled_names = frozenset(entry.name for entry in skill_library.library())
+    return SkillList(
+        items=[_summary(skill, bundled_names) for skill in items],
+        total=total,
+        categories=await service.list_categories(ctx),
+    )
 
 
 @router.post(
@@ -60,7 +93,11 @@ async def list_skills(
 )
 async def create_skill(data: SkillCreate, service: SkillSvc, ctx: Auth) -> Any:
     return await service.create(
-        ctx, name=data.name, description=data.description, content=data.content
+        ctx,
+        name=data.name,
+        description=data.description,
+        content=data.content,
+        category=data.category,
     )
 
 
@@ -84,6 +121,7 @@ async def list_library(service: SkillSvc, ctx: Auth) -> Any:
             key=bundled.key,
             name=bundled.name,
             description=bundled.description,
+            category=bundled.category,
             content=bundled.content,
             resources=[
                 SkillResourceSummary(

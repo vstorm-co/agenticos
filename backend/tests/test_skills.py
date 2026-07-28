@@ -239,6 +239,48 @@ class TestSkillManagement:
         assert list_for_org.call_args.kwargs["limit"] == 25
 
     @pytest.mark.anyio
+    async def test_the_category_filter_and_the_sort_are_the_databases_too(self):
+        """Same reason as the search: a page of fifty cannot be regrouped client-side."""
+        ctx = _ctx()
+
+        with patch(
+            "app.services.skills.skill_repo.list_for_org", new=AsyncMock(return_value=([], 0))
+        ) as list_for_org:
+            await SkillService(_db()).list_skills(ctx, category="devops", sort="updated")
+
+        assert list_for_org.call_args.kwargs["category"] == "devops"
+        assert list_for_org.call_args.kwargs["sort"] == "updated"
+
+    @pytest.mark.anyio
+    async def test_the_category_choices_come_from_the_whole_organization(self):
+        """The chips must not shrink to what the current page happens to show."""
+        ctx = _ctx()
+
+        with patch(
+            "app.services.skills.skill_repo.list_categories",
+            new=AsyncMock(return_value=["devops", "marketing"]),
+        ) as list_categories:
+            categories = await SkillService(_db()).list_categories(ctx)
+
+        assert categories == ["devops", "marketing"]
+        assert list_categories.call_args.kwargs["organization_id"] == ctx.organization_id
+
+    @pytest.mark.anyio
+    async def test_a_skill_is_created_on_the_shelf_it_was_given(self):
+        with (
+            patch("app.services.skills.skill_repo.get_by_name", new=AsyncMock(return_value=None)),
+            patch(
+                "app.services.skills.skill_repo.create", new=AsyncMock(return_value=_skill())
+            ) as create,
+            patch("app.services.skills.record_audit", new=AsyncMock()),
+        ):
+            await SkillService(_db()).create(
+                _ctx(), name="refunds", description="x", content="", category="support"
+            )
+
+        assert create.call_args.kwargs["category"] == "support"
+
+    @pytest.mark.anyio
     async def test_an_edit_bumps_the_version_agents_are_told_about(self):
         """Agents bind to a skill, not a version, so the bump is how an edit is noticed."""
         ctx = _ctx()
@@ -356,6 +398,28 @@ class TestSkillLibrary:
         }
         assert all(resource.size_bytes > 0 for resource in skill.resources)
 
+    def test_every_bundled_skill_names_its_shelf(self):
+        """The listing groups by category, and a shipped skill that arrived
+        uncategorized would sit outside every chip from its first day."""
+        from app.services import skill_library
+
+        by_key = {skill.key: skill.category for skill in skill_library.library()}
+
+        assert by_key["code-review"] == "engineering"
+        assert by_key["incident-report"] == "operations"
+        assert by_key["refund-policy"] == "support"
+
+    def test_a_manifest_without_a_category_is_simply_uncategorized(self, tmp_path):
+        """The column is nullable for the same reason: no category is a state,
+        not an error."""
+        from app.services.skill_library import _read
+
+        folder = tmp_path / "plain"
+        folder.mkdir()
+        (folder / "SKILL.md").write_text("---\ndescription: Plain.\n---\n\nBody.\n")
+
+        assert _read(folder).category is None
+
     def test_the_frontmatter_is_not_left_in_the_body(self):
         """The model reads the body; a YAML header in it is noise it has to
         parse around."""
@@ -408,6 +472,8 @@ class TestSkillLibrary:
 
         assert create.call_args.kwargs["name"] == "code-review"
         assert create.call_args.kwargs["content"]
+        # The copy keeps the shelf the library put it on.
+        assert create.call_args.kwargs["category"] == "engineering"
         assert {call.kwargs["name"] for call in add_resource.await_args_list} == {
             "checklist.md",
             "review-comment.md",

@@ -66,6 +66,9 @@ export function SkillWorkbench({
   const [description, setDescription] = useState(skill.description);
   const [content, setContent] = useState(skill.content);
   const [enabled, setEnabled] = useState(skill.enabled);
+  // Held as text while it is edited; whitespace-only means "no category", so
+  // clearing the field is how a skill leaves its shelf.
+  const [category, setCategory] = useState(skill.category ?? "");
   // `null` is the body. Every other value is a resource id.
   const [openId, setOpenId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -74,8 +77,12 @@ export function SkillWorkbench({
   const tree = useMemo(() => buildTree(files), [files]);
   const selected = files.find((file) => file.id === openId) ?? null;
 
+  const editedCategory = category.trim() === "" ? null : category.trim();
   const changed =
-    description !== skill.description || content !== skill.content || enabled !== skill.enabled;
+    description !== skill.description ||
+    content !== skill.content ||
+    enabled !== skill.enabled ||
+    editedCategory !== skill.category;
 
   const upload = async (list: FileList | null) => {
     if (!list || list.length === 0) return;
@@ -99,6 +106,20 @@ export function SkillWorkbench({
           <p className="text-muted-foreground text-xs">
             The only part the model reads before deciding whether to open the skill at all. Write
             when it applies, not what is inside it.
+          </p>
+        </div>
+        <div className="w-40 shrink-0 space-y-1.5">
+          <Label htmlFor="skill-category">Category</Label>
+          <Input
+            id="skill-category"
+            value={category}
+            onChange={(event) => setCategory(event.target.value)}
+            placeholder="e.g. marketing"
+            maxLength={64}
+            readOnly={!canEdit}
+          />
+          <p className="text-muted-foreground text-xs">
+            Groups the listing. Never reaches the model.
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2 pb-6">
@@ -221,7 +242,7 @@ export function SkillWorkbench({
         </Button>
         {canEdit && (
           <Button
-            onClick={() => onSave({ description, content, enabled })}
+            onClick={() => onSave({ description, content, enabled, category: editedCategory })}
             disabled={!changed || !description.trim() || isSaving}
           >
             Save

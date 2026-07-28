@@ -60,6 +60,7 @@ class LibrarySkill:
 
     name: str
     description: str
+    category: str | None
     content: str
     resources: tuple[LibraryResource, ...]
 
@@ -101,6 +102,9 @@ def _read(folder: Path) -> LibrarySkill:
     description = str(metadata.get("description") or "").strip()
     if not description:
         raise ValueError(f"{manifest} has no description, which is what the model reads first")
+    # Optional: a shelf label for the listing, not something the model reads.
+    raw_category = str(metadata.get("category") or "").strip()
+    category = raw_category or None
 
     resources = tuple(
         LibraryResource(
@@ -116,6 +120,7 @@ def _read(folder: Path) -> LibrarySkill:
         key=folder.name,
         name=name,
         description=description,
+        category=category,
         content=body.strip(),
         resources=resources,
     )

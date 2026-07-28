@@ -44,8 +44,31 @@ describe("useSkills", () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     expect(apiClient.get).toHaveBeenCalledWith("/skills", {
-      params: { q: "refund", skip: "50", limit: "50" },
+      params: { q: "refund", sort: "name", skip: "50", limit: "50" },
     });
+  });
+
+  it("sends the category filter and the sort to the server, same as the search", async () => {
+    const { result } = renderHook(() => useSkills({ category: "devops", sort: "updated" }), {
+      wrapper,
+    });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(apiClient.get).toHaveBeenCalledWith("/skills", {
+      params: { category: "devops", sort: "updated", skip: "0", limit: "50" },
+    });
+  });
+
+  it("hands back the organization's category choices alongside the page", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: [],
+      total: 0,
+      categories: ["devops", "marketing"],
+    });
+    const { result } = renderHook(() => useSkills(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.categories).toEqual(["devops", "marketing"]);
   });
 
   it("reports the count before paging, which is what tells a caller it has a page", async () => {
@@ -133,12 +156,14 @@ describe("useSkill", () => {
       description: "How refunds work",
       content: "# Refunds v2",
       enabled: false,
+      category: null,
     });
 
     expect(apiClient.patch).toHaveBeenCalledWith("/skills/s1", {
       description: "How refunds work",
       content: "# Refunds v2",
       enabled: false,
+      category: null,
     });
     expect(toastSuccess.mock.calls.at(-1)?.[0]).toMatch(/every agent/i);
   });

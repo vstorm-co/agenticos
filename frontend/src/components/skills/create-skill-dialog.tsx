@@ -23,8 +23,9 @@ import { submitFailure } from "@/lib/api-error";
 /** What the backend accepts, so an over-long value is refused before it is sent. */
 const MAX_NAME = 64;
 const MAX_DESCRIPTION = 500;
+const MAX_CATEGORY = 64;
 
-type Field = "name" | "description" | "content";
+type Field = "name" | "description" | "category" | "content";
 
 interface CreateSkillDialogProps {
   open: boolean;
@@ -43,6 +44,7 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
   const { create } = useSkills();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [category, setCategory] = useState("");
   const [content, setContent] = useState("");
   // Held until the skill exists. A dropped folder is the common way a skill
   // arrives, and making somebody create an empty one first to attach it is the
@@ -53,6 +55,7 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
   const setters: Record<Field, (value: string) => void> = {
     name: setName,
     description: setDescription,
+    category: setCategory,
     content: setContent,
   };
 
@@ -74,7 +77,14 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
 
   async function handleCreate() {
     try {
-      const skill = await create.mutateAsync({ name, description, content });
+      const skill = await create.mutateAsync({
+        name,
+        description,
+        content,
+        // Whitespace-only means "no category" - the backend refuses an empty
+        // string but takes null as uncategorized.
+        category: category.trim() === "" ? null : category.trim(),
+      });
       // Files go up after the skill exists, because a resource hangs off a
       // skill id - there is nothing to attach them to before this point. A
       // failure here leaves the skill created and says so, rather than
@@ -84,13 +94,14 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
       }
       setName("");
       setDescription("");
+      setCategory("");
       setContent("");
       setFiles([]);
       setErrors({});
       onOpenChange(false);
     } catch (error) {
       const failure = submitFailure(error, {
-        fields: ["name", "description", "content"],
+        fields: ["name", "description", "category", "content"],
         identifiedBy: "name",
       });
       setErrors(failure.fields);
@@ -134,6 +145,19 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
               placeholder="How refunds and their exceptions are handled."
               maxLength={MAX_DESCRIPTION}
               rows={2}
+            />
+          </FormField>
+          <FormField
+            label="Category"
+            htmlFor="new-skill-category"
+            error={errors.category}
+            description="Optional. A shelf for the listing to group and filter by - it never reaches the model."
+          >
+            <Input
+              value={category}
+              onChange={(event) => edit("category", event.target.value)}
+              placeholder="support"
+              maxLength={MAX_CATEGORY}
             />
           </FormField>
           <FormField

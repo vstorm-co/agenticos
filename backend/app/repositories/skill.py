@@ -1,11 +1,15 @@
 """Skill repository (PostgreSQL async)."""
 
+from typing import Literal
 from uuid import UUID
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.skill import Skill, SkillResource
+
+# How a listing may be ordered: by name, or by when a skill last changed.
+SkillSort = Literal["name", "updated"]
 
 
 async def get(db: AsyncSession, skill_id: UUID, *, organization_id: UUID) -> Skill | None:
@@ -39,6 +43,8 @@ async def list_for_org(
     *,
     organization_id: UUID,
     search: str | None = None,
+    category: str | None = None,
+    sort: SkillSort = "name",
     skip: int = 0,
     limit: int = 50,
 ) -> tuple[list[Skill], int]:
@@ -50,7 +56,13 @@ async def list_for_org(
     Search covers the name and the description because those are the two things
     a person remembers about a skill - the body is what the *model* reads, and
     matching on it would return rows whose visible text explains nothing about
-    why they matched.
+    why they matched. A category, by contrast, is a shelf: it matches exactly
+    or not at all.
+
+    Sorting by "updated" falls back to `created_at` because `updated_at` is
+    null until the first edit - a skill written yesterday and never touched is
+    more recent than one rewritten last month, and a null sorted last would
+    say otherwise.
     """
     where = [Skill.organization_id == organization_id]
     if search:
@@ -61,12 +73,35 @@ async def list_for_org(
                 Skill.description.ilike(f"%{safe}%", escape="\\"),
             )
         )
+    if category:
+        where.append(Skill.category == category)
 
+    order_by = (
+        (func.coalesce(Skill.updated_at, Skill.created_at).desc(), Skill.name.asc())
+        if sort == "updated"
+        else (Skill.name.asc(),)
+    )
     items = await db.execute(
-        select(Skill).where(*where).order_by(Skill.name.asc()).offset(skip).limit(limit)
+        select(Skill).where(*where).order_by(*order_by).offset(skip).limit(limit)
     )
     total = await db.scalar(select(func.count(Skill.id)).where(*where))
     return list(items.scalars().all()), total or 0
+
+
+async def list_categories(db: AsyncSession, *, organization_id: UUID) -> list[str]:
+    """Every distinct category in one organization, for the listing's filter.
+
+    Independent of paging and search on purpose: a chip that disappears because
+    the current page happens not to show its skills is a filter nobody can use
+    to get back.
+    """
+    result = await db.execute(
+        select(Skill.category)
+        .where(Skill.organization_id == organization_id, Skill.category.is_not(None))
+        .distinct()
+        .order_by(Skill.category.asc())
+    )
+    return [category for category in result.scalars().all() if category is not None]
 
 
 async def create(
@@ -77,6 +112,7 @@ async def create(
     name: str,
     description: str,
     content: str,
+    category: str | None = None,
 ) -> Skill:
     skill = Skill(
         organization_id=organization_id,
@@ -84,6 +120,7 @@ async def create(
         name=name,
         description=description,
         content=content,
+        category=category,
     )
     db.add(skill)
     await db.flush()

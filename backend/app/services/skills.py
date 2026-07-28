@@ -19,6 +19,7 @@ from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundErr
 from app.core.permissions import AuthContext, Perm
 from app.db.models.skill import Skill, SkillResource
 from app.repositories import resource_grant_repo, skill_repo
+from app.repositories.skill import SkillSort
 from app.services import skill_library
 from app.services.access import SKILL, resolve_access
 
@@ -102,6 +103,8 @@ class SkillService:
         ctx: AuthContext,
         *,
         search: str | None = None,
+        category: str | None = None,
+        sort: SkillSort = "name",
         skip: int = 0,
         limit: int = 50,
     ) -> tuple[list[Skill], int]:
@@ -110,9 +113,15 @@ class SkillService:
             self.db,
             organization_id=ctx.organization_id,
             search=search,
+            category=category,
+            sort=sort,
             skip=skip,
             limit=limit,
         )
+
+    async def list_categories(self, ctx: AuthContext) -> list[str]:
+        """Every distinct category in this organization, for the listing's filter."""
+        return await skill_repo.list_categories(self.db, organization_id=ctx.organization_id)
 
     async def resolve_for_agent(self, ctx: AuthContext, skill_ids: list[UUID]) -> list[Skill]:
         """The enabled skills an agent is bound to.
@@ -139,6 +148,7 @@ class SkillService:
         name: str,
         description: str,
         content: str,
+        category: str | None = None,
     ) -> Skill:
         """Create a skill.
 
@@ -163,6 +173,7 @@ class SkillService:
             name=name,
             description=description,
             content=content,
+            category=category,
         )
         await record_audit(
             self.db,
@@ -221,6 +232,7 @@ class SkillService:
             name=bundled.name,
             description=bundled.description,
             content=bundled.content,
+            category=bundled.category,
         )
         for resource in bundled.resources:
             await skill_repo.create_resource(

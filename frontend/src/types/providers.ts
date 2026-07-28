@@ -70,6 +70,8 @@ export interface Skill {
   name: string;
   description: string;
   content: string;
+  /** A grouping label for people ("marketing", "devops"); null is uncategorized. */
+  category: string | null;
   enabled: boolean;
   version: number;
   visibility: string;
@@ -87,6 +89,7 @@ export interface LibrarySkill {
   key: string;
   name: string;
   description: string;
+  category: string | null;
   content: string;
   resources: SkillResourceSummary[];
   /** Whether this organization already has a skill by that name. */
@@ -102,10 +105,20 @@ export interface SkillSummary {
   id: string;
   name: string;
   description: string;
+  category: string | null;
   enabled: boolean;
+  /** How many files the skill carries beyond its body. */
+  file_count: number;
+  /** Whether this skill shipped with the deployment, matched by library name. */
+  built_in: boolean;
 }
 
 export interface SkillList {
   items: SkillSummary[];
   total: number;
+  /**
+   * Every distinct category in the organization - the filter's choices,
+   * unaffected by the search and paging that shaped `items`.
+   */
+  categories: string[];
 }

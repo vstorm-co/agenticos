@@ -10,7 +10,10 @@ function skill(overrides: Partial<SkillSummary> = {}): SkillSummary {
     id: "s1",
     name: "refund-policy",
     description: "How refunds are handled.",
+    category: null,
     enabled: true,
+    file_count: 0,
+    built_in: false,
     ...overrides,
   };
 }

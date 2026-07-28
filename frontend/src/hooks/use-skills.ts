@@ -13,12 +13,20 @@ export interface NewSkill {
   name: string;
   description: string;
   content: string;
+  /** A grouping label for the listing; omitted means uncategorized. */
+  category?: string | null;
 }
+
+/** How the server may order a listing. */
+export type SkillSort = "name" | "updated";
 
 /** Which slice of the organization's skills to ask for. */
 export interface SkillQuery {
   /** Matched against name and description, by the database. */
   search?: string;
+  /** An exact category to filter to; undefined means every shelf. */
+  category?: string;
+  sort?: SkillSort;
   skip?: number;
   limit?: number;
 }
@@ -34,14 +42,26 @@ export interface SkillQuery {
  * count before paging, which is what a pager needs and what tells a caller
  * whether the slice it got is the whole set.
  */
-export function useSkills({ search = "", skip = 0, limit = PAGE_SIZE }: SkillQuery = {}) {
+export function useSkills({
+  search = "",
+  category,
+  sort = "name",
+  skip = 0,
+  limit = PAGE_SIZE,
+}: SkillQuery = {}) {
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
-    queryKey: qk.skills.list({ search, skip, limit }),
+    queryKey: qk.skills.list({ search, category: category ?? "", sort, skip, limit }),
     queryFn: () =>
       apiClient.get<SkillList>("/skills", {
-        params: { ...(search ? { q: search } : {}), skip: String(skip), limit: String(limit) },
+        params: {
+          ...(search ? { q: search } : {}),
+          ...(category ? { category } : {}),
+          sort,
+          skip: String(skip),
+          limit: String(limit),
+        },
       }),
     placeholderData: (previous) => previous,
   });
@@ -83,7 +103,15 @@ export function useSkills({ search = "", skip = 0, limit = PAGE_SIZE }: SkillQue
     onError: (error) => toast.error(getErrorMessage(error)),
   });
 
-  return { skills: data?.items ?? [], total: data?.total ?? 0, isLoading, create, update, remove };
+  return {
+    skills: data?.items ?? [],
+    total: data?.total ?? 0,
+    categories: data?.categories ?? [],
+    isLoading,
+    create,
+    update,
+    remove,
+  };
 }
 
 /** What the editor may change on a skill that already exists. */
@@ -91,6 +119,8 @@ export interface SkillEdit {
   description: string;
   content: string;
   enabled: boolean;
+  /** Null clears the category; the listing then shows the skill unshelved. */
+  category: string | null;
 }
 
 /**

@@ -97,5 +97,35 @@ describe("CreateSkillDialog", () => {
   it("does not let an over-long name leave the browser", async () => {
     expect(name()).toHaveAttribute("maxLength", "64");
     expect(description()).toHaveAttribute("maxLength", "500");
+    expect(screen.getByLabelText("Category")).toHaveAttribute("maxLength", "64");
+  });
+
+  it("sends the category when one was typed", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "s1", name: "refund-policy" });
+    await fill();
+    await userEvent.type(screen.getByLabelText("Category"), "support");
+    await userEvent.click(create());
+
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/skills",
+        expect.objectContaining({ category: "support" }),
+      ),
+    );
+  });
+
+  it("sends no category rather than an empty one when the field is left blank", async () => {
+    // "" is a category the backend refuses; a skill without one is
+    // uncategorized, which is null.
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "s1", name: "refund-policy" });
+    await fill();
+    await userEvent.click(create());
+
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/skills",
+        expect.objectContaining({ category: null }),
+      ),
+    );
   });
 });

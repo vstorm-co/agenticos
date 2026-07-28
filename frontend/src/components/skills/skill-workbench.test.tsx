@@ -22,6 +22,7 @@ const SKILL: Skill = {
   name: "refund-policy",
   description: "How refunds and their exceptions are handled.",
   content: "## Refunds\n\nWithin 30 days, no questions asked.",
+  category: null,
   enabled: true,
   version: 3,
   visibility: "organization",
@@ -104,7 +105,24 @@ describe("SkillWorkbench", () => {
       description: "When a customer disputes a charge.",
       content: SKILL.content,
       enabled: false,
+      category: null,
     });
+  });
+
+  it("puts the skill on a shelf, trimmed to what the listing will show", async () => {
+    const { onSave } = renderWorkbench();
+    await userEvent.type(screen.getByLabelText("Category"), " support ");
+    await userEvent.click(save());
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ category: "support" }));
+  });
+
+  it("takes a skill off its shelf when the category is cleared", async () => {
+    // Null, not the empty string: "" is a category the backend refuses, and a
+    // skill without one is uncategorized rather than categorized-as-nothing.
+    const { onSave } = renderWorkbench({ skill: { ...SKILL, category: "support" } });
+    await userEvent.clear(screen.getByLabelText("Category"));
+    await userEvent.click(save());
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ category: null }));
   });
 
   it("refuses to save a skill the model would have nothing to go on", async () => {
@@ -127,6 +145,7 @@ describe("SkillWorkbench", () => {
     expect(await content()).toHaveValue(SKILL.content);
     expect(await content()).toHaveAttribute("readonly");
     expect(description()).toHaveAttribute("readonly");
+    expect(screen.getByLabelText("Category")).toHaveAttribute("readonly");
     expect(screen.getByRole("switch", { name: "Enabled" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
   });

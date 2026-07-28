@@ -62,6 +62,7 @@ class SkillRead(BaseSchema):
     name: str
     description: str
     content: str
+    category: str | None = None
     enabled: bool
     version: int
     visibility: str
@@ -80,12 +81,24 @@ class SkillSummary(BaseSchema):
     id: UUID
     name: str
     description: str
+    category: str | None = None
     enabled: bool
+    file_count: int = Field(description="How many files the skill carries beyond its body")
+    built_in: bool = Field(
+        description="Whether this skill shipped with the deployment, by library name"
+    )
 
 
 class SkillList(BaseSchema):
     items: list[SkillSummary]
     total: int
+    categories: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Every distinct category in the organization - the filter's choices, "
+            "unaffected by the search and paging that shaped `items`"
+        ),
+    )
 
 
 class SkillCreate(BaseSchema):
@@ -100,12 +113,19 @@ class SkillCreate(BaseSchema):
         description="The one line the model reads before deciding to load the body",
     )
     content: str = Field(default="", description="The skill body, in Markdown")
+    category: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=64,
+        description="A grouping label for the listing, e.g. `marketing` or `devops`",
+    )
 
 
 class SkillUpdate(BaseSchema):
     description: str | None = Field(default=None, max_length=500)
     content: str | None = None
     enabled: bool | None = None
+    category: str | None = Field(default=None, min_length=1, max_length=64)
 
 
 class LibrarySkillRead(BaseSchema):
@@ -114,6 +134,7 @@ class LibrarySkillRead(BaseSchema):
     key: str = Field(description="The folder it lives in - how an install names it")
     name: str
     description: str
+    category: str | None = None
     content: str = Field(description="The body, so the gallery can show it before installing")
     resources: list[SkillResourceSummary] = Field(default_factory=list)
     installed: bool = Field(

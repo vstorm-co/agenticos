@@ -1,6 +1,7 @@
 ---
 name: refund-policy
 description: When a refund is given without asking, when it needs approval, and how to say no.
+category: support
 ---
 
 # Refunds

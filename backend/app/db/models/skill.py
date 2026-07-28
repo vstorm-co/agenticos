@@ -60,6 +60,10 @@ class Skill(Base, TimestampMixin):
     # what makes progressive disclosure work, so it earns its own column.
     description: Mapped[str] = mapped_column(String(500), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    # A grouping label for people ("marketing", "devops"), not for the model -
+    # the picker filters by it. Nullable: a skill without one is uncategorized,
+    # which is a fine thing for a skill to be.
+    category: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)

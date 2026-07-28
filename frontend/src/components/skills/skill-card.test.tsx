@@ -9,7 +9,10 @@ const SKILL: SkillSummary = {
   id: "skill-1",
   name: "refund-policy",
   description: "How refunds and their exceptions are handled.",
+  category: null,
   enabled: true,
+  file_count: 2,
+  built_in: false,
 };
 
 function renderCard(props: Partial<React.ComponentProps<typeof SkillCard>> = {}) {
@@ -35,6 +38,31 @@ describe("SkillCard", () => {
     // Badging the ordinary case on every card would bury the exception.
     renderCard();
     expect(screen.queryByText("disabled")).not.toBeInTheDocument();
+  });
+
+  it("says how many files the skill carries", () => {
+    renderCard();
+    expect(screen.getByText("2 files")).toBeInTheDocument();
+  });
+
+  it("says in words that a skill has no files, rather than showing a bare zero", () => {
+    renderCard({ skill: { ...SKILL, file_count: 0 } });
+    expect(screen.getByText("No files")).toBeInTheDocument();
+  });
+
+  it("marks a skill that shipped with the deployment", () => {
+    renderCard({ skill: { ...SKILL, built_in: true } });
+    expect(screen.getByText("built-in")).toBeInTheDocument();
+  });
+
+  it("does not accuse a custom skill of being built-in", () => {
+    renderCard();
+    expect(screen.queryByText("built-in")).not.toBeInTheDocument();
+  });
+
+  it("names the shelf a categorized skill sits on", () => {
+    renderCard({ skill: { ...SKILL, category: "support" } });
+    expect(screen.getByText("support")).toBeInTheDocument();
   });
 
   it("opens the skill when its name is clicked", async () => {

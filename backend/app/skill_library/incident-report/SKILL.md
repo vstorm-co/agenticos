@@ -1,6 +1,7 @@
 ---
 name: incident-report
 description: How to write up an incident so the next person can act on it, not just read it.
+category: operations
 ---
 
 # Writing an incident report

@@ -1,6 +1,7 @@
 ---
 name: code-review
 description: How this organization reviews a change, and what a review must not let through.
+category: engineering
 ---
 
 # Reviewing a change
