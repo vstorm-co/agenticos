@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.organization import OrganizationMember, OrgRole
-from app.db.models.user import User
+from app.db.models.user import NotificationPreference, User
 
 
 async def get(
@@ -109,21 +109,29 @@ async def list_emails_by_role(
     *,
     organization_id: UUID,
     roles: list[str],
+    preference: NotificationPreference | None = None,
 ) -> list[str]:
     """Addresses of the members holding one of `roles`.
 
     Emails rather than users because the only caller is notification: what it
     needs is somewhere to send, and loading whole users to read one column
     invites a second caller that starts making decisions on the rest.
+
+    `preference` names the notification opt-out to honour: a member who has
+    switched that column off is left out of the result, so the caller never
+    holds an address it is not allowed to mail.
     """
+    conditions = [
+        OrganizationMember.organization_id == organization_id,
+        OrganizationMember.role.in_(roles),
+        User.is_active.is_(True),
+    ]
+    if preference is not None:
+        conditions.append(getattr(User, preference).is_(True))
     result = await db.execute(
         select(User.email)
         .join(OrganizationMember, OrganizationMember.user_id == User.id)
-        .where(
-            OrganizationMember.organization_id == organization_id,
-            OrganizationMember.role.in_(roles),
-            User.is_active.is_(True),
-        )
+        .where(*conditions)
     )
     return [row[0] for row in result.all()]
 

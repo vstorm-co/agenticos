@@ -48,6 +48,18 @@ class UserUpdate(BaseSchema):
         default=None,
         description="Set to a timestamp to mark onboarding complete; null to reset.",
     )
+    notify_budget_alerts: bool | None = Field(
+        default=None,
+        description="Email me when one of my agents stops on a spending limit.",
+    )
+    notify_approval_requests: bool | None = Field(
+        default=None,
+        description="Email me when a run parks waiting for a tool-call approval.",
+    )
+    notify_usage_reports: bool | None = Field(
+        default=None,
+        description="Email me the weekly and monthly usage reports.",
+    )
 
     @field_validator("email")
     @classmethod
@@ -62,6 +74,9 @@ class UserRead(UserBase, TimestampSchema):
     role: UserRole = UserRole.USER
     avatar_url: str | None = None
     onboarding_completed_at: datetime | None = None
+    notify_budget_alerts: bool = True
+    notify_approval_requests: bool = True
+    notify_usage_reports: bool = True
 
 
 class UserInDB(UserRead):

@@ -38,8 +38,8 @@ _CATEGORIES: dict[EmailKey, EmailCategory] = {
     EmailKey.INVITATION: EmailCategory.TRANSACTIONAL,
     EmailKey.NEWSLETTER_WELCOME: EmailCategory.MARKETING,
     # Lifecycle, not marketing: each one reports a state the recipient's own
-    # agent is in, and there is nothing to opt out of that would leave the
-    # platform usable.
+    # agent is in. Each maps to one preference on the user (the `notify_*`
+    # columns), consulted where recipients are resolved, in NotificationService.
     EmailKey.BUDGET_EXCEEDED: EmailCategory.LIFECYCLE,
     EmailKey.APPROVAL_REQUESTED: EmailCategory.LIFECYCLE,
     EmailKey.USAGE_REPORT: EmailCategory.LIFECYCLE,
@@ -59,13 +59,12 @@ class EmailService:
     ) -> SendResult:
         """Render and send one email.
 
-        There is deliberately no opt-out check here. This signature used to
-        carry a `force` flag documented as skipping "category opt-out checks",
-        and no such check existed anywhere - nothing stored a preference and
-        nothing consulted one, so the parameter described a feature rather than
-        the code. Every key below is transactional; when a key arrives that a
-        recipient may genuinely decline, the check belongs in this method, where
-        no caller can forget it.
+        There is deliberately no opt-out check here: this method holds an
+        address, not a user, and cannot ask the database what its owner wants.
+        The lifecycle keys (budget exceeded, approval requested, usage report)
+        are declinable, and their check lives in NotificationService, where
+        recipients are resolved - an address that reaches this method has
+        already passed it. The transactional keys have no preference at all.
         """
         subject, html, text = render_email(key.value, context)
 

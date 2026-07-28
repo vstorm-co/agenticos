@@ -9,6 +9,12 @@ export interface User {
   /** ISO timestamp when the user finished the onboarding wizard. `null` means
    *  the wizard hasn't been completed yet - middleware/banner uses this. */
   onboarding_completed_at?: string | null;
+  /** Notification opt-outs, mirrored from the `notify_*` columns. Optional
+   *  because a persisted store may predate them; absent means subscribed,
+   *  which matches the server default. */
+  notify_budget_alerts?: boolean;
+  notify_approval_requests?: boolean;
+  notify_usage_reports?: boolean;
 }
 
 export interface Session {

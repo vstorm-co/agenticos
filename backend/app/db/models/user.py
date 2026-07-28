@@ -3,9 +3,9 @@
 import uuid
 from datetime import datetime
 from enum import StrEnum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
-from sqlalchemy import Boolean, DateTime, String
+from sqlalchemy import Boolean, DateTime, String, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -13,6 +13,15 @@ from app.db.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
     from app.db.models.session import Session
+
+# The column names of the opt-outs below, for code that resolves recipients and
+# needs to say which preference applies. A Literal rather than an enum so a typo
+# is a type error, not a runtime AttributeError inside a `finally` block.
+NotificationPreference = Literal[
+    "notify_budget_alerts",
+    "notify_approval_requests",
+    "notify_usage_reports",
+]
 
 
 class UserRole(StrEnum):
@@ -45,6 +54,21 @@ class User(Base, TimestampMixin):
     )
     oauth_provider: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
     oauth_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+
+    # Opt-outs for the lifecycle emails (budget alerts, approval requests,
+    # usage reports). Consulted where recipients are resolved, in
+    # NotificationService; transactional mail deliberately has no preference.
+    # Default true: the emails exist because a run nobody was watching went
+    # quiet, and an opt-in nobody has set yet is the same silence.
+    notify_budget_alerts: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default=text("true"), nullable=False
+    )
+    notify_approval_requests: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default=text("true"), nullable=False
+    )
+    notify_usage_reports: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default=text("true"), nullable=False
+    )
 
     sessions: Mapped[list["Session"]] = relationship(
         "Session", back_populates="user", cascade="all, delete-orphan"

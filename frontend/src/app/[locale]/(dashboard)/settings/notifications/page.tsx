@@ -1,30 +1,66 @@
-import { KeyRound, Mail, UserPlus } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+"use client";
 
+import { useState } from "react";
+import { CircleDollarSign, Hand, KeyRound, Mail, PieChart, UserPlus } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { toast } from "sonner";
+
+import { Switch } from "@/components/ui";
 import { SectionCard } from "@/components/settings/settings-section";
+import { useAuth } from "@/hooks";
+import { apiClient, ApiError } from "@/lib/api-client";
+import { useAuthStore } from "@/stores";
+import type { User } from "@/types";
 
 /**
- * What this deployment emails, and why none of it is a switch.
+ * Every toggle on this page controls a real send.
  *
- * This page used to offer four toggles - Billing, Team activity, Security
- * alerts, Product updates - over two channels, a Save button and a
- * "Notification preferences saved" toast. It wrote to `localStorage`. No
- * notification-preference model existed on the server, so nothing was saved
- * anywhere a sender could read it: turning a toggle off did not stop an email,
- * and the setting did not survive a different browser. The toast claimed a
- * success that had not happened.
+ * The rule this page lives by: a preference is only real once something
+ * consults it before sending. Each switch below writes one `notify_*` column
+ * through PATCH `/users/me`, and `NotificationService` filters recipients on
+ * that column before an email leaves - the wiring is tested on both sides
+ * (`backend/tests/test_notifications.py` pins the refusal). A switch with no
+ * sender behind it does not belong here; this page once had four of those,
+ * saving to localStorage that nothing read.
  *
- * The categories were wrong on top of that. This deployment has no billing and
- * no newsletter, so `Billing` and `Product updates` metered mail that cannot
- * exist, while the three emails it does send were named nothing like any of the
- * four.
- *
- * A statement of what is actually sent is worth more than a control that lies,
- * so that is what this page is until there is a notification a recipient can
- * genuinely decline. When one arrives, its toggle belongs here and the check
- * belongs in `EmailService.send` - at the send site, not in this component. A
- * preference the sender does not consult is the same facade in another table.
+ * The transactional emails are listed without switches on purpose: each one
+ * carries access to an account or an organization, so the honest control is
+ * no control, with the reason stated.
  */
+
+type PreferenceKey = "notify_budget_alerts" | "notify_approval_requests" | "notify_usage_reports";
+
+interface OptionalEmail {
+  key: PreferenceKey;
+  label: string;
+  trigger: string;
+  audience: string;
+  icon: LucideIcon;
+}
+
+const OPTIONAL_EMAILS: readonly OptionalEmail[] = [
+  {
+    key: "notify_budget_alerts",
+    label: "Budget alerts",
+    trigger: "An agent run stops because a spending limit was reached.",
+    audience: "Sent to organization owners and admins, and to the agent's owner.",
+    icon: CircleDollarSign,
+  },
+  {
+    key: "notify_approval_requests",
+    label: "Approval requests",
+    trigger: "A run parks because a tool call is waiting for a person to approve it.",
+    audience: "Sent to whoever started the run; for scheduled runs, to owners and admins.",
+    icon: Hand,
+  },
+  {
+    key: "notify_usage_reports",
+    label: "Usage reports",
+    trigger: "Weekly and monthly, when your organization's agents ran anything at all.",
+    audience: "Sent to organization owners and admins. A period with zero runs sends nothing.",
+    icon: PieChart,
+  },
+];
 
 interface SentEmail {
   key: string;
@@ -63,11 +99,57 @@ const SENT_EMAILS: readonly SentEmail[] = [
 ];
 
 export default function NotificationsSettingsPage() {
+  const { user } = useAuth();
+  const { setUser } = useAuthStore();
+  const [saving, setSaving] = useState<PreferenceKey | null>(null);
+
+  if (!user) {
+    return null;
+  }
+
+  const handleToggle = async (key: PreferenceKey, enabled: boolean) => {
+    setSaving(key);
+    try {
+      const updated = await apiClient.patch<User>("/users/me", { [key]: enabled });
+      setUser(updated);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to save preference");
+    } finally {
+      setSaving(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <SectionCard
-        title="Email from this deployment"
-        description="Every email AgenticOS sends, what triggers it, and why none of them is optional."
+        title="Agent activity"
+        description="Emails about runs nobody is watching. Each switch is checked before the email is sent."
+      >
+        <ul className="divide-border divide-y">
+          {OPTIONAL_EMAILS.map((email) => (
+            <li key={email.key} className="flex items-start gap-3 py-4 first:pt-0 last:pb-0">
+              <span className="bg-muted text-muted-foreground inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
+                <email.icon className="h-4 w-4" />
+              </span>
+              <div className="min-w-0 flex-1 space-y-1">
+                <p className="text-foreground text-sm font-medium">{email.label}</p>
+                <p className="text-muted-foreground text-xs leading-relaxed">{email.trigger}</p>
+                <p className="text-muted-foreground text-xs leading-relaxed">{email.audience}</p>
+              </div>
+              <Switch
+                aria-label={email.label}
+                checked={user[email.key] ?? true}
+                disabled={saving !== null}
+                onCheckedChange={(enabled) => handleToggle(email.key, enabled)}
+              />
+            </li>
+          ))}
+        </ul>
+      </SectionCard>
+
+      <SectionCard
+        title="Always sent"
+        description="The transactional emails, what triggers each, and why none of them is optional."
       >
         <ul className="divide-border divide-y">
           {SENT_EMAILS.map((email) => (
@@ -106,17 +188,6 @@ export default function NotificationsSettingsPage() {
             is no notification feed to route anything to; activity lives on the pages that own it.
           </li>
         </ul>
-      </SectionCard>
-
-      <SectionCard title="Preferences" description="Why this page has no controls yet.">
-        <p className="text-muted-foreground text-xs leading-relaxed">
-          A preference is only real once something consults it before sending. All three emails
-          above are transactional - they carry access to your account or to an organization - so
-          there is nothing here a toggle could switch off without breaking it. Controls appear on
-          this page when the first genuinely optional notification does; the leading candidate is an
-          alert when an organization approaches its monthly spend limit, which needs a spend cap to
-          exist and a scheduled job to evaluate it.
-        </p>
       </SectionCard>
     </div>
   );

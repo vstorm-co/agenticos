@@ -16,6 +16,11 @@ because SMTP was down. Every send is wrapped, and a failure is logged.
 *Never notify twice for the same fact.* A budget breach is reported once per
 run, at the moment the run is recorded as stopped - not per model request that
 was refused.
+
+*Never mail somebody who opted out.* Each kind of email here maps to one
+preference on the user (`/settings/notifications`), and the check happens where
+recipients are resolved: an address only enters a recipient list if its owner
+still wants this kind of mail.
 """
 
 from __future__ import annotations
@@ -33,6 +38,7 @@ from app.core.config import settings
 from app.core.permissions import OrgRoleName
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
+from app.db.models.user import NotificationPreference
 from app.repositories import agent_run as agent_run_repo
 from app.repositories import member as member_repo
 from app.repositories import organization as organization_repo
@@ -65,7 +71,9 @@ class NotificationService:
         are who decide whether the ceiling was too low.
         """
         recipients = await self._escalation_recipients(
-            organization_id=run.organization_id, owner_user_id=agent.owner_user_id
+            organization_id=run.organization_id,
+            owner_user_id=agent.owner_user_id,
+            preference="notify_budget_alerts",
         )
         if not recipients:
             return
@@ -87,16 +95,28 @@ class NotificationService:
         Sent to whoever started the run when that is known, and to the
         escalation list otherwise: a scheduled run has no user, and a queue
         nobody is told about is a run that sits parked until it is noticed.
+
+        An initiator who opted out of approval emails gets nothing, and nobody
+        gets it in their place: they started the run and were told on screen,
+        so their opt-out is a decision about their own inbox, not a request to
+        forward the queue to the admins.
         """
         recipients: list[str] = []
         if run.user_id is not None:
             emails = await member_repo.get_emails_for_users(
                 self.db, organization_id=run.organization_id, user_ids=[run.user_id]
             )
-            recipients = [email for email in emails.values() if email]
+            address = emails.get(run.user_id)
+            if address:
+                initiator = await user_repo.get_by_id(self.db, run.user_id)
+                if initiator is not None and not initiator.notify_approval_requests:
+                    return
+                recipients = [address]
         if not recipients:
             recipients = await self._escalation_recipients(
-                organization_id=run.organization_id, owner_user_id=agent.owner_user_id
+                organization_id=run.organization_id,
+                owner_user_id=agent.owner_user_id,
+                preference="notify_approval_requests",
             )
         if not recipients:
             return
@@ -129,7 +149,10 @@ class NotificationService:
         agents = {row[0] for row in rows}
 
         recipients = await member_repo.list_emails_by_role(
-            self.db, organization_id=organization_id, roles=_ESCALATION_ROLES
+            self.db,
+            organization_id=organization_id,
+            roles=_ESCALATION_ROLES,
+            preference="notify_usage_reports",
         )
         if not recipients:
             return False
@@ -152,15 +175,26 @@ class NotificationService:
         return settings.FRONTEND_URL.rstrip("/")
 
     async def _escalation_recipients(
-        self, *, organization_id: UUID, owner_user_id: UUID | None
+        self,
+        *,
+        organization_id: UUID,
+        owner_user_id: UUID | None,
+        preference: NotificationPreference,
     ) -> list[str]:
-        """The admins, plus the agent's owner, each address once."""
+        """The admins, plus the agent's owner, each address once.
+
+        Everyone on the list has `preference` still switched on: the role query
+        filters on it, and the owner is checked the same way here.
+        """
         recipients = await member_repo.list_emails_by_role(
-            self.db, organization_id=organization_id, roles=_ESCALATION_ROLES
+            self.db,
+            organization_id=organization_id,
+            roles=_ESCALATION_ROLES,
+            preference=preference,
         )
         if owner_user_id is not None:
             owner = await user_repo.get_by_id(self.db, owner_user_id)
-            if owner is not None and owner.is_active:
+            if owner is not None and owner.is_active and getattr(owner, preference):
                 recipients.append(owner.email)
         return sorted(set(recipients))
 

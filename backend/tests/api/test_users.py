@@ -38,6 +38,9 @@ class MockUser:
         self.hashed_password = "hashed"
         self.created_at = datetime.now(UTC)
         self.updated_at = datetime.now(UTC)
+        self.notify_budget_alerts = True
+        self.notify_approval_requests = True
+        self.notify_usage_reports = True
 
     def has_role(self, role) -> bool:
         """Check if user has the specified role."""
@@ -132,6 +135,37 @@ async def test_update_current_user(auth_client: AsyncClient, mock_user_service: 
     )
     assert response.status_code == 200
     mock_user_service.update.assert_called_once()
+
+
+@pytest.mark.anyio
+async def test_update_current_user_notification_preferences_reach_the_service(
+    auth_client: AsyncClient, mock_user_service: MagicMock
+):
+    """The settings page saves through PATCH /users/me; a preference that the
+    route drops on the floor is the old lying toggle with extra steps."""
+    response = await auth_client.patch(
+        f"{settings.API_V1_STR}/users/me",
+        json={"notify_usage_reports": False, "notify_budget_alerts": False},
+    )
+    assert response.status_code == 200
+    user_in = mock_user_service.update.call_args.args[1]
+    assert user_in.notify_usage_reports is False
+    assert user_in.notify_budget_alerts is False
+    assert user_in.notify_approval_requests is None  # untouched, not defaulted
+
+
+@pytest.mark.anyio
+async def test_read_current_user_reports_notification_preferences(
+    auth_client: AsyncClient,
+):
+    """The page renders what GET /users/me says: the stored preferences must
+    survive serialization, or every switch shows the schema default instead."""
+    response = await auth_client.get(f"{settings.API_V1_STR}/users/me")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["notify_budget_alerts"] is True
+    assert data["notify_approval_requests"] is True
+    assert data["notify_usage_reports"] is True
 
 
 @pytest.mark.anyio

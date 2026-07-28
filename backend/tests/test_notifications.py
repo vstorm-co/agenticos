@@ -34,6 +34,24 @@ def _agent(*, owner_user_id=None, name="Support"):
     return agent
 
 
+def _user(
+    email,
+    *,
+    is_active=True,
+    notify_budget_alerts=True,
+    notify_approval_requests=True,
+    notify_usage_reports=True,
+):
+    """A user as the notification code sees one: an address and its opt-outs."""
+    user = MagicMock()
+    user.email = email
+    user.is_active = is_active
+    user.notify_budget_alerts = notify_budget_alerts
+    user.notify_approval_requests = notify_approval_requests
+    user.notify_usage_reports = notify_usage_reports
+    return user
+
+
 class _Sent:
     """Records what `_send` was asked to deliver, without a mail server."""
 
@@ -63,7 +81,7 @@ class TestBudgetExceeded:
             ),
             patch(
                 f"{MODULE}.user_repo.get_by_id",
-                new=AsyncMock(return_value=MagicMock(email="builder@acme.test", is_active=True)),
+                new=AsyncMock(return_value=_user("builder@acme.test")),
             ),
             patch(f"{MODULE}.organization_repo.get_by_id", new=AsyncMock(return_value=None)),
         ):
@@ -85,7 +103,7 @@ class TestBudgetExceeded:
             ),
             patch(
                 f"{MODULE}.user_repo.get_by_id",
-                new=AsyncMock(return_value=MagicMock(email="gone@acme.test", is_active=False)),
+                new=AsyncMock(return_value=_user("gone@acme.test", is_active=False)),
             ),
             patch(f"{MODULE}.organization_repo.get_by_id", new=AsyncMock(return_value=None)),
         ):
@@ -106,7 +124,7 @@ class TestBudgetExceeded:
             ),
             patch(
                 f"{MODULE}.user_repo.get_by_id",
-                new=AsyncMock(return_value=MagicMock(email="boss@acme.test", is_active=True)),
+                new=AsyncMock(return_value=_user("boss@acme.test")),
             ),
             patch(f"{MODULE}.organization_repo.get_by_id", new=AsyncMock(return_value=None)),
         ):
@@ -132,9 +150,15 @@ class TestApprovalRequested:
     @pytest.mark.anyio
     async def test_the_person_who_started_the_run_is_the_one_told(self, sent):
         user_id = uuid.uuid4()
-        with patch(
-            f"{MODULE}.member_repo.get_emails_for_users",
-            new=AsyncMock(return_value={user_id: "asker@acme.test"}),
+        with (
+            patch(
+                f"{MODULE}.member_repo.get_emails_for_users",
+                new=AsyncMock(return_value={user_id: "asker@acme.test"}),
+            ),
+            patch(
+                f"{MODULE}.user_repo.get_by_id",
+                new=AsyncMock(return_value=_user("asker@acme.test")),
+            ),
         ):
             await NotificationService(MagicMock()).approval_requested(
                 _run(user_id=user_id), agent=_agent(), tools=["send_email"]
@@ -229,6 +253,86 @@ class TestUsageReport:
 
         assert reported is False
         assert sent.calls == []
+
+
+class TestPreferences:
+    """The opt-outs from `/settings/notifications`, honoured at the send site.
+
+    The role query filters in SQL, so what a unit test can pin is the contract:
+    which preference each email kind asks the repository for, and that the two
+    recipients resolved outside that query - the agent's owner and the run's
+    initiator - are checked against the same column.
+    """
+
+    @pytest.mark.anyio
+    async def test_an_owner_who_declined_budget_alerts_is_not_mailed(self, sent):
+        """A preference is only real once something consults it before sending."""
+        with (
+            patch(
+                f"{MODULE}.member_repo.list_emails_by_role",
+                new=AsyncMock(return_value=["admin@acme.test"]),
+            ),
+            patch(
+                f"{MODULE}.user_repo.get_by_id",
+                new=AsyncMock(return_value=_user("builder@acme.test", notify_budget_alerts=False)),
+            ),
+            patch(f"{MODULE}.organization_repo.get_by_id", new=AsyncMock(return_value=None)),
+        ):
+            await NotificationService(MagicMock()).budget_exceeded(
+                _run(), agent=_agent(owner_user_id=uuid.uuid4()), reason="cap"
+            )
+
+        _, recipients, _ = sent.calls[0]
+        assert recipients == ["admin@acme.test"]
+
+    @pytest.mark.anyio
+    async def test_each_email_kind_asks_the_repository_for_its_own_preference(self, sent):
+        """The admin list is filtered in SQL; the wrong column here would honour
+        one opt-out by silencing a different email."""
+        roles = AsyncMock(return_value=[])
+        rows = [(uuid.uuid4(), "gpt-5", Decimal("1.00"), 1)]
+        with (
+            patch(f"{MODULE}.member_repo.list_emails_by_role", new=roles),
+            patch(f"{MODULE}.agent_run_repo.cost_breakdown", new=AsyncMock(return_value=rows)),
+        ):
+            service = NotificationService(MagicMock())
+            await service.budget_exceeded(_run(), agent=_agent(), reason="cap")
+            await service.approval_requested(_run(user_id=None), agent=_agent(), tools=[])
+            await service.usage_report(uuid.uuid4(), period="weekly")
+
+        assert [call.kwargs["preference"] for call in roles.call_args_list] == [
+            "notify_budget_alerts",
+            "notify_approval_requests",
+            "notify_usage_reports",
+        ]
+
+    @pytest.mark.anyio
+    async def test_an_initiator_who_declined_approval_emails_gets_silence_not_escalation(
+        self, sent
+    ):
+        """Their opt-out is about their own inbox; it must not start mailing the
+        admins about every approval they would have handled."""
+        user_id = uuid.uuid4()
+        escalation = AsyncMock(return_value=["admin@acme.test"])
+        with (
+            patch(
+                f"{MODULE}.member_repo.get_emails_for_users",
+                new=AsyncMock(return_value={user_id: "asker@acme.test"}),
+            ),
+            patch(
+                f"{MODULE}.user_repo.get_by_id",
+                new=AsyncMock(
+                    return_value=_user("asker@acme.test", notify_approval_requests=False)
+                ),
+            ),
+            patch(f"{MODULE}.member_repo.list_emails_by_role", new=escalation),
+        ):
+            await NotificationService(MagicMock()).approval_requested(
+                _run(user_id=user_id), agent=_agent(), tools=["send_email"]
+            )
+
+        assert sent.calls == []
+        escalation.assert_not_awaited()
 
 
 class TestDelivery:
