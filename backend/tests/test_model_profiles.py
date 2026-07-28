@@ -40,6 +40,7 @@ from app.services.model_profile import (
     MAX_FALLBACK_DEPTH,
     ModelProfileService,
     provider_catalog,
+    validate_endpoint_url,
 )
 
 
@@ -691,3 +692,77 @@ class TestProfilesKeyedFromTheVault:
 
         assert create.call_args.kwargs["secret_id"] == secret.id
         assert profile.secret_id == secret.id
+
+
+class TestEndpointValidation:
+    """What a stored ``base_url`` may be - the SSRF boundary for model traffic.
+
+    Internal addresses are a deployment decision rather than always-refused,
+    because Ollama on localhost is the whole point of the field; the scheme and
+    userinfo rules hold either way.
+    """
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("url", ["file:///etc/passwd", "ftp://models.example", "not a url"])
+    async def test_only_http_and_https_are_endpoints(self, url):
+        with pytest.raises(BadRequestError):
+            await validate_endpoint_url(url)
+
+    @pytest.mark.anyio
+    async def test_an_endpoint_without_a_host_is_refused(self):
+        with pytest.raises(BadRequestError):
+            await validate_endpoint_url("http://")
+
+    @pytest.mark.anyio
+    async def test_credentials_in_the_url_are_refused(self):
+        """The key belongs on the profile's secret, not inside a URL that ends
+        up in logs and exports."""
+        with pytest.raises(BadRequestError):
+            await validate_endpoint_url("https://user:pass@models.example/v1")
+
+    @pytest.mark.anyio
+    async def test_an_internal_address_is_refused_by_default(self):
+        """Off by default so a hosted deployment is safe without configuration."""
+        with (
+            patch(
+                "app.services.model_profile.settings.ALLOW_INTERNAL_MODEL_ENDPOINTS",
+                False,
+            ),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await validate_endpoint_url("http://169.254.169.254/latest")
+
+        assert "ALLOW_INTERNAL_MODEL_ENDPOINTS" in refused.value.message
+
+    @pytest.mark.anyio
+    async def test_a_deployment_that_allowed_internal_endpoints_skips_the_probe(self):
+        """The flag opens private addresses to model profiles and nothing else -
+        no DNS resolution happens at all, which is what lets localhost work
+        before Ollama is even running."""
+        with (
+            patch(
+                "app.services.model_profile.settings.ALLOW_INTERNAL_MODEL_ENDPOINTS",
+                True,
+            ),
+            patch("app.services.model_profile.validate_webhook_url") as probe,
+        ):
+            url = await validate_endpoint_url("http://localhost:11434/v1")
+
+        assert url == "http://localhost:11434/v1"
+        probe.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_a_public_endpoint_passes_the_ssrf_probe(self):
+        with (
+            patch(
+                "app.services.model_profile.settings.ALLOW_INTERNAL_MODEL_ENDPOINTS",
+                False,
+            ),
+            patch(
+                "app.services.model_profile.validate_webhook_url",
+                return_value="https://models.example/v1",
+            ),
+        ):
+            assert await validate_endpoint_url("https://models.example/v1") == (
+                "https://models.example/v1"
+            )

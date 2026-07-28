@@ -169,6 +169,29 @@ class TestDemoAgent:
         create.assert_not_awaited()
 
     @pytest.mark.anyio
+    async def test_without_a_model_the_demo_agent_stays_a_draft(self):
+        """Publish validation refuses a spec with no model, so bootstrap does
+        not try - the agent is left one key away from working, and says so."""
+        agent = MagicMock(id=uuid.uuid4())
+        with (
+            patch(
+                "app.commands.bootstrap.agent_repo.get_by_slug",
+                new=AsyncMock(return_value=None),
+            ),
+            patch(
+                "app.commands.bootstrap.AgentRegistryService.create",
+                new=AsyncMock(return_value=agent),
+            ) as create,
+            patch(
+                "app.commands.bootstrap.AgentRegistryService.publish", new=AsyncMock()
+            ) as publish,
+        ):
+            await _resolve_demo_agent(MagicMock(), _ctx(), None)
+
+        create.assert_awaited_once()
+        publish.assert_not_awaited()
+
+    @pytest.mark.anyio
     async def test_the_demo_agent_is_published_not_left_as_a_draft(self):
         """A draft cannot run, which would defeat the point of bootstrapping."""
         agent = MagicMock(id=uuid.uuid4())

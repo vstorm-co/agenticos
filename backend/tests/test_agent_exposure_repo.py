@@ -98,6 +98,38 @@ class TestReading:
 
         assert set(_filters(session).values()) >= {agent_id, bot_id}
 
+    async def test_surfaces_are_grouped_per_agent_and_only_active_ones_count(self):
+        """The gallery's channel badges: one grouped query, paused rows excluded.
+
+        The is_active predicate is the behaviour - a card saying "Slack" about
+        an agent that stopped answering there is worse than no badge.
+        """
+        organization_id = uuid.uuid4()
+        chatty, quiet = uuid.uuid4(), uuid.uuid4()
+        rows = MagicMock(all=MagicMock(return_value=[(chatty, "slack"), (chatty, "telegram")]))
+        session = _RecordingSession(rows)
+
+        surfaces = await agent_exposure_repo.active_surfaces_for_agents(
+            session, organization_id=organization_id, agent_ids=[chatty, quiet]
+        )
+
+        assert surfaces == {chatty: ["slack", "telegram"]}
+        assert organization_id in _filters(session).values()
+        # The statement itself must carry the is_active predicate - dropping it
+        # would put paused channels back on every card.
+        assert "is_active" in str(session.statements[-1])
+
+    async def test_no_agents_asks_the_database_nothing(self):
+        """An empty page must not issue a grouped query over nothing."""
+        session = _RecordingSession()
+
+        surfaces = await agent_exposure_repo.active_surfaces_for_agents(
+            session, organization_id=uuid.uuid4(), agent_ids=[]
+        )
+
+        assert surfaces == {}
+        assert session.statements == []
+
     async def test_a_paused_binding_is_still_returned(self):
         """The duplicate check needs it, and it is the only caller that does.
 
