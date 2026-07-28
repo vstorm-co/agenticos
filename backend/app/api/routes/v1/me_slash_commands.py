@@ -1,7 +1,7 @@
 """User-scoped slash command settings.
 
 Routes are nested under ``/me/slash-commands`` because they're always
-operating on the current user — there's no cross-user view of these.
+operating on the current user - there's no cross-user view of these.
 """
 
 from typing import Any

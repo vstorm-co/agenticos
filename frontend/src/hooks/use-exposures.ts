@@ -19,7 +19,7 @@ import type {
  *
  * Two queries rather than one: the bindings change every time somebody edits
  * this section, while the list of bots an organization has changes almost never
- * — merging them would re-fetch the second every time the first moved.
+ * - merging them would re-fetch the second every time the first moved.
  *
  * Mutations invalidate rather than patch, for the reason sharing does: the
  * server resolves a bot's name into the row it returns, and a client that
@@ -59,7 +59,7 @@ export function useExposures(agentId: string | null) {
   const setActive = useMutation({
     mutationFn: ({ exposureId, isActive }: { exposureId: string; isActive: boolean }) =>
       // Only `is_active`. The server applies exactly the fields it was sent, so
-      // sending a budget here — even the one just read back — would let a pause
+      // sending a budget here - even the one just read back - would let a pause
       // overwrite a cap somebody changed in between.
       apiClient.patch<Exposure>(`${base}/${exposureId}`, { is_active: isActive }),
     onSuccess: async (exposure) => {

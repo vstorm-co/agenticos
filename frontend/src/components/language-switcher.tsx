@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * Build a path for the given locale, preserving the rest of the route.
- * Handles `localePrefix: "as-needed"` — default locale has no prefix.
+ * Handles `localePrefix: "as-needed"` - default locale has no prefix.
  */
 function buildLocalizedPath(pathname: string, newLocale: Locale): string {
   const segments = pathname.split("/").filter(Boolean);
@@ -32,7 +32,7 @@ function buildLocalizedPath(pathname: string, newLocale: Locale): string {
 }
 
 /**
- * Default language switcher — segmented pills (EN | PL).
+ * Default language switcher - segmented pills (EN | PL).
  * Used in the dashboard footer / settings, where space allows two buttons.
  */
 export function LanguageSwitcher() {
@@ -66,7 +66,7 @@ export function LanguageSwitcher() {
 }
 
 /**
- * Compact language switcher — globe icon + dropdown.
+ * Compact language switcher - globe icon + dropdown.
  * Designed to sit in pill-nav between links and CTAs. The trigger matches
  * the pill aesthetic; the menu uses the dark/light theme tokens so it
  * inherits whichever section it's rendered in.
@@ -169,7 +169,7 @@ export function LanguageSwitcherCompact() {
 }
 
 /**
- * Icon-button language switcher — globe icon trigger + Radix dropdown.
+ * Icon-button language switcher - globe icon trigger + Radix dropdown.
  * Designed for the app toolbar (header), where it sits alongside other
  * icon-only controls. Matches the flat toolbar aesthetic (h-9 w-9, rounded-lg,
  * hover:bg-accent) and reuses the shared DropdownMenu so its menu styling is

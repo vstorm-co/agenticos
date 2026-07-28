@@ -43,7 +43,7 @@ describe("ModelProfilePicker", () => {
   it("does not offer to add a model where it is only a choice", () => {
     // The regression this pins: the chat popover answers "which model should
     // this conversation run on". Adding one creates something every agent in
-    // the organization can be pointed at — from a panel somebody opened to
+    // the organization can be pointed at - from a panel somebody opened to
     // change a single reply. It leaked in when the Builder gained the flow.
     mount();
 

@@ -25,7 +25,7 @@ export interface ConfirmDialogProps {
   destructive?: boolean;
   /**
    * When set, the user must type this exact string (e.g. the org name or
-   * "DELETE") to enable the confirm button — for high-stakes actions.
+   * "DELETE") to enable the confirm button - for high-stakes actions.
    */
   confirmText?: string;
   /** Show a busy state on the confirm button while the action runs. */

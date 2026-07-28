@@ -48,14 +48,14 @@ def _format_results(results: list[Any]) -> str:
             f"{result.content}"
         )
     return (
-        "Search results (cite inline using [1], [2], etc. — do NOT list sources at the end):\n\n"
+        "Search results (cite inline using [1], [2], etc. - do NOT list sources at the end):\n\n"
         + "\n\n".join(formatted)
     )
 
 
 # ContextVar set by non-PydanticAI frameworks before each agent invocation so that
 # the tool can read the active KB collections without needing explicit Deps injection.
-# Default is None (not []) — mutable defaults on ContextVar are a foot-gun
+# Default is None (not []) - mutable defaults on ContextVar are a foot-gun
 # because every reader gets the same shared list. Callers should treat None
 # as "no collections active".
 _active_kb_collections: contextvars.ContextVar[list[str] | None] = contextvars.ContextVar(
@@ -73,7 +73,7 @@ async def search_knowledge_base(
     Args:
         query: The search query string.
         kb_collection_names: Vector-store collection names resolved server-side from the
-            conversation's active_knowledge_base_ids. Never supplied by the LLM directly —
+            conversation's active_knowledge_base_ids. Never supplied by the LLM directly -
             injected via PydanticAI Deps or the _active_kb_collections ContextVar.
         top_k: Number of top results to retrieve (default: 5).
     """
@@ -90,7 +90,7 @@ async def search_knowledge_base(
                 query=query, collection_names=resolved, limit=top_k
             )
     except AppException:
-        # Already an account of what is wrong and what to do about it — an
+        # Already an account of what is wrong and what to do about it - an
         # unconfigured embedding credential names the setting to set. Rewrapping
         # it as "search failed" would replace that with a symptom.
         raise

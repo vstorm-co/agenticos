@@ -9,7 +9,7 @@ export default function DashboardPage() {
     <div className="pb-8">
       <PageHeader
         title="Dashboard"
-        description="This page is being rebuilt — the widgets that used to live here have been removed."
+        description="This page is being rebuilt - the widgets that used to live here have been removed."
       />
       <EmptyState
         icon={Construction}

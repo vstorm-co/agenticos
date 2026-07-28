@@ -1,4 +1,4 @@
-"""Tests for resource-level access — role scopes combined with explicit grants.
+"""Tests for resource-level access - role scopes combined with explicit grants.
 
 The rule under test is ``effective = max(role scope, grant on this resource)``:
 a grant widens access for one row, and no scope ever reaches across tenants.
@@ -116,7 +116,7 @@ class TestScopeRules:
 class TestTeamScope:
     """`team` sits between `shared` and `all`: mine, plus what the team can see.
 
-    No built-in role carries it yet — it exists for the custom roles a client
+    No built-in role carries it yet - it exists for the custom roles a client
     composes, which may only recombine the scopes defined here. The resolution
     rule has to be right before the first role uses it, because the failure mode
     is silent over-exposure rather than an error.
@@ -152,7 +152,7 @@ class TestTeamScope:
 class TestPermissionsGrantsCannotWiden:
     @pytest.mark.anyio
     async def test_sharing_a_resource_cannot_hand_over_an_org_wide_permission(self):
-        """`runs:view` is binary and org-wide — there is no single row to widen.
+        """`runs:view` is binary and org-wide - there is no single row to widen.
 
         Without this guard, the grant lookup would run for a permission whose
         grant level is undefined, and the first level that happened to compare
@@ -241,7 +241,7 @@ class TestARunWithNobodyBehindIt:
     Every run on this platform has a subject: a person with a role in an
     organization. Budgets, resource grants, the audit trail and the approval
     gate all key on it, and ``mentions.py`` refuses an unlinked Slack identity
-    for exactly that reason — a run with no subject is one nobody is
+    for exactly that reason - a run with no subject is one nobody is
     accountable for.
 
     A public surface breaks that invariant: its visitors are anonymous. The
@@ -252,7 +252,7 @@ class TestARunWithNobodyBehindIt:
 
     The two failures it forecloses are different. A subject-less context whose
     ``role`` string happens to name a real role would sail through the scope
-    check and reach everything — nothing structural stops one being built. And a
+    check and reach everything - nothing structural stops one being built. And a
     grant lookup keyed on a ``NULL`` subject asks the database a question whose
     answer depends on what rows exist rather than on the invariant.
     """
@@ -263,7 +263,7 @@ class TestARunWithNobodyBehindIt:
         """Including ``owner``, which is the whole point.
 
         The refusal cannot be "an anonymous context happens to carry a role with
-        no permissions" — that is a property of the string it was built with. It
+        no permissions" - that is a property of the string it was built with. It
         has to hold whatever the role says.
         """
         org_id = uuid.uuid4()
@@ -280,7 +280,7 @@ class TestARunWithNobodyBehindIt:
         """A query keyed on NULL is a question with no right answer.
 
         Refusing before the lookup is what makes the guarantee independent of
-        what rows exist — a grant with a null subject would otherwise be
+        what rows exist - a grant with a null subject would otherwise be
         inherited by every anonymous visitor at once.
         """
         org_id = uuid.uuid4()
@@ -300,7 +300,7 @@ class TestARunWithNobodyBehindIt:
         """``owner_user_id IS NULL`` must not read as "owned by nobody, so mine".
 
         Ownership is compared by value, and two absent values are equal. A row
-        whose owner was deleted — ``ON DELETE SET NULL`` leaves plenty — would
+        whose owner was deleted - ``ON DELETE SET NULL`` leaves plenty - would
         otherwise belong to every anonymous visitor.
         """
         org_id = uuid.uuid4()
@@ -317,7 +317,7 @@ class TestARunWithNobodyBehindIt:
         """``None`` means "the role reaches everything" to every caller of this.
 
         Returning it for a context with no subject would widen a listing to the
-        whole organization — the opposite of the intent — so the empty list is
+        whole organization - the opposite of the intent - so the empty list is
         the only safe answer, and it is reached without a query.
         """
         ctx = AuthContext(user_id=None, organization_id=uuid.uuid4(), role=OrgRoleName.OWNER.value)
@@ -357,12 +357,12 @@ class TestTheAnonymousContext:
 
 
 class TestOperationsThatNeedAPerson:
-    """``subject_id`` — the accessor for work that cannot be done by nobody.
+    """``subject_id`` - the accessor for work that cannot be done by nobody.
 
     Most of what a service does keys on a person: an audit entry names an actor,
     an approval names who decided, a listing of "mine plus what was shared with
     me" is meaningless without a me. Those sites read ``subject_id`` rather than
-    ``user_id``, which keeps their ``UUID`` typing honest and — more usefully —
+    ``user_id``, which keeps their ``UUID`` typing honest and - more usefully -
     makes "this needs a person" something the code says out loud.
 
     It raises rather than returning ``None`` because the alternatives are worse.

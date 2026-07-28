@@ -133,7 +133,7 @@ describe("AddSecretDialog", () => {
     // The name is how a capability binding picks this secret in the Builder.
     // An unnamed one could be stored and never found again. Cleared first,
     // because the field carries the chosen service's name until somebody
-    // replaces it — blank is now a state you have to ask for.
+    // replaces it - blank is now a state you have to ask for.
     open();
     // The suggestion arrives with the purpose catalog. Clearing before it lands
     // clears nothing, and what is typed then gets appended to it.
@@ -169,7 +169,7 @@ describe("AddSecretDialog", () => {
       name: "Zendesk",
       description: "Ticketing",
       value: { kind: "api_key", api_key: "sk-x" },
-      // What it is for, and how far it reaches — both sent explicitly, so the
+      // What it is for, and how far it reaches - both sent explicitly, so the
       // server never has to guess what an older client meant. The form opens
       // on the first model provider because that is what most keys are; the
       // two questions above it are what change it.
@@ -320,7 +320,7 @@ describe("RotateSecretDialog", () => {
           fields: [
             {
               field: "value.service_account_json",
-              message: "This is not a service account key — its 'type' is not service_account",
+              message: "This is not a service account key - its 'type' is not service_account",
             },
           ],
         },
@@ -416,7 +416,7 @@ describe("AddSecretDialog · the name that follows the service", () => {
 
   it("renames along with the service while the name is still a suggestion", async () => {
     // Switching provider used to leave the field reading "OpenAI" on an
-    // Anthropic key — and this is a list people scan by name.
+    // Anthropic key - and this is a list people scan by name.
     open();
     expect(await screen.findByDisplayValue("OpenAI")).toBeInTheDocument();
 

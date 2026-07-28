@@ -37,7 +37,7 @@ export default function RunsPage() {
           title="Activity"
           description="What your agents did, what it cost, and what is waiting on a person."
         />
-        {/* The three figures and the run table, in that order — the tabs are
+        {/* The three figures and the run table, in that order - the tabs are
             omitted rather than faked, because a tab strip with no tab to select
             invites a click that does nothing. */}
         <LoadingState variant="stats" rows={3} className="gap-3 sm:grid-cols-3 lg:grid-cols-3" />
@@ -190,7 +190,7 @@ export default function RunsPage() {
                             <RunStatusBadge status={run.status} />
                           </td>
                           <td className="text-muted-foreground px-3 py-2">{run.surface}</td>
-                          <td className="px-3 py-2 font-mono text-xs">{run.model_label ?? "—"}</td>
+                          <td className="px-3 py-2 font-mono text-xs">{run.model_label ?? "-"}</td>
                           <td className="px-3 py-2 text-right font-mono text-xs">
                             {run.input_tokens + run.output_tokens}
                           </td>
@@ -206,7 +206,7 @@ export default function RunsPage() {
                             )}
                           </td>
                           <td className="text-muted-foreground px-3 py-2 text-xs">
-                            {run.started_at ? formatDate(run.started_at) : "—"}
+                            {run.started_at ? formatDate(run.started_at) : "-"}
                           </td>
                         </tr>
                       ))}
@@ -226,7 +226,7 @@ export default function RunsPage() {
           <div className="grid gap-4 md:grid-cols-2">
             <SpendBreakdown
               title="By provider"
-              description="What each vendor was paid — this is the number an invoice is checked against."
+              description="What each vendor was paid - this is the number an invoice is checked against."
               rows={(spend?.by_provider ?? []).map((entry) => ({
                 key: entry.provider ?? "unrecorded",
                 label: entry.provider ?? "Not recorded",
@@ -262,7 +262,7 @@ export default function RunsPage() {
                     key={`${entry.agent_id}-${entry.model_label}`}
                     className="flex items-center justify-between gap-3 rounded-md border p-3 text-sm"
                   >
-                    <span className="font-mono text-xs">{entry.model_label ?? "—"}</span>
+                    <span className="font-mono text-xs">{entry.model_label ?? "-"}</span>
                     <span className="text-muted-foreground text-xs">{entry.run_count} runs</span>
                     <span className="font-mono">${Number(entry.cost_usd).toFixed(4)}</span>
                   </div>
@@ -279,8 +279,8 @@ export default function RunsPage() {
 /**
  * One way of slicing the same spend.
  *
- * A row whose subject no longer exists — a provider from before this was
- * recorded, a key since deleted — is kept and muted rather than dropped. The
+ * A row whose subject no longer exists - a provider from before this was
+ * recorded, a key since deleted - is kept and muted rather than dropped. The
  * money was spent either way, and a breakdown that silently stops adding up to
  * the total is worse than one with an honest "not recorded" line in it.
  */

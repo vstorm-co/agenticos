@@ -9,7 +9,7 @@ address optional: a row with `email IS NULL` is a *link*, which an admin pastes
 into a channel once. Role, expiry, revocation and the accept path are all
 unchanged, which is why it is this table rather than a second one.
 
-`max_uses` bounds it — null is unlimited, and an email invitation ignores it
+`max_uses` bounds it - null is unlimited, and an email invitation ignores it
 because an address is its own limit of one. `email_domain` is the guard that
 makes an unlimited link defensible: a URL in a channel can be forwarded, and
 "anyone at our company" is a very different risk from "anyone with the URL".
@@ -39,8 +39,8 @@ def upgrade() -> None:
     )
     op.add_column("invitations", sa.Column("email_domain", sa.String(length=255), nullable=True))
     # A link with no address is the only shape that may have no address. Stated
-    # as a constraint because the alternative — an email invitation whose
-    # address went missing — is one nobody can accept and nothing would notice.
+    # as a constraint because the alternative - an email invitation whose
+    # address went missing - is one nobody can accept and nothing would notice.
     op.create_check_constraint(
         "ck_invitation_link_or_email",
         "invitations",

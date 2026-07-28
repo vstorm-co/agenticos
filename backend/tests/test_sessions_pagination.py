@@ -1,6 +1,6 @@
 """Paging a user's signed-in devices.
 
-The interesting part is not that a page comes back — it is that ``total`` counts
+The interesting part is not that a page comes back - it is that ``total`` counts
 the user's sessions rather than the page. Without that the client cannot tell a
 full page from the last one, and revoking the final row on page three leaves it
 sitting on a page that no longer exists.

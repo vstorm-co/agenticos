@@ -2,7 +2,7 @@
 
 Every one of these choices used to be a deployment setting. ``PDF_PARSER`` named
 one parser for the whole installation, ``RAG_CHUNK_SIZE`` one chunk size, and
-``RAG_IMAGE_DESCRIPTION_MODEL`` one model — read from the environment, invisible
+``RAG_IMAGE_DESCRIPTION_MODEL`` one model - read from the environment, invisible
 in the product, and the same for a scanned archive of contracts as for a folder
 of Markdown notes. This module moves that decision onto the collection, where
 the person who owns the documents can see it and change it.
@@ -10,7 +10,7 @@ the person who owns the documents can see it and change it.
 Those variables are gone rather than kept as defaults. Leaving them would have
 meant two places to look and one of them unreachable from the product, so the
 field defaults below are the only defaults; what stays in ``Settings`` is the
-deployment's half — where vectors live, and the credentials and network
+deployment's half - where vectors live, and the credentials and network
 addresses a tenant must not choose (see :func:`rag_settings_for`).
 
 Three things are worth stating before reading the models below.
@@ -23,7 +23,7 @@ The embedding model is not like that: ``PgVectorStore`` writes
 derived from the model name, so a second model either produces vectors that
 cannot be written at all or vectors that sit next to the first model's and are
 compared against them as though they meant the same thing. It is therefore
-recorded on the knowledge base at creation and enforced at ingest — see
+recorded on the knowledge base at creation and enforced at ingest - see
 :meth:`IngestionConfigService.check_embedding_model`.
 
 **The model comes from a model profile, not from a name.** Everything else on
@@ -36,7 +36,7 @@ ingestion to a platform-wide key.
 
 **Image description is off by default.** The deployment flag it replaces
 (``RAG_ENABLE_IMAGE_DESCRIPTION``) defaulted to on because it cost nothing to
-say so — the model came from ``AI_MODEL`` and the key from the environment.
+say so - the model came from ``AI_MODEL`` and the key from the environment.
 Turning it on now means choosing a model profile whose key the organization
 pays for, which is a decision somebody should make rather than inherit.
 """
@@ -181,7 +181,7 @@ class IngestionConfig(BaseModel):
 
     The defaults are the values the template shipped as environment defaults, so
     a collection created without an opinion behaves as this platform always did
-    — with the single exception noted in the module docstring.
+    - with the single exception noted in the module docstring.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -214,7 +214,7 @@ class IngestionConfig(BaseModel):
         default="eng",
         pattern=r"^[a-z]{3}(\+[a-z]{3})*$",
         description=(
-            "Tesseract language code for LiteParse's OCR — three letters, "
+            "Tesseract language code for LiteParse's OCR - three letters, "
             "'eng' not 'en', and '+'-joined for several ('eng+pol')."
         ),
     )
@@ -238,7 +238,7 @@ class IngestionConfig(BaseModel):
         le=10000,
         description=(
             "Pages LiteParse reads before it stops. The setting that actually "
-            "bounds the cost of one document — the timeout only bounds the wait."
+            "bounds the cost of one document - the timeout only bounds the wait."
         ),
     )
     parse_timeout_seconds: float = Field(
@@ -308,7 +308,7 @@ class IngestionOverride(BaseModel):
     """One upload's departures from its collection's configuration.
 
     Everything the collection can be configured with is here except the
-    embedding model, which is not a per-document choice — see the module
+    embedding model, which is not a per-document choice - see the module
     docstring. An empty override is the ordinary case and means "as configured".
     """
 
@@ -493,8 +493,8 @@ class IngestionConfigService:
         The failure this prevents is silent and total. ``PgVectorStore`` reads
         its dimension from the deployment's ``EMBEDDING_MODEL``: change that
         variable and every existing collection either rejects inserts outright,
-        because the column is a different width, or — between two models that
-        happen to share a width — accepts vectors from a different space and
+        because the column is a different width, or - between two models that
+        happen to share a width - accepts vectors from a different space and
         compares them against the old ones as though the numbers meant the same
         thing. The second is worse, because search keeps answering.
 
@@ -527,7 +527,7 @@ class IngestionConfigService:
 
         Raises:
             BadRequestError: If the configuration asks for image description and
-                the ingestion has no organization to resolve a profile in — a
+                the ingestion has no organization to resolve a profile in - a
                 document ingested by a connector sync that predates organization
                 stamping, say. Refusing is the point: the alternative is a
                 document indexed with its diagrams silently missing, which looks

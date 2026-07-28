@@ -169,7 +169,7 @@ async def ingest_path_async(
 
                 if sync_mode == "new_only":
                     if existing_id:
-                        # File exists — check if content changed via hash
+                        # File exists - check if content changed via hash
                         file_hash: str = hashlib.sha256(filepath.read_bytes()).hexdigest()
                         existing_hash: str | None = await ingestion.get_existing_hash(
                             collection, source_path
@@ -177,11 +177,11 @@ async def ingest_path_async(
                         if existing_hash and file_hash == existing_hash:
                             skipped_count += 1
                             continue
-                        # Hash changed — will re-ingest below
+                        # Hash changed - will re-ingest below
 
                 elif sync_mode == "update_only":
                     if not existing_id:
-                        # Not in collection — skip (update_only ignores new files)
+                        # Not in collection - skip (update_only ignores new files)
                         skipped_count += 1
                         continue
                     file_hash = hashlib.sha256(filepath.read_bytes()).hexdigest()

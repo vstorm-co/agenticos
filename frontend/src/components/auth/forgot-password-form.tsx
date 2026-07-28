@@ -78,7 +78,7 @@ export function ForgotPasswordForm() {
           Happens to the <em>best of us.</em>
         </h1>
         <p className="text-foreground/65 text-sm">
-          Drop your email below — we&apos;ll send you a one-time link to set a new password.
+          Drop your email below - we&apos;ll send you a one-time link to set a new password.
         </p>
       </div>
 

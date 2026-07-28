@@ -6,7 +6,7 @@ Create Date: 2026-07-28
 
 There were two credential stores: `credentials`, which only model profiles
 read, and `organization_secrets`, which everything else reads. That split is
-why adding an OpenRouter key in the vault did nothing for the model picker —
+why adding an OpenRouter key in the vault did nothing for the model picker -
 the picker was looking at the other table.
 
 `model_profiles.secret_id` closes it. A model is now keyed by the same vault

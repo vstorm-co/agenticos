@@ -11,7 +11,7 @@ export interface ChatMessageFile {
   id: string;
   filename: string;
   mime_type: string;
-  /** "image" | "pdf" | "docx" | "text" — derived from MIME on upload. */
+  /** "image" | "pdf" | "docx" | "text" - derived from MIME on upload. */
   file_type: string;
 }
 
@@ -24,7 +24,7 @@ export interface ChatMessage {
   isStreaming?: boolean;
   /** Group ID for related messages in a multi-agent chain. */
   groupId?: string;
-  /** IDs of attached files — kept for sending. Use `files` for rendering. */
+  /** IDs of attached files - kept for sending. Use `files` for rendering. */
   fileIds?: string[];
   /** Full file metadata for rendering attachments. */
   files?: ChatMessageFile[];
@@ -32,7 +32,7 @@ export interface ChatMessage {
   conversationId?: string;
   /** The published agent that produced this assistant turn. Absent means the
    *  general assistant, which is what a turn sent without an `agent_id` runs.
-   *  Recorded per message on both paths — live and reloaded — because the
+   *  Recorded per message on both paths - live and reloaded - because the
    *  picker can be changed mid-conversation, and one agent per thread would
    *  relabel every earlier answer as whoever is selected now. */
   agentId?: string;

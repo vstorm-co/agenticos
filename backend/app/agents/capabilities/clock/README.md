@@ -5,15 +5,15 @@ tools.
 
 ## Why not a tool
 
-It was one — `current_datetime` — and that was the wrong shape.
+It was one - `current_datetime` - and that was the wrong shape.
 
 The current time is context, not an action. A tool makes the model *decide* to
 look it up, and a model that has to decide usually does not: it answers from
 whatever date its training left it with, confidently and wrongly. The failure
 is silent, because a plausible wrong date reads exactly like a right one.
 
-It is also a whole round trip — a model request, a tool call, a second model
-request — to retrieve one line the server already knew before the run started.
+It is also a whole round trip - a model request, a tool call, a second model
+request - to retrieve one line the server already knew before the run started.
 Every conversation pays for that, or skips it and gets the wrong answer.
 
 As instructions, the agent simply knows. There is nothing to skip.
@@ -22,7 +22,7 @@ As instructions, the agent simply knows. There is nothing to skip.
 
 `get_instructions` returns a callable, not a string. A string would be built
 once when the agent was assembled, so a conversation open for an hour would
-keep telling the model the minute it started with — the same class of bug,
+keep telling the model the minute it started with - the same class of bug,
 quieter.
 
 ## Configuration
@@ -43,7 +43,7 @@ nothing on its own.
 
 ## Format
 
-`2026-07-27 10:59:03 +0200 (CEST)` — ISO-8601 date, then time, offset and zone
+`2026-07-27 10:59:03 +0200 (CEST)` - ISO-8601 date, then time, offset and zone
 name. Not prose: a model asked to compute "14 days from now" does noticeably
 better arithmetic on `2026-07-27` than on `27 July 2026`, and an offset without
 a zone name is an invitation to guess.
@@ -51,6 +51,6 @@ a zone name is an invitation to guess.
 ## What this deliberately does not do
 
 Timezone conversion, business-day arithmetic, "what time is it in Tokyo".
-Those are computation, and computation is what a tool is for — but it would be
+Those are computation, and computation is what a tool is for - but it would be
 a different capability with its own reason to exist. This one answers exactly
 one question, and answers it before it is asked.

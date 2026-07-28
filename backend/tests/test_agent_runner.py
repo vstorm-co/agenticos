@@ -2,7 +2,7 @@
 
 Three invariants carry most of the weight here: a run that fails still records
 what it spent, a budget stop is recorded as a budget stop rather than as a
-failure, and a run parked on an approval can be picked up again — on the version
+failure, and a run parked on an approval can be picked up again - on the version
 it was parked on, with the spend it had already booked.
 """
 
@@ -33,8 +33,8 @@ def _db(monthly_budget_usd: Decimal | None = None):
     db = MagicMock()
     db.flush = AsyncMock()
     db.refresh = AsyncMock()
-    # `db.get` is how the organization row — and with it the org-wide spending
-    # cap the runner reads for every run — comes back. Uncapped by default,
+    # `db.get` is how the organization row - and with it the org-wide spending
+    # cap the runner reads for every run - comes back. Uncapped by default,
     # which is what an organization that never opened the setting looks like.
     db.get = AsyncMock(return_value=MagicMock(monthly_budget_usd=monthly_budget_usd))
     return db
@@ -190,7 +190,7 @@ class TestPrepare:
         """`mcp_server_ids` is part of the published contract, so it has to act.
 
         Resolved here, in the one place every surface goes through, and against
-        the run's own organization — an agent's reach is a property of the agent,
+        the run's own organization - an agent's reach is a property of the agent,
         not of whichever session happens to run it.
         """
         ctx = _ctx()
@@ -324,7 +324,7 @@ class TestPrepare:
         """The defect this pair exists to keep fixed.
 
         ``AgentSpec.budget.monthly_usd`` used to be checked against the very
-        lookup above — the organization's month-to-date — so an agent with a $10
+        lookup above - the organization's month-to-date - so an agent with a $10
         cap was refused once *other* agents had spent $10, and its own spend was
         never isolated. The narrowing argument existed the whole time; this path
         did not pass it.
@@ -364,7 +364,7 @@ class TestSpendReporting:
 
     @pytest.mark.anyio
     async def test_the_cost_breakdown_looks_back_the_number_of_days_it_was_asked_for(self):
-        """Unlike the budget, the dashboard window is rolling — "the last 7 days" means that."""
+        """Unlike the budget, the dashboard window is rolling - "the last 7 days" means that."""
         ctx = _ctx()
         rows = [(uuid.uuid4(), "gpt-4.1", Decimal("3.00"), 12)]
 
@@ -928,8 +928,8 @@ class TestWhoTheRunSaysItIs:
     async def test_a_run_with_nobody_behind_it_opens_a_row_with_no_user(self):
         """``agent_runs.user_id`` is nullable, and null is the honest value.
 
-        The run is still accounted for — it has an organization, a cost and a
-        surface — it simply has no person to attribute it to.
+        The run is still accounted for - it has an organization, a cost and a
+        surface - it simply has no person to attribute it to.
         """
         service = AgentRunnerService(_db())
         agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
@@ -1049,7 +1049,7 @@ class TestARunThatArrivedThroughABinding:
     async def test_the_monthly_cap_meters_this_bindings_runs_and_nobody_elses(self):
         """The whole point. Measured against the organization's total it would be
         exhausted by unrelated internal traffic, while this binding's own spend
-        stayed invisible in it — which is not a cap on the binding at all.
+        stayed invisible in it - which is not a cap on the binding at all.
         """
         organization_id = uuid.uuid4()
         exposure = _exposure(monthly=Decimal("25"), organization_id=organization_id)
@@ -1070,8 +1070,8 @@ class TestAResumedRunKeepsItsCeilings:
     async def test_a_continuation_is_metered_on_the_binding_the_run_arrived_through(self):
         """Otherwise one approval reopens a budget the run had already spent.
 
-        The argument is not available on the resume path — nobody re-supplies
-        the binding when an approver clicks yes — so it is read back off the row,
+        The argument is not available on the resume path - nobody re-supplies
+        the binding when an approver clicks yes - so it is read back off the row,
         which is the only thing that still knows.
         """
         service = AgentRunnerService(_db())
@@ -1100,7 +1100,7 @@ class TestAResumedRunKeepsItsCeilings:
     async def test_a_binding_deleted_while_the_run_waited_stops_capping_it(self):
         """The honest outcome: the ceiling belonged to a place that is gone.
 
-        The alternative — refusing to continue — would strand a run somebody had
+        The alternative - refusing to continue - would strand a run somebody had
         already approved, over a limit nobody can raise any more.
         """
         service = AgentRunnerService(_db())
@@ -1128,7 +1128,7 @@ class TestTracingSecret:
         """One pass over the vault, not two.
 
         The agent's own Logfire token is the same kind of reference a capability
-        secret is, resolved at the same moment — a second unsealing path would
+        secret is, resolved at the same moment - a second unsealing path would
         be a second place for a tenant check to be missed.
         """
         ctx = _ctx()

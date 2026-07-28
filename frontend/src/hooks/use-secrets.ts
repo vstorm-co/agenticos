@@ -23,7 +23,7 @@ import type {
  * shapes they may take.
  *
  * Write-only, like a provider key. A value goes in and what comes back is a
- * name, a kind and four characters — there is no endpoint that returns a
+ * name, a kind and four characters - there is no endpoint that returns a
  * plaintext, so nothing here can display one.
  *
  * The kinds are fetched rather than listed in code. Every form on this surface
@@ -92,7 +92,7 @@ export function useSecrets() {
      * Why the list is empty, when it is empty because the request failed.
      *
      * `GET /secrets` is gated on `connections:manage`, which a member editing
-     * their own agent does not have — so a refusal arrives here as a 403 and an
+     * their own agent does not have - so a refusal arrives here as a 403 and an
      * empty array. Anything that says something *about the organization* on the
      * strength of an empty list ("no API key stored yet") has to look here
      * first, or it states as fact something it was never told.
@@ -117,7 +117,7 @@ export function kindInfo(
  *
  * Fetched rather than listed in code: the model providers are generated from
  * the same table the runtime builds clients out of, so a copy here would drift
- * the moment one is added — and the symptom is a provider nobody can key.
+ * the moment one is added - and the symptom is a provider nobody can key.
  * Cached indefinitely; it changes on redeploy, not on a mutation.
  */
 export function useSecretPurposes() {

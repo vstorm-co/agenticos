@@ -249,7 +249,7 @@ async def rate_message(
     current_user: CurrentUser,
     response: Response,
 ) -> Any:
-    """Rate an assistant message — 201 for new rating, 200 when updating."""
+    """Rate an assistant message - 201 for new rating, 200 when updating."""
     rating, is_new = await rating_service.rate_message(
         conversation_id=conversation_id,
         message_id=message_id,

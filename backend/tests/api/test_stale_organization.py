@@ -5,7 +5,7 @@ organization it last switched to and sends it on every request; when that
 organization is deleted, or the member is removed from it, the persisted id
 outlives the membership and every org-scoped request is refused. The frontend
 recovers by clearing the selection and falling back to one the caller actually
-belongs to — but only if it can tell "your organization is gone" apart from
+belongs to - but only if it can tell "your organization is gone" apart from
 "the agent you asked for is missing" and from "the server broke".
 
 ``/me/permissions`` is what makes that possible: it takes no path parameter and
@@ -92,7 +92,7 @@ class TestARefusedOrganizationHeader:
         """The frontend reads a 404 here as "your organization is gone".
 
         That inference is only sound while this route has nothing else to fail
-        to find — no path parameter, no resource lookup. A future ``{org_id}``
+        to find - no path parameter, no resource lookup. A future ``{org_id}``
         segment or a row read in the handler would quietly turn a missing
         resource into a signal that reassigns somebody's organization, which is
         the one outcome the recovery must never produce.

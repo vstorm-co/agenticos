@@ -40,7 +40,7 @@ import type { KnowledgeBase } from "@/types";
 const ADMIN_PLUS: readonly string[] = ["owner", "admin"];
 
 interface ReusableIntegrationsProps {
-  /** Collections an integration can be cloned into — the page's own list. */
+  /** Collections an integration can be cloned into - the page's own list. */
   targets: KnowledgeBase[];
 }
 
@@ -50,8 +50,8 @@ interface ReusableIntegrationsProps {
  * This sits on the collection *list* rather than on any one collection because
  * that is what it is for: an integration with no `collection_name` is the thing
  * several collections are fed from, and it has no single page of its own to
- * live on. Using one is still done from the collection that wants it — the
- * wizard on `/kb/{id}` offers the same rows under "Use existing" — so what is
+ * live on. Using one is still done from the collection that wants it - the
+ * wizard on `/kb/{id}` offers the same rows under "Use existing" - so what is
  * here is only what that moment cannot do: making one, seeing the ones nobody
  * has used yet, and throwing one away.
  *
@@ -80,7 +80,7 @@ export function ReusableIntegrations({ targets }: ReusableIntegrationsProps) {
       setWizardOpen(false);
     } catch {
       // Reported by the hook. Swallowed here so the wizard stays open on the
-      // step that holds the field the server rejected — and so a refusal is not
+      // step that holds the field the server rejected - and so a refusal is not
       // an unhandled rejection in the click handler.
     } finally {
       setSubmitting(false);
@@ -193,7 +193,7 @@ function IntegrationRow({
           <AlertDialogHeader>
             <AlertDialogTitle>Remove {source.name}?</AlertDialogTitle>
             <AlertDialogDescription>
-              Knowledge bases already using it keep their own copy — this only removes the one
+              Knowledge bases already using it keep their own copy - this only removes the one
               nothing is syncing from.
             </AlertDialogDescription>
           </AlertDialogHeader>

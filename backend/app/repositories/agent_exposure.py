@@ -43,7 +43,7 @@ async def get_for_bot(
 
     Returns paused rows too, and every caller must say what it does with them.
     Filtering here instead would make a paused binding indistinguishable from no
-    binding to the one place that needs the difference — the duplicate check,
+    binding to the one place that needs the difference - the duplicate check,
     which would otherwise let a second row race the unique constraint.
 
     Not organization-scoped, and it does not need to be: both ids come from rows
@@ -91,7 +91,7 @@ async def update(
     """Apply the fields a caller actually sent.
 
     Takes a dict rather than named arguments so "not sent" stays distinguishable
-    from "cleared to null" — somebody pausing a binding must not silently drop
+    from "cleared to null" - somebody pausing a binding must not silently drop
     the budget another person set on it.
     """
     for field_name, value in update_data.items():

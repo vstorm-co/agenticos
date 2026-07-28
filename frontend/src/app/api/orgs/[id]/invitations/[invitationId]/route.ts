@@ -9,7 +9,7 @@ interface RouteParams {
  * Revoke a pending invitation as an administrator.
  *
  * By id, not by token. `/api/invitations/<token>` also revokes, but that route
- * belongs to the invitee — the token is the only thing they have. An admin
+ * belongs to the invitee - the token is the only thing they have. An admin
  * working from the members list has the id, and sending a live bearer
  * credential through a URL would only put it in access logs and history.
  */

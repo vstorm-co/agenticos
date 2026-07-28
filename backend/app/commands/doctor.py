@@ -1,7 +1,7 @@
 """Is this deployment actually able to run an agent?
 
-The failures this catches all look the same from a browser — a 500, or a page
-that loads and does nothing — and each has a different cause several layers
+The failures this catches all look the same from a browser - a 500, or a page
+that loads and does nothing - and each has a different cause several layers
 down. The one that has cost this project the most is stock Postgres: RAG issues
 `CREATE EXTENSION vector` the first time a collection is written to, and an
 image without pgvector answers "extension not available" *after* the upload was
@@ -13,7 +13,7 @@ database, is its schema current, can it hold embeddings, is Redis there, is the
 vault able to unseal, and is there a model an agent could actually run on.
 
 It reuses the same probes the health endpoint publishes rather than asking the
-same questions differently — two implementations of "is this healthy" is how a
+same questions differently - two implementations of "is this healthy" is how a
 dashboard says green while a terminal says red.
 """
 
@@ -29,7 +29,7 @@ from app.services.health import probe_database, probe_model_access, probe_vector
 
 # What each outcome prints. `unconfigured` is deliberately not a failure: a
 # deployment that never ingests a document and never runs an agent is installed
-# correctly, it is just not finished — and exiting non-zero on that would make
+# correctly, it is just not finished - and exiting non-zero on that would make
 # this useless in a provisioning script.
 _MARK = {
     "healthy": ("ok", success),
@@ -59,12 +59,12 @@ async def _migrations_current(db: Any) -> tuple[str, str]:
     try:
         current = (await db.execute(text("SELECT version_num FROM alembic_version"))).scalar()
     except Exception:
-        return "unhealthy", "no alembic_version table — run `alembic upgrade head`"
+        return "unhealthy", "no alembic_version table - run `alembic upgrade head`"
 
     head = ScriptDirectory.from_config(Config("alembic.ini")).get_current_head()
     if current == head:
         return "healthy", f"at {current}"
-    return "unhealthy", f"at {current}, newest on disk is {head} — run `alembic upgrade head`"
+    return "unhealthy", f"at {current}, newest on disk is {head} - run `alembic upgrade head`"
 
 
 async def _redis_reachable() -> tuple[str, str]:
@@ -86,7 +86,7 @@ async def _redis_reachable() -> tuple[str, str]:
 def _vault_configured() -> tuple[str, str]:
     """A vault with no key cannot unseal a provider credential, so no agent runs."""
     if not settings.VAULT_MASTER_KEY:
-        return "unhealthy", "VAULT_MASTER_KEY is unset — no stored credential can be unsealed"
+        return "unhealthy", "VAULT_MASTER_KEY is unset - no stored credential can be unsealed"
     return "healthy", "a key is configured"
 
 
@@ -123,8 +123,8 @@ def doctor() -> None:
     """Diagnose a deployment, in dependency order.
 
     Exits non-zero when something is broken, so it can gate a provisioning
-    script. A subsystem that is merely unconfigured — pgvector not installed on
-    a deployment that has never ingested anything — is a warning, not a failure.
+    script. A subsystem that is merely unconfigured - pgvector not installed on
+    a deployment that has never ingested anything - is a warning, not a failure.
 
     Example:
         agenticos cmd doctor

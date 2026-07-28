@@ -1,4 +1,4 @@
-"""Charts capability — visualise numbers."""
+"""Charts capability - visualise numbers."""
 
 from app.agents.capabilities._registry import (
     CapabilityBuildContext,

@@ -6,7 +6,7 @@
  * `/me/mcp-connections`: a person's own servers, their own credentials, only
  * their own assistant. This one talks to `/mcp-connections`: servers the
  * organization owns, gated on `connections:manage`, and the only ones an agent
- * can be built on — a published agent that reached different tools depending on
+ * can be built on - a published agent that reached different tools depending on
  * who ran it would be neither reviewable nor reproducible.
  *
  * The credential is write-only here as it is there: it goes in, it is sealed
@@ -23,7 +23,7 @@ import type { McpConnectionRecord, McpConnectionTestResult } from "./mcp-connect
  * entry a server came from, so the Builder can show a real name instead of
  * guessing one from the URL. Null for a server added by raw URL.
  *
- * `auth_type` is always `"bearer"` — an OAuth grant is one human's consent at a
+ * `auth_type` is always `"bearer"` - an OAuth grant is one human's consent at a
  * consent screen, and storing it as the organization's would attribute one
  * member's access to everybody and revoke it the day they left. There is no
  * endpoint to start an OAuth flow for an organization server.

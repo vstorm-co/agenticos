@@ -23,7 +23,7 @@ export function parseWebSearch(result: string): WebSearchPayload | null {
       return { query: String(p.query ?? ""), results: p.results as WebHit[] };
     }
   } catch {
-    /* not JSON — fall back to the raw renderer */
+    /* not JSON - fall back to the raw renderer */
   }
   return null;
 }

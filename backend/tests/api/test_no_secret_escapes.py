@@ -6,7 +6,7 @@ instead: every response schema of every route, with ``$ref`` chains resolved,
 checked against the shapes and the field names a plaintext could travel in.
 
 Two checks, because they fail differently. The *model* check catches a
-``SecretRead`` that grew a ``value`` field by echoing back what it was sent —
+``SecretRead`` that grew a ``value`` field by echoing back what it was sent -
 the payload models are reachable from request bodies on purpose and from
 responses never. The *field* check catches a new schema that spells a secret out
 by hand without going through those models at all.
@@ -34,7 +34,7 @@ _SECRET_MODELS = frozenset(
         "GcpServiceAccountSecret",
         # `NoSecret` is deliberately absent. It said "this provider needs no
         # key", and the only thing that ever accepted it was the credential
-        # store that the vault replaced — the vault has no such shape, because a
+        # store that the vault replaced - the vault has no such shape, because a
         # secret with no value is not a secret. A self-hosted endpoint that
         # authenticates nothing has no way to be configured right now; see
         # `model_catalog` and `ProviderSpec.keyless`.
@@ -63,19 +63,19 @@ _SECRET_FIELDS = frozenset(
 )
 
 # Names on the list above are the ones somebody thought of. This pattern
-# catches the ones nobody did — any string-ish field whose name says "secret".
+# catches the ones nobody did - any string-ish field whose name says "secret".
 # It is the half that found `InvitationRead.token`, which is not on the list
 # above and never would have been: nothing about the name `token` is unusual
 # until you notice the response hands out a bearer credential.
 _SECRET_WORDS = re.compile("secret|password|token|api_key|private_key")
 
 # Fields the pattern matches that are nonetheless safe. Every entry is a
-# promise about the value, and writing the promise down is the point — an
+# promise about the value, and writing the promise down is the point - an
 # allowance nobody can explain is a hole.
 _PATTERN_ALLOWED: dict[str, str] = {
     "has_auth_token": "a boolean saying whether one is set",
     "token_hint": "the last four characters, so two keys can be told apart",
-    "access_token": "minted for the caller who just authenticated — it is theirs",
+    "access_token": "minted for the caller who just authenticated - it is theirs",
     "refresh_token": "same: issued to this caller, not read from storage",
     "token_type": "the string 'bearer'",
     "expires_in": "a lifetime in seconds",
@@ -85,8 +85,8 @@ _PATTERN_ALLOWED: dict[str, str] = {
     ),
     # `InvitationRead.token` used to be here as a known leak: listing an
     # organization's invitations returned every pending bearer credential. It
-    # was found by this rule and is now fixed — creation returns
-    # `invitation_token` once, listing returns none — so the allowance is gone
+    # was found by this rule and is now fixed - creation returns
+    # `invitation_token` once, listing returns none - so the allowance is gone
     # rather than kept "just in case". That round trip is what the rule is for.
     "invitation_token": "the inviter's own copy of the link, returned once at creation",
     "secret_id": "a reference to a stored secret, not the secret",
@@ -97,11 +97,11 @@ _PATTERN_ALLOWED: dict[str, str] = {
     ),
     "secret_kind": "which shape a secret has to be, e.g. 'api_key'",
     "requires_secret": "what kind a capability needs, so the Builder can ask for one",
-    "tokens_used": "an LLM usage count — 'token' means something else here",
+    "tokens_used": "an LLM usage count - 'token' means something else here",
 }
 
 # A property whose type is one of these cannot be carrying a credential
-# whatever it is called — `ConnectorConfigField.secret` is a flag saying "this
+# whatever it is called - `ConnectorConfigField.secret` is a flag saying "this
 # input should be masked", which is the opposite of a leak.
 _HARMLESS_TYPES = frozenset({"boolean", "integer", "number"})
 
@@ -152,7 +152,7 @@ def _properties(schema: dict[str, Any]) -> set[str]:
 
 
 def _string_properties(schema: dict[str, Any]) -> set[str]:
-    """Property names that could hold a credential — anything not plainly scalar."""
+    """Property names that could hold a credential - anything not plainly scalar."""
     properties = schema.get("properties")
     if not isinstance(properties, dict):
         return set()

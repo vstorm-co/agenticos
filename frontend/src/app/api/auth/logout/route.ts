@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
         body: JSON.stringify({ refresh_token: refreshToken }),
       });
     } catch (error) {
-      // Ignore — we still want to clear the client cookies even if the
+      // Ignore - we still want to clear the client cookies even if the
       // server-side invalidation fails (e.g. token already expired).
       if (!(error instanceof BackendApiError)) {
         console.error("Logout backend call failed:", error);

@@ -1,5 +1,5 @@
 /**
- * Types for embeds — an agent published as a widget on somebody else's site.
+ * Types for embeds - an agent published as a widget on somebody else's site.
  *
  * Mirrors `backend/app/schemas/agent_embed.py`. The signing secret appears in
  * the create and update shapes and never in the read shape: it is written once
@@ -23,7 +23,7 @@ export interface Embed {
   id: string;
   agent_id: string;
   name: string;
-  /** Public by construction — it lives in a script tag on a public page. */
+  /** Public by construction - it lives in a script tag on a public page. */
   public_key: string;
   auth_mode: EmbedAuthMode;
   has_jwt_secret: boolean;
@@ -56,11 +56,11 @@ export interface NewEmbed {
 
 export type EmbedEdit = Partial<Omit<NewEmbed, "agent_id">> & { is_active?: boolean };
 
-/** The look a new widget starts with — the same defaults the backend applies. */
+/** The look a new widget starts with - the same defaults the backend applies. */
 export const DEFAULT_EMBED_THEME: EmbedTheme = {
   title: "Ask us anything",
   subtitle: "",
-  greeting: "Hi — what can I help you with?",
+  greeting: "Hi - what can I help you with?",
   placeholder: "Type your message…",
   accent: "#4f46e5",
   position: "right",

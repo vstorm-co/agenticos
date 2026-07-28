@@ -1,6 +1,6 @@
 """Scheduled usage reports.
 
-Spend is visible on demand — the agents page has it, and a budget stops a
+Spend is visible on demand - the agents page has it, and a budget stops a
 runaway before it becomes an invoice. What neither does is *arrive*: the slow
 leak, the agent somebody wired to a Slack channel in March that has quietly
 answered five thousand messages since, is exactly the thing nobody opens a

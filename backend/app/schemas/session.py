@@ -23,7 +23,7 @@ class SessionListResponse(BaseSchema):
 
     ``items``/``total`` rather than the ``sessions`` key this used to return, so
     it pages like every other list in the API. ``total`` counts the user's
-    sessions, not the page — the client needs it to know there is a next one.
+    sessions, not the page - the client needs it to know there is a next one.
     """
 
     items: list[SessionRead]

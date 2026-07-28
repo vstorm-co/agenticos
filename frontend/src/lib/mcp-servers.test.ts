@@ -90,7 +90,7 @@ describe("mergeServers", () => {
   });
 
   it("gives a connection the catalog does not carry a row of its own", () => {
-    // Otherwise it is reachable from nowhere — a live credential nobody can
+    // Otherwise it is reachable from nowhere - a live credential nobody can
     // find to revoke, which is exactly what a merged page must not create.
     const rows = mergeServers(
       [GITHUB],

@@ -72,7 +72,7 @@ describe("InviteLinkDialog", () => {
   });
 
   it("warns when a link is both unlimited and open to any address", async () => {
-    // Not a refusal — it is a legitimate thing to want. But a URL in a channel
+    // Not a refusal - it is a legitimate thing to want. But a URL in a channel
     // can be forwarded, and that has to be said where the choice is made.
     mount();
 

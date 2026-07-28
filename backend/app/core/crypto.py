@@ -7,8 +7,8 @@ ciphertext lifted into another tenant's row fails to unwrap. This module has no
 such property: one deployment-wide key encrypts everything, which is exactly the
 weakness the vault exists to remove.
 
-It survives for one caller — :mod:`app.services.sync_source`, the template's RAG
-connector configs — and only because ``sync_sources.organization_id`` is
+It survives for one caller - :mod:`app.services.sync_source`, the template's RAG
+connector configs - and only because ``sync_sources.organization_id`` is
 nullable and the CLI creates rows without one. There is no owner to bind a
 ciphertext to, so converging it means making that column NOT NULL and giving the
 CLI an organization first. That is a change to template-inherited code with its

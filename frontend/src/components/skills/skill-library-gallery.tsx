@@ -11,7 +11,7 @@ import { formatSize } from "@/components/skills/skill-files";
  * The skills this deployment ships with, ready to copy in.
  *
  * A copy, not a link: from the moment it is installed it is an ordinary skill
- * the organization owns and edits, which is the whole point of skills — a
+ * the organization owns and edits, which is the whole point of skills - a
  * support lead fixes the refund policy without a deploy. A live reference back
  * to the shipped folder would take that away.
  *
@@ -23,7 +23,7 @@ export function SkillLibraryGallery({ canInstall }: { canInstall: boolean }) {
   const { library, isLoading, install } = useSkillLibrary();
   // Only what is not already here. The section answers "what else could I
   // have", and a card for something the organization installed last week
-  // answers nothing — it was a second copy of the list above, greyed out, with
+  // answers nothing - it was a second copy of the list above, greyed out, with
   // an "Already installed" button that does nothing when pressed.
   const available = library.filter((entry) => !entry.installed);
   // Client-side: the library is compiled into the deployment, so the whole set
@@ -42,12 +42,12 @@ export function SkillLibraryGallery({ canInstall }: { canInstall: boolean }) {
       <div>
         <p className="text-sm font-medium">Ready-made skills</p>
         <p className="text-muted-foreground text-xs">
-          Written for this platform and copied into your organization — yours to edit from the
+          Written for this platform and copied into your organization - yours to edit from the
           moment you install one.
         </p>
       </div>
 
-      {/* Only once the shelf is long enough to be worth searching — a box over
+      {/* Only once the shelf is long enough to be worth searching - a box over
           three cards is a control that reads as a missing list. */}
       {available.length > 8 && (
         <SearchInput value={list.query} onChange={list.setQuery} placeholder="Search library…" />

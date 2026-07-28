@@ -1,4 +1,4 @@
-"""Sharing service — owner, visibility and per-member grants on one resource.
+"""Sharing service - owner, visibility and per-member grants on one resource.
 
 Only someone who can already edit a resource may change who else reaches it,
 which keeps the rule simple: sharing is an edit. Every change is audited,
@@ -165,14 +165,14 @@ class SharingService:
 
         Going private on a row nobody owns makes the caller its owner. "Private"
         means private *to somebody*, and an unowned private row is one nobody can
-        see and nobody can delete — which the database refuses outright
+        see and nobody can delete - which the database refuses outright
         (`ck_secret_private_needs_owner`), so the alternative is an
         IntegrityError arriving as a 500.
 
         Adopting rather than refusing, because refusing has nowhere to send
         anyone: nothing in this product transfers ownership, so "give it an owner
         first" would be an instruction with no way to follow it. It grants
-        nothing new either — the caller already passed the edit check, and
+        nothing new either - the caller already passed the edit check, and
         someone who can edit a key can rotate or delete it, which is strictly
         more than taking it over. It is recorded as its own audit entry, because
         "who owns this now" is not something a visibility change should quietly

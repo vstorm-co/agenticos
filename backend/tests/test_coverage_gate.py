@@ -1,14 +1,14 @@
 """A test that guards the coverage gate itself, and the type gate beside it.
 
 This exists because the gate silently stopped measuring most of what it claimed
-to cover. `[tool.coverage.run] source` accepts packages and directories only —
+to cover. `[tool.coverage.run] source` accepts packages and directories only -
 a *file path* there is ignored without an error, so eight modules sat in the
 config for days while the build reported 100% of a much smaller set.
 
 Switching to `include` fixes that, but trades one silent failure for another:
 `include` reports only files that were imported, so a platform module nobody
 imports drops out just as quietly. Hence this test. It asserts the two things
-the config cannot assert about itself — that every listed pattern matches a real
+the config cannot assert about itself - that every listed pattern matches a real
 file, and that every file in the platform layer is actually listed.
 
 The type checker draws the same line for the same reason, with a second copy of
@@ -84,7 +84,7 @@ def platform_type_override(pyproject: dict) -> dict:
     """The `[[tool.ty.overrides]]` entry that holds the platform layer to errors.
 
     Identified by the package glob rather than by position, so reordering the
-    overrides — or adding a third — does not silently point this at the wrong
+    overrides - or adding a third - does not silently point this at the wrong
     one.
     """
     overrides = [
@@ -182,7 +182,7 @@ class TestTypeGateMatchesCoverageGate:
     def test_it_covers_exactly_the_files_the_coverage_gate_does(
         self, coverage_config: dict, platform_type_override: dict
     ) -> None:
-        """One definition of "ours", read twice — so a new module joins both gates."""
+        """One definition of "ours", read twice - so a new module joins both gates."""
         assert platform_type_override["include"] == coverage_config["run"]["include"]
         assert platform_type_override["exclude"] == coverage_config["run"]["omit"]
 
@@ -206,7 +206,7 @@ class TestTypeGateMatchesCoverageGate:
     ) -> None:
         """`error-on-warning = false` is what made the old gate decorative.
 
-        It stays false — the template's diagnostics are informational — so the
+        It stays false - the template's diagnostics are informational - so the
         only thing that can fail the run is a rule set to `error`, and this
         override is the only place that does it.
         """

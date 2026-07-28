@@ -28,7 +28,7 @@ class KnowledgeConfig(BaseModel):
 class Knowledge(AbstractCapability[AgentDepsT]):
     """Lets an agent search its bound collections.
 
-    Which collections are searchable is not configured here — it is part of the
+    Which collections are searchable is not configured here - it is part of the
     agent spec and resolved server-side, so the model cannot widen its own
     reach by asking for a different collection.
 

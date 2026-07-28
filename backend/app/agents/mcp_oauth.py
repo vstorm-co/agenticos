@@ -6,21 +6,21 @@ pointing at RFC 9728 protected-resource metadata. This module drives the full
 flow for a *web* app, where the authorization redirect and its callback are
 two separate HTTP requests rather than a blocking CLI prompt:
 
-    1. :func:`discover`      — probe the server, resolve the authorization
+    1. :func:`discover`      - probe the server, resolve the authorization
        server, fetch its RFC 8414 metadata (endpoints, PKCE support).
-    2. :func:`register_client` — RFC 7591 dynamic client registration.
-    3. :func:`authorization_url` — build the consent URL (PKCE + state +
+    2. :func:`register_client` - RFC 7591 dynamic client registration.
+    3. :func:`authorization_url` - build the consent URL (PKCE + state +
        RFC 8707 resource indicator); the browser is redirected there.
-    4. :func:`exchange_code` — swap the returned code for tokens (callback).
-    5. :func:`refresh_tokens` — refresh an expired access token.
+    4. :func:`exchange_code` - swap the returned code for tokens (callback).
+    5. :func:`refresh_tokens` - refresh an expired access token.
 
 We lean on the MCP SDK's ``mcp.client.auth.oauth2`` helpers for discovery
 URL ordering, request building and response parsing so our behaviour matches
 the SDK's own client; the token grant/refresh POSTs are issued here so the
 flow can be split across requests and persisted between them.
 
-Every URL reached from here — discovery candidates, the token endpoint, and
-each redirect hop — is SSRF-checked (see :func:`_send`), because discovery
+Every URL reached from here - discovery candidates, the token endpoint, and
+each redirect hop - is SSRF-checked (see :func:`_send`), because discovery
 means the remote server, not the user, picks most of the addresses we call.
 """
 
@@ -56,7 +56,7 @@ TOKEN_EXPIRY_SKEW_SECS = 60.0
 
 # How long a consent redirect stays redeemable. The ``state`` token is the only
 # thing authenticating the callback, and it travels through the provider and the
-# browser's history — so a flow the user never finished must stop working rather
+# browser's history - so a flow the user never finished must stop working rather
 # than sit in the database indefinitely.
 FLOW_TTL_SECS = 600.0
 
@@ -77,7 +77,7 @@ async def _send(client: httpx.AsyncClient, request: httpx.Request) -> httpx.Resp
 
     Discovery and token endpoints are chosen by the remote server, so the URL
     the user typed is not the URL we end up talking to. The client has
-    redirects turned off and we follow them here, one validated hop at a time —
+    redirects turned off and we follow them here, one validated hop at a time -
     otherwise a server could answer with ``302 http://169.254.169.254/`` and we
     would fetch it from inside the network.
     """
@@ -107,7 +107,7 @@ class McpOAuthPayload(BaseModel):
     # only once tokens arrive, so a re-authorization that points at a new URL
     # cannot move the connection while the old tokens are still stored.
     server_url: str
-    # Epoch seconds when the consent redirect was issued — see FLOW_TTL_SECS.
+    # Epoch seconds when the consent redirect was issued - see FLOW_TTL_SECS.
     started_at: float
     authorization_endpoint: str
     token_endpoint: str
@@ -178,7 +178,7 @@ async def discover(server_url: str) -> DiscoveredServer:
             )
             www_auth_url = extract_resource_metadata_from_www_auth(probe)
         except (httpx.HTTPError, OAuthError):
-            # Probe failed or was blocked — fall back to well-known discovery below.
+            # Probe failed or was blocked - fall back to well-known discovery below.
             pass
 
         # 2. Protected-resource metadata → the authorization server URL.
@@ -222,7 +222,7 @@ async def discover(server_url: str) -> DiscoveredServer:
             )
 
         # The consent URL is handed to the user's browser rather than fetched
-        # here, so it never passes through _send — check it now.
+        # here, so it never passes through _send - check it now.
         try:
             await validate_mcp_url(str(asm.authorization_endpoint))
         except ValueError as exc:
@@ -260,7 +260,7 @@ async def register_client(server: DiscoveredServer, redirect_uri: str) -> tuple[
         except httpx.HTTPError as exc:
             raise OAuthError(f"Dynamic client registration failed: {exc}") from exc
         except OAuthFlowError as exc:
-            # The SDK puts the server's response body in the message — keep it
+            # The SDK puts the server's response body in the message - keep it
             # in the log, hand the user a fixed string.
             logger.warning("MCP dynamic client registration failed at %s: %s", request.url, exc)
             raise OAuthError("This server rejected the client registration request.") from exc
@@ -362,7 +362,7 @@ async def _token_request(token_endpoint: str, data: dict[str, str]) -> OAuthToke
             raise OAuthError(f"Token request failed: {exc}") from exc
     if response.status_code != 200:
         # The body is whatever the endpoint chose to return, and this message
-        # ends up in the user's browser — log the detail, show the status.
+        # ends up in the user's browser - log the detail, show the status.
         logger.warning(
             "MCP token endpoint %s returned %s: %s",
             token_endpoint,

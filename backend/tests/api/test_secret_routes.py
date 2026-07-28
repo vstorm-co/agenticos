@@ -2,7 +2,7 @@
 
 ``tests/api/test_platform_routes.py`` proves each of these routes is gated on
 ``connections:manage`` and nothing else. What is left is what the routes
-actually return — and the one thing that must never appear in any of it.
+actually return - and the one thing that must never appear in any of it.
 """
 
 from __future__ import annotations

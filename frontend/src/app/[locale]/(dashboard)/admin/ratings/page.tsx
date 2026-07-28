@@ -12,7 +12,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 
-// recharts is heavy — load the chart only when this page renders.
+// recharts is heavy - load the chart only when this page renders.
 const RatingsChart = dynamic(() => import("./ratings-chart").then((m) => m.RatingsChart), {
   ssr: false,
   loading: () => <div className="bg-foreground/5 h-full w-full animate-pulse rounded-md" />,
@@ -64,7 +64,7 @@ export default function AdminRatingsPage() {
       setSummary(summaryData);
       setRatings(ratingsData);
     } catch {
-      /* ignore — empty state handles errors */
+      /* ignore - empty state handles errors */
     } finally {
       setLoading(false);
     }
@@ -120,7 +120,7 @@ export default function AdminRatingsPage() {
       className: "max-w-[180px]",
       cell: (r) => (
         <span className="text-foreground block truncate text-xs">
-          {r.comment || <span className="text-muted-foreground">—</span>}
+          {r.comment || <span className="text-muted-foreground">-</span>}
         </span>
       ),
     },
@@ -130,7 +130,7 @@ export default function AdminRatingsPage() {
       className: "max-w-[260px]",
       cell: (r) => (
         <span className="text-muted-foreground block truncate text-xs">
-          {r.message_content || "—"}
+          {r.message_content || "-"}
         </span>
       ),
     },
@@ -139,7 +139,7 @@ export default function AdminRatingsPage() {
       header: "User",
       className: "whitespace-nowrap",
       cell: (r) => (
-        <span className="text-foreground text-xs">{r.user_name || r.user_email || "—"}</span>
+        <span className="text-foreground text-xs">{r.user_name || r.user_email || "-"}</span>
       ),
     },
     {
@@ -163,7 +163,7 @@ export default function AdminRatingsPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-muted-foreground text-sm">
-          User feedback on AI responses — last 30 days.
+          User feedback on AI responses - last 30 days.
         </p>
         <div className="flex items-center gap-2">
           <Select value={exportFormat} onValueChange={(v) => setExportFormat(v as "json" | "csv")}>
@@ -185,24 +185,24 @@ export default function AdminRatingsPage() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Total ratings"
-          value={loading ? "—" : (summary?.total_ratings ?? 0).toLocaleString()}
+          value={loading ? "-" : (summary?.total_ratings ?? 0).toLocaleString()}
           loading={loading}
         />
         <StatCard
           label="Likes"
-          value={loading ? "—" : (summary?.like_count ?? 0).toLocaleString()}
+          value={loading ? "-" : (summary?.like_count ?? 0).toLocaleString()}
           icon={ThumbsUp}
           loading={loading}
         />
         <StatCard
           label="Dislikes"
-          value={loading ? "—" : (summary?.dislike_count ?? 0).toLocaleString()}
+          value={loading ? "-" : (summary?.dislike_count ?? 0).toLocaleString()}
           icon={ThumbsDown}
           loading={loading}
         />
         <StatCard
           label="Approval rate"
-          value={loading ? "—" : approvalRate !== null ? `${approvalRate}%` : "—"}
+          value={loading ? "-" : approvalRate !== null ? `${approvalRate}%` : "-"}
           icon={TrendingUp}
           loading={loading}
         />

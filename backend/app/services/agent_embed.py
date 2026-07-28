@@ -3,7 +3,7 @@
 Two audiences in one service, and they are told different things.
 
 *The owner* creates, edits and deletes widgets. Who may is `agents:publish` on
-that agent, resolved through `resolve_access` — the same permission and the same
+that agent, resolved through `resolve_access` - the same permission and the same
 reasoning as an exposure: both answer "what does the outside world reach", and
 somebody who may freeze a version may say where it runs.
 
@@ -61,7 +61,7 @@ _MAX_TOKEN_AGE_SECONDS = 60 * 60 * 12
 class EmbedDenied(Exception):
     """The widget refuses this visitor, and the reason is not theirs to know.
 
-    One exception for every refusal — inactive, wrong origin, bad token — so a
+    One exception for every refusal - inactive, wrong origin, bad token - so a
     caller cannot accidentally tell a stranger which of the three it was, and
     an origin probe learns nothing about tokens.
     """
@@ -136,7 +136,7 @@ class AgentEmbedService:
         return self._read(created)
 
     async def update(self, ctx: AuthContext, embed_id: UUID, data: EmbedUpdate) -> EmbedRead:
-        """Change a widget. The agent it points at is not changeable — see `EmbedUpdate`."""
+        """Change a widget. The agent it points at is not changeable - see `EmbedUpdate`."""
         embed = await self._owned(ctx, embed_id)
         await self.agents.get(ctx, embed.agent_id, perm=Perm.AGENTS_PUBLISH)
 
@@ -201,7 +201,7 @@ class AgentEmbedService:
     ) -> tuple[AgentEmbed, str | None]:
         """Decide whether this visitor may talk to this widget.
 
-        Returns the widget and the visitor's identity — the `sub` of their
+        Returns the widget and the visitor's identity - the `sub` of their
         token, or None for an anonymous one. The identity is what a rate limit
         and a transcript are keyed on.
 
@@ -340,7 +340,7 @@ class AgentEmbedService:
         """The two lines a customer pastes.
 
         Assembled here rather than in the browser so the deployment's own URL is
-        known in exactly one place — a snippet built client-side would carry
+        known in exactly one place - a snippet built client-side would carry
         whatever host the dashboard happened to be opened on.
         """
         base = settings.PUBLIC_BASE_URL.rstrip("/")

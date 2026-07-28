@@ -22,10 +22,10 @@ interface ChatState {
   ) => void;
   addToolCall: (messageId: string, toolCall: ToolCall) => void;
   updateToolCall: (messageId: string, toolCallId: string, update: Partial<ToolCall>) => void;
-  /** Append a streamed text delta — extends the trailing text part or
+  /** Append a streamed text delta - extends the trailing text part or
    *  starts a new one, keeping the flat `content` aggregate in sync. */
   appendTextDelta: (messageId: string, text: string) => void;
-  /** Append a streamed reasoning delta — same logic for "thinking" parts. */
+  /** Append a streamed reasoning delta - same logic for "thinking" parts. */
   appendThinkingDelta: (messageId: string, text: string) => void;
   /** Add a tool call as an ordered part (and to the flat `toolCalls`). */
   addToolCallPart: (messageId: string, toolCall: ToolCall) => void;

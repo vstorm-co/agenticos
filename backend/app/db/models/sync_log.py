@@ -1,4 +1,4 @@
-"""SyncLog model — tracks document synchronization history."""
+"""SyncLog model - tracks document synchronization history."""
 
 import uuid
 from datetime import datetime

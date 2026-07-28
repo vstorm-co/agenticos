@@ -36,7 +36,7 @@ function writeConsent(consent: CookieConsent) {
 
 export function CookieBanner() {
   // Only for visitors who have not signed in. Inside the product it covered the
-  // page to ask permission for something this deployment does not do — there is
+  // page to ask permission for something this deployment does not do - there is
   // no analytics script here, and nothing reads the stored consent. What a
   // signed-in employee's session may record is the operator's own policy, not a
   // question a browser prompt can settle.
@@ -222,7 +222,7 @@ function Toggle({
 }) {
   return (
     // Label wraps a real (visually-hidden) <input type="checkbox"> plus its
-    // descriptive text — an accessible pattern the static rule can't verify
+    // descriptive text - an accessible pattern the static rule can't verify
     // through the nested span wrapper.
     // eslint-disable-next-line jsx-a11y/label-has-associated-control
     <label className="flex items-start justify-between gap-3">

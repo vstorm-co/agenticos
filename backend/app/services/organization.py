@@ -69,7 +69,7 @@ class OrganizationService:
                 raise AlreadyExistsError(
                     message=(
                         f"The slug '{slug}' is taken. It is this organization's address in URLs "
-                        "and has to be unique across the platform — pick a different one, or "
+                        "and has to be unique across the platform - pick a different one, or "
                         "leave it blank and one will be derived from the name."
                     ),
                     details={"slug": slug},
@@ -123,7 +123,7 @@ class OrganizationService:
         """Update org metadata and settings. Requires ADMIN or OWNER role.
 
         The monthly spending cap is one of those settings, gated by the same
-        ``org:settings`` permission as the rest — it is not a separate
+        ``org:settings`` permission as the rest - it is not a separate
         entitlement, and giving it one would mean two answers to "who configures
         this organization".
         """

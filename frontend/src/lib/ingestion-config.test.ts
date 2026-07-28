@@ -58,7 +58,7 @@ describe("ingestionProblems", () => {
   it.each(["en", "pl", "english", "eng+", "ENG", "eng pol", ""])(
     "refuses %p as an OCR language, because Tesseract wants three letters",
     (code) => {
-      // The trap is that "pl" looks like the right answer — it is the code used
+      // The trap is that "pl" looks like the right answer - it is the code used
       // everywhere else in this product for a UI locale. Tesseract has no pack
       // under that name, so the parse would succeed and return nothing.
       expect(ingestionProblems(config({ ocr_language: code }))).toHaveProperty("ocr_language");

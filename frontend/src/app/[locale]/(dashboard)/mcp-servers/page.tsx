@@ -9,14 +9,14 @@ import { useMcpServers, usePermissions } from "@/hooks";
 import { Perm } from "@/types/permissions";
 
 /**
- * MCP servers — the one page, where there used to be two.
+ * MCP servers - the one page, where there used to be two.
  *
  * `/mcp-servers` listed the catalog and `/settings/integrations` listed a
  * person's connections, as if those were peers. They are not: there are three
  * layers, and only one of them is a page.
  *
  * - A **catalog entry** is a server that exists. Deployment-wide, curated by
- *   hand, read-only — nothing to manage, only something to connect to.
+ *   hand, read-only - nothing to manage, only something to connect to.
  * - A **connection** is a credential to one of them, owned by a person or by
  *   the organization. That is a property of a row, which is why it is now shown
  *   on one.

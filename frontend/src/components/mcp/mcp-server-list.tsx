@@ -59,7 +59,7 @@ type StateFilter = "all" | "connected" | "not-connected";
  * The three the platform can do, in either scope. An organization connection
  * may hold an OAuth grant: the common case is a shared service account that one
  * admin consents with and everybody's agents then use. The grant is still that
- * account's at the provider, which is a real operational cost — the dialog says
+ * account's at the provider, which is a real operational cost - the dialog says
  * so where the choice is made rather than withholding the choice.
  */
 type DraftAuth = "none" | "token" | "oauth";
@@ -78,7 +78,7 @@ const AUTH_CHOICES: { value: DraftAuth; label: string; hint: string }[] = [
   {
     value: "oauth",
     label: "OAuth",
-    hint: "Sign in at the provider. Discovered from the server's own metadata — nothing to configure here.",
+    hint: "Sign in at the provider. Discovered from the server's own metadata - nothing to configure here.",
   },
 ];
 
@@ -90,8 +90,8 @@ const SCOPE_LABEL: Record<Scope, string> = {
 /**
  * A backend category slug as a heading.
  *
- * The catalog's categories are identifiers — `project-management`,
- * `observability` — and uppercasing one in CSS turns the hyphen into a visible
+ * The catalog's categories are identifiers - `project-management`,
+ * `observability` - and uppercasing one in CSS turns the hyphen into a visible
  * seam that reads as a machine field rather than a section of a catalogue.
  */
 function categoryLabel(category: string): string {
@@ -112,7 +112,7 @@ interface DraftState {
 }
 
 interface McpServerListProps {
-  /** False for a member without `connections:manage` — the organization column reads only. */
+  /** False for a member without `connections:manage` - the organization column reads only. */
   canManageOrganization: boolean;
 }
 
@@ -120,17 +120,17 @@ interface McpServerListProps {
  * Every MCP server, with connection state on the row rather than on a second page.
  *
  * The list is the catalog, because a catalog entry is not a sibling of a
- * connection — it is what a connection points at. Servers nobody curated appear
+ * connection - it is what a connection points at. Servers nobody curated appear
  * here too, so a credential is never reachable only from a URL somebody
  * remembers.
  *
  * Each row has two columns because there are genuinely two owners, and the
  * difference decides what the connection can be used for:
  *
- * - **Organization** — the organization's credential. The only kind an agent
+ * - **Organization** - the organization's credential. The only kind an agent
  *   spec may bind, because a published agent must not reach different tools
  *   depending on whose session ran it. Gated on `connections:manage`.
- * - **You** — your own credential, used by your assistant in chat and by
+ * - **You** - your own credential, used by your assistant in chat and by
  *   nothing else. Never offered to an agent.
  *
  * OAuth is offered on the personal column only. A consent grant is one human's,
@@ -181,7 +181,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
   const [draftUrl, setDraftUrl] = useState("");
   const [draftToken, setDraftToken] = useState("");
   // How the server is authenticated. A catalog entry states this; a custom one
-  // has to be asked, and asking was the gap — the dialog offered a token field
+  // has to be asked, and asking was the gap - the dialog offered a token field
   // and nothing else, so a server behind OAuth could not be added at all.
   const [draftAuth, setDraftAuth] = useState<DraftAuth>("token");
   const [clearToken, setClearToken] = useState(false);
@@ -258,7 +258,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
       toast.error(errorMessage(caught, "Could not start sign-in"));
       setBusyId(null);
     }
-    // On success the browser navigates away — leave the row busy.
+    // On success the browser navigates away - leave the row busy.
   };
 
   const handleSubmit = async () => {
@@ -425,7 +425,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
        * arithmetic obvious: this catalog has six entries under six distinct
        * categories, so every section held exactly one card and the page was a
        * column of headings down the left quarter of the screen. A category that
-       * groups one thing is not a group — so it moves onto the card, where it
+       * groups one thing is not a group - so it moves onto the card, where it
        * still says what the server is for without claiming to sort anything.
        *
        * Three columns at a normal window, four on a wide one. Six to a dozen
@@ -463,17 +463,17 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                   )}
                   {row.url === null ? (
                     // Prose, so it is set as prose. Monospacing this sentence
-                    // and then truncating it produced "Self-hosted — you supply
+                    // and then truncating it produced "Self-hosted - you supply
                     // the…", which reads as a URL that got cut off.
                     <p className="text-muted-foreground text-xs">
-                      Self-hosted — you supply the URL when connecting
+                      Self-hosted - you supply the URL when connecting
                     </p>
                   ) : (
                     // Truncated rather than wrapped: spelled out, the URL is the
                     // tallest thing on the card, and the full editable copy is
                     // one click away in the dialog.
                     <p className="text-muted-foreground truncate font-mono text-xs" title={row.url}>
-                      {/* A query string may carry a key — never render one. */}
+                      {/* A query string may carry a key - never render one. */}
                       {`${row.url.split("?")[0]}${row.url.includes("?") ? "?…" : ""}`}
                     </p>
                   )}
@@ -494,7 +494,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
               {/* Pushed to the foot, and the rule above it is why that reads as
                   a decision rather than a hole. An earlier version kept the
                   actions directly under the description to avoid a void in the
-                  middle of the card — but cards in a row are the same height and
+                  middle of the card - but cards in a row are the same height and
                   their descriptions are not, so the buttons landed at a
                   different height in every column. Consistent placement is worth
                   more than tight spacing: a separator turns the slack into an
@@ -503,7 +503,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                 {/* One row, always, and always at the foot of the card.
                     The block above takes the slack, so a description that runs
                     to four lines and one that runs to two put their actions in
-                    the same place — which is the whole reason a grid of cards
+                    the same place - which is the whole reason a grid of cards
                     is scannable. State rides on the trigger rather than on a
                     chip of its own, because a chip on some cards and not others
                     is the misalignment again, one row up. */}
@@ -685,11 +685,11 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                 // Said once, where the choice is made. The grant is the
                 // consenting person's at the provider, so revoking their access
                 // there stops the organization's server working until somebody
-                // authorizes it again — which is why a shared service account is
+                // authorizes it again - which is why a shared service account is
                 // the right thing to consent with.
                 <p className="text-muted-foreground mt-1.5 text-xs">
                   Whoever signs in grants it. If their access at the provider is revoked, this
-                  server stops working for every agent until somebody signs in again — so use an
+                  server stops working for every agent until somebody signs in again - so use an
                   account the organization controls.
                 </p>
               )}
@@ -715,7 +715,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                 }}
                 placeholder={
                   draft?.existing?.has_auth_token
-                    ? "•••••• (stored — type to replace)"
+                    ? "•••••• (stored - type to replace)"
                     : "Paste it here"
                 }
                 maxLength={4096}
@@ -723,7 +723,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
               />
               <p className="text-foreground/45 mt-1 text-[11px]">
                 {draft?.scope === "organization"
-                  ? "Use a service credential, not your own — every agent bound to this server acts with it. Sealed for this organization and never shown again."
+                  ? "Use a service credential, not your own - every agent bound to this server acts with it. Sealed for this organization and never shown again."
                   : "Stored encrypted and never shown again."}
               </p>
               {draft?.existing?.has_auth_token && !draftToken && (
@@ -763,7 +763,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
             Which tools this connection exposes. Selecting all keeps tools the server adds later
             enabled automatically.
             {toolPicker?.scope === "organization" &&
-              " This applies to every agent bound to this server — per-agent tool selection does not exist yet."}
+              " This applies to every agent bound to this server - per-agent tool selection does not exist yet."}
           </p>
           <ul className="border-foreground/10 divide-foreground/8 divide-y rounded-xl border">
             {toolPicker?.tools.map((tool) => (
@@ -816,7 +816,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
  *
  * A chip per owner rather than a panel per owner. The card sits in a grid, and
  * the question somebody scanning a grid is asking is "is this connected, and
- * for whom" — two words, twice. Everything you can *do* about it hangs off one
+ * for whom" - two words, twice. Everything you can *do* about it hangs off one
  * button below, because the owner is a choice inside the flow rather than a
  * reason to draw the flow twice.
  */
@@ -854,7 +854,7 @@ function ScopeChip({
  * Which owner the Connect button offers first.
  *
  * The one that has nothing yet, preferring the organization when both are
- * empty — a server connected for the organization is available to every agent,
+ * empty - a server connected for the organization is available to every agent,
  * which is what somebody adding one on this page is usually after.
  */
 function defaultScope(row: McpServerRow, canManageOrganization: boolean): Scope {
@@ -866,7 +866,7 @@ function defaultScope(row: McpServerRow, canManageOrganization: boolean): Scope 
  * Everything you can do to one existing connection, behind one control.
  *
  * A card in a grid has room for a primary action and no more. Laid out flat,
- * a server connected for one owner grew four buttons — and a server mid-OAuth
+ * a server connected for one owner grew four buttons - and a server mid-OAuth
  * grew five, one of which read "you" beside a slider icon and meant "edit the
  * personal connection". The owner is what the trigger says; the verbs are
  * inside.
@@ -909,7 +909,7 @@ function ConnectionMenu({
           {owner}
           {/* The state, as a dot on the control that acts on it. A separate chip
               put it on its own line, which made the action row sit lower on the
-              cards that had one — the misalignment this layout exists to fix. */}
+              cards that had one - the misalignment this layout exists to fix. */}
           <span
             aria-hidden
             className={cn(

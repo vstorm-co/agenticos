@@ -1,6 +1,6 @@
 """Org-level sync source (integration) management.
 
-Accessible to org owners and admins — no app-admin required.
+Accessible to org owners and admins - no app-admin required.
 These endpoints manage sync sources at the organisation level:
 an integration without a ``collection_name`` is a "template" that can
 later be cloned into one or more knowledge bases.
@@ -9,7 +9,7 @@ later be cloned into one or more knowledge bases.
 says nothing about which organization the row in the path belongs to. So the
 per-source routes resolve the id through
 :meth:`app.services.collection_access.CollectionAccessService.sync_source`
-first — otherwise an admin of any organization could trigger, inspect or delete
+first - otherwise an admin of any organization could trigger, inspect or delete
 another one's integration, and these rows hold encrypted credentials.
 """
 
@@ -46,9 +46,9 @@ async def list_org_integrations(
 
     Returns both unassigned (org-level) and KB-assigned sources.
 
-    This is the only way to enumerate the *unassigned* ones — every other
+    This is the only way to enumerate the *unassigned* ones - every other
     listing is scoped to a collection, and a source with no ``collection_name``
-    belongs to none — which is what the "Reusable integrations" section on
+    belongs to none - which is what the "Reusable integrations" section on
     ``/kb`` reads. It keeps the assigned rows in the response because they are
     the same organisation's, and a caller wanting the full picture has nowhere
     else to get it; the UI filters to what its own surface owns.
@@ -73,7 +73,7 @@ async def create_org_integration(
 ) -> Any:
     """Create an org-level integration.
 
-    Omit ``collection_name`` to keep it unassigned — it can be cloned
+    Omit ``collection_name`` to keep it unassigned - it can be cloned
     into multiple knowledge bases later.  Pass a ``collection_name`` to
     immediately wire it to a specific KB collection.
     """

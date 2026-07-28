@@ -108,7 +108,7 @@ describe("McpServerList", () => {
 
     const row = within(githubRow());
     // The state rides on the control that acts on it, so the action row is one
-    // line on every card — a separate chip put it on its own line and pushed
+    // line on every card - a separate chip put it on its own line and pushed
     // the buttons down on exactly the cards that had one.
     expect(row.getByTitle("Organization: Connected")).toBeInTheDocument();
     expect(row.queryByTitle(/^You:/)).toBeNull();
@@ -138,7 +138,7 @@ describe("McpServerList", () => {
 
   it("offers OAuth for a personal connection, which is how a custom server behind a consent screen gets added", async () => {
     // The gap this closes: the dialog offered a token field and nothing else, so
-    // a server behind OAuth could not be connected at all — even though the
+    // a server behind OAuth could not be connected at all - even though the
     // backend's `oauth/start` takes "catalog **or custom**" and discovers the
     // endpoints from the server's own metadata.
     await mount();
@@ -152,7 +152,7 @@ describe("McpServerList", () => {
 
   it("offers OAuth for the organization too, because a shared service account is the common case", async () => {
     // An organization with one admin account that everybody's agents then use
-    // is a real arrangement, and withholding the choice did not make it safer —
+    // is a real arrangement, and withholding the choice did not make it safer -
     // it made it impossible. The cost (the grant is the consenting person's at
     // the provider) is stated where the choice is made.
     await mount();
@@ -174,7 +174,7 @@ describe("McpServerList", () => {
     expect(row.queryByTitle(/^(Organization|You):/)).toBeNull();
   });
 
-  it("writes no connection row when OAuth is chosen — the callback does that", async () => {
+  it("writes no connection row when OAuth is chosen - the callback does that", async () => {
     // Submitting the form would make an unauthorized bearer connection that then
     // has to be repaired. The grant comes back from the provider first.
     await mount();
@@ -208,8 +208,8 @@ describe("McpServerList", () => {
   });
 
   it("warns, rather than refuses, when the organization signs in", async () => {
-    // The cost is real — the grant is the consenting person's at the provider,
-    // so losing their access takes the organization's server with it — but a
+    // The cost is real - the grant is the consenting person's at the provider,
+    // so losing their access takes the organization's server with it - but a
     // shared service account is a legitimate arrangement, and the earlier
     // refusal made it impossible instead of informed.
     await mount();
@@ -228,7 +228,7 @@ describe("McpServerList", () => {
     await mount({ canManageOrganization: false, org: [connection()] });
 
     const row = within(githubRow());
-    // The organization's state is still readable — an agent author has to see
+    // The organization's state is still readable - an agent author has to see
     // what the Builder will offer.
     expect(row.getByTitle(/^Organization:/)).toBeInTheDocument();
     // But nothing that writes it. A button that always 403s is worse than none.
@@ -237,7 +237,7 @@ describe("McpServerList", () => {
 
   it("shows a server nobody curated rather than hiding it", async () => {
     // A live credential reachable from no screen is a credential nobody can
-    // revoke — which is what deleting the second page would otherwise create.
+    // revoke - which is what deleting the second page would otherwise create.
     // No `catalog_key`: this is a personal record, and one carrying GitHub's
     // key would be folded onto the GitHub row instead of getting its own.
     const { catalog_key: _ignored, ...crm } = connection({
@@ -269,7 +269,7 @@ describe("McpServerList", () => {
   it("falls back to a monogram for a server the catalog has never heard of", async () => {
     // The case that looks broken when it regresses. A connection added by URL
     // has no catalog key and no brand mark anywhere, so the card shows a
-    // bordered initial — the same fallback the vault uses for a provider with
+    // bordered initial - the same fallback the vault uses for a provider with
     // no logo. A blank square or a broken image would read as a failed load.
     const { catalog_key: _ignored, ...crm } = connection({
       id: "p9",
@@ -279,7 +279,7 @@ describe("McpServerList", () => {
     await mount({ own: [crm] });
 
     // The mark slot is the card's first element, and it is decorative either
-    // way — so this is the mark, not one of the icons inside the buttons below.
+    // way - so this is the mark, not one of the icons inside the buttons below.
     const mark = screen.getByRole("group", { name: "internal-crm" }).querySelector("[aria-hidden]");
 
     expect(mark?.tagName).toBe("SPAN");

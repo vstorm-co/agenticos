@@ -28,7 +28,7 @@ def build_toolset() -> FunctionToolset[Any]:
 
         Use for arithmetic, date maths and data transformation you would
         otherwise do in your head. The sandbox has no network and no filesystem,
-        so it is for calculation — not for fetching or storing anything.
+        so it is for calculation - not for fetching or storing anything.
 
         Args:
             code: The program. Print what you want to read back.

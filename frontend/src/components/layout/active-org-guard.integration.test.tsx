@@ -112,7 +112,7 @@ describe("a stale organization does not permanently empty the navigation", () =>
   it("keeps the navigation stripped while the server is merely broken", async () => {
     // The other half of the same behaviour. A 500 says nothing about whether
     // the caller still belongs to this organization, so reassigning them would
-    // turn an outage into a silent tenant switch — and the nav staying reduced
+    // turn an outage into a silent tenant switch - and the nav staying reduced
     // is the correct, conservative outcome, not a bug to paper over.
     useOrgStore.setState({ activeOrgId: STALE });
     vi.mocked(apiClient.get).mockImplementation((endpoint: string) => {

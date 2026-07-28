@@ -36,7 +36,7 @@ interface ObservabilityCardProps {
  *
  * Empty by default, and that is the normal state: the deployment configures
  * Logfire once and every run lands there. This exists for the agent built for
- * somebody else — whose traces belong in *their* project, with their retention
+ * somebody else - whose traces belong in *their* project, with their retention
  * and their alerting, and none of the operator's other traffic in it.
  *
  * The token is picked from the vault rather than typed. A spec is exported as
@@ -66,7 +66,7 @@ export function ObservabilityCard({
       <CardHeader>
         <CardTitle>Tracing</CardTitle>
         <CardDescription>
-          Send this agent&apos;s runs to a Logfire project of its own — an agent built for a client
+          Send this agent&apos;s runs to a Logfire project of its own - an agent built for a client
           traces into the client&apos;s project rather than yours. Leave it empty and runs go where
           the deployment already sends everything.
         </CardDescription>

@@ -286,7 +286,7 @@ class TestInvitationService:
         """The reason the token route exists at all.
 
         An invitee is not a member of the organization and has never seen its
-        id — the invitation reached them by email and nothing else did. If this
+        id - the invitation reached them by email and nothing else did. If this
         stops working, declining an invitation becomes impossible for the only
         person entitled to.
         """
@@ -329,7 +329,7 @@ class TestRevokingAnInvitationByItsId:
 
     @pytest.mark.anyio
     async def test_an_admin_of_another_organization_is_told_it_does_not_exist(self, service):
-        """Not "forbidden" — that would confirm the id names a real invitation.
+        """Not "forbidden" - that would confirm the id names a real invitation.
 
         The lookup is by id alone, so the organization in the path is the only
         thing tying the row to the caller's tenant.

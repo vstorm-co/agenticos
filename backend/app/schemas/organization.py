@@ -108,7 +108,7 @@ class InvitationCreate(BaseSchema):
     @field_validator("role")
     @classmethod
     def role_valid(cls, v: str) -> str:
-        # An invitation cannot make someone an owner — ownership transfers explicitly.
+        # An invitation cannot make someone an owner - ownership transfers explicitly.
         allowed = {role.value for role in OrgRoleName} - {OrgRoleName.OWNER.value}
         if v not in allowed:
             raise ValueError(f"Role must be one of: {', '.join(sorted(allowed))}")
@@ -139,9 +139,9 @@ class InviteLinkCreate(BaseSchema):
 class InvitationRead(BaseSchema):
     """An invitation as anyone reading the organization's list sees it.
 
-    Deliberately without the token. A token is a bearer credential — whoever
+    Deliberately without the token. A token is a bearer credential - whoever
     holds one joins the organization as the role offered to somebody else's
-    address — and this model is what ``GET /orgs/{id}/invitations`` returns, so
+    address - and this model is what ``GET /orgs/{id}/invitations`` returns, so
     carrying the token here handed out every pending credential on every call.
     Email, role, status and expiry are what an administrator decides on;
     revoking addresses the invitation by ``id``.
@@ -166,7 +166,7 @@ class InvitationCreated(InvitationRead):
 
     The invitation is delivered by email; this is the copy of the link for the
     person who just sent it, for when the mail does not arrive. Nothing reads it
-    back afterwards — there is no endpoint that returns a stored token.
+    back afterwards - there is no endpoint that returns a stored token.
     """
 
     invitation_token: str

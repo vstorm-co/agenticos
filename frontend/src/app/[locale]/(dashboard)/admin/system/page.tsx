@@ -14,7 +14,7 @@ import { cn, getErrorMessage } from "@/lib/utils";
  *
  * There is deliberately no "unknown". A row that reports a service nobody
  * checked is noise, and one that reports a service as healthy without checking
- * is worse — it will be believed during an incident. Each of these comes from a
+ * is worse - it will be believed during an incident. Each of these comes from a
  * probe that ran, including `not_checked`, which is a probe that was skipped and
  * says why.
  */

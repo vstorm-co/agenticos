@@ -97,7 +97,7 @@ def render_chart_png(spec: ChartSpec) -> bytes:
     """Render a ChartSpec to PNG bytes. Raises if matplotlib is unavailable."""
     import matplotlib
 
-    matplotlib.use("Agg")  # headless — no display backend
+    matplotlib.use("Agg")  # headless - no display backend
     import matplotlib.pyplot as plt
 
     fig, ax = plt.subplots(figsize=(8, 4.5), dpi=130)

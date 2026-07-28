@@ -12,7 +12,7 @@ There used to be one hand-written builder per provider, and four providers. That
 does not scale to the thirty-one Pydantic AI ships, and it does not need to:
 :func:`pydantic_ai.providers.infer_provider_class` finds the class and
 :func:`pydantic_ai.models.infer_model` picks the right model wrapper for it. What
-this module still owns is the part inference cannot know — **which credential
+this module still owns is the part inference cannot know - **which credential
 shape a provider wants**. Three of them do not take an API key at all: Azure
 needs an endpoint and a pinned API version, Bedrock an AWS key pair and a
 region, Vertex a service account. A form that pretended otherwise would collect
@@ -26,7 +26,7 @@ be selectable in the UI without being constructible at run time.
 
 Four provider names Pydantic AI knows are deliberately absent. ``bedrock-mantle``,
 ``sentence-transformers`` and ``voyageai`` are not chat providers a profile can
-point at — the last two are embedding models — and ``gateway`` does not resolve
+point at - the last two are embedding models - and ``gateway`` does not resolve
 to a provider class at all: it is a routing prefix over the others.
 
 Everything else Pydantic AI ships is here. Three of them (``xai``, ``cohere``,
@@ -72,7 +72,7 @@ class ProviderSpec:
     secret_kind: SecretKind
     # The constructor keyword for a custom endpoint, when the provider has one.
     # ``None`` means the provider talks to exactly one host and a base URL on
-    # the credential would be silently ignored — worth refusing instead.
+    # the credential would be silently ignored - worth refusing instead.
     base_url_param: str | None = None
     # Whether this provider can run with no credential at all. True only where a
     # self-hosted endpoint is the normal case; a keyless credential still has to
@@ -172,7 +172,7 @@ def get_provider(provider: str) -> ProviderSpec:
     Raises:
         BadRequestError: If the platform has no entry for it. Reaching this from
             a run means a profile stored a provider the platform cannot
-            construct — a data problem worth surfacing plainly rather than an
+            construct - a data problem worth surfacing plainly rather than an
             AttributeError deep inside a run.
     """
     spec = PROVIDERS.get(provider)
@@ -265,8 +265,8 @@ def _google_cloud_provider(secret: GcpServiceAccountSecret) -> Provider[Any]:
         secret.document,
         scopes=["https://www.googleapis.com/auth/cloud-platform"],
     )
-    # `location=None` is what the provider does with an omitted one anyway — it
-    # falls back to GOOGLE_CLOUD_LOCATION and then to us-central1 — so a stored
+    # `location=None` is what the provider does with an omitted one anyway - it
+    # falls back to GOOGLE_CLOUD_LOCATION and then to us-central1 - so a stored
     # region can be passed straight through instead of through a kwargs dict.
     return GoogleCloudProvider(
         credentials=credentials, project=secret.project, location=secret.location
@@ -306,7 +306,7 @@ class ModelRequestSpec:
     """What a run needs to build its model, resolved but not yet constructed.
 
     Produced by :class:`~app.services.model_profile.ModelProfileService` so the
-    database work and the client construction stay separable — which is what
+    database work and the client construction stay separable - which is what
     lets tests exercise resolution without a provider SDK.
     """
 

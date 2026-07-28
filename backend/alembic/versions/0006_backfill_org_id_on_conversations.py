@@ -7,7 +7,7 @@ Create Date: 2026-07-26T18:01:04.489757+00:00
 Assigns each conversation (and rag_document) that has a user_id to that user's
 Personal Organization. Rows with NULL user_id are left as NULL.
 
-This is a data migration — safe to re-run (NULL rows already handled).
+This is a data migration - safe to re-run (NULL rows already handled).
 """
 
 import sqlalchemy as sa
@@ -34,7 +34,7 @@ def upgrade() -> None:
     """)
     )
 
-    # Backfill rag_documents (no user_id column — leave NULL for manual assignment)
+    # Backfill rag_documents (no user_id column - leave NULL for manual assignment)
     # RAG documents without an org context will remain personal-org-less
     # until an admin assigns them. This is intentional.
 

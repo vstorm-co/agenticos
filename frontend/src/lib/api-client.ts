@@ -44,7 +44,7 @@ function refreshAccessToken(): Promise<boolean> {
             useAuthStore.getState().setAccessToken(data.access_token);
           }
         } catch {
-          // Body wasn't JSON — cookies were still rotated, treat as success.
+          // Body wasn't JSON - cookies were still rotated, treat as success.
         }
         return true;
       })
@@ -157,7 +157,7 @@ class ApiClient {
    * POST a file as multipart, through the same proxy as everything else.
    *
    * `Content-Type` is deliberately absent: only the browser knows the multipart
-   * boundary it generated, and setting the header by hand drops it — FastAPI
+   * boundary it generated, and setting the header by hand drops it - FastAPI
    * then rejects a body it was just handed. Going through `request` rather than
    * a bare `fetch` is what keeps the active organization header on an
    * org-scoped upload, and the 401-refresh with it.

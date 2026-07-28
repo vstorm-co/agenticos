@@ -23,7 +23,7 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
  * credential.
  *
  * No builtin declares a secret yet, which is exactly why the Builder had no way
- * to choose one — the gap was invisible until somebody wrote the first custom
+ * to choose one - the gap was invisible until somebody wrote the first custom
  * capability, and that capability is a weather lookup behind an API key.
  */
 const WEATHER: CapabilityCatalogEntry = {
@@ -137,9 +137,9 @@ beforeEach(() => {
  * The secret picker, against a mocked vault.
  *
  * Everything here is one direction only: a spec arrives, the control shows what
- * it says. Driving the control the other way needs a real browser — Radix
+ * it says. Driving the control the other way needs a real browser - Radix
  * listens for pointer events jsdom does not dispatch, and its options are not in
- * the DOM until it opens — so what a *choice* does to the spec is asserted in
+ * the DOM until it opens - so what a *choice* does to the spec is asserted in
  * the E2E suite instead of faked here.
  */
 describe("CapabilitySettings secret picker", () => {
@@ -172,7 +172,7 @@ describe("CapabilitySettings secret picker", () => {
     mount(binding());
 
     // Waited for the vault to have arrived, so this is the state with a key
-    // available and nobody having picked it — not the one before the list landed.
+    // available and nobody having picked it - not the one before the list landed.
     expect(await screen.findByText("Choose a secret")).toBeInTheDocument();
     expect(screen.getByText(/cannot be published until it has one/)).toBeInTheDocument();
     expect(picker()).toBeInvalid();
@@ -180,7 +180,7 @@ describe("CapabilitySettings secret picker", () => {
 
   it("offers no secret of the wrong kind, and offers to store the right one", async () => {
     // An AWS credential where an API key is required is a publish refusal with a
-    // delay on it. Nothing else in the vault is offered — and since the list is
+    // delay on it. Nothing else in the vault is offered - and since the list is
     // a dead end, the way out is *here*: the round trip this replaces was open
     // the vault, add the key, come back, and re-pick the capability.
     serve([AWS_SECRET]);
@@ -227,7 +227,7 @@ describe("CapabilitySettings secret picker", () => {
 
   it("does not ask for a key at all when this configuration needs none", async () => {
     // Web search takes one for Tavily and none for DuckDuckGo. Asking for a key
-    // the server will not demand is as wrong as not asking for one it will —
+    // the server will not demand is as wrong as not asking for one it will -
     // and it is the version that makes the free default look unavailable.
     serve([]);
     mount(binding({ config: { method: "duckduckgo" } }), {
@@ -249,7 +249,7 @@ describe("CapabilitySettings secret picker", () => {
     // `GET /secrets` needs `connections:manage`, which a member editing their own
     // agent does not have. The list arrives empty either way, and "no api_key
     // secret in the vault" would be this page inventing a fact about the
-    // organization out of a refusal — and calling a stored secret deleted.
+    // organization out of a refusal - and calling a stored secret deleted.
     refuse();
     mount(binding({ secret_id: "sec-1" }));
 
@@ -379,7 +379,7 @@ describe("SecretField · narrowing by what a key is for", () => {
   });
 
   it("offers every key of the right kind when nothing names a service", async () => {
-    // An unconditional requirement — the weather capability — has no field to
+    // An unconditional requirement - the weather capability - has no field to
     // read a service from, so narrowing would be guessing.
     serve([{ ...API_KEY_SECRET, id: "sec-openai", name: "OpenAI", purpose: "openai" }]);
     mount(binding());

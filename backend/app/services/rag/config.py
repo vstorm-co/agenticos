@@ -24,7 +24,7 @@ NATIVE_FORMATS: set[str] = {".txt", ".md", ".docx"}
 # These sets are a promise, not a wish list: ``/rag/supported-formats``
 # advertises them, ``RAGDocumentService.upload`` accepts on them, and
 # ``DocumentProcessor.process_file`` has to be able to route every one. They
-# used to be aspirational — LiteParse claimed ``.xlsx``/``.pptx``/images and
+# used to be aspirational - LiteParse claimed ``.xlsx``/``.pptx``/images and
 # LlamaParse claimed thirty formats down to ``.mp3``, while ``process_file``
 # routed four extensions and raised ``ValueError`` on everything else. Nothing
 # refused the upload: the file was stored, a document row was created and the

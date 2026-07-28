@@ -1,4 +1,4 @@
-"""create webhook tables — skipped (enable_webhooks=false or no SQL DB)
+"""create webhook tables - skipped (enable_webhooks=false or no SQL DB)
 
 Revision ID: 0024_create_webhook_tables
 """

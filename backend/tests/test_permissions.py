@@ -43,13 +43,13 @@ class TestCatalogInvariants:
             assert not unknown, f"{role} holds permissions outside the catalog: {unknown}"
 
     def test_no_role_holds_a_permission_at_scope_none(self):
-        """Absence means "not held" — an explicit NONE would be a second way to say it."""
+        """Absence means "not held" - an explicit NONE would be a second way to say it."""
         for role, perms in ROLE_PERMS.items():
             empty = [perm for perm, scope in perms.items() if scope is Scope.NONE]
             assert not empty, f"{role} lists {empty} at scope none; drop the entry instead"
 
     def test_global_permissions_are_never_partially_scoped(self):
-        """A global permission is binary — org-wide or not held at all."""
+        """A global permission is binary - org-wide or not held at all."""
         for role, perms in ROLE_PERMS.items():
             for perm, scope in perms.items():
                 if perm not in RESOURCE_PERMS:
@@ -75,7 +75,7 @@ class TestScopeOrdering:
     def test_every_comparison_orders_by_reach_rather_than_alphabetically(self):
         """``Scope`` is a ``str``, and each of the four operators has to override it.
 
-        Left to string comparison these all invert — ``"all" < "none" < "own"`` —
+        Left to string comparison these all invert - ``"all" < "none" < "own"`` -
         so an operator that was forgotten reads as "narrower" for the widest
         scope there is. Each one is checked in the direction where the two
         orderings disagree.

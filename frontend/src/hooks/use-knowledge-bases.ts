@@ -130,7 +130,7 @@ export function useKBDetail(id: string | null) {
   const isUploading = uploadProgress.length > 0;
 
   // Tracks how many documents are loaded without putting `documents.length` in
-  // the deps of `refresh`/`loadMoreDocuments` — keeping them stable so the
+  // the deps of `refresh`/`loadMoreDocuments` - keeping them stable so the
   // page's `useEffect([refresh])` runs once instead of looping after each fetch.
   const loadedDocCountRef = useRef(0);
   useEffect(() => {
@@ -239,7 +239,7 @@ export function useKBDetail(id: string | null) {
         const formData = new FormData();
         formData.append("file", file);
         // One form field holding a JSON object, which is how the API takes a
-        // per-upload departure — it rides in the multipart body rather than
+        // per-upload departure - it rides in the multipart body rather than
         // having a schema of its own. Sent only when it says something: an
         // empty object would mark the document as overridden for no reason.
         if (override !== undefined && overrideSize(override) > 0) {
@@ -256,7 +256,7 @@ export function useKBDetail(id: string | null) {
             if (event.lengthComputable) {
               setPercent(Math.min(100, Math.round((event.loaded / event.total) * 100)));
             } else {
-              // Indeterminate: browser can't compute total — fall back to null.
+              // Indeterminate: browser can't compute total - fall back to null.
               setPercent(null);
             }
           };
@@ -267,9 +267,9 @@ export function useKBDetail(id: string | null) {
               resolve();
             } else {
               // The backend answers `{"error": {...}}` and this looked for
-              // `detail`, so every refusal an upload can produce — an
+              // `detail`, so every refusal an upload can produce - an
               // unsupported extension for the chosen parser, a file over the
-              // limit, a malformed `ingestion` field — reached the person as
+              // limit, a malformed `ingestion` field - reached the person as
               // "Upload failed". `parseErrorMessage` knows all three wire
               // shapes; the body is handed to `ApiError` as well so a caller
               // can still read the code and details off it.
@@ -354,7 +354,7 @@ export function useKBDetail(id: string | null) {
       if (!id) return;
       try {
         await apiClient.post(`/kb/${id}/sync-sources/${sourceId}/trigger`);
-        toast.success("Sync started — documents will appear as they ingest");
+        toast.success("Sync started - documents will appear as they ingest");
         // Refresh later to pick up new docs that the worker pulls in.
         setTimeout(() => refresh(), 2000);
       } catch (e) {

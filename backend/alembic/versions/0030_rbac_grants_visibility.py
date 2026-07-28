@@ -9,7 +9,7 @@ answer "who else may touch this particular row". Both are needed before a
 Member can safely own agents: without visibility every member's work would be
 either private forever or exposed to the whole org.
 
-``visibility`` defaults to ``private``, which is the safe end — existing
+``visibility`` defaults to ``private``, which is the safe end - existing
 knowledge bases stay reachable through their scope and owner exactly as before,
 and become shareable rather than suddenly shared.
 """

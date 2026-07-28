@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 import type { McpCatalogEntry } from "@/types/mcp";
 
 interface McpServerPickerProps {
-  /** The organization's servers — the only ones an agent may be bound to. */
+  /** The organization's servers - the only ones an agent may be bound to. */
   connections: OrgMcpConnectionRecord[];
   /** The organization catalog: every server that can be connected in one click. */
   catalog: McpCatalogEntry[];
@@ -34,13 +34,13 @@ interface McpServerPickerProps {
  * The gallery shows every server the platform can connect, not only the ones
  * that already have credentials. Showing the connected subset answered "what
  * can I attach right now" and left "what could this agent reach at all"
- * unanswerable without leaving the page — and a catalog nobody sees is a
+ * unanswerable without leaving the page - and a catalog nobody sees is a
  * catalog nobody connects from.
  *
  * Only a connection can be bound, and that is not a UI preference. The spec
  * stores `mcp_server_ids`, and the only MCP things in this system with an id
  * are connections; a catalog entry is keyed by name and has none. So an
- * unconnected server is shown, described, and offers the way to connect it —
+ * unconnected server is shown, described, and offers the way to connect it -
  * it is not a checkbox that would have nothing to write.
  *
  * It offers the **organization's** connections and never the caller's own.
@@ -60,7 +60,7 @@ interface McpServerPickerProps {
  * connection, so two agents bound to the same server get the same tools, and
  * `AgentSpec.mcp_server_ids` is a flat list of ids with nowhere to put a
  * per-agent override. Separately, the approval capability gates only tools a
- * capability owns — MCP tools are not among them, so nothing here can be held
+ * capability owns - MCP tools are not among them, so nothing here can be held
  * for a human.
  */
 export function McpServerPicker({
@@ -117,7 +117,7 @@ export function McpServerPicker({
       <div className="flex flex-wrap items-center gap-2">
         <SearchInput value={list.query} onChange={list.setQuery} placeholder="Search servers…" />
         {/* The catalog is mostly servers nobody has connected, and only a
-            connected one can be bound — so "hide the rest" is the filter this
+            connected one can be bound - so "hide the rest" is the filter this
             picker actually needs. */}
         <label className="text-muted-foreground flex items-center gap-2 text-sm">
           <Checkbox
@@ -255,13 +255,13 @@ function ServerCard({
   );
 }
 
-/** Spec references this Builder cannot resolve — named, so they are not lost silently. */
+/** Spec references this Builder cannot resolve - named, so they are not lost silently. */
 function OrphanedIds({ ids }: { ids: string[] }) {
   if (ids.length === 0) return null;
   return (
     <p className="text-muted-foreground text-xs">
       This agent also references {ids.length} server{ids.length === 1 ? "" : "s"} this organization
-      does not offer — removed since, or carried in from an imported spec. Publishing is refused
+      does not offer - removed since, or carried in from an imported spec. Publishing is refused
       until they are cleared: <span className="font-mono break-all">{ids.join(", ")}</span>
     </p>
   );

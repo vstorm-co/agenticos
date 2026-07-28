@@ -5,13 +5,13 @@ Revises: 0026_create_mcp_connections
 Create Date: 2026-07-26
 
 Every user gets a Personal organization at registration, so a conversation that
-belongs to a user always has an owning org — the column being nullable is a
+belongs to a user always has an owning org - the column being nullable is a
 leftover from before teams existed and lets a run escape org scoping.
 
 ``organization_id`` cannot simply become NOT NULL: channel conversations
 (Slack/Telegram, ``services/channels/router.py``) are created with
 ``user_id=None`` and have no org until channel bots become org-aware. The CHECK
-below states the invariant that actually holds today — a *user-owned*
+below states the invariant that actually holds today - a *user-owned*
 conversation must carry an organization.
 
 Knowledge bases get the matching rule: ``org``-scoped rows must name an
@@ -36,7 +36,7 @@ KB_ORG_CHECK = "ck_knowledge_bases_org_scope_has_org"
 def upgrade() -> None:
     conn = op.get_bind()
 
-    # Idempotent — repeats 0006 to cover conversations created between the two
+    # Idempotent - repeats 0006 to cover conversations created between the two
     # migrations by code paths that did not set the org.
     conn.execute(
         sa.text("""

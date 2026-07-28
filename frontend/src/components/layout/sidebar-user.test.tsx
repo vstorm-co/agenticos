@@ -22,7 +22,7 @@ vi.mock("@/stores", () => ({
 }));
 
 /**
- * jsdom cannot open a Radix menu — it has no layout and no real pointer events —
+ * jsdom cannot open a Radix menu - it has no layout and no real pointer events -
  * so what the menu offers is left to `e2e/auth.spec.ts`, which signs out for
  * real. What is asserted here is everything the closed trigger has to get
  * right, which is most of why this block moved out of the top bar.
@@ -60,7 +60,7 @@ describe("SidebarUser", () => {
 
   it("renders nothing while the session is still being checked", () => {
     // `AuthGuard` holds the page back until /auth/me answers, so a missing user
-    // is that moment — not a signed-out visitor to offer a login button to. An
+    // is that moment - not a signed-out visitor to offer a login button to. An
     // avatar with no account behind it would be worse than an empty corner.
     currentUser.mockReturnValue(null);
 

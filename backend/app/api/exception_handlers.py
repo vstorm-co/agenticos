@@ -2,7 +2,7 @@
 
 These handlers convert domain exceptions to proper HTTP responses.
 WebSocket connections that raise an ``AppException`` before ``accept()`` are
-handled too — Starlette closes the socket with 403 and we just log the
+handled too - Starlette closes the socket with 403 and we just log the
 incident; we cannot return an HTTP body for a non-HTTP scope.
 
 Everything a client can be refused with leaves here in one shape::
@@ -36,7 +36,7 @@ _LOCATIONS = frozenset({"body", "query", "path", "header", "cookie"})
 def _connection_meta(conn: HTTPConnection) -> dict[str, Any]:
     """Common log fields shared by HTTP requests and WebSocket connections.
 
-    ``method`` exists only on HTTP ``Request`` — for WebSockets we surface the
+    ``method`` exists only on HTTP ``Request`` - for WebSockets we surface the
     scope type so log filters can still distinguish the two.
     """
     return {
@@ -91,7 +91,7 @@ async def app_exception_handler(request: HTTPConnection, exc: AppException) -> J
 def _field_path(location: Sequence[str | int]) -> str:
     """The dotted path of the field a validation error is about.
 
-    Pydantic reports where the value came from as well as where it sits —
+    Pydantic reports where the value came from as well as where it sits -
     ``("body", "spec", "name")``. A form can do nothing with "body", so it is
     dropped and the rest joined: ``spec.name``. List indices stay in the path,
     because "the third capability" is exactly what the reader needs to know.
@@ -119,7 +119,7 @@ async def validation_exception_handler(
     """Answer a schema-validation failure in the application's error envelope.
 
     Every problem is reported, not just the first, and each one carries the
-    field it belongs to — that is what lets the UI mark the offending input
+    field it belongs to - that is what lets the UI mark the offending input
     instead of showing a sentence about a form the reader has to re-scan.
     """
     fields = [

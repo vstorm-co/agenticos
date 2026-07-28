@@ -72,7 +72,7 @@ export default function OrgsPage() {
       />
 
       {isLoading ? (
-        // Two-up, matching the grid below — `lg:grid-cols-2` overrides the
+        // Two-up, matching the grid below - `lg:grid-cols-2` overrides the
         // variant's third column rather than earning a variant of its own.
         <LoadingState variant="skeleton-tiles" rows={4} className="gap-3 lg:grid-cols-2" />
       ) : orgs.length === 0 ? (

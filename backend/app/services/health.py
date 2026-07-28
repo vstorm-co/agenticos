@@ -1,7 +1,7 @@
 """What this deployment can actually verify about itself.
 
 Two audiences read health, and they want different things. Kubernetes wants one
-bit — should traffic come here — from an endpoint nobody authenticates to, and
+bit - should traffic come here - from an endpoint nobody authenticates to, and
 it wants it while everything else is timing out. An operator on the admin page
 wants to know which backing service is broken and what was tested to decide
 that. The generated template served both from one payload, which is how
@@ -12,12 +12,12 @@ has touched since credentials moved into the vault.
 So the probes live here, each returning what it verified, and the two endpoints
 compose only the checks they are entitled to:
 
-* ``GET /health/ready`` — unauthenticated. The two dependencies that gate
+* ``GET /health/ready`` - unauthenticated. The two dependencies that gate
   traffic, as status and latency and nothing else. It deliberately does not echo
   a driver error: "connection to server at 10.0.1.7 failed: password
   authentication failed for user postgres" is a useful line in a log and a map
   of the network to a stranger.
-* ``GET /admin/system`` — authenticated, app admin. The same two, plus the
+* ``GET /admin/system`` - authenticated, app admin. The same two, plus the
   deployment facts an operator asks about, each with the detail behind it.
 
 Two rules hold for everything below.
@@ -27,7 +27,7 @@ back. A check that cannot be performed says ``unconfigured`` or ``not_checked``
 and says why; nothing here guesses.
 
 **No probe hangs.** Every await is bounded by :data:`PROBE_TIMEOUT_SECONDS`. A
-health endpoint that blocks is an outage of its own — readiness is the one
+health endpoint that blocks is an outage of its own - readiness is the one
 request that has to answer when the database has stopped answering, and a probe
 that times out at the kubelet is indistinguishable from a wedged pod.
 """
@@ -207,8 +207,8 @@ async def probe_model_access(db: AsyncSession) -> SystemCheck:
     organization and chosen through model profiles, so "is the LLM up" has no
     single answer here.
 
-    What is answerable — and what an operator is actually asking when they look
-    at this row — is whether any organization could run anything. The join
+    What is answerable - and what an operator is actually asking when they look
+    at this row - is whether any organization could run anything. The join
     mirrors what ``ModelProfileService.resolve`` requires, a profile pointing at
     a credential that is still active, so a profile counted here is a profile a
     run can use up to the key having been revoked upstream. The count says that
@@ -255,7 +255,7 @@ async def probe_model_access(db: AsyncSession) -> SystemCheck:
 async def readiness(*, db: AsyncSession, redis: RedisClient) -> tuple[bool, dict[str, Any]]:
     """The Kubernetes answer: is this instance fit to serve traffic.
 
-    Only the dependencies a request cannot proceed without are consulted — the
+    Only the dependencies a request cannot proceed without are consulted - the
     rest is deployment configuration, worth showing an operator and never a
     reason to pull a pod out of the load balancer. The payload carries status and
     latency only; why a check failed goes to the log, which is already scoped to
@@ -275,7 +275,7 @@ async def readiness(*, db: AsyncSession, redis: RedisClient) -> tuple[bool, dict
 async def system_health(*, db: AsyncSession, redis: RedisClient) -> SystemHealthResponse:
     """Every check this deployment can perform, for an operator who is signed in.
 
-    The database probe gates the two that read through it. Not for speed — a
+    The database probe gates the two that read through it. Not for speed - a
     timed-out query leaves the session unusable, and the cascade of driver errors
     that follows reports three broken things when one is. ``not_checked`` names
     the reason instead.

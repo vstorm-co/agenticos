@@ -11,7 +11,7 @@ interface InlineSecretProps {
   /** What shape the caller needs. Almost always `api_key`. */
   kind: StorableSecretKind;
   /**
-   * What the key is for — a provider or service id.
+   * What the key is for - a provider or service id.
    *
    * Recorded because it is what makes the key findable afterwards: a model
    * picker offers the providers you hold keys for, and a web-search binding
@@ -19,7 +19,7 @@ interface InlineSecretProps {
    * who added it can place.
    */
   purpose: string;
-  /** Suggested name — "Tavily", "OpenAI" — so nobody has to invent one. */
+  /** Suggested name - "Tavily", "OpenAI" - so nobody has to invent one. */
   suggestedName: string;
   /** Where to get the key, when there is an obvious answer. */
   helpUrl?: string;
@@ -36,13 +36,13 @@ interface InlineSecretProps {
  * the picker did not refresh. Four steps and a context switch to answer one
  * question the form had already asked.
  *
- * It still writes to the same vault as the Vault page — this is a shortcut to
+ * It still writes to the same vault as the Vault page - this is a shortcut to
  * it, not a second store. The value goes straight out and is never read back,
  * which is why the field is cleared the moment it is submitted rather than left
  * sitting in a React state somewhere.
  *
- * Only `api_key` is offered here. The other shapes — an AWS pair, a Google
- * service-account JSON — are multi-field forms with their own validation, and
+ * Only `api_key` is offered here. The other shapes - an AWS pair, a Google
+ * service-account JSON - are multi-field forms with their own validation, and
  * the honest place for those is the vault, which this links to.
  */
 export function InlineSecret({

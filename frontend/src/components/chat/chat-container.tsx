@@ -84,7 +84,7 @@ export function ChatContainer() {
 
     if (shouldClear) {
       clearMessages();
-      // Drop any pending queue when switching threads — those messages were
+      // Drop any pending queue when switching threads - those messages were
       // typed in the previous conversation's context, sending them into a
       // different conversation would surprise the user.
       clearQueued();
@@ -164,7 +164,7 @@ export function ChatContainer() {
     [messages, sendMessage],
   );
 
-  // Slash command handlers — passed down to ChatInput so the / palette can
+  // Slash command handlers - passed down to ChatInput so the / palette can
   // run them locally without going through the agent.
   const slashContext = {
     clearChat: clearMessages,
@@ -214,7 +214,7 @@ interface ChatUIProps {
   messages: import("@/types").ChatMessage[];
   isConnected: boolean;
   isProcessing: boolean;
-  /** True while a saved conversation is being loaded — show a skeleton, not empty state. */
+  /** True while a saved conversation is being loaded - show a skeleton, not empty state. */
   isLoadingConversation?: boolean;
   sendMessage: (
     content: string,
@@ -354,7 +354,7 @@ function ChatUI({
 }
 
 function ConversationSkeleton() {
-  // Two faux message bubbles — left (assistant) and right (user) — at the rough
+  // Two faux message bubbles - left (assistant) and right (user) - at the rough
   // proportions a real exchange has, so the layout doesn't pop when messages
   // arrive. Just enough motion to signal "loading", no shimmer chrome.
   return (

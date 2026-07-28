@@ -12,7 +12,7 @@ so a transcript could name the speaker and never the thing that spoke.
 
 ``SET NULL`` for the same reason as the agent column: deleting an agent takes
 its versions with it, and that must not take the conversation. The answer stays,
-its provenance does not — which is the truth, and better than a hole in
+its provenance does not - which is the truth, and better than a hole in
 somebody's history.
 
 Nothing is backfilled. A run row could supply it for the conversations that have

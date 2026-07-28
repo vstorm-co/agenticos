@@ -7,7 +7,7 @@ Create Date: 2026-07-28
 There were two places a provider key could live. `credentials` came first: a
 sealed key with a label, a provider and an optional base URL, created from a
 form in the vault. Then keys moved into `organization_secrets`, which everything
-else already used — capabilities, web search, channels — and a model profile
+else already used - capabilities, web search, channels - and a model profile
 grew a `secret_id` beside its `credential_id`.
 
 Two stores for one thing is two of everything: two forms, two rotations, two
@@ -19,7 +19,7 @@ Three changes:
 
 - `model_profiles.credential_id` goes. A profile names a vault secret. Any
   profile still keyed the old way is left with no key and says so in the
-  Builder, which is the honest outcome — the key itself is in the dropped table
+  Builder, which is the honest outcome - the key itself is in the dropped table
   and cannot be carried across, because a credential has no `purpose` and the
   vault refuses a secret without one.
 - `agent_runs.credential_id` becomes `agent_runs.secret_id`, pointing at the
@@ -30,7 +30,7 @@ Three changes:
 - `credentials` is dropped.
 
 Not reversible in the sense that matters. The downgrade rebuilds the tables, and
-nothing refills them — the sealed keys are gone with the rows.
+nothing refills them - the sealed keys are gone with the rows.
 """
 
 import sqlalchemy as sa
@@ -50,7 +50,7 @@ def upgrade() -> None:
     op.drop_constraint("agent_runs_credential_id_fkey", "agent_runs", type_="foreignkey")
     op.alter_column("agent_runs", "credential_id", new_column_name="secret_id")
     # The ids named credentials; the column now names vault secrets. Cleared so
-    # nothing joins a run to whichever secret happens to share a UUID — which
+    # nothing joins a run to whichever secret happens to share a UUID - which
     # will not happen, but "will not happen" is not a foreign key.
     op.execute("UPDATE agent_runs SET secret_id = NULL")
     op.create_foreign_key(

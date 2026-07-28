@@ -2,7 +2,7 @@
 
 No schema here can carry a value outward. ``SecretRead`` exposes a name, a kind
 and four characters, and there is deliberately no endpoint that returns a
-plaintext — reading one is the runtime's privilege, not a client's.
+plaintext - reading one is the runtime's privilege, not a client's.
 """
 
 from typing import Literal
@@ -29,7 +29,7 @@ class SecretCreate(BaseSchema):
         default="custom",
         max_length=32,
         description=(
-            "What the key is for — see GET /secrets/purposes. This is what lets the "
+            "What the key is for - see GET /secrets/purposes. This is what lets the "
             "model picker offer the providers you hold keys for, and a capability ask "
             "for the right key rather than for 'an API key'."
         ),
@@ -82,10 +82,10 @@ class SecretRead(BaseSchema, TimestampSchema):
     name: str
     description: str | None = None
     kind: SecretKind
-    hint: str = Field(description="Four characters of the secret — never the secret itself")
+    hint: str = Field(description="Four characters of the secret - never the secret itself")
     purpose: str = Field(
         default="custom",
-        description="What the key is for — a provider id, a service id, or 'custom'",
+        description="What the key is for - a provider id, a service id, or 'custom'",
     )
     visibility: VisibilityLiteral = Field(
         default="org",
@@ -98,7 +98,7 @@ class SecretRead(BaseSchema, TimestampSchema):
     created_by_email: str | None = Field(
         default=None,
         description=(
-            "Who stored it. Null when that account has since left the organization — "
+            "Who stored it. Null when that account has since left the organization - "
             "the key outlives the person, which is itself worth seeing."
         ),
     )

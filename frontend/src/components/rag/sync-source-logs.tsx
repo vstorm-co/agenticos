@@ -24,7 +24,7 @@ function statusIcon(status: string) {
 }
 
 function duration(log: RAGSyncLog): string {
-  if (!log.started_at) return "—";
+  if (!log.started_at) return "-";
   const end = log.completed_at ? new Date(log.completed_at) : new Date();
   const ms = end.getTime() - new Date(log.started_at).getTime();
   if (ms < 1000) return `${ms}ms`;

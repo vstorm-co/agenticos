@@ -60,7 +60,7 @@ export default function SkillsPage() {
   const header = (
     <PageHeader
       title="Skills"
-      description="A skill is know-how written once and shared by every agent that needs it — how refunds are handled, what the house style is. Edit it here and each agent bound to it is current on its next run."
+      description="A skill is know-how written once and shared by every agent that needs it - how refunds are handled, what the house style is. Edit it here and each agent bound to it is current on its next run."
       actions={
         canEdit ? (
           <Button onClick={() => setCreateOpen(true)}>

@@ -3,7 +3,7 @@ import * as React from "react";
 import { Button, type ButtonProps } from "./button";
 
 export interface IconButtonProps extends Omit<ButtonProps, "size"> {
-  /** Accessible name — required, since the button has no visible text. */
+  /** Accessible name - required, since the button has no visible text. */
   "aria-label": string;
   size?: "icon-sm" | "icon" | "icon-lg";
 }

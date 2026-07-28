@@ -1,4 +1,4 @@
-"""Admin-only schemas — workspace stats."""
+"""Admin-only schemas - workspace stats."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ class AdminStats(BaseSchema):
 
     No billing fields. AgenticOS is self-hosted and has no billing, and the
     ``mrr_cents`` and ``credits_charged_30d`` the template shipped were computed
-    as the literal 0 — a revenue figure on a dashboard that had never counted
+    as the literal 0 - a revenue figure on a dashboard that had never counted
     anything.
     """
 

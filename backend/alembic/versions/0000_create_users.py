@@ -5,9 +5,9 @@ Revises:
 Create Date: 2026-07-26T18:01:04.489757+00:00
 
 Base table required by every later migration. Mirrors the current User model
-including is_app_admin (later flagged in 0003 — included here so the table
+including is_app_admin (later flagged in 0003 - included here so the table
 is usable immediately when enable_teams=false) and onboarding_completed_at
-(0016 mirror — same reason). OAuth columns are present only when an OAuth
+(0016 mirror - same reason). OAuth columns are present only when an OAuth
 provider was selected, keeping the schema minimal for password-only setups.
 """
 

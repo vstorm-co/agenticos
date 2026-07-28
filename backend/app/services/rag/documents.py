@@ -384,7 +384,7 @@ class LiteParseParser(BaseDocumentParser):
     ``ocr_enabled``/``ocr_server_url``/``ocr_language``/``timeout`` as keyword
     arguments to ``parse()`` and read ``page.pageNum`` (the Node binding's
     spelling; Python exposes ``page_num``). Both are hard errors, so every
-    LiteParse ingestion raised ``TypeError`` on the first call — and since
+    LiteParse ingestion raised ``TypeError`` on the first call - and since
     ``TypeError`` was outside the ``except`` clauses below, it surfaced as an
     unhandled worker crash rather than a parse failure. The parser was
     selectable in the UI and had never once run.
@@ -460,7 +460,7 @@ class LiteParseParser(BaseDocumentParser):
         first turns "OCR every page of every document" into "OCR the documents
         that are actually scans".
 
-        A failure here is not a parse failure — if the check cannot answer, the
+        A failure here is not a parse failure - if the check cannot answer, the
         honest thing is to parse with OCR on rather than to refuse.
         """
         try:
@@ -581,7 +581,7 @@ class DocumentProcessor:
                 document, or ``None`` to index them as nothing. Injected rather
                 than built here: which model that is belongs to the collection
                 the document is being ingested into, and its credential is
-                sealed for that collection's organization — neither of which
+                sealed for that collection's organization - neither of which
                 this class can see. See
                 :class:`app.services.ingestion_config.IngestionConfigService`.
         """
@@ -669,7 +669,7 @@ class DocumentProcessor:
             # Not only ``.pdf``: LlamaParse is routed the spreadsheets, decks and
             # images it accepts. Asking the parser what it takes, rather than
             # naming extensions here, is what keeps this branch in step with
-            # ``PARSER_FORMATS`` — the set the upload endpoint validated against
+            # ``PARSER_FORMATS`` - the set the upload endpoint validated against
             # before the file ever reached a worker.
             document = await self.pdf_parser.parse(filepath)
         else:

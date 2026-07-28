@@ -91,7 +91,7 @@ class KnowledgeBaseService:
 
         Takes the row rather than the name: the caller has already resolved
         which knowledge base it is allowed to act on, and looking the name up
-        again would find whichever row the database returned first — possibly
+        again would find whichever row the database returned first - possibly
         another organization's, where two of them share a collection name.
         """
         if not kb.is_default:
@@ -143,7 +143,7 @@ class KnowledgeBaseService:
 
         Used when the conversation hasn't been saved yet so we can't read
         ``Conversation.active_knowledge_base_ids`` from DB. Intersects with
-        the caller's accessible KBs — clients can never reach a KB they
+        the caller's accessible KBs - clients can never reach a KB they
         don't own (or that isn't shared with their org).
         """
         if not kb_ids:
@@ -272,8 +272,8 @@ class KnowledgeBaseService:
 
         A collection that asks for image description needs a model profile the
         organization can actually run. Checking it while the form is open turns
-        what would be an ingestion failure an hour later — on a document the
-        uploader had nothing to do with — into a message on the field that
+        what would be an ingestion failure an hour later - on a document the
+        uploader had nothing to do with - into a message on the field that
         caused it. This is the same trade
         :func:`app.services.model_profile._validate_model_id` makes.
         """
@@ -314,7 +314,7 @@ class KnowledgeBaseService:
 
         The rule itself is :func:`app.services.collection_access.can_read`,
         shared with the ``/rag`` routes: the same rows, the same question, and
-        one implementation — two of them is how the collection a listing hid
+        one implementation - two of them is how the collection a listing hid
         stayed readable by name.
         """
         if not can_read(kb, user_id=user_id, organization_id=organization_id):
@@ -331,7 +331,7 @@ class KnowledgeBaseService:
         """Refuse a write, revealing only what the caller could already read.
 
         The rule is :func:`app.services.collection_access.can_write`, shared with
-        the ``/rag`` routes rather than restated here — this method used to be a
+        the ``/rag`` routes rather than restated here - this method used to be a
         third copy of the scope rules, and it answered 403. "Forbidden" on
         another organization's ``kb_id`` confirms that the id exists, which is
         precisely the oracle ``_check_read_access`` reports as not-found to

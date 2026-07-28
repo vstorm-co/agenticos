@@ -1,4 +1,4 @@
-"""create stripe_event table — skipped (enable_billing=false or no SQL DB)
+"""create stripe_event table - skipped (enable_billing=false or no SQL DB)
 
 Revision ID: 0013_create_stripe_event_table
 """

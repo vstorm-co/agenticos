@@ -1,4 +1,4 @@
-"""Where an agent is available — the Builder's "Where this agent is available".
+"""Where an agent is available - the Builder's "Where this agent is available".
 
 Every route here acts on *one* agent, so none of them carries a ``require(...)``
 gate. That is the rule the access layer is built on rather than an oversight: a

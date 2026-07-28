@@ -10,14 +10,14 @@ Which one to use is a real decision, not a preference:
 - **DuckDuckGo** needs no key and no account. It is the default because an
   agent that can search on the day it is created is worth more than one that
   waits for somebody to sign up for an API.
-- **Tavily** is built for agents — results come back summarised rather than as
+- **Tavily** is built for agents - results come back summarised rather than as
   raw snippets, which is what you want when the model is the reader.
 - **Brave** runs an index of its own rather than reselling one, which matters
   if you care where the answers come from.
 - **Exa** searches by meaning rather than keywords; better for "find companies
   doing X", worse for "what does Y cost".
 
-Provider-native search — the model provider doing the searching itself — is not
+Provider-native search - the model provider doing the searching itself - is not
 here. It is not an HTTP call we make; it is a capability the model runs with, so
 it lives in `_capability.py` as Pydantic AI's own `WebSearch`.
 """
@@ -118,8 +118,8 @@ async def _duckduckgo(query: str, max_results: int) -> list[WebSearchResult]:
     """The keyless default.
 
     The client is synchronous and does network I/O, so it runs in a worker
-    thread: calling it inline would stall the event loop — and therefore every
-    other conversation on the process — for as long as the search takes.
+    thread: calling it inline would stall the event loop - and therefore every
+    other conversation on the process - for as long as the search takes.
     """
     try:
         from ddgs import DDGS
@@ -170,7 +170,7 @@ async def _tavily(query: str, max_results: int, api_key: str) -> list[WebSearchR
 
 
 async def _brave(query: str, max_results: int, api_key: str) -> list[WebSearchResult]:
-    """Brave, reached over plain HTTP — the SDK adds nothing over one GET."""
+    """Brave, reached over plain HTTP - the SDK adds nothing over one GET."""
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT_SECONDS) as client:
             response = await client.get(
@@ -217,7 +217,7 @@ def parse_web_search(result: str) -> WebSearchResults | None:
     """Parse a `web_search` tool result back into a model.
 
     Returns None when the result is an error or a plain string rather than a
-    structured payload — the frontend and channel layers fall back to text.
+    structured payload - the frontend and channel layers fall back to text.
     """
     try:
         payload = json.loads(result)

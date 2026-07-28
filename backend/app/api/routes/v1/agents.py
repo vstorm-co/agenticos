@@ -1,14 +1,14 @@
-"""Agent registry routes — the Builder's backend.
+"""Agent registry routes - the Builder's backend.
 
 Note where the permission checks are, and where they are not. Routes that act on
-the *collection* of agents — listing, creating, reading the catalogs — carry a
+the *collection* of agents - listing, creating, reading the catalogs - carry a
 ``require(...)`` gate, because there is no specific agent whose grants could
 change the answer.
 
 Routes that act on *one* agent deliberately do not. A resource permission cannot
 be decided without the resource: a Viewer holding an explicit edit grant on a
 single agent is entitled to edit it, and a role-level gate would refuse them
-before ``resolve_access`` ever saw the grant — contradicting the rule the whole
+before ``resolve_access`` ever saw the grant - contradicting the rule the whole
 access layer is built on, that a grant widens what a role allows. Those routes
 delegate to ``AgentRegistryService``, which checks the role scope *and* the
 grant, and reports a refusal as "not found" so ids stay unprobeable.
@@ -126,7 +126,7 @@ async def list_agents(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
-    """Agents this member can see — their own, plus what was shared with them."""
+    """Agents this member can see - their own, plus what was shared with them."""
     items, total = await service.list_agents(
         ctx, include_archived=include_archived, skip=skip, limit=limit
     )
@@ -181,7 +181,7 @@ async def save_draft(
     response_model=None,
 )
 async def validate_draft(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) -> None:
-    """Check the draft without publishing — what the Builder calls as you type."""
+    """Check the draft without publishing - what the Builder calls as you type."""
     agent = await service.get(ctx, agent_id, perm=Perm.AGENTS_EDIT)
     await service.validate_spec(ctx, AgentSpec.model_validate(agent.draft_spec))
 
@@ -225,7 +225,7 @@ async def list_versions(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) ->
 async def get_version(
     agent_id: UUID, version_id: UUID, service: AgentRegistrySvc, ctx: Auth
 ) -> Any:
-    """One version with the spec it froze — what a diff is read from."""
+    """One version with the spec it froze - what a diff is read from."""
     version = await service.get_version(ctx, agent_id, version_id)
     return AgentVersionDetail(
         id=version.id,
@@ -244,7 +244,7 @@ async def get_version(
 async def export_spec(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) -> Response:
     """Export the draft as YAML for the client's own git repository.
 
-    The file carries references, never secrets — which is what makes committing
+    The file carries references, never secrets - which is what makes committing
     it safe and what backs the platform's anti-lock-in promise.
     """
     agent = await service.get(ctx, agent_id)
@@ -358,7 +358,7 @@ async def run_agent(
 
     The non-streaming path. It goes through the same runner as every other
     surface, so the run is recorded, the budget applies, and the cost lands in
-    the same dashboard — an API caller cannot route around governance by not
+    the same dashboard - an API caller cannot route around governance by not
     using the UI.
     """
     output, run = await service.execute(

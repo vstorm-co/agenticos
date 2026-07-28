@@ -1,4 +1,4 @@
-"""ChannelIdentity model — maps platform user → app user (PostgreSQL async)."""
+"""ChannelIdentity model - maps platform user → app user (PostgreSQL async)."""
 
 import uuid
 from datetime import datetime

@@ -10,7 +10,7 @@ picker can change mid-thread: a single column on the conversation would
 attribute every earlier answer to whoever happened to be selected last.
 
 ``SET NULL`` rather than ``CASCADE``: deleting an agent must not delete the
-conversations it took part in. The answer stays, unattributed — which is the
+conversations it took part in. The answer stays, unattributed - which is the
 truth, and better than a hole in somebody's history.
 
 Nothing is backfilled. Messages written before this column exist cannot be

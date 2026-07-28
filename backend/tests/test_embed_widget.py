@@ -1,4 +1,4 @@
-"""The widget script itself — the one artefact that runs on somebody else's page.
+"""The widget script itself - the one artefact that runs on somebody else's page.
 
 A syntax error here is not a failed request an operator sees in a log; it is a
 console error on a customer's marketing site, on every page load, until somebody
@@ -27,7 +27,7 @@ def test_every_placeholder_is_substituted():
 
 
 def test_it_carries_no_secret():
-    """The script is served to anyone who asks for it — that is the point of a
+    """The script is served to anyone who asks for it - that is the point of a
     script tag, and the reason admission happens on the socket instead."""
     lowered = RENDERED.lower()
     for word in ("secret", "api_key", "apikey", "password", "authorization"):

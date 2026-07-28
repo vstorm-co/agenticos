@@ -1,7 +1,7 @@
 """Tests for organization scoping of channel bots.
 
 A bot belongs to one organization, and every conversation it opens inherits that
-organization — which is what allows ``conversations.organization_id`` to be
+organization - which is what allows ``conversations.organization_id`` to be
 NOT NULL despite channel conversations having no user.
 """
 
@@ -44,7 +44,7 @@ class TestChannelBotServiceScope:
 
     @pytest.mark.anyio
     async def test_foreign_bot_reads_as_missing(self):
-        """Another org's bot is 404, not 403 — the id must not be probeable."""
+        """Another org's bot is 404, not 403 - the id must not be probeable."""
         with (
             patch(
                 "app.services.channel_bot.channel_bot_repo.get_for_org",

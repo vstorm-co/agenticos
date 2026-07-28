@@ -54,7 +54,7 @@ function serve(role: OrgRole, monthToDate = "12.5") {
         role,
         is_app_admin: false,
         // The hook reads the catalog the server sends, so the role alone does
-        // not decide anything here — this is the permission under test.
+        // not decide anything here - this is the permission under test.
         permissions: role === "owner" ? [{ permission: "org:settings", scope: "all" }] : [],
       };
     }

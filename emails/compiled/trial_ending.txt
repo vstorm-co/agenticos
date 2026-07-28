@@ -9,4 +9,4 @@ Upgrade your plan:
 
 If you have any questions about pricing, just reply to this email.
 
-— The [[app_name]] Team
+- The [[app_name]] Team

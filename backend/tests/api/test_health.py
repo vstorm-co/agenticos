@@ -93,7 +93,7 @@ async def test_the_readiness_payload_reports_only_what_gates_traffic(client: Asy
     """No vector store, no LLM provider, no Stripe.
 
     Every one of those was on this payload, and none of them could take a pod out
-    of rotation — they were there because the admin page read its data from a
+    of rotation - they were there because the admin page read its data from a
     Kubernetes probe. Two audiences, two endpoints: the operator's view is
     ``/admin/system``, which authenticates.
     """

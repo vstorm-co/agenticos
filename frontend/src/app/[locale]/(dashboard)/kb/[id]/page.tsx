@@ -94,7 +94,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
    * collection reads them.
    *
    * Held on the page rather than inside a dialog because a file arrives three
-   * ways — the button, the file dialog, a drag onto anywhere on this page — and
+   * ways - the button, the file dialog, a drag onto anywhere on this page - and
    * all three have to carry it. Kept until it is cleared, since a drag can be a
    * batch; the banner below is what stops that from being a surprise.
    */
@@ -155,7 +155,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
         className: "hidden sm:table-cell",
         cell: (doc) => (
           <span className="text-muted-foreground text-xs">
-            {doc.filetype || "—"}
+            {doc.filetype || "-"}
             {doc.filesize !== null && ` · ${formatBytes(doc.filesize)}`}
             {doc.chunk_count > 0 && ` · ${doc.chunk_count} chunks`}
           </span>
@@ -658,7 +658,7 @@ function SyncSourceRow({
  * parse differently.
  *
  * A document ingested before any of this was recorded says so, rather than
- * naming the collection's current parser — which would be a guess, and the kind
+ * naming the collection's current parser - which would be a guess, and the kind
  * that is impossible to catch.
  */
 function Provenance({ doc }: { doc: KBDocument }) {

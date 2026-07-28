@@ -8,7 +8,7 @@ import { useEffect, useRef } from "react";
  * Ingestion is asynchronous: the request that uploads a file returns before the
  * document has been parsed, embedded and stored, so the status the page is
  * holding is stale the moment it arrives. This polls until nothing is pending
- * and then stops entirely — a page with a settled list makes no requests at all.
+ * and then stops entirely - a page with a settled list makes no requests at all.
  *
  * The `/rag` page used to learn this from a server-sent event stream instead.
  * That stream had no authentication and no organization on its events, and it
@@ -30,7 +30,7 @@ const POLL_MIN_MS = 2000;
 const POLL_MAX_MS = 30000;
 const POLL_FACTOR = 1.5;
 
-/** The only two fields the poll cares about — anything with an id and a status. */
+/** The only two fields the poll cares about - anything with an id and a status. */
 export interface IngestingDocument {
   id: string;
   status: string;
@@ -45,7 +45,7 @@ export function usePollWhileIngesting(
 
   // The poll schedule depends on the documents and on nothing else. Holding the
   // callback in a ref keeps it out of the effect's dependencies, so a caller
-  // passing an inline arrow — the obvious way to write `() => refresh(id)` —
+  // passing an inline arrow - the obvious way to write `() => refresh(id)` -
   // does not restart the timer on every render and stall the poll forever.
   const refreshRef = useRef(refresh);
   useEffect(() => {

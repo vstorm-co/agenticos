@@ -50,7 +50,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
               The operating system for <em>your company&apos;s</em> AI agents.
             </h2>
             <p className="text-foreground/65 max-w-md text-base leading-relaxed">
-              An agent here is data, not code — instructions, a model, a set of capabilities. It
+              An agent here is data, not code - instructions, a model, a set of capabilities. It
               runs the same way on web chat, the HTTP API and Slack, on your infrastructure and
               against your keys.
             </p>

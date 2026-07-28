@@ -42,7 +42,7 @@ interface ChatControlsProps {
  * the organization's models to spend, and how hard it should think. Both are
  * recorded on the run, so an override stays attributable.
  *
- * The model list is the vault's, not a separate list of names — an organization
+ * The model list is the vault's, not a separate list of names - an organization
  * that rotates a key or repoints a profile changes what this picker offers,
  * because it is the same set of rows.
  */
@@ -135,7 +135,7 @@ export function ChatControls({
                 }}
                 // "No override" is not "the organization default": an agent
                 // names its own model, and leaving that alone is the default
-                // here — so there is no row for one.
+                // here - so there is no row for one.
               />
               {profileId !== null && (
                 <button
@@ -210,7 +210,7 @@ function TabButton({
   );
 }
 
-/** Chat settings panel — temperature + thinking effort. */
+/** Chat settings panel - temperature + thinking effort. */
 function SettingsPanel({
   temperature,
   effort,

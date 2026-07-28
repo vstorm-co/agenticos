@@ -98,7 +98,7 @@ class Message(Base, TimestampMixin):
     # Which frozen spec answered, not just which agent. An agent is rewritten;
     # what it said last Tuesday was said by one version of it, and "why did it
     # answer that" is a question about the version. Runs have recorded this
-    # since they existed — messages had only the agent, so a transcript could
+    # since they existed - messages had only the agent, so a transcript could
     # name the agent and never the thing that produced the words in it.
     agent_version_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),

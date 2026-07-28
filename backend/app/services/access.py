@@ -1,4 +1,4 @@
-"""Resource-level access resolution — where role scopes and grants combine.
+"""Resource-level access resolution - where role scopes and grants combine.
 
 A role says how much of a resource *type* a member reaches (:class:`Scope`); a
 grant says what they may do with one specific row. Effective access is the
@@ -27,7 +27,7 @@ class OwnedResource(Protocol):
     """The shape every shareable resource has: an owner and a visibility.
 
     `organization_id` is optional because one of the tables that satisfies this
-    protocol has it nullable — `knowledge_bases`, inherited from the generator.
+    protocol has it nullable - `knowledge_bases`, inherited from the generator.
     Nothing here treats `None` as a wildcard: `resolve_access` compares it to the
     caller's organization, and a row with no organization matches no caller and
     is refused. Declaring it non-optional would only mean the one resource type
@@ -40,7 +40,7 @@ class OwnedResource(Protocol):
 
     # Read-only, so a model declaring it non-nullable still satisfies this. A
     # mutable protocol attribute is invariant, and nothing here assigns a
-    # resource's organization — it is what a resource is filed under, not
+    # resource's organization - it is what a resource is filed under, not
     # something sharing changes.
     @property
     def organization_id(self) -> UUID | None: ...
@@ -64,7 +64,7 @@ AGENT = ResourceType(key="agent", view=Perm.AGENTS_VIEW, edit=Perm.AGENTS_EDIT)
 SKILL = ResourceType(key="skill", view=Perm.SKILLS_VIEW, edit=Perm.SKILLS_EDIT)
 # A stored key. The same rules as everything else here on purpose: a personal
 # key is private to its owner, a team key reaches whoever holds a grant, and an
-# organization key is everybody's — decided per row rather than by one
+# organization key is everybody's - decided per row rather than by one
 # permission that gated the entire vault.
 SECRET = ResourceType(key="secret", view=Perm.SECRETS_VIEW, edit=Perm.SECRETS_EDIT)
 
@@ -92,7 +92,7 @@ def _scope_allows(scope: Scope, resource: OwnedResource, user_id: UUID) -> bool:
     if scope is Scope.TEAM:
         return is_owner or resource.visibility in (Visibility.TEAM, Visibility.ORG)
     if scope is Scope.SHARED:
-        # "Mine plus what was shared with me" — org-wide visibility counts as
+        # "Mine plus what was shared with me" - org-wide visibility counts as
         # shared with everyone; an explicit grant is checked separately.
         return is_owner or resource.visibility == Visibility.ORG
     if scope is Scope.OWN:
@@ -111,13 +111,13 @@ async def resolve_access(
     """Whether ``ctx`` may exercise ``perm`` on this specific resource.
 
     Checks the role scope first (no query in the common case), then falls back
-    to an explicit grant. A grant can lift access the role does not give —
-    that is the point of sharing — but it never applies across organizations:
+    to an explicit grant. A grant can lift access the role does not give -
+    that is the point of sharing - but it never applies across organizations:
     a resource from another tenant is refused before either check runs.
 
     A context with no subject reaches nothing at all, and is refused before the
     grant table is consulted. Both halves matter. Scopes and grants are answers
-    to "what may *this person* do", and there is no person here — an anonymous
+    to "what may *this person* do", and there is no person here - an anonymous
     visitor's access comes from the exposure that admitted them, not from this
     function. And a lookup keyed on a ``NULL`` subject asks the database a
     question whose answer depends on what rows happen to exist rather than on
@@ -162,7 +162,7 @@ async def visible_resource_ids(
     skip the grant lookup entirely.
 
     A context with no subject gets the empty list, never ``None``. The two are
-    opposites here — every caller reads ``None`` as "no filtering needed" — so
+    opposites here - every caller reads ``None`` as "no filtering needed" - so
     returning it for an anonymous visitor would widen a listing to the whole
     organization at the exact moment it should be narrowed to nothing.
     """

@@ -4,13 +4,13 @@
  * Two different things live here and the difference is the whole design:
  *
  * - The **catalog** (`GET /agents/mcp-catalog`) is the organization-level list
- *   of servers the platform vouches for. It is curated and read-only — there is
+ *   of servers the platform vouches for. It is curated and read-only - there is
  *   no endpoint that adds to it, so nothing in the UI may pretend there is.
  * - A **connection** (`/me/mcp-connections`) is a user's own credentialed link
  *   to one of those servers. It is the only writable half, and the only half
  *   that has an id.
  *
- * `McpConnectionRecord` deliberately is not redefined here — it already lives in
+ * `McpConnectionRecord` deliberately is not redefined here - it already lives in
  * `@/lib/mcp-connections-api` next to the calls that return it.
  */
 

@@ -21,7 +21,7 @@ export const config = {
     // - /_vercel (Vercel internals)
     // - All root files like favicon.ico, robots.txt, etc.
     // - App-router metadata convention routes (icon, apple-icon, opengraph-image,
-    //   twitter-image, manifest.*, robots, sitemap) — these are dotless URLs
+    //   twitter-image, manifest.*, robots, sitemap) - these are dotless URLs
     //   that Next.js generates from src/app/{icon,apple-icon,…}.tsx and would
     //   otherwise be redirected to /{locale}/icon → 404.
     "/((?!api|_next|_vercel|static|icon$|apple-icon$|opengraph-image$|twitter-image$|manifest|robots$|sitemap$|.*\\..*).*)",

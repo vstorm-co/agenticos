@@ -34,7 +34,7 @@ export interface AgentCardActions {
 /**
  * One agent in the gallery.
  *
- * The whole card is the link to the builder, and the menu sits outside it —
+ * The whole card is the link to the builder, and the menu sits outside it -
  * nesting a button inside an anchor produces an element that navigates when you
  * meant to open a menu, and a nested interactive is invalid to a screen reader
  * besides.

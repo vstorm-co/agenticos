@@ -11,7 +11,7 @@ and the column can carry the invariant itself.
 
 Rows left over from before 0028 (channel conversations opened while bots were
 org-less) are backfilled from their bot via channel_sessions. Anything still
-NULL afterwards stops the migration rather than being quietly deleted — an
+NULL afterwards stops the migration rather than being quietly deleted - an
 orphan conversation is a fact about the data that an operator should see.
 
 The foreign key moves from ON DELETE SET NULL to CASCADE: with a NOT NULL

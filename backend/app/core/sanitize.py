@@ -47,7 +47,7 @@ DEFAULT_ALLOWED_ATTRIBUTES = {
 
 WEBHOOK_ALLOWED_SCHEMES = frozenset({"http", "https"})
 
-# Shared Address Space (RFC 6598) — CGNAT range.
+# Shared Address Space (RFC 6598) - CGNAT range.
 # Python 3.11+ no longer classifies 100.64.0.0/10 as private or reserved,
 # so we block it explicitly. Covers cloud metadata endpoints like
 # Alibaba Cloud's 100.100.100.200.
@@ -259,13 +259,13 @@ def validate_webhook_url(
     except SSRFBlockedError:
         raise
     except ValueError:
-        # Not an IP literal — continue to DNS resolution below
+        # Not an IP literal - continue to DNS resolution below
         pass
 
     default_port = 443 if parsed.scheme == "https" else 80
     port = parsed.port or default_port
 
-    # TODO: socket.getaddrinfo() is blocking I/O — in async code paths
+    # TODO: socket.getaddrinfo() is blocking I/O - in async code paths
     # (PostgreSQL, MongoDB) consider using loop.getaddrinfo() or run_in_executor.
     try:
         addr_infos = socket.getaddrinfo(hostname, port, proto=socket.IPPROTO_TCP)

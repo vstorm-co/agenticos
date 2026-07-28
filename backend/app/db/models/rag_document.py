@@ -1,4 +1,4 @@
-"""RAGDocument model — tracks documents ingested into RAG collections."""
+"""RAGDocument model - tracks documents ingested into RAG collections."""
 
 import uuid
 from datetime import datetime
@@ -35,7 +35,7 @@ class RAGDocument(TimestampMixin, Base):
     # has no answer, and a per-upload override would be invisible the moment the
     # request that carried it finished.
     #
-    # `ingestion_config` is the *resolved* configuration — the collection's,
+    # `ingestion_config` is the *resolved* configuration - the collection's,
     # with the upload's override already applied. `ingestion_override` is what
     # the uploader asked to differ, and is null when they asked for nothing.
     ingestion_config: Mapped[dict[str, object]] = mapped_column(
@@ -43,7 +43,7 @@ class RAGDocument(TimestampMixin, Base):
     )
     ingestion_override: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
     # The model that described the images in this document, as `provider:model`.
-    # Null means none did — either the configuration had image description off,
+    # Null means none did - either the configuration had image description off,
     # or the document predates this column. Stored resolved rather than as the
     # profile id, because a profile can be edited or deleted and what read this
     # document must not change when it is.

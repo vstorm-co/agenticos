@@ -1,4 +1,4 @@
-"""Skills capability — progressive disclosure over stored know-how.
+"""Skills capability - progressive disclosure over stored know-how.
 
 The agent sees only names and one-line descriptions until it decides one is
 relevant, then loads the body. Twenty skills therefore cost almost nothing in
@@ -46,8 +46,8 @@ def to_toolkit_skill(skill: Skill) -> ToolkitSkill:
 class Skills(AbstractCapability[AgentDepsT]):
     """Hands an agent a set of skills it can load on demand.
 
-    Skills are passed in memory rather than written to a temporary directory —
-    the toolset accepts objects directly — which removes temp-file cleanup, a
+    Skills are passed in memory rather than written to a temporary directory -
+    the toolset accepts objects directly - which removes temp-file cleanup, a
     race between concurrent runs, and a path traversal surface.
     """
 
@@ -61,7 +61,7 @@ class Skills(AbstractCapability[AgentDepsT]):
         """The skills toolset, or nothing when the agent has no skills.
 
         Returning ``None`` keeps three unusable tools out of an agent that has
-        no skills — every tool in the list is context the model reads each turn.
+        no skills - every tool in the list is context the model reads each turn.
         """
         if not self.skills:
             return None

@@ -30,7 +30,7 @@ interface UseOrgMcpConnectionsResult {
 /**
  * The organization's MCP servers.
  *
- * Shaped like `useMcpConnections` on purpose — the two managers do the same
+ * Shaped like `useMcpConnections` on purpose - the two managers do the same
  * job for different owners, and a reader who knows one should not have to
  * re-learn the other. What differs is only which endpoint it reads and which
  * cache key it owns.

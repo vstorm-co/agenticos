@@ -1,5 +1,5 @@
 # ruff: noqa: I001 - Imports structured for Jinja2 template conditionals
-"""RAG ingestion & sync tasks — processes documents asynchronously."""
+"""RAG ingestion & sync tasks - processes documents asynchronously."""
 
 import asyncio
 import hashlib
@@ -59,7 +59,7 @@ async def _config_for_collection(
     """The configuration of the knowledge base behind a collection name.
 
     A sync writes into a collection the same way an upload does, so it has to
-    read documents the same way too — a collection set to LiteParse that gets
+    read documents the same way too - a collection set to LiteParse that gets
     PyMuPDF whenever the file arrives from Google Drive is configured in name
     only. The organization narrows the candidates because ``collection_name`` is
     not unique across tenants.
@@ -67,7 +67,7 @@ async def _config_for_collection(
     Falls back to the deployment defaults when no knowledge base claims the
     name. Two cases reach that: a local-directory sync, which names a path on
     the server rather than a collection somebody configured, and a sync source
-    with no collection at all — an org-level integration template that exists to
+    with no collection at all - an org-level integration template that exists to
     be cloned and should never have been run.
     """
     if collection_name is None:
@@ -136,7 +136,7 @@ async def _run_ingestion(
     """Parse and index one uploaded document, exactly as its record says to.
 
     The configuration comes off the ``rag_documents`` row rather than out of the
-    environment, and it is the *resolved* one — the collection's, with whatever
+    environment, and it is the *resolved* one - the collection's, with whatever
     that upload overrode already folded in. Reading the collection again here
     would quietly re-parse with settings that changed while the file waited in
     the queue, and would lose the override entirely.
@@ -163,11 +163,11 @@ async def _run_ingestion(
         raise
 
     # Checked outside the `try` because `ingest_file` *returns* a failure rather
-    # than raising one — which is why this used to fall straight through to
+    # than raising one - which is why this used to fall straight through to
     # `complete_ingestion` below. A document whose embeddings were never written
     # was marked `done`, and that is worse than an error: the collection looks
     # ingested, answers nothing, and says nowhere why. Reproduced with no
-    # embedding credential configured — the service logged an accurate refusal,
+    # embedding credential configured - the service logged an accurate refusal,
     # the flow finished `Completed()`, the row said `done`, and the vector table
     # held zero rows.
     if result.status is not IngestionStatus.DONE:
@@ -234,7 +234,7 @@ async def _run_sync(
 
             if mode == "new_only":
                 if existing_id:
-                    # File exists — check if content changed via hash
+                    # File exists - check if content changed via hash
                     file_hash = hashlib.sha256(filepath.read_bytes()).hexdigest()
                     existing_hash = await ingestion_service.get_existing_hash(
                         collection_name, source_path
@@ -242,7 +242,7 @@ async def _run_sync(
                     if existing_hash and file_hash == existing_hash:
                         skipped += 1
                         continue
-                    # Hash changed — will re-ingest below
+                    # Hash changed - will re-ingest below
 
             elif mode == "update_only":
                 if not existing_id:
@@ -419,7 +419,7 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
             logger.error("Failed to update sync status for source %s", source_id)
 
     logger.info(
-        "Source sync complete: %s — total=%d, ingested=%d, skipped=%d, failed=%d",
+        "Source sync complete: %s - total=%d, ingested=%d, skipped=%d, failed=%d",
         source_id,
         total,
         ingested,

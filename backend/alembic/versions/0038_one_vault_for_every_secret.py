@@ -10,26 +10,26 @@ on the organization); channel bot tokens went through a single deployment-wide
 Fernet key; MCP bearer tokens and OAuth payloads went through another one. A
 ciphertext for a Slack token or an MCP token could be copied from one
 organization's row into another's and it decrypted. That is what this removes:
-everything now seals through the vault, bound to an organization or — for a
-member's personal MCP connection, which has no organization — to the member.
+everything now seals through the vault, bound to an organization or - for a
+member's personal MCP connection, which has no organization - to the member.
 
 Three schema changes follow from that:
 
-* ``channel_bots.secret_key_version`` — the token is now an envelope, and a
+* ``channel_bots.secret_key_version`` - the token is now an envelope, and a
   staged master-key rotation has to know which key sealed each row.
-* ``credentials.kind`` plus a nullable ``sealed_secret`` — a credential is no
+* ``credentials.kind`` plus a nullable ``sealed_secret`` - a credential is no
   longer always an API key. Azure needs an endpoint and an API version, Bedrock
   an AWS key pair and a region, Vertex a service account, and a self-hosted
   model server needs no credential at all. The check constraint ties the two
   together so a row cannot claim to be keyless and carry a secret, or claim a
   shape and carry nothing.
-* ``organization_secrets`` — a named, kind-tagged secret a capability can be
+* ``organization_secrets`` - a named, kind-tagged secret a capability can be
   pointed at by id. Referenced, never handed around: the plaintext reaches the
   capability instance and nothing else.
 
 **This migration destroys unreadable secrets rather than leaving them.** The old
 ciphertexts cannot be read by the new format and there is no dual-read path on
-purpose — one mechanism, one format. A credential or a bot whose secret cannot
+purpose - one mechanism, one format. A credential or a bot whose secret cannot
 be decrypted is not a row worth keeping: it fails at its next use, silently in
 the bot's case. MCP connections keep their row (URL, allowed tools, name) and
 lose only the credential, so re-entering a token or re-authorizing is enough.

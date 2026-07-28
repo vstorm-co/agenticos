@@ -370,7 +370,7 @@ function parseCsv(text: string): string[][] {
 interface TextViewerProps {
   url: string;
   mode: "text" | "json" | "markdown" | "code";
-  /** highlight.js language slug — only used for `mode === "code"`. */
+  /** highlight.js language slug - only used for `mode === "code"`. */
   lang?: string;
 }
 
@@ -415,7 +415,7 @@ function TextViewer({ url, mode, lang }: TextViewerProps) {
 
   if (mode === "code") {
     // Wrap in a fenced block and let MarkdownContent (rehype-highlight) do
-    // syntax coloring — saves us from importing highlight.js separately.
+    // syntax coloring - saves us from importing highlight.js separately.
     const fenced = "```" + (lang ?? "text") + "\n" + text + "\n```";
     return (
       <div className="min-h-0 flex-1 overflow-auto">

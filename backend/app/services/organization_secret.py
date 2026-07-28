@@ -1,4 +1,4 @@
-"""Organization secrets — storage, rotation, and the one place they are opened.
+"""Organization secrets - storage, rotation, and the one place they are opened.
 
 Everything above this deals in secret ids; everything below deals in ciphertext.
 There is deliberately no method that returns a plaintext to a caller who is not
@@ -61,7 +61,7 @@ class OrganizationSecretService:
 
         Visibility is resolved here rather than left to the route, because "a
         member sees their own keys and the organization's" is a property of the
-        vault and not of one endpoint. `purposes` narrows it further — the
+        vault and not of one endpoint. `purposes` narrows it further - the
         Tavily keys for a web-search slot, the OpenRouter ones for a model
         picker.
 
@@ -72,7 +72,7 @@ class OrganizationSecretService:
 
         Two extra queries for the page, not two per row: emails resolve in one
         lookup and usage in one per secret, which is bounded by how many secrets
-        an organization has — tens, not thousands.
+        an organization has - tens, not thousands.
         """
         # `None` is the role already reaching every key; anything else is the
         # extra ids a grant opened up. One call answers both, so the scope is
@@ -153,7 +153,7 @@ class OrganizationSecretService:
     ) -> OrganizationSecret:
         """Seal and store a secret.
 
-        `purpose` is what the key is for — a provider, a service, or `custom`.
+        `purpose` is what the key is for - a provider, a service, or `custom`.
         It is what lets the model picker offer the providers this organization
         can actually reach, and what lets a capability ask for the right key
         rather than for "an API key".
@@ -167,7 +167,7 @@ class OrganizationSecretService:
         Raises:
             AlreadyExistsError: If the name is taken. The name plus four
                 characters is the whole of what anyone can see of a stored
-                secret, so two sharing one is a pair nobody can tell apart —
+                secret, so two sharing one is a pair nobody can tell apart -
                 including the person about to point an agent at the wrong one.
             BadRequestError: If the purpose is not one this deployment offers,
                 or wants a different shape of credential than was given.
@@ -183,7 +183,7 @@ class OrganizationSecretService:
             kind=value.kind.value,
             purpose=purpose,
             visibility=visibility.value,
-            # A private key needs an owner or nobody can reach it — the
+            # A private key needs an owner or nobody can reach it - the
             # database refuses that combination, and this is where it is made
             # impossible rather than caught.
             owner_user_id=ctx.user_id if visibility is Visibility.PRIVATE else None,
@@ -261,7 +261,7 @@ class OrganizationSecretService:
         """Delete a secret.
 
         Agents referencing it are not repointed and not blocked from being
-        deleted out from under — they fail loudly at their next run, the same
+        deleted out from under - they fail loudly at their next run, the same
         way a model profile whose key was deleted does. Silently substituting
         another secret is the alternative, and it is worse.
         """
@@ -309,7 +309,7 @@ class OrganizationSecretService:
         """One secret the caller may reach, or reported as missing.
 
         A refusal reads as "not found" so a member cannot probe which keys exist
-        by watching 403s turn into 404s — the same rule agents and skills follow.
+        by watching 403s turn into 404s - the same rule agents and skills follow.
         """
         secret = await organization_secret_repo.get(
             self.db, secret_id, organization_id=ctx.organization_id
@@ -330,7 +330,7 @@ class OrganizationSecretService:
                 message=(
                     f"A secret named '{name}' already exists. The name and the last four "
                     "characters are all anyone can see of a secret, so give this one a name "
-                    "that tells them apart — or rotate the existing one if you are replacing it."
+                    "that tells them apart - or rotate the existing one if you are replacing it."
                 ),
                 details={"name": name},
             )
@@ -341,7 +341,7 @@ class OrganizationSecretService:
             raise BadRequestError(
                 message=(
                     f"Secret '{secret.name}' holds a {secret.kind}, and a rotation cannot "
-                    "change that — agents were published against the shape it has. Create a "
+                    "change that - agents were published against the shape it has. Create a "
                     "new secret instead."
                 ),
                 details={"secret_id": str(secret.id), "kind": secret.kind},

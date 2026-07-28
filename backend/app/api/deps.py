@@ -73,7 +73,7 @@ from app.services.channel_bot import ChannelBotService
 
 
 def get_channel_bot_service(db: DBSession) -> ChannelBotService:
-    """Unscoped ChannelBotService — inbound webhook dispatch only.
+    """Unscoped ChannelBotService - inbound webhook dispatch only.
 
     An inbound request is made by a chat platform, not by a member, so there is
     no active organization to scope to; the bot row carries it. Management
@@ -129,7 +129,7 @@ from app.services.collection_access import CollectionAccessService
 
 
 def get_collection_access_service(db: DBSession) -> CollectionAccessService:
-    """Create CollectionAccessService — the tenant boundary for every /rag route."""
+    """Create CollectionAccessService - the tenant boundary for every /rag route."""
     return CollectionAccessService(db)
 
 
@@ -281,7 +281,7 @@ async def get_active_organization(
     if x_organization_id is None:
         org = await organization_repo.get_personal_for_user(db, user.id)
         if not org:
-            raise NotFoundError(message="Personal organization not found — please re-register")
+            raise NotFoundError(message="Personal organization not found - please re-register")
         return org
 
     membership = await member_repo.get(db, organization_id=x_organization_id, user_id=user.id)
@@ -413,7 +413,7 @@ Auth = Annotated[AuthContext, Depends(get_auth_context)]
 def require(*perms: Perm) -> Callable[..., Awaitable[AuthContext]]:
     """Dependency asserting the caller holds every listed permission.
 
-    Endpoints check permissions, never role names — so re-shaping a role is a
+    Endpoints check permissions, never role names - so re-shaping a role is a
     change to ``ROLE_PERMS`` alone. For a resource permission this guards the
     *kind* of thing; which rows are reachable is
     :func:`app.services.access.resolve_access`.
@@ -468,7 +468,7 @@ RequireMemberPlus = Annotated[
 ]
 
 
-# is_app_admin is a global flag on the User model — independent of team
+# is_app_admin is a global flag on the User model - independent of team
 # membership. Routes guarded by this dep (e.g. /admin/users) stay reachable
 # even when teams are disabled, so the dep itself must not be gated.
 async def _require_app_admin(user: CurrentUser) -> User:
@@ -489,7 +489,7 @@ def _extract_ws_auth(websocket: WebSocket) -> tuple[str | None, str | None]:
 
     Clients pass the token as a subprotocol of the form
     ``access_token.<JWT>`` alongside an optional application subprotocol
-    (e.g. ``chat``). Returns (token, app_subprotocol) — either may be None.
+    (e.g. ``chat``). Returns (token, app_subprotocol) - either may be None.
     """
     raw = websocket.headers.get("sec-websocket-protocol") or ""
     token: str | None = None
@@ -514,13 +514,13 @@ async def get_current_user_ws(
        ``accept()`` via ``websocket.state.accept_subprotocol``.
     2. Same-origin ``access_token`` cookie (fallback for same-origin clients).
 
-    Tokens in query strings are NOT accepted — they leak into logs and
+    Tokens in query strings are NOT accepted - they leak into logs and
     Referer headers.
 
     Raises:
         WebSocketException: If token is invalid or user not found. Raising the
             WebSocket-native exception lets Starlette close the handshake cleanly
-            (close code 4001) — raising an HTTP-domain exception here instead
+            (close code 4001) - raising an HTTP-domain exception here instead
             bubbles up unhandled and yields an HTTP 500 on the WS upgrade.
     """
 
@@ -572,7 +572,7 @@ async def get_active_organization_ws(
     The WebSocket counterpart of :func:`get_active_organization`. Browsers cannot
     set headers on a WebSocket handshake, so the org arrives as the
     ``organization_id`` query parameter instead of ``X-Organization-Id``. Unlike a
-    token, an org id is not a secret — membership is verified here, so an id the
+    token, an org id is not a secret - membership is verified here, so an id the
     user does not belong to closes the socket rather than granting anything.
 
     Falls back to the user's Personal organization when the parameter is absent,
@@ -707,7 +707,7 @@ from app.services.admin import AdminService
 
 
 def get_admin_service(db: DBSession) -> AdminService:
-    """Create AdminService instance — used by admin REST routes (always
+    """Create AdminService instance - used by admin REST routes (always
     available, independent of the optional SQLAdmin UI)."""
     return AdminService(db)
 

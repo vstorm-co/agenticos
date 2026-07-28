@@ -2,7 +2,7 @@
 
 A health check nobody has watched fail is a health check that does not work: the
 failure path is the entire product. So each probe here is exercised three or four
-ways — it answered, it refused, it hung — and the assertions are on the ``detail``
+ways - it answered, it refused, it hung - and the assertions are on the ``detail``
 as much as the status, because a status with nothing behind it is what this
 module was written to remove.
 
@@ -112,7 +112,7 @@ class TestDatabaseProbe:
         """The probe has to answer while the thing it probes does not.
 
         A readiness endpoint that blocks on a wedged database fails the kubelet's
-        own timeout, which looks identical to a wedged pod — so the diagnosis is
+        own timeout, which looks identical to a wedged pod - so the diagnosis is
         lost exactly when it is needed.
         """
         check = await health.probe_database(_Session(hangs=True))  # type: ignore[arg-type]

@@ -15,7 +15,7 @@ interface MonogramProps {
  * case rather than the error case, and it has to look like a decision.
  *
  * A bordered initial in the same square the logos occupy reads as deliberate. A
- * broken `<img>` or a blank gap does not — and neither does one generic icon
+ * broken `<img>` or a blank gap does not - and neither does one generic icon
  * repeated down the column, which is worse than nothing because it removes the
  * only reason to have icons in a list: telling the rows apart at a glance.
  *

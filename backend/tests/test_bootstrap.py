@@ -1,8 +1,8 @@
 """Tests for the bootstrap command.
 
 The command exists so a fresh install reaches a running agent. What matters is
-that running it twice is safe — people re-run a setup script when they are not
-sure it worked — and that a missing API key produces a visible half-built state
+that running it twice is safe - people re-run a setup script when they are not
+sure it worked - and that a missing API key produces a visible half-built state
 rather than an agent that silently cannot run.
 """
 
@@ -29,7 +29,7 @@ def _ctx() -> AuthContext:
 
 class TestProviderDefaults:
     def test_every_provider_bootstrap_offers_is_one_the_platform_supports(self):
-        """Bootstrap offers a shortlist, not the catalog — but not a fiction either.
+        """Bootstrap offers a shortlist, not the catalog - but not a fiction either.
 
         A provider here that the catalog does not have would fail inside
         `add_credential`, after the owner and the organization were already
@@ -112,7 +112,7 @@ class TestModel:
     @pytest.mark.anyio
     async def test_without_a_key_no_profile_is_created_at_all(self):
         """A keyless profile is a row that can never run and that nothing
-        repoints — models are keyed from the vault, and the only way to give one
+        repoints - models are keyed from the vault, and the only way to give one
         a key is to add the model again. It appeared in the Builder as
         `openai default · no key`: an option whose only effect was to make an
         agent fail at its first message."""
@@ -214,7 +214,7 @@ class TestDemoAgent:
 class TestEndToEnd:
     """The command itself, with the database and services stubbed.
 
-    The helpers above cover the decisions; this covers the wiring — that the
+    The helpers above cover the decisions; this covers the wiring - that the
     steps run in an order where each has what the previous produced, and that
     the transaction is committed rather than left open.
     """

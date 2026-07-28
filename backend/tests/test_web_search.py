@@ -3,7 +3,7 @@
 The properties worth guarding are the ones a provider swap could break: every
 service normalises into the same payload the chat renders, a missing key is
 refused before a request goes anywhere, and a failure reaches the model as a
-retryable error rather than as an empty result — which it would otherwise
+retryable error rather than as an empty result - which it would otherwise
 answer around, confidently, without saying so.
 """
 
@@ -49,7 +49,7 @@ def _http_client(method: str, payload: dict) -> MagicMock:
 
 
 class TestProviderNormalisation:
-    """Four services, one payload — that is what keeps the chat rendering."""
+    """Four services, one payload - that is what keeps the chat rendering."""
 
     @pytest.mark.anyio
     async def test_tavily_results_become_the_common_shape(self):
@@ -155,7 +155,7 @@ class TestConfiguration:
 
     def test_a_capability_that_declares_no_key_never_asks_for_one(self):
         """Most builtins take no credential at all. The same question is asked of
-        every capability the Builder shows, so this answer is the common case —
+        every capability the Builder shows, so this answer is the common case -
         and one that returned True would make every agent unpublishable."""
         assert get("thinking").needs_secret(None) is False
 
@@ -180,7 +180,7 @@ class TestConfiguration:
         assert capability.provider == "brave"
 
     def test_native_search_hands_the_job_to_the_model_provider(self):
-        """No key of ours and no payload of ours — Pydantic AI's own capability."""
+        """No key of ours and no payload of ours - Pydantic AI's own capability."""
         from pydantic_ai.capabilities import WebSearch
 
         built = build(

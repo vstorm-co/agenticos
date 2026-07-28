@@ -61,7 +61,7 @@ class AgentPublish(BaseSchema):
     note: str | None = Field(
         default=None,
         max_length=500,
-        description="Why this version exists — a commit message for agents",
+        description="Why this version exists - a commit message for agents",
     )
 
 
@@ -72,7 +72,7 @@ class AgentRollback(BaseSchema):
 class AgentClone(BaseSchema):
     """Copy an agent's draft into a new one.
 
-    The name is optional because the useful default — "<name> (copy)" — is the
+    The name is optional because the useful default - "<name> (copy)" - is the
     one nobody wants to type, and the handle is derived from whatever name wins.
     """
 
@@ -98,8 +98,8 @@ class AgentVersionRead(BaseSchema):
 class AgentVersionDetail(AgentVersionRead):
     """One published version, with the spec it froze.
 
-    Separate from the list entry because the list is a timeline — fifty rows of
-    it — and a spec is the whole configuration of an agent. Sending every spec
+    Separate from the list entry because the list is a timeline - fifty rows of
+    it - and a spec is the whole configuration of an agent. Sending every spec
     to render a row of dates would be a page-load per publish anybody ever made.
     """
 
@@ -126,7 +126,7 @@ class CapabilityToolContract(BaseSchema):
     a tool for their agent is rewriting against this text, and reading only its
     first sentence is how a reword loses the half that mattered.
 
-    Read off the built toolset, never restated — see
+    Read off the built toolset, never restated - see
     :mod:`app.services.capability_contracts`.
     """
 
@@ -184,7 +184,7 @@ class McpCatalogEntry(BaseSchema):
     name: str
     description: str
     category: str
-    auth: str = Field(description="none, token or oauth — the only thing that really varies")
+    auth: str = Field(description="none, token or oauth - the only thing that really varies")
     url: str | None = Field(
         default=None, description="Null when the client self-hosts and supplies the URL"
     )

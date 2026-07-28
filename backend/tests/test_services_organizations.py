@@ -82,7 +82,7 @@ class TestOrganizationService:
                 owner_id=uuid.uuid4(),
             )
 
-        # A slug is optional — leaving it blank derives a unique one — so the
+        # A slug is optional - leaving it blank derives a unique one - so the
         # refusal is only useful if it says so. "Slug already taken" left the
         # reader guessing at a field they never had to fill in.
         assert "taken-slug" in refused.value.message
@@ -177,7 +177,7 @@ class TestOrganizationService:
         """The spending ceiling is an organization setting, gated like the rest.
 
         A role that cannot rename the organization must not be able to raise
-        what it may spend — the two arrive on the same request.
+        what it may spend - the two arrive on the same request.
         """
         membership = MagicMock(role=role)
 
@@ -202,8 +202,8 @@ class TestOrganizationService:
     async def test_an_update_that_does_not_name_the_cap_leaves_it_alone(self, service, mock_db):
         """Renaming an organization must not uncap it.
 
-        ``None`` is a legal value for this field — it is how the ceiling is
-        removed — so a service keying on the value rather than on whether the
+        ``None`` is a legal value for this field - it is how the ceiling is
+        removed - so a service keying on the value rather than on whether the
         client named it would lift the limit on every rename.
         """
         membership = MagicMock(role="owner")

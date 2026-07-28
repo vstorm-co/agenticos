@@ -1,4 +1,4 @@
-"""Organization secrets — credentials a capability needs but the platform does not own.
+"""Organization secrets - credentials a capability needs but the platform does not own.
 
 A capability written for one client calls an API the platform knows nothing
 about, and that API wants a key. Storing it in the agent spec is out of the
@@ -21,7 +21,7 @@ So it is a row here, and everything about the design follows from one rule:
   privilege; the UI gets ``hint``.
 
 That is what separates this from a password manager. The model cannot see a
-secret and cannot choose which one is used — code defines, configuration
+secret and cannot choose which one is used - code defines, configuration
 composes.
 """
 
@@ -52,15 +52,15 @@ class OrganizationSecret(Base, TimestampMixin):
         index=True,
     )
     # How a person picks this secret in the Builder. Unique per organization
-    # because the picker shows nothing else that distinguishes two rows — a
+    # because the picker shows nothing else that distinguishes two rows - a
     # duplicate is a pair nobody can tell apart, including whoever is about to
     # delete the wrong one.
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # Which shape the sealed payload has — see app.core.secret_kinds. A
+    # Which shape the sealed payload has - see app.core.secret_kinds. A
     # capability requires a kind, so this is what publish validation matches on.
     kind: Mapped[str] = mapped_column(String(32), nullable=False)
-    # What the key is *for* — "openai", "tavily", "custom". See
+    # What the key is *for* - "openai", "tavily", "custom". See
     # app.core.secret_purposes. A kind says an API key; a purpose says whose,
     # and that is the difference between a vault of eleven interchangeable
     # "api_key" rows and one the model picker can be built out of: an
@@ -100,7 +100,7 @@ class OrganizationSecret(Base, TimestampMixin):
         UniqueConstraint("organization_id", "name", name="uq_organization_secret_org_name"),
         CheckConstraint("visibility IN ('private', 'team', 'org')", name="ck_secret_visibility"),
         # A private key with no owner is one nobody can reach and nobody can
-        # delete from the UI — the state a nulled `owner_user_id` would leave
+        # delete from the UI - the state a nulled `owner_user_id` would leave
         # behind if the column were allowed to disagree with the visibility.
         CheckConstraint(
             "visibility <> 'private' OR owner_user_id IS NOT NULL",

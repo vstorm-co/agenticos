@@ -1,13 +1,13 @@
 """The advertised file formats and the ones the pipeline can route must agree.
 
 Three lists used to disagree. ``PARSER_FORMATS`` told
-``GET /rag/supported-formats`` — and through it the upload UI — that LiteParse
+``GET /rag/supported-formats`` - and through it the upload UI - that LiteParse
 read ``.xlsx``/``.pptx``/images and that LlamaParse read thirty formats down to
 ``.mp3``. ``RAGDocumentService.upload`` validated against that same list, so the
 upload was accepted: the file was stored, a ``RAGDocument`` row was committed and
 the ingestion task was dispatched. Only then, in a worker, did
 ``DocumentProcessor.process_file`` reach its ``else`` branch and raise
-``ValueError: Unsupported file type: .xlsx`` — for a document that by that point
+``ValueError: Unsupported file type: .xlsx`` - for a document that by that point
 existed, was listed, and had no way of saying why it never finished.
 
 A refusal at the door is fine. A promise the pipeline cannot keep is not, and the
@@ -47,7 +47,7 @@ pytestmark = pytest.mark.anyio
 # The class each parser name resolves to in `PdfParserFactory.create`. Held as
 # classes, not instances: `LiteParseParser` and `LlamaParseParser` import their
 # optional SDKs inside `__init__`, and neither is needed to answer what the
-# parser reads — `allowed` is a class attribute precisely so this test does not
+# parser reads - `allowed` is a class attribute precisely so this test does not
 # depend on installing them.
 PARSER_CLASSES: dict[str, type] = {
     "pymupdf": PyMuPDFParser,
@@ -76,8 +76,8 @@ def test_every_advertised_format_is_routable(parser_name: str) -> None:
 def test_nothing_readable_is_refused_at_the_door(parser_name: str) -> None:
     """The converse: a parser that reads a format the API refuses is dead capability.
 
-    Less damaging than the other direction — the user is told no rather than
-    misled — but it is still the two lists drifting apart, and it is how the
+    Less damaging than the other direction - the user is told no rather than
+    misled - but it is still the two lists drifting apart, and it is how the
     LlamaParse extras came to be unreachable for as long as they were.
     """
     unadvertised = set(PARSER_CLASSES[parser_name].allowed) - PARSER_FORMATS[parser_name]
@@ -125,7 +125,7 @@ def test_a_page_of_markdown_scaffolding_is_not_text(content: str) -> None:
     """An unreadable scan comes back as an empty fenced block, not as whitespace.
 
     `.strip()` keeps it, so it used to be embedded as a chunk that says nothing
-    and matches nothing — the whole document looking ingested and answering no
+    and matches nothing - the whole document looking ingested and answering no
     question.
     """
     assert not _has_text(content)
@@ -140,7 +140,7 @@ def test_get_supported_formats_falls_back_to_pymupdf() -> None:
     """An unknown parser name answers with the parser the deployment defaults to.
 
     `IngestionConfig` validates `pdf_parser` against an enum, so this is reached
-    only by a caller passing a raw string — the `PDF_PARSER` environment
+    only by a caller passing a raw string - the `PDF_PARSER` environment
     variable among them.
     """
     assert get_supported_formats("something-else") == PYMUPDF_FORMATS

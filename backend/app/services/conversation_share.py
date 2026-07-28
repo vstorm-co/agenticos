@@ -1,4 +1,4 @@
-"""ConversationShareService — sharing conversations between users (PostgreSQL async)."""
+"""ConversationShareService - sharing conversations between users (PostgreSQL async)."""
 
 import logging
 import secrets

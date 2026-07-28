@@ -9,7 +9,7 @@ organizations needs one key per tenant, rotatable without a redeploy, and a
 named "model" that agent specs can reference without embedding either a raw
 model string or a secret.
 
-Secrets are stored as vault envelopes (app.core.vault) — never bare ciphertext —
+Secrets are stored as vault envelopes (app.core.vault) - never bare ciphertext -
 so a row copied between tenants cannot be unsealed.
 """
 
@@ -85,7 +85,7 @@ def upgrade() -> None:
     )
     op.create_index("ix_model_profiles_organization_id", "model_profiles", ["organization_id"])
     op.create_index("ix_model_profiles_credential_id", "model_profiles", ["credential_id"])
-    # At most one default per organization — enforced by the database so a
+    # At most one default per organization - enforced by the database so a
     # concurrent update cannot leave two.
     op.create_index(
         "uq_model_profile_one_default",

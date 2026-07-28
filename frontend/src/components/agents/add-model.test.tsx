@@ -5,8 +5,8 @@ import { modelHint, modelIdIsWellFormed } from "./add-model";
 /**
  * The one model id this form can know is wrong before sending it.
  *
- * OpenRouter routes to other people's models, so its ids carry the origin —
- * `openai/gpt-5`, never `gpt-5` — and the backend refuses a bare one. That
+ * OpenRouter routes to other people's models, so its ids carry the origin -
+ * `openai/gpt-5`, never `gpt-5` - and the backend refuses a bare one. That
  * refusal used to arrive as an unhandled rejection, which Next.js renders as a
  * full-screen error overlay: a filled-in form replaced by a stack trace,
  * because of a missing slash.

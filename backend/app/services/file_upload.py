@@ -98,7 +98,7 @@ class FileUploadService:
         the two alternatives were worse than nothing here: LlamaParse bills per
         page and needs a key, LiteParse needs a heavier local toolchain, and
         both were wrapped in `except Exception: return self._parse_pdf_pymupdf()`
-        — which meant this file had been silently using PyMuPDF all along. The
+        - which meant this file had been silently using PyMuPDF all along. The
         LiteParse branch could not have worked at all: it called a `parse_async`
         method the binding does not define.
         """

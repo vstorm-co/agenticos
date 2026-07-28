@@ -36,7 +36,7 @@ export function getPasswordStrength(pw: string): { score: number; label: string;
   if (/[^a-zA-Z0-9]/.test(pw)) score++;
   // Three tones, four scores: the number of filled segments already carries
   // the gradation, so colour only has to say bad / not yet / fine. The accent
-  // is not one of them — password strength is a status, not an action.
+  // is not one of them - password strength is a status, not an action.
   if (score <= 1) return { score: 1, label: "Weak", color: "bg-destructive" };
   if (score <= 2) return { score: 2, label: "Fair", color: "bg-warning" };
   if (score <= 3) return { score: 3, label: "Good", color: "bg-warning" };
@@ -83,9 +83,9 @@ export function formatCurrency(
 }
 
 export function formatDate(date: Date | string | null | undefined): string {
-  if (!date) return "—";
+  if (!date) return "-";
   const d = typeof date === "string" ? new Date(date) : date;
-  if (Number.isNaN(d.getTime())) return "—";
+  if (Number.isNaN(d.getTime())) return "-";
   return d.toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",

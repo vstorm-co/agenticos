@@ -35,7 +35,7 @@ const AvatarFallback = React.forwardRef<
   <AvatarPrimitive.Fallback
     ref={ref}
     className={cn(
-      // High-contrast neutral fallback — initials need to be readable on
+      // High-contrast neutral fallback - initials need to be readable on
       // every theme regardless of the brand color (low-saturation greens
       // washed out the previous bg-muted/text-brand combo).
       "bg-foreground/10 text-foreground flex h-full w-full items-center justify-center rounded-full text-xs font-semibold",

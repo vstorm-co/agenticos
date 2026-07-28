@@ -221,7 +221,7 @@ class InvitationService:
             current_count = await member_repo.count_for_org(self.db, invite.organization_id)
             if current_count >= seats_limit:
                 raise PaymentRequiredError(
-                    message="Seat limit reached — upgrade your plan to add more members",
+                    message="Seat limit reached - upgrade your plan to add more members",
                     details={"seats_limit": seats_limit, "current": current_count},
                 )
         await member_repo.create(
@@ -252,7 +252,7 @@ class InvitationService:
 
         The administrator's half of revoking. They are looking at the list, so
         they have the id, and asking them for the token instead would put a live
-        bearer credential in the path of an authenticated request — server logs,
+        bearer credential in the path of an authenticated request - server logs,
         browser history, and any proxy in between.
 
         An invitation belonging to another organization is reported as missing
@@ -285,7 +285,7 @@ class InvitationService:
     async def revoke(self, token: str, requester_id: UUID):
         """Revoke by token, which is all an invitee has.
 
-        Invitees can revoke their own invitation — not just OWNER/ADMIN. The
+        Invitees can revoke their own invitation - not just OWNER/ADMIN. The
         invitation reaches them by email and nothing else about it does: no id,
         no organization. Administrators use :meth:`revoke_by_id` instead.
         """

@@ -8,7 +8,7 @@ import { APP_NAME, ROUTES } from "@/lib/constants";
 interface LegalPageProps {
   title: string;
   summary?: string;
-  /** ISO date string of last update — e.g. "2026-05-08". */
+  /** ISO date string of last update - e.g. "2026-05-08". */
   lastUpdated: string;
   /** Locale for date formatting + see-also labels. */
   locale: Locale;
@@ -16,7 +16,7 @@ interface LegalPageProps {
 }
 
 /**
- * Shell for the three legal documents — the only pages a deployment serves to
+ * Shell for the three legal documents - the only pages a deployment serves to
  * signed-out visitors. Deliberately plain: no nav, no footer sitemap, nothing
  * to click but the sibling documents and the way back into the app.
  */

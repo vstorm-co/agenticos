@@ -10,8 +10,8 @@ const MAX_SHOWN = 3;
 /**
  * Who answered in a conversation, as a list view shows it.
  *
- * Plural on purpose. A conversation is not had with one agent — the picker can
- * be changed mid-thread — so the answer to "which agent is this" is sometimes
+ * Plural on purpose. A conversation is not had with one agent - the picker can
+ * be changed mid-thread - so the answer to "which agent is this" is sometimes
  * two of them, and naming only the last would be a quiet lie about the first
  * half of the transcript.
  *

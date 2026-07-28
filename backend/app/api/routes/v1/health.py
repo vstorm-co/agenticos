@@ -67,7 +67,7 @@ async def readiness_probe(
     from this instance.
 
     Nothing else belongs here. This endpoint takes no credential, so it says
-    only what it is willing to tell a stranger — a status and a latency per
+    only what it is willing to tell a stranger - a status and a latency per
     check, with the reason for a failure in the log rather than the body. The
     deployment's own configuration (the vector store, whether any organization
     can reach a model) is an operator's question, not a load balancer's, and it

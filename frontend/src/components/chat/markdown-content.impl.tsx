@@ -22,7 +22,7 @@ function languageLabel(className: string | undefined): string | null {
  *
  * Only replaces [N] that is NOT followed by `(` (already a link) or `:` (link
  * reference definition). Code spans/blocks are left as-is because the regex
- * doesn't enter them — in practice agent responses never cite inside code.
+ * doesn't enter them - in practice agent responses never cite inside code.
  */
 function preprocessCitations(content: string): string {
   return content.replace(/\[(\d{1,3})\](?![\(:])/g, (_, n) => `[[${n}]](#cite-${n})`);

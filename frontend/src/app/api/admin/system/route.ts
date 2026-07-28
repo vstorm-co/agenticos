@@ -7,7 +7,7 @@ import { BackendApiError, backendFetch } from "@/lib/server-api";
  * Per-service health for the admin system page.
  *
  * The page used to read `/health/ready`, which is the Kubernetes readiness probe
- * — unauthenticated, and therefore unable to say anything specific about the
+ * - unauthenticated, and therefore unable to say anything specific about the
  * deployment. This is the authenticated view, where a check may report which
  * pgvector version is installed and how much is configured.
  */

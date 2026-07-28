@@ -1,6 +1,6 @@
 """Running a published agent, and recording what it cost.
 
-Every surface — the playground, a Slack mention, the public API — goes through
+Every surface - the playground, a Slack mention, the public API - goes through
 here. That is deliberate: if each surface assembled its own agent, budgets and
 run history would hold whatever each one remembered to record, and the first
 surface someone added in a hurry would be the one with no limits.
@@ -13,8 +13,8 @@ The cost row is written in a ``finally`` block. A run that crashed still spent
 money, and a budget that only counts successful runs is not a budget.
 
 The same reasoning is why the *limits* are resolved here too, not handed in.
-A run is under as many caps as apply to it — the agent's own, the
-organization's, and the exposure that admitted it — and every one of them is a
+A run is under as many caps as apply to it - the agent's own, the
+organization's, and the exposure that admitted it - and every one of them is a
 :class:`~app.agents.capabilities.budget.SpendLimit` carrying the lookup that
 meters *its* spend: ``agent.id`` for the agent, ``ctx.organization_id`` for the
 organization, the run's ``exposure_id`` for the exposure. None of them is
@@ -26,7 +26,7 @@ surface has to remember.
 A run can also stop without an answer. When the approval gate parks a
 side-effecting tool call, the run is recorded as ``awaiting_approval`` with
 everything it needs to continue stored on the row, and :meth:`~AgentRunnerService.resume`
-picks it up once a person has decided — in another process, possibly the next
+picks it up once a person has decided - in another process, possibly the next
 day. Holding the coroutine open instead would cost a task and a connection per
 pending decision, for however long the approver takes to look.
 """
@@ -117,7 +117,7 @@ class ApprovalChannel:
 
     Decisions are consumed on use. If the model calls the same tool a second
     time after being approved once, that is a second act on the world and needs
-    its own approval — reusing the first would let one "yes" authorise a loop.
+    its own approval - reusing the first would let one "yes" authorise a loop.
     """
 
     approvals: ApprovalService
@@ -171,7 +171,7 @@ def _spend_already_booked(run: AgentRun) -> SpendEntry:
     A resumed run keeps its own row, so its ledger has to start with what the
     run already spent. Otherwise finishing it would overwrite the cost with only
     what the continuation cost, and the per-run budget would reset every time
-    somebody approved something — which is exactly the run a budget is for.
+    somebody approved something - which is exactly the run a budget is for.
     """
     return SpendEntry(
         model_name=run.model_label or "unknown",
@@ -205,7 +205,7 @@ class AgentRunnerService:
             collection = await knowledge_base_repo.get_by_id(self.db, collection_id)
             if collection is None or collection.organization_id != ctx.organization_id:
                 # A collection deleted after publish degrades the agent's reach
-                # rather than failing the run — the answer is worse, not absent.
+                # rather than failing the run - the answer is worse, not absent.
                 logger.warning(
                     "Agent references collection %s which is gone from org %s",
                     collection_id,
@@ -231,19 +231,19 @@ class AgentRunnerService:
 
         Args:
             exposure: The binding that admitted this run, when one did. It is
-                stamped on the run row and its caps are enforced — so a run that
+                stamped on the run row and its caps are enforced - so a run that
                 arrived through a place the agent was published to is both
                 attributable to that place and bounded by it.
             model_profile_id: Run on this model instead of the one the spec
-                names. What an agent *does* — its instructions, its tools, its
-                approval gates — is unchanged; only which model executes it is.
+                names. What an agent *does* - its instructions, its tools, its
+                approval gates - is unchanged; only which model executes it is.
                 The run row records the model that actually ran, so a cheaper or
                 stronger model chosen for one conversation stays attributable
                 and stays inside the same budget.
 
         Raises:
             BadRequestError: If the agent is unpublished, archived, or its spec
-                no longer validates — surfaced before any tokens are spent.
+                no longer validates - surfaced before any tokens are spent.
         """
         agent, spec = await self.registry.get_runnable_spec(ctx, agent_id)
         return await self._assemble(
@@ -266,7 +266,7 @@ class AgentRunnerService:
         A binding deleted while the run sat in the approvals queue leaves the
         continuation uncapped by it, which is the honest outcome: the ceiling
         belonged to a place that no longer exists. The run keeps its
-        ``exposure_id`` regardless — ``SET NULL`` on the column is what a
+        ``exposure_id`` regardless - ``SET NULL`` on the column is what a
         *deleted* binding does, and that is a different fact from this one.
         """
         if run.exposure_id is None:
@@ -284,7 +284,7 @@ class AgentRunnerService:
         whole point: an exposure's ceiling checked against the organization's
         total would be exhausted by unrelated internal traffic while the
         binding's own spend stayed invisible in it. ``run_exposure_id`` rather
-        than ``exposure.id`` is what a resumed run is metered on — the run
+        than ``exposure.id`` is what a resumed run is metered on - the run
         already carries the binding it arrived through, and re-deriving it from
         an argument the resume path does not have would silently meter the
         continuation against nothing.
@@ -342,7 +342,7 @@ class AgentRunnerService:
         second one would eventually forget something.
         """
         # A caller's override wins over the spec's choice. Only the model is
-        # replaced — instructions, tools, budgets and the approval gate are the
+        # replaced - instructions, tools, budgets and the approval gate are the
         # agent's, so this cannot be used to run something the agent is not.
         model_spec = await self.models.resolve(
             ctx, profile_id=model_profile_id or spec.model_profile_id
@@ -354,8 +354,8 @@ class AgentRunnerService:
         # parameter with a default of "no cap" and no production caller, so
         # twelve agents in one organization meant twelve independent caps and no
         # ceiling. `ctx.organization_id` is also the only tenant in scope here,
-        # which is what keeps the cap and the spend it is measured against — the
-        # `period_spend` below — reading the same organization.
+        # which is what keeps the cap and the spend it is measured against - the
+        # `period_spend` below - reading the same organization.
         organization = await self.organizations.get_by_id(ctx.organization_id)
 
         # Everything a capability needs but must not fetch itself. Resolved once,
@@ -499,8 +499,8 @@ class AgentRunnerService:
         told about a budget breach that the transaction then rolled back would
         go looking for a run that does not exist.
 
-        A chat user watching the stream is told twice — once on screen, once by
-        email — and that is the right trade: the alternative is guessing from
+        A chat user watching the stream is told twice - once on screen, once by
+        email - and that is the right trade: the alternative is guessing from
         the surface whether anybody was looking, and being wrong in the
         direction of silence.
         """
@@ -718,7 +718,7 @@ class AgentRunnerService:
                 output = result.output
                 status = RunStatus.COMPLETED
         except BudgetExceeded as exc:
-            # Not a malfunction — the platform working. Recorded separately so
+            # Not a malfunction - the platform working. Recorded separately so
             # an operator filtering for problems does not wade through it.
             status = RunStatus.BUDGET_EXCEEDED
             error = str(exc)
@@ -764,7 +764,7 @@ class AgentRunnerService:
     async def cost_breakdown(
         self, ctx: AuthContext, *, days: int = 30
     ) -> list[tuple[UUID, str | None, Decimal, int]]:
-        """Spend per agent and model over a window — the dashboard's data."""
+        """Spend per agent and model over a window - the dashboard's data."""
         since = datetime.now(UTC) - timedelta(days=days)
         return await agent_run_repo.cost_breakdown(
             self.db, organization_id=ctx.organization_id, since=since

@@ -1,4 +1,4 @@
-"""Capability registry — the boundary between code and configuration.
+"""Capability registry - the boundary between code and configuration.
 
 The platform's central tension: we write capabilities in typed, tested Python
 while clients compose agents without writing any. Resolving it by making
@@ -13,7 +13,7 @@ Configuration can only reach what code registered.
 Why capabilities rather than individual tools: a capability is the unit that
 actually makes sense to switch *on or off*. "Knowledge search" is one decision,
 not one decision per tool it happens to expose. Capabilities also cover things
-that are not tools at all — a budget guard, a compaction strategy, a guardrail —
+that are not tools at all - a budget guard, a compaction strategy, a guardrail -
 so one concept covers everything an agent is assembled from instead of two that
 overlap awkwardly.
 
@@ -23,7 +23,7 @@ though one capability answers both. Enabling stays per capability; approving
 happens per tool.
 
 Presentation is the second exception. A tool's description is the highest-leverage
-prompt in the product — it is what the model reads before deciding to call it —
+prompt in the product - it is what the model reads before deciding to call it -
 and its name measurably changes behaviour, so a binding may override both per
 tool. That override is keyed on the tool's stable id and applied here, once, for
 every capability. It used to be a field one capability invented inside its own
@@ -68,7 +68,7 @@ from app.core.secret_kinds import SecretRequirement, StorableSecret
 logger = logging.getLogger(__name__)
 
 # What every model provider accepts as a callable tool name. A rename is what
-# the model has to emit, so `send email` is not a name — it is a tool that can
+# the model has to emit, so `send email` is not a name - it is a tool that can
 # never be called.
 TOOL_NAME_PATTERN = re.compile(r"[a-zA-Z0-9_-]{1,64}")
 
@@ -78,7 +78,7 @@ class ToolOverride(BaseModel):
 
     Both fields are prompt surface. The description is what the model reads
     before deciding whether to call the tool; the name is read alongside it and
-    steers just as hard — ``search_refund_policy`` is not ``search_documents``.
+    steers just as hard - ``search_refund_policy`` is not ``search_documents``.
     An agent that needs different behaviour from the same tool usually needs
     these reworded, not a second tool written.
 
@@ -124,7 +124,7 @@ class CapabilityBinding:
     of it.
 
     ``secret_id`` names which of the organization's secrets satisfies the
-    capability's requirement — an id, never a value. A spec is exported to a
+    capability's requirement - an id, never a value. A spec is exported to a
     client's git repository, so the only thing it may carry is a reference.
     """
 
@@ -144,14 +144,14 @@ class CapabilityBuildContext:
 
     ``config`` is already validated against the capability's schema, so a
     builder reads its fields without re-checking. ``resources`` carries things
-    resolved from the database for this run — collection names, skills — which
+    resolved from the database for this run - collection names, skills - which
     a capability may need but must never fetch itself.
 
     ``secret`` is the unsealed credential the capability declared it needs, and
     is present exactly when it declared one. It is a field of its own rather
     than an entry in ``resources`` because the two have different rules: a
     resource may be logged, and a secret may not. Every secret-bearing field is
-    a ``SecretStr``, so this dataclass masks itself in a repr — which is the way
+    a ``SecretStr``, so this dataclass masks itself in a repr - which is the way
     a plaintext key usually escapes.
     """
 
@@ -169,13 +169,13 @@ class CapabilityToolInfo(BaseModel):
     per-tool approval, and it cannot offer what the registry never described.
 
     ``name`` and ``description`` are the deployment's defaults, exactly as code
-    declared them — the catalog answers "what tools exist and what do they say",
+    declared them - the catalog answers "what tools exist and what do they say",
     which is a question about the deployment and not about one agent. A binding's
     overrides are resolved where the binding is in hand, by
     :meth:`CapabilityDef.effective_tools`, which returns this same shape with them
     applied.
 
-    ``description`` is the tool's own docstring summary — the same sentence the
+    ``description`` is the tool's own docstring summary - the same sentence the
     model reads before deciding to call it. The person choosing what needs
     approval and the model choosing when to act should be looking at the same
     text, not at two paraphrases that drift apart.
@@ -188,7 +188,7 @@ class CapabilityToolInfo(BaseModel):
 
     Separate from ``name`` because a binding keys its approval decision on
     this. A tool the model sees under a different name must still be the tool
-    an operator gated — otherwise renaming one silently removes its gate, and
+    an operator gated - otherwise renaming one silently removes its gate, and
     a side-effecting call goes unattended with nothing reporting it.
     """
 
@@ -204,7 +204,7 @@ class CapabilityToolInfo(BaseModel):
 
         Runs *before* validation rather than after: this model is frozen, so an
         after-validator cannot assign and returning a copy is silently
-        discarded — which left every tool with an empty name and an approval
+        discarded - which left every tool with an empty name and an approval
         gate that matched nothing.
         """
         if isinstance(data, dict) and not data.get("name"):
@@ -225,7 +225,7 @@ class CapabilityDef:
     config_schema: type[BaseModel] | None = None
     side_effecting: bool = False
     scopes: frozenset[str] = frozenset()
-    # The credential this capability needs, declared as a *kind* — never as an
+    # The credential this capability needs, declared as a *kind* - never as an
     # instance. Code says "I need an API key"; configuration says which one.
     secret: SecretRequirement | None = None
 
@@ -233,7 +233,7 @@ class CapabilityDef:
         """Whether a binding with this configuration must name a secret.
 
         One answer, consulted by publish validation and by the build, so the
-        two can never disagree — which would mean an agent that publishes and
+        two can never disagree - which would mean an agent that publishes and
         then refuses to run, or worse, the reverse.
         """
         if self.secret is None:
@@ -253,7 +253,7 @@ class CapabilityDef:
 
         The single answer to "what will the model see", so nothing has to derive
         it twice and get two answers. The approval gate matches on the name the
-        model called, which is this one — reading ``tools`` there instead would
+        model called, which is this one - reading ``tools`` there instead would
         gate a tool nobody can call and leave the renamed one running
         unattended.
         """
@@ -295,7 +295,7 @@ class CapabilityDef:
 REGISTRY: dict[str, CapabilityDef] = {}
 
 # Whether the builtin capability modules have been imported. Not a cache of the
-# registry itself — tests add and remove entries around it — only of the import.
+# registry itself - tests add and remove entries around it - only of the import.
 _builtins_loaded = False
 
 
@@ -331,7 +331,7 @@ def register(
 
     ``tools`` has no default on purpose. It is what the Builder offers per-tool
     approval for and what the approval gate matches on, so a capability that
-    declares nothing is a capability whose tools cannot be gated — and the
+    declares nothing is a capability whose tools cannot be gated - and the
     dangerous half of that failure is silent: an author adds a second,
     side-effecting tool, forgets to declare it, and it runs unattended forever.
     Requiring the argument makes forgetting a `TypeError`; keeping it honest
@@ -358,7 +358,7 @@ def register(
         if existing is not None and existing is not definition:
             # Almost always a copy-paste in a new module. Letting the second
             # registration win would make an agent's behaviour depend on import
-            # order — a bug that only appears in production.
+            # order - a bug that only appears in production.
             raise RuntimeError(
                 f"Capability id '{definition.id}' is already registered by {existing.name!r}. "
                 "Ids are part of the spec format and must be unique."
@@ -499,7 +499,7 @@ def _as_bound(
     """The capability as this binding presents it.
 
     Wrapping only when something is actually overridden keeps the common agent
-    exactly what it was — and keeps ``BuiltAgent.capabilities`` readable, since
+    exactly what it was - and keeps ``BuiltAgent.capabilities`` readable, since
     a surface introspecting it should not have to see through a wrapper that
     changes nothing.
     """
@@ -524,7 +524,7 @@ def load_builtins() -> None:
     A module nobody imports does not exist as far as the Builder is concerned,
     which is the intended coupling. What was *not* intended is that the coupling
     also ran through the caller: this was called from the FastAPI lifespan only,
-    so every other entry point — the CLI, a worker, a migration script — saw an
+    so every other entry point - the CLI, a worker, a migration script - saw an
     empty registry and refused to publish any agent, reporting the capability as
     unknown. Every lookup now loads first, and the flag keeps that free after the
     first call.

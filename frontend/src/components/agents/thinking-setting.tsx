@@ -15,7 +15,7 @@ interface ThinkingSettingProps {
 /**
  * Reasoning effort, shown with the model settings rather than with capabilities.
  *
- * It is a capability in the spec and stays one — it is Pydantic AI's own
+ * It is a capability in the spec and stays one - it is Pydantic AI's own
  * `Thinking`, and moving it out of `capabilities` would be a spec migration for
  * a change of heading. But it contributes no tools: it changes how the model
  * runs, not what the agent can do, which is the question the capability list

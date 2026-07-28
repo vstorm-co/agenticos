@@ -18,7 +18,7 @@ let authChecked = false;
 
 // Access tokens expire after 15 min. The in-memory token (used by the chat
 // WebSocket and proxied API calls) is set once on load and would otherwise go
-// stale while the tab stays open — causing WS auth failures / "Offline" chat.
+// stale while the tab stays open - causing WS auth failures / "Offline" chat.
 // Refresh it ahead of expiry on a single shared interval. /auth/me
 // transparently mints a fresh access token from the refresh cookie.
 let tokenRefreshTimer: ReturnType<typeof setInterval> | null = null;
@@ -33,7 +33,7 @@ function ensureTokenRefresh(): void {
         const data = await apiClient.get<User & { access_token?: string }>("/auth/me");
         if (data.access_token) useAuthStore.getState().setAccessToken(data.access_token);
       } catch {
-        // Ignore — the next real request (or its 401 → refresh) handles failure.
+        // Ignore - the next real request (or its 401 → refresh) handles failure.
       }
     })();
   }, TOKEN_REFRESH_INTERVAL_MS);

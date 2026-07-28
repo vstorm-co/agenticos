@@ -7,7 +7,7 @@ Keeping this a narrow, explicit funnel is the point: when the underlying agent
 library changes shape, one file changes. When a new capability is added to the
 platform, there is one obvious place it plugs in. And because the funnel is
 narrow, the same spec produces the same agent whether the run came from the web
-chat, a Slack mention or the public API — which is what makes "the Builder is
+chat, a Slack mention or the public API - which is what makes "the Builder is
 just another client" true rather than aspirational.
 """
 
@@ -112,8 +112,8 @@ def build_agent(
         model_spec: Already-resolved model and credentials.
         granted_scopes: Scopes the organization allows. Passing ``None`` skips
             the check and is for internal runs only.
-        resources: Values resolved from the database for this run — collection
-            names, skills — which capabilities need but must never fetch
+        resources: Values resolved from the database for this run - collection
+            names, skills - which capabilities need but must never fetch
             themselves.
         secrets: The unsealed secrets this spec's bindings reference, keyed by
             id. They reach the capability instance and stop there: nothing here
@@ -123,7 +123,7 @@ def build_agent(
             servers configured per organization.
         agent_period_spend: How to read what *this agent* has booked this month,
             for the cap in its own spec. Omitted where there is no database to
-            ask — a preview — in which case that cap meters only this run.
+            ask - a preview - in which case that cap meters only this run.
         org_period_spend: The same for the organization as a whole. The two are
             separate arguments because they are separate quantities; one lookup
             serving both is precisely how an agent's cap came to be exhausted by
@@ -131,7 +131,7 @@ def build_agent(
         org_monthly_budget_usd: The organization-wide cap, which applies on top
             of whatever the agent's own spec asks for.
         extra_limits: Further caps this run is under, each metering its own
-            spend — the exposure that admitted it, for instance. Whichever binds
+            spend - the exposure that admitted it, for instance. Whichever binds
             first stops the run, and the refusal names it. This is where a new
             kind of cap belongs; see :class:`SpendLimit` for why they cannot be
             folded into one number.
@@ -183,8 +183,8 @@ def build_agent(
     )
 
     # Three capabilities every agent gets, regardless of its spec. Making them
-    # configurable would make "an agent with no spending limit" — or one that
-    # acts on the world unattended — something somebody could arrive at by
+    # configurable would make "an agent with no spending limit" - or one that
+    # acts on the world unattended - something somebody could arrive at by
     # accident. The gate is attached even when nothing is gated, so that adding
     # a side-effecting capability to a spec is the only thing that has to be
     # right for approval to apply.
@@ -198,7 +198,7 @@ def build_agent(
         *configured,
     ]
 
-    # Profile settings first, agent overrides second — the agent is the more
+    # Profile settings first, agent overrides second - the agent is the more
     # specific statement of intent.
     #
     # A setting the author never chose is absent from the dump rather than
@@ -240,7 +240,7 @@ def _as_decimal(value: float) -> Decimal:
     Money accumulated as float drifts; the spec uses float because JSON has no
     decimal type, and this is the boundary where that ends. Via ``str`` rather
     than ``Decimal(value)``, which would carry the binary approximation across
-    intact — 0.1 becoming 0.1000000000000000055511151231257827.
+    intact - 0.1 becoming 0.1000000000000000055511151231257827.
     """
     return Decimal(str(value))
 
@@ -259,7 +259,7 @@ def _spend_limits(
     ``min()`` of the two, because they meter different spend: one agent's month
     and the whole organization's. Taking the tighter of two numbers only says
     something when both count the same thing, and the previous version of this
-    function did it against a single organization-wide total — which turned
+    function did it against a single organization-wide total - which turned
     ``AgentSpec.budget.monthly_usd`` into "stop this agent once *anyone* has
     spent X" and refused an agent that had spent nothing all month.
 
@@ -267,8 +267,8 @@ def _spend_limits(
     cannot loosen the organization's ceiling: the organization's entry is present
     at its own number whatever the spec asks for, and an agent's spend is part of
     the organization's, so a $100 agent under a $10 organization is still stopped
-    at $10. It gains the case the collapse got wrong — a $5 agent under a $50
-    ceiling now binds when *it* has spent $5, not when its neighbours have — and
+    at $10. It gains the case the collapse got wrong - a $5 agent under a $50
+    ceiling now binds when *it* has spent $5, not when its neighbours have - and
     the refusal names the cap that actually bound instead of inferring it from
     which of two numbers was smaller.
 
@@ -283,7 +283,7 @@ def _spend_limits(
         if spec.budget.max_per_run_usd is not None:
             # No lookup: a per-run cap *is* the ledger this guard writes, so it is
             # exact and costs no round trip. That is a property this limit has,
-            # not a reason for it to be a different kind of thing — the exposure's
+            # not a reason for it to be a different kind of thing - the exposure's
             # per-run cap has always been expressed this way.
             limits.append(
                 SpendLimit(scope="Run", limit_usd=_as_decimal(spec.budget.max_per_run_usd))
@@ -321,7 +321,7 @@ def _instrument(
 
     A configured block whose token is missing is *not* an error here. The secret
     may have been deleted after publish, and the choice is between an agent that
-    runs untraced and an agent that does not run — publishing is where a missing
+    runs untraced and an agent that does not run - publishing is where a missing
     secret is refused, and a run is far too late.
     """
     observability = spec.observability

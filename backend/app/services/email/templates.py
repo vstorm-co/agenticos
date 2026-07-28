@@ -1,4 +1,4 @@
-"""Template loader — reads pre-rendered HTML/text from `emails/compiled/`."""
+"""Template loader - reads pre-rendered HTML/text from `emails/compiled/`."""
 
 from pathlib import Path
 from typing import Any
@@ -19,7 +19,7 @@ def _compiled_dir() -> Path:
     Two layouts have to work, and a fixed number of `.parent` hops cannot
     satisfy both. Locally the directory is a sibling of `backend/` at the
     repository root, so it is four levels above this file. In the container it
-    is `/app/emails` — a bind mount beside the `app` package, three levels up —
+    is `/app/emails` - a bind mount beside the `app` package, three levels up -
     because the image is built with `./backend` as its context and therefore
     cannot contain it.
 

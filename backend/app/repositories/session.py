@@ -41,7 +41,7 @@ async def get_user_sessions(
     query = select(Session).where(Session.user_id == user_id)
     if active_only:
         query = query.where(Session.is_active.is_(True))
-    # `last_used_at` alone is not a total order — a user who signs in twice in
+    # `last_used_at` alone is not a total order - a user who signs in twice in
     # the same request cycle gets two rows with the same timestamp, and an
     # unstable order means a row can appear on two pages or on neither. `id`
     # breaks the tie.

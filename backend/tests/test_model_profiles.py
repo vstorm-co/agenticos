@@ -157,7 +157,7 @@ class TestProviderCatalog:
         A provider in the catalog but not constructible is a dead option in the
         Builder's dropdown that only fails once somebody has stored a key for
         it. This constructs each one with a credential of the shape it declares
-        — which is also what proves the declaration is right.
+        - which is also what proves the declaration is right.
         """
         spec = PROVIDERS[provider_id]
         # OpenRouter is the one provider that rejects a bare model id, and does
@@ -192,7 +192,7 @@ class TestProviderCatalog:
         """OpenAI-compatible servers implement Chat Completions and not Responses.
 
         `infer_model("openai:...")` returns a Responses model, which would make
-        every vLLM / LM Studio / LiteLLM endpoint fail — the exact case
+        every vLLM / LM Studio / LiteLLM endpoint fail - the exact case
         `base_url` exists for.
         """
         assert PROVIDERS["openai"].prefix == "openai-chat"
@@ -259,7 +259,7 @@ class TestProfileCreation:
         """Same unguarded constraint as on credentials, same 500 it produced.
 
         A model is chosen by its label in the Builder's dropdown, so this is
-        the label collision people actually hit — two keys for one provider,
+        the label collision people actually hit - two keys for one provider,
         both named after the provider.
         """
         with (
@@ -576,7 +576,7 @@ class TestProfilesKeyedFromTheVault:
     A model profile used to be keyed only by a provider credential, which is a
     second vault with its own dialog and no rotation. Pointing a profile at a
     vault secret is what makes "add an OpenRouter key" and "run an OpenRouter
-    model" the same act — and it is the path with the failure modes: a key that
+    model" the same act - and it is the path with the failure modes: a key that
     was deleted, and a key for a different provider entirely.
     """
 

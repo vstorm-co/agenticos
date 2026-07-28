@@ -1,4 +1,4 @@
-"""Invite links — one URL that admits whoever holds it.
+"""Invite links - one URL that admits whoever holds it.
 
 An email invitation is addressed: the person who can accept it is named in the
 row. A link is not, which makes it a bearer credential for *membership of an
@@ -125,7 +125,7 @@ class TestAccepting:
 
         Returns the three mocks the assertions are about: whether a membership
         was created, whether the link recorded a use, and whether it was marked
-        spent — the last being the difference between a link and a one-shot URL.
+        spent - the last being the difference between a link and a one-shot URL.
         """
         with ExitStack() as stack:
 

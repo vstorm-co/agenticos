@@ -26,7 +26,7 @@ export interface SkillQuery {
 /**
  * An organization's reusable know-how.
  *
- * The list returns names and descriptions only — the bodies can be long, and
+ * The list returns names and descriptions only - the bodies can be long, and
  * the picker never needs them.
  *
  * Searching and paging happen on the server: an organization's skills grow
@@ -51,8 +51,8 @@ export function useSkills({ search = "", skip = 0, limit = PAGE_SIZE }: SkillQue
     [queryClient],
   );
 
-  // No `onError` here, unlike its neighbours: every way this fails — the name
-  // is taken, the description is too long — is something the reader can fix in
+  // No `onError` here, unlike its neighbours: every way this fails - the name
+  // is taken, the description is too long - is something the reader can fix in
   // the dialog still on screen, so the dialog decides where to say it. See
   // `CreateSkillDialog`.
   const create = useMutation({
@@ -96,7 +96,7 @@ export interface SkillEdit {
 /**
  * One skill, body included.
  *
- * Separate from the list because the list omits `content` — the picker never
+ * Separate from the list because the list omits `content` - the picker never
  * needs a body, and the editor cannot work without one. The editable set is
  * narrower than `NewSkill` in one direction and wider in the other: the API
  * refuses to rename a skill, because the name is the handle agents and the
@@ -160,7 +160,7 @@ export function useSkill(skillId: string | null) {
   });
 
   /**
-   * Write several files at once — a dropped folder, or a handful of files.
+   * Write several files at once - a dropped folder, or a handful of files.
    *
    * Each keeps the relative path the browser sent, which is exactly the name a
    * resource takes, so a folder arrives as a folder with nothing to
@@ -195,7 +195,7 @@ export function useSkill(skillId: string | null) {
   };
 }
 
-/** One file with its body — the listing on the skill carries only the names. */
+/** One file with its body - the listing on the skill carries only the names. */
 export function useSkillResource(skillId: string | null, resourceId: string | null) {
   const { data, isLoading } = useQuery({
     queryKey: qk.skills.resource(skillId ?? "", resourceId ?? ""),
@@ -209,7 +209,7 @@ export function useSkillResource(skillId: string | null, resourceId: string | nu
  * The skills this deployment ships with.
  *
  * Bundled in the repository rather than fetched from a registry, so the list
- * changes on redeploy and not between requests — hence the indefinite cache.
+ * changes on redeploy and not between requests - hence the indefinite cache.
  * Installing copies: from that moment it is an ordinary skill the organization
  * owns and edits.
  */
@@ -225,7 +225,7 @@ export function useSkillLibrary() {
     mutationFn: (key: string) => apiClient.post<Skill>(`/skills/library/${key}/install`, {}),
     onSuccess: async (skill) => {
       await queryClient.invalidateQueries({ queryKey: qk.skills.all() });
-      toast.success(`${skill.name} installed — it is yours to edit now`);
+      toast.success(`${skill.name} installed - it is yours to edit now`);
     },
     onError: (error) => toast.error(getErrorMessage(error)),
   });

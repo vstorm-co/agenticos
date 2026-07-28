@@ -1,9 +1,9 @@
-"""Tests for skills — organizational know-how handed to agents.
+"""Tests for skills - organizational know-how handed to agents.
 
 The things worth guarding: script execution stays off until there is a sandbox,
 a skill that disappears after publish degrades the agent rather than breaking
 the run, and an uploaded file is refused unless the model could actually read
-it — by name and by content both.
+it - by name and by content both.
 """
 
 import uuid
@@ -303,7 +303,7 @@ class TestSkillManagement:
 
     @pytest.mark.anyio
     async def test_deleting_a_skill_takes_the_grants_that_pointed_at_it(self):
-        """The grant table is generic — no foreign key, so nothing cascades for it.
+        """The grant table is generic - no foreign key, so nothing cascades for it.
 
         Left behind, those rows share an id that no longer means anything, and
         they would silently apply to whatever reuses it.
@@ -381,7 +381,7 @@ class TestSkillLibrary:
 
     def test_a_manifest_with_no_description_is_refused(self, tmp_path):
         """The description is what the model reads before deciding to load the
-        body — a skill without one can never be chosen."""
+        body - a skill without one can never be chosen."""
         from app.services.skill_library import _read
 
         folder = tmp_path / "nameless"
@@ -513,8 +513,8 @@ class TestResourceContents:
 
     def test_a_file_the_model_could_not_read_is_refused_rather_than_stored_as_noise(self):
         """A skill's files are handed to the model as text. A PDF stored here
-        arrives as mojibake — a file the agent is told it has and cannot use,
-        which is worse than not having it — so the refusal names the file and
+        arrives as mojibake - a file the agent is told it has and cannot use,
+        which is worse than not having it - so the refusal names the file and
         says what to do instead."""
         with pytest.raises(BadRequestError) as refused:
             _decode_text("report.pdf", b"%PDF-1.7\n\xff\xfe\x00\x01")
@@ -526,14 +526,14 @@ class TestResourceContents:
     def test_the_guard_is_utf_8_and_not_ascii(self):
         """A checklist written in Polish is an ordinary skill file, and the
         bytes that make it non-ASCII must not read as a binary."""
-        assert _decode_text("kroki.md", "Zwrot 50 zł — sprawdź ✓".encode()) == (
-            "Zwrot 50 zł — sprawdź ✓"
+        assert _decode_text("kroki.md", "Zwrot 50 zł - sprawdź ✓".encode()) == (
+            "Zwrot 50 zł - sprawdź ✓"
         )
 
     def test_a_file_over_the_size_limit_is_refused(self):
         """Everything attached to a skill is loaded into a prompt, so the limit
         is what keeps one dropped archive from filling an agent's context. The
-        last byte that fits still fits — a limit that refused it would be a
+        last byte that fits still fits - a limit that refused it would be a
         different limit than the message states."""
         assert _decode_text("big.md", b"a" * MAX_RESOURCE_BYTES) == "a" * MAX_RESOURCE_BYTES
 
@@ -716,7 +716,7 @@ class TestSkillFiles:
     ):
         """The offending file can arrive after a good one, and the request is
         still refused whole. What was already written rolls back with the
-        request's transaction — but a version bumped on the way past would
+        request's transaction - but a version bumped on the way past would
         survive nothing and describe an edit that never landed."""
         with pytest.raises(BadRequestError, match="cannot step outside"):
             await service.put_resources(
@@ -781,7 +781,7 @@ class TestSkillFiles:
     ):
         """The caller proved they may reach *this skill*. A resource id from
         another one must not be readable through it, and the scoped lookup is
-        what enforces that — the id alone proves nothing."""
+        what enforces that - the id alone proves nothing."""
         stored = _resource()
         repo.get_resource.return_value = stored
 

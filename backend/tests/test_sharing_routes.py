@@ -1,7 +1,7 @@
 """Tests for the generated sharing routes.
 
-The four sharing endpoints exist four times over — agents, collections, skills,
-vault secrets — generated from one definition. What is worth testing is the generation itself:
+The four sharing endpoints exist four times over - agents, collections, skills,
+vault secrets - generated from one definition. What is worth testing is the generation itself:
 that each type really gets all four, that they are wired to the right resource
 type, and that a row from another organization is refused before the sharing
 service is ever reached.
@@ -112,7 +112,7 @@ class TestHandlerBehaviour:
     """The generated handlers, exercised directly.
 
     Calling them through the app would need a database; calling them directly
-    still proves the part that is generated — that each handler passes *its own*
+    still proves the part that is generated - that each handler passes *its own*
     resource type to the sharing service, which is what decides whose grants a
     row gets.
     """

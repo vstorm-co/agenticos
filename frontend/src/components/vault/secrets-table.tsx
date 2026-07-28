@@ -64,8 +64,8 @@ function initials(email: string | null | undefined): string {
  * The organization's keys, one row each.
  *
  * A table rather than cards because every question asked here is a comparison
- * across rows — which of these is private, who added that one, what is holding
- * up which agent — and cards put the answers in different places on every row.
+ * across rows - which of these is private, who added that one, what is holding
+ * up which agent - and cards put the answers in different places on every row.
  */
 export function SecretsTable({
   secrets,

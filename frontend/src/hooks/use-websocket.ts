@@ -37,7 +37,7 @@ function silentClose(ws: WebSocket) {
   try {
     ws.close();
   } catch {
-    // already closing/closed — nothing to do
+    // already closing/closed - nothing to do
   }
 }
 
@@ -54,13 +54,13 @@ export function useWebSocket({
 }: UseWebSocketOptions) {
   const [isConnected, setIsConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
-  // Params the live socket was opened with — lets connect() tell a StrictMode
+  // Params the live socket was opened with - lets connect() tell a StrictMode
   // remount / quick nav-back (same params → reuse the socket) apart from a real
   // change like a refreshed token (different params → swap the socket).
   const wsSigRef = useRef<string | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   // Deferred teardown timer. disconnect() schedules the close instead of doing
-  // it inline so an immediate remount can cancel it and keep the live socket —
+  // it inline so an immediate remount can cancel it and keep the live socket -
   // abruptly closing a still-connecting socket is exactly what trips Firefox's
   // reconnect throttle and looks like "the request never reached the server".
   const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -83,7 +83,7 @@ export function useWebSocket({
   }, [onMessage, onOpen, onClose, onError]);
 
   const connect = useCallback(() => {
-    // A pending deferred close means we're mid-teardown; cancel it — we're
+    // A pending deferred close means we're mid-teardown; cancel it - we're
     // (re)connecting again, so don't drop the socket out from under ourselves.
     if (closeTimeoutRef.current) {
       clearTimeout(closeTimeoutRef.current);
@@ -131,7 +131,7 @@ export function useWebSocket({
       setIsConnected(false);
 
       // A deliberate disconnect() (unmount, logout, token swap) is not a failure
-      // — don't surface it to the consumer (which would e.g. fire a token
+      // - don't surface it to the consumer (which would e.g. fire a token
       // refresh) and don't reconnect.
       if (!shouldReconnectRef.current) return;
 

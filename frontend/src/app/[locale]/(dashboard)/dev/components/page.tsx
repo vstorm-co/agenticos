@@ -21,7 +21,7 @@ import {
 } from "@/components/ui";
 
 /**
- * Dev-only component gallery — a lightweight stand-in for Storybook that keeps
+ * Dev-only component gallery - a lightweight stand-in for Storybook that keeps
  * the design system honest. Renders the core primitives in one place so visual
  * regressions are easy to spot. Hidden in production builds.
  */
@@ -93,7 +93,7 @@ function Gallery() {
         description="Core design-system primitives, in one place."
       />
 
-      <Section title="Accent palette — change --brand-h in globals.css to retheme">
+      <Section title="Accent palette - change --brand-h in globals.css to retheme">
         <AccentPalette />
       </Section>
 

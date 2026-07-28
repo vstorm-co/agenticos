@@ -1,4 +1,4 @@
-"""RAG sync connectors — extensible source adapters for document ingestion."""
+"""RAG sync connectors - extensible source adapters for document ingestion."""
 
 import logging
 from abc import ABC, abstractmethod
@@ -54,7 +54,7 @@ class BaseSyncConnector(ABC):
         return True, None
 
 
-# Registry of available connectors — import conditionally to avoid missing deps
+# Registry of available connectors - import conditionally to avoid missing deps
 CONNECTOR_REGISTRY: dict[str, type[BaseSyncConnector]] = {}
 from app.services.rag.connectors.google_drive import GoogleDriveConnector
 

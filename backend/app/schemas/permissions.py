@@ -14,7 +14,7 @@ class MyPermissions(BaseSchema):
     """What the caller may do in one organization.
 
     The frontend uses this to hide actions that would be refused anyway. It is
-    a convenience, never the enforcement point — every endpoint re-checks.
+    a convenience, never the enforcement point - every endpoint re-checks.
     """
 
     organization_id: str

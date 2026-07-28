@@ -1,9 +1,9 @@
-"""ChannelBotService — business logic for bot management (PostgreSQL async).
+"""ChannelBotService - business logic for bot management (PostgreSQL async).
 
 A bot token is sealed with :mod:`app.core.vault`, bound to the organization the
 bot belongs to. It used to be Fernet-encrypted with one deployment-wide key,
 which meant a ciphertext copied from one tenant's row into another's decrypted
-happily — the token itself is what talks to Slack or Telegram as that
+happily - the token itself is what talks to Slack or Telegram as that
 organization, so that was a tenant boundary with nothing behind it.
 """
 
@@ -35,8 +35,8 @@ def seal_bot_token(token: str, *, organization_id: UUID) -> SealedSecret:
 def unseal_bot_token(bot: ChannelBot) -> str:
     """Recover a bot's token.
 
-    A module-level function rather than a method because the inbound paths —
-    the webhook router and the polling loop at startup — have the row and no
+    A module-level function rather than a method because the inbound paths -
+    the webhook router and the polling loop at startup - have the row and no
     service, and the row is what carries the organization the envelope is bound
     to.
     """
@@ -52,7 +52,7 @@ class ChannelBotService:
 
     ``organization_id`` is the tenant every management call is scoped to. It is
     ``None`` only on the inbound path (webhook / poller), where no member is
-    making the request and the bot row itself carries the organization — those
+    making the request and the bot row itself carries the organization - those
     callers may use :meth:`find_active` and :meth:`get_decrypted_token` and
     nothing else.
     """
@@ -66,7 +66,7 @@ class ChannelBotService:
         """The tenant for management calls, or a loud failure if unscoped."""
         if self.organization_id is None:
             raise RuntimeError(
-                "ChannelBotService was built without an organization — this instance may only "
+                "ChannelBotService was built without an organization - this instance may only "
                 "serve inbound dispatch. Use the org-scoped dependency for management calls."
             )
         return self.organization_id
@@ -164,7 +164,7 @@ class ChannelBotService:
     async def get_active_polling_bots(self, platform: str) -> list[ChannelBot]:
         """Return active polling (non-webhook) bots for the given platform.
 
-        Deployment-wide, not org-scoped — the poller serves every tenant. Each
+        Deployment-wide, not org-scoped - the poller serves every tenant. Each
         bot returned carries its own ``organization_id``.
         """
         return await channel_bot_repo.get_active_polling_bots(self.db, platform)

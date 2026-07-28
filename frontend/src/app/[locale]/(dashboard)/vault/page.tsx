@@ -27,12 +27,12 @@ import { Perm } from "@/types/permissions";
 import type { Secret } from "@/types/secrets";
 
 /**
- * One sentence, in one place, so the skeleton and the page cannot disagree —
+ * One sentence, in one place, so the skeleton and the page cannot disagree -
  * a header that changes text when the data lands is a flicker nobody asked for.
  */
 const VAULT_DESCRIPTION =
   "Every key this organization has stored. Encrypted, bound to this organization, and never " +
-  "readable back — not through the API, and not here. An agent names a key by id, so rotating " +
+  "readable back - not through the API, and not here. An agent names a key by id, so rotating " +
   "one replaces the value everywhere at once.";
 
 /** How many keys are in there, in words rather than a bare digit. */
@@ -57,7 +57,7 @@ function KeysCard({ count, children }: { count: number | null; children: ReactNo
           <CardDescription className="text-xs">
             {/* `null` is "the request has not answered". Rendering "0 keys
                 stored" there would state something about the organization that
-                nothing has said yet — and it is the one number somebody would
+                nothing has said yet - and it is the one number somebody would
                 read as fact. */}
             {count === null ? <Skeleton className="h-3 w-24" /> : storedCount(count)}
           </CardDescription>
@@ -134,7 +134,7 @@ export default function VaultPage() {
             </div>
             <p className="text-foreground mt-4 text-sm font-medium">No keys yet</p>
             <p className="text-muted-foreground mx-auto mt-1 max-w-sm text-sm">
-              Add one and it becomes selectable wherever it is needed — a model provider in the
+              Add one and it becomes selectable wherever it is needed - a model provider in the
               Builder, a search service in a capability.
             </p>
             {canManage && (
@@ -170,7 +170,7 @@ export default function VaultPage() {
       />
 
       {/* Sharing lives behind a per-row dialog rather than a detail page: a
-          secret has nothing else to show — the value is unreadable by design —
+          secret has nothing else to show - the value is unreadable by design -
           so a page for one would be a page containing only this panel. */}
       <Dialog open={sharing !== null} onOpenChange={(open) => !open && setSharing(null)}>
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">

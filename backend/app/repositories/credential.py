@@ -1,6 +1,6 @@
 """Credential and ModelProfile repositories (PostgreSQL async).
 
-``organization_id`` is a required keyword on every function here — a provider
+``organization_id`` is a required keyword on every function here - a provider
 key is the last thing that should leak across tenants, and a forgotten filter
 must not look like an ordinary call (see tests/test_org_scope_regression.py).
 """
@@ -40,7 +40,7 @@ async def get_profile_by_label(
 async def get_profiles_by_ids(
     db: AsyncSession, profile_ids: list[UUID], *, organization_id: UUID
 ) -> dict[UUID, ModelProfile]:
-    """Fetch several profiles at once — used to resolve a fallback chain."""
+    """Fetch several profiles at once - used to resolve a fallback chain."""
     if not profile_ids:
         return {}
     result = await db.execute(

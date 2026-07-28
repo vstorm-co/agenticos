@@ -65,7 +65,7 @@ describe("useAgent draft", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("sends every per-tool decision to the server exactly as the Builder set it", async () => {
-    // The spec is PUT whole, so nothing here picks fields — which is precisely
+    // The spec is PUT whole, so nothing here picks fields - which is precisely
     // why a field added to the spec can go missing without anything failing.
     // A tool held for approval that arrives at the server unheld is the whole
     // feature quietly not existing.
@@ -126,8 +126,8 @@ describe("useAgent validation", () => {
     // one they avoid.
     //
     // Rejecting with a real `ApiError` carrying the real envelope is what makes
-    // this test worth having. It used to reject with `{details: {problems}}` —
-    // a shape nothing produces — and so it passed for months against a hook
+    // this test worth having. It used to reject with `{details: {problems}}` -
+    // a shape nothing produces - and so it passed for months against a hook
     // that read a property `ApiError` does not have and threw the list away.
     vi.mocked(apiClient.get).mockResolvedValue({ id: "a1", draft_spec: {} });
     vi.mocked(apiClient.post).mockRejectedValue(

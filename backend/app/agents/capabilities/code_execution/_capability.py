@@ -17,7 +17,7 @@ class CodeExecution(AbstractCapability[AgentDepsT]):
     """Lets an agent compute rather than guess.
 
     The sandbox is deliberately restricted: no network, no filesystem, a small
-    stdlib subset. That is what makes this safe to grant broadly — the failure
+    stdlib subset. That is what makes this safe to grant broadly - the failure
     mode of a general sandbox is remote code execution.
     """
 

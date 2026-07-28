@@ -13,8 +13,8 @@ arguments a person read. On the replay the gate executes those, not whatever the
 model proposes the second time round, so the model cannot change its mind
 between asking and acting.
 
-*No channel means no.* An agent running somewhere nobody can be asked — a
-schedule, a webhook — refuses the call and says so. Proceeding unattended is the
+*No channel means no.* An agent running somewhere nobody can be asked - a
+schedule, a webhook - refuses the call and says so. Proceeding unattended is the
 exact failure the approval queue exists to prevent.
 
 *A refusal is an answer, not a crash.* Both a rejection and a missing channel
@@ -48,13 +48,13 @@ logger = logging.getLogger(__name__)
 class ApprovalGate(AbstractCapability[AgentDeps]):
     """Stops a tool that needs a human from running before one has answered.
 
-    Gating is per *tool*. A capability is the unit you switch on — "this agent
-    may work with files" — but it is not the unit you approve: writing a file
+    Gating is per *tool*. A capability is the unit you switch on - "this agent
+    may work with files" - but it is not the unit you approve: writing a file
     and reading one are two decisions, and a queue that asks about both is a
     queue people learn to click through. Which names land here is resolved once
     from the spec, in :func:`app.agents.capabilities.approval.tool_needs_approval`.
 
-    Tools that no capability owns — an MCP server's, say — are not gated here,
+    Tools that no capability owns - an MCP server's, say - are not gated here,
     even if one happens to share a name with a gated tool. Their approval is a
     property of the connection, decided where the connection is configured, and
     inventing an answer for them here would be a guess.

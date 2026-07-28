@@ -37,7 +37,7 @@ describe("useSkills", () => {
 
   it("asks the database for the slice, rather than filtering what it happens to hold", async () => {
     // An organization's skills grow without bound, so the client never has them
-    // all — a client-side filter would search whichever fifty arrived first.
+    // all - a client-side filter would search whichever fifty arrived first.
     const { result } = renderHook(() => useSkills({ search: "refund", skip: 50, limit: 50 }), {
       wrapper,
     });

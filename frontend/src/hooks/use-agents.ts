@@ -43,8 +43,8 @@ export function useAgents({ includeArchived = false }: { includeArchived?: boole
   );
 
   // Alone among the mutations here, this one does not toast its failure. The
-  // things that stop an agent being created — the handle is taken, the name is
-  // too long — are things the reader can fix in the dialog they are looking at,
+  // things that stop an agent being created - the handle is taken, the name is
+  // too long - are things the reader can fix in the dialog they are looking at,
   // so the dialog decides what to do with them (see `submitFailure`). A toast
   // here would put the same message somewhere it cannot be acted on, and then
   // take it away again.
@@ -59,15 +59,15 @@ export function useAgents({ includeArchived = false }: { includeArchived?: boole
   /**
    * Copy an agent's draft into a new one.
    *
-   * The name is the server's to derive — it owns the handle that has to be
-   * unique — so cloning takes no input and never fails on a name the caller was
+   * The name is the server's to derive - it owns the handle that has to be
+   * unique - so cloning takes no input and never fails on a name the caller was
    * not offered a chance to choose.
    */
   const clone = useMutation({
     mutationFn: (id: string) => apiClient.post<Agent>(`/agents/${id}/clone`, {}),
     onSuccess: async (agent) => {
       await invalidate();
-      toast.success(`Created ${agent.name} — a draft, nothing published yet`);
+      toast.success(`Created ${agent.name} - a draft, nothing published yet`);
     },
     onError: (error) => toast.error(getErrorMessage(error)),
   });
@@ -88,7 +88,7 @@ export function useAgents({ includeArchived = false }: { includeArchived?: boole
       toast.success(
         agent.status === "published"
           ? `${agent.name} is live again`
-          : `${agent.name} is back as a draft — publish it to run it`,
+          : `${agent.name} is back as a draft - publish it to run it`,
       );
     },
     onError: (error) => toast.error(getErrorMessage(error)),
@@ -152,7 +152,7 @@ export function useAgent(agentId: string | null) {
       // had, so the list the backend goes out of its way to report in full was
       // always thrown away and replaced with one line. `problemList` reads the
       // envelope; the fallback is for the failures that are not a verdict on
-      // the spec at all — a refused permission, a dropped connection.
+      // the spec at all - a refused permission, a dropped connection.
       return problemList(error) ?? [getErrorMessage(error)];
     }
   }, [agentId]);
@@ -174,7 +174,7 @@ export function useAgent(agentId: string | null) {
       await invalidate();
       // Rolling back publishes a *new* version rather than moving a pointer
       // backwards, so run history keeps telling the truth about what was live.
-      toast.success(`Rolled back — now running v${version.version}`);
+      toast.success(`Rolled back - now running v${version.version}`);
     },
     onError: (error) => toast.error(getErrorMessage(error)),
   });
@@ -213,7 +213,7 @@ export function useAgentVersions(agentId: string | null) {
  *
  * Fetched per version rather than with the list: the list is a timeline, and a
  * spec is the whole configuration of an agent. A version never changes once
- * published, so this is cached for the session — the one query in this file
+ * published, so this is cached for the session - the one query in this file
  * where that is a fact about the data and not an optimism.
  */
 export function useAgentVersion(agentId: string | null, versionId: string | null) {

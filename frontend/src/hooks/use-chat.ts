@@ -67,8 +67,8 @@ export function useChat(options: UseChatOptions = {}) {
   const temperatureRef = useRef<number | null>(null);
   const thinkingEffortRef = useRef<"low" | "medium" | "high" | null>(null);
   // The agent the in-flight turn was addressed to, captured when the frame goes
-  // out. A ref for the same reason `currentMessageIdRef` is one — the WS handler
-  // reads it while stamping the assistant message — and captured rather than
+  // out. A ref for the same reason `currentMessageIdRef` is one - the WS handler
+  // reads it while stamping the assistant message - and captured rather than
   // read from the store at that moment, because switching agents while an answer
   // is streaming must not re-credit that answer to the newly picked agent.
   const turnAgentIdRef = useRef<string | null>(null);
@@ -170,7 +170,7 @@ export function useChat(options: UseChatOptions = {}) {
         }
 
         case "thinking_delta": {
-          // Reasoning trace from extended-thinking models — its own
+          // Reasoning trace from extended-thinking models - its own
           // ordered part so it renders before the tools/text that follow.
           if (!currentMessageIdRef.current) {
             createNewMessage("");
@@ -314,7 +314,7 @@ export function useChat(options: UseChatOptions = {}) {
           setIsProcessing(false);
           // Clear currentMessageId after complete (message_saved should have handled ID mapping)
           setCurrentMessageId(null);
-          // The turn just debited credits server-side — nudge any mounted
+          // The turn just debited credits server-side - nudge any mounted
           // billing view to refetch so the user doesn't see stale numbers.
           if (typeof window !== "undefined") {
             window.dispatchEvent(new Event("billing:refresh"));
@@ -325,7 +325,7 @@ export function useChat(options: UseChatOptions = {}) {
     },
     [
       // currentMessageId is read via currentMessageIdRef inside the handler,
-      // so we deliberately omit it here — that's the whole point of the ref.
+      // so we deliberately omit it here - that's the whole point of the ref.
       addMessage,
       updateMessage,
       appendTextDelta,
@@ -347,7 +347,7 @@ export function useChat(options: UseChatOptions = {}) {
 
   // The active org travels in the query string because a browser cannot set
   // headers on a WebSocket handshake (the HTTP API uses X-Organization-Id).
-  // An org id is not a secret — the server verifies membership and closes the
+  // An org id is not a secret - the server verifies membership and closes the
   // socket otherwise. Switching orgs changes the URL, which reconnects the
   // socket, so a conversation never continues under the wrong organization.
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
@@ -360,7 +360,7 @@ export function useChat(options: UseChatOptions = {}) {
     [accessToken],
   );
 
-  // Guards against firing a token refresh on every backoff attempt — one
+  // Guards against firing a token refresh on every backoff attempt - one
   // in-flight /me at a time is enough to recover a stale access token.
   const refreshingRef = useRef(false);
 
@@ -383,7 +383,7 @@ export function useChat(options: UseChatOptions = {}) {
             if (data.access_token) useAuthStore.getState().setAccessToken(data.access_token);
           }
         } catch {
-          // ignore — backoff reconnect will retry
+          // ignore - backoff reconnect will retry
         } finally {
           refreshingRef.current = false;
         }
@@ -430,7 +430,7 @@ export function useChat(options: UseChatOptions = {}) {
       if (activeKBIds.length) payload.active_knowledge_base_ids = activeKBIds;
       // Read at send time, not captured in the closure: the queue drainer calls
       // this up to a turn later, and the frame must name whatever is selected
-      // when it actually leaves. Omitted entirely for the general assistant —
+      // when it actually leaves. Omitted entirely for the general assistant -
       // the backend has no default agent, and an absent `agent_id` is what asks
       // for the assistant rather than a guess.
       const agentId = useAgentSelectionStore.getState().selectedAgentId;

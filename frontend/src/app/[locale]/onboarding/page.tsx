@@ -39,7 +39,7 @@ export default function OnboardingPage() {
           <EmptyState
             icon={Construction}
             title="Onboarding is under construction"
-            description="The setup wizard is being rebuilt. Nothing is blocking you — head into the workspace and start from there."
+            description="The setup wizard is being rebuilt. Nothing is blocking you - head into the workspace and start from there."
             cta={{ label: "Go to dashboard", href: ROUTES.DASHBOARD }}
             secondaryCta={{ label: "Start a chat", href: ROUTES.CHAT }}
             className="w-full"

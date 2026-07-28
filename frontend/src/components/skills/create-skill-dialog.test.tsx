@@ -23,7 +23,7 @@ function wrapper({ children }: { children: ReactNode }) {
 }
 
 const TAKEN =
-  "A skill named 'refund-policy' already exists. The name is how a model refers to a skill and cannot be changed afterwards, so choose a different one — or open the existing skill and edit it, which reaches every agent bound to it.";
+  "A skill named 'refund-policy' already exists. The name is how a model refers to a skill and cannot be changed afterwards, so choose a different one - or open the existing skill and edit it, which reaches every agent bound to it.";
 
 const NAME_TAKEN = new ApiError(409, TAKEN, {
   error: { code: "ALREADY_EXISTS", message: TAKEN, details: { name: "refund-policy" } },
@@ -48,8 +48,8 @@ describe("CreateSkillDialog", () => {
   });
 
   it("keeps the whole draft when the name is taken", async () => {
-    // Content is a ten row editor. Losing it — or making somebody re-open a
-    // dialog to find out what a toast said — is the cost of treating an
+    // Content is a ten row editor. Losing it - or making somebody re-open a
+    // dialog to find out what a toast said - is the cost of treating an
     // expected refusal as a failure.
     vi.mocked(apiClient.post).mockRejectedValue(NAME_TAKEN);
     await fill();

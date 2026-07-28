@@ -55,7 +55,7 @@ async def mattermost_webhook(
     if bot is None:
         # 200, not 404: an unknown or disabled bot is not something the sender
         # can fix, and a 4xx makes Mattermost disable the webhook after enough
-        # of them — which is a harder problem than the one it reports.
+        # of them - which is a harder problem than the one it reports.
         return Response(status_code=200)
 
     # A webhook with no secret is one anybody can post to, so it is refused

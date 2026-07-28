@@ -50,7 +50,7 @@ export function useInvitations(orgId: string) {
         );
         // The token is stripped before the invitation reaches the cache. It is
         // a bearer credential, it is already on its way to the invitee by
-        // email, and this cache backs the list rendered on the members page —
+        // email, and this cache backs the list rendered on the members page -
         // nothing here has a use for it, so nothing here keeps it.
         const { invitation_token: _token, ...invitation } = created;
         writeCache((prev) => [invitation, ...prev]);
@@ -65,7 +65,7 @@ export function useInvitations(orgId: string) {
   );
 
   // By id, under the organization. The backend also revokes by token, but that
-  // route is the invitee's — they have no id and no org — and putting a live
+  // route is the invitee's - they have no id and no org - and putting a live
   // credential in the URL of an authenticated admin action would only write it
   // into server logs and browser history.
   const revokeInvitation = useCallback(
@@ -81,7 +81,7 @@ export function useInvitations(orgId: string) {
     [orgId, writeCache],
   );
 
-  // POST /invitations/<token> *is* the accept — the proxy route maps it onto the
+  // POST /invitations/<token> *is* the accept - the proxy route maps it onto the
   // backend's /accept. Posting to `/invitations/<token>/accept` from here hit no
   // route at all and came back as the 404 page; because the failure was
   // swallowed below, the accept screen then announced "You joined the
@@ -101,7 +101,7 @@ export function useInvitations(orgId: string) {
    * Mint a shareable link, and hand the URL back once.
    *
    * Unlike `invite`, the token *is* returned to the caller: a link nobody can
-   * copy is a link that does nothing. It is still kept out of the cache — the
+   * copy is a link that does nothing. It is still kept out of the cache - the
    * page shows it once, in the dialog that asked for it, and the listing that
    * cache backs carries no tokens for the same reason it never has.
    */

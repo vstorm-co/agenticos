@@ -1,7 +1,7 @@
 """The public face of an embedded agent: config, widget, and a socket.
 
 Three endpoints, all reachable without a session, all authorised by the same
-thing — a public key plus the origin the browser reports. Nothing here reads a
+thing - a public key plus the origin the browser reports. Nothing here reads a
 cookie, and nothing here trusts a header the page could have set to anything.
 
 Why a WebSocket rather than a POST per message: an agent turn takes seconds and
@@ -52,7 +52,7 @@ async def embed_config(
     """What the widget renders itself from.
 
     Answers with the CORS header for the calling origin only when that origin is
-    on the widget's list — a wildcard here would let any site read the config
+    on the widget's list - a wildcard here would let any site read the config
     and, more to the point, would make the allow-list decorative.
     """
     try:

@@ -1,4 +1,4 @@
-"""Authorization at the route layer — the failure unit tests cannot see.
+"""Authorization at the route layer - the failure unit tests cannot see.
 
 A service can be perfectly guarded and the platform still wide open. The gate is
 one argument on a decorator, so a route that forgets ``require(...)`` or names
@@ -10,7 +10,7 @@ The load-bearing test is :class:`TestEveryPlatformRouteIsGuarded`. The rest
 prove that today's gates behave; that one proves the *next* route will have a
 gate at all.
 
-Callers are built from synthetic roles rather than the real ones — a role
+Callers are built from synthetic roles rather than the real ones - a role
 holding exactly one permission, and a role holding every permission except one.
 Driving the tests from ``owner`` and ``viewer`` would only show that some role
 is refused somewhere; isolating a single permission is what makes "this route is
@@ -45,8 +45,8 @@ _ORGANIZATION_ID = uuid4()
 _CALLER_ID = uuid4()
 _SOME_ID = UUID("00000000-0000-0000-0000-0000000000ff")
 
-# Path parameters are irrelevant to an authorization decision — the gate runs
-# before the handler ever loads a row — so every one of them gets the same id.
+# Path parameters are irrelevant to an authorization decision - the gate runs
+# before the handler ever loads a row - so every one of them gets the same id.
 _PATH_PARAM = re.compile(r"\{[^}]+\}")
 
 
@@ -73,7 +73,7 @@ def synthetic_roles(monkeypatch: pytest.MonkeyPatch) -> None:
 
     ``AuthContext`` reads its permissions out of ``ROLE_PERMS`` by name, so
     adding entries there is enough to describe a caller the product does not
-    ship — which is the point: a real role holds too much to tell which of its
+    ship - which is the point: a real role holds too much to tell which of its
     permissions a route is actually checking.
     """
     for permission in Perm:
@@ -181,7 +181,7 @@ class Call:
 _SPEC: dict[str, Any] = {"name": "Support"}
 
 # The intended gate for every platform route, written by hand. This is the
-# specification the tests below check the app against — so it must not be
+# specification the tests below check the app against - so it must not be
 # derived from the app, or a route wired to the wrong permission would simply
 # rewrite its own expectation.
 # Only routes that carry a role-level ``require()`` gate belong here.
@@ -267,7 +267,7 @@ CALLS: tuple[Call, ...] = (
     # The organization's secrets. Same permission as the provider keys, for the
     # A secret is a shared resource now: it has an owner, a visibility and
     # grants, so the *collection* routes carry a role gate and the per-row ones
-    # (PATCH, DELETE) hand the decision to the service — a gate there would
+    # (PATCH, DELETE) hand the decision to the service - a gate there would
     # refuse a member holding an explicit grant before `resolve_access` could
     # widen their access.
     Call("GET", "/secrets/kinds", Perm.SECRETS_VIEW),
@@ -292,7 +292,7 @@ class TestEachRouteDemandsItsOwnPermission:
 
     Two directions, because each catches a different mistake: refusing a caller
     who holds everything else catches a missing gate, and admitting a caller who
-    holds only the one permission catches a gate wired to the wrong one — or to
+    holds only the one permission catches a gate wired to the wrong one - or to
     more permissions than the route needs.
     """
 
@@ -403,7 +403,7 @@ def _is_platform(tail: str) -> bool:
 
     Prefix matching, with one exception. Collection sharing is mounted under
     the template's own ``/kb`` prefix, because a resource should have one
-    address and not two — so under ``/kb`` only the sharing endpoints are ours.
+    address and not two - so under ``/kb`` only the sharing endpoints are ours.
     """
     if tail.startswith("/kb/"):
         return "/sharing" in tail
@@ -436,8 +436,8 @@ def _required_permissions(route: APIRoute) -> frozenset[Perm]:
     """The permissions this route's dependency tree actually demands.
 
     Read out of the closure ``require()`` builds rather than off the source: a
-    dependency that is declared but never wired in — the exact mistake this file
-    exists to catch — is invisible to anything that reads the decorator.
+    dependency that is declared but never wired in - the exact mistake this file
+    exists to catch - is invisible to anything that reads the decorator.
     """
     required: set[Perm] = set()
     pending = list(route.dependant.dependencies)
@@ -452,13 +452,13 @@ def _required_permissions(route: APIRoute) -> frozenset[Perm]:
 
 # Services whose read path calls `resolve_access`, and which therefore decide
 # per row rather than per role. A route that depends on one of these is
-# authorized even without a `require()` gate — and *must* be, for anything
+# authorized even without a `require()` gate - and *must* be, for anything
 # acting on a single resource.
 RESOURCE_AWARE_SERVICES = (
     deps.get_sharing_service,
     deps.get_agent_registry_service,
     # Every exposure route acts on one agent, and the service resolves access to
-    # it before touching a binding — so where an agent is available is decided
+    # it before touching a binding - so where an agent is available is decided
     # by the same grants that decide whether it can be published at all.
     deps.get_agent_exposure_service,
     # A secret is a shared resource: who may edit or delete one is its grants'
@@ -497,13 +497,13 @@ class TestEveryPlatformRouteIsGuarded:
         Every route acting on a *single* resource is the deliberate second
         case. A ``require()`` gate tests the *role*, so a viewer holding an
         explicit edit grant on one agent would be refused before
-        ``resolve_access`` ever got to widen their access — contradicting the
+        ``resolve_access`` ever got to widen their access - contradicting the
         rule the access layer is built on. Those routes therefore carry no gate
         and let the service decide per row, which is proven by
         ``TestSharingRoutesRefuseWithoutAGrant`` below and by the grant flows in
         ``tests/integration/test_platform_flows.py``.
 
-        Routes acting on the *collection* — listing, creating, catalogs — keep
+        Routes acting on the *collection* - listing, creating, catalogs - keep
         their gate, because there is no resource whose grants could change the
         answer.
         """
@@ -517,7 +517,7 @@ class TestEveryPlatformRouteIsGuarded:
     def test_every_gated_route_is_named_in_the_permission_table(self) -> None:
         """A new gated route must state which permission it is gated on.
 
-        Failing here is not a bug report about the route — it is a missing entry
+        Failing here is not a bug report about the route - it is a missing entry
         in ``CALLS``, without which nothing checks that its gate is the right one.
         """
         tested = {(call.method, f"{settings.API_V1_STR}{call.path}") for call in CALLS}
@@ -558,7 +558,7 @@ class _NoRows:
 
 
 class _NoGrantsSession:
-    """Serves one resource and no grants — a member who was never shared with."""
+    """Serves one resource and no grants - a member who was never shared with."""
 
     def __init__(self, resource: _SomeoneElsesResource) -> None:
         self._resource = resource
@@ -588,7 +588,7 @@ def _sharing_calls() -> list[tuple[str, str, dict[str, Any] | None]]:
 class TestSharingRoutesRefuseWithoutAGrant:
     """What the missing ``require()`` on those routes is replaced by.
 
-    The caller here is a Member — a role that *holds* ``collections:edit``, just
+    The caller here is a Member - a role that *holds* ``collections:edit``, just
     not on this row. That is the case a role-level gate cannot express and the
     reason these routes delegate: the answer depends on the row, not the role.
     """
@@ -617,8 +617,8 @@ class TestSharingRoutesRefuseWithoutAGrant:
 # -- the inverse guard, for routes that are deliberately open -----------------
 
 # What ``/public`` will serve: an agent exposed to anonymous visitors. Nothing
-# is mounted there yet — the surface arrives with the identity work that makes it
-# defensible — and this table is empty on purpose rather than absent, so the
+# is mounted there yet - the surface arrives with the identity work that makes it
+# defensible - and this table is empty on purpose rather than absent, so the
 # first public route lands into a guard instead of beside one.
 #
 # Adding a route under ``/public`` means adding it here. That is the whole point:
@@ -633,7 +633,7 @@ _AUTHENTICATED_CALLER_DEPS = (
     deps.get_active_organization,
     # The WebSocket pair. A browser cannot set headers on a handshake, so the
     # socket reads its token from a subprotocol and its organization from the
-    # query string — a different mechanism, the same claim, and it has to count
+    # query string - a different mechanism, the same claim, and it has to count
     # as authentication or the sweep below would report ``/ws/agent`` as open.
     deps.get_current_user_ws,
     deps.get_active_organization_ws,
@@ -666,7 +666,7 @@ class TestLiteralPathsOutrankTheirParameters:
     """``/agents/capabilities`` must not be read as an agent named "capabilities".
 
     Starlette matches in declaration order, so a literal segment that sits below
-    an ``{agent_id}`` route is answered by that route instead — as a 422 about a
+    an ``{agent_id}`` route is answered by that route instead - as a 422 about a
     malformed UUID, before any gate or handler runs. Nothing else in the suite
     would notice: the gate test only asks whether a request is refused, and a 422
     is not a 403.
@@ -693,7 +693,7 @@ V1 = settings.API_V1_STR
 #
 # ``TestEveryPlatformRouteIsGuarded`` asks whether a route decides *something*,
 # which a route deciding nothing by design passes without a sound. ``/public``
-# has the table above for exactly that reason — and ``/public`` was the wrong
+# has the table above for exactly that reason - and ``/public`` was the wrong
 # boundary to draw it at: ``GET /rag/status/stream`` shipped with no
 # authentication and no tenant in its payload, nowhere near that prefix, and
 # nothing in this suite had an opinion. It answered 500 in production only
@@ -732,13 +732,13 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # A share link is a capability: whoever holds the token is the audience,
         # which is the whole point of being able to send it to somebody.
         ("GET", f"{V1}/conversations/shared/{{token}}"),
-        # Avatars, rendered by `<img src>` in contexts that have no session —
+        # Avatars, rendered by `<img src>` in contexts that have no session -
         # an invitation email, a public share. An id, and a picture the owner
         # uploaded to be seen.
         ("GET", f"{V1}/users/avatar/{{user_id}}"),
         # Deployment configuration rather than tenant data: which parsers this
         # build has. The same answer for every caller, so there is nothing here
-        # to scope — and nothing to protect either.
+        # to scope - and nothing to protect either.
         ("GET", f"{V1}/rag/supported-formats"),
         # Inbound webhooks. Slack and Telegram will not send our tokens; they
         # sign or secret their own requests, and each handler verifies that
@@ -753,7 +753,7 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # The public face of an embedded agent. There is no session to have:
         # these are reached from a stranger's browser on somebody else's site.
         # What authorises them is the widget's key plus the `Origin` the browser
-        # reports, checked against the allow-list on the row — and, in `jwt`
+        # reports, checked against the allow-list on the row - and, in `jwt`
         # mode, a token the customer's own backend signed. `widget.js` carries
         # no secret and decides nothing; the socket is where admission happens.
         ("GET", f"{V1}/embed/{{public_key}}/config"),
@@ -767,8 +767,8 @@ def _routes_with_dependencies() -> list[tuple[str, str]]:
     """Every (method, path) the app serves, WebSocket handshakes included.
 
     Sockets are swept too because they are the easiest place to leave a hole:
-    their authentication is hand-rolled — a token in a subprotocol, an
-    organization in the query string — and none of it is visible in the
+    their authentication is hand-rolled - a token in a subprotocol, an
+    organization in the query string - and none of it is visible in the
     decorator.
     """
     found = []
@@ -777,7 +777,7 @@ def _routes_with_dependencies() -> list[tuple[str, str]]:
             methods = sorted(route.methods - {"HEAD", "OPTIONS"})
         elif isinstance(route, APIWebSocketRoute):
             methods = ["WEBSOCKET"]
-        else:  # openapi.json, /docs, /redoc — served by Starlette, not us
+        else:  # openapi.json, /docs, /redoc - served by Starlette, not us
             continue
         found.extend((method, route.path) for method in methods)
     return found
@@ -809,7 +809,7 @@ class TestEveryUnauthenticatedRouteIsDeliberate:
         )
         assert not undeclared, (
             "routes reachable without a session that nothing declares as open: "
-            f"{undeclared} — either add the caller dependency or add it to "
+            f"{undeclared} - either add the caller dependency or add it to "
             "UNAUTHENTICATED_ROUTES with the reason it has to be open"
         )
 
@@ -828,7 +828,7 @@ class TestEveryUnauthenticatedRouteIsDeliberate:
 
         ``_depends_on_a_caller`` walks a dependency tree; if it stopped finding
         anything, every route would look open and both tests above would fail
-        loudly — but if it started finding something everywhere, they would both
+        loudly - but if it started finding something everywhere, they would both
         pass on an empty set. This is the direction that fails quietly.
         """
         open_now = set(_unauthenticated_routes())

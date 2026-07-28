@@ -24,7 +24,7 @@ class AgentRunRead(BaseSchema):
     output_tokens: int
     cost_usd: Decimal
     cost_is_partial: bool = Field(
-        description="True when a model in this run had no price — the cost is a floor"
+        description="True when a model in this run had no price - the cost is a floor"
     )
     logfire_trace_id: str | None = Field(
         default=None, description="Deep-link into the full trace; spans are not duplicated here"

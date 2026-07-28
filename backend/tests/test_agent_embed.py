@@ -1,4 +1,4 @@
-"""Tests for embedded agents — an agent published to the public internet.
+"""Tests for embedded agents - an agent published to the public internet.
 
 Everything here is about admission. A widget key lives in a `<script>` tag on
 somebody's marketing site, so the key is not a secret and cannot be the whole
@@ -191,7 +191,7 @@ class TestTokenMode:
 
     @pytest.mark.anyio
     async def test_the_origin_is_checked_before_the_token(self):
-        """A probe from an unlisted site must learn nothing about tokens — the
+        """A probe from an unlisted site must learn nothing about tokens - the
         unseal is what would tell it, so it must never happen."""
         unseal = MagicMock()
         with (

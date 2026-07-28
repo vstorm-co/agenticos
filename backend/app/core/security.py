@@ -56,7 +56,7 @@ def create_password_reset_token(
     """Single-use JWT for password reset.
 
     Short-lived (1h default). The `type` claim distinguishes it from access /
-    refresh / magic-link tokens — a stolen reset token can't be used as an
+    refresh / magic-link tokens - a stolen reset token can't be used as an
     access token.
     """
     expire = datetime.now(UTC) + (expires_delta or timedelta(hours=1))

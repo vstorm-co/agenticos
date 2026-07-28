@@ -1,4 +1,4 @@
-"""Admin observability — workspace stats and per-service health."""
+"""Admin observability - workspace stats and per-service health."""
 
 from typing import Any
 
@@ -30,7 +30,7 @@ async def get_system_health(
     """Per-service health for the admin system page.
 
     Separate from ``/health/ready`` on purpose. That endpoint is a readiness
-    probe — unauthenticated, and answering a load balancer's question — and
+    probe - unauthenticated, and answering a load balancer's question - and
     serving a dashboard from it is what previously put a Stripe row and an
     unprobed vector store on a page operators were expected to trust. Here every
     check carries the detail of what was actually verified, because an admin

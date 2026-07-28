@@ -1,4 +1,4 @@
-"""Agent embeds — one agent published as a widget for somebody else's site
+"""Agent embeds - one agent published as a widget for somebody else's site
 
 Revision ID: 0049_agent_embeds
 Revises: 0048_mattermost
@@ -7,11 +7,11 @@ Create Date: 2026-07-28
 The constraints are the interesting part, and each one closes a failure that is
 silent rather than loud:
 
-`ck_embed_jwt_needs_secret` — an embed in `jwt` mode with no secret cannot
+`ck_embed_jwt_needs_secret` - an embed in `jwt` mode with no secret cannot
 verify a token. The dangerous reading is not "everything is rejected", it is a
 later refactor treating a missing secret as "no check required".
 
-`ck_embed_rate_limit_positive` — a limit of zero is not a stricter limit, it is
+`ck_embed_rate_limit_positive` - a limit of zero is not a stricter limit, it is
 a widget that can never answer, and somebody would reach it by clearing a field
 rather than by deciding to.
 

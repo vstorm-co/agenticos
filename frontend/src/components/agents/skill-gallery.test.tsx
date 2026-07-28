@@ -46,7 +46,7 @@ describe("SkillGallery", () => {
 
   it("says nothing about missing skills when it was only given a page of them", () => {
     // The bug this prevents: paging the list turns every skill the Builder did
-    // not fetch into an accusation that publishing will be refused — about a
+    // not fetch into an accusation that publishing will be refused - about a
     // skill that is fine and still bound.
     render(
       <SkillGallery

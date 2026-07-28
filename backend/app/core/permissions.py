@@ -1,4 +1,4 @@
-"""Permission catalog — the single source of truth for what a member may do.
+"""Permission catalog - the single source of truth for what a member may do.
 
 The rule the rest of the codebase follows: **permissions are defined in code,
 roles are composed from them.** Call sites check permissions, never role names,
@@ -6,14 +6,14 @@ so adding or re-shaping a role never means editing an endpoint.
 
 Two kinds of permission, and they behave differently:
 
-*Global* permissions are binary and org-wide — you may manage members, or you
+*Global* permissions are binary and org-wide - you may manage members, or you
 may not. *Resource* permissions carry a :class:`Scope` answering the second
 question a role cannot: not "may this role touch agents?" but "*which* agents?"
 A Member creates their own agents and sees only those plus what was shared with
 them; a Builder sees every agent in the org but may only edit the shared ones.
 
 Effective access to one resource is ``max(role scope, grant on that resource)``
-— see :func:`app.services.access.resolve_access`. A grant can widen what a role
+- see :func:`app.services.access.resolve_access`. A grant can widen what a role
 allows for a single row; it never narrows it.
 """
 
@@ -29,11 +29,11 @@ from app.core.exceptions import AuthorizationError
 class Perm(StrEnum):
     """Everything a member can be allowed to do.
 
-    Clients cannot invent permissions — a custom role (Phase 2) may only
+    Clients cannot invent permissions - a custom role (Phase 2) may only
     recombine the values listed here.
     """
 
-    # Resource permissions — always carry a Scope.
+    # Resource permissions - always carry a Scope.
     AGENTS_VIEW = "agents:view"
     AGENTS_EDIT = "agents:edit"
     AGENTS_PUBLISH = "agents:publish"
@@ -45,11 +45,11 @@ class Perm(StrEnum):
     # A stored key is a shared resource like any other: it has an owner, a
     # visibility and grants. `connections:manage` used to gate the whole vault,
     # which made "can see every key in the organization" and "can add a bot"
-    # the same answer — and left a member no way to keep a key of their own.
+    # the same answer - and left a member no way to keep a key of their own.
     SECRETS_VIEW = "secrets:view"
     SECRETS_EDIT = "secrets:edit"
 
-    # Global permissions — binary, org-wide.
+    # Global permissions - binary, org-wide.
     APPROVALS_DECIDE = "approvals:decide"
     CONNECTIONS_MANAGE = "connections:manage"
     MCP_MANAGE = "mcp:manage"
@@ -103,7 +103,7 @@ class Scope(StrEnum):
 
         Returning ``NotImplemented`` would be the usual convention, but ``Scope``
         subclasses ``str``: Python would fall back to string comparison, which
-        orders the values alphabetically (``all < none < own``) — the opposite of
+        orders the values alphabetically (``all < none < own``) - the opposite of
         what they mean. A silent wrong answer in an authorization check is worse
         than a loud one, so mixed comparisons raise.
         """
@@ -175,7 +175,7 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.SKILLS_EDIT: Scope.ALL,
     },
     # Builder sees the whole org to learn from it, but edits only what is theirs
-    # or was shared with them — so one builder cannot rewrite another's agent.
+    # or was shared with them - so one builder cannot rewrite another's agent.
     OrgRoleName.BUILDER: {
         Perm.AGENTS_VIEW: Scope.ALL,
         Perm.AGENTS_EDIT: Scope.SHARED,
@@ -191,7 +191,7 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.CONNECTIONS_MANAGE: Scope.ALL,
         Perm.RUNS_VIEW: Scope.ALL,
     },
-    # Operator keeps the running system healthy: approves, watches, reruns —
+    # Operator keeps the running system healthy: approves, watches, reruns -
     # but does not build.
     OrgRoleName.OPERATOR: {
         Perm.AGENTS_VIEW: Scope.ALL,
@@ -226,7 +226,7 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
 def role_has(role: str, permission: Perm) -> bool:
     """Whether a role holds a permission, ignoring resource scope.
 
-    For code that has a role string but no request — a service checking what the
+    For code that has a role string but no request - a service checking what the
     *other* party may do, a background job reasoning about a stored membership.
     Call sites check permissions rather than role names for the same reason
     endpoints do: adding a role should never mean editing an authorization
@@ -249,7 +249,7 @@ class AuthContext:
     to whatever needs to make a decision, so a route never re-derives it.
 
     ``user_id`` is optional, and that is a statement rather than a convenience.
-    Every run on this platform has a subject — budgets, resource grants, the
+    Every run on this platform has a subject - budgets, resource grants, the
     audit trail and the approval gate all key on one, and
     :mod:`app.services.channels.mentions` refuses an unlinked chat identity for
     exactly that reason. A surface open to anonymous visitors breaks the
@@ -289,7 +289,7 @@ class AuthContext:
         actor, an approval names who decided it, and a listing of "mine plus
         what was shared with me" is meaningless without a me. Those call sites
         read this instead of :attr:`user_id`, which keeps their typing honest
-        and — more usefully — makes "this needs a person" something the code
+        and - more usefully - makes "this needs a person" something the code
         says rather than assumes.
 
         Raises:
@@ -317,7 +317,7 @@ class AuthContext:
         would have stopped it.
 
         A platform superadmin gets everything: they administer the deployment
-        and already have database access — pretending otherwise would be
+        and already have database access - pretending otherwise would be
         security theatre, and the audit log is what actually holds them to it.
         """
         if self.is_anonymous:

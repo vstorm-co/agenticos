@@ -1,7 +1,7 @@
 """Presenting a capability's tools under the names one agent chose.
 
-A tool's description is the highest-leverage prompt in the product — it is the
-last thing the model reads before deciding whether to act — and the name is read
+A tool's description is the highest-leverage prompt in the product - it is the
+last thing the model reads before deciding whether to act - and the name is read
 with it. The same search is `search_refund_policy` for one agent and
 `search_orders` for another, and steering a model usually means rewording a tool
 rather than writing a second one.
@@ -9,7 +9,7 @@ rather than writing a second one.
 Applied by wrapping the capability rather than by each capability offering its
 own rename field: a mechanism a capability author has to remember to provide is
 a mechanism five of six capabilities will not have. Wrapping also keeps the
-rewrite *narrow* — only the wrapped capability's tools change, so an MCP server
+rewrite *narrow* - only the wrapped capability's tools change, so an MCP server
 that happens to expose a tool of the same name is left alone, exactly as the
 approval gate leaves it alone.
 
@@ -50,7 +50,7 @@ class ToolOverrides(WrapperCapability[AgentDepsT]):
             # A capability whose toolset is a per-run function has no tool list
             # to rename here. Returning it untouched would leave an agent whose
             # spec says one thing and whose model sees another, with nothing
-            # reporting the difference — including to the approval gate, which
+            # reporting the difference - including to the approval gate, which
             # would then be watching for a name the model never calls.
             raise TypeError(
                 f"Capability {self.id!r} resolves its toolset per run, "

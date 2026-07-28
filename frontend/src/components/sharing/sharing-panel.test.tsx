@@ -101,7 +101,7 @@ describe("SharingPanel", () => {
 
   it("does not offer a visibility this product has no concept of", () => {
     // "Team" is a third value the column accepts and `resolve_access`
-    // understands, and it means "anyone whose role reaches team resources" —
+    // understands, and it means "anyone whose role reaches team resources" -
     // a role scope with no team behind it, because there are no teams here.
     // Offering it asked people to choose between a concept the product has and
     // one it does not.
@@ -111,7 +111,7 @@ describe("SharingPanel", () => {
 
   it("still shows Team for a row already set to it", () => {
     // Otherwise a legacy row renders with nothing selected, and the one action
-    // that would fix it — picking something else — looks like it is already done.
+    // that would fix it - picking something else - looks like it is already done.
     renderPanel(true, { visibility: "team" });
     expect(screen.getByRole("radio", { name: /Team/ })).toBeChecked();
   });
@@ -176,7 +176,7 @@ describe("SharingPanel", () => {
 
     expect(await screen.findByRole("option", { name: "nina@example.com" })).toBeInTheDocument();
     // Sam already has a grant and the owner cannot be granted access they
-    // already own — offering either produces a call the server refuses.
+    // already own - offering either produces a call the server refuses.
     expect(screen.queryByRole("option", { name: "sam@example.com" })).not.toBeInTheDocument();
     expect(screen.queryByRole("option", { name: "owner@example.com" })).not.toBeInTheDocument();
   });

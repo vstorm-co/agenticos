@@ -37,7 +37,7 @@ export type { McpServerRow };
  * they are joined here and the page renders rows.
  *
  * Probe results are held in local state rather than the query cache because
- * they are not a resource anyone can GET — they exist only as the answer to a
+ * they are not a resource anyone can GET - they exist only as the answer to a
  * check somebody asked for. The lists, which a check does change server-side,
  * are refetched by the hook that owns them.
  */

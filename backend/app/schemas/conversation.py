@@ -87,7 +87,7 @@ class MessageRead(MessageBase, TimestampSchema):
     agent_version_id: UUID | None = None
     agent_version: int | None = Field(
         default=None,
-        description="The version number behind agent_version_id — a UUID names nothing to a reader",
+        description="The version number behind agent_version_id - a UUID names nothing to a reader",
     )
     tool_calls: list[ToolCallRead] = Field(default_factory=list)
     files: list[MessageFileRead] = Field(default_factory=list)
@@ -112,7 +112,7 @@ class MessageReadSimple(MessageBase, TimestampSchema):
     agent_version_id: UUID | None = None
     agent_version: int | None = Field(
         default=None,
-        description="The version number behind agent_version_id — a UUID names nothing to a reader",
+        description="The version number behind agent_version_id - a UUID names nothing to a reader",
     )
 
 

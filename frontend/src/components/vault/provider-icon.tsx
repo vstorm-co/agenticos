@@ -34,7 +34,7 @@ import { cn } from "@/lib/utils";
  *
  * **Why the deep import.** `@lobehub/icons/es/OpenAI` is the package's per-icon
  * entry, but it pulls in that icon's `Avatar`, which pulls in `@lobehub/ui` and
- * `antd-style` — an Ant Design runtime this app does not have and will not
+ * `antd-style` - an Ant Design runtime this app does not have and will not
  * take on for a 24×24 logo. The leaf component is the whole icon and imports
  * nothing but React, so that is what is imported. Never
  * `from "@lobehub/icons"`: the barrel is 332 brands and the same Ant runtime.
@@ -80,7 +80,7 @@ interface ProviderIconProps {
  *
  * Three of the platform's providers have no brand mark anywhere (Heroku AI,
  * OVHcloud, a LiteLLM proxy), and a deployment gains a provider whenever
- * Pydantic AI does — so the missing case is the normal case, not the error
+ * Pydantic AI does - so the missing case is the normal case, not the error
  * case. It renders as a bordered initial in the same square the logos occupy,
  * which reads as deliberate; a broken image or a blank gap does not.
  *

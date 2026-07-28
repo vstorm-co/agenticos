@@ -1,10 +1,10 @@
-"""Capabilities — the units an agent is assembled from.
+"""Capabilities - the units an agent is assembled from.
 
 A capability is what gets plugged into an agent: knowledge search, web research,
 a budget guard, a set of skills. It is the right unit to switch on and off,
-because that is the decision people actually make — "knowledge search" is one
+because that is the decision people actually make - "knowledge search" is one
 switch, not one per tool it exposes. And unlike a tool, a capability covers
-things that are not tools at all — enforcement, compaction, guardrails — so one
+things that are not tools at all - enforcement, compaction, guardrails - so one
 concept covers the whole assembly instead of two that overlap awkwardly.
 
 Two decisions are *not* per capability, and both are keyed on a tool's stable

@@ -39,7 +39,7 @@ export function useConversations() {
   const { clearMessages } = useChatStore();
   const hasMoreRef = useRef(true);
   // Tracks the in-flight message fetch so a rapid conversation switch can abort
-  // the previous request — otherwise a slower earlier fetch could resolve last
+  // the previous request - otherwise a slower earlier fetch could resolve last
   // and overwrite the messages of the conversation the user actually selected.
   const messagesAbortRef = useRef<AbortController | null>(null);
 
@@ -86,7 +86,7 @@ export function useConversations() {
         const msgs = await apiClient.get<MessagesResponse>(`/conversations/${urlId}/messages`);
         setCurrentMessages(msgs.items);
       } catch {
-        // Not accessible (deleted, no permission) — clear the stale id
+        // Not accessible (deleted, no permission) - clear the stale id
         setCurrentConversationId(null);
       }
     }
@@ -165,7 +165,7 @@ export function useConversations() {
         if (controller.signal.aborted) return;
         setCurrentMessages(response.items);
       } catch (err) {
-        // Ignore aborted/superseded requests — they're expected on rapid switch.
+        // Ignore aborted/superseded requests - they're expected on rapid switch.
         if (
           controller.signal.aborted ||
           (err instanceof DOMException && err.name === "AbortError")

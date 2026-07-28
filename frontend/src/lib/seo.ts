@@ -39,7 +39,7 @@ export const SITE = {
     "multi-tenant",
     "audit trail",
   ],
-  /** Locale defaults — pulls from your i18n config. */
+  /** Locale defaults - pulls from your i18n config. */
   defaultLocale,
   locales: [...locales],
 } as const;
@@ -99,7 +99,7 @@ export function pageMetadata(input: PageMetaInput): Metadata {
           url: ogImageUrl,
           width: 1200,
           height: 630,
-          alt: `${SITE.name} — ${SITE.tagline}`,
+          alt: `${SITE.name} - ${SITE.tagline}`,
         },
       ],
     },

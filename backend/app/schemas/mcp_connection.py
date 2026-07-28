@@ -59,7 +59,7 @@ class McpConnectionRead(TimestampSchema, BaseSchema):
     @classmethod
     def from_model(cls, connection: McpConnection) -> McpConnectionRead:
         # Authorized once the live payload is written, which happens only after
-        # a successful token exchange — this avoids decrypting it just to render
+        # a successful token exchange - this avoids decrypting it just to render
         # the list. A pending re-authorization lives in oauth_pending_payload
         # and must not flip a working connection back to "not connected".
         oauth_authorized = connection.auth_type == "oauth" and connection.oauth_payload is not None
@@ -120,8 +120,8 @@ class OrgMcpConnectionRead(McpConnectionRead):
     """An organization connection as the API returns it.
 
     Adds only ``catalog_key``: the Builder and the servers page both want to
-    show a curated server's real name and logo, and matching on the URL — which
-    is what the frontend does for personal connections — guesses where this
+    show a curated server's real name and logo, and matching on the URL - which
+    is what the frontend does for personal connections - guesses where this
     knows.
     """
 
@@ -144,7 +144,7 @@ class McpToolRead(BaseSchema):
 
 
 class WorkspaceMcpServerRead(BaseSchema):
-    """Deployment-managed server from MCP_SERVERS — read-only in the UI.
+    """Deployment-managed server from MCP_SERVERS - read-only in the UI.
 
     Deliberately omits the URL and headers: those are deployment config and
     may point at internal infrastructure.

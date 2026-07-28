@@ -36,7 +36,7 @@ interface CreateSkillDialogProps {
  *
  * The name is unique per organization and cannot be changed afterwards, so a
  * collision is both the likeliest refusal and the one that most needs to land
- * on the field rather than in a toast — everything the reader typed into a ten
+ * on the field rather than in a toast - everything the reader typed into a ten
  * row editor is still worth keeping.
  */
 export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps) {
@@ -76,7 +76,7 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
     try {
       const skill = await create.mutateAsync({ name, description, content });
       // Files go up after the skill exists, because a resource hangs off a
-      // skill id — there is nothing to attach them to before this point. A
+      // skill id - there is nothing to attach them to before this point. A
       // failure here leaves the skill created and says so, rather than
       // pretending nothing happened and leaving a half-made one behind.
       if (files.length > 0) {
@@ -154,7 +154,7 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
           <div className="space-y-1.5">
             <p className="text-sm font-medium">Files</p>
             <p className="text-muted-foreground text-xs">
-              Optional. Drop the folder a skill came in — `references/`, `scripts/` and the rest
+              Optional. Drop the folder a skill came in - `references/`, `scripts/` and the rest
               keep their paths, and the agent loads one only when it decides it needs it.
             </p>
             <div className="flex flex-wrap items-center gap-1.5">
@@ -223,7 +223,7 @@ function FilePicker({
       <input
         type="file"
         multiple
-        // Not in React's JSX types — a real attribute every browser that matters
+        // Not in React's JSX types - a real attribute every browser that matters
         // implements, and the only way to pick a folder.
         {...(directory ? ({ webkitdirectory: "" } as Record<string, string>) : {})}
         className="hidden"

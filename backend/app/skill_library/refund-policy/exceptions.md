@@ -22,7 +22,7 @@ did not stick.
 
 ## Goodwill
 
-Up to the goodwill limit, once per customer, at the agent's discretion — for
+Up to the goodwill limit, once per customer, at the agent's discretion - for
 example a long support thread that should have been one message. Record it as
 goodwill so it does not read as an admission that the original charge was wrong.
 

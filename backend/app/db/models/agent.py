@@ -1,4 +1,4 @@
-"""Agent registry — configured agents and their published versions.
+"""Agent registry - configured agents and their published versions.
 
 Two tables, because an agent has two lifetimes. The ``agents`` row is the thing
 people talk about: it has a name, an owner, a sharing state, and it persists
@@ -6,7 +6,7 @@ across every edit. An ``agent_versions`` row is one frozen spec: what actually
 ran, at a point in time, attributable and reproducible.
 
 Editing writes a draft on the agent; publishing snapshots it into a version and
-points the agent at it. Runs record the *version*, not the agent — so "why did
+points the agent at it. Runs record the *version*, not the agent - so "why did
 it answer that last Tuesday" stays answerable after the agent has been rewritten
 three times.
 """
@@ -27,7 +27,7 @@ from app.db.models.resource_grant import Visibility
 class AgentStatus(enum.StrEnum):
     """Whether an agent is runnable.
 
-    ``DRAFT`` has never been published and cannot be run — there is no frozen
+    ``DRAFT`` has never been published and cannot be run - there is no frozen
     spec to run. ``PUBLISHED`` has a current version. ``ARCHIVED`` keeps its
     history and its runs but is hidden and refuses new runs, which is what
     people actually want when they say "delete": stop it, keep the trail.
@@ -69,7 +69,7 @@ class Agent(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # A storage path, never a URL the browser dereferences — the file is served
+    # A storage path, never a URL the browser dereferences - the file is served
     # by this API so that reading it goes through the same access check the
     # agent does. Deliberately not part of the spec: the spec is what runs and
     # what gets exported to git, and a picture changes neither.
@@ -98,7 +98,7 @@ class Agent(Base, TimestampMixin):
     )
 
     # Declared here as well as in the migration: a schema built from the models
-    # — which is what the integration tests and some dev setups do — would
+    # - which is what the integration tests and some dev setups do - would
     # otherwise accept values the production database rejects, and the tests
     # asserting those constraints would pass against a schema that lacks them.
     __table_args__ = (
@@ -121,7 +121,7 @@ class AgentVersion(Base, TimestampMixin):
 
     Immutable by convention: nothing updates a version after insert. Rolling
     back means publishing a new version whose spec is copied from an old one,
-    which keeps history linear and honest — the timeline shows that a rollback
+    which keeps history linear and honest - the timeline shows that a rollback
     happened rather than pretending the bad version never existed.
     """
 
@@ -144,7 +144,7 @@ class AgentVersion(Base, TimestampMixin):
     )
     version: Mapped[int] = mapped_column(Integer, nullable=False)
     spec: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
-    # Why this version exists — a commit message for agents.
+    # Why this version exists - a commit message for agents.
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     published_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),

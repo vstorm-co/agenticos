@@ -11,7 +11,7 @@ For each existing organization:
   3. For rag_documents with no organization_id, assigns them to a special
      "unclaimed" app-scoped KB (created here if needed).
 
-This migration is idempotent — safe to re-run.
+This migration is idempotent - safe to re-run.
 """
 
 import uuid

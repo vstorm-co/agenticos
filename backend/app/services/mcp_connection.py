@@ -2,19 +2,19 @@
 
 A connection is a row pointing at a remote MCP server (streamable HTTP or SSE,
 inferred from the URL). Two kinds share this service because they share almost
-everything — URL validation, the probe, toolset building — and differ in exactly
+everything - URL validation, the probe, toolset building - and differ in exactly
 two places, both of which are the point:
 
 *Who owns it.* A personal connection (Settings → Your connections) is scoped to
 one member and reached only by their own assistant. An organization connection
 is scoped to the organization, gated on ``connections:manage``, and is the only
-kind an agent spec may bind — a published agent that answered differently
+kind an agent spec may bind - a published agent that answered differently
 depending on whose session ran it could not be reviewed or reasoned about.
 
 *Who its credential is sealed for.* Both go through :mod:`app.core.vault`; what
 differs is the scope the envelope is bound to. An organization token is bound to
 the organization, so a ciphertext lifted into another tenant's row fails to
-unwrap. A personal one is bound to the *member* — not to an organization,
+unwrap. A personal one is bound to the *member* - not to an organization,
 because a personal connection has none and its owner may belong to several, so
 binding it to whichever was active when they added it would make the token
 unreadable the moment they switched. Neither is encrypted with a deployment-wide
@@ -22,7 +22,7 @@ key any more; that gave a ciphertext no owner at all.
 
 The service also owns SSRF validation of submitted URLs (same policy as
 webhooks), the connectivity test that discovers a server's tools, and building
-per-turn agent toolsets — either from the user's own enabled connections (the
+per-turn agent toolsets - either from the user's own enabled connections (the
 general assistant) or from the organization-scoped ones a published agent's
 spec names.
 """
@@ -71,7 +71,7 @@ logger = logging.getLogger(__name__)
 
 
 def _oauth_redirect_uri() -> str:
-    """Where the provider sends the user back — a Next route that forwards the
+    """Where the provider sends the user back - a Next route that forwards the
     code + state to our (state-authenticated) callback endpoint."""
     return f"{settings.FRONTEND_URL.rstrip('/')}/api/me/mcp-connections/oauth/callback"
 
@@ -85,7 +85,7 @@ def _apply_token(payload: McpOAuthPayload, token: OAuthToken) -> McpOAuthPayload
     return payload.model_copy(
         update={
             "access_token": token.access_token,
-            # A refresh response may omit refresh_token — keep the existing one.
+            # A refresh response may omit refresh_token - keep the existing one.
             "refresh_token": token.refresh_token or payload.refresh_token,
             "expires_at": (_now_epoch() + token.expires_in) if token.expires_in else None,
             "scope": token.scope or payload.scope,
@@ -100,7 +100,7 @@ def connection_scope(connection: McpConnection) -> VaultScope:
     Raises:
         BadRequestError: If the row has no owner for its scope. Both cases are
             forbidden by a check constraint and impossible through the API, so
-            the only way to reach either is corrupted data — which must fail
+            the only way to reach either is corrupted data - which must fail
             rather than quietly fall through to the other scope and report
             "wrong master key" about a row that was never sealed with it.
     """
@@ -213,8 +213,8 @@ async def sweep_oauth_connections(db: AsyncSession) -> dict[str, int]:
     The lazy refresh in :func:`_oauth_access_token` is the load-bearing one and
     stays: it renews exactly when a token is needed, which no schedule can beat.
     What it cannot do is tell anybody *before* the fact. A refresh token that a
-    provider has revoked — because the grant was withdrawn, or it sat unused
-    past its own lifetime — is discovered by an agent, mid-run, in front of
+    provider has revoked - because the grant was withdrawn, or it sat unused
+    past its own lifetime - is discovered by an agent, mid-run, in front of
     whoever asked the question.
 
     This is the sweep that finds it first. It touches only connections whose
@@ -247,7 +247,7 @@ async def sweep_oauth_connections(db: AsyncSession) -> dict[str, int]:
             db_connection=connection,
             update_data={
                 "last_status": "ok" if healthy else "error",
-                "last_error": None if healthy else "Authorization expired — reconnect this server",
+                "last_error": None if healthy else "Authorization expired - reconnect this server",
                 "last_checked_at": datetime.now(UTC),
             },
         )
@@ -350,7 +350,7 @@ class McpConnectionService:
             update_data.setdefault("last_error", None)
             update_data.setdefault("last_checked_at", None)
 
-        # OAuth tokens are bound to the resource they were issued for — never
+        # OAuth tokens are bound to the resource they were issued for - never
         # carry them over to a different host. The user re-authorizes instead.
         moved = "url" in update_data and update_data["url"] != db_connection.url
         if moved and db_connection.auth_type == "oauth":
@@ -403,7 +403,7 @@ class McpConnectionService:
     async def oauth_start_for_org(self, ctx: AuthContext, *, name: str, url: str) -> str:
         """Begin the OAuth flow for a server the *organization* will own.
 
-        The grant is still one person's — somebody clicks consent, and the
+        The grant is still one person's - somebody clicks consent, and the
         tokens that come back are theirs at the provider. What differs is who
         holds the connection afterwards: the organization, so every agent can
         reach it, which is what a shared service account is for.
@@ -469,7 +469,7 @@ class McpConnectionService:
         after ``mcp_oauth.FLOW_TTL_SECS``.
 
         What the two scopes differ in is only where the row lives and whose
-        envelope seals it — so those are arguments, and the flow is written
+        envelope seals it - so those are arguments, and the flow is written
         once. Two copies of an OAuth handshake is two places for a PKCE verifier
         to be dropped.
         """
@@ -501,7 +501,7 @@ class McpConnectionService:
             # Sealed at the row's own key version: one row, one version, so the
             # pending payload stays readable alongside a token sealed before a
             # rotation moved the row on.
-            # Only the pending flow is written — the live tokens and the URL
+            # Only the pending flow is written - the live tokens and the URL
             # they belong to move over in oauth_callback, once consent lands.
             await mcp_connection_repo.update(
                 self.db,
@@ -537,7 +537,7 @@ class McpConnectionService:
         """Complete the flow: exchange the code for tokens and store them.
 
         Authenticated by *state* (an unguessable CSRF token we issued), so this
-        needs no user session — the provider redirect lands here without our
+        needs no user session - the provider redirect lands here without our
         cookies. The pending flow is promoted to the live payload only now, so
         a flow that is never completed leaves the previous tokens in place.
         """
@@ -546,9 +546,9 @@ class McpConnectionService:
             raise NotFoundError(message="OAuth session not found or already completed")
         payload = _decode_payload(connection, connection.oauth_pending_payload)
         if payload is None or not payload.code_verifier:
-            raise OAuthError("This authorization session is no longer valid — start again.")
+            raise OAuthError("This authorization session is no longer valid - start again.")
         if _now_epoch() - payload.started_at > mcp_oauth.FLOW_TTL_SECS:
-            raise OAuthError("This authorization session has expired — start again.")
+            raise OAuthError("This authorization session has expired - start again.")
         token = await mcp_oauth.exchange_code(
             token_endpoint=payload.token_endpoint,
             client_id=payload.client_id,
@@ -759,7 +759,7 @@ async def build_toolsets_for_user(user_id: UUID | None) -> list[Any]:
                 headers = await _resolve_auth_headers(db, connection)
                 if headers is None:
                     # OAuth not authorized / expired, or an undecryptable bearer
-                    # token (e.g. SECRET_KEY rotated) — skip, never crash the turn.
+                    # token (e.g. SECRET_KEY rotated) - skip, never crash the turn.
                     logger.info(
                         "Skipping MCP connection %r: no usable credentials", connection.name
                     )
@@ -788,7 +788,7 @@ async def build_toolsets_for_agent(
     organization-scoped rows resolve here, so a member's personal token can never
     end up inside a shared agent.
 
-    The deployment's ``MCP_SERVERS`` are left out for the same reason — nobody
+    The deployment's ``MCP_SERVERS`` are left out for the same reason - nobody
     bound them to this agent, and nothing validated them at publish.
 
     Runs in the caller's session rather than opening its own: an OAuth refresh

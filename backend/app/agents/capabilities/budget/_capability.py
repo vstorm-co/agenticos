@@ -3,11 +3,11 @@
 An agent platform without a hard spending limit is a platform nobody puts a
 credit card behind. Two mechanisms, deliberately separate:
 
-*Accounting* — :class:`SpendLedger` records what a run consumed, in tokens and
+*Accounting* - :class:`SpendLedger` records what a run consumed, in tokens and
 in dollars, so the cost dashboard has something to read and a monthly total has
 something to sum.
 
-*Enforcement* — :class:`BudgetGuard` is a capability that refuses to issue a
+*Enforcement* - :class:`BudgetGuard` is a capability that refuses to issue a
 model request once a limit is reached. It stops the run rather than warning
 about it, because a warning nobody reads is how a runaway loop spends a month's
 budget in an afternoon.
@@ -18,7 +18,7 @@ by one expensive call every time.
 
 Prices come from ``genai-prices``, not from a table in this repository. A
 hand-maintained table cannot express tiered pricing and goes stale silently,
-which is worse than reporting nothing — so a model the package does not know is
+which is worse than reporting nothing - so a model the package does not know is
 recorded at zero with a warning and flags the run's total as a floor, rather
 than being guessed at.
 """
@@ -46,7 +46,7 @@ class BudgetExceeded(Exception):
     """Raised when a run would spend past its limit.
 
     Not an ``AppException``: it is raised inside a model request, propagates out
-    of the agent run, and the surface decides how to present it — an error event
+    of the agent run, and the surface decides how to present it - an error event
     on a WebSocket, a failed row in run history, a message in Slack.
     """
 
@@ -66,28 +66,28 @@ def price_request(usage: RequestUsage, model_name: str, provider: str | None) ->
     Pydantic AI stack already depends on. This used to be a hand-written table
     of nine models, and the table was wrong: Gemini 2.5 Pro charges
     $1.25/1M below a 200k-token context and $2.50 above it, so every
-    long-context run was reported at half what it cost — and the budget that is
+    long-context run was reported at half what it cost - and the budget that is
     supposed to stop a runaway loop let it run twice as far. A flat
     dollars-per-million table cannot express that at all, and no amount of care
     in maintaining it would have.
 
     The same applies to cached and audio tokens, which the table ignored:
     cache reads are a fraction of the input price and were being billed at full
-    rate. ``RequestUsage`` is handed over as-is — Pydantic AI declares it an
+    rate. ``RequestUsage`` is handed over as-is - Pydantic AI declares it an
     implementation of ``genai_prices.types.AbstractUsage`` for exactly this, and
     copying the counts into a second object would only create somewhere for the
     two conventions to disagree about whether ``input_tokens`` includes the
     cached ones. It does.
 
     Prices come from the snapshot bundled with the package. Nothing here
-    reaches the network — a self-hosted deployment should not phone home
+    reaches the network - a self-hosted deployment should not phone home
     because somebody ran an agent. Refreshing the snapshot is a dependency
     bump, which is a change someone reviews.
 
     Args:
         usage: Token counts for the request, as the provider reported them.
         model_name: The model as the *response* named it, which is what was
-            actually billed — not what the profile asked for.
+            actually billed - not what the profile asked for.
         provider: The resolved profile's provider, as a hint. A run that fell
             back to another provider reports a model this hint does not match,
             so resolution is retried without it rather than mispricing.
@@ -142,7 +142,7 @@ class SpendLedger:
 
     @property
     def has_unpriced_models(self) -> bool:
-        """Whether any request could not be priced — the total is then a floor."""
+        """Whether any request could not be priced - the total is then a floor."""
         return any(not entry.priced for entry in self.entries)
 
     def record(
@@ -150,7 +150,7 @@ class SpendLedger:
     ) -> SpendEntry:
         cost = price_request(usage, model_name, provider)
         if cost is None:
-            logger.warning("No price for model %s — run cost will be under-reported", model_name)
+            logger.warning("No price for model %s - run cost will be under-reported", model_name)
         entry = SpendEntry(
             model_name=model_name,
             input_tokens=usage.input_tokens or 0,
@@ -169,8 +169,8 @@ PeriodSpendLookup = Callable[[], Awaitable[Decimal]]
 class SpendLimit:
     """One cap, what it is called when it stops a run, and the spend it meters.
 
-    A run can be under several caps at once — the agent's own, the
-    organization's, and the exposure that admitted it — and they are not
+    A run can be under several caps at once - the agent's own, the
+    organization's, and the exposure that admitted it - and they are not
     variations on one number. **Each meters its own spend.** An exposure's cap
     measured against the organization's total would be exhausted by unrelated
     internal runs, which is precisely what makes it not a cap; and an
@@ -179,7 +179,7 @@ class SpendLimit:
 
     It follows that two caps cannot be collapsed with ``min()``. Taking the
     tighter of two numbers is only meaningful when both are measured against the
-    same quantity, and these are not — so every cap is its own entry, the first
+    same quantity, and these are not - so every cap is its own entry, the first
     one to bind stops the run, and ``scope`` is how the person reading the
     refusal learns which.
     """
@@ -194,7 +194,7 @@ class BudgetGuard(AbstractCapability[Any]):
     """Stops a run from issuing a model request it cannot afford.
 
     Wraps the model request rather than the whole run so the check happens at
-    every step of an agent loop — the place where cost is actually incurred and
+    every step of an agent loop - the place where cost is actually incurred and
     where a runaway loop must be caught.
 
     Every ceiling a run is under is one entry in ``limits``: the conversation's,
@@ -207,7 +207,7 @@ class BudgetGuard(AbstractCapability[Any]):
 
     Limits are checked in order and the first to bind stops the run, naming
     itself in the refusal. Callers order them narrowest first, so an operator is
-    told about the ceiling closest to them — the one they can act on — before one
+    told about the ceiling closest to them - the one they can act on - before one
     they may not be allowed to move.
     """
 
@@ -222,7 +222,7 @@ class BudgetGuard(AbstractCapability[Any]):
         Fetched once per run: re-querying per request would put a database round
         trip in the hot path of every agent step, and the ledger covers what this
         run adds. Cached *per limit* rather than once for the guard, because the
-        limits measure different quantities — sharing one cached number is how an
+        limits measure different quantities - sharing one cached number is how an
         agent's own cap silently starts reading the organization's total again.
         """
         if limit.period_spend is None:

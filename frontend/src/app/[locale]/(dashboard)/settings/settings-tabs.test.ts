@@ -64,7 +64,7 @@ describe("the settings tab row", () => {
 
   it("stays inside the section it indexes", () => {
     // A tab pointing outside `/settings/` would put that page in two
-    // navigations at once — the tab row and the sidebar — with no rule about
+    // navigations at once - the tab row and the sidebar - with no rule about
     // which one is primary. That is why AI providers and MCP servers were moved
     // to the top level instead of being added here.
     const escaping = SETTINGS_TABS.filter((tab) => tabSegment(tab.href) === null);

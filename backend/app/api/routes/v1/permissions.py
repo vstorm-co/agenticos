@@ -1,7 +1,7 @@
 """Permission introspection routes.
 
 The frontend reads these to decide what to show. They are a convenience for the
-UI and nothing more — the server re-checks every permission on the endpoint that
+UI and nothing more - the server re-checks every permission on the endpoint that
 performs the action, so a client that ignores this API gains nothing.
 """
 

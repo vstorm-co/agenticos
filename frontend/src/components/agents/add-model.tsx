@@ -29,7 +29,7 @@ interface AddModelProps {
  * Add a model: pick a provider, name the model, point it at a key.
  *
  * Every provider this deployment can reach is offered, not only the ones with a
- * key already — being told "no key yet" and handed a field is the answer to
+ * key already - being told "no key yet" and handed a field is the answer to
  * "can we use OpenRouter?", and sending somebody to another page to find out is
  * the flow this replaces.
  *
@@ -39,14 +39,14 @@ interface AddModelProps {
  * separate credentials list somewhere else that had to agree with it.
  *
  * The model id is free text on purpose. Providers ship new ones weekly, and a
- * hard-coded list is wrong within a month — worse, wrong in the direction of
+ * hard-coded list is wrong within a month - worse, wrong in the direction of
  * hiding the model somebody came here for.
  */
 /**
  * What a model id looks like for this provider, before it is refused.
  *
  * Only OpenRouter needs saying, and it needs saying badly: it routes to other
- * people's models, so its ids carry the origin — `openai/gpt-5`, not `gpt-5` —
+ * people's models, so its ids carry the origin - `openai/gpt-5`, not `gpt-5` -
  * and the backend refuses a bare one. That refusal used to arrive after the
  * form was filled in, which is the wrong end of the interaction for something
  * this mechanical.
@@ -59,7 +59,7 @@ export function modelPlaceholder(providerId: string | undefined): string {
 
 export function modelHint(providerId: string | undefined): string {
   if (providerId === "openrouter") {
-    return "Namespaced by origin, as OpenRouter lists it — openai/gpt-5, anthropic/claude-opus-5.";
+    return "Namespaced by origin, as OpenRouter lists it - openai/gpt-5, anthropic/claude-opus-5.";
   }
   return "As the provider names it. Free text, because they ship new ones faster than any list here could be updated.";
 }
@@ -115,8 +115,8 @@ export function AddModel({ onCreated, onCancel }: AddModelProps) {
     } catch (error) {
       // Caught, not left to reject: an unhandled rejection here is Next.js's
       // full-screen error overlay for what is a typo in one field. Every
-      // refusal this endpoint gives is about the model id — a bare id where the
-      // provider namespaces them, an endpoint that is not a URL — so it belongs
+      // refusal this endpoint gives is about the model id - a bare id where the
+      // provider namespaces them, an endpoint that is not a URL - so it belongs
       // under the field, where it can be fixed.
       setFailure(getErrorMessage(error));
     }
@@ -160,7 +160,7 @@ export function AddModel({ onCreated, onCancel }: AddModelProps) {
           <Label htmlFor="add-model-id">Model</Label>
           {/*
             A list where the provider publishes one, and a plain field where it
-            does not — but the same control either way, because the list is
+            does not - but the same control either way, because the list is
             never authoritative. Providers ship models faster than any catalog
             here is refreshed, and a select that cannot express "the one that
             came out this morning" is a select somebody has to work around.
@@ -240,7 +240,7 @@ export function AddModel({ onCreated, onCancel }: AddModelProps) {
         </div>
       )}
 
-      {/* The name is derived and almost never worth changing — it exists so an
+      {/* The name is derived and almost never worth changing - it exists so an
           organization can run the same model twice under two keys and tell them
           apart. Behind a disclosure rather than in the way. */}
       {naming ? (

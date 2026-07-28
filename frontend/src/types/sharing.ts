@@ -21,7 +21,7 @@ export interface ResourceGrant {
   subject_user_id: string;
   /**
    * Resolved from the organization's members. Null for a subject the server
-   * could not name — and null on the response to a share, which returns the
+   * could not name - and null on the response to a share, which returns the
    * grant it wrote rather than a view of it.
    */
   subject_email: string | null;

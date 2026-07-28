@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
     const { accessToken } = adminCheck;
 
     // Forward query params to backend admin endpoint. Use /api/v1/admin/conversations
-    // (admin_conversations router) — it returns AdminConversationList with user_email
+    // (admin_conversations router) - it returns AdminConversationList with user_email
     // and supports user_id filtering, unlike the legacy /api/v1/conversations/admin-list.
     const searchParams = request.nextUrl.searchParams;
     const params = new URLSearchParams();

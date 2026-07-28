@@ -3,9 +3,9 @@
 Two sources, in this order:
 
 **Live.** Most providers publish a list endpoint, and it is the only source that
-knows about the model that shipped this morning. The shapes disagree — the array
+knows about the model that shipped this morning. The shapes disagree - the array
 is at ``data``, ``models`` or the document root; the id is ``id``, ``name`` or
-``model``; Gemini prefixes it with ``models/`` — so each one is described by a
+``model``; Gemini prefixes it with ``models/`` - so each one is described by a
 :class:`ListingSpec` rather than by a branch.
 
 **Curated.** A short, hand-kept list per provider, used when the provider
@@ -66,7 +66,7 @@ class ListingSpec:
     name_field: str | None = None
     context_field: str | None = None
     # The header a key goes in, and its value template. None means the endpoint
-    # is public — true only of OpenRouter and a local Ollama.
+    # is public - true only of OpenRouter and a local Ollama.
     auth_header: str | None = None
     auth_template: str = "{key}"
     extra_headers: dict[str, str] = field(default_factory=dict)
@@ -167,7 +167,7 @@ def _model(model_id: str, name: str, context: int | None = None) -> CatalogModel
 # The handful somebody would actually pick, per provider, as of July 2026.
 #
 # Kept short on purpose. This is a fallback for when the provider cannot be
-# asked — no key stored yet, an endpoint that does not list, a call that failed —
+# asked - no key stored yet, an endpoint that does not list, a call that failed -
 # and a mirror of a 339-model catalog would be a mirror that rots. Every id here
 # is the string the provider's own API expects, verbatim.
 CURATED: dict[str, tuple[CatalogModel, ...]] = {
@@ -176,7 +176,7 @@ CURATED: dict[str, tuple[CatalogModel, ...]] = {
         _model("claude-sonnet-5", "Claude Sonnet 5", 1_000_000),
         _model("claude-fable-5", "Claude Fable 5", 1_000_000),
         # Dateless and still a pinned snapshot, which is how Anthropic has
-        # spelled ids since the 4.6 generation — not an evergreen pointer.
+        # spelled ids since the 4.6 generation - not an evergreen pointer.
         _model("claude-haiku-4-5", "Claude Haiku 4.5", 200_000),
     ),
     "openai": (
@@ -214,7 +214,7 @@ CURATED: dict[str, tuple[CatalogModel, ...]] = {
     ),
     # Cohere is deliberately absent: its listing is the only one that carries a
     # real `is_deprecated` flag, so a live answer is strictly better than a
-    # hand-kept one — and the 2026 lineup could not be confirmed from Cohere's
+    # hand-kept one - and the 2026 lineup could not be confirmed from Cohere's
     # own docs, which is not a good enough basis for suggesting an id somebody
     # will paste into a spec.
 }

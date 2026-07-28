@@ -1,4 +1,4 @@
-"""RAG API routes — collection management, search, document upload, sync.
+"""RAG API routes - collection management, search, document upload, sync.
 
 Routes are HTTP plumbing only. Business logic, file I/O and task dispatch all
 live in their respective services. Domain exceptions raised by services are
@@ -8,7 +8,7 @@ mapped to HTTP responses by the global exception handlers in
 Two things every route here does before it touches anything:
 
 *The gate.* Reading requires ``collections:view``, writing ``collections:edit``
-— the same permissions ``/kb`` is gated on, because it is the same resource at a
+- the same permissions ``/kb`` is gated on, because it is the same resource at a
 different address. These routes used to require the *platform admin* role, which
 looked strict and was not: it kept ordinary members out of RAG entirely while
 letting any platform admin read every tenant's collections, because the role says
@@ -21,13 +21,13 @@ and works with what came back, so a name belonging to another organization is
 indistinguishable from one that was never created.
 
 ``GET /supported-formats`` and ``GET /sync/connectors`` are the exceptions, and
-deliberately: they describe how this deployment is configured — which parsers and
-connectors exist — and have no tenant dimension to scope to.
+deliberately: they describe how this deployment is configured - which parsers and
+connectors exist - and have no tenant dimension to scope to.
 
 There used to be a third, ``GET /status/stream``: an SSE feed of every ingestion
 event in the deployment, with no authentication and no organization in its
 payload. It is gone rather than fixed, and anything replacing it needs all three
-of the pieces it never had — a tenant on each event (published by
+of the pieces it never had - a tenant on each event (published by
 ``app.worker.tasks.rag_tasks``, which does not put one there), an authentication
 scheme a browser ``EventSource`` can actually use, since it cannot send an
 ``Authorization`` header, and a subscription filtered by that tenant. The /kb
@@ -160,7 +160,7 @@ async def drop_collection(
     access: CollectionAccessSvc,
     ctx: Auth,
 ) -> None:
-    """Drop a collection — vectors, SQL document records, and the KB row.
+    """Drop a collection - vectors, SQL document records, and the KB row.
 
     A name no knowledge base in the caller's reach owns is a 404. It used to be
     204 for absolutely anything, which is two problems in one answer: a
@@ -226,7 +226,7 @@ async def search_documents(
 
     Every collection named is resolved before the first vector is read, and one
     the caller cannot reach refuses the whole search rather than being dropped
-    from it — see ``CollectionAccessService.readable_all``.
+    from it - see ``CollectionAccessService.readable_all``.
     """
     names = request.collection_names or [request.collection_name]
     collections = [kb.collection_name for kb in await access.readable_all(ctx, names)]
@@ -301,7 +301,7 @@ async def ingest_file(
 
     The collection row resolved above is what says how the file is read; the
     ``ingestion`` field departs from that for this one document and is recorded
-    on it. No further permission is required for the override — ``collections:edit``
+    on it. No further permission is required for the override - ``collections:edit``
     on this collection already allows changing its configuration outright.
     """
     collection = await access.writable(ctx, name)
@@ -331,7 +331,7 @@ async def list_rag_documents(
 ) -> Any:
     """List tracked RAG documents.
 
-    Without ``collection_name`` this answers with the caller's collections —
+    Without ``collection_name`` this answers with the caller's collections -
     not, as it once did, with every document in the deployment.
     """
     collections = await access.readable_names_for(ctx, collection_name)
@@ -525,7 +525,7 @@ async def clone_sync_source(
     Credentials are decrypted from the source and re-encrypted for the clone,
     which is exactly why both ends are resolved first: the source must be this
     organization's, and so must the collection it is being pointed at.
-    The clone is independent — its own schedule and sync history.
+    The clone is independent - its own schedule and sync history.
     """
     source = await access.sync_source(ctx, source_id)
     await access.writable(ctx, data.collection_name)

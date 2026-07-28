@@ -2,7 +2,7 @@
 
 The property that matters is the one a single global key cannot give: a sealed
 secret is bound to the scope it was sealed for, so database access alone does
-not let a row be moved between tenants — or between members — and read.
+not let a row be moved between tenants - or between members - and read.
 """
 
 import json
@@ -41,7 +41,7 @@ class TestSealUnseal:
         assert secret not in sealed.ciphertext
 
     def test_each_seal_is_distinct(self):
-        """A fresh data key per secret — identical values must not look identical."""
+        """A fresh data key per secret - identical values must not look identical."""
         scope = _org()
         first = seal("same-secret", scope=scope)
         second = seal("same-secret", scope=scope)
@@ -131,7 +131,7 @@ class TestRotation:
         assert unseal(rotated, scope=scope, key_version=2) == "sk-live-abcd1234"
 
     def test_rewrap_leaves_the_payload_untouched(self):
-        """Rotation re-seals the data key only — that is what makes it cheap."""
+        """Rotation re-seals the data key only - that is what makes it cheap."""
         scope = _org()
         sealed = seal("sk-live-abcd1234", scope=scope)
         rotated = rewrap(sealed.ciphertext, scope=scope, from_version=1, to_version=2)

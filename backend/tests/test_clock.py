@@ -53,7 +53,7 @@ class TestTimezone:
         """The reason this is configuration at all.
 
         Asserted at a fixed instant, not at "now": Auckland and Honolulu are
-        22 hours apart, so they share a date for one hour in every 24 — and a
+        22 hours apart, so they share a date for one hour in every 24 - and a
         test that reads the wall clock fails in exactly that hour, which is a
         flake I wrote and then hit.
 

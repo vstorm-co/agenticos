@@ -1,4 +1,4 @@
-"""create subscription table — skipped (enable_billing=false or no SQL DB)
+"""create subscription table - skipped (enable_billing=false or no SQL DB)
 
 Revision ID: 0012_create_subscription_table
 """

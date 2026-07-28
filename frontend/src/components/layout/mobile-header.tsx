@@ -6,7 +6,7 @@
  * Above `md` there is no header: the brand heads the column, and search, the
  * organization, language, theme and the account moved into it (see
  * `SidebarShell`). Below `md` the column is a slide-over, so a button has to
- * exist to open it — that button and the brand are the whole of this file, and
+ * exist to open it - that button and the brand are the whole of this file, and
  * the reason it is named for the viewport rather than for the page.
  */
 

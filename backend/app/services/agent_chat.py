@@ -6,7 +6,7 @@ bind collections, skills and a budget to it, and then the only place to talk to
 it was the Playground or the API.
 
 A frame carrying ``agent_id`` runs that agent instead. A frame without one keeps
-the general assistant, because the two are different products — "the company's
+the general assistant, because the two are different products - "the company's
 chat" and "the agent Sales published". There is deliberately no per-organization
 default: the client names the agent, or it gets the assistant it always got.
 Guessing here would mean a user asking one thing and something else answering.
@@ -15,7 +15,7 @@ What this module owns is the part a streaming surface must not improvise: who a
 run belongs to, and the accounting around it. It goes through
 :meth:`AgentRunnerService.prepare` and :meth:`AgentRunnerService.finish` exactly
 as the public API and the Slack bot do, so a chat run lands in run history with
-its cost, its budget check, its approval gate and its capabilities — stamped
+its cost, its budget check, its approval gate and its capabilities - stamped
 ``RunSurface.WEB``. What it does not own is the event loop: the caller iterates
 the run and forwards events, because only the caller knows what a frame is.
 """
@@ -52,17 +52,17 @@ type ChatStream = Callable[[AgentRun[AgentDeps, str | DeferredToolRequests]], Aw
 
 # Said to someone chatting in an organization they no longer belong to. Their
 # socket was authenticated against that organization at connect time, so this is
-# a membership revoked mid-session rather than a spoofed frame — but a run with
+# a membership revoked mid-session rather than a spoofed frame - but a run with
 # no membership has no role, and a run with no role has none of the checks a
 # role implies.
 _NOT_A_MEMBER = "You are no longer a member of this organization."
 
 # What the person is told when the run stopped on an approval instead of an
 # answer. Silence would read as the agent ignoring them, and the run does not
-# continue in this conversation — it continues when somebody decides, from the
+# continue in this conversation - it continues when somebody decides, from the
 # approvals queue.
 _AWAITING_APPROVAL = (
-    "This run needs approval before it can go further — it is waiting in the approvals queue."
+    "This run needs approval before it can go further - it is waiting in the approvals queue."
 )
 
 
@@ -118,8 +118,8 @@ def _outcome(
 
     Raises:
         RuntimeError: If it ended without a result. That is not a state the
-            agent can reach on its own — it means whoever drove the loop stopped
-            early — so it fails loudly and is recorded as a failed run, rather
+            agent can reach on its own - it means whoever drove the loop stopped
+            early - so it fails loudly and is recorded as a failed run, rather
             than being persisted as an empty answer.
     """
     if agent_run.result is None:
@@ -147,7 +147,7 @@ class ChatTurn:
     agent_id: UUID
     agent_version_id: UUID | None
     """The frozen spec that answered. None only for an agent with no version,
-    which cannot run — carried rather than assumed so the transcript records
+    which cannot run - carried rather than assumed so the transcript records
     what actually happened."""
 
 
@@ -189,7 +189,7 @@ class ChatAgentRunner:
         Returns:
             The answer to show and persist, and the model that produced it. A
             run parked on an approval returns the queue's explanation instead of
-            an answer — it did not fail, and it has not finished either.
+            an answer - it did not fail, and it has not finished either.
 
         Raises:
             AuthorizationError: If the user is not a member of this organization.
@@ -243,7 +243,7 @@ class ChatAgentRunner:
             status = RunStatus.CANCELLED
             raise
         except BudgetExceeded as exc:
-            # Not a malfunction — the platform working — and recorded as its own
+            # Not a malfunction - the platform working - and recorded as its own
             # status so an operator filtering for problems does not wade through
             # it. Raised on rather than swallowed because somebody is sitting
             # there waiting, and they are owed the reason the answer stopped.
@@ -275,7 +275,7 @@ class ChatAgentRunner:
         """The connected user's standing in the organization they are chatting in.
 
         Read from the membership row for the same reason the Slack router reads
-        it: a run takes a subject, and the subject is the person who typed —
+        it: a run takes a subject, and the subject is the person who typed -
         never the organization and never nobody. A socket that outlives the
         membership stops being able to run agents at that moment.
         """

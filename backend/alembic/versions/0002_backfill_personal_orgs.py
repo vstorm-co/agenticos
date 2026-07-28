@@ -4,7 +4,7 @@ Revision ID: 0002_backfill_orgs
 Revises: 0001_org
 Create Date: 2026-07-26T18:01:04.489757+00:00
 
-DATA MIGRATION — creates a Personal Organization for every existing user
+DATA MIGRATION - creates a Personal Organization for every existing user
 that does not already have one. Safe to run multiple times (idempotent).
 """
 
@@ -113,6 +113,6 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # Removing auto-generated personal orgs is destructive — skipped intentionally.
+    # Removing auto-generated personal orgs is destructive - skipped intentionally.
     # Run manually if needed: DELETE FROM organizations WHERE is_personal = true.
     pass

@@ -13,13 +13,13 @@ be offered OpenRouter's models, without anybody defining a "model profile"
 first. What you can reach is what you have keys for.
 
 *A capability can ask for the right key.* Web search needs a Tavily key, not
-"an API key" — and the picker can offer the two Tavily secrets rather than all
+"an API key" - and the picker can offer the two Tavily secrets rather than all
 eleven secrets of that shape.
 
 `custom` is the escape hatch, and it is deliberately last: a purpose nobody
 anticipated is a real thing, and refusing to store it would send people back to
 environment variables. What it costs is that nothing can suggest it anywhere, so
-it is offered as what it is — the answer when none of the others fit.
+it is offered as what it is - the answer when none of the others fit.
 """
 
 from __future__ import annotations
@@ -47,7 +47,7 @@ class SecretPurpose:
     label: str
     category: PurposeCategory
     kind: SecretKind
-    # Where to get one. Only where the answer is a specific page — a generic
+    # Where to get one. Only where the answer is a specific page - a generic
     # "search for your provider's dashboard" link costs a click to find out it
     # is not help.
     help_url: str | None = None
@@ -59,7 +59,7 @@ CUSTOM = "custom"
 
 # Services that are not model providers. Each is consumed by a capability that
 # names this id, so adding one here and forgetting the capability leaves a
-# purpose nothing reads — which the drift test in tests/test_secret_purposes.py
+# purpose nothing reads - which the drift test in tests/test_secret_purposes.py
 # is there to catch.
 _SERVICES: tuple[SecretPurpose, ...] = (
     SecretPurpose(
@@ -102,7 +102,7 @@ def _from_providers() -> tuple[SecretPurpose, ...]:
 
     Generated rather than written out: the provider list is what the runtime
     constructs clients from, and a second hand-maintained copy would drift the
-    moment somebody adds a provider — leaving a model nobody can key.
+    moment somebody adds a provider - leaving a model nobody can key.
     """
     return tuple(
         SecretPurpose(

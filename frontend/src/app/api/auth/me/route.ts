@@ -24,7 +24,7 @@ function fetchMe(token: string) {
  * Returns the current user AND echoes the access token so the client can use it
  * for WebSocket auth (Sec-WebSocket-Protocol). The access cookie is short-lived
  * (15 min); when it has expired we transparently refresh it using the 7-day
- * refresh cookie so the session — and the chat socket — stay alive across
+ * refresh cookie so the session - and the chat socket - stay alive across
  * reloads without forcing a re-login.
  */
 export async function GET(request: NextRequest) {

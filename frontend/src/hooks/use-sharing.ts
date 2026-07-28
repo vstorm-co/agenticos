@@ -24,8 +24,8 @@ const SHARING_ROOT = {
   agent: "/agents",
   skill: "/skills",
   // `/kb`, which is where the template mounts knowledge bases and therefore
-  // where the generated sharing routes land. This read `/knowledge-bases` — a
-  // path the app has never served — and went unnoticed because the panel is
+  // where the generated sharing routes land. This read `/knowledge-bases` - a
+  // path the app has never served - and went unnoticed because the panel is
   // only mounted on agents so far.
   collection: "/kb",
   secret: "/secrets",
@@ -36,7 +36,7 @@ const SHARING_ROOT = {
  *
  * Mutations invalidate rather than patch. Changing a visibility can change the
  * grant list the server reports back, and a level change is an upsert whose
- * result the client cannot derive — guessing is how a panel starts showing a
+ * result the client cannot derive - guessing is how a panel starts showing a
  * share that was never written.
  */
 export function useSharing(resourceType: SharingResourceType, resourceId: string | null) {

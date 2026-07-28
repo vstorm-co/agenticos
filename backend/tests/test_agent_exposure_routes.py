@@ -1,6 +1,6 @@
 """Tests for the exposure routes.
 
-The handlers are thin by design — the decision is the service's — so what is
+The handlers are thin by design - the decision is the service's - so what is
 worth asserting is the part that is not delegation: that a write answers with
 the row the section renders rather than the bare row the repository wrote, and
 that it answers with the *right* one when an agent is available in several
@@ -54,7 +54,7 @@ class TestRouteShape:
         """Otherwise ``targets`` is parsed as an id and never reaches its handler.
 
         FastAPI matches in declaration order, so this is decided by where the
-        decorator sits in the module — which nothing else would catch.
+        decorator sits in the module - which nothing else would catch.
         """
         paths = [route.path for route in router.routes]
         assert paths.index("/{agent_id}/exposures/targets") < paths.index(
@@ -93,7 +93,7 @@ class TestWriting:
         """Not the bare row: the section renders a place, which has a name.
 
         Returning what the repository wrote would leave the client holding two
-        representations of one thing, and joining bot names itself — which needs
+        representations of one thing, and joining bot names itself - which needs
         a permission it does not have.
         """
         bot_id, other_bot_id = uuid.uuid4(), uuid.uuid4()

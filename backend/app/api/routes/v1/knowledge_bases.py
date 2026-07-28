@@ -1,4 +1,4 @@
-"""Knowledge Base routes — CRUD + per-KB document upload + sync sources.
+"""Knowledge Base routes - CRUD + per-KB document upload + sync sources.
 
 Document upload and sync-source management are wired here (rather than under
 ``/rag``) so non-admin owners can manage their own KB without needing the
@@ -88,7 +88,7 @@ async def create_knowledge_base(
 
     ``ingestion_config`` decides how this collection's documents will be parsed,
     chunked and described; omit it for this deployment's defaults. The embedding
-    model is recorded from the deployment and is not settable — a collection's
+    model is recorded from the deployment and is not settable - a collection's
     vectors are only comparable with themselves.
     """
     return await service.create(
@@ -214,8 +214,8 @@ async def upload_kb_document(
 ) -> Any:
     """Upload a file into the KB's underlying vector collection.
 
-    Auth is per-KB (owner / org member / admin) — unlike the bulk
-    ``/rag/{collection}/documents`` endpoint which is admin-only — so a
+    Auth is per-KB (owner / org member / admin) - unlike the bulk
+    ``/rag/{collection}/documents`` endpoint which is admin-only - so a
     workspace user can manage their own KB without elevation. Overriding how
     this one file is parsed needs no permission beyond the one the upload
     already needs: it changes nothing outside the document being added, and
@@ -281,7 +281,7 @@ async def delete_kb_document(
 ) -> None:
     """Remove a document from the KB (cascades to vectors + file storage).
 
-    Verifies the doc actually belongs to this KB's collection — without that
+    Verifies the doc actually belongs to this KB's collection - without that
     check a KB owner could pass any doc_id and remove docs from KBs they
     don't own.
     """
@@ -365,7 +365,7 @@ async def create_kb_sync_source(
     """Wire up a sync source (Google Drive, S3, …) feeding this KB.
 
     The ``collection_name`` field on the request body is overridden with the
-    KB's own collection — clients should not need to know that detail.
+    KB's own collection - clients should not need to know that detail.
     """
     kb = await service.get(kb_id, user_id=current_user.id, organization_id=active_org.id)
     payload = data.model_copy(update={"collection_name": kb.collection_name})
@@ -395,7 +395,7 @@ async def clone_kb_sync_source(
 
     The source is resolved inside the caller's organization first. Without that
     the destination was checked and the *origin* was not: any id would do, and
-    cloning re-encrypts the credentials it finds — so a caller could point
+    cloning re-encrypts the credentials it finds - so a caller could point
     another tenant's Google Drive at their own collection and sync it.
     """
     kb = await service.get(kb_id, user_id=current_user.id, organization_id=active_org.id)

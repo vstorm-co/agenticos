@@ -1,7 +1,7 @@
 """Fire-and-forget background work that does not silently disappear.
 
 ``asyncio.create_task`` returns a task the event loop holds only weakly. Drop
-the reference and the task can be garbage-collected mid-flight — the classic
+the reference and the task can be garbage-collected mid-flight - the classic
 symptom is an ingestion that works under load and vanishes when the system is
 idle, with nothing in the logs. Worse, an exception inside a discarded task is
 never retrieved, so a flow that raises fails completely silently.
@@ -51,7 +51,7 @@ def spawn(coro: Coroutine[Any, Any, Any], *, name: str) -> asyncio.Task[Any]:
     Args:
         coro: The work to run.
         name: What it is, used in the log line when it fails. Worth being
-            specific — this name is the only context an error will carry.
+            specific - this name is the only context an error will carry.
 
     Returns:
         The task, for callers that want to await or cancel it. Ignoring the

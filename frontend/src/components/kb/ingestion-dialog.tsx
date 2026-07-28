@@ -32,7 +32,7 @@ interface IngestionDialogProps {
  * "From now on" is the whole reason this is a dialog with its own sentence
  * rather than an inline form: the change takes effect for the next upload and
  * re-parses nothing, so a collection can hold documents read three different
- * ways — which is exactly what the parser column on the document list is for.
+ * ways - which is exactly what the parser column on the document list is for.
  */
 export function IngestionDialog({
   open,
@@ -45,7 +45,7 @@ export function IngestionDialog({
   const [isSaving, setIsSaving] = useState(false);
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
 
-  // Reopening shows what the server holds, not what was abandoned last time —
+  // Reopening shows what the server holds, not what was abandoned last time -
   // and a save elsewhere (or by somebody else) must not leave a stale draft
   // behind to be posted back over it.
   useEffect(() => {

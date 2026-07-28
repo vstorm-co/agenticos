@@ -1,4 +1,4 @@
-"""Web research capability — search the public web."""
+"""Web research capability - search the public web."""
 
 from typing import Literal
 
@@ -30,7 +30,7 @@ class WebResearchConfig(BaseModel):
 
     `method` is the whole decision, and it is offered as a list rather than a
     text field because every value is either a named service or a property of
-    the model — none of it is something to type correctly.
+    the model - none of it is something to type correctly.
     """
 
     method: Literal["duckduckgo", "native", "tavily", "brave", "exa"] = Field(

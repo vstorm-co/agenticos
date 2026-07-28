@@ -36,7 +36,7 @@ interface SchemaFormProps {
    * What the server said about individual fields, keyed by field name.
    *
    * A generated form has to be able to show a generated refusal. "This is not a
-   * service account key — its 'type' is not service_account" is a sentence
+   * service account key - its 'type' is not service_account" is a sentence
    * about one input, and announcing it in a toast puts it somewhere it cannot
    * be acted on and then takes it away.
    */
@@ -49,7 +49,7 @@ interface SchemaFormProps {
  * The backend publishes `config_schema` precisely so this exists: a developer
  * adds a field to a Pydantic model and it appears here, with its constraints and
  * its help text, without anyone touching the frontend. Hand-maintaining a form
- * per capability is how the two drift — the form keeps accepting a field the
+ * per capability is how the two drift - the form keeps accepting a field the
  * backend removed, and the new field nobody added stays unreachable.
  *
  * The supported subset is deliberately small: strings, numbers, booleans and
@@ -58,7 +58,7 @@ interface SchemaFormProps {
  * towards being a general schema renderer.
  *
  * The same generator builds the vault's secret forms, from the schemas
- * `/secrets/kinds` serves — which is why it knows about `const` and about
+ * `/secrets/kinds` serves - which is why it knows about `const` and about
  * `format: "password"`. Both are Pydantic's own output: the discriminator on a
  * secret payload, and every `SecretStr` in it.
  */
@@ -175,7 +175,7 @@ function SchemaField({
             {/*
               A field with a fixed set of values still has the state of nobody
               having picked one, and for an optional field that state is a real
-              answer — it is what defers to whatever is configured further down.
+              answer - it is what defers to whatever is configured further down.
               Offered only where the schema allows it: a required field has no
               such state and offering it would produce a spec the backend
               refuses.
@@ -210,7 +210,7 @@ function SchemaField({
             {...invalid}
           />
           {/* A key is pasted, and a paste that went wrong is invisible behind
-              dots — a trailing newline, half a value, the wrong clipboard entry.
+              dots - a trailing newline, half a value, the wrong clipboard entry.
               The vault never shows a stored secret again, so this is the only
               moment its value can be checked at all. */}
           {masked && (
@@ -247,7 +247,7 @@ type FieldKind = "string" | "number" | "boolean" | "enum";
  * What kind of input a property needs.
  *
  * Pydantic renders an optional field as `anyOf: [{type: "x"}, {type: "null"}]`
- * rather than a plain type, so the null branch has to be looked past — without
+ * rather than a plain type, so the null branch has to be looked past - without
  * that, every optional field would fall through to a text box.
  */
 function resolveKind(property: JsonSchemaProperty): FieldKind {
@@ -285,7 +285,7 @@ function enumChoices(property: JsonSchemaProperty): string[] | null {
  *
  * The null branch is searched as well as the property itself: an optional
  * `SecretStr` arrives as `anyOf: [{format: "password"}, {type: "null"}]`, and
- * `aws_session_token` is exactly that — the one field of the five kinds where
+ * `aws_session_token` is exactly that - the one field of the five kinds where
  * missing the branch would render a real credential in the clear.
  */
 function isSecret(property: JsonSchemaProperty): boolean {

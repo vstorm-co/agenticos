@@ -13,7 +13,7 @@ async def get_for_inbound(db: AsyncSession, bot_id: UUID) -> ChannelBot | None:
     """Get a bot by ID without an organization filter.
 
     Deliberately unscoped: an inbound webhook or poll carries no organization
-    context — the bot row *is* where the org comes from. Management code must
+    context - the bot row *is* where the org comes from. Management code must
     use :func:`get_for_org` instead so a bot cannot be read across tenants.
     """
     return await db.get(ChannelBot, bot_id)

@@ -63,7 +63,7 @@ class TestCreateChart:
             _charts.create_chart(chart_type="line", title="Empty", data=[])
 
     def test_data_with_nothing_numeric_is_a_retry_naming_the_fix(self):
-        """The model recovers by naming the series or sending numbers — say so."""
+        """The model recovers by naming the series or sending numbers - say so."""
         with pytest.raises(ModelRetry, match="series"):
             _charts.create_chart(
                 chart_type="line",

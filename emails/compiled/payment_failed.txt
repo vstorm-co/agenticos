@@ -1,4 +1,4 @@
-Subject: Action required — payment failed on [[app_name]]
+Subject: Action required - payment failed on [[app_name]]
 
 Hi [[name]],
 
@@ -9,4 +9,4 @@ Update payment method:
 
 If you have any questions, reply to this email.
 
-— The [[app_name]] Team
+- The [[app_name]] Team

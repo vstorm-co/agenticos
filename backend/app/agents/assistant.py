@@ -52,7 +52,7 @@ class Deps:
 
     user_id: str | None = None
     user_name: str | None = None
-    # Resolved server-side from conversation.active_knowledge_base_ids — never from the LLM
+    # Resolved server-side from conversation.active_knowledge_base_ids - never from the LLM
     kb_collection_names: list[str] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
     ask_user: AskUserCallback | None = None
@@ -69,7 +69,7 @@ class AssistantAgent:
     ):
         self.extra_toolsets = extra_toolsets or []
         self.model_name = model_name or settings.AI_MODEL
-        # ``temperature`` stays ``None`` when caller didn't set it — don't fall
+        # ``temperature`` stays ``None`` when caller didn't set it - don't fall
         # back to settings.AI_TEMPERATURE here. Reasoning/o-series models
         # (gpt-5.5, o1, …) reject the parameter entirely, so we only forward
         # it to the model when explicitly requested.
@@ -88,13 +88,13 @@ class AssistantAgent:
         capabilities: list[Any] = [ReinjectSystemPrompt()]
         if self.thinking_effort:
             capabilities.append(Thinking(effort=self.thinking_effort))  # ty: ignore[invalid-argument-type]
-        # Local DuckDuckGo / fetch (the installed extras) — works uniformly across
+        # Local DuckDuckGo / fetch (the installed extras) - works uniformly across
         # all providers, unlike provider-native web search.
         capabilities.append(WebSearch(native=False, local="duckduckgo"))
         capabilities.append(WebFetch(native=False, local=True))
 
         # The unified ``Thinking()`` capability enables reasoning, but for the
-        # OpenAI Responses API it sets only the effort — not the *summary*
+        # OpenAI Responses API it sets only the effort - not the *summary*
         # field that controls whether the model streams reasoning summaries
         # back to the client. Without ``openai_reasoning_summary`` set, the
         # model reasons internally and we never see ThinkingPart events.
@@ -110,7 +110,7 @@ class AssistantAgent:
         # The same chart tool the capability exposes, under the name the web
         # client keys off: it looks for ``create_chart_tool`` when deciding
         # whether a tool result is a chart to render. The channel router no
-        # longer does — it reads the payload, so a renamed chart tool still
+        # longer does - it reads the payload, so a renamed chart tool still
         # renders there.
         toolsets.append(ChartsToolset[Deps]().renamed({"create_chart_tool": "create_chart"}))
 
@@ -178,7 +178,7 @@ class AssistantAgent:
 
             Use this when a decision or missing detail would materially change what
             you do next and you can't reasonably assume it. You may pass several
-            questions at once — the user answers them one after another and you get
+            questions at once - the user answers them one after another and you get
             all the answers back together (good for an intake/setup flow). You can
             also call this again later to follow up on what they said. Prefer
             answering directly when the request is already clear.
@@ -207,11 +207,11 @@ class AssistantAgent:
             """Run Python in a sandbox and return its output.
 
             Use for multi-step number-crunching (projections, aggregations, simulations).
-            SANDBOX LIMITATIONS — violating these causes "Execution failed" errors:
+            SANDBOX LIMITATIONS - violating these causes "Execution failed" errors:
               - NO comma thousands separator in f-strings: ``{x:,}`` or ``{x:,.2f}``
                 CRASHES. Use ``f"${int(x)}"`` or ``f"{x:.2f}"`` instead.
               - NO ``statistics``, ``random``, ``itertools``, ``collections``,
-                numpy, pandas — compute stats manually with loops/math.
+                numpy, pandas - compute stats manually with loops/math.
               - NO file I/O, network calls, or OS access.
               - NO ``import`` of any module not in: math, asyncio, json, datetime, re.
               - Walrus operator ``:=`` is unsupported.

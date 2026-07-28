@@ -4,14 +4,14 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 interface OrgState {
-  // UI selection only — the orgs list itself is owned by React Query
+  // UI selection only - the orgs list itself is owned by React Query
   // (qk.organizations.list). This store persists which org the user picked.
   activeOrgId: string | null;
   /**
    * Organizations the server has refused this session.
    *
-   * Deliberately not persisted: a refusal is a fact about right now — the org
-   * was deleted, or the member was removed — and re-adding the member must be
+   * Deliberately not persisted: a refusal is a fact about right now - the org
+   * was deleted, or the member was removed - and re-adding the member must be
    * enough to make it usable again, without anyone clearing browser storage.
    *
    * It exists because "pick an organization" and "recover from a refused one"

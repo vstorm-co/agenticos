@@ -24,7 +24,7 @@ function wrapper({ children }: { children: ReactNode }) {
 /**
  * Render the form over a configuration, and hand back what it tried to change.
  *
- * jsdom cannot open a Radix select, so nothing here drives one — the selects are
+ * jsdom cannot open a Radix select, so nothing here drives one - the selects are
  * exercised end to end. What is asserted is everything the form decides on its
  * own: which controls exist for a given parser, how an unset value reads, and
  * what leaves through `onChange`.

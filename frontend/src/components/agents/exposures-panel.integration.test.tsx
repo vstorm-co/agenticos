@@ -78,7 +78,7 @@ describe("ExposuresPanel", () => {
     serve([exposure()], []);
     await mount();
 
-    expect(await screen.findByText("Slack — Acme Support")).toBeInTheDocument();
+    expect(await screen.findByText("Slack - Acme Support")).toBeInTheDocument();
   });
 
   it("says out loud that a paused binding answers nothing", async () => {
@@ -88,7 +88,7 @@ describe("ExposuresPanel", () => {
     await mount();
 
     expect(
-      await screen.findByText("Paused — the handle answers nothing here."),
+      await screen.findByText("Paused - the handle answers nothing here."),
     ).toBeInTheDocument();
   });
 
@@ -123,7 +123,7 @@ describe("ExposuresPanel", () => {
     serve([exposure()], [target({ id: "b2" })]);
     await mount({ canManage: false });
 
-    await screen.findByText("Slack — Acme Support");
+    await screen.findByText("Slack - Acme Support");
     expect(screen.queryByRole("combobox", { name: "Add a channel" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Pause on Acme Support" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Remove from Acme Support" })).toBeDisabled();

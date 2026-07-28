@@ -8,14 +8,14 @@ first time somebody messages it.
 
 Two ways in, both supported, because Mattermost deployments differ:
 
-*Outgoing webhooks* — Mattermost POSTs to us when a trigger word matches or a
+*Outgoing webhooks* - Mattermost POSTs to us when a trigger word matches or a
 message lands in a watched channel. Configured in Mattermost's own integrations
 page, so `register_webhook` has nothing to call; it logs the URL to paste. The
 payload carries a shared `token`, which is what `verify_webhook_signature`
-compares — Mattermost does not sign bodies the way Slack does, so this is a
+compares - Mattermost does not sign bodies the way Slack does, so this is a
 bearer check and the token must be treated as a credential.
 
-*The WebSocket event stream* — a bot token authenticates, and every `posted`
+*The WebSocket event stream* - a bot token authenticates, and every `posted`
 event arrives. This is the equivalent of Slack's Socket Mode: nothing to expose
 publicly, which is what a private deployment behind a VPN needs. It is what
 `start_polling` runs.
@@ -221,8 +221,8 @@ class MattermostAdapter(ChannelAdapter):
     ) -> bool:
         """Compare the token Mattermost puts in the body.
 
-        Mattermost does not sign the payload the way Slack does — an outgoing
-        webhook carries a shared token instead — so this is a bearer check, and
+        Mattermost does not sign the payload the way Slack does - an outgoing
+        webhook carries a shared token instead - so this is a bearer check, and
         the token is a credential rather than a signing key. Compared in
         constant time for the same reason every other token here is.
         """
@@ -245,8 +245,8 @@ class MattermostAdapter(ChannelAdapter):
     def parse_incoming(self, raw_payload: dict[str, Any], bot_id: str) -> IncomingMessage | None:
         """Normalise a `posted` event or an outgoing-webhook body.
 
-        The two arrive in different shapes — the socket nests a JSON *string*
-        under `data.post`, the webhook is flat — and everything downstream is
+        The two arrive in different shapes - the socket nests a JSON *string*
+        under `data.post`, the webhook is flat - and everything downstream is
         shared, so the difference stops here.
         """
         if raw_payload.get("event") == "posted":

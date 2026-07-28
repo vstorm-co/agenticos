@@ -1,4 +1,4 @@
-"""RateLimitService — per-category, per-plan, sliding-window rate limiter."""
+"""RateLimitService - per-category, per-plan, sliding-window rate limiter."""
 
 from __future__ import annotations
 

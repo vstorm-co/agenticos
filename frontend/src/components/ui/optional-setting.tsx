@@ -25,7 +25,7 @@ export interface OptionalSettingProps {
   htmlFor: string;
   label: string;
   description: ReactNode;
-  /** The way back to sending nothing — absent when the field is already there. */
+  /** The way back to sending nothing - absent when the field is already there. */
   onReset?: () => void;
   /** What the reset offers, when "provider default" is not what unset means. */
   resetLabel?: string;
@@ -88,7 +88,7 @@ export interface OptionalSliderProps {
   max: number;
   step?: number;
   value: number | undefined;
-  /** Where an untouched dial points — a position, never a claim. */
+  /** Where an untouched dial points - a position, never a claim. */
   resting: number;
   disabled?: boolean;
   onChange: (value: number | undefined) => void;
@@ -100,7 +100,7 @@ export interface OptionalSliderProps {
  * A native range input rather than a component of ours: it is keyboard
  * operable, it is announced as a slider, and it needs no dependency. What it
  * cannot do is be empty, so an untouched one rests at `resting` and is muted,
- * with the readout saying so — the position is never the claim, the readout is.
+ * with the readout saying so - the position is never the claim, the readout is.
  */
 export function OptionalSlider({
   id,

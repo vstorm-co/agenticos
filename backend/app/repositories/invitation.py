@@ -117,7 +117,7 @@ async def expire_stale(db: AsyncSession) -> int:
 async def record_use(db: AsyncSession, invite: Invitation) -> Invitation:
     """One more person came in through a link.
 
-    A link stays pending until it is exhausted or revoked — that is what makes
+    A link stays pending until it is exhausted or revoked - that is what makes
     it a link. An email invitation is marked accepted instead, by `accept`,
     because an address is its own limit of one.
     """

@@ -20,13 +20,13 @@ export function CookiesBodyEn() {
       </p>
       <ul>
         <li>
-          <code>auth.session</code> — your authenticated session (httpOnly).
+          <code>auth.session</code> - your authenticated session (httpOnly).
         </li>
         <li>
-          <code>theme</code> — light/dark preference.
+          <code>theme</code> - light/dark preference.
         </li>
         <li>
-          <code>locale</code> — your selected language.
+          <code>locale</code> - your selected language.
         </li>
       </ul>
 
@@ -37,7 +37,7 @@ export function CookiesBodyEn() {
       </p>
       <ul>
         <li>
-          <code>analytics.session</code> — pageview and feature-usage counters.
+          <code>analytics.session</code> - pageview and feature-usage counters.
         </li>
       </ul>
 
@@ -45,7 +45,7 @@ export function CookiesBodyEn() {
       <p>Remember your choices to make the Service feel less repetitive. Optional.</p>
       <ul>
         <li>
-          <code>cookie.consent</code> — your response to the cookie banner.
+          <code>cookie.consent</code> - your response to the cookie banner.
         </li>
       </ul>
 
@@ -62,7 +62,7 @@ export function CookiesBodyEn() {
       <h2>Third-party cookies</h2>
       <p>
         We don&apos;t set advertising cookies. Some embedded content (videos, payment widgets) may
-        set cookies — those are governed by their providers&apos; policies.
+        set cookies - those are governed by their providers&apos; policies.
       </p>
 
       <h2>Contact</h2>
@@ -96,13 +96,13 @@ export function CookiesBodyPl() {
       </p>
       <ul>
         <li>
-          <code>auth.session</code> — Twoja uwierzytelniona sesja (httpOnly).
+          <code>auth.session</code> - Twoja uwierzytelniona sesja (httpOnly).
         </li>
         <li>
-          <code>theme</code> — preferencja jasny/ciemny.
+          <code>theme</code> - preferencja jasny/ciemny.
         </li>
         <li>
-          <code>locale</code> — wybrany język.
+          <code>locale</code> - wybrany język.
         </li>
       </ul>
 
@@ -113,7 +113,7 @@ export function CookiesBodyPl() {
       </p>
       <ul>
         <li>
-          <code>analytics.session</code> — licznik wyświetleń i użycia funkcji.
+          <code>analytics.session</code> - licznik wyświetleń i użycia funkcji.
         </li>
       </ul>
 
@@ -121,7 +121,7 @@ export function CookiesBodyPl() {
       <p>Pamiętają Twoje wybory by Usługa nie była powtarzalna. Opcjonalne.</p>
       <ul>
         <li>
-          <code>cookie.consent</code> — Twoja odpowiedź na banner cookies.
+          <code>cookie.consent</code> - Twoja odpowiedź na banner cookies.
         </li>
       </ul>
 
@@ -138,7 +138,7 @@ export function CookiesBodyPl() {
       <h2>Cookies stron trzecich</h2>
       <p>
         Nie ustawiamy reklamowych cookies. Niektóre osadzone treści (wideo, widgety płatności) mogą
-        ustawiać cookies — podlegają one politykom swoich dostawców.
+        ustawiać cookies - podlegają one politykom swoich dostawców.
       </p>
 
       <h2>Kontakt</h2>

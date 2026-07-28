@@ -1,4 +1,4 @@
-"""Tests for Conversation KB toggle — active_knowledge_base_ids semantics."""
+"""Tests for Conversation KB toggle - active_knowledge_base_ids semantics."""
 
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4

@@ -40,7 +40,7 @@ export function ChatInput({
   const [isUploading, setIsUploading] = useState(false);
   const [isListening, setIsListening] = useState(false);
   // Slash-command palette state. Open while message starts with "/" and the
-  // caller wired a context — without one, commands have nothing to do.
+  // caller wired a context - without one, commands have nothing to do.
   const [paletteIndex, setPaletteIndex] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -77,7 +77,7 @@ export function ChatInput({
         setMessage("");
         return;
       }
-      // send-as-message — replace the slash with the canned prompt and send
+      // send-as-message - replace the slash with the canned prompt and send
       // through the normal flow so it lands as a regular user turn.
       const fileIds = attachedFiles.length > 0 ? attachedFiles.map((f) => f.id) : undefined;
       const files = attachedFiles.length > 0 ? attachedFiles : undefined;
@@ -188,7 +188,7 @@ export function ChatInput({
     finalTranscript = message;
   }, [isListening, message]);
 
-  // File upload to backend — shared by the file picker and drag-and-drop.
+  // File upload to backend - shared by the file picker and drag-and-drop.
   const uploadFiles = useCallback(async (files: File[]) => {
     if (files.length === 0) return;
     for (const file of files) {

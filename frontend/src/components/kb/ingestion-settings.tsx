@@ -43,8 +43,8 @@ export interface IngestionSettingsProps {
   /**
    * Prefix for every control id.
    *
-   * Two of these are on the knowledge base page at once — the collection's own
-   * and the one a single upload departs from — and a duplicated id points every
+   * Two of these are on the knowledge base page at once - the collection's own
+   * and the one a single upload departs from - and a duplicated id points every
    * second label at the first form's control.
    */
   idPrefix: string;
@@ -65,7 +65,7 @@ export interface IngestionSettingsProps {
  * it. Writing the upload form separately is how the two would drift into
  * offering different parsers.
  *
- * Fields a parser ignores are not rendered — LlamaParse's tier means nothing to
+ * Fields a parser ignores are not rendered - LlamaParse's tier means nothing to
  * PyMuPDF, and a control that changes nothing is worse than an absent one. The
  * values behind them are kept, so switching back finds the tier that was set.
  */
@@ -202,7 +202,7 @@ export function IngestionSettings({
             <OptionalSetting
               htmlFor={id("max-pages")}
               label="Maximum pages"
-              description="Where LiteParse stops. This is what bounds the cost of one document — the timeout only bounds the wait."
+              description="Where LiteParse stops. This is what bounds the cost of one document - the timeout only bounds the wait."
               error={errors.max_pages}
               disabled={disabled}
             >
@@ -409,7 +409,7 @@ export function IngestionSettings({
             <OptionalSlider
               id={id("temperature")}
               label="Temperature"
-              description="How varied each description is. Left alone the parameter is not sent at all, which is not the same as sending zero — reasoning models reject it outright."
+              description="How varied each description is. Left alone the parameter is not sent at all, which is not the same as sending zero - reasoning models reject it outright."
               max={INGESTION_LIMITS.temperature.max}
               value={value.image_description.temperature ?? undefined}
               resting={1}
@@ -426,7 +426,7 @@ export function IngestionSettings({
               {/*
                 Not a switch, and not a slider: the resting state is "no
                 reasoning was asked for", which is a third answer rather than the
-                bottom of the ladder — `minimal` still requests it.
+                bottom of the ladder - `minimal` still requests it.
               */}
               <Select
                 value={value.image_description.thinking ?? NOT_REQUESTED}
@@ -467,7 +467,7 @@ const NOT_REQUESTED = "not-requested";
  * Which of the organization's models reads the images.
  *
  * Its own component so the vault is only read where something on screen can use
- * it — the same reason the Builder's secret picker reads it itself. `/providers/
+ * it - the same reason the Builder's secret picker reads it itself. `/providers/
  * model-profiles` is not a request every collection form should be making.
  */
 function ImageModelField({

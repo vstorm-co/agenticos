@@ -1,4 +1,4 @@
-"""Knowledge capability — search the collections an agent is bound to."""
+"""Knowledge capability - search the collections an agent is bound to."""
 
 from app.agents.capabilities._registry import (
     CapabilityBuildContext,
@@ -33,7 +33,7 @@ def _build(ctx: CapabilityBuildContext) -> Knowledge | None:
     """Build the capability, or nothing when no collection is bound.
 
     An agent with knowledge search but no collections would advertise a tool
-    that always returns empty — worse than not having it, because the model
+    that always returns empty - worse than not having it, because the model
     keeps trying.
     """
     if not ctx.resources.get("kb_collection_names"):

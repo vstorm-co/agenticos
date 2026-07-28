@@ -10,7 +10,7 @@ import type { MyPermissions, Permission, PermissionScope, RoleCatalog } from "@/
 /**
  * The caller's effective permissions in the active organization.
  *
- * `can()` decides what to *show*. It is never what decides what happens — every
+ * `can()` decides what to *show*. It is never what decides what happens - every
  * endpoint re-checks server-side, so hiding a button is a courtesy to the user,
  * not a security boundary. While permissions are loading `can()` returns false,
  * which makes the UI reveal actions rather than briefly offer ones that would
@@ -19,8 +19,8 @@ import type { MyPermissions, Permission, PermissionScope, RoleCatalog } from "@/
  * `error` is returned because that same conservatism is a trap when the request
  * never succeeds: an organization the server refuses leaves `can()` answering
  * false forever, and the sidebar drops to four entries with nothing said. This
- * hook is deliberately not where that gets fixed — it is rendered by a dozen
- * components at once and would fire a dozen recoveries — but it is where the
+ * hook is deliberately not where that gets fixed - it is rendered by a dozen
+ * components at once and would fire a dozen recoveries - but it is where the
  * refusal is visible. `useActiveOrganizationRecovery` reads it, once.
  */
 export function usePermissions() {
@@ -67,7 +67,7 @@ export function usePermissions() {
 /**
  * The platform's full permission catalog and what each built-in role bundles.
  *
- * Readable by any member — it describes the rules, not the org's data — and is
+ * Readable by any member - it describes the rules, not the org's data - and is
  * what the Users & Roles matrix renders. Cached indefinitely: the catalog only
  * changes when the backend is redeployed.
  */

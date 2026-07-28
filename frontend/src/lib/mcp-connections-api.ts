@@ -98,7 +98,7 @@ export async function testMcpConnection(id: string): Promise<McpConnectionTestRe
 }
 
 /**
- * Begin the OAuth flow for a server. Returns the provider consent URL — the
+ * Begin the OAuth flow for a server. Returns the provider consent URL - the
  * caller redirects the browser there; the provider sends the user back to the
  * `/oauth/callback` route, which finishes the exchange.
  */
@@ -107,7 +107,7 @@ export async function startMcpOAuth(
   scope: "personal" | "organization" = "personal",
 ): Promise<{ authorization_url: string }> {
   // Two endpoints, one flow. Which one decides who *holds* the connection when
-  // the provider sends the browser back — the person who consented, or the
+  // the provider sends the browser back - the person who consented, or the
   // organization they consented on behalf of.
   const root = scope === "organization" ? "/orgs/mcp-connections" : ROOT;
   return apiClient.post<{ authorization_url: string }>(`${root}/oauth/start`, input);

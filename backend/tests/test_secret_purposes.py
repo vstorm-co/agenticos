@@ -1,6 +1,6 @@
 """What a secret is for, whose it is, and who can see it.
 
-The vault stored a name, a shape and a value — enough to hand a key to a
+The vault stored a name, a shape and a value - enough to hand a key to a
 capability that already knew which one it wanted, and nothing else. Three things
 are now true of every secret, and each closes a specific failure:
 
@@ -92,7 +92,7 @@ class TestStoring:
 
     @pytest.mark.anyio
     async def test_a_private_key_records_its_owner(self):
-        """The database refuses a private secret with no owner — a row nobody
+        """The database refuses a private secret with no owner - a row nobody
         can see and nobody can delete. This is where that is made impossible."""
         ctx = _ctx()
         with (

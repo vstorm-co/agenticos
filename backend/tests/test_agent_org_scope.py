@@ -1,8 +1,8 @@
 """Tests for organization scoping of agent sessions.
 
 Covers the two halves of the WebSocket org boundary:
-  - ``get_active_organization_ws`` — which org a socket runs as
-  - ``persist_user_turn`` — which org a turn is written to, and the refusal to
+  - ``get_active_organization_ws`` - which org a socket runs as
+  - ``persist_user_turn`` - which org a turn is written to, and the refusal to
     resume a conversation belonging to another org
 """
 
@@ -180,7 +180,7 @@ class TestPersistUserTurnOrgScope:
 
     @pytest.mark.anyio
     async def test_resuming_foreign_org_conversation_is_refused(self):
-        """Owning the conversation is not enough — it must be in the active org."""
+        """Owning the conversation is not enough - it must be in the active org."""
         conv = MagicMock(organization_id=uuid.uuid4(), title="Other org's chat")
         service = self._conv_service(conv)
 

@@ -17,7 +17,7 @@ export function parseLoadSkillResult(result: string): { description: string } | 
   return { description: m[1].trim() };
 }
 
-/** Clean card for a loaded skill — just the description, no raw XML. */
+/** Clean card for a loaded skill - just the description, no raw XML. */
 export function LoadSkillResult({ resultText, status }: { resultText: string; status: string }) {
   if (!resultText || status !== "completed") {
     return (

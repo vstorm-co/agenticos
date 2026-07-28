@@ -1,4 +1,4 @@
-Subject: Payment confirmed — [[plan_name]] on [[app_name]]
+Subject: Payment confirmed - [[plan_name]] on [[app_name]]
 
 Hi [[name]],
 
@@ -9,4 +9,4 @@ View your invoice:
 
 Thank you for your continued support!
 
-— The [[app_name]] Team
+- The [[app_name]] Team

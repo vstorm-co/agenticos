@@ -3,7 +3,7 @@
 The whole design of the secret store is in this handshake, and every test here
 is one half of it. Code declares a *kind*; configuration names an *instance*;
 the plaintext is unsealed at build time, reaches the capability object, and goes
-no further — not into ``AgentDeps``, not into a tool argument, not into the
+no further - not into ``AgentDeps``, not into a tool argument, not into the
 model's context, not into a log line.
 """
 
@@ -47,7 +47,7 @@ def capability_needing_a_key() -> Iterator[None]:
     """Register a capability that declares a secret, and take it away again.
 
     A fixture rather than a builtin because no shipped capability needs a
-    credential yet — the store exists for the ones a client writes — and the
+    credential yet - the store exists for the ones a client writes - and the
     handshake has to be tested before the first one is written, not after.
     """
 
@@ -244,7 +244,7 @@ class TestPublishValidation:
     async def test_a_key_the_publisher_cannot_reach_is_refused(self, secret_row):
         """Binding a key is lending it: the agent runs it for everyone who can
         run the agent. The picker only offers what the publisher can see, but the
-        API takes an id — and an id is guessable in a way a list is not.
+        API takes an id - and an id is guessable in a way a list is not.
 
         Refused in the same words as a missing one, so the difference between
         "no such key" and "not yours" cannot be used to enumerate the vault.
@@ -286,7 +286,7 @@ class TestPublishValidation:
     @pytest.mark.anyio
     async def test_a_key_shared_with_the_publisher_publishes(self, secret_row):
         """The other half: a grant is what sharing writes, and it has to be
-        enough — otherwise the sharing panel promises access publish refuses."""
+        enough - otherwise the sharing panel promises access publish refuses."""
         ctx = AuthContext(
             user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.MEMBER
         )

@@ -1,4 +1,4 @@
-"""Agent registry service — create, edit, publish, roll back.
+"""Agent registry service - create, edit, publish, roll back.
 
 The lifecycle this enforces is the whole reason agents are two tables:
 
@@ -8,8 +8,8 @@ Validation happens at publish, never at run time. An agent that references a
 deleted collection or an ungranted scope is refused while someone is looking at
 a form and can fix it, rather than at 3am in a customer conversation.
 
-Rolling back publishes a *new* version copied from an old one. The alternative —
-moving a pointer backwards — would make run history lie about what was live.
+Rolling back publishes a *new* version copied from an old one. The alternative -
+moving a pointer backwards - would make run history lie about what was live.
 """
 
 from __future__ import annotations
@@ -60,7 +60,7 @@ DEFAULT_GRANTED_SCOPES = frozenset({"knowledge:read", "web:read", "code:execute"
 # How far the clone naming loop counts before it lets the collision be reported.
 _MAX_COPIES = 50
 # `AgentSpec.name` is bounded, and a copy of a copy grows. Truncating the base
-# rather than the suffix keeps "(copy 3)" readable — it is the part that says
+# rather than the suffix keeps "(copy 3)" readable - it is the part that says
 # which one this is.
 _NAME_LIMIT = 128
 
@@ -114,7 +114,7 @@ def slugify(name: str) -> str:
     """A URL- and mention-safe handle derived from a name.
 
     Used in agent URLs and as the ``@handle`` on chat platforms, so it must stay
-    stable and unambiguous — which is why it is generated once at creation and
+    stable and unambiguous - which is why it is generated once at creation and
     then owned by the row, not recomputed when the name changes.
     """
     slug = _SLUG_ALLOWED.sub("-", name.strip().lower())
@@ -156,7 +156,7 @@ class AgentRegistryService:
     ) -> tuple[list[Agent], int]:
         """Agents visible to the caller under their role scope and grants."""
         # `None` is `visible_resource_ids` saying the role already reaches every
-        # agent, which is exactly what `see_all` tells the query — so both come
+        # agent, which is exactly what `see_all` tells the query - so both come
         # from the one call rather than from the scope being read twice and the
         # two answers being trusted to agree.
         shared = await visible_resource_ids(
@@ -189,7 +189,7 @@ class AgentRegistryService:
                 message=(
                     f"The handle @{slug} is already taken. It is derived from the name and "
                     "is what an @mention resolves to, so it has to be unique and cannot be "
-                    "changed later — give this agent a name that produces a different handle."
+                    "changed later - give this agent a name that produces a different handle."
                 ),
                 # `field` names the input a person is looking at, which is not
                 # what the server calls it: they typed a *name*, and the thing
@@ -223,7 +223,7 @@ class AgentRegistryService:
         """Copy an agent's draft into a new agent, in draft.
 
         What is copied is the draft spec and nothing else. The copy starts with
-        no versions, no grants and no exposures, owned by whoever cloned it —
+        no versions, no grants and no exposures, owned by whoever cloned it -
         because every one of those is a statement about *that* agent that nobody
         has made about this one. Inheriting the shares alone would hand a copy
         to an audience who never saw it published.
@@ -262,7 +262,7 @@ class AgentRegistryService:
         """A "(copy)" name whose handle nobody has taken yet.
 
         Cloning twice is ordinary, and the second one has no name field to
-        correct — the name is derived, so refusing it with "pick another name"
+        correct - the name is derived, so refusing it with "pick another name"
         would be asking for something the caller was never offered. Numbering
         stops at :data:`_MAX_COPIES`, after which ``create`` raises and says the
         handle is taken, which by then is the honest answer.
@@ -323,7 +323,7 @@ class AgentRegistryService:
             except BadRequestError as exc:
                 problems.append(f"Capability '{binding.id}': {exc.message}")
             # A tool_approval key that matches nothing is the dangerous kind of
-            # typo: it is not an error at run time, it is silence — the tool the
+            # typo: it is not an error at run time, it is silence - the tool the
             # author meant to gate runs unapproved and nobody is told.
             unknown_tools = sorted(set(binding.tool_approval) - definition.tool_ids)
             if unknown_tools:
@@ -339,7 +339,7 @@ class AgentRegistryService:
         # swap underneath it, and "why did this get more expensive" then has no
         # answer in the agent's own history.
         if spec.model_profile_id is None:
-            problems.append("No model selected — pick one before publishing")
+            problems.append("No model selected - pick one before publishing")
         else:
             profile = await credential_repo.get_profile(
                 self.db, spec.model_profile_id, organization_id=ctx.organization_id
@@ -350,7 +350,7 @@ class AgentRegistryService:
         for collection_id in spec.collection_ids:
             collection = await knowledge_base_repo.get_by_id(self.db, collection_id)
             # An agent searches its bound collections for everyone who can run
-            # it, so binding one shares what is in it — the publisher has to be
+            # it, so binding one shares what is in it - the publisher has to be
             # able to reach it themselves. "Not found" covers both that and a
             # missing id on purpose: a refusal that reads differently would map
             # the organization's private collections one guess at a time.
@@ -366,13 +366,13 @@ class AgentRegistryService:
             )
             if connection is None:
                 # Says which of the two ways it can fail applies, because the
-                # likely one — a personal connection picked in the Builder — is
+                # likely one - a personal connection picked in the Builder - is
                 # not a missing row and "not found" would send the person
                 # looking for something that is right in front of them.
                 problems.append(
                     f"MCP server {connection_id} is not shared with this organization. "
                     "A published agent can only use connections the organization owns, "
-                    "never a member's personal one — otherwise what it can reach would "
+                    "never a member's personal one - otherwise what it can reach would "
                     "depend on who happens to run it."
                 )
 
@@ -394,7 +394,7 @@ class AgentRegistryService:
         somewhere far from the form: no reference where the capability needs
         one, a reference to a secret that is gone or belongs to another
         organization, a secret of the wrong shape, and a reference where nothing
-        consumes it — which reads as configured but does nothing, and is the
+        consumes it - which reads as configured but does nothing, and is the
         only one of the four a person would never notice.
         """
         requirement = definition.secret
@@ -407,7 +407,7 @@ class AgentRegistryService:
             return []
         # Whether *this configuration* authenticates. Web search takes a key for
         # Tavily and none for DuckDuckGo, and the same predicate answers here and
-        # at build time — two answers would mean an agent that publishes and then
+        # at build time - two answers would mean an agent that publishes and then
         # refuses to run.
         try:
             config = definition.validate_config(binding.config)
@@ -432,7 +432,7 @@ class AgentRegistryService:
             ]
         # An agent runs its bindings for everyone who can run the agent, so
         # binding a key is lending it. Whoever does the lending has to be able to
-        # reach the key themselves — the picker only ever offers what they can
+        # reach the key themselves - the picker only ever offers what they can
         # see, but the API took an id, and an id is guessable in a way a list is
         # not. Phrased as "does not have" for the same reason `_get` answers 404:
         # a refusal that differs from a miss is a way to enumerate the vault.
@@ -559,7 +559,7 @@ class AgentRegistryService:
         """Bring a retired agent back.
 
         It returns to what it was, which is decided by whether it has a version
-        to run — not by remembering the status it had. Reviving something as
+        to run - not by remembering the status it had. Reviving something as
         published when its version was since deleted would be claiming it can
         run, and the run would be the thing that found out.
 
@@ -629,7 +629,7 @@ class AgentRegistryService:
 
         Raises:
             NotFoundError: If the agent has no avatar, or the stored file is
-                gone — indistinguishable to a caller, and deliberately so.
+                gone - indistinguishable to a caller, and deliberately so.
         """
         agent = await self.get(ctx, agent_id)
         path = get_file_storage().get_full_path(agent.avatar_url) if agent.avatar_url else None
@@ -669,7 +669,7 @@ class AgentRegistryService:
 
         Raises:
             NotFoundError: If the version does not exist or belongs to another
-                agent — indistinguishable, deliberately.
+                agent - indistinguishable, deliberately.
         """
         agent = await self.get(ctx, agent_id)
         version = await agent_repo.get_version(
@@ -716,7 +716,7 @@ class AgentRegistryService:
 
         Raises:
             BadRequestError: If the agent has never been published or is
-                archived — running a draft would mean running something nobody
+                archived - running a draft would mean running something nobody
                 approved.
         """
         agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_RUN)

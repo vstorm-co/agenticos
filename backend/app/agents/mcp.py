@@ -143,7 +143,7 @@ def _carries_base_exception(exc: BaseException) -> bool:
     """True when *exc* is (or wraps) something that isn't an ``Exception``.
 
     A group carrying a ``CancelledError`` means the turn was cancelled, not
-    that the server is down — swallowing it would keep the run alive.
+    that the server is down - swallowing it would keep the run alive.
     """
     if isinstance(exc, BaseExceptionGroup):
         return any(_carries_base_exception(inner) for inner in exc.exceptions)
@@ -154,7 +154,7 @@ def probe_error_message(exc: BaseException) -> str:
     """Human-readable reason for a failed probe.
 
     The MCP client runs on anyio task groups, so failures surface as nested
-    ExceptionGroups ("unhandled errors in a TaskGroup") — unwrap to the root
+    ExceptionGroups ("unhandled errors in a TaskGroup") - unwrap to the root
     cause before showing anything to a user.
     """
     while isinstance(exc, BaseExceptionGroup) and exc.exceptions:

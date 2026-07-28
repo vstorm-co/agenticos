@@ -42,7 +42,7 @@ export interface AgentAvatarProps {
  * be used to confirm that an agent id exists.
  *
  * Initials rather than a generic robot whenever there is a name to take them
- * from — a wall of identical robot glyphs tells the reader nothing, and telling
+ * from - a wall of identical robot glyphs tells the reader nothing, and telling
  * two agents apart at a glance is the whole point of having a picture.
  */
 export function AgentAvatar({

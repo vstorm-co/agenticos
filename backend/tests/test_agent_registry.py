@@ -1,4 +1,4 @@
-"""Tests for the agent registry — the lifecycle that makes agents safe to change.
+"""Tests for the agent registry - the lifecycle that makes agents safe to change.
 
 The shape being defended: edit a draft freely, validate once at publish, run only
 what was frozen. Three invariants carry most of the weight.
@@ -50,7 +50,7 @@ def ungranted_capability():
     """A capability whose scope this deployment does not grant.
 
     Every built-in capability happens to sit inside ``DEFAULT_GRANTED_SCOPES``,
-    so the scope check has nothing to refuse without one of these — and a check
+    so the scope check has nothing to refuse without one of these - and a check
     that never fires is a check nobody notices breaking.
     """
     capability_id = "test_email_send"
@@ -141,7 +141,7 @@ class TestGet:
     async def test_a_forbidden_agent_is_indistinguishable_from_a_missing_one(self):
         """Otherwise the error message becomes an oracle for enumerating agent ids.
 
-        Both paths must produce the same message and the same details — a member
+        Both paths must produce the same message and the same details - a member
         probing ids learns only that they cannot see it, never that it exists.
         """
         ctx = _ctx(OrgRoleName.MEMBER)
@@ -235,7 +235,7 @@ class TestList:
 
     @pytest.mark.anyio
     async def test_the_listing_returns_the_page_and_the_total(self):
-        """The total is the page count, not the page size — pagination depends on it."""
+        """The total is the page count, not the page size - pagination depends on it."""
         ctx = _ctx(OrgRoleName.OWNER)
         agent = _agent(ctx)
 
@@ -417,7 +417,7 @@ class TestValidateSpec:
     async def test_a_private_collection_the_publisher_cannot_reach_is_not_found(self):
         """An agent searches its bound collections for everyone who can run it,
         so binding one shares what is in it. The publisher has to be able to
-        reach it themselves — and is told the same thing as for an id that does
+        reach it themselves - and is told the same thing as for an id that does
         not exist, because a different refusal would map the organization's
         private collections one guess at a time."""
         ctx = _ctx(OrgRoleName.MEMBER)
@@ -455,8 +455,8 @@ class TestValidateSpec:
 
         Refusing here is what makes it a promise: an agent published with a
         server bound either gets that server at run time or never publishes.
-        The reason is spelled out because the likely mistake — picking a
-        personal connection — leaves the row sitting in Settings where the
+        The reason is spelled out because the likely mistake - picking a
+        personal connection - leaves the row sitting in Settings where the
         person can see it, and a bare "not found" would send them hunting.
         """
         ctx = _ctx()
@@ -705,7 +705,7 @@ class TestRollback:
     async def test_rolling_back_publishes_a_new_version_instead_of_moving_the_pointer(self):
         """History stays linear: the timeline shows the rollback happened.
 
-        Repointing at v1 would make every run record ambiguous — "v1" would name
+        Repointing at v1 would make every run record ambiguous - "v1" would name
         two different stretches of time with a bad release in between.
         """
         ctx = _ctx()
@@ -827,7 +827,7 @@ class TestArchiveAndDelete:
 
     @pytest.mark.anyio
     async def test_deleting_an_agent_takes_the_grants_that_pointed_at_it(self):
-        """The grant table is generic — no foreign key, so nothing cascades for it.
+        """The grant table is generic - no foreign key, so nothing cascades for it.
 
         Left behind, those rows are a share of an id that no longer means
         anything, and they outlive the resource they described.
@@ -1001,7 +1001,7 @@ class TestClone:
     @pytest.mark.anyio
     async def test_a_clone_copies_the_draft_and_starts_over(self):
         """The spec is what carries over. Everything else is a statement about
-        the original that nobody has made about the copy — so the copy has no
+        the original that nobody has made about the copy - so the copy has no
         versions, no grants and no exposures, and belongs to whoever cloned it.
         """
         ctx = _ctx()
@@ -1053,7 +1053,7 @@ class TestClone:
         """The derived name has no field to correct.
 
         `create` refuses a taken handle by telling the caller to pick another
-        name — right for a name somebody typed, useless for one this service
+        name - right for a name somebody typed, useless for one this service
         made up on their behalf.
         """
         ctx = _ctx()

@@ -19,7 +19,7 @@ import { useRouter } from "next/navigation";
  *
  * Shaped for that one position rather than for a toolbar: full width, the name
  * unabbreviated, the active organization readable without opening anything.
- * Picking the wrong one does not produce an error — it produces the wrong
+ * Picking the wrong one does not produce an error - it produces the wrong
  * agents, the wrong keys and the wrong run history, all of which look exactly
  * like the right ones.
  */

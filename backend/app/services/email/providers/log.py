@@ -1,4 +1,4 @@
-"""Log email provider — for development. Prints to stdout, optionally writes HTML to disk."""
+"""Log email provider - for development. Prints to stdout, optionally writes HTML to disk."""
 
 import logging
 import tempfile

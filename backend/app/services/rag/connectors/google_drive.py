@@ -93,7 +93,7 @@ class GoogleDriveConnector(BaseSyncConnector):
         return build("drive", "v3", credentials=creds)
 
     async def validate_config(self, config: dict) -> tuple[bool, str | None]:
-        """Validate required fields only — connectivity is checked at sync time."""
+        """Validate required fields only - connectivity is checked at sync time."""
         return await super().validate_config(config)
 
     def _list_folder(self, service, folder_id: str, include_subfolders: bool) -> list[RemoteFile]:
@@ -117,7 +117,7 @@ class GoogleDriveConnector(BaseSyncConnector):
             for f in response.get("files", []):
                 mime = f.get("mimeType", "")
 
-                # Handle folders — recurse if enabled, otherwise skip
+                # Handle folders - recurse if enabled, otherwise skip
                 if mime == "application/vnd.google-apps.folder":
                     if include_subfolders:
                         files.extend(self._list_folder(service, f["id"], include_subfolders))

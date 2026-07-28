@@ -6,7 +6,7 @@ ever be a single assistant, and every new agent needs its own bot token, its own
 webhook and its own place in the workspace's app directory.
 
 ``@support what is the refund window`` is that way. The handle is the agent's
-slug — the same one the Builder shows and the same one the API takes — so a
+slug - the same one the Builder shows and the same one the API takes - so a
 person who can see an agent in the UI already knows how to reach it from Slack.
 
 Three rules make this safe to expose in a shared channel:
@@ -17,7 +17,7 @@ grants and the audit trail all take a subject, and a run with no subject is one
 nobody is accountable for.
 
 *The agent has to have been put here.* A handle resolves only among the agents
-*exposed* to this bot — see :mod:`app.services.agent_exposure`. It used to
+*exposed* to this bot - see :mod:`app.services.agent_exposure`. It used to
 resolve against every published agent in the organization, which made one Slack
 app a door onto all of them; nobody decided that, it fell out of resolving the
 handle against the org rather than against the bot.
@@ -55,17 +55,17 @@ _SURFACES: dict[str, RunSurface] = {
 }
 
 # Said to anyone whose channel identity has no account behind it. Deliberately
-# identical whether they never linked or were removed from the organization —
+# identical whether they never linked or were removed from the organization -
 # both are "we do not know who you are here", and telling them apart would leak
 # whether an account exists.
-_LINK_FIRST = "Link your account before talking to an agent — send /link to this bot."
+_LINK_FIRST = "Link your account before talking to an agent - send /link to this bot."
 
 # Said when the handle names a real agent that nobody has made available here.
 # Deliberately *not* the same answer a typo gets: the bindings are new, so the
 # common case for this message is a bot that used to answer and now does not,
 # and someone in that position should learn why from the bot rather than from a
 # changelog. The trade is that a member learns an agent by that name exists in
-# their own organization without being able to reach it — which they can already
+# their own organization without being able to reach it - which they can already
 # infer from the registry's own refusal, and which is worth less than a channel
 # nobody can debug.
 _NOT_EXPOSED_HERE = (
@@ -126,7 +126,7 @@ class ChannelAgentRouter:
             organization_id: The bot's organization; the slug is resolved here
                 and nowhere else, so one workspace cannot reach another's agents.
             bot_id: The bot the message arrived on. An agent answers through it
-                only if an exposure says so — the organization is where the
+                only if an exposure says so - the organization is where the
                 handle is *looked up*, not what makes it reachable.
             user_id: The platform user's linked account, or ``None`` if they
                 never linked one.
@@ -135,7 +135,7 @@ class ChannelAgentRouter:
 
         Returns:
             The agent's answer, or an empty string when a tool call was parked
-            for approval — the same contract as
+            for approval - the same contract as
             :meth:`AgentRunnerService.execute`.
 
         Raises:

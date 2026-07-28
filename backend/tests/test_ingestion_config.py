@@ -203,8 +203,8 @@ class TestWhatTheDeploymentSeedsANewCollectionWith:
     def test_the_environment_does_not_decide_how_a_collection_parses(self) -> None:
         """How documents are read is per collection, and the row is the only source.
 
-        An installation-wide `PDF_PARSER`/`RAG_CHUNK_SIZE` — inherited from the
-        template this project was generated from — made the same form produce
+        An installation-wide `PDF_PARSER`/`RAG_CHUNK_SIZE` - inherited from the
+        template this project was generated from - made the same form produce
         different collections on two deployments, with nothing in the product
         showing which. The variables are gone; this pins that no replacement
         creeps back in through `settings`.
@@ -225,7 +225,7 @@ class TestWhatTheDeploymentSeedsANewCollectionWith:
         """The two defaults that decide what a LiteParse collection costs and returns.
 
         Markdown is what the markdown chunking strategy splits on, and `auto_ocr`
-        is the difference between OCRing every page and OCRing the scans —
+        is the difference between OCRing every page and OCRing the scans -
         verified against a real parse, not assumed.
         """
         seeded = deployment_defaults()
@@ -325,7 +325,7 @@ class TestResolvingTheModelThatReadsImages:
         """The refusal belongs on the form that turned this on, not on an upload.
 
         There is no organization-wide default to fall back on any more, so image
-        description names its model or is refused — the same rule an agent
+        description names its model or is refused - the same rule an agent
         follows, and for the same reason: a model nobody chose is one somebody
         else's change can swap underneath the collection.
         """

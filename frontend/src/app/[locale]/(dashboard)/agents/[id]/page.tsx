@@ -99,7 +99,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const { can } = usePermissions();
   // The organization's servers, never the author's own: a personal connection
   // is refused at publish, so offering one would be offering a choice that
-  // cannot be published. `useMcpCatalog` only supplies the names and logos —
+  // cannot be published. `useMcpCatalog` only supplies the names and logos -
   // the ids the spec stores belong to the connections.
   const { connections: mcpConnections } = useOrgMcpConnections();
   const { exposures } = useExposures(id);
@@ -131,7 +131,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
   // Names, never ids: the map exists to be read, and a row of uuids is the
   // thing it replaces. Anything the spec references but the organization no
-  // longer has is named as missing rather than dropped — a silently shorter
+  // longer has is named as missing rather than dropped - a silently shorter
   // list hides exactly the problem that refuses at publish.
   const mapNodes = useMemo<MapNode[]>(() => {
     if (!spec) return [];
@@ -153,7 +153,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
         items: exposures.map(
           (exposure) => `${exposure.channel_bot_name}${exposure.is_active ? "" : " (paused)"}`,
         ),
-        empty: "Chat only — not on Slack or Telegram",
+        empty: "Chat only - not on Slack or Telegram",
       },
       {
         key: "knowledge",
@@ -215,7 +215,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // because a second control for one field is a control that disagrees with the
   // first. Thinking sits with the model settings: it contributes no tools and
   // changes how the model runs, not what the agent can do. Skills sits in its
-  // own section, which owns both halves of a decision that used to be split —
+  // own section, which owns both halves of a decision that used to be split -
   // see `setSkills`.
   const grantable = useMemo(
     () => capabilities.filter((entry) => entry.id !== THINKING_ID && entry.id !== SKILLS_ID),
@@ -249,7 +249,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
    * Store the draft, and stop if it did not store.
    *
    * `validate` asks the server about the draft it holds, so running it after a
-   * failed save reports on a spec nobody is looking at — and reports it as the
+   * failed save reports on a spec nobody is looking at - and reports it as the
    * verdict on the one on screen. `saveDraft` has already said what went wrong.
    */
   async function persist(): Promise<boolean> {
@@ -278,7 +278,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
    *
    * Selecting first is the whole point: the chat sends whichever agent the
    * selection names, so navigating without it would land the reader in a
-   * conversation with the general assistant — a different product answering
+   * conversation with the general assistant - a different product answering
    * the question they came here to ask.
    */
   function openInChat() {
@@ -289,7 +289,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   async function handleAvatar(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     // Cleared before awaiting, so picking the same file twice in a row still
-    // fires a change event — otherwise a failed upload cannot be retried with
+    // fires a change event - otherwise a failed upload cannot be retried with
     // the same image.
     event.target.value = "";
     if (!file) return;
@@ -334,8 +334,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
           <div className="flex items-center gap-2">
             {/* Trying the agent happens in the chat, which streams, keeps the
                 conversation and can hand a tool call to the approval queue.
-                Only a published agent has a version to run — the chat's own
-                picker offers no others — so a draft says what unlocks it
+                Only a published agent has a version to run - the chat's own
+                picker offers no others - so a draft says what unlocks it
                 instead of opening a chat that would answer as somebody else. */}
             <Button
               variant="outline"
@@ -344,7 +344,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
               title={
                 isPublished
                   ? undefined
-                  : "Publish this agent to chat with it — the chat runs the published version"
+                  : "Publish this agent to chat with it - the chat runs the published version"
               }
             >
               <MessageSquare className="h-4 w-4" />
@@ -533,7 +533,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             <CardTitle>Model settings</CardTitle>
             <CardDescription>
               How this agent asks its model to behave, on top of whatever the model profile already
-              sets. A setting nobody touches is not sent at all — that is deliberate rather than
+              sets. A setting nobody touches is not sent at all - that is deliberate rather than
               tidy: reasoning models reject a temperature outright, so an agent that never chose one
               must not have one sent on its behalf. A provider that does not implement a setting
               ignores it. Reasoning itself is a capability, below.
@@ -582,7 +582,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
               <Link href={ROUTES.MCP_SERVERS} className="underline">
                 your organization has connected
               </Link>
-              . Only the organization&apos;s servers appear here — an agent everyone runs cannot
+              . Only the organization&apos;s servers appear here - an agent everyone runs cannot
               depend on whose credential is behind it, so a personal connection is refused at
               publish.
             </CardDescription>
@@ -599,7 +599,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             />
             <p className="text-muted-foreground mt-4 text-xs">
               Two limits worth knowing before you rely on this. Which of a server&apos;s tools are
-              exposed is set on the connection, so every agent bound to it gets the same ones — not
+              exposed is set on the connection, so every agent bound to it gets the same ones - not
               the per-agent choice the capabilities above offer. And MCP tools are outside the
               approval gate entirely: an approval set on a capability does not cover them, so
               anything these servers can do, this agent can do without asking.
@@ -644,7 +644,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             <CardDescription>
               Written know-how the agent loads only when it decides a skill is relevant, so twenty
               skills cost almost nothing in context. Picking one gives the agent the tools to read
-              them — that used to be a separate capability somebody had to know to switch on, and
+              them - that used to be a separate capability somebody had to know to switch on, and
               skills chosen without it were resolved and then dropped on the floor.
             </CardDescription>
           </CardHeader>
@@ -664,7 +664,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             <CardDescription>
               Two spending limits, because they fail differently: a per-run cap stops one runaway
               conversation, a monthly cap stops a slow leak nobody is watching. The
-              organization&apos;s own limit still applies on top — an agent can tighten it, never
+              organization&apos;s own limit still applies on top - an agent can tighten it, never
               loosen it. The step limit is the third kind of runaway: a tool loop that is cheap per
               call and never finishes.
             </CardDescription>
@@ -750,7 +750,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             <CardDescription>
               Each publish freezes a spec. Runs record the version, so what an agent did last
               Tuesday stays answerable after a dozen edits. Restoring publishes a new version copied
-              from the old one — the timeline shows that a rollback happened rather than pretending
+              from the old one - the timeline shows that a rollback happened rather than pretending
               the bad version never existed.
             </CardDescription>
           </CardHeader>
@@ -780,7 +780,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
               >
                 <RunStatusBadge status={agentRun.status} />
                 <span className="text-muted-foreground font-mono text-xs">
-                  {agentRun.model_label ?? "—"}
+                  {agentRun.model_label ?? "-"}
                 </span>
                 <span className="font-mono text-xs">
                   ${Number(agentRun.cost_usd).toFixed(4)}
@@ -833,7 +833,7 @@ function BuilderSkeleton() {
         </div>
       </div>
 
-      {/* Tab strip — six tabs, at the widths their labels take. */}
+      {/* Tab strip - six tabs, at the widths their labels take. */}
       <div className="bg-muted inline-flex h-9 items-center gap-1 rounded-lg p-1">
         {["w-12", "w-20", "w-24", "w-28", "w-16", "w-14"].map((width) => (
           <div key={width} className={cn("bg-foreground/10 h-7 animate-pulse rounded-md", width)} />

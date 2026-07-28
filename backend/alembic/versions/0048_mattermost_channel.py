@@ -6,14 +6,14 @@ Create Date: 2026-07-28
 
 Two changes, both forced by the same fact: Mattermost is self-hosted.
 
-`channel_bots.api_base_url` — Slack and Telegram each have one address for
+`channel_bots.api_base_url` - Slack and Telegram each have one address for
 every customer, so the adapter can hard-code it. A Mattermost bot belongs to
 somebody's own server and cannot post anywhere without being told which one.
 Nullable because the other two platforms have nothing to put there.
 
 `ck_exposure_surface` gains `mattermost`. The constraint is the reason an agent
 cannot be exposed on a surface the platform does not have an adapter for, which
-is worth keeping — so it has to be widened deliberately, here, rather than
+is worth keeping - so it has to be widened deliberately, here, rather than
 discovered when an insert fails.
 """
 

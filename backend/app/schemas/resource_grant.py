@@ -17,7 +17,7 @@ def as_visibility(value: str) -> VisibilityLiteral:
 
     A visibility is a `String` column under a check constraint, so what comes
     back from the database is `str` as far as anything reading it can tell. This
-    is where that becomes the three values the schema promises — and where a row
+    is where that becomes the three values the schema promises - and where a row
     holding anything else fails loudly, rather than being serialized into a
     response whose own OpenAPI schema forbids it.
     """
@@ -77,7 +77,7 @@ class ResourceSharing(BaseSchema):
         `emails` is a separate lookup because a grant stores a user id and the
         UI shows an address; a grant for somebody no longer in the organization
         resolves to `None` rather than dropping the row, so an admin can still
-        see — and revoke — access nobody can explain.
+        see - and revoke - access nobody can explain.
         """
         return cls(
             resource_type=resource_type,

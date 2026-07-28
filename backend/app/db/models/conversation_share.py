@@ -1,4 +1,4 @@
-"""ConversationShare model — sharing conversations between users (PostgreSQL async)."""
+"""ConversationShare model - sharing conversations between users (PostgreSQL async)."""
 
 import uuid
 from datetime import datetime

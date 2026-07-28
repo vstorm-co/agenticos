@@ -2,7 +2,7 @@
 
 Agents, collections, skills and vault secrets each get the same four routes,
 generated from one definition. The resource loaders live here because loading a row is the only
-thing that differs between them — and they are deliberately *not* in the sharing
+thing that differs between them - and they are deliberately *not* in the sharing
 service, which stays agnostic about what it is sharing.
 """
 

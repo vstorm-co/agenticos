@@ -1,7 +1,7 @@
 """Bring a fresh installation to a running agent.
 
 `seed` fills the database with sample rows; this does something narrower and
-more useful — it produces the shortest path from `docker compose up` to an
+more useful - it produces the shortest path from `docker compose up` to an
 agent that answers a question. An empty AgenticOS is a chicken-and-egg problem:
 an agent needs a model, a model needs a key, a key needs an organization. This
 walks that chain once so a new operator can see the thing work before deciding
@@ -113,7 +113,7 @@ async def _bootstrap(
     success("Ready.")
     click.echo(f"  Sign in as {email}")
     if api_key is None:
-        warning("  No API key given — add one under Settings → AI providers to run the agent.")
+        warning("  No API key given - add one under Settings → AI providers to run the agent.")
     else:
         click.echo("  Open Agents → Getting Started → Test and ask it something.")
 
@@ -159,7 +159,7 @@ async def _resolve_model(
         return existing[0].id
 
     if api_key is None:
-        info(f"No {provider} key given — add one in the vault, then add a model")
+        info(f"No {provider} key given - add one in the vault, then add a model")
         return None
 
     # Into the vault, like every other key. It is the same store the Vault page
@@ -192,7 +192,7 @@ async def _resolve_demo_agent(db, ctx: AuthContext, profile_id: uuid.UUID | None
     Without a model there is nothing to publish: validation refuses a spec that
     names no profile when the organization has no default, and an agent that
     published anyway would answer its first message with an error. It is left as
-    a draft, which is what it is — one key away from working.
+    a draft, which is what it is - one key away from working.
     """
     slug = slugify(DEMO_AGENT_NAME)
     if await agent_repo.get_by_slug(db, slug, organization_id=ctx.organization_id):
@@ -209,7 +209,7 @@ async def _resolve_demo_agent(db, ctx: AuthContext, profile_id: uuid.UUID | None
     )
     agent = await service.create(ctx, spec)
     if profile_id is None:
-        info(f"Agent @{slug} saved as a draft — add a model, then publish it")
+        info(f"Agent @{slug} saved as a draft - add a model, then publish it")
         return
     await service.publish(ctx, agent.id, note="Bootstrap")
     success(f"Published agent @{slug}")

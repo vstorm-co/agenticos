@@ -1,7 +1,7 @@
 /**
  * Human-readable captions narrating what the agent is doing "under the hood"
  * while a tool runs. Used by the live agent-step animation to label each step
- * in plain language. Dependency-free — safe to use anywhere in the UI.
+ * in plain language. Dependency-free - safe to use anywhere in the UI.
  */
 
 const EXACT_CAPTIONS: Record<string, string> = {

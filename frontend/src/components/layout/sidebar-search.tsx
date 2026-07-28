@@ -8,7 +8,7 @@ import { useTranslations } from "next-intl";
  *
  * It searches nothing itself: it opens the command palette, the one ⌘K already
  * opens, so there is a single set of results to keep honest. A column has the
- * width to say so — and to show the shortcut, which is how anyone learns the
+ * width to say so - and to show the shortcut, which is how anyone learns the
  * shortcut exists.
  */
 export function SidebarSearch() {

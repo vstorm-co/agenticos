@@ -2,7 +2,7 @@
 
 The difference between a demo and something a company lets near its systems. An
 agent that can send an email, refund a payment or write to a CRM should not be
-able to do so unattended just because nobody set a flag — so approval is the
+able to do so unattended just because nobody set a flag - so approval is the
 default for anything marked side-effecting, and waiving it is an explicit act
 recorded in the spec.
 
@@ -46,7 +46,7 @@ class ApprovalService:
     ) -> ToolApproval:
         """Park a tool call until a human decides.
 
-        Called from inside a run, so it takes ids rather than an auth context —
+        Called from inside a run, so it takes ids rather than an auth context -
         the agent, not a member, is what asks.
         """
         approval = await agent_run_repo.create_approval(

@@ -42,7 +42,7 @@ async def _reachable() -> bool:
 
 # Names a database is allowed to have before this suite will drop its tables.
 # The guard exists because the cost of getting it wrong is somebody's local
-# data, silently, in the middle of an ordinary `pytest` run — and the default
+# data, silently, in the middle of an ordinary `pytest` run - and the default
 # (`test_db`) is one environment variable away from being a real database.
 _TEST_DATABASE_MARKERS = ("test", "ci")
 
@@ -78,7 +78,7 @@ async def engine():
     isolation between tests.
     """
     if not await _reachable():
-        pytest.skip("No database reachable — start one with `make docker-db`")
+        pytest.skip("No database reachable - start one with `make docker-db`")
 
     _refuse_a_real_database(_database_url())
 

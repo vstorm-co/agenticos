@@ -42,7 +42,7 @@ interface InviteLinkDialogProps {
  * That convenience is exactly the risk, so the two guards are on the same
  * screen as the button rather than buried in settings: how many people it
  * admits, and whose addresses. A link with neither only holds while the URL
- * itself is treated as a secret — which a link in a channel is not — and the
+ * itself is treated as a secret - which a link in a channel is not - and the
  * dialog says so instead of leaving it to be worked out later.
  */
 export function InviteLinkDialog({ open, onOpenChange, orgId }: InviteLinkDialogProps) {
@@ -145,7 +145,7 @@ export function InviteLinkDialog({ open, onOpenChange, orgId }: InviteLinkDialog
         ) : (
           <div className="space-y-3">
             <p className="text-muted-foreground text-sm">
-              Copy it now — it is shown once, and no later request returns it.
+              Copy it now - it is shown once, and no later request returns it.
             </p>
             <div className="flex items-start gap-2">
               <code className="bg-muted min-w-0 flex-1 overflow-x-auto rounded-md p-2 font-mono text-xs">

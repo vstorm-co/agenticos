@@ -160,7 +160,7 @@ class RAGDocumentService:
 
         Performs:
           1. refusal if the collection's vectors and this deployment's embedding
-             model no longer agree — nothing else is worth doing if they do not;
+             model no longer agree - nothing else is worth doing if they do not;
           2. file-extension and size validation, the former against the parser
              *this upload* resolved to rather than the deployment's;
           3. resolution of the image-description model, so a bad profile id in

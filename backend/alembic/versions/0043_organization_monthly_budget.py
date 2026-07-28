@@ -10,8 +10,8 @@ twelve independent caps and no ceiling: each one could be right and the bill
 still twelve times what anybody signed off. On a platform billed per token that
 is the control an operator most expects to exist.
 
-Nullable, and deliberately so. The cap is opt-in — a default number nobody chose
-would stop somebody's agents on a date they did not pick — and ``NULL`` reads as
+Nullable, and deliberately so. The cap is opt-in - a default number nobody chose
+would stop somebody's agents on a date they did not pick - and ``NULL`` reads as
 "no organization-wide ceiling", which is what every existing row means today.
 
 ``Numeric(12, 6)`` matches ``agent_runs.cost_usd``, because that is what the cap
@@ -35,7 +35,7 @@ def upgrade() -> None:
         "organizations", sa.Column("monthly_budget_usd", sa.Numeric(12, 6), nullable=True)
     )
     # A cap of zero is not a tighter cap, it is an organization whose agents can
-    # never answer — and it is one keystroke away from the number somebody meant
+    # never answer - and it is one keystroke away from the number somebody meant
     # to type. The same guard is on ``agent_exposures``.
     op.create_check_constraint(
         "ck_organization_budget_positive",

@@ -10,7 +10,7 @@ import { Button, buttonVariants } from "./button";
  * These assert which elements are *allowed to name* the accent tokens, never
  * what those tokens resolve to. Retheming the product is a one-line change to
  * `--brand-h` in globals.css, and a test that pinned `oklch(48% …)` or `blue`
- * would make that change expensive for no safety — the point of the token
+ * would make that change expensive for no safety - the point of the token
  * layer is that the colour can move while the roles cannot.
  *
  * What is actually protected here: the accent stays scarce. A page has one

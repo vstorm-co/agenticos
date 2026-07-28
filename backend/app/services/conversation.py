@@ -90,7 +90,7 @@ class ConversationService:
             and conversation.user_id is not None
             and str(conversation.user_id) != str(user_id)
         ):
-            # Not the owner — check if user has a share granting access
+            # Not the owner - check if user has a share granting access
             share = await conversation_share_repo.get_share(self.db, conversation_id, user_id)
             if not share:
                 raise NotFoundError(
@@ -142,7 +142,7 @@ class ConversationService:
 
         Set on the ORM object rather than returned alongside it, because the
         route serializes the row straight through the read schema. One query for
-        the whole page — see the repository function it calls.
+        the whole page - see the repository function it calls.
 
         A conversation can have several: the chat's picker can be changed
         mid-thread, and a transcript relabelled to whoever answered last would
@@ -411,7 +411,7 @@ class ConversationService:
     ) -> tuple[list[Message | MessageRead], int]:
         """When user_id is provided, messages are enriched with user_rating and rating_count.
 
-        `organization_id=None` is unscoped — see `get_conversation_with_messages`.
+        `organization_id=None` is unscoped - see `get_conversation_with_messages`.
         """
         await self._resolve(conversation_id, organization_id=organization_id)
         items = await conversation_repo.get_messages_by_conversation(
@@ -447,7 +447,7 @@ class ConversationService:
         *,
         organization_id: UUID | None = None,
     ) -> Message:
-        """Append one message. `organization_id=None` is unscoped — see
+        """Append one message. `organization_id=None` is unscoped - see
         `get_conversation_with_messages`."""
         await self._resolve(conversation_id, organization_id=organization_id)
         return await conversation_repo.create_message(

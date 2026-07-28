@@ -29,13 +29,13 @@ interface UseReusableIntegrationsResult {
  * The organization's integrations that belong to no collection yet.
  *
  * `GET /orgs/{id}/integrations` answers with every integration the organization
- * has, assigned or not — it was written for a page that listed both. The
+ * has, assigned or not - it was written for a page that listed both. The
  * assigned ones are now shown by the collection they feed, on `/kb/{id}`, so
  * this keeps only the rest: the ones with nowhere else to appear, which would
  * otherwise be configured, stored, and then unreachable.
  *
  * `orgId` is nullable so a caller can hold the hook without firing the request
- * — the endpoint is owner/admin-only, and a member who is shown nothing should
+ * - the endpoint is owner/admin-only, and a member who is shown nothing should
  * also ask for nothing rather than collect a 403.
  *
  * Cloning goes through the *destination* collection's route, which resolves the
@@ -93,7 +93,7 @@ export function useReusableIntegrations(orgId: string | null): UseReusableIntegr
           collection_name: null,
         });
         writeCache((prev) => [created, ...prev]);
-        toast.success("Integration saved — use it in a knowledge base to start syncing");
+        toast.success("Integration saved - use it in a knowledge base to start syncing");
         return created;
       } catch (cause) {
         // Reported here and raised again: the connector's own refusal ("Invalid

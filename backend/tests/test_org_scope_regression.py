@@ -1,15 +1,15 @@
 """Regression guards for tenant scoping.
 
 Two kinds of check:
-  - behavioural — a resource from another organization is not readable;
-  - structural — the repository signatures that caused the problem cannot come
+  - behavioural - a resource from another organization is not readable;
+  - structural - the repository signatures that caused the problem cannot come
     back. ``organization_id: UUID | None = None`` made the unsafe call (no
     tenant filter, every tenant's rows) look identical to the safe one, so an
     omitted argument silently widened a query. These functions must take the
     tenant as a required keyword.
 
-Queries that legitimately cross tenants are named for it — ``get_for_inbound``,
-``get_active_polling_bots`` — and are listed here as deliberate exceptions.
+Queries that legitimately cross tenants are named for it - ``get_for_inbound``,
+``get_active_polling_bots`` - and are listed here as deliberate exceptions.
 """
 
 import inspect
@@ -52,11 +52,11 @@ class TestRepositorySignatures:
         assert "organization_id" in params, f"{func_name} lost its tenant argument"
         param = params["organization_id"]
         assert param.default is inspect.Parameter.empty, (
-            f"{func_name} defaults organization_id — a forgotten tenant would silently "
+            f"{func_name} defaults organization_id - a forgotten tenant would silently "
             "widen the query instead of failing"
         )
         assert param.kind is inspect.Parameter.KEYWORD_ONLY, (
-            f"{func_name} takes organization_id positionally — keyword-only keeps call "
+            f"{func_name} takes organization_id positionally - keyword-only keeps call "
             "sites readable and prevents argument-order mistakes"
         )
 
@@ -64,7 +64,7 @@ class TestRepositorySignatures:
     def test_unscoped_functions_say_why(self, module, func_name):
         doc = inspect.getdoc(getattr(module, func_name)) or ""
         assert "unscoped" in doc.lower(), (
-            f"{func_name} crosses tenants without saying so — an unscoped query must be "
+            f"{func_name} crosses tenants without saying so - an unscoped query must be "
             "greppable and explain itself"
         )
 
@@ -110,7 +110,7 @@ class TestConversationTenantBoundary:
 
     @pytest.mark.anyio
     async def test_ownership_alone_does_not_grant_access(self):
-        """Same user, different org — still refused."""
+        """Same user, different org - still refused."""
         user_id = uuid.uuid4()
         conv = self._conv(uuid.uuid4(), user_id=user_id)
 

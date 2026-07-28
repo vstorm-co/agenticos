@@ -13,8 +13,8 @@ export const PAGE_SIZE = 50;
 /**
  * Search, filter and paging over a list the client already holds.
  *
- * For a list the client *does not* hold — one that grows with an organization's
- * content — the server pages it and the query is a request, not a filter. This
+ * For a list the client *does not* hold - one that grows with an organization's
+ * content - the server pages it and the query is a request, not a filter. This
  * is for the other kind: a catalog compiled into the deployment, or a set small
  * enough that a round trip per keystroke would be the slower design.
  *
@@ -94,7 +94,7 @@ export function SearchInput({
 /**
  * The pager, which renders nothing when there is only one page.
  *
- * A control that cannot do anything is a control somebody reaches for anyway —
+ * A control that cannot do anything is a control somebody reaches for anyway -
  * and on the common case, a catalog that fits on one page, it would be the only
  * thing at the foot of the list.
  */
@@ -155,7 +155,7 @@ export function Pager({
 /**
  * A value that stops changing while somebody is still typing.
  *
- * For the other kind of list — one the server pages, where the query is a
+ * For the other kind of list - one the server pages, where the query is a
  * request rather than a filter. Without this, a search box issues a round trip
  * per keystroke and the answers can land out of order.
  */

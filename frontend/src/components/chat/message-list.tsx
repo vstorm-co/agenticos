@@ -34,7 +34,7 @@ export function MessageList({ messages, onRegenerate }: MessageListProps) {
     return "middle";
   };
 
-  // Only allow regenerating the most recent assistant message — older ones
+  // Only allow regenerating the most recent assistant message - older ones
   // would diverge the transcript in a confusing way.
   const lastAssistantIndex = (() => {
     for (let i = messages.length - 1; i >= 0; i--) {

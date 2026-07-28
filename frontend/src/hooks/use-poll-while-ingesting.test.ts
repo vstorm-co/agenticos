@@ -4,7 +4,7 @@
  * Two properties are worth holding onto, and neither is visible from reading the
  * hook: that it stops (a page with a settled list must make no requests at all,
  * or this is worse than the stream it replaced), and that an inline callback
- * does not stall it — the mistake the ref in the hook exists to prevent, and one
+ * does not stall it - the mistake the ref in the hook exists to prevent, and one
  * that looks perfectly correct on the page calling it.
  */
 

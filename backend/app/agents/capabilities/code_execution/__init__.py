@@ -1,4 +1,4 @@
-"""Code execution capability — arithmetic and data work in a sandbox."""
+"""Code execution capability - arithmetic and data work in a sandbox."""
 
 from app.agents.capabilities._registry import (
     CapabilityBuildContext,

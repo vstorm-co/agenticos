@@ -43,7 +43,7 @@ export default async function SharedConversationPage({ params }: SharedConversat
       <div className="mb-6 border-b pb-4">
         <h1 className="text-xl font-semibold">{conversation.title || "Shared Conversation"}</h1>
         <p className="text-muted-foreground text-sm">
-          Shared conversation — {share.permission === "view" ? "read-only" : "view & edit"}
+          Shared conversation - {share.permission === "view" ? "read-only" : "view & edit"}
         </p>
       </div>
 

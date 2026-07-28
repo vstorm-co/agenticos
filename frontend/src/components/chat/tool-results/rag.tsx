@@ -176,7 +176,7 @@ function RAGSourceGroup({
   );
 }
 
-/** Tiny dot indicating chunk relevance — neutral palette, no warning colors. */
+/** Tiny dot indicating chunk relevance - neutral palette, no warning colors. */
 function ScoreDot({ score }: { score: number }) {
   // Map score to brand-tone opacity instead of red/yellow/green so the UI
   // reads as a quality signal, not an alert.

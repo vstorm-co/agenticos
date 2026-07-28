@@ -3,7 +3,7 @@
 There used to be two. Domain refusals came back as
 ``{"error": {"code", "message", "details"}}``; schema validation came back as
 FastAPI's own ``{"detail": [...]}``. A client written against one shape does not
-fail loudly on the other — it silently reads nothing, which is how a duplicate
+fail loudly on the other - it silently reads nothing, which is how a duplicate
 name reached the browser as "Request failed" and a 422 reached it as the string
 form of a list of dicts.
 
@@ -33,7 +33,7 @@ class TestFieldPath:
             (("body", "spec", "name"), "spec.name"),
             (("query", "limit"), "limit"),
             # An index is the most useful part of the path when a list is
-            # rejected — "the third capability", not "a capability".
+            # rejected - "the third capability", not "a capability".
             (("body", "spec", "capabilities", 2, "id"), "spec.capabilities.2.id"),
             # A body that is not an object at all belongs to no field.
             (("body",), "request"),
@@ -57,7 +57,7 @@ class TestSummary:
         )
 
     def test_several_problems_name_the_fields(self):
-        """Not "the request was invalid" — the reader needs to know where to look."""
+        """Not "the request was invalid" - the reader needs to know where to look."""
         summary = _summarize(
             [
                 {"field": "email", "message": "not a valid email address"},

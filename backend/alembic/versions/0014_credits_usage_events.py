@@ -1,4 +1,4 @@
-"""create credit_transaction and usage_event — skipped (enable_billing/enable_credits_system=false or no SQL DB)
+"""create credit_transaction and usage_event - skipped (enable_billing/enable_credits_system=false or no SQL DB)
 
 Revision ID: 0014_credits_usage_events
 """

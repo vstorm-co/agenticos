@@ -11,7 +11,7 @@ describe("ProviderIcon", () => {
 
   it("renders a monogram for one it does not, rather than nothing", () => {
     // Heroku, OVHcloud and a LiteLLM proxy have no mark anywhere, and a
-    // deployment gains a provider whenever Pydantic AI does — so this is the
+    // deployment gains a provider whenever Pydantic AI does - so this is the
     // normal case. A blank gap would read as a logo that failed to load.
     const { container } = render(<ProviderIcon provider="litellm" />);
     expect(container.querySelector("svg")).toBeNull();
@@ -20,7 +20,7 @@ describe("ProviderIcon", () => {
 
   it("stays out of the accessibility tree either way", () => {
     // Every row prints the provider beside the icon. A mark that named itself
-    // would make a screen reader say it twice — and lobehub's SVGs carry a
+    // would make a screen reader say it twice - and lobehub's SVGs carry a
     // <title>, so this has to be switched off rather than merely omitted.
     const { container: known } = render(<ProviderIcon provider="anthropic" />);
     const { container: unknown } = render(<ProviderIcon provider="ovhcloud" />);

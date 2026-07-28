@@ -1,4 +1,4 @@
-"""Tests for the resource grant repository — the table behind every share.
+"""Tests for the resource grant repository - the table behind every share.
 
 A repository's behaviour *is* the statement it builds, so these tests read the
 statement back rather than counting calls. That matters most for the predicate:
@@ -6,8 +6,8 @@ a dropped ``organization_id`` filter is a cross-tenant read that no assertion
 about "the repository was called" would ever notice, and a wrong level filter
 hands out edit rights to people who were granted read.
 
-What the schema guarantees on top of this — one grant per member per resource,
-only the three defined levels — is asserted against a real database in
+What the schema guarantees on top of this - one grant per member per resource,
+only the three defined levels - is asserted against a real database in
 ``tests/integration/test_schema_guarantees.py``.
 """
 

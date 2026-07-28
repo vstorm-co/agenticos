@@ -25,7 +25,7 @@ interface IngestionPanelProps {
  * the documents behind them, and that question is asked far more often than the
  * settings are changed. The one control is the way to the form.
  *
- * The embedding model is the exception that proves the rule — it is here as a
+ * The embedding model is the exception that proves the rule - it is here as a
  * fact and nowhere as a control, because it cannot be changed at all.
  */
 export function IngestionPanel({ kb, onEdit }: IngestionPanelProps) {
@@ -33,7 +33,7 @@ export function IngestionPanel({ kb, onEdit }: IngestionPanelProps) {
 
   return (
     // Named, so the facts inside are read as belonging to it rather than to the
-    // page — and so a spec can ask this panel what it says.
+    // page - and so a spec can ask this panel what it says.
     <section
       aria-labelledby="kb-ingestion-heading"
       className="border-border bg-card rounded-xl border"
@@ -66,7 +66,7 @@ export function IngestionPanel({ kb, onEdit }: IngestionPanelProps) {
         <Fact term="Images">
           {config.describe_images
             ? "Described by a model and indexed"
-            : "Not described — a picture of a table is not searchable"}
+            : "Not described - a picture of a table is not searchable"}
         </Fact>
 
         {/*
@@ -77,7 +77,7 @@ export function IngestionPanel({ kb, onEdit }: IngestionPanelProps) {
         */}
         <Fact
           term="Embeddings"
-          note="What this collection was indexed with, recorded when it was created. It cannot be changed — vectors written by two different models are not comparable, so a collection that needs another one is a new collection."
+          note="What this collection was indexed with, recorded when it was created. It cannot be changed - vectors written by two different models are not comparable, so a collection that needs another one is a new collection."
         >
           <span className="inline-flex items-center gap-1.5">
             <Lock className="text-muted-foreground h-3 w-3 shrink-0" aria-hidden />

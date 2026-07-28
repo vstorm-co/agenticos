@@ -13,7 +13,7 @@ export interface AgentRun {
   model_label: string | null;
   input_tokens: number;
   output_tokens: number;
-  /** Serialised Decimal — never parse into a float for arithmetic. */
+  /** Serialised Decimal - never parse into a float for arithmetic. */
   cost_usd: string;
   /** True when a model in this run had no price; the cost is a floor. */
   cost_is_partial: boolean;
@@ -56,7 +56,7 @@ export interface CostByAgent {
 
 /** One model provider's share of the bill. */
 export interface CostByProvider {
-  /** Null for runs recorded before this was tracked — shown as such, never folded in. */
+  /** Null for runs recorded before this was tracked - shown as such, never folded in. */
   provider: string | null;
   cost_usd: string;
   run_count: number;
@@ -75,7 +75,7 @@ export interface CostSummary {
   /** Calendar-aligned, so it can be reconciled against an invoice. */
   month_to_date_usd: string;
   by_agent: CostByAgent[];
-  /** What each vendor was paid — the question an invoice arrives with. */
+  /** What each vendor was paid - the question an invoice arrives with. */
   by_provider: CostByProvider[];
   /** Which key it went through, which is how a leaked or misused one is found. */
   by_credential: CostByCredential[];

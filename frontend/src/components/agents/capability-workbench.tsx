@@ -23,8 +23,8 @@ interface CapabilityWorkbenchProps {
  * The pile was the problem: switching on five capabilities produced five
  * configuration panels stacked below the grid, each one separated from the
  * checkbox that created it by everything else somebody had switched on. The
- * settings were not missing — a tool's name and description have been editable
- * per agent all along — they were simply somewhere nobody looked.
+ * settings were not missing - a tool's name and description have been editable
+ * per agent all along - they were simply somewhere nobody looked.
  *
  * Focus and enablement are deliberately different things. You can read what a
  * capability offers, down to the arguments of each tool, before deciding to
@@ -43,7 +43,7 @@ export function CapabilityWorkbench({
 
   // Filtered, not paged: this column is navigation, and a capability that moved
   // to page two of its own picker is one nobody finds. The tools are searched
-  // too — somebody looking for "chart" is looking for the tool, and has no
+  // too - somebody looking for "chart" is looking for the tool, and has no
   // reason to know which capability owns it.
   const [query, setQuery] = useState("");
   const categories = useMemo(() => {
@@ -186,7 +186,7 @@ function CapabilityRow({
         </span>
         <span className="text-muted-foreground mt-0.5 block text-xs">
           {entry.tools.length === 0
-            ? "no tools — changes how it runs"
+            ? "no tools - changes how it runs"
             : entry.tools.length === 1
               ? "1 tool"
               : `${entry.tools.length} tools`}
@@ -199,7 +199,7 @@ function CapabilityRow({
 /**
  * A capability nobody has switched on, read rather than configured.
  *
- * Its tools are the whole of what it is, so they are what the panel shows —
+ * Its tools are the whole of what it is, so they are what the panel shows -
  * the alternative is asking someone to grant a capability to find out what
  * granting it does.
  */

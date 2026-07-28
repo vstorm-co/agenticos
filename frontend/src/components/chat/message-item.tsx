@@ -246,7 +246,7 @@ export function MessageItem({ message, agent, groupPosition, onRegenerate }: Mes
           const parts = rawParts;
           const useParts = !isUser && parts.length > 0;
 
-          // "Thinking…" placeholder — shown until anything streams in.
+          // "Thinking…" placeholder - shown until anything streams in.
           const showPlaceholder =
             !isUser &&
             message.isStreaming &&
@@ -413,7 +413,7 @@ function FileChip({
   hint?: string;
   /** When provided, clicking opens the file in the preview panel. */
   onClick?: () => void;
-  /** Fallback for legacy attachments without full metadata — opens in new tab. */
+  /** Fallback for legacy attachments without full metadata - opens in new tab. */
   href?: string;
 }) {
   const ext = filename.includes(".") ? filename.split(".").pop()!.toLowerCase() : null;

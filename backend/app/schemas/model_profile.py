@@ -25,7 +25,7 @@ class ProviderInfo(BaseSchema):
     id: str
     name: str
     secret_kind: SecretKind = Field(
-        description="Which shape of credential this provider needs — see /secrets/kinds"
+        description="Which shape of credential this provider needs - see /secrets/kinds"
     )
     supports_base_url: bool = Field(
         description="Whether a custom endpoint can be stored; false means it would be ignored"
@@ -95,7 +95,7 @@ class ProviderModelList(BaseSchema):
     source: Literal["live", "curated"] = Field(
         description=(
             "Where the list came from: `live` if the provider answered, `curated` if this "
-            "deployment's own list was used — because the provider publishes none, there is "
+            "deployment's own list was used - because the provider publishes none, there is "
             "no key to ask with, or the call failed."
         )
     )

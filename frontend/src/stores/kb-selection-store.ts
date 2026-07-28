@@ -10,7 +10,7 @@ import { persist } from "zustand/middleware";
  *
  * Two states co-exist with the per-conversation row in the database:
  *  - When the chat hasn't created a conversation yet, this store is the
- *    only source of truth — the WS payload carries it as
+ *    only source of truth - the WS payload carries it as
  *    `active_knowledge_base_ids` so the first agent turn already searches
  *    the chosen KBs.
  *  - Once a conversation exists, the draft IS the conversation's value:
@@ -39,7 +39,7 @@ export const useKBSelectionStore = create<KBSelectionState>()(
       clear: () => set({ activeKBIds: [] }),
       hydrateFromConversation: (ids) => {
         // Only overwrite when the conversation has its own selection. `null`
-        // means "use defaults" — keep the local draft as a hint for future
+        // means "use defaults" - keep the local draft as a hint for future
         // edits in this conversation.
         if (Array.isArray(ids)) set({ activeKBIds: ids });
       },

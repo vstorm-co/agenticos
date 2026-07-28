@@ -1,7 +1,7 @@
 """Tests for the general secret store and the shapes a secret can take.
 
-The store exists for one concrete need — a custom capability calling an API the
-platform knows nothing about — and it is only defensible because of the
+The store exists for one concrete need - a custom capability calling an API the
+platform knows nothing about - and it is only defensible because of the
 constraint: **a secret is referenced, never handed around.** Most of what is
 worth testing here is that constraint holding.
 """
@@ -120,7 +120,7 @@ class TestSecretKinds:
         assert value.project == "acme-prod"
 
     def test_a_service_account_is_hinted_by_the_account_it_authenticates_as(self):
-        """The client email, not the private key — it is what names the account
+        """The client email, not the private key - it is what names the account
         in the Google console, and it is not confidential."""
         value = GcpServiceAccountSecret(service_account_json=service_account_json())
         assert value.hint == ".com"

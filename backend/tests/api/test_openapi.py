@@ -1,4 +1,4 @@
-"""OpenAPI contract tests — validate API schema structure.
+"""OpenAPI contract tests - validate API schema structure.
 
 These tests ensure that:
 1. OpenAPI schema is generated and accessible

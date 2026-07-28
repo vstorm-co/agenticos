@@ -3,14 +3,14 @@
 A skill is a folder: ``SKILL.md`` carries the name and description in YAML
 frontmatter and the body below it, and every other file beside it is a resource
 the model can load when it decides it needs the detail. That is the shape the
-skills capability already consumes — a body plus named files — so the library
+skills capability already consumes - a body plus named files - so the library
 is stored the way it is used rather than in a format that has to be translated.
 
 Bundled in the repository rather than fetched from a registry. The alternative
 was importing from a git URL, and it costs more than it looks: outbound network
 from the backend, a parser pointed at somebody else's repository, and a promise
 about content nobody here has read. Each folder in this directory is the same
-small promise the MCP catalog makes — that we looked at it. What it costs is
+small promise the MCP catalog makes - that we looked at it. What it costs is
 that adding one is a deploy.
 
 Installing copies. A library skill becomes an ordinary skill owned by the
@@ -56,7 +56,7 @@ class LibrarySkill:
     """One folder in the library, as the gallery shows it."""
 
     key: str
-    """The directory name — how an install request names it."""
+    """The directory name - how an install request names it."""
 
     name: str
     description: str
@@ -72,7 +72,7 @@ def library() -> tuple[LibrarySkill, ...]:
     redeploy, not between requests.
 
     A folder that cannot be read is logged and skipped rather than failing the
-    gallery — one malformed manifest must not take the other skills with it.
+    gallery - one malformed manifest must not take the other skills with it.
     """
     if not LIBRARY_ROOT.is_dir():
         logger.warning("Skill library directory is missing: %s", LIBRARY_ROOT)

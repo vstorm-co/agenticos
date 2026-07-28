@@ -67,7 +67,7 @@ const TOOL_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 export function toolNameError(name: string): string | null {
   if (name.length === 0) return "The model calls the tool by this name, so it cannot be blank.";
   if (!TOOL_NAME_PATTERN.test(name)) {
-    return "Letters, digits and underscores only — the model calls this name verbatim.";
+    return "Letters, digits and underscores only - the model calls this name verbatim.";
   }
   return null;
 }
@@ -93,7 +93,7 @@ export function approvalHint(mode: ApprovalMode, sideEffecting: boolean): string
  *
  * This is the frontend's copy of a rule the runtime also applies. It exists so
  * the Builder can *say* what a setting will do rather than describe the rule and
- * leave the reader to run it in their head — which is where per-tool approval
+ * leave the reader to run it in their head - which is where per-tool approval
  * would otherwise become a thing nobody dares touch.
  */
 export function resolveToolApproval(
@@ -116,7 +116,7 @@ function resolveCapabilityApproval(mode: ApprovalMode, sideEffecting: boolean): 
  * Every bound capability appears, because every one has at least an approval
  * mode to set. This was filtered to capabilities that were configurable *or*
  * side-effecting, and the approval control rendered only for the side-effecting
- * ones — so with the current builtin set, where none of them are, it never
+ * ones - so with the current builtin set, where none of them are, it never
  * rendered at all.
  *
  * Worse, that hid the case worth reaching for. The backend honours `required`
@@ -170,7 +170,7 @@ interface CapabilityDetailProps {
 /**
  * Everything one capability lets an agent decide.
  *
- * Its own component because the Builder shows exactly one at a time now — the
+ * Its own component because the Builder shows exactly one at a time now - the
  * capability you are looking at, beside the list you picked it from. Stacking
  * every enabled one below a grid is what made these settings hard to find.
  */
@@ -274,7 +274,7 @@ export function CapabilityDetail({
  * The configuration schema as the server states it.
  *
  * The form above is generated from this, so a control that looks wrong is
- * either a schema saying something unexpected or a form failing to render it —
+ * either a schema saying something unexpected or a form failing to render it -
  * and telling those apart without the source is guesswork.
  */
 function SchemaPreview({ schema }: { schema: JsonSchema }) {
@@ -298,7 +298,7 @@ function SchemaPreview({ schema }: { schema: JsonSchema }) {
  * The three refusals `_secret_problems` produces about a *chosen* secret, said
  * where the choice is made: nothing selected, a reference this organization does
  * not have, and a secret of the wrong shape. Publishing says the same things an
- * hour later, in a list beside everything else wrong with the agent — and the
+ * hour later, in a list beside everything else wrong with the agent - and the
  * first of the three is the one an author reaches by doing nothing at all, which
  * is the worst possible way to find out.
  *
@@ -316,7 +316,7 @@ export function secretProblem(
   }
   const secret = secrets.find((candidate) => candidate.id === secretId);
   if (secret === undefined) {
-    return "The secret selected here is not in this organization's vault — it was deleted, or the spec was written against another organization. Publishing refuses it.";
+    return "The secret selected here is not in this organization's vault - it was deleted, or the spec was written against another organization. Publishing refuses it.";
   }
   if (secret.kind !== requirement.kind) {
     return `"${secret.name}" is of kind ${secret.kind}; this capability needs ${requirement.kind}. Publishing refuses it.`;
@@ -332,7 +332,7 @@ interface SecretFieldProps {
 }
 
 /**
- * What the key chosen here would be for — "tavily", "brave" — when the binding
+ * What the key chosen here would be for - "tavily", "brave" - when the binding
  * has said, and null when the requirement is unconditional and no field names a
  * service.
  *
@@ -355,7 +355,7 @@ function purposeOf(binding: CapabilityBindingSpec, requirement: SecretRequiremen
  *
  * Purpose alone is too narrow, for two reasons that are not going away. Every
  * key stored before purposes existed reads as `custom`, and so does every key
- * for a service this deployment does not name — filtering those out would hide
+ * for a service this deployment does not name - filtering those out would hide
  * a Tavily key that works. And the currently bound secret always stays offered:
  * a selection vanishing from its own control, on a spec that was saved and is
  * still valid, looks like data loss whatever the reason.
@@ -374,8 +374,8 @@ function fitsPurpose(secret: Secret, purpose: string | null, selectedId: string 
  * exception on this surface and deliberate. No builtin declares a secret, so a
  * `secrets` prop would make every capability card, and the Builder around them,
  * carry a request for a collection nothing on screen can use. And `GET /secrets`
- * is gated on `connections:manage` — which a member editing their own agent does
- * not have — so it is a request this page cannot assume succeeds; mounting it
+ * is gated on `connections:manage` - which a member editing their own agent does
+ * not have - so it is a request this page cannot assume succeeds; mounting it
  * only where a secret is actually required keeps the refusal where somebody can
  * be told what it means.
  *
@@ -383,8 +383,8 @@ function fitsPurpose(secret: Secret, purpose: string | null, selectedId: string 
  * where an API key is required is offering a publish failure, and one the reader
  * would not connect to this control by the time they saw it.
  *
- * There is no option that clears the choice. Unset is a state — it is *the*
- * state that blocks publishing — but it is reached by not having chosen, never
+ * There is no option that clears the choice. Unset is a state - it is *the*
+ * state that blocks publishing - but it is reached by not having chosen, never
  * by choosing, so offering it would be offering a way to break the agent.
  */
 function SecretField({ binding, requirement, onChange, disabled }: SecretFieldProps) {
@@ -399,7 +399,7 @@ function SecretField({ binding, requirement, onChange, disabled }: SecretFieldPr
   // Having selected nothing is a fact about the spec, so it is said whatever the
   // vault did. Whether a *selected* secret is missing or the wrong shape is a
   // claim about the organization's vault, and mid-flight or after a refusal `[]`
-  // is what a full vault also looks like — a stored secret would otherwise read
+  // is what a full vault also looks like - a stored secret would otherwise read
   // as deleted on every load.
   const vaultWasRead = state === "ready" || state === "empty";
   const problem =
@@ -444,7 +444,7 @@ function SecretField({ binding, requirement, onChange, disabled }: SecretFieldPr
 
       {state === "unreadable" && (
         <p className="text-destructive text-xs">
-          The vault could not be read, so nothing can be chosen here — which says nothing about what
+          The vault could not be read, so nothing can be chosen here - which says nothing about what
           your organization has stored. Listing secrets needs the permission that manages
           connections. {getErrorMessage(listError)}
         </p>
@@ -457,7 +457,7 @@ function SecretField({ binding, requirement, onChange, disabled }: SecretFieldPr
       )}
 
       {/*
-        The way forward for whoever has no suitable secret yet — which is
+        The way forward for whoever has no suitable secret yet - which is
         everyone, the first time a capability of their own asks for one. Adding
         it here rather than sending them to the vault: the four-step round trip
         (open the vault, add the key, come back, re-pick the capability) is the
@@ -467,7 +467,7 @@ function SecretField({ binding, requirement, onChange, disabled }: SecretFieldPr
       {(state === "empty" || state === "ready") && requirement.kind === "api_key" && (
         <InlineSecret
           kind="api_key"
-          // The chosen method *is* the service the key is for — "tavily",
+          // The chosen method *is* the service the key is for - "tavily",
           // "brave". Recording it is what lets the select above offer only the
           // right keys next time instead of every API key in the vault.
           purpose={purpose ?? "custom"}
@@ -483,7 +483,7 @@ function SecretField({ binding, requirement, onChange, disabled }: SecretFieldPr
           <Link href={ROUTES.VAULT} className="underline">
             Store one in the vault
           </Link>{" "}
-          and it appears here — this shape has several fields, so it is filled in there. The value
+          and it appears here - this shape has several fields, so it is filled in there. The value
           stays in the vault; an agent records which secret to use, never the secret.
         </p>
       )}
@@ -551,7 +551,7 @@ interface StaleSecretNoticeProps {
  * The fourth thing publishing refuses, and the only one of the four nobody would
  * ever notice: the binding reads as configured and the value is never read. It
  * arrives when a capability drops its requirement while an agent still names a
- * secret for it — and with no picker rendered for such a capability, there would
+ * secret for it - and with no picker rendered for such a capability, there would
  * be nothing on this page able to undo it.
  */
 function StaleSecretNotice({ binding, onChange, disabled }: StaleSecretNoticeProps) {
@@ -712,8 +712,8 @@ function ToolRow({ binding, tool, contract, sideEffecting, onChange, disabled }:
             <SelectContent>
               <SelectItem value="default">
                 {resolveCapabilityApproval(binding.approval, sideEffecting) === "required"
-                  ? "Follow the capability — always ask"
-                  : "Follow the capability — never ask"}
+                  ? "Follow the capability - always ask"
+                  : "Follow the capability - never ask"}
               </SelectItem>
               {APPROVAL_OPTIONS.filter((option) => option.value !== "default").map((option) => (
                 <SelectItem key={option.value} value={option.value}>
@@ -750,7 +750,7 @@ function ToolRow({ binding, tool, contract, sideEffecting, onChange, disabled }:
  *
  * The field above holds one sentence because that is what a form can hold. The
  * model is handed the whole docstring and a schema of the arguments, and an
- * author rewording the sentence is rewriting the opening of that — so the rest
+ * author rewording the sentence is rewriting the opening of that - so the rest
  * of it has to be readable without leaving the page. Read-only on purpose:
  * arguments come from the function signature, and a spec cannot rename them.
  */
@@ -815,7 +815,7 @@ export function jsonSchemaType(node: ToolParameterSchema | undefined): string {
 interface ToolFieldProps {
   htmlFor: string;
   label: string;
-  /** The way back to the value the capability declared in code — absent when it is that. */
+  /** The way back to the value the capability declared in code - absent when it is that. */
   reset?: { label: string; onClick: () => void };
   error?: string | null;
   disabled?: boolean;
@@ -860,8 +860,8 @@ function ToolField({ htmlFor, label, reset, error, disabled, children }: ToolFie
  * The approval override stored for a tool, or undefined when it follows the
  * capability.
  *
- * A stored `"default"` is the same statement as a missing key — a spec written
- * by hand or exported from an older deployment can contain either — so both
+ * A stored `"default"` is the same statement as a missing key - a spec written
+ * by hand or exported from an older deployment can contain either - so both
  * read as "no override" and neither gets marked as one.
  */
 function overrideFor(binding: CapabilityBindingSpec, toolId: string): ResolvedApproval | undefined {
@@ -923,7 +923,7 @@ function withToolApproval(
  * Store what was typed, even when it happens to match the code default.
  *
  * Treating "you typed the current value back" as a revert would delete an
- * override the moment somebody retyped the name they had already set — the
+ * override the moment somebody retyped the name they had already set - the
  * catalog hands back the *effective* name, so the two are the same string.
  * Reverting is the button, not a coincidence.
  */
@@ -956,7 +956,7 @@ function withoutToolOverride(
 
   const tool_overrides = { ...binding.tool_overrides };
   // An emptied entry is not the same as no entry to `isDirty`, which compares
-  // the spec on screen against the one the server holds — leaving `{}` behind
+  // the spec on screen against the one the server holds - leaving `{}` behind
   // would mark the draft unsaved for as long as it stayed open.
   if (remaining.name === undefined && remaining.description === undefined) {
     delete tool_overrides[toolId];

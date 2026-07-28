@@ -19,7 +19,7 @@ interface PageProps {
  * "which agents" is the whole point of the scope, so the cell shows it.
  */
 const SCOPE_LABEL: Record<PermissionScope, string> = {
-  none: "—",
+  none: "-",
   own: "own",
   shared: "shared",
   team: "team",
@@ -43,7 +43,7 @@ export default function RolesPage({ params }: PageProps) {
   const breadcrumbHeader = (
     <PageHeader
       title="Users & Roles"
-      description="What each role may do. Permissions are defined in code and bundled into roles — a role can never hold a permission the platform does not define."
+      description="What each role may do. Permissions are defined in code and bundled into roles - a role can never hold a permission the platform does not define."
       breadcrumbs={[
         { label: "Organizations", href: ROUTES.ORGS },
         { label: "Members", href: ROUTES.ORG_MEMBERS(orgId) },
@@ -61,7 +61,7 @@ export default function RolesPage({ params }: PageProps) {
             <CardTitle>Permission matrix</CardTitle>
           </CardHeader>
           <CardContent>
-            {/* The permission name plus one column per role — six roles ship in
+            {/* The permission name plus one column per role - six roles ship in
                 the catalog. A wrong guess costs a column of width, not the
                 page's height, which is what the reader is waiting on. */}
             <LoadingState variant="skeleton-table" columns={7} rows={12} />
@@ -96,7 +96,7 @@ export default function RolesPage({ params }: PageProps) {
         <CardHeader>
           <CardTitle>Permission matrix</CardTitle>
           <CardDescription>
-            Resource permissions carry a scope — <strong>own</strong> is what you created,{" "}
+            Resource permissions carry a scope - <strong>own</strong> is what you created,{" "}
             <strong>shared</strong> adds what was shared with you, <strong>all</strong> is the whole
             organization. Sharing a single resource can widen access beyond the role, never narrow
             it.
@@ -104,7 +104,7 @@ export default function RolesPage({ params }: PageProps) {
               <>
                 {" "}
                 Your role here is <Badge variant="secondary">{myRole}</Badge>
-                {isAppAdmin ? " (platform superadmin — everything is permitted)" : null}.
+                {isAppAdmin ? " (platform superadmin - everything is permitted)" : null}.
               </>
             ) : null}
           </CardDescription>
@@ -138,7 +138,7 @@ export default function RolesPage({ params }: PageProps) {
                       return (
                         <td key={role.name} className="px-3 py-2">
                           {scope === "none" ? (
-                            <span className="text-muted-foreground">—</span>
+                            <span className="text-muted-foreground">-</span>
                           ) : (
                             <Badge variant={SCOPE_VARIANT[scope]}>
                               {isResource ? SCOPE_LABEL[scope] : "yes"}

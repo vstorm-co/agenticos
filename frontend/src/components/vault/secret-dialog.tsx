@@ -58,7 +58,7 @@ interface AddSecretDialogProps {
  * Store a secret a capability can be bound to.
  *
  * The kind is asked first because it decides every field below it, and it is
- * asked at all because a capability declares which kind it needs — binding an
+ * asked at all because a capability declares which kind it needs - binding an
  * `api_key` where the code wants `aws_credentials` is refused at publish, and
  * that is a much later place to find out.
  */
@@ -66,7 +66,7 @@ interface AddSecretDialogProps {
  * How the purposes are grouped in the picker, and in what order.
  *
  * Model providers first because that is what most people are here for, the
- * services next, and the escape hatch last — it is the answer when none of the
+ * services next, and the escape hatch last - it is the answer when none of the
  * others fit, not a peer of them.
  */
 const PURPOSE_GROUPS = [
@@ -90,7 +90,7 @@ export function AddSecretDialog({
   const [visibility, setVisibility] = useState<SecretVisibility>("org");
   // `null` is "nobody has typed a name", which is not the same as an empty one:
   // it is what lets the field follow the chosen service until somebody makes it
-  // theirs. Once typed, it stays typed — including when typed back to blank.
+  // theirs. Once typed, it stays typed - including when typed back to blank.
   const [name, setName] = useState<string | null>(null);
   const [description, setDescription] = useState("");
   const [kind, setKind] = useState<StorableSecretKind>("api_key");
@@ -184,7 +184,7 @@ export function AddSecretDialog({
         <DialogHeader>
           <DialogTitle>Add a secret</DialogTitle>
           <DialogDescription>
-            Encrypted and bound to this organization. An agent names it by id, never by value — so
+            Encrypted and bound to this organization. An agent names it by id, never by value - so
             it can be rotated without touching a single agent, and it cannot be read back.
           </DialogDescription>
         </DialogHeader>
@@ -193,7 +193,7 @@ export function AddSecretDialog({
           {/* First, because it decides everything below it: which shape the
               form asks for, what the key unlocks, and where it can be picked. */}
           {/* Two steps rather than one list of thirty-one. The first question
-              has three answers and rules out most of the second — picking
+              has three answers and rules out most of the second - picking
               "Web search" turns a scroll through every model provider into a
               choice between three services. */}
           {/* A caption over a group of buttons, not a `Label`: a label names
@@ -342,7 +342,7 @@ export function AddSecretDialog({
             label="Note (optional)"
             htmlFor="secret-description"
             error={errors.description}
-            description="Shown next to the picker — which account this is, whose it is, anything the next person needs."
+            description="Shown next to the picker - which account this is, whose it is, anything the next person needs."
           >
             <Textarea
               value={description}
@@ -390,7 +390,7 @@ interface RotateSecretDialogProps {
  * Replace a secret's value while keeping its id.
  *
  * This is the operation the vault exists to make ordinary. Every agent binding
- * names a secret by id, so rotating one leaves all of them working — where
+ * names a secret by id, so rotating one leaves all of them working - where
  * deleting it and storing a new one leaves each of them pointing at something
  * this organization no longer has, and says so only at the next run.
  *
@@ -441,7 +441,7 @@ export function RotateSecretDialog({
           <DialogTitle>Rotate {secret?.name}</DialogTitle>
           <DialogDescription>
             The new value replaces the old one the moment you save, and the old one is gone. Every
-            agent bound to this secret keeps working — they name it by id, and the id does not
+            agent bound to this secret keeps working - they name it by id, and the id does not
             change.
           </DialogDescription>
         </DialogHeader>

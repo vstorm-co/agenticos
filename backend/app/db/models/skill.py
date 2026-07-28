@@ -1,9 +1,9 @@
-"""Skills — reusable instructions an agent loads on demand.
+"""Skills - reusable instructions an agent loads on demand.
 
 A skill is a piece of an organization's know-how written once and attached to
 many agents: how refunds are handled, what the house style is, which checks a
 report must pass. The agent sees only names and one-line descriptions until it
-decides one is relevant, then loads the body — so twenty skills cost almost
+decides one is relevant, then loads the body - so twenty skills cost almost
 nothing in context, and the twenty-first does not push the conversation out.
 
 Skills live in the database rather than on disk because they are *content*, not
@@ -56,7 +56,7 @@ class Skill(Base, TimestampMixin):
     # The handle the model uses to load it. Unique per org so an agent bound to
     # two skills cannot end up with an ambiguous reference.
     name: Mapped[str] = mapped_column(String(64), nullable=False)
-    # The one line the model reads before deciding to load the body — this is
+    # The one line the model reads before deciding to load the body - this is
     # what makes progressive disclosure work, so it earns its own column.
     description: Mapped[str] = mapped_column(String(500), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False, default="")
@@ -107,7 +107,7 @@ class SkillResource(Base, TimestampMixin):
 
     @property
     def size_bytes(self) -> int:
-        """What a listing reports instead of the body — see ``SkillResourceSummary``."""
+        """What a listing reports instead of the body - see ``SkillResourceSummary``."""
         return len(self.content.encode("utf-8"))
 
     __table_args__ = (UniqueConstraint("skill_id", "name", name="uq_skill_resource_name"),)

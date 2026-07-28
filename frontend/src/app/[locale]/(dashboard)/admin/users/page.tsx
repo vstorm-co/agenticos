@@ -73,7 +73,7 @@ export default function AdminUsersPage() {
     [fetchUsers],
   );
 
-  // Debounced fetch — the server does filtering, sorting, and pagination.
+  // Debounced fetch - the server does filtering, sorting, and pagination.
   useEffect(() => {
     const timer = setTimeout(() => {
       load(page, search, pageSize, sort.by, sort.dir);

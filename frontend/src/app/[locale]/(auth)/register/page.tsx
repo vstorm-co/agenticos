@@ -12,7 +12,7 @@ export async function generateMetadata({
   const { locale } = await params;
   return pageMetadata({
     title: "Create your account",
-    description: "Start your free trial — no credit card required.",
+    description: "Start your free trial - no credit card required.",
     path: "/register",
     locale,
   });

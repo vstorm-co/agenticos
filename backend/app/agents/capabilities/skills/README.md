@@ -7,7 +7,7 @@ relevant.
 Two decisions worth keeping:
 
 **Skills are passed in memory.** The toolset accepts `Skill` objects directly,
-so a run never touches the disk — no temp-file cleanup, no race between two runs
+so a run never touches the disk - no temp-file cleanup, no race between two runs
 materialising the same skill, no path traversal surface.
 
 **`run_skill_script` is excluded from the toolset**, not merely left unused.

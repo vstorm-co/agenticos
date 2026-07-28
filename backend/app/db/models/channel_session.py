@@ -1,4 +1,4 @@
-"""ChannelSession model — active bot + chat conversation thread (PostgreSQL async)."""
+"""ChannelSession model - active bot + chat conversation thread (PostgreSQL async)."""
 
 import uuid
 from datetime import datetime

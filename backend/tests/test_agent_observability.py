@@ -1,6 +1,6 @@
 """Per-agent Logfire: whose project a run's traces land in.
 
-The property worth pinning is not that Logfire works — that is Logfire's
+The property worth pinning is not that Logfire works - that is Logfire's
 problem. It is that an agent with no observability block is left alone, that a
 token which has gone missing does not stop the agent running, and that the
 write token never leaves the vault path it came in on.

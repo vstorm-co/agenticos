@@ -1,5 +1,5 @@
 # ruff: noqa: I001
-"""Sync source service — org-scoped integration management."""
+"""Sync source service - org-scoped integration management."""
 
 import json
 from datetime import UTC, datetime
@@ -135,7 +135,7 @@ class SyncSourceService:
         """Create a new sync source.
 
         Secret fields are Fernet-encrypted before persisting.
-        ``collection_name`` is optional — omit to create an org-level integration
+        ``collection_name`` is optional - omit to create an org-level integration
         not yet linked to a knowledge base.
 
         Raises:
@@ -229,7 +229,7 @@ class SyncSourceService:
         await sync_source_repo.delete(self.db, UUID(source_id))
 
     async def trigger_sync(self, source_id: str) -> object:
-        """Trigger a manual sync — persists a SyncLog and dispatches the task.
+        """Trigger a manual sync - persists a SyncLog and dispatches the task.
 
         Raises:
             NotFoundError: If sync source does not exist.

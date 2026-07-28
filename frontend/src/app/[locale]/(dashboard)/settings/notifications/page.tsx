@@ -6,8 +6,8 @@ import { SectionCard } from "@/components/settings/settings-section";
 /**
  * What this deployment emails, and why none of it is a switch.
  *
- * This page used to offer four toggles — Billing, Team activity, Security
- * alerts, Product updates — over two channels, a Save button and a
+ * This page used to offer four toggles - Billing, Team activity, Security
+ * alerts, Product updates - over two channels, a Save button and a
  * "Notification preferences saved" toast. It wrote to `localStorage`. No
  * notification-preference model existed on the server, so nothing was saved
  * anywhere a sender could read it: turning a toggle off did not stop an email,
@@ -22,7 +22,7 @@ import { SectionCard } from "@/components/settings/settings-section";
  * A statement of what is actually sent is worth more than a control that lies,
  * so that is what this page is until there is a notification a recipient can
  * genuinely decline. When one arrives, its toggle belongs here and the check
- * belongs in `EmailService.send` — at the send site, not in this component. A
+ * belongs in `EmailService.send` - at the send site, not in this component. A
  * preference the sender does not consult is the same facade in another table.
  */
 
@@ -39,7 +39,7 @@ const SENT_EMAILS: readonly SentEmail[] = [
   {
     key: "welcome",
     label: "Welcome",
-    trigger: "Once, when your account is created — and again for each sign-in link you request.",
+    trigger: "Once, when your account is created - and again for each sign-in link you request.",
     reason:
       "It is sent while the account is being created, before there is anywhere to record a preference, and the sign-in link is how you get in.",
     icon: Mail,
@@ -57,7 +57,7 @@ const SENT_EMAILS: readonly SentEmail[] = [
     label: "Organization invitation",
     trigger: "When a member invites an email address to an organization.",
     reason:
-      "It goes to the person being invited, who often has no account here yet — there is no recipient whose preference could be consulted.",
+      "It goes to the person being invited, who often has no account here yet - there is no recipient whose preference could be consulted.",
     icon: UserPlus,
   },
 ];
@@ -79,7 +79,7 @@ export default function NotificationsSettingsPage() {
                 <p className="text-foreground text-sm font-medium">{email.label}</p>
                 <p className="text-muted-foreground text-xs leading-relaxed">{email.trigger}</p>
                 <p className="text-muted-foreground text-xs leading-relaxed">
-                  <span className="text-foreground/70 font-medium">Not optional — </span>
+                  <span className="text-foreground/70 font-medium">Not optional - </span>
                   {email.reason}
                 </p>
               </div>
@@ -111,7 +111,7 @@ export default function NotificationsSettingsPage() {
       <SectionCard title="Preferences" description="Why this page has no controls yet.">
         <p className="text-muted-foreground text-xs leading-relaxed">
           A preference is only real once something consults it before sending. All three emails
-          above are transactional — they carry access to your account or to an organization — so
+          above are transactional - they carry access to your account or to an organization - so
           there is nothing here a toggle could switch off without breaking it. Controls appear on
           this page when the first genuinely optional notification does; the leading candidate is an
           alert when an organization approaches its monthly spend limit, which needs a spend cap to

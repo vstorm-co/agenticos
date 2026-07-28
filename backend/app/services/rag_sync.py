@@ -53,7 +53,7 @@ class RAGSyncService:
 
         ``collections`` is required and has no default: the caller has already
         decided which collections it may report on, and "all of them" must not
-        be reachable by omission. The caller also chooses `limit` — no
+        be reachable by omission. The caller also chooses `limit` - no
         server-side cap beyond `limit` is applied.
         """
         logs = await sync_log_repo.get_all(self.db, collections=collections, limit=limit)

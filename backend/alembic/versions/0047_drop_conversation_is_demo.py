@@ -11,7 +11,7 @@ one reader (a router nothing reached). Both are gone, and a boolean nothing
 consults is worse than no column: it survives long enough that somebody assumes
 it means something.
 
-Removing it is safe in the direction that matters — no code reads the value —
+Removing it is safe in the direction that matters - no code reads the value -
 and the downgrade restores the column with its index and default, so a rollback
 lands on a schema the previous revision's models can still write. The flags
 themselves are not recoverable, which is the honest cost of dropping a column;

@@ -9,9 +9,9 @@ conversation they opened org-less, which in turn blocked
 ``conversations.organization_id`` from becoming NOT NULL (see 0027).
 
 Backfill assigns existing bots to the only organization in the database. With
-more than one organization there is no defensible automatic answer — which
+more than one organization there is no defensible automatic answer - which
 tenant owns a given Slack workspace is a business fact, not something a
-migration may guess — so the migration stops and asks for a manual assignment
+migration may guess - so the migration stops and asks for a manual assignment
 rather than silently handing one tenant's bot to another.
 """
 

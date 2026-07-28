@@ -76,7 +76,7 @@ async def list_for_resource(
     resource_type: str,
     resource_id: UUID,
 ) -> list[ResourceGrant]:
-    """Every grant on one resource — the Sharing panel's list."""
+    """Every grant on one resource - the Sharing panel's list."""
     result = await db.execute(
         select(ResourceGrant)
         .where(

@@ -1,9 +1,9 @@
 """Business logic for user-scoped slash command settings (PostgreSQL async).
 
 Two flavors of row live in the same table:
-  - **Custom** commands (``prompt`` set) — user-defined `/<name>` shortcuts
+  - **Custom** commands (``prompt`` set) - user-defined `/<name>` shortcuts
     that expand to the stored prompt before being sent to the agent.
-  - **Built-in overrides** (``prompt`` is NULL) — record only ``is_enabled``
+  - **Built-in overrides** (``prompt`` is NULL) - record only ``is_enabled``
     for one of the frontend's BUILTIN_COMMANDS. The frontend merges these
     with its own list at render time.
 

@@ -36,7 +36,7 @@ class InvitationStatus(enum.StrEnum):
 
 
 class Organization(Base, TimestampMixin):
-    """Organization — the primary multi-tenant unit. Every user gets a Personal org on signup."""
+    """Organization - the primary multi-tenant unit. Every user gets a Personal org on signup."""
 
     __tablename__ = "organizations"
 
@@ -53,7 +53,7 @@ class Organization(Base, TimestampMixin):
     )
     # The ceiling on everything this organization's agents spend in a calendar
     # month. ``None`` is no ceiling, which is what an organization that has never
-    # opened the setting has — the cap is opt-in, because a default number
+    # opened the setting has - the cap is opt-in, because a default number
     # nobody chose would stop somebody's agents on a date they did not pick.
     #
     # Numeric to the same scale as ``agent_runs.cost_usd``: the cap is compared
@@ -74,7 +74,7 @@ class Organization(Base, TimestampMixin):
 
     __table_args__ = (
         # Zero is not a tighter cap, it is an organization whose agents can never
-        # answer — and it is one keystroke away from the number somebody meant to
+        # answer - and it is one keystroke away from the number somebody meant to
         # type. The same constraint guards ``agent_exposures``.
         CheckConstraint(
             "monthly_budget_usd IS NULL OR monthly_budget_usd > 0",
@@ -140,7 +140,7 @@ class Invitation(Base):
     # Null makes this a *link* rather than an email invitation: one row that
     # anybody holding the token can accept, which is how a team gets onboarded
     # from a Slack message instead of twenty individual sends. Everything else
-    # about it — role, expiry, revocation, the accept path — is identical, which
+    # about it - role, expiry, revocation, the accept path - is identical, which
     # is exactly why it is the same table and not a second one.
     email: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     role: Mapped[str] = mapped_column(String(20), nullable=False, default=OrgRole.MEMBER.value)

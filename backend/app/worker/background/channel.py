@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 async def process_channel_event(incoming: Any) -> None:
     """Route an incoming channel event to its handler.
 
-    Errors are logged with full traceback but never re-raised — the response to the
+    Errors are logged with full traceback but never re-raised - the response to the
     platform has already been sent, and an unhandled exception here would just become
     a noisy stack trace in the API process logs.
     """

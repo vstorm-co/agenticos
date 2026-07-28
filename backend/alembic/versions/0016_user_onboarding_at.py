@@ -5,7 +5,7 @@ Revises: 0015_create_mv_usage_daily
 Create Date: 2026-05-08T00:00:00+00:00
 
 Adds:
-  - users.onboarding_completed_at — nullable timestamptz; null means the user
+  - users.onboarding_completed_at - nullable timestamptz; null means the user
     hasn't completed onboarding yet, set when they finish the wizard.
 """
 
@@ -20,7 +20,7 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Idempotent — `0000_users` already includes this column when running on a
+    # Idempotent - `0000_users` already includes this column when running on a
     # fresh DB. Older deployments that stamped past 0000 still need it added.
     bind = op.get_bind()
     inspector = sa.inspect(bind)

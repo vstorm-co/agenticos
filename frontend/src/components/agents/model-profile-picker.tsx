@@ -20,7 +20,7 @@ interface ModelProfilePickerProps {
    * Offer to add a model from here.
    *
    * Off by default, and off in the chat on purpose. The chat popover answers
-   * one question — which model should *this conversation* run on — and adding a
+   * one question - which model should *this conversation* run on - and adding a
    * model is a different act: it creates something every agent in the
    * organization can then be pointed at, from a panel somebody opened to change
    * one reply. The Builder is where an agent is configured, so that is where
@@ -33,7 +33,7 @@ interface ModelProfilePickerProps {
 /**
  * Which of the organization's models to run on.
  *
- * The same vocabulary the vault uses for the same rows — provider mark, label,
+ * The same vocabulary the vault uses for the same rows - provider mark, label,
  * `provider · model`, and the badges that say `default` and `no key`. It was a
  * bare list of labels, which meant the one fact that decides whether the agent
  * can run at all, that a profile has no credential behind it, was visible on

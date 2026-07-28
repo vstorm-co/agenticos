@@ -59,7 +59,7 @@ class TelegramAdapter(ChannelAdapter):
                     reply_to_message_id=reply_to,
                 )
             except TelegramBadRequest:
-                # Markdown parsing failed — send as plain text
+                # Markdown parsing failed - send as plain text
                 await bot.send_message(
                     chat_id=msg.platform_chat_id,
                     text=msg.text,

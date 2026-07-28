@@ -69,7 +69,7 @@ def _connection(**overrides) -> McpConnection:
         "user_id": uuid4(),
         "organization_id": None,
         "created_by_user_id": None,
-        # Personal unless a test says otherwise — an in-memory row gets no
+        # Personal unless a test says otherwise - an in-memory row gets no
         # column default, and a scope of None would fail every ownership check
         # for a reason that has nothing to do with what the test is about.
         "scope": "user",
@@ -101,7 +101,7 @@ def _seal_into(conn: McpConnection, plaintext: str) -> str:
     """Seal a value for this row's owner, exactly as the service would.
 
     Sealing depends on the row, so a fixture cannot prepare a ciphertext before
-    the row exists — which is the whole point: a personal token is bound to the
+    the row exists - which is the whole point: a personal token is bound to the
     member, an organization one to the organization.
     """
     return seal(
@@ -215,7 +215,7 @@ class TestBuildMcpToolsets:
     @pytest.mark.anyio
     async def test_colliding_tool_prefix_is_dropped(self, monkeypatch):
         """Two servers sharing a prefix would make pydantic-ai raise on
-        duplicate tool names and kill the turn — the later one is skipped."""
+        duplicate tool names and kill the turn - the later one is skipped."""
         probed: list[str] = []
 
         async def ok_probe(url, headers=None, timeout=None):
@@ -224,7 +224,7 @@ class TestBuildMcpToolsets:
 
         monkeypatch.setattr("app.agents.mcp.probe_mcp_server", ok_probe)
         specs = [
-            # Workspace server first — it wins over the user's connection.
+            # Workspace server first - it wins over the user's connection.
             McpServerSpec(name="github", url="https://workspace.example/mcp"),
             McpServerSpec(name="GitHub", url="https://user.example/mcp"),
         ]
@@ -234,7 +234,7 @@ class TestBuildMcpToolsets:
 
 
 class TestProbeErrors:
-    """A dead server must never abort the turn — including when the failure
+    """A dead server must never abort the turn - including when the failure
     arrives as an exception group out of the anyio task group."""
 
     @pytest.mark.anyio
@@ -589,7 +589,7 @@ class TestAuthHeaders:
     @pytest.mark.anyio
     async def test_another_organizations_envelope_does_not_open(self):
         """The vault binds a ciphertext to the organization it was sealed for.
-        A row copied between tenants — by a bad restore, or by hand — must be
+        A row copied between tenants - by a bad restore, or by hand - must be
         unusable rather than silently working somewhere it does not belong."""
         sealed = seal("org-token", scope=VaultScope.organization(uuid4()))
         conn = _connection(
@@ -699,7 +699,7 @@ class TestOAuthTokens:
     async def test_concurrent_turn_reuses_the_token_the_winner_stored(self, monkeypatch):
         """Two turns can hit an expired token at once. The one that loses the
         row lock must re-read the row and use the fresh token, not spend the
-        refresh token a second time — providers that rotate it would invalidate
+        refresh token a second time - providers that rotate it would invalidate
         the winner's copy and quietly kill the connection."""
         stale = _oauth_connection(
             _base_payload(access_token="stale", refresh_token="rt", expires_at=0.0)
@@ -738,7 +738,7 @@ class TestOAuthTokens:
     async def test_a_connection_awaiting_first_consent_has_no_payload_to_read(self):
         """``oauth_start`` writes the row before the user ever sees the consent
         screen, so ``oauth_payload`` is NULL rather than unreadable. That is not
-        a licence to reach the server anonymously — the plugin is simply not
+        a licence to reach the server anonymously - the plugin is simply not
         usable until the callback lands."""
         conn = _connection(auth_type="oauth", oauth_payload=None, oauth_state="pending")
         assert await _resolve_auth_headers(AsyncMock(), conn) is None
@@ -842,7 +842,7 @@ class TestOAuthSweep:
     the provider has revoked is otherwise discovered by an agent, mid-run, in
     front of whoever asked the question. So the two things worth guarding are
     that a dead grant is written down *before* anybody's run hits it, and that
-    a healthy fleet is left alone — this runs on a schedule over rows belonging
+    a healthy fleet is left alone - this runs on a schedule over rows belonging
     to every tenant, and a write per connection per pass would be both noise
     and a claim nobody checked.
     """
@@ -858,7 +858,7 @@ class TestOAuthSweep:
 
     @staticmethod
     def _written(repo) -> dict:
-        """The status the sweep recorded — the last write, after any re-seal."""
+        """The status the sweep recorded - the last write, after any re-seal."""
         return repo.update.await_args.kwargs["update_data"]
 
     @pytest.mark.anyio
@@ -1049,7 +1049,7 @@ class TestMcpConnectionService:
     ):
         """Two requests can both pass the name check before either one inserts.
         ``uq_mcp_connections_user_name`` is what actually decides, and the loser
-        must get the same 409 as if it had simply arrived second — not a 500."""
+        must get the same 409 as if it had simply arrived second - not a 500."""
         _allow_any_url(monkeypatch)
         repo.create.side_effect = IntegrityError("INSERT", {}, Exception("duplicate key"))
 
@@ -1120,7 +1120,7 @@ class TestMcpConnectionService:
 
     @pytest.mark.anyio
     async def test_an_update_that_asks_for_nothing_writes_nothing(self, service, repo):
-        """An empty PATCH body must not bump ``updated_at`` — a row that changes
+        """An empty PATCH body must not bump ``updated_at`` - a row that changes
         for no reason is one that looks edited to whoever reads it next."""
         user_id = uuid4()
         conn = _connection(user_id=user_id)
@@ -1138,7 +1138,7 @@ class TestMcpConnectionService:
         self, service, repo
     ):
         """Deleting is the only way a user revokes a token they pasted in, so it
-        has to reach the row — and the row it reaches is the one ownership was
+        has to reach the row - and the row it reaches is the one ownership was
         checked against, never the id the request named."""
         user_id = uuid4()
         conn = _connection(user_id=user_id)
@@ -1250,7 +1250,7 @@ class TestMcpConnectionService:
         self, service, repo, monkeypatch
     ):
         """Probing with no credentials would tell the user their server is
-        broken when what is missing is their consent — and would send an
+        broken when what is missing is their consent - and would send an
         anonymous request to a third party to find that out."""
         user_id = uuid4()
         conn = _connection(user_id=user_id, auth_type="oauth", oauth_payload=None)
@@ -1274,7 +1274,7 @@ class TestMcpConnectionService:
         self, service, repo, monkeypatch
     ):
         """Names are unique per user, so an OAuth flow started under an existing
-        bearer connection's name would have to overwrite it — discarding a token
+        bearer connection's name would have to overwrite it - discarding a token
         the user pasted in once and cannot read back out."""
         _allow_any_url(monkeypatch)
         repo.get_by_name.return_value = _connection(name="github", auth_type="bearer")
@@ -1331,7 +1331,7 @@ class TestMcpConnectionService:
     @pytest.mark.anyio
     async def test_oauth_start_keeps_working_tokens_until_consent(self, service, repo, monkeypatch):
         """Re-authorizing must not break the connection if the user closes the
-        consent tab — the live tokens (and the URL) stay put until it lands."""
+        consent tab - the live tokens (and the URL) stay put until it lands."""
         _allow_any_url(monkeypatch)
         live = _oauth_connection(
             _base_payload(access_token="live-token"), name="linear", url="https://srv/mcp"
@@ -1400,7 +1400,7 @@ class TestMcpConnectionService:
     @pytest.mark.anyio
     async def test_oauth_callback_rejects_an_expired_flow(self, service, repo, monkeypatch):
         """The state token is the only thing authenticating this endpoint, and
-        it travels through the provider and the browser's history — a consent
+        it travels through the provider and the browser's history - a consent
         redirect the user never finished must stop being redeemable."""
         started = datetime.now(UTC).timestamp() - mcp_oauth.FLOW_TTL_SECS - 1
         stale = _connection(auth_type="oauth", oauth_state="state-old")
@@ -1434,7 +1434,7 @@ class TestMcpConnectionService:
 
     @pytest.mark.anyio
     async def test_update_url_drops_oauth_tokens(self, service, repo, monkeypatch):
-        """Tokens are bound to the host they were issued for — moving the URL
+        """Tokens are bound to the host they were issued for - moving the URL
         must not send a provider's access token to a different server."""
         _allow_any_url(monkeypatch)
         user_id = uuid4()
@@ -1460,7 +1460,7 @@ class TestOrganizationConnections:
 
     Everything here turns on two things a personal connection does not have: a
     credential sealed for the organization rather than for the deployment, and
-    no owner at all — which is what keeps the personal routes, that authorize on
+    no owner at all - which is what keeps the personal routes, that authorize on
     ``user_id`` alone, from ever reaching one of these rows.
     """
 
@@ -1780,7 +1780,7 @@ class TestOrganizationConnections:
     ):
         """The consent is one person's; the connection is not. A pending flow
         sealed with that member's envelope would leave a row the organization
-        owns and only its author could ever open — and a name checked in their
+        owns and only its author could ever open - and a name checked in their
         personal namespace would miss the collision that matters here."""
         _allow_any_url(monkeypatch)
         discovered = mcp_oauth.DiscoveredServer(
@@ -1899,7 +1899,7 @@ class TestOrganizationConnections:
 
 class TestOrgReadSchema:
     def test_the_sealed_credential_never_leaves_the_backend(self):
-        """A response says a credential exists, never what it is — the same
+        """A response says a credential exists, never what it is - the same
         contract as a provider key, and the reason there is no read endpoint."""
         organization_id = uuid4()
         sealed = seal("ghp-secret-9876", scope=VaultScope.organization(organization_id))
@@ -1922,7 +1922,7 @@ class TestOrgReadSchema:
 
 class TestOAuthRequestSafety:
     """Discovery lets the remote server choose most of the URLs we call, so
-    every hop — redirects included — goes through the SSRF policy.
+    every hop - redirects included - goes through the SSRF policy.
 
     IP literals are used throughout: the validator short-circuits on those, so
     the tests never touch DNS.
@@ -1975,7 +1975,7 @@ class TestOAuthRequestSafety:
 
     @pytest.mark.anyio
     async def test_token_endpoint_body_is_not_surfaced(self, monkeypatch):
-        """The OAuth error text reaches the user's browser — an internal
+        """The OAuth error text reaches the user's browser - an internal
         service's reply must not ride along with it."""
 
         async def fake_send(client, request):

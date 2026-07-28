@@ -9,4 +9,4 @@ approved, and ends there if it is denied.
 Review it here:
 [[approvals_url]]
 
-— The [[app_name]] Team
+- The [[app_name]] Team

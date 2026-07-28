@@ -167,8 +167,8 @@ describe("toSecretPayload", () => {
   });
 
   it("is the caller's kind that wins, not one that came in with the values", () => {
-    // Nothing can type a `kind` — the generated form never renders a const
-    // field — but the payload is the one place a mismatch would be silent, and
+    // Nothing can type a `kind` - the generated form never renders a const
+    // field - but the payload is the one place a mismatch would be silent, and
     // the server would then refuse the whole credential for the wrong reason.
     expect(toSecretPayload("api_key", { kind: "aws_credentials" }).kind).toBe("api_key");
   });

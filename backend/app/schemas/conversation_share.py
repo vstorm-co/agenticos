@@ -53,7 +53,7 @@ class ConversationShareList(BaseSchema):
 
 
 class AdminConversationRead(BaseSchema):
-    """Admin view of a conversation — includes owner email."""
+    """Admin view of a conversation - includes owner email."""
 
     id: UUID
     user_id: UUID | None = None

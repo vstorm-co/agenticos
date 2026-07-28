@@ -1,4 +1,4 @@
-"""Budget capability — stop a run that cannot afford its next request."""
+"""Budget capability - stop a run that cannot afford its next request."""
 
 from app.agents.capabilities.budget._capability import (
     BudgetExceeded,

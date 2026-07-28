@@ -33,15 +33,15 @@ import type { KnowledgeBaseList } from "@/types";
 
 /**
  * ⌘K: every destination the product has, plus the things you would name rather
- * than navigate to — an agent, a knowledge base, a conversation.
+ * than navigate to - an agent, a knowledge base, a conversation.
  *
- * The navigation half is *derived* from the tables that define it — the
- * sidebar's `NAV_GROUPS`, `SETTINGS_TABS`, `ADMIN_TABS` — and not restated
+ * The navigation half is *derived* from the tables that define it - the
+ * sidebar's `NAV_GROUPS`, `SETTINGS_TABS`, `ADMIN_TABS` - and not restated
  * here. Restating it is what had happened, and the palette lost the argument
  * with the product: it still offered a Profile page that only redirects
  * elsewhere and a `/docs` URL the frontend does not serve, while Agents,
- * Skills, Activity, Vault and MCP servers — five of the platform's primary
- * destinations — could not be reached from it at all. A list written twice is a
+ * Skills, Activity, Vault and MCP servers - five of the platform's primary
+ * destinations - could not be reached from it at all. A list written twice is a
  * list that is wrong once.
  *
  * What it shows is filtered by permission, exactly as the sidebar filters: the
@@ -51,7 +51,7 @@ import type { KnowledgeBaseList } from "@/types";
 
 /** Enough recent conversations to be useful; the input narrows them from there. */
 const RECENT_CONVERSATIONS = 8;
-/** Named entities are search fodder, not a listing — the pages hold the rest. */
+/** Named entities are search fodder, not a listing - the pages hold the rest. */
 const MAX_ENTITIES = 6;
 
 interface ConversationItem {
@@ -106,7 +106,7 @@ export function CommandPalette() {
     };
   }, []);
 
-  // Named entities, fetched only once the palette is open — it is mounted on
+  // Named entities, fetched only once the palette is open - it is mounted on
   // every page, and a closed dialog has no business costing three requests per
   // navigation. The keys are the ones the pages themselves use, so a palette
   // opened after visiting /agents reads the cache instead of the network.
@@ -140,7 +140,7 @@ export function CommandPalette() {
 
   // Every destination the navigation already offers. The section groups below
   // list the pages *inside* a section, and the section's own index is one of
-  // them — without this, Admin appears twice.
+  // them - without this, Admin appears twice.
   const navigated = new Set(NAV_GROUPS.flatMap((group) => group.items).map((item) => item.href));
 
   const sectionItems = (tabs: readonly PageTab[]) =>

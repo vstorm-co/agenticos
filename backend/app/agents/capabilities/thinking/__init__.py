@@ -1,4 +1,4 @@
-"""Thinking capability — how hard the model reasons before it answers."""
+"""Thinking capability - how hard the model reasons before it answers."""
 
 from pydantic import BaseModel, Field
 from pydantic_ai.capabilities import Thinking
@@ -28,7 +28,7 @@ class ThinkingConfig(BaseModel):
     name="Thinking",
     category="reasoning",
     description=(
-        "Let the model reason before it answers — slower and dearer, better on work "
+        "Let the model reason before it answers - slower and dearer, better on work "
         "that needs several steps held in mind at once."
     ),
     # No tools by design: this changes how the model runs, not what it can do,

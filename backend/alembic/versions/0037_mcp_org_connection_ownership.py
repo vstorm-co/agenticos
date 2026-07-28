@@ -7,7 +7,7 @@ Create Date: 2026-07-27
 0035 gave a connection a ``scope`` but left ``user_id`` NOT NULL with an
 ``ON DELETE CASCADE``, which quietly contradicted the thing that migration set
 out to make true: an organization connection that belongs to whoever created it
-disappears when they leave, and — worse — is reachable through the personal
+disappears when they leave, and - worse - is reachable through the personal
 ``/me/mcp-connections`` routes, which authorize on ``user_id`` alone and demand
 no ``connections:manage``. A member could repoint a shared agent's server at
 their own host without holding a single organization permission.
@@ -71,7 +71,7 @@ def downgrade() -> None:
     op.drop_constraint("ck_mcp_connection_user_scope_has_user", "mcp_connections", type_="check")
     # An organization connection has no owner, and the column it would have to
     # go back into is about to become NOT NULL. There is no member to attribute
-    # it to — inventing one would hand somebody a shared credential — so the
+    # it to - inventing one would hand somebody a shared credential - so the
     # rows go. This is the one thing this migration cannot reverse losslessly.
     op.execute("DELETE FROM mcp_connections WHERE scope = 'org'")
     op.alter_column("mcp_connections", "user_id", nullable=False)

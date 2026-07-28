@@ -78,7 +78,7 @@ class TestKeyLifecycle:
 
         Deleting a key must not silently delete every agent's model, nor
         silently repoint them at a different one. The profile is left keyless
-        and fails loudly at resolution — which is what the "no key" marker in
+        and fails loudly at resolution - which is what the "no key" marker in
         the Builder is reading.
         """
         org = await _org(db)
@@ -123,7 +123,7 @@ class TestMcpConnectionOwnership:
     The two scopes share a table, and the personal routes authorize on
     ``user_id`` alone while asking for no organization permission at all. So an
     organization row that carried a ``user_id`` would be editable and deletable
-    by whoever created it — they could repoint a published agent's server at a
+    by whoever created it - they could repoint a published agent's server at a
     host of their own. A query filter would close that; a check constraint
     closes it for every query anybody writes next.
     """
@@ -160,7 +160,7 @@ class TestMcpConnectionOwnership:
 
     @staticmethod
     async def _leaver(db, org: Organization) -> User:
-        """A member who can actually be deleted — not the organization's creator,
+        """A member who can actually be deleted - not the organization's creator,
         whom the organization row still references."""
         user = User(
             id=uuid.uuid4(),
@@ -779,7 +779,7 @@ class TestExposureBudgets:
     @pytest.mark.parametrize("column", ["max_per_run_usd", "monthly_usd"])
     @pytest.mark.parametrize("amount", [Decimal("0"), Decimal("-1")])
     async def test_a_cap_of_zero_or_less_is_rejected(self, db, column, amount):
-        """Not a tighter limit — a binding that can never answer.
+        """Not a tighter limit - a binding that can never answer.
 
         Somebody arrives at it by clearing a field rather than by deciding to,
         which is exactly the kind of value a constraint should catch rather than

@@ -69,7 +69,7 @@ class ChartsToolset(FunctionToolset[AgentDepsT]):
         Use this whenever the user asks to plot, chart, graph or compare
         figures, and whenever a trend, comparison or share of a whole would land
         better as a picture than as prose. The interface draws the chart itself
-        — interactively in the web chat, as an image on Slack and Telegram — so
+        - interactively in the web chat, as an image on Slack and Telegram - so
         say in one line what it shows and leave the returned JSON alone; the
         user is looking at the chart, not at the payload.
 

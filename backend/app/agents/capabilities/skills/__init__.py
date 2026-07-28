@@ -1,4 +1,4 @@
-"""Skills capability — an organization's reusable know-how."""
+"""Skills capability - an organization's reusable know-how."""
 
 from app.agents.capabilities._registry import (
     CapabilityBuildContext,
@@ -40,7 +40,7 @@ __all__ = ["SAFE_SKILL_TOOLS", "Skills", "to_toolkit_skill"]
 def _build(ctx: CapabilityBuildContext) -> Skills | None:
     """Build from the skills resolved for this run.
 
-    The skills themselves are a field on the agent spec, resolved server-side —
+    The skills themselves are a field on the agent spec, resolved server-side -
     a capability never queries the database.
     """
     skills = ctx.resources.get("skills") or []

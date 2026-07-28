@@ -1,7 +1,7 @@
 # <Short title: what broke, for whom>
 
 **Severity:** SEV1 / SEV2 / SEV3
-**Detected:** YYYY-MM-DD HH:MM UTC — by <alert / customer report / someone looking>
+**Detected:** YYYY-MM-DD HH:MM UTC - by <alert / customer report / someone looking>
 **Resolved:** YYYY-MM-DD HH:MM UTC
 **Duration of impact:** <minutes>
 

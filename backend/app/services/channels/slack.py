@@ -1,8 +1,8 @@
 """Slack channel adapter using slack-sdk.
 
 Supports:
-- Events API (webhook mode) — production
-- Socket Mode (polling equivalent) — development
+- Events API (webhook mode) - production
+- Socket Mode (polling equivalent) - development
 - Thread-aware sessions: messages in a Slack thread get their own
   ChannelSession / Conversation (thread_ts folded into platform_chat_id)
 - @mention detection in channels
@@ -126,7 +126,7 @@ class SlackAdapter(ChannelAdapter):
             await asyncio.sleep(1)
 
     async def register_webhook(self, bot_token: str, url: str, secret: str | None) -> bool:
-        """Slack doesn't have a register webhook API — configuration is done
+        """Slack doesn't have a register webhook API - configuration is done
         in the Slack app dashboard. This is a no-op that returns True."""
         logger.info("Slack: webhook URL should be configured in Slack app settings: %s", url)
         return True

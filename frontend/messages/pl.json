@@ -184,7 +184,7 @@
     "thankYouFeedback": "Dziękujemy za opinię!",
     "ratingFailed": "Nie udało się przesłać oceny",
     "whatWentWrong": "Co poszło nie tak?",
-    "feedbackHelp": "Pomóż nam się poprawić — opcjonalnie opisz, co było nieprzydatne.",
+    "feedbackHelp": "Pomóż nam się poprawić - opcjonalnie opisz, co było nieprzydatne.",
     "describeIssue": "Opisz problem... (opcjonalnie)",
     "skipComment": "Pomiń komentarz",
     "shareConversation": "Udostępnij konwersację",
@@ -309,8 +309,8 @@
     "descriptionLabel": "Opis (opcjonalnie)",
     "descriptionPlaceholder": "Jakie dokumenty będzie zawierać ta baza?",
     "scopeLabel": "Zakres",
-    "scopePersonal": "Osobisty — tylko Ty",
-    "scopeOrganization": "Organizacja — wszyscy członkowie",
+    "scopePersonal": "Osobisty - tylko Ty",
+    "scopeOrganization": "Organizacja - wszyscy członkowie",
     "scopeApp": "Cała aplikacja",
     "active": "Aktywna",
     "inactive": "Nieaktywna",
@@ -357,7 +357,7 @@
     },
     "privacy": {
       "title": "Polityka Prywatności",
-      "summary": "Co zbieramy, po co i co możesz z tym zrobić. Nie trenujemy na Twoich danych — nigdy."
+      "summary": "Co zbieramy, po co i co możesz z tym zrobić. Nie trenujemy na Twoich danych - nigdy."
     },
     "cookies": {
       "title": "Polityka Cookies",

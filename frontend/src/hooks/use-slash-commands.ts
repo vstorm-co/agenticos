@@ -21,7 +21,7 @@ import {
 interface UseSlashCommandsResult {
   /** Raw rows from the backend (custom commands + built-in overrides). */
   records: UserSlashCommandRecord[];
-  /** Effective list, with overrides applied — pass to <ChatInput>. */
+  /** Effective list, with overrides applied - pass to <ChatInput>. */
   commands: SlashCommand[];
   isLoading: boolean;
   error: string | null;
@@ -42,7 +42,7 @@ interface UseSlashCommandsResult {
  * storms. Mutations patch the cache directly so the UI stays instant.
  *
  * Errors from individual mutations propagate as throws so the calling UI can
- * show a toast — they're never swallowed.
+ * show a toast - they're never swallowed.
  */
 export function useSlashCommands(): UseSlashCommandsResult {
   const queryClient = useQueryClient();

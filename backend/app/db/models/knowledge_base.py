@@ -1,4 +1,4 @@
-"""KnowledgeBase model — scoped RAG collections (personal / org / app)."""
+"""KnowledgeBase model - scoped RAG collections (personal / org / app)."""
 
 import enum
 import uuid

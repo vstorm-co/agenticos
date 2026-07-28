@@ -6,8 +6,8 @@ it to a person, the approvals service records what they said, and
 ``AgentDeps`` carries the callback that joins them. Only one of those four is
 the capability.
 
-They lived in the gate's own module, which made ``app/agents/deps.py`` — the
-module every capability imports — depend on a capability that imports it back.
+They lived in the gate's own module, which made ``app/agents/deps.py`` - the
+module every capability imports - depend on a capability that imports it back.
 The cycle survived only because the annotation hid behind ``TYPE_CHECKING`` and
 a lazily-evaluated alias, with a comment apologising for it. Moving the types
 down a layer, below both, removes the cycle rather than tiptoeing around it.
@@ -26,7 +26,7 @@ class ApprovalRequest:
     """One tool call put to a human.
 
     Carries the tool call id because that is what identifies the parked call
-    when the run is resumed — the tool name is not unique within a run, and the
+    when the run is resumed - the tool name is not unique within a run, and the
     arguments are not either.
     """
 
@@ -69,6 +69,6 @@ def refusal(tool_name: str, reason: str) -> str:
     """
     return (
         f"'{tool_name}' was not performed: {reason}. "
-        "This is final — do not call it again. "
+        "This is final - do not call it again. "
         "Tell the user what you were about to do and that it needs a person to approve it."
     )

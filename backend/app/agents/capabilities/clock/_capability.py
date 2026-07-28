@@ -22,7 +22,7 @@ class Clock(AbstractCapability[AgentDepsT]):
     """Puts the current time in the agent's instructions.
 
     This was a tool, and a tool is the wrong shape for it. The current time is
-    not something an agent should have to *decide* to look up — it is context,
+    not something an agent should have to *decide* to look up - it is context,
     and a model that has to choose to ask usually does not: it answers from
     whatever date its training left it with, confidently and wrongly. A tool
     call also spends a whole extra round trip retrieving one line the server
@@ -58,7 +58,7 @@ class Clock(AbstractCapability[AgentDepsT]):
         return datetime.now(UTC).astimezone(self._zone)
 
     def get_instructions(self) -> Callable[[RunContext[AgentDepsT]], str]:
-        """A callable, not a string — so each request gets the time it ran at."""
+        """A callable, not a string - so each request gets the time it ran at."""
         return self._line
 
     def _line(self, _ctx: RunContext[AgentDepsT]) -> str:

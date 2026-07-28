@@ -1,4 +1,4 @@
-"""AgentEmbed repository — widgets, and the public key each is found by."""
+"""AgentEmbed repository - widgets, and the public key each is found by."""
 
 from uuid import UUID
 
@@ -21,7 +21,7 @@ async def get_by_key(db: AsyncSession, public_key: str) -> AgentEmbed | None:
 
 
 async def get(db: AsyncSession, embed_id: UUID, *, organization_id: UUID) -> AgentEmbed | None:
-    """One widget inside its organization — every authenticated read."""
+    """One widget inside its organization - every authenticated read."""
     result = await db.execute(
         select(AgentEmbed).where(
             AgentEmbed.id == embed_id, AgentEmbed.organization_id == organization_id

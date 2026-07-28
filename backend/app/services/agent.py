@@ -1,11 +1,11 @@
 """Shared agent service utilities.
 
 Houses framework-agnostic helpers used by every WebSocket agent route:
-  - ``AgentConnectionManager`` + ``send_event`` — WebSocket fan-out
-  - ``build_message_history`` — convert dicts to provider-native messages
-  - ``persist_user_turn`` / ``persist_assistant_turn`` — DB persistence
-  - ``resolve_kb_collections`` — Teams+RAG collection lookup
-  - ``normalize_tool_args`` / ``truncate_title`` — small utilities
+  - ``AgentConnectionManager`` + ``send_event`` - WebSocket fan-out
+  - ``build_message_history`` - convert dicts to provider-native messages
+  - ``persist_user_turn`` / ``persist_assistant_turn`` - DB persistence
+  - ``resolve_kb_collections`` - Teams+RAG collection lookup
+  - ``normalize_tool_args`` / ``truncate_title`` - small utilities
 
 Framework-specific concerns (multimodal input, streaming events) stay in the route.
 """
@@ -113,7 +113,7 @@ async def persist_user_turn(
 
     ``organization_id`` is the session's active organization; new conversations are
     created inside it, and resuming a conversation that belongs to a different org
-    is refused. Ownership by user alone is not enough — a user can belong to several
+    is refused. Ownership by user alone is not enough - a user can belong to several
     organizations, and a run must not read one org's knowledge while billed to another.
 
     Returns ``(conversation_id, was_newly_created)``. When ``was_newly_created`` is
@@ -121,8 +121,8 @@ async def persist_user_turn(
 
     Raises:
         AuthorizationError: If the requested conversation belongs to another
-            organization. Persistence failures are logged and swallowed — a lost
-            message must not abort a turn — but a scope violation must.
+            organization. Persistence failures are logged and swallowed - a lost
+            message must not abort a turn - but a scope violation must.
     """
     newly_created = False
     try:
@@ -196,7 +196,7 @@ async def persist_assistant_turn(
     ``agent_id`` and ``agent_version_id`` are recorded per message rather than
     per conversation because the agent can be changed mid-thread, and because
     an agent is rewritten between turns: attributing the whole conversation to
-    the last one selected — or to the spec it has today — would rewrite who
+    the last one selected - or to the spec it has today - would rewrite who
     said what, and with which instructions.
     """
     try:
@@ -252,7 +252,7 @@ async def resolve_kb_collections(
     When ``override_kb_ids`` is provided (e.g. the client included a draft
     selection in the WS payload before the conversation was saved), those IDs
     are intersected with KBs the user can access and returned directly. Only
-    IDs come from the client — collection names are always resolved against
+    IDs come from the client - collection names are always resolved against
     the user's accessible KBs server-side.
     """
     if override_kb_ids is not None:

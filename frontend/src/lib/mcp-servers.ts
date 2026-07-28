@@ -5,7 +5,7 @@
  * pages, which is what made "what is the difference between MCP servers and
  * Integrations?" a fair question with no good answer:
  *
- * - a **catalog entry** is a server that *exists* — deployment-wide, read-only,
+ * - a **catalog entry** is a server that *exists* - deployment-wide, read-only,
  *   nothing to manage;
  * - a **connection** is a credential to one server, owned by a person or by the
  *   organization;
@@ -19,8 +19,8 @@
  *
  * The join is done here because the API offers none, on the two things both
  * sides carry: `catalog_key` where the backend recorded it, then the URL, then
- * the name. The URL is what makes the fallback trustworthy — the catalog bakes
- * it in and the backend stores exactly the URL it validated — and the name is
+ * the name. The URL is what makes the fallback trustworthy - the catalog bakes
+ * it in and the backend stores exactly the URL it validated - and the name is
  * the last resort for entries with no URL because the server is self-hosted.
  */
 
@@ -51,7 +51,7 @@ function normalizeUrl(url: string): string {
 /**
  * The connection to *entry* among *connections*, or null if there is none.
  *
- * Generic over the record so the caller gets back the type it passed in — the
+ * Generic over the record so the caller gets back the type it passed in - the
  * organization's servers carry a `catalog_key` a personal one does not, and
  * widening them to the shared shape here would lose it at the one call site
  * that wants it.
@@ -104,7 +104,7 @@ export function connectionState(connection: McpConnectionRecord | null): McpConn
 /**
  * One row of the merged list: a server, and who has connected it.
  *
- * `entry` is null for a server nobody curated — somebody's own URL. Those are
+ * `entry` is null for a server nobody curated - somebody's own URL. Those are
  * rows too, because a connection that exists and is reachable from no screen is
  * a credential nobody can revoke.
  */
@@ -120,7 +120,7 @@ export interface McpServerRow {
   tokenHint: string | null;
   /** The catalog entry this row is, or null for a custom server. */
   entry: McpCatalogEntry | null;
-  /** The organization's connection — the only kind an agent can be bound to. */
+  /** The organization's connection - the only kind an agent can be bound to. */
   organization: OrgMcpConnectionRecord | null;
   /** The caller's own connection, used by their assistant and nothing else. */
   personal: McpConnectionRecord | null;
@@ -133,7 +133,7 @@ export const CUSTOM_CATEGORY = "custom";
  * The catalog, with every connection folded onto the row it belongs to.
  *
  * Catalog order is preserved and custom servers follow, so the list reads as
- * "what you can connect" rather than "what happens to be in the database" —
+ * "what you can connect" rather than "what happens to be in the database" -
  * which is the difference between a catalog and a dump.
  */
 export function mergeServers(

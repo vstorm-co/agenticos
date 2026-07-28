@@ -1,4 +1,4 @@
-"""Rate limit storage implementations — Redis sliding window and in-memory fallback."""
+"""Rate limit storage implementations - Redis sliding window and in-memory fallback."""
 
 from __future__ import annotations
 
@@ -130,8 +130,8 @@ def get_storage() -> RateLimitStorage:
         if redis is not None:
             return RedisSlidingWindowStorage(redis)
     except Exception:
-        # Redis being unreachable is survivable — rate limiting degrades to
-        # per-process counting — but it must not be silent, because the
+        # Redis being unreachable is survivable - rate limiting degrades to
+        # per-process counting - but it must not be silent, because the
         # symptom is a limit that no longer holds across workers.
         logger.warning("rate_limit_redis_unavailable", exc_info=True)
     logger.warning("rate_limit_using_in_memory_storage")

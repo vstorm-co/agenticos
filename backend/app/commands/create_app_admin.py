@@ -32,7 +32,7 @@ async def _run(email: str, revoke: bool) -> None:
 
         if revoke:
             if not getattr(user, "is_app_admin", False):
-                warning(f"{email} is not an app admin — nothing to revoke.")
+                warning(f"{email} is not an app admin - nothing to revoke.")
                 return
             user.is_app_admin = False
             await db.flush()

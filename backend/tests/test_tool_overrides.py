@@ -1,13 +1,13 @@
 """Tests for per-agent tool names and descriptions.
 
 A tool's description is the last thing a model reads before deciding to act, and
-its name is read alongside it — so both are per-agent settings rather than
+its name is read alongside it - so both are per-agent settings rather than
 properties of the code that wrote the tool.
 
 The half of this that matters is not cosmetic. Approval is keyed on a tool's
 stable id, the gate matches the name the model called, and once a binding can
 rename a tool those are different strings. Resolve it the wrong way and a gated,
-side-effecting tool runs unapproved with nothing reporting it — which is why
+side-effecting tool runs unapproved with nothing reporting it - which is why
 `TestARenamedToolIsStillGated` drives a real agent through a real rename rather
 than asserting on a set of strings.
 """
@@ -208,7 +208,7 @@ class TestWhatTheModelSees:
         """A rename is scoped to the capability whose binding stated it.
 
         The same rule the approval gate follows for a tool nobody owns: a tool
-        another capability — or an MCP server — happens to expose is not this
+        another capability - or an MCP server - happens to expose is not this
         binding's to rewrite, and a mechanism that matched on name alone would
         change what one agent's model sees because of what a different
         capability declared. Publishing refuses a key like this outright; at
@@ -264,8 +264,8 @@ class TestARenamedToolIsStillGated:
     """The correctness crux: decide by id, answer with the effective name.
 
     `tool_approval` is keyed on a tool's stable id; `ApprovalGate` matches
-    `tool_def.name`. Reading the *declared* name off the registry — which is
-    what the policy did before renames existed — leaves the gate waiting for a
+    `tool_def.name`. Reading the *declared* name off the registry - which is
+    what the policy did before renames existed - leaves the gate waiting for a
     tool the model never calls, and the tool it does call is precisely the
     side-effecting one somebody deliberately gated.
     """
@@ -351,7 +351,7 @@ class TestSpecsPublishedBeforeThisExisted:
         """`knowledge` invented per-agent renaming for itself, in its own config.
 
         Those keys are gone, and a Pydantic model ignores what it does not
-        declare — so without the fold, every agent published against version 3
+        declare - so without the fold, every agent published against version 3
         would quietly lose its rename and start offering a tool its instructions
         never mention.
         """
@@ -434,7 +434,7 @@ class TestSerialisation:
 
         The Builder marks a field overridden when the binding has one for it.
         A `null` written on save came back looking like an override nobody
-        could clear — the reset button stayed on a field already reset.
+        could clear - the reset button stayed on a field already reset.
         """
         spec = AgentSpec.model_validate(
             {

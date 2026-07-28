@@ -1,6 +1,6 @@
 """Install the bundled skills into an organization.
 
-The same copy the gallery's install button makes, from a terminal — for a fresh
+The same copy the gallery's install button makes, from a terminal - for a fresh
 deployment that should come up with something in it, and for a scripted setup
 that has no browser to click in.
 
@@ -46,7 +46,7 @@ async def _owner_of(db: AsyncSession, organization_id: UUID) -> UUID | None:
 async def _run(org_id: str | None, dry_run: bool) -> None:
     bundled = skill_library.library()
     if not bundled:
-        warning("No bundled skills found — is app/skill_library missing?")
+        warning("No bundled skills found - is app/skill_library missing?")
         return
 
     info(f"{len(bundled)} bundled skill(s): {', '.join(skill.key for skill in bundled)}")
@@ -75,7 +75,7 @@ async def _run(org_id: str | None, dry_run: bool) -> None:
             # and to be allowed to edit what lands here.
             owner = await _owner_of(db, organization.id)
             if owner is None:
-                warning("    no owner — skipped")
+                warning("    no owner - skipped")
                 continue
 
             service = SkillService(db)
@@ -88,13 +88,13 @@ async def _run(org_id: str | None, dry_run: bool) -> None:
                 try:
                     installed = await service.install_from_library(ctx, skill.key)
                 except AlreadyExistsError:
-                    click.echo(f"    {skill.name} — already there, left alone")
+                    click.echo(f"    {skill.name} - already there, left alone")
                     continue
                 # Visible to the organization rather than to the person the
                 # seed ran as. A bundled skill is for everybody; private is the
                 # right default for something somebody wrote, and the wrong one
                 # for something the platform shipped.
                 await service.update(ctx, installed.id, {"visibility": Visibility.ORG.value})
-                click.echo(f"    {installed.name} — installed with {len(skill.resources)} file(s)")
+                click.echo(f"    {installed.name} - installed with {len(skill.resources)} file(s)")
 
-    success("Done." if not dry_run else "Dry run — nothing was written.")
+    success("Done." if not dry_run else "Dry run - nothing was written.")

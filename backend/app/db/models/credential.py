@@ -1,4 +1,4 @@
-"""Provider credentials and model profiles — per organization.
+"""Provider credentials and model profiles - per organization.
 
 Two tables because "which model" and "which key" are separate decisions that
 change at different times. An organization rotates a key without touching the
@@ -48,7 +48,7 @@ class ModelProfile(Base, TimestampMixin):
     model: Mapped[str] = mapped_column(String(255), nullable=False)
     # The vault secret this model is keyed by. The newer of two paths: a
     # `credential` is the template's own store, and a `secret` is the one
-    # people actually manage — picking "OpenRouter" in the vault is what makes
+    # people actually manage - picking "OpenRouter" in the vault is what makes
     # OpenRouter's models selectable. Exactly one of the two is set; the
     # resolver reads whichever it finds.
     secret_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -60,7 +60,7 @@ class ModelProfile(Base, TimestampMixin):
     params: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default="{}")
     # Whether a user may substitute their own key when running with this profile.
     allow_byo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    # Ordered profile ids tried when the primary fails — becomes a FallbackModel.
+    # Ordered profile ids tried when the primary fails - becomes a FallbackModel.
     fallback_profile_ids: Mapped[list[str]] = mapped_column(
         JSONB, nullable=False, server_default="[]"
     )

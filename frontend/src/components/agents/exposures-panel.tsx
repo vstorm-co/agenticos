@@ -66,7 +66,7 @@ function toLimit(value: string): string | null {
  * splitting the model by platform too.
  *
  * The empty state says what the absence means. An agent with no bindings is not
- * misconfigured — it is reachable from the dashboard and the API and nowhere
+ * misconfigured - it is reachable from the dashboard and the API and nowhere
  * else, which is the default, and a bot that has stopped answering a handle it
  * used to answer is explained here rather than in a changelog.
  */
@@ -101,7 +101,7 @@ export function ExposuresPanel({ agentId, canManage }: ExposuresPanelProps) {
         <CardTitle>Where this agent is available</CardTitle>
         <CardDescription>
           A published agent answers in the dashboard and through the API. To reach it from a chat
-          platform, add the bot here — an agent is mentionable by <code>@handle</code> only on the
+          platform, add the bot here - an agent is mentionable by <code>@handle</code> only on the
           bots it is bound to.
         </CardDescription>
       </CardHeader>
@@ -115,12 +115,12 @@ export function ExposuresPanel({ agentId, canManage }: ExposuresPanelProps) {
             <div className="flex items-center gap-3">
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm">
-                  {SURFACE_LABEL[exposure.surface]} — {exposure.channel_bot_name}
+                  {SURFACE_LABEL[exposure.surface]} - {exposure.channel_bot_name}
                 </p>
                 <p className="text-muted-foreground text-xs">{capLabel(exposure)}</p>
                 {!exposure.is_active && (
                   <p className="text-muted-foreground text-xs">
-                    Paused — the handle answers nothing here.
+                    Paused - the handle answers nothing here.
                   </p>
                 )}
               </div>
@@ -220,7 +220,7 @@ export function ExposuresPanel({ agentId, canManage }: ExposuresPanelProps) {
                 <SelectContent>
                   {available.map((target) => (
                     <SelectItem key={target.id} value={target.id}>
-                      {SURFACE_LABEL[target.platform]} — {target.name}
+                      {SURFACE_LABEL[target.platform]} - {target.name}
                       {!target.is_active && " (inactive)"}
                     </SelectItem>
                   ))}

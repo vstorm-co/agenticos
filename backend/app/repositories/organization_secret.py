@@ -43,7 +43,7 @@ async def get_by_name(
 async def get_many(
     db: AsyncSession, secret_ids: list[UUID], *, organization_id: UUID
 ) -> dict[UUID, OrganizationSecret]:
-    """Fetch several secrets at once — one query per run, not one per binding."""
+    """Fetch several secrets at once - one query per run, not one per binding."""
     if not secret_ids:
         return {}
     result = await db.execute(
@@ -70,7 +70,7 @@ async def list_secrets(
     false only the caller's own keys, the organization-wide ones and those in
     `shared_ids` come back.
 
-    `purposes` narrows to the keys a particular slot can use — the Tavily keys
+    `purposes` narrows to the keys a particular slot can use - the Tavily keys
     for a web-search binding, the OpenRouter ones for a model picker. Filtering
     here rather than in the caller keeps "which keys exist for X" one query
     instead of a list comprehension over the whole vault.
@@ -81,7 +81,7 @@ async def list_secrets(
     if not see_all:
         # The same predicate every shared resource here uses: mine, the
         # organization's, or one explicitly shared with me. A team-visible key
-        # nobody granted is deliberately invisible — "team" means named
+        # nobody granted is deliberately invisible - "team" means named
         # members, not everybody.
         query = query.where(
             or_(
@@ -154,7 +154,7 @@ async def agents_using(
     """Agents whose draft spec binds this secret to a capability.
 
     A JSONB containment check rather than a column, because a binding lives
-    inside the spec — which is the right place for it: the spec is what gets
+    inside the spec - which is the right place for it: the spec is what gets
     versioned, exported and reviewed. The draft is queried rather than the
     published version because the question this answers is "what breaks if I
     delete this key", and an agent that is *about* to be published with it

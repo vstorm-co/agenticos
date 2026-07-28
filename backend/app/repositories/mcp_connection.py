@@ -51,7 +51,7 @@ async def get_org_scoped_by_id(
     Both filters carry weight. ``organization_id`` stops an agent spec from
     another tenant reaching this row, and ``scope`` stops a member's personal
     connection being bound to a published agent even though it belongs to the
-    same organization — a shared agent must not run on somebody's private token.
+    same organization - a shared agent must not run on somebody's private token.
     """
     result = await db.execute(
         select(McpConnection).where(
@@ -68,7 +68,7 @@ async def list_org_scoped(
 ) -> tuple[list[McpConnection], int]:
     """Every organization-scoped connection in one organization.
 
-    Ordered like :func:`list_for_user` — by creation — because a run that needs
+    Ordered like :func:`list_for_user` - by creation - because a run that needs
     to lock several rows takes them in list order, and two lists that disagree
     on the order are two ways to deadlock.
     """
@@ -119,7 +119,7 @@ async def list_oauth_connections(db: AsyncSession) -> list[McpConnection]:
     """Every OAuth connection on the deployment, for the scheduled sweep.
 
     Deliberately unscoped: the sweep is about the deployment's health, not about
-    a tenant, and it reads nothing a tenant could see — only whether a token
+    a tenant, and it reads nothing a tenant could see - only whether a token
     still refreshes. Anything serving a member goes through
     :func:`list_for_user` or :func:`list_org_scoped`. Grep for this function
     when auditing cross-tenant reads.

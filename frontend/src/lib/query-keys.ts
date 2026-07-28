@@ -46,7 +46,7 @@ export const qk = {
     catalog: () => ["providers", "catalog"] as const,
     modelProfiles: () => ["providers", "model-profiles"] as const,
     // What one provider offers, for the model field's suggestions. Keyed per
-    // provider because that is what is fetched — a shared key would make
+    // provider because that is what is fetched - a shared key would make
     // switching provider serve the previous one's list.
     models: (providerId: string) => ["providers", providerId, "models"] as const,
   },
@@ -79,7 +79,7 @@ export const qk = {
     detail: (id: string) => ["skills", id] as const,
     resource: (skillId: string, resourceId: string) =>
       ["skills", skillId, "resources", resourceId] as const,
-    /** What this deployment ships with — changes on redeploy, not on a mutation. */
+    /** What this deployment ships with - changes on redeploy, not on a mutation. */
     library: () => ["skills", "library"] as const,
   },
   invitations: {
@@ -93,7 +93,7 @@ export const qk = {
     /**
      * The newest few, for the dashboard. Its own key because `list()` is owned
      * by the chat sidebar, which caches a different page under a different
-     * shape — one key with two fetchers is one of them silently winning.
+     * shape - one key with two fetchers is one of them silently winning.
      */
     recent: (limit: number) => ["conversations", "recent", limit] as const,
     messages: (id: string) => ["conversations", id, "messages"] as const,
@@ -119,7 +119,7 @@ export const qk = {
     // Keyed on the organization, not shared with `kb`: these rows belong to the
     // organization rather than to any collection, and a cache that outlived an
     // org switch would show the previous tenant's connectors on the new one's
-    // page — with the connector names being the part worth not leaking.
+    // page - with the connector names being the part worth not leaking.
     reusable: (orgId: string) => ["integrations", "reusable", orgId] as const,
     connectors: (orgId: string) => ["integrations", "connectors", orgId] as const,
   },
@@ -131,7 +131,7 @@ export const qk = {
     workspace: () => ["mcp-connections", "workspace"] as const,
     // The organization's own servers. A separate key rather than a parameter on
     // `list()`, because the two are different resources from different
-    // endpoints — sharing a key would let one page's refetch overwrite the
+    // endpoints - sharing a key would let one page's refetch overwrite the
     // other's data with rows it has no business showing.
     org: () => ["mcp-connections", "org"] as const,
   },

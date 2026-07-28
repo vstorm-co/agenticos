@@ -6,7 +6,7 @@ to. It records the *version* it executed, not just the agent, so the question
 "why did it answer that" stays answerable after the agent has been rewritten.
 
 Costs are stored on the run rather than in a separate ledger table. A run is
-already the natural grain — one row per thing a person can point at — and a
+already the natural grain - one row per thing a person can point at - and a
 per-request table would be a hundred times the volume for a level of detail the
 trace in Logfire already holds.
 """
@@ -39,8 +39,8 @@ class RunStatus(enum.StrEnum):
 
     ``AWAITING_APPROVAL`` is a real terminal-ish state, not a transient one: the
     run is parked until a human decides, which may be tomorrow. ``BUDGET_EXCEEDED``
-    is separated from ``FAILED`` because it is not a malfunction — it is the
-    platform working — and an operator filtering for problems should not have to
+    is separated from ``FAILED`` because it is not a malfunction - it is the
+    platform working - and an operator filtering for problems should not have to
     wade through it.
     """
 
@@ -108,7 +108,7 @@ class AgentRun(Base, TimestampMixin):
     #
     # This is what makes an exposure's budget a budget. Without it, "what has
     # this binding spent this month" has no answer and its cap would have to be
-    # measured against the organization's total — which unrelated internal runs
+    # measured against the organization's total - which unrelated internal runs
     # would exhaust while the binding's own traffic stayed invisible.
     #
     # SET NULL, not CASCADE: deleting a binding must not delete the record of
@@ -126,7 +126,7 @@ class AgentRun(Base, TimestampMixin):
 
     model_label: Mapped[str | None] = mapped_column(String(128), nullable=True)
     # The provider and the stored key this run actually used. `model_label` is a
-    # display name somebody chose — "GPT-4.1 (prod)" — so it cannot answer "what
+    # display name somebody chose - "GPT-4.1 (prod)" - so it cannot answer "what
     # did we spend at OpenAI" or "which key is costing the most", which are the
     # two questions a bill arrives with.
     #
@@ -145,7 +145,7 @@ class AgentRun(Base, TimestampMixin):
     output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     # Numeric, not float: costs are summed into monthly totals that must not drift.
     cost_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=Decimal(0))
-    # True when some model in the run had no price — the cost is then a floor.
+    # True when some model in the run had no price - the cost is then a floor.
     cost_is_partial: Mapped[bool] = mapped_column(nullable=False, default=False)
 
     # The trace lives in Logfire; we keep the id so the UI can deep-link into it
@@ -182,7 +182,7 @@ class ApprovalStatus(enum.StrEnum):
 class ToolApproval(Base, TimestampMixin):
     """A side-effecting tool call waiting on a human.
 
-    The arguments are stored so the approver sees exactly what will happen —
+    The arguments are stored so the approver sees exactly what will happen -
     approving "send_email" without seeing the recipient is not approval, it is a
     rubber stamp. They are also what the run replays on approval, so the model
     cannot change its mind between asking and acting.

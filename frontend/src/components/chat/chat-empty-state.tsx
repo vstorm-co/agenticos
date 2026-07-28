@@ -13,7 +13,7 @@ const PROMPTS = [
   {
     icon: BookOpen,
     title: "Explain a concept",
-    prompt: "Explain how vector search and RAG work together — keep it under 200 words.",
+    prompt: "Explain how vector search and RAG work together - keep it under 200 words.",
   },
   {
     icon: Code2,
@@ -46,7 +46,7 @@ export function ChatEmptyState({ onPick, agentLabel = "pydantic_ai" }: ChatEmpty
           {firstName ? `How can I help, ${firstName}?` : "How can I help today?"}
         </h2>
         <p className="text-muted-foreground mx-auto mt-2 max-w-md text-sm leading-relaxed">
-          Ask anything — get streaming answers with tool calls and citations from your knowledge.
+          Ask anything - get streaming answers with tool calls and citations from your knowledge.
         </p>
       </div>
 

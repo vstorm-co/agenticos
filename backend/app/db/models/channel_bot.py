@@ -1,4 +1,4 @@
-"""ChannelBot model — one row per registered bot instance (PostgreSQL async)."""
+"""ChannelBot model - one row per registered bot instance (PostgreSQL async)."""
 
 import uuid
 
@@ -27,7 +27,7 @@ class ChannelBot(Base, TimestampMixin):
     )
     platform: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    # Envelope produced by app.core.vault.seal, bound to organization_id — the
+    # Envelope produced by app.core.vault.seal, bound to organization_id - the
     # column name predates the vault and is kept so a rename is not smuggled
     # into a security change.
     token_encrypted: Mapped[str] = mapped_column(String(1000), nullable=False)

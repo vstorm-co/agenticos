@@ -1,4 +1,4 @@
-# Thin session wrapper — the route is lifecycle plumbing only; orchestration lives here.
+# Thin session wrapper - the route is lifecycle plumbing only; orchestration lives here.
 import asyncio
 import contextlib
 import logging
@@ -249,8 +249,8 @@ class AgentSession:
         except WebSocketDisconnect:
             raise
         except (AppException, BudgetExceeded) as exc:
-            # A refusal — an agent that is unpublished, archived, or not theirs
-            # to see — and a budget stop are the platform working, not a crash.
+            # A refusal - an agent that is unpublished, archived, or not theirs
+            # to see - and a budget stop are the platform working, not a crash.
             # The client is told plainly; the general assistant never answers in
             # the named agent's place.
             logger.info("Agent turn refused: %s", exc)
@@ -266,7 +266,7 @@ class AgentSession:
         model_history: list[Any],
         stream: Callable[[Any], Awaitable[None]],
     ) -> tuple[str | None, str | None]:
-        """Run the general assistant — what a frame naming no agent has always got."""
+        """Run the general assistant - what a frame naming no agent has always got."""
         # Rebuilt every turn so Settings → Integrations changes apply
         # immediately; unreachable/unauthorized servers are skipped there.
         mcp_toolsets = await build_toolsets_for_user(self.user.id)

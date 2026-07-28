@@ -67,7 +67,7 @@ import {
 } from "react-icons/si";
 
 /** Brand glyphs sourced from a maintained icon set (Simple Icons via
- *  react-icons, Font Awesome for Microsoft) — never hand-authored SVG paths,
+ *  react-icons, Font Awesome for Microsoft) - never hand-authored SVG paths,
  *  so the marks stay correct and recognizable. Monochrome (currentColor) so
  *  they inherit the surrounding text color. */
 
@@ -215,7 +215,7 @@ interface BrandIconProps extends SVGProps<SVGSVGElement> {
 
 export function BrandIcon({ name, "aria-label": ariaLabel, ...props }: BrandIconProps) {
   const Icon = ICONS[name];
-  // Decorative by default — paired with a text label in our layouts. Pass
+  // Decorative by default - paired with a text label in our layouts. Pass
   // `aria-label` explicitly to make it semantic (e.g. icon-only buttons).
   const a11y = ariaLabel ? { role: "img", "aria-label": ariaLabel } : { "aria-hidden": true };
   return <Icon {...a11y} {...props} />;

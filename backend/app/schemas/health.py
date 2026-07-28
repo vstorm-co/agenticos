@@ -15,7 +15,7 @@ CheckStatus = Literal["healthy", "unhealthy", "unconfigured", "not_checked"]
 """What a probe found.
 
 ``unhealthy`` is a thing that is broken. ``unconfigured`` is a thing this
-deployment has not set up — not an incident, and not something to page anyone
+deployment has not set up - not an incident, and not something to page anyone
 about. ``not_checked`` is a probe that was skipped and says why, which is the
 only honest answer when the check it depends on has already failed.
 """

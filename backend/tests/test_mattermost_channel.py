@@ -5,7 +5,7 @@ expensively rather than visibly:
 
 - a bot must not answer its own posts (an infinite loop with a model bill),
 - an outgoing webhook is authenticated by a shared token, compared in constant
-  time and refused when absent — there is no signature to fall back on,
+  time and refused when absent - there is no signature to fall back on,
 - a self-hosted platform needs its server URL, and a bot without one fails
   loudly rather than posting nowhere.
 """
@@ -19,7 +19,7 @@ from app.services.channels.mattermost import MattermostAdapter
 
 
 def _posted(**post: object) -> dict[str, object]:
-    """A `posted` frame as Mattermost sends it — the post is a JSON *string*."""
+    """A `posted` frame as Mattermost sends it - the post is a JSON *string*."""
     body = {"id": "p1", "user_id": "u1", "channel_id": "c1", "message": "hello", **post}
     return {
         "event": "posted",

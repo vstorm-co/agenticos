@@ -6,7 +6,7 @@ Create Date: 2026-07-27
 
 ``IngestionConfig.ocr_language`` is handed to LiteParse, which passes it to
 Tesseract, which wants ISO 639-2/T: ``eng``, ``pol``, ``deu``. The field was
-seeded from ``LITEPARSE_OCR_LANGUAGE``, whose default was ``en`` — an ISO 639-1
+seeded from ``LITEPARSE_OCR_LANGUAGE``, whose default was ``en`` - an ISO 639-1
 code, the kind this product uses everywhere else for a UI locale, and one
 Tesseract has no language pack under. It is the worst shape of wrong value:
 plausible on screen, and silent at run time, because a parse with an unknown

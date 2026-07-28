@@ -1,4 +1,4 @@
-"""Tests for Knowledge Base scoping — personal / org / app access rules."""
+"""Tests for Knowledge Base scoping - personal / org / app access rules."""
 
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch

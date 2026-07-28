@@ -117,7 +117,7 @@ export default function AdminConversationsPage() {
     setPage(0);
   }, [search, selectedUserId, selectedAgentId, status, pageSize, sort.by, sort.dir]);
 
-  // Load owners list for the dropdown — once on mount, independent of any tab.
+  // Load owners list for the dropdown - once on mount, independent of any tab.
   useEffect(() => {
     fetchUsers({ limit: 200, sort_by: "email", sort_dir: "asc" });
   }, [fetchUsers]);
@@ -196,7 +196,7 @@ export default function AdminConversationsPage() {
               <span className="text-muted-foreground truncate">{conv.user_email}</span>
             </span>
           ) : (
-            <span className="text-muted-foreground">—</span>
+            <span className="text-muted-foreground">-</span>
           ),
       },
       {
@@ -317,7 +317,7 @@ export default function AdminConversationsPage() {
 
         {/* By agent, not only by owner. "Which threads did the support agent
             answer in" is the question an operator has after a bad answer, and
-            an agent is not a property of a thread — the picker can be changed
+            an agent is not a property of a thread - the picker can be changed
             mid-conversation, so this matches threads it *answered in*. */}
         <Select
           value={selectedAgentId ?? "all"}

@@ -1,4 +1,4 @@
-"""Tests for the approval gate — what happens between asking and acting.
+"""Tests for the approval gate - what happens between asking and acting.
 
 The gate is the only thing standing between a model deciding to send an email
 and an email being sent, so what is guarded here is mostly refusal: a call with
@@ -275,7 +275,7 @@ class TestApprovalQueue:
         """The asker is an agent mid-run, not a member, so there is no auth context.
 
         Which run, which agent, which tool and with what arguments therefore have
-        to travel as explicit ids — and the arguments especially: approving
+        to travel as explicit ids - and the arguments especially: approving
         "send_email" without seeing the recipient is a rubber stamp.
         """
         organization_id, run_id, agent_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
@@ -348,8 +348,8 @@ GATED_TOOL = "do_the_thing"
 def gated_capability():
     """A capability that exists only to be gated.
 
-    These tests used to borrow whichever real tool was convenient — the clock's,
-    as it happened — and then broke the day that capability stopped exposing
+    These tests used to borrow whichever real tool was convenient - the clock's,
+    as it happened - and then broke the day that capability stopped exposing
     one. What is under test is the gate, not any particular tool, so it gets a
     tool of its own that does nothing and cannot be redesigned out from under
     it.
@@ -424,7 +424,7 @@ class TestParkAndResume:
 
     @pytest.mark.anyio
     async def test_a_parked_run_ends_with_the_call_waiting_and_then_continues(self):
-        """Park, decide, resume — and the tool runs exactly once, on approval."""
+        """Park, decide, resume - and the tool runs exactly once, on approval."""
         run_id = uuid.uuid4()
         parking = self._channel(run_id)
         built = _gated_agent(parking)
@@ -452,7 +452,7 @@ class TestParkAndResume:
 
     @pytest.mark.anyio
     async def test_a_rejected_call_lets_the_agent_answer_anyway(self):
-        """The run must survive a "no" — the user still deserves a reply."""
+        """The run must survive a "no" - the user still deserves a reply."""
         run_id = uuid.uuid4()
         parking = self._channel(run_id)
         built = _gated_agent(parking)

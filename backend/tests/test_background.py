@@ -2,7 +2,7 @@
 
 Both failure modes this module exists to prevent are silent. A task the event
 loop holds only weakly can be collected mid-flight, and an exception inside a
-discarded task is never retrieved — in either case the work simply stops and
+discarded task is never retrieved - in either case the work simply stops and
 nothing anywhere says so. The tests below are therefore about references and
 log lines rather than return values.
 """

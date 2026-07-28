@@ -4,7 +4,7 @@ Hi [[name]],
 
 Your [[plan_name]] subscription has been canceled. You'll have access until [[access_until]].
 
-We'd love to have you back — resubscribe anytime:
+We'd love to have you back - resubscribe anytime:
 [[resubscribe_url]]
 
-— The [[app_name]] Team
+- The [[app_name]] Team

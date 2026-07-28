@@ -2,7 +2,7 @@
 
 This module exists because of a failure that was invisible for as long as it
 took someone to read the server log. `_DIST_DIR` was a fixed four `.parent`
-hops from this package, which resolves to `backend/emails/compiled` — a
+hops from this package, which resolves to `backend/emails/compiled` - a
 directory that has never existed. The templates live at the repository root, and
 in the container at `/app/emails`, so *every* email raised
 `EmailTemplateError`. Every call site wraps the send in
@@ -128,7 +128,7 @@ class TestRendering:
         *and* silently ships a body with its opening line removed. Every
         template in `emails/compiled/` carries the header, so nothing sent today
         hits this. It is asserted so that authoring a template without the
-        header fails here rather than quietly truncating a live email — and so
+        header fails here rather than quietly truncating a live email - and so
         that tightening the parser is a deliberate change to this test.
         """
         _fake_template(tmp_path, monkeypatch, key="greeting", html="<p>hi</p>", text="Hello there.")

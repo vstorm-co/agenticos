@@ -6,7 +6,7 @@ import { SkillWorkbench } from "./skill-workbench";
 import type { Skill } from "@/types/providers";
 
 // The workbench reaches for the file mutations it offers beside the body. None
-// of them is exercised here — what these tests are about is the skill itself.
+// of them is exercised here - what these tests are about is the skill itself.
 vi.mock("@/hooks", () => ({
   useSkill: () => ({
     addResource: { isPending: false, mutateAsync: vi.fn() },
@@ -58,7 +58,7 @@ const description = () => screen.getByLabelText("Description");
  * The body's editor, which lives behind the Source toggle.
  *
  * `SKILL.md` is Markdown and opens rendered, like every other Markdown file in
- * the skill — reading it as raw asterisks was the odd one out. Editing it is a
+ * the skill - reading it as raw asterisks was the odd one out. Editing it is a
  * deliberate second step.
  */
 async function content() {

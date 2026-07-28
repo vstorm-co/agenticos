@@ -12,11 +12,11 @@ interface InjectableProps {
 export interface FormFieldProps {
   /** Visible label text. */
   label?: React.ReactNode;
-  /** id of the control — used for the label's `htmlFor` and injected onto the child. */
+  /** id of the control - used for the label's `htmlFor` and injected onto the child. */
   htmlFor: string;
   /** Helper text shown below the control when there's no error. */
   description?: React.ReactNode;
-  /** Error message — when set, the control is marked invalid + described by it. */
+  /** Error message - when set, the control is marked invalid + described by it. */
   error?: string | null;
   required?: boolean;
   className?: string;

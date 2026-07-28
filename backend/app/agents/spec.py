@@ -1,4 +1,4 @@
-"""The agent spec — the contract between the Builder and the runtime.
+"""The agent spec - the contract between the Builder and the runtime.
 
 An agent is data, not code. This module defines exactly what that data is, and
 it is the most load-bearing type in the platform: the Builder edits it, the
@@ -9,7 +9,7 @@ this shape breaks stored agents.
 Design rules that follow from that, and are worth keeping:
 
 *References, never values.* A spec names a model profile, a collection, a tool
-id — it never embeds a model string, a connection string, or (least of all) a
+id - it never embeds a model string, a connection string, or (least of all) a
 secret. That is what makes a spec safe to commit to a client's repository and
 what lets an organization rotate a key without touching a single agent.
 
@@ -60,7 +60,7 @@ logger = logging.getLogger(__name__)
 # 6 turned `model_settings` from an unvalidated blob into `ModelSettingsSpec`,
 # which names the settings an agent author may set and refuses everything else.
 # A version-5 spec keeps the keys that survived; `thinking` becomes a binding on
-# the capability that now owns it, and the rest are dropped on load — see
+# the capability that now owns it, and the rest are dropped on load - see
 # `_MODEL_SETTINGS_WITHDRAWN` for why each one went.
 SPEC_VERSION = 6
 
@@ -99,7 +99,7 @@ _MODEL_SETTINGS_WITHDRAWN = frozenset(
         # about; determinism belongs to an eval harness.
         "seed",
         # Truncates the answer mid-sentence when it fires unexpectedly, which
-        # reads as a broken agent rather than a configured one — and in a tool
+        # reads as a broken agent rather than a configured one - and in a tool
         # loop it can cut a call in half.
         "stop_sequences",
         # A commercial decision about the credential, not about the agent. It
@@ -125,7 +125,7 @@ class CapabilityBindingSpec(BaseModel):
 
     Two things are decided finer than that, and both key on a tool's stable id.
     A capability that reads and writes is two decisions wearing one name, so
-    ``tool_approval`` overrides ``approval`` for one tool — approve the write,
+    ``tool_approval`` overrides ``approval`` for one tool - approve the write,
     leave the read alone. And what the model *reads* about a tool is the
     strongest prompt in the product, so ``tool_overrides`` reworks its name and
     description for this agent without forking the capability.
@@ -133,7 +133,7 @@ class CapabilityBindingSpec(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    id: str = Field(description="Registry id of the capability — stable across renames")
+    id: str = Field(description="Registry id of the capability - stable across renames")
     config: dict[str, Any] = Field(
         default_factory=dict,
         description="Validated against the capability's config schema at publish time",
@@ -149,7 +149,7 @@ class CapabilityBindingSpec(BaseModel):
         default_factory=dict,
         description=(
             "Per-tool overrides on top of 'approval', keyed by the tool's "
-            "stable id — not the name the model sees, which a binding may "
+            "stable id - not the name the model sees, which a binding may "
             "rename. An id no such capability exposes is refused at publish."
         ),
     )
@@ -165,7 +165,7 @@ class CapabilityBindingSpec(BaseModel):
         default=None,
         description=(
             "Which of the organization's secrets satisfies this capability's "
-            "requirement. An id, never a value — a spec is exported to a client's "
+            "requirement. An id, never a value - a spec is exported to a client's "
             "git repository. Refused at publish if it does not exist, is the "
             "wrong kind, or belongs to another organization."
         ),
@@ -178,7 +178,7 @@ class CapabilityBindingSpec(BaseModel):
         """Move a version-3 knowledge rename into the general field.
 
         ``knowledge`` used to carry ``tool_name`` and ``tool_description`` in
-        its own config — a mechanism one capability invented for itself, which
+        its own config - a mechanism one capability invented for itself, which
         approval could not see through. Its schema no longer has those keys, and
         a Pydantic model ignores what it does not declare: without this, every
         agent published against version 3 would quietly lose its rename, and the
@@ -243,7 +243,7 @@ class ObservabilitySpec(BaseModel):
     keeps receiving everything else; this only redirects the runs of the agent
     that asks for it.
 
-    The token is a reference, never a value — like every other credential a spec
+    The token is a reference, never a value - like every other credential a spec
     names. A spec is exported as YAML into somebody's repository, and a write
     token in a checked-in file is a token that has to be rotated.
     """
@@ -262,7 +262,7 @@ class ObservabilitySpec(BaseModel):
     environment: str | None = Field(
         default=None,
         max_length=64,
-        description="Logfire environment — production, staging, a client's name",
+        description="Logfire environment - production, staging, a client's name",
     )
 
 
@@ -270,8 +270,8 @@ class ModelSettingsSpec(BaseModel):
     """How this agent asks its model to behave.
 
     A deliberately small window onto Pydantic AI's ``ModelSettings``. The full
-    set includes escape hatches for someone debugging a provider — raw bodies,
-    raw headers, token biases — which in a Builder are an invitation to paste
+    set includes escape hatches for someone debugging a provider - raw bodies,
+    raw headers, token biases - which in a Builder are an invitation to paste
     something that breaks a published agent, and knobs that only some providers
     implement, which quietly mean something else after a model swap.
     ``_MODEL_SETTINGS_WITHDRAWN`` says why each excluded key went. What is left
@@ -283,13 +283,13 @@ class ModelSettingsSpec(BaseModel):
 
     **Every field is optional and unset means unset**, which is the one property
     the rest of this model is arranged around. ``None`` is not "send the
-    provider's default" — it is "do not send this parameter", and the difference
+    provider's default" - it is "do not send this parameter", and the difference
     is a run that fails: reasoning models reject ``temperature`` outright, so an
     agent that never chose one must produce a request with no ``temperature`` key
     at all. Hence the serializer: an unset field is *absent* from the stored
-    spec rather than stored as ``null``, so nothing downstream — the merge in
+    spec rather than stored as ``null``, so nothing downstream - the merge in
     ``app/agents/factory.py``, a YAML export, the Builder deciding whether to
-    show a field as touched — has to know that a ``null`` here means "no".
+    show a field as touched - has to know that a ``null`` here means "no".
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -301,7 +301,7 @@ class ModelSettingsSpec(BaseModel):
         description=(
             "How varied the answer is: near 0 for analysis and classification, "
             "higher for drafting. Some providers cap this at 1, and reasoning "
-            "models reject it entirely — leave it unset there."
+            "models reject it entirely - leave it unset there."
         ),
     )
     top_p: float | None = Field(
@@ -366,7 +366,7 @@ def _with_thinking_binding(data: Any, effort: Any) -> Any:
     """Express a version-5 ``thinking`` setting as a binding on the capability.
 
     ``False`` and a missing key both mean "do not think", and the way to say
-    that now is not to bind the capability — which is also what the picker
+    that now is not to bind the capability - which is also what the picker
     means by leaving it off. Anything else is a level, and ``True`` is the
     provider's own default effort, which is what an unset ``effort`` asks for.
     """
@@ -452,8 +452,8 @@ class AgentSpec(BaseModel):
 
         ``model_settings`` was ``dict[str, Any]``, so a hand-written or imported
         spec may name any portable ``ModelSettings`` key. Refusing those now
-        would mean a published agent that no longer parses — a 500 on every run
-        of something nobody touched — so the keys this version withdrew are
+        would mean a published agent that no longer parses - a 500 on every run
+        of something nobody touched - so the keys this version withdrew are
         dropped here instead, loudly enough to find in a log.
 
         ``thinking`` is the exception: it is folded into a binding on the

@@ -1,4 +1,4 @@
-"""Logging utilities — PII redaction filter for GDPR/compliance safety."""
+"""Logging utilities - PII redaction filter for GDPR/compliance safety."""
 
 import logging
 import re

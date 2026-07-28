@@ -13,7 +13,7 @@ import NotificationsSettingsPage from "./page";
  * email was sent regardless and the setting did not leave the browser.
  *
  * Pages in this project are normally left to the E2E suite, and this one is
- * deliberately excluded from the vitest coverage `include` for that reason — it
+ * deliberately excluded from the vitest coverage `include` for that reason - it
  * is not mounted here to move a number. It is mounted because the failure was
  * not a broken page but a *convincing* one, and the cheapest way to keep it
  * from coming back is to assert that no control on it claims to save anything.
@@ -63,7 +63,7 @@ describe("the notifications settings page", () => {
   it("says why each email cannot be switched off", () => {
     render(<NotificationsSettingsPage />);
 
-    // Three emails, three stated reasons — a row without one is a row that
+    // Three emails, three stated reasons - a row without one is a row that
     // looks arbitrary, which is what invites a toggle back.
     expect(screen.getAllByText(/Not optional/)).toHaveLength(3);
   });

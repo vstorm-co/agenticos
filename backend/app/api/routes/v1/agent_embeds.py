@@ -5,7 +5,7 @@ Per-resource routes, so no `require(...)` gate: whether this caller may publish
 here would refuse a Builder holding an explicit grant on the agent.
 
 The listing hangs off the agent (`/agents/{id}/embeds`) because that is the
-question people ask — "where is this agent live?" — while editing and deleting
+question people ask - "where is this agent live?" - while editing and deleting
 address the widget by its own id, which is what a table row has.
 """
 

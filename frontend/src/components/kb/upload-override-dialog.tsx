@@ -29,12 +29,12 @@ interface UploadOverrideDialogProps {
  * Reading the next files differently, without changing the collection.
  *
  * The form starts from the collection's configuration and only what is moved
- * off it is sent — an override is a set of departures, and a key sent with the
+ * off it is sent - an override is a set of departures, and a key sent with the
  * collection's own value would be recorded as one, marking a document changed
  * when nothing about it was.
  *
  * It sets a departure rather than performing an upload because the page takes
- * files three ways — the button, the file dialog, a drag onto anywhere — and a
+ * files three ways - the button, the file dialog, a drag onto anywhere - and a
  * form that owned the upload would only cover one of them.
  */
 export function UploadOverrideDialog({
@@ -62,7 +62,7 @@ export function UploadOverrideDialog({
           <DialogTitle>Parse the next upload differently</DialogTitle>
           <DialogDescription>
             This applies to each file you add next and is recorded on it. The collection keeps its
-            own settings — every later upload goes back to them.
+            own settings - every later upload goes back to them.
           </DialogDescription>
         </DialogHeader>
 

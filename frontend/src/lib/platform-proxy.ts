@@ -1,14 +1,14 @@
 /**
  * One proxy for the whole platform API surface.
  *
- * The browser never talks to the backend directly — it calls `/api/*` on this
+ * The browser never talks to the backend directly - it calls `/api/*` on this
  * app, which forwards to FastAPI with the access token taken from an HttpOnly
  * cookie. That is what keeps the token out of JavaScript and the backend URL
  * out of the client bundle.
  *
  * The generated template writes one hand-rolled route file per endpoint, each
- * repeating the same twelve lines. The platform surface — agents, runs,
- * approvals, skills, providers, roles, sharing — is upwards of thirty
+ * repeating the same twelve lines. The platform surface - agents, runs,
+ * approvals, skills, providers, roles, sharing - is upwards of thirty
  * endpoints that differ in nothing but their path, so it gets one forwarder
  * instead: fewer places for a header to be forgotten, and a new backend route
  * needs no frontend change at all.
@@ -16,14 +16,14 @@
  * "Fewer places for a header to be forgotten" is not a figure of speech. The
  * hand-rolled routes under `/kb` and `/rag` forwarded the token and not the
  * active organization, so every request from those two pages resolved against
- * the caller's *personal* organization while the UI showed another one — an
+ * the caller's *personal* organization while the UI showed another one - an
  * empty list, on a page whose data plainly exists. That is why they are on this
  * forwarder now, and why anything else calling an org-scoped endpoint has to be
  * too: `platform-proxy.test.ts` fails the build otherwise.
  *
  * Three things it does that a hand-rolled route usually forgets. It returns the
  * backend's own status and body, so a 403 from the permission layer reaches the
- * UI as a 403 with its message rather than a generic failure — the difference
+ * UI as a 403 with its message rather than a generic failure - the difference
  * between "you cannot do this" and "something broke". It forwards the active
  * organization header, without which every org-scoped request would silently
  * answer for the user's personal organization instead of the one the UI is
@@ -78,7 +78,7 @@ function describingHeaders(source: Headers): Headers {
  *
  * The path is taken from the request rather than passed in, so mounting this
  * at a new place needs no argument to keep in sync with the directory it sits
- * in — the one thing that would silently send a route to the wrong endpoint.
+ * in - the one thing that would silently send a route to the wrong endpoint.
  */
 export function platformProxy(): ProxyHandlers {
   const forward: Handler = async (request) => {

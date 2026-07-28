@@ -35,7 +35,7 @@ async def list_all(db: AsyncSession) -> list[Organization]:
     """Every organization on the deployment.
 
     Deliberately unscoped, and only for work that is *about* the deployment
-    rather than about a tenant — the skill seed, which installs the same
+    rather than about a tenant - the skill seed, which installs the same
     bundled library everywhere. Anything serving a member goes through
     :func:`list_for_user`. Grep for this function when auditing cross-tenant
     reads.

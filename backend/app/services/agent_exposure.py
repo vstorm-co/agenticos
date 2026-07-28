@@ -3,7 +3,7 @@
 One concept covers every place an agent can be reached: an *exposure*. An agent
 is available on zero or more surfaces, and each row is one of them. Keeping it
 out of :class:`app.agents.spec.AgentSpec` is what makes the two lifecycles
-independent — publishing a new version cannot silently change who can reach the
+independent - publishing a new version cannot silently change who can reach the
 agent, and binding it to a bot cannot mint a version nobody reviewed.
 
 Who may decide this is ``agents:publish`` **on that agent**, resolved through
@@ -14,8 +14,8 @@ and the second is the one that matters:
 world get to reach", and an author who may freeze a version may say where it
 runs.
 
-*It is deliberately not ``channels:manage``.* That permission governs the bot —
-its token, its webhook, its access policy — and binding an agent changes none of
+*It is deliberately not ``channels:manage``.* That permission governs the bot -
+its token, its webhook, its access policy - and binding an agent changes none of
 those. Demanding it would mean only an Admin could put an agent in Slack, while
 the Builders who publish agents could not, and the section would be read-only for
 exactly the people it is for.
@@ -72,7 +72,7 @@ def _budget_detail(data: ExposureCreate) -> dict[str, str | None]:
     """A binding's caps as the audit trail records them.
 
     Strings, because the trail is JSON and a ``Decimal`` does not survive the
-    round trip as itself — a cap silently reappearing as a float is the kind of
+    round trip as itself - a cap silently reappearing as a float is the kind of
     thing nobody notices until the numbers are being reconciled.
     """
     return {
@@ -92,7 +92,7 @@ def _update_action(changes: dict[str, Any]) -> str:
     """What to call this edit in the trail.
 
     Pausing and resuming get their own names because they are the two people
-    search for after an agent stopped — or started — answering somewhere.
+    search for after an agent stopped - or started - answering somewhere.
     """
     if changes.get("is_active") is True:
         return "agent.exposure_resumed"
@@ -168,7 +168,7 @@ class AgentExposureService:
             NotFoundError: If the agent is not reachable by this caller, or the
                 bot is not in this organization. A bot from another tenant is
                 reported as missing rather than forbidden, so ids stay
-                unprobeable — the same rule the agent routes follow.
+                unprobeable - the same rule the agent routes follow.
             BadRequestError: If the bot's platform has no exposure surface.
             AlreadyExistsError: If this agent is already bound to this bot.
                 Silently returning the existing row would make an accidental
@@ -231,7 +231,7 @@ class AgentExposureService:
 
         Only the fields the caller actually sent are applied. Pausing a binding
         must not silently drop a budget somebody else set on it, and a schema
-        default cannot tell "leave it alone" from "clear it" — so the distinction
+        default cannot tell "leave it alone" from "clear it" - so the distinction
         is read off the request rather than inferred from ``None``.
         """
         exposure = await self._owned(ctx, agent_id, exposure_id)
@@ -251,7 +251,7 @@ class AgentExposureService:
         return updated
 
     async def delete(self, ctx: AuthContext, agent_id: UUID, exposure_id: UUID) -> None:
-        """Remove a binding entirely — the agent stops answering there."""
+        """Remove a binding entirely - the agent stops answering there."""
         exposure = await self._owned(ctx, agent_id, exposure_id)
         await agent_exposure_repo.delete(self.db, exposure)
         await record_audit(

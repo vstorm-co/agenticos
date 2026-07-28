@@ -37,7 +37,7 @@ function DeviceIcon({ type }: { type?: string | null }) {
  * accumulates dozens and the settings page rendered all of them.
  *
  * The server holds the page, which is what makes revoking work from anywhere in
- * the list — the row being revoked is on screen, and `total` comes back with
+ * the list - the row being revoked is on screen, and `total` comes back with
  * every fetch, so the component can tell that the page it is on has just
  * emptied and step back to the one before it rather than showing a blank card.
  */

@@ -4,4 +4,4 @@ Hi there,
 
 Thanks for subscribing to [[app_name]] updates! We'll keep you in the loop with product news and announcements.
 
-— The [[app_name]] Team
+- The [[app_name]] Team

@@ -84,7 +84,7 @@ describe("ReusableIntegrations", () => {
   it("lets one integration be used in a second knowledge base", async () => {
     // The journey the deleted organization page owned, and the reason this
     // section exists: configure a connector once, then feed two collections
-    // from it without retyping the credentials — which are masked and could not
+    // from it without retyping the credentials - which are masked and could not
     // be retyped anyway.
     serve("owner", [UNASSIGNED]);
     vi.mocked(apiClient.post).mockResolvedValue({ ...UNASSIGNED, id: "s2" });

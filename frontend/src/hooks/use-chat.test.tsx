@@ -44,7 +44,7 @@ beforeEach(() => {
   useChatStore.getState().clearMessages();
 });
 
-describe("useChat — which agent a turn is addressed to", () => {
+describe("useChat - which agent a turn is addressed to", () => {
   it("names the selected agent so the backend runs it", () => {
     useAgentSelectionStore.getState().select("agent-1");
 
@@ -77,7 +77,7 @@ describe("useChat — which agent a turn is addressed to", () => {
   it("adds the agent to the frame without disturbing the rest of it", () => {
     // `agent_id` is one more field, not a different frame. The model override
     // now names a vault profile rather than a bare model name, and it applies
-    // to a published agent as well as to the assistant — overriding an agent's
+    // to a published agent as well as to the assistant - overriding an agent's
     // model used to be silently ignored.
     useAgentSelectionStore.getState().select("agent-1");
     useKBSelectionStore.getState().setActiveKBIds(["kb-1"]);
@@ -97,7 +97,7 @@ describe("useChat — which agent a turn is addressed to", () => {
   });
 });
 
-describe("useChat — attributing the answer", () => {
+describe("useChat - attributing the answer", () => {
   it("credits the answer to the agent the turn was sent to", () => {
     useAgentSelectionStore.getState().select("agent-1");
 

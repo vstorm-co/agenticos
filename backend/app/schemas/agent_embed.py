@@ -1,4 +1,4 @@
-"""Schemas for agent embeds — the widget an agent is published as."""
+"""Schemas for agent embeds - the widget an agent is published as."""
 
 from typing import Literal
 from uuid import UUID
@@ -20,7 +20,7 @@ class EmbedTheme(BaseSchema):
 
     title: str = Field(default="Ask us anything", max_length=80)
     subtitle: str = Field(default="", max_length=120)
-    greeting: str = Field(default="Hi — what can I help you with?", max_length=400)
+    greeting: str = Field(default="Hi - what can I help you with?", max_length=400)
     placeholder: str = Field(default="Type your message…", max_length=80)
     accent: str = Field(default="#4f46e5", pattern=r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
     position: Literal["left", "right"] = "right"

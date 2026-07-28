@@ -5,13 +5,13 @@ than an ad-hoc dict:
 
 - the tool returns it as a JSON string, so every framework captures it as an
   ordinary tool result,
-- it is persisted verbatim in ``tool_calls.result`` — no schema, no migration,
+- it is persisted verbatim in ``tool_calls.result`` - no schema, no migration,
 - the web chat parses it and renders it interactively with Recharts,
 - the channel adapters render it server-side to a PNG for Slack and Telegram.
 
 This module holds the format and nothing else. It deliberately imports no agent
-machinery, so the delivery layers — which only ever parse a result someone else
-produced — can read the format without pulling a toolset in behind it.
+machinery, so the delivery layers - which only ever parse a result someone else
+produced - can read the format without pulling a toolset in behind it.
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ MAX_SERIES = 12
 
 
 class ChartSeries(BaseModel):
-    """One plotted series — maps a key in each data row to a labelled line/bar."""
+    """One plotted series - maps a key in each data row to a labelled line/bar."""
 
     key: str = Field(description="Field name in each data row to plot.")
     label: str | None = Field(default=None, description="Legend label (defaults to key).")
@@ -80,7 +80,7 @@ class ChartSpec(BaseModel):
 def parse_chart_spec(result: str) -> ChartSpec | None:
     """Parse a chart tool result back into a :class:`ChartSpec`.
 
-    Returns None when the result is anything else — the delivery layers inspect
+    Returns None when the result is anything else - the delivery layers inspect
     every tool result in a turn, so a plain string is the normal case, not an
     error worth raising on.
     """

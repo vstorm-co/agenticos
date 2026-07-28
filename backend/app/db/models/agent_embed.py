@@ -9,7 +9,7 @@ That difference is the whole design:
 
 *Auth is a choice, and both answers are legitimate.* A support widget on a
 marketing page has no user to authenticate. A widget inside somebody's logged-in
-product does, and the honest way to carry it is a token their backend signs —
+product does, and the honest way to carry it is a token their backend signs -
 we verify it, we never mint it, and we never see their password.
 
 *Origin is the perimeter.* A key in a `<script>` tag is public by construction,
@@ -45,7 +45,7 @@ from app.db.base import Base, TimestampMixin
 DEFAULT_THEME: dict[str, Any] = {
     "title": "Ask us anything",
     "subtitle": "",
-    "greeting": "Hi — what can I help you with?",
+    "greeting": "Hi - what can I help you with?",
     "placeholder": "Type your message…",
     "accent": "#4f46e5",
     "position": "right",
@@ -74,14 +74,14 @@ class AgentEmbed(Base, TimestampMixin):
         index=True,
     )
     # Who the run is attributed to. The visitor is anonymous, but a run still
-    # needs a role to resolve what the agent may reach — so it runs as the
+    # needs a role to resolve what the agent may reach - so it runs as the
     # member who published the widget, and the cost lands on their organization.
     owner_user_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
 
     name: Mapped[str] = mapped_column(String(128), nullable=False)
-    # What the `<script>` tag carries. Public by construction — it identifies
+    # What the `<script>` tag carries. Public by construction - it identifies
     # the widget, it does not authenticate anybody.
     public_key: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
 
@@ -98,7 +98,7 @@ class AgentEmbed(Base, TimestampMixin):
     theme: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, default=lambda: dict(DEFAULT_THEME), server_default="{}"
     )
-    # Extra instructions for this placement — "you are on the pricing page",
+    # Extra instructions for this placement - "you are on the pricing page",
     # "answer in German". Appended to the agent's own, never replacing them.
     context: Mapped[str | None] = mapped_column(Text, nullable=True)
 

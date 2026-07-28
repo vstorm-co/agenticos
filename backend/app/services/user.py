@@ -92,7 +92,7 @@ class UserService:
         return AdminUserList(items=items, total=total)
 
     async def register(self, user_in: UserCreate) -> User:
-        """The first user to register is auto-promoted to app-admin — no separate CLI step needed."""
+        """The first user to register is auto-promoted to app-admin - no separate CLI step needed."""
         existing = await user_repo.get_by_email(self.db, user_in.email)
         if existing:
             raise AlreadyExistsError(
@@ -255,7 +255,7 @@ class UserService:
             update_data={"hashed_password": get_password_hash(new_password)},
         )
         # Revoke any active sessions so a previously-issued refresh token cannot
-        # outlive a password reset. The current request returns no tokens — the
+        # outlive a password reset. The current request returns no tokens - the
         # user must log in again.
         await session_repo.deactivate_all_user_sessions(self.db, user.id)
         return user

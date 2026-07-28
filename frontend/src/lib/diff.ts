@@ -82,7 +82,7 @@ export function diffLines(before: string, after: string): DiffLine[] {
   return lines;
 }
 
-/** How many lines each side changed by — what a summary line reports. */
+/** How many lines each side changed by - what a summary line reports. */
 export function diffStat(lines: DiffLine[]): { added: number; removed: number } {
   return {
     added: lines.filter((line) => line.kind === "added").length,

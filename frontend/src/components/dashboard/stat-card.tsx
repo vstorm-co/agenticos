@@ -8,7 +8,7 @@ import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Recharts is only needed for the optional sparkline, so it's split into a child
-// component and loaded on demand — keeping recharts out of the bundle of every
+// component and loaded on demand - keeping recharts out of the bundle of every
 // page that renders a StatCard without `spark` data.
 const StatCardSpark = dynamic(() => import("./stat-card-spark").then((m) => m.StatCardSpark), {
   ssr: false,
@@ -83,7 +83,7 @@ export function StatCard({
         {unit && <span className="text-muted-foreground text-sm">{unit}</span>}
       </div>
 
-      {/* Footer row — always present so every card has the same vertical
+      {/* Footer row - always present so every card has the same vertical
           structure (label/icon → value → footer). Delta wins when available;
           otherwise the neutral `footer` line keeps cards balanced. */}
       <div className="mt-2 flex min-h-[18px] items-center gap-1.5">

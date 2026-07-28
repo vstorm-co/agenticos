@@ -43,7 +43,7 @@ export interface ImageDescriptionConfig {
 /**
  * How the documents put into one collection are parsed, chunked and described.
  *
- * Every field is required on the wire — the API answers a complete object and
+ * Every field is required on the wire - the API answers a complete object and
  * both create and update replace it wholesale. The per-upload departure from it
  * is `IngestionOverride`, where every field is optional.
  */
@@ -59,11 +59,11 @@ export interface IngestionConfig {
    * OCRing every page and OCRing the scans.
    */
   auto_ocr: boolean;
-  /** Tesseract code — three letters, `+`-joined for several ("eng+pol"). */
+  /** Tesseract code - three letters, `+`-joined for several ("eng+pol"). */
   ocr_language: string;
   liteparse_output_format: LiteParseOutputFormat;
   liteparse_dpi: number;
-  /** Pages LiteParse reads before it stops — what actually bounds the cost. */
+  /** Pages LiteParse reads before it stops - what actually bounds the cost. */
   max_pages: number;
   parse_timeout_seconds: number;
   chunk_size: number;
@@ -101,7 +101,7 @@ export interface KnowledgeBase {
    * Read-only, and not an oversight: the store writes `embedding vector(N)` when
    * the collection is made, and two models of equal width write into different
    * spaces that search would go on comparing. It is on no create or update
-   * schema, and sending it is silently ignored — so it is stated as fact here,
+   * schema, and sending it is silently ignored - so it is stated as fact here,
    * never offered as a control.
    */
   embedding_model: string;
@@ -121,7 +121,7 @@ export interface CreateKnowledgeBaseInput {
   scope: KBScope;
   /**
    * Omit to inherit this deployment's defaults, which is what most collections
-   * want. Present, it is taken whole — there is no merging with the defaults.
+   * want. Present, it is taken whole - there is no merging with the defaults.
    */
   ingestion_config?: IngestionConfig;
 }

@@ -99,7 +99,7 @@ function KBCard({ kb, onDelete }: { kb: KnowledgeBase; onDelete: () => void }) {
           wrapper stays `pointer-events-none` so clicks over dead space fall
           through to the link, and the button re-enables them for itself.
 
-          A `z-index` on that wrapper — which is what it had — silently wins
+          A `z-index` on that wrapper - which is what it had - silently wins
           over any value a child sets, which is why the obvious fix of raising
           the button did nothing. */}
       <Link

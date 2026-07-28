@@ -1,5 +1,5 @@
 /**
- * Curated MCP plugin catalog — the "marketplace" shown in Settings → Integrations.
+ * Curated MCP plugin catalog - the "marketplace" shown in Settings → Integrations.
  *
  * Every entry here was verified to work with our client. The transport
  * (streamable HTTP or SSE) is inferred from the URL on the backend, so
@@ -22,7 +22,7 @@ export const MCP_CATEGORIES: { id: McpCatalogCategory; label: string }[] = [
 ];
 
 export interface McpCatalogEntry {
-  /** Stable id — also used as the default connection name (slug). */
+  /** Stable id - also used as the default connection name (slug). */
   id: string;
   /** Which section heading this card appears under. */
   category: McpCatalogCategory;
@@ -32,7 +32,7 @@ export interface McpCatalogEntry {
   description: string;
   /**
    * For tokenPlacement: "url" this contains a `{token}` placeholder.
-   * For auth: "personal-url" this is empty — the user pastes their own link.
+   * For auth: "personal-url" this is empty - the user pastes their own link.
    */
   url: string;
   auth: "none" | "token" | "personal-url" | "oauth";
@@ -41,13 +41,13 @@ export interface McpCatalogEntry {
    * into the URL (some providers, e.g. Alpha Vantage, take ?apikey=...).
    */
   tokenPlacement?: "header" | "url";
-  /** For auth: "token" / "personal-url" — where to generate the credential. */
+  /** For auth: "token" / "personal-url" - where to generate the credential. */
   tokenHelp?: { label: string; url: string };
   /** Short "what you can ask" example shown on the card. */
   example?: string;
 }
 
-/** Base URL (no query string) — used to match catalog entries to connections. */
+/** Base URL (no query string) - used to match catalog entries to connections. */
 export function catalogBaseUrl(url: string): string {
   const queryStart = url.indexOf("?");
   return queryStart === -1 ? url : url.slice(0, queryStart);
@@ -55,7 +55,7 @@ export function catalogBaseUrl(url: string): string {
 
 /**
  * Last-resort logo source: Google's favicon service, tokenless and over HTTPS.
- * Only reached for a domain missing from {@link MCP_LOGOS} — every catalog
+ * Only reached for a domain missing from {@link MCP_LOGOS} - every catalog
  * entry should be baked in, so hitting this means `bun run gen:mcp-logos`
  * needs a re-run. Not exported: nothing should request it on purpose.
  */
@@ -66,7 +66,7 @@ function faviconServiceUrl(domain: string): string {
 /**
  * Brand logo for a catalog domain, as a baked-in data URI ({@link MCP_LOGOS}).
  *
- * Used everywhere a catalog logo is shown — the Settings marketplace and the
+ * Used everywhere a catalog logo is shown - the Settings marketplace and the
  * demo-only MCP badge alike. Baked rather than fetched for two reasons: the
  * self-contained export has no network, and a live app shouldn't tell a third
  * party which plugins its users are looking at. Regenerate the map with
@@ -82,7 +82,7 @@ export const MCP_CATALOG: McpCatalogEntry[] = [
     category: "finance",
     title: "CoinGecko",
     domain: "coingecko.com",
-    description: "Live cryptocurrency prices, market caps and trends — no account needed.",
+    description: "Live cryptocurrency prices, market caps and trends - no account needed.",
     url: "https://mcp.api.coingecko.com/mcp",
     auth: "none",
     example: "“What's the Bitcoin price and how did it move this week?”",
@@ -92,7 +92,7 @@ export const MCP_CATALOG: McpCatalogEntry[] = [
     category: "finance",
     title: "Alpha Vantage",
     domain: "alphavantage.co",
-    description: "Stock quotes, forex and market data. Free API key — just enter your email.",
+    description: "Stock quotes, forex and market data. Free API key - just enter your email.",
     url: "https://mcp.alphavantage.co/mcp?apikey={token}",
     auth: "token",
     tokenPlacement: "url",
@@ -107,7 +107,7 @@ export const MCP_CATALOG: McpCatalogEntry[] = [
     category: "business",
     title: "Stripe",
     domain: "stripe.com",
-    description: "Your Stripe payments, customers and invoices — for business owners.",
+    description: "Your Stripe payments, customers and invoices - for business owners.",
     url: "https://mcp.stripe.com/",
     auth: "token",
     tokenHelp: {
@@ -121,7 +121,7 @@ export const MCP_CATALOG: McpCatalogEntry[] = [
     category: "business",
     title: "Notion",
     domain: "notion.so",
-    description: "Your Notion pages, docs and databases — sign in, no token to copy.",
+    description: "Your Notion pages, docs and databases - sign in, no token to copy.",
     url: "https://mcp.notion.com/mcp",
     auth: "oauth",
     example: "“Summarize our product spec doc in Notion.”",
@@ -131,7 +131,7 @@ export const MCP_CATALOG: McpCatalogEntry[] = [
     category: "business",
     title: "Linear",
     domain: "linear.app",
-    description: "Issues, projects and cycles in Linear — sign in with your account.",
+    description: "Issues, projects and cycles in Linear - sign in with your account.",
     url: "https://mcp.linear.app/mcp",
     auth: "oauth",
     example: "“What issues are assigned to me this cycle?”",
@@ -142,7 +142,7 @@ export const MCP_CATALOG: McpCatalogEntry[] = [
     title: "Jira & Confluence",
     domain: "atlassian.com",
     description:
-      "Atlassian issues, boards, sprints and Confluence pages — sign in with your account.",
+      "Atlassian issues, boards, sprints and Confluence pages - sign in with your account.",
     url: "https://mcp.atlassian.com/v1/sse",
     auth: "oauth",
     example: "“What Jira issues are assigned to me in the current sprint?”",
@@ -153,7 +153,7 @@ export const MCP_CATALOG: McpCatalogEntry[] = [
     title: "Zapier (Slack, Sheets, Gmail…)",
     domain: "zapier.com",
     description:
-      "Connect 7000+ business apps — Slack, Google Sheets, Gmail, HubSpot, Salesforce, Trello. Pick your apps on Zapier, then paste your personal link here.",
+      "Connect 7000+ business apps - Slack, Google Sheets, Gmail, HubSpot, Salesforce, Trello. Pick your apps on Zapier, then paste your personal link here.",
     url: "",
     auth: "personal-url",
     tokenHelp: {
@@ -168,7 +168,7 @@ export const MCP_CATALOG: McpCatalogEntry[] = [
     title: "Exa Search",
     domain: "exa.ai",
     description:
-      "Live web search and page reading — great for market research, competitor checks and fact-finding.",
+      "Live web search and page reading - great for market research, competitor checks and fact-finding.",
     url: "https://mcp.exa.ai/mcp",
     auth: "none",
     example: "“Find recent news about our top three competitors.”",
@@ -218,7 +218,7 @@ export const MCP_CATALOG: McpCatalogEntry[] = [
     category: "developer",
     title: "Cloudflare Docs",
     domain: "cloudflare.com",
-    description: "Search Cloudflare documentation — Workers, Pages, DNS, security.",
+    description: "Search Cloudflare documentation - Workers, Pages, DNS, security.",
     url: "https://docs.mcp.cloudflare.com/mcp",
     auth: "none",
     example: "“How do I set up a cron trigger for a Worker?”",
@@ -228,7 +228,7 @@ export const MCP_CATALOG: McpCatalogEntry[] = [
     category: "developer",
     title: "GitHub",
     domain: "github.com",
-    description: "Your repositories, issues and pull requests — needs a personal access token.",
+    description: "Your repositories, issues and pull requests - needs a personal access token.",
     url: "https://api.githubcopilot.com/mcp/",
     auth: "token",
     tokenHelp: {

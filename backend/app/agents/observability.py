@@ -2,14 +2,14 @@
 
 The deployment configures Logfire once at startup and everything goes there.
 That is right for the operator and wrong for the case this exists for: an agent
-built for a client, whose runs belong in the client's project — with the
+built for a client, whose runs belong in the client's project - with the
 client's retention, the client's alerting, and nobody else's traffic in it.
 
 `logfire.configure(local=True)` returns an instance that is not the global one,
 and `instrument_pydantic_ai(agent)` attaches it to a single agent. Instances are
 cached per (token, service, environment) because configuring one starts an
 exporter and a background flush thread: doing that per run would leak a thread
-per conversation, and the symptom — a process that slowly stops responding — is
+per conversation, and the symptom - a process that slowly stops responding - is
 a long way from the code that caused it.
 
 The token is unsealed from the vault by the caller and passed in. Nothing here
@@ -27,7 +27,7 @@ from pydantic_ai import Agent as PydanticAgent
 logger = logging.getLogger(__name__)
 
 # Keyed by what makes two configurations genuinely different. A dict rather than
-# `functools.cache` so the key can stay a tuple of plain strings — the token is
+# `functools.cache` so the key can stay a tuple of plain strings - the token is
 # in it, which is why this never leaves the process and is never logged.
 _instances: dict[tuple[str, str, str], logfire.Logfire] = {}
 

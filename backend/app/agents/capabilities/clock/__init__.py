@@ -1,4 +1,4 @@
-"""Clock capability — the current time, in the instructions."""
+"""Clock capability - the current time, in the instructions."""
 
 from pydantic import BaseModel, Field
 

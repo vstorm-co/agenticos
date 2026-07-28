@@ -7,13 +7,13 @@ meant opening three files to learn which one it was in this time.
 
 The layout is now:
 
-- `__init__.py`   — registration and the public surface: the config model, one
+- `__init__.py`   - registration and the public surface: the config model, one
                     `@register`, `__all__`. Nothing else.
-- `_capability.py`— the `AbstractCapability` implementation.
-- `_toolset.py`   — the tools, where the capability has any. A tool's name and
-                    docstring are *prompt* — the model reads them before
-                    deciding to call — so they live in one predictable place.
-- anything else   — internals (`_search.py`, `_sandbox.py`, `_policy.py`).
+- `_capability.py`- the `AbstractCapability` implementation.
+- `_toolset.py`   - the tools, where the capability has any. A tool's name and
+                    docstring are *prompt* - the model reads them before
+                    deciding to call - so they live in one predictable place.
+- anything else   - internals (`_search.py`, `_sandbox.py`, `_policy.py`).
 
 These tests are the thing that keeps that true. A convention only a document
 knows about is a convention that is already drifting.
@@ -30,7 +30,7 @@ CAPABILITY_ROOT = Path(__file__).resolve().parents[1] / "app" / "agents" / "capa
 # Capabilities offering no tools at all, and why. Each is a decision, not an
 # omission: a `_toolset.py` here would be an empty module standing in for one.
 TOOLLESS = {
-    # Goes into the instructions — a model that has to *decide* to look up the
+    # Goes into the instructions - a model that has to *decide* to look up the
     # date mostly does not, and answers from its training data instead.
     "clock",
     # Changes how the model runs, not what it can do.
@@ -61,7 +61,7 @@ def packages() -> list[Path]:
 def test_every_capability_has_a_capability_module(package: Path):
     """Where the thing itself lives, uniformly.
 
-    `thinking` returns Pydantic AI's own class and still has one — a package
+    `thinking` returns Pydantic AI's own class and still has one - a package
     shaped like nine others costs one file and saves every reader the question.
     """
     assert (package / "_capability.py").is_file()

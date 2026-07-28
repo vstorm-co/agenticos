@@ -3,7 +3,7 @@
 Every case here is a branch the happy path never reaches: a provider package
 that is not installed, a search API that answers 500, a Logfire token that does
 not configure, a capability whose stored config no longer parses. They are the
-branches most likely to be wrong, because nobody runs them by accident — and
+branches most likely to be wrong, because nobody runs them by accident - and
 each one is on the platform layer, which this repository holds to 100%.
 """
 
@@ -140,7 +140,7 @@ class TestConditionalSecrets:
     @pytest.mark.anyio
     async def test_a_keyless_configuration_with_nothing_selected_is_fine(self):
         """DuckDuckGo publishes with no key. This is the branch that makes the
-        free default usable at all — without it the conditional requirement
+        free default usable at all - without it the conditional requirement
         would be a requirement."""
         from app.services.agent_registry import AgentRegistryService
 
@@ -160,7 +160,7 @@ class TestConditionalSecrets:
     @pytest.mark.anyio
     async def test_a_keyless_configuration_with_a_stored_reference_still_complains(self):
         """DuckDuckGo needs no key, but a binding pointing at one would store a
-        reference nothing reads — the quiet half of a misconfiguration, and the
+        reference nothing reads - the quiet half of a misconfiguration, and the
         only one nobody would otherwise notice."""
         from app.services.agent_registry import AgentRegistryService
 

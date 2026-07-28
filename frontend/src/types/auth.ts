@@ -7,7 +7,7 @@ export interface User {
   created_at: string;
   avatar_url?: string | null;
   /** ISO timestamp when the user finished the onboarding wizard. `null` means
-   *  the wizard hasn't been completed yet — middleware/banner uses this. */
+   *  the wizard hasn't been completed yet - middleware/banner uses this. */
   onboarding_completed_at?: string | null;
 }
 

@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
  *
  * **The catalog carries the icon; this component only draws it.** It used to
  * hold its own map from catalog key to brand, six entries long, which had to be
- * edited every time somebody added a server to the backend — and silently drew
+ * edited every time somebody added a server to the backend - and silently drew
  * a monogram when they did not. The entry now says what its mark is, so there
  * is one list and it lives beside the thing it describes.
  *
@@ -19,8 +19,8 @@ import { cn } from "@/lib/utils";
  * maintained set rather than from hand-authored path data, so GitHub's logo is
  * GitHub's logo.
  *
- * An icon set is finite and this catalog is not, so a name it does not draw —
- * and a server nobody curated — falls through to a monogram. That is the
+ * An icon set is finite and this catalog is not, so a name it does not draw -
+ * and a server nobody curated - falls through to a monogram. That is the
  * deliberate case, not the failure one: one generic plug repeated down a column
  * removes the only reason to have icons in a list.
  */

@@ -2,9 +2,9 @@
 
 The catalog declares a tool's id and a one-line description, which is what the
 Builder needs to offer approval and to name it. It is not what the *model*
-reads. A model reads the whole docstring — for ``create_chart`` that is nine
+reads. A model reads the whole docstring - for ``create_chart`` that is nine
 hundred characters explaining scatter series and telling it not to narrate the
-returned JSON — plus a JSON Schema of the arguments. An author deciding whether
+returned JSON - plus a JSON Schema of the arguments. An author deciding whether
 to reword a tool for their agent is deciding about that text, and until now the
 Builder showed them the first sentence of it.
 
@@ -15,7 +15,7 @@ copy that goes stale on the first edit nobody mirrors.
 
 Building a capability to read its documentation needs the resources a real run
 would resolve from the database. The stub below stands in for them. It is
-deliberately minimal — enough that a capability which only builds when it has
+deliberately minimal - enough that a capability which only builds when it has
 something to work with does build, and nothing more, because what is read back
 is the shape of the tools and never a result.
 """
@@ -65,7 +65,7 @@ def tool_contracts() -> dict[str, dict[str, ToolContract]]:
 
     Cached for the process: capabilities are registered at import and the
     answer changes on redeploy, not between requests. A capability that fails
-    to build is logged and skipped rather than failing the catalog — the
+    to build is logged and skipped rather than failing the catalog - the
     Builder can still offer it, with one fewer thing to read.
     """
     contracts: dict[str, dict[str, ToolContract]] = {}

@@ -19,7 +19,7 @@ import { ROUTES } from "@/lib/constants";
 import { useAuthStore } from "@/stores";
 
 /**
- * Who is signed in, and the way out — at the foot of the column.
+ * Who is signed in, and the way out - at the foot of the column.
  *
  * Last, because it is the least-used control here and because every comparable
  * product puts it there: people look down for it. It is pinned rather than
@@ -37,7 +37,7 @@ export function SidebarUser() {
   const t = useTranslations("nav");
 
   // Everything below this component sits inside `AuthGuard`, which holds the
-  // page back until /auth/me answers — so a missing user is the moment before
+  // page back until /auth/me answers - so a missing user is the moment before
   // the guard resolves, not a signed-out visitor to offer a login button to.
   if (!user) return null;
 

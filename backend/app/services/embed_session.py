@@ -1,7 +1,7 @@
 """One visitor's conversation with an embedded agent, and the widget itself.
 
 The session is deliberately thin. Everything that decides *what the agent may
-do* — the spec, the budget, the approval gate, the tenant — is already decided
+do* - the spec, the budget, the approval gate, the tenant - is already decided
 by `AgentRunnerService`; this only carries frames in and out and keeps a
 transcript so a run is findable afterwards.
 
@@ -13,7 +13,7 @@ reach) and the conversation carries no user, which is the honest record: nobody
 signed in.
 
 *Rate.* A public URL with a model behind it is somebody else's budget. The limit
-is per visitor per minute, in this process — good enough for the failure it
+is per visitor per minute, in this process - good enough for the failure it
 exists to stop, which is one page hammering one socket.
 
 *Context.* The embed's own note ("you are on the pricing page") is prepended to
@@ -146,7 +146,7 @@ class EmbedSession:
                 self.db,
                 organization_id=self.embed.organization_id,
                 user_id=None,
-                title=f"{self.embed.name} — {self.visitor}",
+                title=f"{self.embed.name} - {self.visitor}",
             )
             self.conversation_id = conversation.id
 

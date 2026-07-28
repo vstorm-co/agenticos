@@ -5,7 +5,7 @@
  * file, and the two ways to add more.
  *
  * They live apart from the editor that arranges them because the arrangement is
- * the thing that changed — the body and the files were two stacked panels with
+ * the thing that changed - the body and the files were two stacked panels with
  * a footer between them, and they are one skill. See `SkillWorkbench`.
  *
  * Names are paths and always were, so the tree is derived rather than stored:
@@ -88,7 +88,7 @@ function TreeLevel({
             key={node.path}
             role="treeitem"
             aria-expanded={!collapsed.has(node.path)}
-            // A folder is never the selection — only a file opens in the pane —
+            // A folder is never the selection - only a file opens in the pane -
             // but the role requires the attribute, and saying "false" is the
             // truthful way to say it.
             aria-selected={false}
@@ -148,7 +148,7 @@ function TreeLevel({
  * One file: what it says, and what it is.
  *
  * Rendered by default and editable behind a toggle, because these are read far
- * more often than they are written — and a Markdown reference read as raw
+ * more often than they are written - and a Markdown reference read as raw
  * asterisks is the thing this pane exists to stop.
  */
 export function FilePane({
@@ -211,7 +211,7 @@ export function FilePane({
  * Presentational on purpose: the skill's own body is one of these and is not
  * fetched, so the thing that reads a file and the thing that renders one had to
  * come apart. It is also what lets `SKILL.md` have the preview toggle every
- * other Markdown file here has — it is Markdown, and reading it as raw
+ * other Markdown file here has - it is Markdown, and reading it as raw
  * asterisks was the odd one out.
  */
 export function FileViewer({
@@ -231,7 +231,7 @@ export function FileViewer({
   onChange: (next: string) => void;
   onDelete?: () => void;
   footer?: React.ReactNode;
-  /** Anything the owner wants above the content — the body's own fields. */
+  /** Anything the owner wants above the content - the body's own fields. */
   header?: React.ReactNode;
 }) {
   const [mode, setMode] = useState<"preview" | "source">("preview");
@@ -365,7 +365,7 @@ export function UploadButton({
       <input
         type="file"
         multiple
-        // Not in React's JSX types — it is a real attribute every browser that
+        // Not in React's JSX types - it is a real attribute every browser that
         // matters implements, and it is the only way to pick a folder.
         {...(directory ? ({ webkitdirectory: "" } as Record<string, string>) : {})}
         className="hidden"
@@ -412,7 +412,7 @@ export function NewFileForm({
             required
           />
           <p className="text-muted-foreground text-xs">
-            A folder is made by naming a file inside it — there is nothing else to create.
+            A folder is made by naming a file inside it - there is nothing else to create.
           </p>
         </div>
         <div className="space-y-1.5">
@@ -445,7 +445,7 @@ export function NewFileForm({
   );
 }
 
-/** Bytes as a reader scans them — kilobytes are the interesting unit here. */
+/** Bytes as a reader scans them - kilobytes are the interesting unit here. */
 export function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   return `${(bytes / 1024).toFixed(bytes < 10240 ? 1 : 0)} KB`;

@@ -1,4 +1,4 @@
-"""Skill routes — an organization's reusable know-how.
+"""Skill routes - an organization's reusable know-how.
 
 Skills are content: a support lead edits the refund policy here and every agent
 bound to it is current on the next run, with no deploy and no version bump to
@@ -7,7 +7,7 @@ chase.
 Routes acting on the collection carry a ``require(...)`` gate; routes acting on
 one skill deliberately do not, and delegate to ``SkillService`` instead. A
 role-level gate cannot see the grants on a row, so it would refuse a viewer who
-was explicitly given edit on a single skill — the exact case sharing exists for.
+was explicitly given edit on a single skill - the exact case sharing exists for.
 """
 
 from typing import Any
@@ -43,7 +43,7 @@ async def list_skills(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
-    """Names and descriptions — the Builder's picker, not the bodies.
+    """Names and descriptions - the Builder's picker, not the bodies.
 
     ``total`` is the count before paging, which is what a pager needs and a page
     cannot supply.
@@ -143,7 +143,7 @@ async def delete_skill(skill_id: UUID, service: SkillSvc, ctx: Auth) -> None:
 async def add_resource(
     skill_id: UUID, data: SkillResourceCreate, service: SkillSvc, ctx: Auth
 ) -> Any:
-    """Attach a file to a skill — a reference table, a template, a worked example.
+    """Attach a file to a skill - a reference table, a template, a worked example.
 
     The body says how the work is done; a file is the detail that would bury the
     instructions if it were inlined, and that the model loads only when it
@@ -169,7 +169,7 @@ async def upload_resources(
     ctx: Auth,
     files: list[UploadFile] = File(...),
 ) -> Any:
-    """Write several files at once — a dropped folder, or a handful of files.
+    """Write several files at once - a dropped folder, or a handful of files.
 
     Each file keeps the relative path the browser sent, so a folder arrives as a
     folder: `references/workflows.md` is one resource whose name says where it

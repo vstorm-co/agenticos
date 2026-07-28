@@ -28,7 +28,7 @@ const MAX_DESCRIPTION = 1000;
  *
  * A mirror of `slugify` in `backend/app/services/agent_registry.py`, fallback
  * included: a name with nothing slug-able in it really does become `agent`
- * there. Mirroring it exactly is the point — this is shown as a prediction, and
+ * there. Mirroring it exactly is the point - this is shown as a prediction, and
  * a prediction that quietly disagrees with the server is worse than none. The
  * server remains the authority; it derives the handle again on create and its
  * answer is the one that is stored.

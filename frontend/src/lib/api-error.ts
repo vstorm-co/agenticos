@@ -7,7 +7,7 @@
  *
  * and `platform-proxy.ts` passes it through byte for byte. Nothing here used to
  * read it: the client looked for `detail` and `message` at the top level, found
- * neither, and fell back to "Request failed" — so a duplicate name, a refused
+ * neither, and fell back to "Request failed" - so a duplicate name, a refused
  * permission and an unpublished agent all reached the browser as the same three
  * words, and every carefully written server message died in transit.
  *
@@ -19,7 +19,7 @@
  * The other half of the job is deciding *where* a problem goes. A conflict on a
  * name and a rejected length are things a person can fix in the form they are
  * already looking at; a 403 or a 500 is not. `submitFailure` splits one from
- * the other, and it is deliberately the only thing that makes that call — a
+ * the other, and it is deliberately the only thing that makes that call - a
  * form that decided for itself would eventually decide differently.
  */
 
@@ -37,7 +37,7 @@ export type SubmitFailure = {
   /** Messages to render beside the inputs the form owns, keyed by field name. */
   readonly fields: Readonly<Record<string, string>>;
   /**
-   * Everything with nowhere better to go — a refused permission, a server
+   * Everything with nowhere better to go - a refused permission, a server
    * fault, a lost connection. `null` when every problem found a field, which is
    * the whole point: an expected, recoverable, field-shaped failure must not
    * also be announced as if something broke.
@@ -106,7 +106,7 @@ export function parseErrorMessage(body: unknown, fallback: string = FALLBACK_MES
 export class ApiError extends Error {
   /** The backend's machine-readable code, e.g. `ALREADY_EXISTS`. */
   readonly code: string;
-  /** The refusal's structured payload — field problems, spec problems, ids. */
+  /** The refusal's structured payload - field problems, spec problems, ids. */
   readonly details: Record<string, unknown> | null;
 
   constructor(
@@ -143,7 +143,7 @@ export function fieldProblems(error: unknown): FieldProblem[] {
  *
  * `validate_spec` deliberately collects all of them before raising, so that
  * fixing a form costs one round trip rather than one per mistake. Returns null
- * when the failure was not that kind — a 403 is not a list of problems, and
+ * when the failure was not that kind - a 403 is not a list of problems, and
  * showing it as one would say the spec is wrong when the caller is.
  */
 export function problemList(error: unknown): string[] | null {
@@ -170,8 +170,8 @@ export type FormShape = {
   /** Every input the form renders, by field name. */
   readonly fields: readonly string[];
   /**
-   * The one field the resource is identified by — the name, the label, the
-   * slug — if there is one.
+   * The one field the resource is identified by - the name, the label, the
+   * slug - if there is one.
    *
    * A conflict cannot be routed any other way: the server reports that a
    * *handle* is taken, which is a fact about a value the form holds under a
@@ -187,8 +187,8 @@ export type FormShape = {
  * Split a rejected submission into what the form can show and what it cannot.
  *
  * Anything the server blames on a field the form renders is returned to be
- * shown there; everything else — a refused permission, a server fault, a
- * problem about a field this form does not have — comes back as one line for a
+ * shown there; everything else - a refused permission, a server fault, a
+ * problem about a field this form does not have - comes back as one line for a
  * toast, because pretending otherwise would leave a failure invisible.
  */
 export function submitFailure(error: unknown, form: FormShape): SubmitFailure {
@@ -211,7 +211,7 @@ export function submitFailure(error: unknown, form: FormShape): SubmitFailure {
   const orphans: string[] = [];
   for (const problem of problems) {
     const field = form.fields.find((candidate) => matches(problem, candidate));
-    // Last one wins, so the input shows the problem the server listed last —
+    // Last one wins, so the input shows the problem the server listed last -
     // arbitrary, but an input can only say one thing and two problems about one
     // value is not something the backend produces.
     if (field === undefined) orphans.push(`${problem.field}: ${problem.message}`);

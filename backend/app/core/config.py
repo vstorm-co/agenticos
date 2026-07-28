@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 # Same slug rule as a user connection (app/schemas/mcp_connection.py). The name
 # becomes the server's tool prefix in the agent, so an unconstrained name could
-# collapse two servers onto one prefix — and the second would then be dropped
+# collapse two servers onto one prefix - and the second would then be dropped
 # from every chat turn. Reject it at startup instead.
 MCP_SERVER_NAME_PATTERN = r"^[a-z0-9][a-z0-9-]{0,31}$"
 
@@ -56,7 +56,7 @@ class Settings(BaseSettings):
     MODELS_CACHE_DIR: Path = Path("./models_cache")
     MEDIA_DIR: Path = Path("./media")
     MAX_UPLOAD_SIZE_MB: int = 50  # Max file upload size in MB
-    # Soft per-org storage cap surfaced on /billing — not enforced yet (5 GB).
+    # Soft per-org storage cap surfaced on /billing - not enforced yet (5 GB).
     STORAGE_SOFT_LIMIT_BYTES: int = 5 * 1024 * 1024 * 1024
 
     LOGFIRE_TOKEN: str | None = None
@@ -128,7 +128,7 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_SECRET: str = ""
     GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/v1/oauth/google/callback"
 
-    # Master key for the secret vault (app.core.vault) — provider credentials,
+    # Master key for the secret vault (app.core.vault) - provider credentials,
     # channel bot tokens, MCP credentials and organization secrets all seal
     # against it. Empty falls back to SECRET_KEY so a fresh checkout runs; set
     # it explicitly in production so secrets survive a SECRET_KEY rotation.
@@ -139,7 +139,7 @@ class Settings(BaseSettings):
     # provider key could otherwise turn the backend into a probe for its
     # internal network. Turn it on for a self-hosted install, which is what
     # makes Ollama on localhost, a vLLM server or a LiteLLM proxy usable.
-    # Scoped to model endpoints — webhooks and MCP servers are unaffected.
+    # Scoped to model endpoints - webhooks and MCP servers are unaffected.
     ALLOW_INTERNAL_MODEL_ENDPOINTS: bool = False
 
     API_KEY: str = "change-me-in-production"
@@ -173,7 +173,7 @@ class Settings(BaseSettings):
     RATE_LIMIT_REQUESTS: int = 100
     RATE_LIMIT_PERIOD: int = 60  # seconds
 
-    # Prefect API — set to http://prefect-server:4200/api for self-hosted,
+    # Prefect API - set to http://prefect-server:4200/api for self-hosted,
     # or the Prefect Cloud workspace URL for cloud mode.
     PREFECT_API_URL: str = "http://localhost:4200/api"
     # Only required when PREFECT_CLOUD=true (your workspace API key)
@@ -209,22 +209,22 @@ class Settings(BaseSettings):
     @classmethod
     def validate_mcp_server_names(cls, v: list[McpServerConfig]) -> list[McpServerConfig]:
         """Reject duplicate names: they share a tool prefix, and the agent can
-        only attach one server per prefix — the rest would vanish silently."""
+        only attach one server per prefix - the rest would vanish silently."""
         names = [server.name for server in v]
         duplicates = sorted({name for name in names if names.count(name) > 1})
         if duplicates:
             raise ValueError(f"MCP_SERVERS has duplicate server names: {', '.join(duplicates)}")
         return v
 
-    # Telegram: webhook base URL (e.g. https://api.yourdomain.com) — leave empty to use polling
+    # Telegram: webhook base URL (e.g. https://api.yourdomain.com) - leave empty to use polling
     TELEGRAM_WEBHOOK_BASE_URL: str = ""
     # Slack: signing secret for verifying webhook requests (from Slack app settings)
     SLACK_SIGNING_SECRET: str = ""
-    # Slack: bot token (xoxb-...) — used for sending messages via Web API
+    # Slack: bot token (xoxb-...) - used for sending messages via Web API
     SLACK_BOT_TOKEN: str = ""
-    # Slack: app-level token (xapp-...) — used for Socket Mode (dev/polling)
+    # Slack: app-level token (xapp-...) - used for Socket Mode (dev/polling)
     SLACK_APP_TOKEN: str = ""
-    # Vector Database (pgvector) — uses existing PostgreSQL
+    # Vector Database (pgvector) - uses existing PostgreSQL
     EMBEDDING_MODEL: str = "text-embedding-3-large"
 
     # How documents are parsed and chunked is NOT here. It is a per-collection

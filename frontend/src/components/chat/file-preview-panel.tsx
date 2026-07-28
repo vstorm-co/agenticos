@@ -50,7 +50,7 @@ export function FilePreviewPanel() {
       try {
         localStorage.setItem(STORAGE_KEY, String(width));
       } catch {
-        /* private mode / quota — drop persistence silently */
+        /* private mode / quota - drop persistence silently */
       }
     };
     document.body.style.cursor = "col-resize";
@@ -131,7 +131,7 @@ export function FilePreviewPanel() {
         </button>
       </header>
 
-      {/* Viewer — flex column so iframe/video can use h-full reliably */}
+      {/* Viewer - flex column so iframe/video can use h-full reliably */}
       <div className="flex min-h-0 flex-1 flex-col">
         <FilePreviewCard
           kind={kind}

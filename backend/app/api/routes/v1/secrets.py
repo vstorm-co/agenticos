@@ -8,7 +8,7 @@ runner, which injects it into the capability instance that declared it.
 A secret is now a *shared resource* like an agent or a skill: it has an owner, a
 visibility and grants. So the collection routes carry a role gate on
 ``secrets:view`` / ``secrets:edit``, and everything acting on one row hands the
-decision to the service, which resolves it against that row — a role gate there
+decision to the service, which resolves it against that row - a role gate there
 would refuse a member holding an explicit grant before `resolve_access` could
 widen their access.
 
@@ -56,7 +56,7 @@ async def list_secret_kinds() -> Any:
     dependencies=[Depends(require(Perm.SECRETS_VIEW))],
 )
 async def list_secret_purposes() -> Any:
-    """What a secret can be for — model providers, services, and `custom`.
+    """What a secret can be for - model providers, services, and `custom`.
 
     Served rather than hard-coded in the client because the model providers are
     generated from the same table the runtime builds clients out of: a second

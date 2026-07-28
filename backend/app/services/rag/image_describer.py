@@ -32,7 +32,7 @@ def _b64_encode(image_bytes: bytes) -> str:
 class PydanticAIImageDescriber(BaseImageDescriber):
     """Image description using Pydantic AI.
 
-    Takes a model that has already been built — by
+    Takes a model that has already been built - by
     :class:`app.services.ingestion_config.IngestionConfigService`, from a model
     profile whose credential was unsealed for the organization that owns the
     document. It used to take a model *name* and let Pydantic AI find a key in

@@ -1,4 +1,4 @@
-"""Provider credentials and model profiles — storage, validation, resolution.
+"""Provider credentials and model profiles - storage, validation, resolution.
 
 The one place that unseals a provider credential. Everything above it deals in
 profile ids; everything below deals in ciphertext.
@@ -46,7 +46,7 @@ def _validate_model_id(provider: str, model: str) -> None:
     """Reject model ids a provider cannot parse, at configuration time.
 
     OpenRouter namespaces every model (``openai/gpt-4.1``) and fails on a bare
-    id with ``ValueError: not enough values to unpack`` — deep inside a run,
+    id with ``ValueError: not enough values to unpack`` - deep inside a run,
     with nothing pointing at the profile that caused it. Catching it here costs
     one comparison and turns a baffling run-time crash into a form error.
     """
@@ -60,7 +60,7 @@ def _validate_model_id(provider: str, model: str) -> None:
 async def validate_endpoint_url(url: str) -> str:
     """Check a provider ``base_url`` before the platform will store it.
 
-    Everywhere else — webhooks, MCP servers — an internal address is an SSRF
+    Everywhere else - webhooks, MCP servers - an internal address is an SSRF
     attempt and is refused. Here it is frequently the entire point: Ollama on
     ``localhost:11434``, a vLLM server on the deployment's own network, a
     LiteLLM proxy beside the API. Refusing those would remove the feature; not
@@ -73,7 +73,7 @@ async def validate_endpoint_url(url: str) -> str:
     hosted deployment is safe without anyone thinking about it, and a
     self-hosted one turns it on once.
 
-    The scheme and userinfo checks apply either way — ``file://`` is never a
+    The scheme and userinfo checks apply either way - ``file://`` is never a
     model endpoint, and credentials in a URL are an ambiguity we do not need.
 
     Raises:
@@ -94,7 +94,7 @@ async def validate_endpoint_url(url: str) -> str:
     if parsed.username is not None or parsed.password is not None:
         raise BadRequestError(
             message=(
-                "A model endpoint must not carry credentials in the URL — store the key "
+                "A model endpoint must not carry credentials in the URL - store the key "
                 "on the credential instead"
             ),
             details={"base_url": url},
@@ -102,7 +102,7 @@ async def validate_endpoint_url(url: str) -> str:
     if settings.ALLOW_INTERNAL_MODEL_ENDPOINTS:
         return url
     try:
-        # Resolves DNS, so it runs in a thread — same as the MCP URL check.
+        # Resolves DNS, so it runs in a thread - same as the MCP URL check.
         return await asyncio.to_thread(validate_webhook_url, url)
     except SSRFBlockedError as exc:
         raise BadRequestError(
@@ -152,7 +152,7 @@ class ModelProfileService:
 
         Raises:
             BadRequestError: If the key is not this organization's, or is for a
-                different provider than the profile claims — a mismatch that
+                different provider than the profile claims - a mismatch that
                 would otherwise surface as an authentication error from the
                 provider, days later and far from its cause.
             AlreadyExistsError: If the label is taken. Agents reference a model
@@ -168,7 +168,7 @@ class ModelProfileService:
             raise AlreadyExistsError(
                 message=(
                     f"A model named '{label}' already exists. Agents pick a model by this name, "
-                    "so it has to be unique — name this one for what makes it different, or "
+                    "so it has to be unique - name this one for what makes it different, or "
                     "delete the existing model if you meant to replace it."
                 ),
                 details={"label": label},
@@ -243,7 +243,7 @@ class ModelProfileService:
         """
         if profile.secret_id is None:
             raise BadRequestError(
-                message=f"Model '{profile.label}' has no key configured — add one in the vault",
+                message=f"Model '{profile.label}' has no key configured - add one in the vault",
                 details={"profile_id": str(profile.id)},
             )
         secret = await organization_secret_repo.get(
@@ -286,7 +286,7 @@ class ModelProfileService:
         """The same resolution, for work that has an organization but no caller.
 
         Which model an organization runs on is a fact about that organization,
-        not a permission decision — nothing here consults a role, and the
+        not a permission decision - nothing here consults a role, and the
         request that *was* authorized may have finished hours ago. Background
         ingestion is the case: a document is parsed by a worker long after the
         upload that was allowed, and it still has to reach the same profile and
@@ -295,7 +295,7 @@ class ModelProfileService:
 
         Precedence, most specific first: the profile that was asked for, then
         the organization's default. There is deliberately no environment
-        fallback — a deployment serving several tenants must never quietly bill
+        fallback - a deployment serving several tenants must never quietly bill
         one organization's run to a platform-wide key.
 
         Raises:
@@ -313,7 +313,7 @@ class ModelProfileService:
         else:
             # No fallback to "the organization's default". A model an agent did
             # not choose is a model somebody else's change can swap underneath
-            # it — the same spec answering on a different model, at a different
+            # it - the same spec answering on a different model, at a different
             # price, because a flag moved on another page. An agent names its
             # model, and publish validation refuses a spec that does not.
             raise NotFoundError(

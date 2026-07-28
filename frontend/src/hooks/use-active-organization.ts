@@ -14,7 +14,7 @@ import { useOrgStore } from "@/stores";
  *
  * The distinction this makes is the whole point of the recovery. Reassigning
  * somebody's organization is destructive enough that it must happen only on a
- * refusal that is *about* that organization — never on a 500, never on a
+ * refusal that is *about* that organization - never on a 500, never on a
  * dropped connection, and never on a 404 about something else. Three things
  * have to line up:
  *
@@ -24,7 +24,7 @@ import { useOrgStore } from "@/stores";
  *   it takes no path parameter and loads no row, so nothing else there can go
  *   missing. `tests/api/test_stale_organization.py` pins that;
  * - the refusal names the same organization we are holding. A response about a
- *   previous selection — a request already in flight when the user switched —
+ *   previous selection - a request already in flight when the user switched -
  *   says nothing about the current one.
  */
 export function refusesOrganization(failure: unknown, activeOrgId: string | null): boolean {
@@ -37,13 +37,13 @@ export function refusesOrganization(failure: unknown, activeOrgId: string | null
  * Detect an active organization the server will not serve, and move off it.
  *
  * The persisted selection outlives the thing it names. An organization gets
- * deleted, or — the case that will keep happening in a multi-tenant product —
+ * deleted, or - the case that will keep happening in a multi-tenant product -
  * somebody is removed from one while they are signed in, and the id in
  * `localStorage` goes on being sent as `X-Organization-Id` on every request.
  * The server is right to refuse it. What was wrong was the consequence:
  * `usePermissions().can()` answers false whenever permissions are unavailable,
  * which is correct for the second it takes to load them and indefensible when
- * they never arrive — the sidebar quietly lost Agents, Skills, Activity,
+ * they never arrive - the sidebar quietly lost Agents, Skills, Activity,
  * Knowledge bases, RAG search, providers and MCP servers, with no error and no
  * route back short of knowing to open the organization switcher.
  *
@@ -57,7 +57,7 @@ export function refusesOrganization(failure: unknown, activeOrgId: string | null
  *   organization's. It also runs outside React, with no query cache to
  *   invalidate and no orgs list to fall back to;
  * - **`usePermissions`** is where the refusal is visible, but it is rendered by
- *   a dozen components at once — putting the recovery there fires it a dozen
+ *   a dozen components at once - putting the recovery there fires it a dozen
  *   times for one failure.
  *
  * So: one hook, mounted once, by one component. It reads the permissions query

@@ -96,7 +96,7 @@ const binding = (
   ...overrides,
 });
 
-/** A tool's row, found by the stable id it is labelled with — a rename cannot move it. */
+/** A tool's row, found by the stable id it is labelled with - a rename cannot move it. */
 const toolRow = (id: string) => screen.getByRole("listitem", { name: id });
 
 /** One control inside that row. Every row names its fields the same way. */
@@ -106,7 +106,7 @@ const toolField = (id: string, label: "Name" | "Description" | "Approval") =>
 describe("CapabilitySettings", () => {
   it("shows every bound capability, configurable or not", () => {
     // Each one has at least an approval mode to set. Hiding the plain ones
-    // used to hide the approval control with them — and since no builtin is
+    // used to hide the approval control with them - and since no builtin is
     // side-effecting, that meant hiding it always.
     render(
       <CapabilitySettings
@@ -200,7 +200,7 @@ describe("CapabilitySettings", () => {
   it("shows the mode the spec actually stored", () => {
     // The direction that matters here: opening a published agent must show what
     // it will do, not the default. Driving the select the other way needs a
-    // real browser — Radix listens for pointer events jsdom does not dispatch —
+    // real browser - Radix listens for pointer events jsdom does not dispatch -
     // so that half is asserted in the E2E suite, not faked here.
     render(
       <CapabilitySettings
@@ -299,7 +299,7 @@ describe("CapabilitySettings tools", () => {
   it("shows the override the spec stored for one tool, and the default for the rest", () => {
     // Same limitation as the capability-level select: jsdom cannot drive Radix,
     // so what is proved here is that a stored decision reaches the control it
-    // belongs to — and only that one.
+    // belongs to - and only that one.
     render(
       <CapabilitySettings
         catalog={[EMAIL]}
@@ -419,7 +419,7 @@ describe("CapabilitySettings tools", () => {
 describe("CapabilitySettings tool renaming", () => {
   it("records a rename against the tool's id, not the name being replaced", async () => {
     // Keying on the name would make the second rename a new tool and orphan the
-    // first — and would move the approval gate with it.
+    // first - and would move the approval gate with it.
     const onChange = vi.fn();
     render(
       <CapabilitySettings catalog={[EMAIL]} selected={[binding("email")]} onChange={onChange} />,
@@ -561,7 +561,7 @@ describe("CapabilitySettings tool renaming", () => {
   });
 
   it("offers a reset only for the field that was changed", () => {
-    // The button is the field's override marker as much as its remedy — one
+    // The button is the field's override marker as much as its remedy - one
     // beside every field would say nothing.
     render(
       <CapabilitySettings
@@ -595,8 +595,8 @@ describe("CapabilitySettings tool renaming", () => {
     expect(toolField("send_email", "Name")).toBeInvalid();
     expect(within(toolRow("send_email")).getByText(/underscores only/)).toBeInTheDocument();
 
-    // Emptying the field is not a way back to the default — that is the reset
-    // button — so it is refused rather than silently treated as one.
+    // Emptying the field is not a way back to the default - that is the reset
+    // button - so it is refused rather than silently treated as one.
     await userEvent.clear(toolField("send_email", "Name"));
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({ tool_overrides: { send_email: { name: "" } } }),
@@ -663,8 +663,8 @@ describe("toolNameError", () => {
 /**
  * A secret left on a capability that consumes none.
  *
- * No hook is involved — a capability that declares no requirement gets no
- * picker, so nothing here reads the vault — which is why these live beside the
+ * No hook is involved - a capability that declares no requirement gets no
+ * picker, so nothing here reads the vault - which is why these live beside the
  * prop-driven tests rather than in the integration file.
  */
 describe("CapabilitySettings stale secret reference", () => {
@@ -739,7 +739,7 @@ describe("secretProblem", () => {
   });
 
   it("says a reference the organization cannot satisfy is refused", () => {
-    // A deleted secret, or a spec imported from another organization — the
+    // A deleted secret, or a spec imported from another organization - the
     // binding keeps an id that resolves to nothing.
     expect(secretProblem(API_KEY, "sec-gone", [stored])).toMatch(/not in this organization/);
   });

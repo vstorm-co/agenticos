@@ -5,7 +5,7 @@ import { SidebarShell } from "./sidebar-shell";
 
 /**
  * The blocks are stubbed because this is a test about arrangement, not about
- * their contents — each of those is asserted where it lives. What can go wrong
+ * their contents - each of those is asserted where it lives. What can go wrong
  * here is positional, and positional mistakes are invisible until the column is
  * full: a long nav that scrolls the organization out of reach, or pushes
  * signing out past the bottom of the screen.
@@ -37,7 +37,7 @@ function follows(earlier: HTMLElement, later: HTMLElement): boolean {
 describe("SidebarShell", () => {
   it("puts the organization above everything it scopes", () => {
     // Agents, keys and run history are all read through the active
-    // organization, and the wrong one selected does not raise an error — it
+    // organization, and the wrong one selected does not raise an error - it
     // shows a different, equally plausible product. It is not a footer control.
     renderShell();
 

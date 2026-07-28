@@ -309,8 +309,8 @@
     "descriptionLabel": "Description (optional)",
     "descriptionPlaceholder": "What documents will this KB contain?",
     "scopeLabel": "Scope",
-    "scopePersonal": "Personal — only you",
-    "scopeOrganization": "Organization — all members",
+    "scopePersonal": "Personal - only you",
+    "scopeOrganization": "Organization - all members",
     "scopeApp": "App-wide",
     "active": "Active",
     "inactive": "Inactive",
@@ -357,7 +357,7 @@
     },
     "privacy": {
       "title": "Privacy Policy",
-      "summary": "What we collect, why, and what you can do about it. We don't train on your data — ever."
+      "summary": "What we collect, why, and what you can do about it. We don't train on your data - ever."
     },
     "cookies": {
       "title": "Cookie Policy",

@@ -1,6 +1,6 @@
 """Where the money went: which provider, and through which key.
 
-A run recorded `model_label` — a display name somebody chose, like "GPT-4.1
+A run recorded `model_label` - a display name somebody chose, like "GPT-4.1
 (prod)". Two questions an invoice raises could not be answered from it at all:
 what did we spend at OpenAI versus Anthropic, and which key is costing the most.
 

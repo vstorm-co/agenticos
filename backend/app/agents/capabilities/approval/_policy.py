@@ -20,10 +20,10 @@ def tool_needs_approval(
 
     The most specific statement wins:
 
-    1. ``tool_approval[tool_id]`` — this agent's decision about this tool.
-    2. the binding's ``approval`` — this agent's decision about the whole
+    1. ``tool_approval[tool_id]`` - this agent's decision about this tool.
+    2. the binding's ``approval`` - this agent's decision about the whole
        capability, and so the default for every tool in it.
-    3. the capability's ``side_effecting`` flag — what the code that wrote the
+    3. the capability's ``side_effecting`` flag - what the code that wrote the
        tool says about it, and the answer when the spec says nothing.
 
     ``'default'`` at either of the first two levels is not an answer, it is a
@@ -44,13 +44,13 @@ def approval_required_tools(spec: AgentSpec) -> frozenset[str]:
     """Every tool in a spec that a human must approve before it runs.
 
     Returns the names the model will call, because that is what the gate sees
-    on a tool call — but the *decision* is keyed on each tool's stable id, so
+    on a tool call - but the *decision* is keyed on each tool's stable id, so
     renaming a tool cannot quietly drop its gate.
 
     Those two are not the same string once a binding renames a tool, and getting
     it wrong is a security bug rather than a cosmetic one: gate the *declared*
     name and the gate waits for a tool the model never calls, while the tool it
-    does call — the side-effecting one somebody deliberately gated — runs
+    does call - the side-effecting one somebody deliberately gated - runs
     unapproved with nothing reporting it. So the decision reads ``tool.id`` and
     the answer reads the effective name.
 

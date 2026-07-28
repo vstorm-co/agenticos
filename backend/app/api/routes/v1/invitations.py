@@ -6,8 +6,8 @@ the token that arrived in their email. So revoking exists twice: by id under the
 organization, and by token for the person the invitation was sent to.
 
 The token itself leaves the building exactly once, in the response to the POST
-that mints it. It is a bearer credential — whoever holds one joins the
-organization as the role offered to somebody else's address — so nothing reads
+that mints it. It is a bearer credential - whoever holds one joins the
+organization as the role offered to somebody else's address - so nothing reads
 it back, and listing invitations returns everything except it.
 """
 
@@ -71,7 +71,7 @@ async def create_invite_link(
     """Mint a shareable link. Requires Owner or Admin.
 
     The token is returned once, here, because a link is only useful if somebody
-    can copy it — and it is never returned again: the listing carries no tokens,
+    can copy it - and it is never returned again: the listing carries no tokens,
     for the same reason it never has.
     """
     invite = await service.create_link(
@@ -170,7 +170,7 @@ async def revoke_invitation(
     service: InvitationSvc,
     user: CurrentUser,
 ) -> None:
-    """Revoke a pending invitation by its token — the invitee's route.
+    """Revoke a pending invitation by its token - the invitee's route.
 
     Kept because the token is the only thing an invitee has: the invitation
     arrives by email, and they know neither its id nor the organization it is

@@ -36,7 +36,7 @@ const DEFAULT_PALETTE = [
   "#84cc16",
 ];
 
-// Recharts renders raw SVG, so it can't use Tailwind classes — it must read
+// Recharts renders raw SVG, so it can't use Tailwind classes - it must read
 // the app's CSS theme variables inline. These resolve to the right values in
 // both light and dark mode automatically.
 const AXIS_TICK = { fill: "var(--color-muted-foreground)", fontSize: 11 } as const;
@@ -80,7 +80,7 @@ function compact(value: unknown): string {
 
 /**
  * Memoized so it only re-renders when the chart `spec` actually changes. During
- * streaming, MessageItem re-renders on every text/thinking delta — without
+ * streaming, MessageItem re-renders on every text/thinking delta - without
  * memoization, Recharts' ResponsiveContainer + ResizeObserver fire on each one
  * and can momentarily report container size as -1 mid-layout. That triggers a
  * `setState` inside Recharts' internal `RenderedTicksReporter` which feeds
@@ -249,7 +249,7 @@ function ChartMessageInner({ spec }: { spec: ChartSpec }) {
       }
       case "scatter": {
         // Recharts ScatterChart needs type="number" on both axes and determines
-        // coordinates from axis dataKeys — not from Scatter's own dataKey.
+        // coordinates from axis dataKeys - not from Scatter's own dataKey.
         const yKey = spec.series[0]?.key ?? "y";
 
         const scatterXAxis = (

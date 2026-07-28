@@ -1,7 +1,7 @@
 """Admin overview / observability service.
 
 Reads aggregate counts across users and conversations and exposes them to the
-dashboard. All reads — no mutation. Should remain cheap (single COUNT(*) per
+dashboard. All reads - no mutation. Should remain cheap (single COUNT(*) per
 metric); if usage grows we'd promote to materialized views.
 """
 
@@ -30,7 +30,7 @@ class AdminService:
         """Aggregate workspace metrics."""
         total_users = (await self.db.execute(select(func.count(User.id)))).scalar_one()
 
-        # Active in last 24h via session.last_used_at — best-effort, returns 0
+        # Active in last 24h via session.last_used_at - best-effort, returns 0
         # when session_management isn't enabled in this deployment.
         active_24h: int = 0
         cutoff = datetime.now(UTC) - timedelta(hours=24)
@@ -47,7 +47,7 @@ class AdminService:
         except Exception:
             logger.exception("admin_stats_active_users_query_failed")
 
-        # Conversations + messages totals — 0 when AI/chat is disabled
+        # Conversations + messages totals - 0 when AI/chat is disabled
         total_conversations = (
             await self.db.execute(select(func.count(Conversation.id)))
         ).scalar_one()

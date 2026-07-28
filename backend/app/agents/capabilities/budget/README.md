@@ -2,8 +2,8 @@
 
 Two mechanisms that are deliberately separate:
 
-- **`SpendLedger`** — accounting. What a run consumed, in tokens and dollars.
-- **`BudgetGuard`** — enforcement. Refuses to issue a model request once a limit
+- **`SpendLedger`** - accounting. What a run consumed, in tokens and dollars.
+- **`BudgetGuard`** - enforcement. Refuses to issue a model request once a limit
   is reached.
 
 Enforcement happens *before* each request. Checking afterwards means the request
@@ -16,7 +16,7 @@ organization's limit. Making it optional would make "an agent with no spending
 limit" a thing someone could configure by accident.
 
 Prices come from [`genai-prices`](https://github.com/pydantic/genai-prices),
-not from a table here. There was a table — nine models, hand-maintained — and
+not from a table here. There was a table - nine models, hand-maintained - and
 it was wrong in a way a table cannot be right: Gemini 2.5 Pro charges one rate
 below a 200k-token context and double above it, and a flat
 dollars-per-million entry can only hold one of the two. It held the cheaper

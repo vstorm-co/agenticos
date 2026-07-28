@@ -30,7 +30,7 @@ quieter about their own mistakes.
 a theory. A report that reads as certain and is wrong is worse than one that
 says which part is a guess.
 
-**Every action item has an owner and a date**, or it is not an action item —
+**Every action item has an owner and a date**, or it is not an action item -
 it is a wish. Load `template.md` for the structure to fill in.
 
 ## What not to do

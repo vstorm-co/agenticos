@@ -1,4 +1,4 @@
-"""Channel message router — processes incoming messages end-to-end."""
+"""Channel message router - processes incoming messages end-to-end."""
 
 import asyncio
 import json
@@ -49,7 +49,7 @@ class ChannelMessageRouter:
         """Acquire per-chat lock, then process the message.
 
         The lock ensures that concurrent messages in the same group chat
-        are processed sequentially — no duplicate sessions, no interleaved
+        are processed sequentially - no duplicate sessions, no interleaved
         agent calls.
         """
         lock = _get_chat_lock(incoming.bot_id, incoming.platform_chat_id)
@@ -72,7 +72,7 @@ class ChannelMessageRouter:
         """
         bot = await channel_bot_repo.get_for_inbound(db, incoming.bot_id)
         if not bot or not bot.is_active:
-            logger.debug("Bot %s not found or inactive — ignoring", incoming.bot_id)
+            logger.debug("Bot %s not found or inactive - ignoring", incoming.bot_id)
             return
 
         try:
@@ -124,7 +124,7 @@ class ChannelMessageRouter:
         for te in tool_events:
             # Decided by what the tool returned, not by what it is called. The
             # name used to be matched literally, which only ever worked for the
-            # one toolset that hardcodes it — an agent whose binding renames the
+            # one toolset that hardcodes it - an agent whose binding renames the
             # chart tool would post the raw JSON into the channel instead. The
             # payload is self-describing (`{"kind": "chart", ...}`) and anything
             # else parses to None, so the name buys nothing.
@@ -155,8 +155,8 @@ class ChannelMessageRouter:
         agent always wins: someone who typed a handle asked for that agent, and
         silently answering as something else is worse than not answering.
 
-        A refusal — unlinked account, unknown handle, an agent they cannot see,
-        an agent nobody exposed on this bot — is reported to the sender and still
+        A refusal - unlinked account, unknown handle, an agent they cannot see,
+        an agent nobody exposed on this bot - is reported to the sender and still
         counts as handled. Falling through to the default assistant would answer
         a question that was not asked.
         """
@@ -178,7 +178,7 @@ class ChannelMessageRouter:
         await self._send_reply(
             bot,
             incoming,
-            answer or "That needs approval before it can run — check the approvals queue.",
+            answer or "That needs approval before it can run - check the approvals queue.",
         )
         return True
 
@@ -239,11 +239,11 @@ class ChannelMessageRouter:
         if cmd == "/help":
             return (
                 "Available commands:\n"
-                "/start — Show welcome message\n"
-                "/new — Start a new conversation\n"
-                "/help — Show this help\n"
-                "/link <code> — Link your account\n"
-                "/unlink — Unlink your account"
+                "/start - Show welcome message\n"
+                "/new - Start a new conversation\n"
+                "/help - Show this help\n"
+                "/link <code> - Link your account\n"
+                "/unlink - Unlink your account"
             )
 
         if cmd == "/new":
@@ -351,7 +351,7 @@ class ChannelMessageRouter:
             db, bot_id=bot.id, platform_chat_id=incoming.platform_chat_id
         )
         if not session:
-            # The conversation belongs to the organization that owns the bot —
+            # The conversation belongs to the organization that owns the bot -
             # not to the linked user's personal org. A Slack channel is the
             # tenant's workspace, and whoever happens to speak in it does not
             # move the conversation into their own org.
@@ -393,7 +393,7 @@ class ChannelMessageRouter:
                     raise BadRequestError(message="Rate limit exceeded. Please slow down.")
                 _rate_buckets[key] = (count + 1, window_start)
             else:
-                # Window expired — reset
+                # Window expired - reset
                 _rate_buckets[key] = (1, now)
         else:
             _rate_buckets[key] = (1, now)

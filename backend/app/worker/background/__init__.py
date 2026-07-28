@@ -2,7 +2,7 @@
 
 These run inside the API worker process. When no distributed queue is
 configured (Celery/Taskiq/ARQ), services dispatch work here via
-``fire_and_forget()`` so request handlers return immediately — matching the
+``fire_and_forget()`` so request handlers return immediately - matching the
 non-blocking semantics of a real queue.
 
 Caveats vs. a distributed queue:

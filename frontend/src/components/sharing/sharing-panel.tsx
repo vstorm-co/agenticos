@@ -45,7 +45,7 @@ const NOUN: Record<SharingResourceType, string> = {
  * The two answers this product actually has.
  *
  * `team` is a third value the column accepts and the access rules understand,
- * and it means "anyone whose role reaches team resources" — a role scope with
+ * and it means "anyone whose role reaches team resources" - a role scope with
  * no team behind it, because there is no such thing as a team here. Offering it
  * asked people to choose between a concept the product does not have and one it
  * does. It stays in the database and in `resolve_access` (rows already set to it
@@ -61,7 +61,7 @@ const VISIBILITY_OPTIONS: {
     value: "private",
     label: "Private",
     reaches: (noun) =>
-      `Only you and the people listed below. Nobody else finds this ${noun} in their list — and if it has no owner yet, it becomes yours.`,
+      `Only you and the people listed below. Nobody else finds this ${noun} in their list - and if it has no owner yet, it becomes yours.`,
   },
   {
     value: "org",
@@ -75,7 +75,7 @@ const LEGACY_TEAM = {
   value: "team" as Visibility,
   label: "Team (no longer offered)",
   reaches: (noun: string) =>
-    `Anyone whose role reaches team ${noun}s. This organization has no teams — pick one of the two above.`,
+    `Anyone whose role reaches team ${noun}s. This organization has no teams - pick one of the two above.`,
 };
 
 /**
@@ -84,7 +84,7 @@ const LEGACY_TEAM = {
  * Sharing decides who can *pick* a resource in the Builder and who can change
  * it. It does not decide who benefits from it: an agent runs its bindings for
  * everyone who can run the agent, so a key or a collection bound into one is
- * used on behalf of people who cannot see it here. That is deliberate — an
+ * used on behalf of people who cannot see it here. That is deliberate - an
  * agent is an artifact whose author decided what it may reach, and re-checking
  * per caller would make the same agent quietly answer worse for some people
  * than for others. It is also the single thing about this panel somebody would
@@ -92,7 +92,7 @@ const LEGACY_TEAM = {
  */
 const RUNTIME_NOTE: Partial<Record<SharingResourceType, string>> = {
   secret:
-    "Sharing controls who can bind this key to an agent and who can rotate it — not who benefits from it. Once an agent uses this key, it runs with it for everyone who can run that agent, including people who cannot see the key here.",
+    "Sharing controls who can bind this key to an agent and who can rotate it - not who benefits from it. Once an agent uses this key, it runs with it for everyone who can run that agent, including people who cannot see the key here.",
   collection:
     "Sharing controls who can pick this collection in the Builder and who can change it. An agent connected to it searches it for everyone who can run that agent, including people who cannot open the collection themselves.",
 };
@@ -114,7 +114,7 @@ function toLevel(value: string): GrantLevel {
  * A grant subject the server could not name is shown by id.
  *
  * Emails are resolved from the organization's members, so a subject whose
- * membership is gone has none — and printing the id is more useful than
+ * membership is gone has none - and printing the id is more useful than
  * printing nothing when the row still has to be revoked.
  */
 function subjectLabel(grant: ResourceGrant): string {
@@ -136,7 +136,7 @@ export function SharingPanel({ resourceType, resourceId, canManage }: SharingPan
   const [subjectUserId, setSubjectUserId] = useState("");
   const [level, setLevel] = useState<GrantLevel>("read");
 
-  // Two cards, visibility then people — the same two this renders once loaded.
+  // Two cards, visibility then people - the same two this renders once loaded.
   if (isLoading || !sharing)
     return (
       <div className="space-y-6">
@@ -148,7 +148,7 @@ export function SharingPanel({ resourceType, resourceId, canManage }: SharingPan
   const noun = NOUN[resourceType];
   const shared = new Set(sharing.grants.map((grant) => grant.subject_user_id));
   // The owner already has full access, and a grant to someone who is not a
-  // member is refused by the server — so neither belongs in the picker.
+  // member is refused by the server - so neither belongs in the picker.
   const candidates = members.filter(
     (member) => !shared.has(member.user_id) && member.user_id !== sharing.owner_user_id,
   );

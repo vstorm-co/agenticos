@@ -11,7 +11,7 @@ import type { SecretKind, SecretKindInfo, SecretPayload } from "@/types/secrets"
  * There are five kinds and there will be more, and each one is a Pydantic model
  * whose fields the backend already describes in JSON Schema at
  * `GET /secrets/kinds`. Five hand-written forms here would be five forms that
- * stop matching the day somebody adds a field — and the failure mode is not a
+ * stop matching the day somebody adds a field - and the failure mode is not a
  * broken build, it is a credential saved without its region that authenticates
  * nowhere.
  *
@@ -73,7 +73,7 @@ export function secretFieldNames(schema: JsonSchema): string[] {
  * Whether every required field has an answer.
  *
  * The server refuses an incomplete payload, so this only decides whether the
- * submit button is offered — being told a region is missing before sending
+ * submit button is offered - being told a region is missing before sending
  * beats being told after. A field the form cleared reads back as `undefined`,
  * which is what an untouched one already is.
  */
@@ -90,7 +90,7 @@ export function isSecretComplete(schema: JsonSchema, value: Record<string, unkno
 /**
  * The payload for the wire: the discriminator, then what was typed.
  *
- * `kind` is written first and the values spread over it, which is deliberate —
+ * `kind` is written first and the values spread over it, which is deliberate -
  * a schema cannot contribute a `kind` of its own, because the generated form
  * never renders a `const` field in the first place.
  */

@@ -50,8 +50,8 @@ describe("MembersTable", () => {
 
   it("offers every role the deployment has, not just admin and member", async () => {
     // The regression: this platform seeds six roles and the picker offered two,
-    // so "builder" and "operator" — the two that exist precisely to separate
-    // building an agent from running one — were unreachable from the UI.
+    // so "builder" and "operator" - the two that exist precisely to separate
+    // building an agent from running one - were unreachable from the UI.
     render(
       <MembersTable
         members={[member()]}
@@ -79,7 +79,7 @@ describe("MembersTable", () => {
   });
 
   it("never offers owner, because ownership moves by transfer", async () => {
-    // Assigning it would leave two owners, or silently demote the first — the
+    // Assigning it would leave two owners, or silently demote the first - the
     // backend has a transfer endpoint precisely because it is not a role edit.
     render(
       <MembersTable

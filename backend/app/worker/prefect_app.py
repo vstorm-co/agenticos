@@ -1,4 +1,4 @@
-"""Prefect runner — starts a long-running server that hosts all flow deployments.
+"""Prefect runner - starts a long-running server that hosts all flow deployments.
 
 Run with:
     python -m app.worker.prefect_app
@@ -55,7 +55,7 @@ async def main() -> None:
         )
     )
     # Usage reports. An interval rather than a cron because the schedule only
-    # has to be *roughly* weekly — what matters is that the number arrives
+    # has to be *roughly* weekly - what matters is that the number arrives
     # regularly, and an interval survives a restart without needing a timezone
     # decided for every deployment.
     deployments.append(

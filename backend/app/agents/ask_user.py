@@ -6,7 +6,7 @@ socket; what lives here is the question schema and the rendering of the
 collected answers back into something the model reads.
 
 Deliberately not a capability. Capabilities are switched on per agent, and this
-is not a property of the agent at all — it is whether the *surface* running it
+is not a property of the agent at all - it is whether the *surface* running it
 can hold a question open. A Slack webhook and a scheduled run cannot, which is
 why ``AgentDeps.ask_user`` is optional and tools that need it must refuse when
 it is absent rather than proceed unattended.

@@ -2,7 +2,7 @@
 
 One tool whatever the provider is. The provider and the key are closed over
 rather than taken as arguments: they are configuration, and anything in the
-signature is something the model can choose — it would pick the expensive
+signature is something the model can choose - it would pick the expensive
 provider, or invent a key.
 """
 
@@ -45,7 +45,7 @@ def build_toolset(
         except SearchUnavailable as exc:
             # `ModelRetry` rather than a returned string: an error in the shape
             # of a result is one the model reads as "nothing found", and it then
-            # answers from memory — confidently, and without saying it had to.
+            # answers from memory - confidently, and without saying it had to.
             raise ModelRetry(str(exc)) from exc
         return results.model_dump_json()
 

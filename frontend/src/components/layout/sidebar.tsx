@@ -5,8 +5,8 @@
  * column 240px and still have a page left.
  *
  * It renders `SidebarNav` inside `SidebarShell` rather than a list of its own.
- * The two drifted before — the drawer knew about Agents, Skills and Activity
- * while the top bar did not — and a phone offering destinations a desktop hides
+ * The two drifted before - the drawer knew about Agents, Skills and Activity
+ * while the top bar did not - and a phone offering destinations a desktop hides
  * is a bug nobody reports because each surface looks complete on its own. The
  * shell is here for the same reason: the organization switcher and the account
  * menu are no longer in a top bar to fall back on, so a phone without them

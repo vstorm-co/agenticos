@@ -9,4 +9,4 @@ Accept your invitation:
 
 This invitation was sent by [[inviter_name]]. If you don't know who this is, you can ignore this email.
 
-— The [[app_name]] Team
+- The [[app_name]] Team

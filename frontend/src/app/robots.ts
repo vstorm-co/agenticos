@@ -10,7 +10,7 @@ import { SITE } from "@/lib/seo";
  *  only the pages a signed-out visitor can legitimately reach are opened up.
  *  A blocklist would silently expose every route added later.
  *
- *  Paths are listed twice — bare and locale-prefixed — because `next-intl`
+ *  Paths are listed twice - bare and locale-prefixed - because `next-intl`
  *  serves the default locale unprefixed (`/login`) and the others prefixed
  *  (`/pl/login`), and robots.txt has no notion of an optional segment. */
 const PUBLIC_PATHS = ["/login", "/register", "/legal/"];

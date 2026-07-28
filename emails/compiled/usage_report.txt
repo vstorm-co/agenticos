@@ -1,4 +1,4 @@
-Subject: [[org_name]] — agent usage this [[period]]
+Subject: [[org_name]] - agent usage this [[period]]
 
 What [[org_name]] spent over the past [[period]]:
 
@@ -10,4 +10,4 @@ estimated from a rate table.
 Full breakdown:
 [[dashboard_url]]
 
-— The [[app_name]] Team
+- The [[app_name]] Team

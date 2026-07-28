@@ -1,4 +1,4 @@
-"""ResourceGrant — per-row sharing, on top of role scopes."""
+"""ResourceGrant - per-row sharing, on top of role scopes."""
 
 import enum
 import uuid

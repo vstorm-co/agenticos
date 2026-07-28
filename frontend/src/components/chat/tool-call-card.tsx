@@ -33,7 +33,7 @@ interface ToolCallCardProps {
 }
 
 export function ToolCallCard({ toolCall }: ToolCallCardProps) {
-  // Collapsed by default — the bar acts as the toggle. `showRaw` swaps the
+  // Collapsed by default - the bar acts as the toggle. `showRaw` swaps the
   // formatted view for args + raw output (the </> button). Charts are the
   // exception: they're only useful when visible, so expand them by default.
   const isRunPython = toolCall.name === "run_python";
@@ -46,7 +46,7 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
   );
   const [showRaw, setShowRaw] = useState(false);
 
-  // Short input hint shown in the collapsed bar — the query for search
+  // Short input hint shown in the collapsed bar - the query for search
   // tools, the URL for fetch_url, etc. (any tool with a url/query arg).
   const urlArg = toolCall.args?.url;
   const queryArg = toolCall.args?.query;
@@ -80,7 +80,7 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
   const isListSkills = toolCall.name === "list_skills";
   const loadedSkillName =
     isLoadSkill && typeof toolCall.args?.skill_name === "string" ? toolCall.args.skill_name : null;
-  // Memoize the parsed chart spec — `parseChartResult` does `JSON.parse` for
+  // Memoize the parsed chart spec - `parseChartResult` does `JSON.parse` for
   // string results, returning a NEW object each call. Without this memo, every
   // streaming delta (text/thinking) re-renders ToolCallCard → new spec ref →
   // ChartMessage re-renders → Recharts re-layouts → ResponsiveContainer
@@ -95,7 +95,7 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
   );
   const isChart = chartSpec !== null;
   // A chart that finishes after this card mounted (live streaming) won't
-  // have triggered the initial-state default — expand it on transition.
+  // have triggered the initial-state default - expand it on transition.
   useEffect(() => {
     if (isChart) setExpanded(true);
   }, [isChart]);
@@ -153,7 +153,7 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
   };
 
   // While still running: narrate what the agent is doing instead of the finished label,
-  // and swap the chevron/raw toggle for a spinner — the header becomes a step caption.
+  // and swap the chevron/raw toggle for a spinner - the header becomes a step caption.
   const isRunning = toolCall.status === "running" || toolCall.status === "pending";
   const isError = toolCall.status === "error";
   const liveCaption = toolCaption(toolCall.name);
@@ -240,7 +240,7 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
         </div>
       </div>
 
-      {/* Live progress shimmer — only while the step is in flight. */}
+      {/* Live progress shimmer - only while the step is in flight. */}
       {isRunning && (
         <div className="step-progress pointer-events-none absolute inset-x-0 bottom-0 h-0.5" />
       )}

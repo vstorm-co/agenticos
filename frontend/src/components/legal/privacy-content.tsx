@@ -14,31 +14,31 @@ export function PrivacyBodyEn() {
       <h3>Information you provide</h3>
       <ul>
         <li>
-          <strong>Account info</strong> — name, email, hashed password, optional avatar.
+          <strong>Account info</strong> - name, email, hashed password, optional avatar.
         </li>
         <li>
-          <strong>Customer Data</strong> — prompts, documents you upload, chat conversations,
+          <strong>Customer Data</strong> - prompts, documents you upload, chat conversations,
           knowledge base content.
         </li>
         <li>
-          <strong>Billing info</strong> — handled by our payment processor (Stripe). We never see
+          <strong>Billing info</strong> - handled by our payment processor (Stripe). We never see
           your card number.
         </li>
         <li>
-          <strong>Support correspondence</strong> — when you email us.
+          <strong>Support correspondence</strong> - when you email us.
         </li>
       </ul>
       <h3>Information collected automatically</h3>
       <ul>
         <li>
-          <strong>Usage data</strong> — request paths, response times, feature usage, error stack
+          <strong>Usage data</strong> - request paths, response times, feature usage, error stack
           traces.
         </li>
         <li>
-          <strong>Device data</strong> — browser, OS, IP address (for security and rate limiting).
+          <strong>Device data</strong> - browser, OS, IP address (for security and rate limiting).
         </li>
         <li>
-          <strong>Cookies</strong> — see our <Link href={ROUTES.LEGAL_COOKIES}>Cookie Policy</Link>.
+          <strong>Cookies</strong> - see our <Link href={ROUTES.LEGAL_COOKIES}>Cookie Policy</Link>.
         </li>
       </ul>
 
@@ -138,32 +138,32 @@ export function PrivacyBodyPl() {
       <h3>Informacje, które podajesz</h3>
       <ul>
         <li>
-          <strong>Dane konta</strong> — imię, email, zhashowane hasło, opcjonalny avatar.
+          <strong>Dane konta</strong> - imię, email, zhashowane hasło, opcjonalny avatar.
         </li>
         <li>
-          <strong>Dane Klienta</strong> — prompty, wgrywane dokumenty, rozmowy z czatu, zawartość
+          <strong>Dane Klienta</strong> - prompty, wgrywane dokumenty, rozmowy z czatu, zawartość
           baz wiedzy.
         </li>
         <li>
-          <strong>Dane do płatności</strong> — obsługiwane przez naszego processora płatności
+          <strong>Dane do płatności</strong> - obsługiwane przez naszego processora płatności
           (Stripe). Nigdy nie widzimy numeru Twojej karty.
         </li>
         <li>
-          <strong>Korespondencja ze wsparciem</strong> — gdy do nas piszesz.
+          <strong>Korespondencja ze wsparciem</strong> - gdy do nas piszesz.
         </li>
       </ul>
       <h3>Informacje zbierane automatycznie</h3>
       <ul>
         <li>
-          <strong>Dane użycia</strong> — ścieżki requestów, czasy odpowiedzi, użycie funkcji, stack
+          <strong>Dane użycia</strong> - ścieżki requestów, czasy odpowiedzi, użycie funkcji, stack
           traces błędów.
         </li>
         <li>
-          <strong>Dane urządzenia</strong> — przeglądarka, OS, adres IP (do bezpieczeństwa i rate
+          <strong>Dane urządzenia</strong> - przeglądarka, OS, adres IP (do bezpieczeństwa i rate
           limitingu).
         </li>
         <li>
-          <strong>Cookies</strong> — zobacz naszą{" "}
+          <strong>Cookies</strong> - zobacz naszą{" "}
           <Link href={ROUTES.LEGAL_COOKIES}>Politykę Cookies</Link>.
         </li>
       </ul>

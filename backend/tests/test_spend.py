@@ -42,7 +42,7 @@ def _response(model_name: str, input_tokens: int = 1000, output_tokens: int = 10
 class TestPricing:
     """Prices come from `genai-prices`; what is tested is our use of it.
 
-    Not the prices themselves — restating a published rate card in assertions
+    Not the prices themselves - restating a published rate card in assertions
     only pins today's number and fails on the next dependency bump. What is
     worth pinning is the behaviour a table could not give us at all.
     """
@@ -55,7 +55,7 @@ class TestPricing:
 
         A dollars-per-million table can hold one of these two numbers. It held
         the cheaper one, so every long-context run was reported at half its
-        cost — and the budget meant to stop a runaway loop let it run twice as
+        cost - and the budget meant to stop a runaway loop let it run twice as
         far.
         """
         below = price_request(_usage(input_tokens=100_000), "gemini-2.5-pro", "google")
@@ -96,7 +96,7 @@ class TestPricing:
         assert price_request(_usage(input_tokens=1000), "some-experimental-model", "openai") is None
 
     def test_counts_the_package_refuses_are_reported_as_unpriced_not_raised(self):
-        """More cached tokens than input tokens is a provider bug, not ours —
+        """More cached tokens than input tokens is a provider bug, not ours -
         and it must not kill the run the guard is metering."""
         broken = _usage(input_tokens=10, cache_read_tokens=MILLION)
 
@@ -265,7 +265,7 @@ class TestSeveralCapsAtOnce:
         """That is what makes a per-run cap expressible in the same shape.
 
         It reads the ledger this guard writes, so it is exact and costs no
-        database round trip — and a run cap that quietly summed the month would
+        database round trip - and a run cap that quietly summed the month would
         stop a first conversation that had spent nothing.
         """
         guard = BudgetGuard(
@@ -284,7 +284,7 @@ class TestSeveralCapsAtOnce:
         Which is not hypothetical: the agent's monthly cap spent its life reading
         the organization's total, and one baseline for the whole guard is exactly
         the shape that made it possible. Separately cached as well as separately
-        fetched — one round trip per cap per run, never one per model request.
+        fetched - one round trip per cap per run, never one per model request.
         """
         agent_spend = AsyncMock(return_value=Decimal("0"))
         org_spend = AsyncMock(return_value=Decimal("0"))

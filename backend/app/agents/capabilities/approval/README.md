@@ -5,7 +5,7 @@ human has answered. Which tools are gated is resolved once, from the spec, when
 the agent is assembled.
 
 Not registered in the capability registry. Like the budget guard, every agent
-gets one — an agent whose approval gate is optional is an agent somebody can
+gets one - an agent whose approval gate is optional is an agent somebody can
 configure into sending email unattended.
 
 ## Where the pieces live
@@ -13,20 +13,20 @@ configure into sending email unattended.
 | File | What |
 |---|---|
 | `app/agents/approval.py` | `ApprovalRequest`, the three decisions, `refusal()` |
-| `_policy.py` | `tool_needs_approval()` — the rule, and the only copy of it |
-| `_capability.py` | `ApprovalGate` — the only thing that enforces them |
+| `_policy.py` | `tool_needs_approval()` - the rule, and the only copy of it |
+| `_capability.py` | `ApprovalGate` - the only thing that enforces them |
 
 The decision types sit a layer *below* this capability, not inside it. They are
-the contract between four parties — the gate asks, a surface carries the
+the contract between four parties - the gate asks, a surface carries the
 question to a person, the approvals service records the answer, and `AgentDeps`
-holds the callback that joins them — and only one of those four is this
+holds the callback that joins them - and only one of those four is this
 capability.
 
 They used to live in `_capability.py`, which made `app/agents/deps.py` depend on
 a capability that imports `deps` straight back. That cycle was survivable only
 because the annotation hid behind `TYPE_CHECKING` and a lazily-evaluated PEP 695
 alias, with a comment apologising for the arrangement. Moving the types below
-both removes the cycle instead of working around it — and the first attempt,
+both removes the cycle instead of working around it - and the first attempt,
 splitting them into a sibling module *inside* the package, did not: importing
 the submodule still initialises the package, whose `__init__` pulls in the gate.
 Module layout has to follow the direction of dependency, not the shape of the
@@ -42,14 +42,14 @@ thought about approval.
 
 It gates by **the name the model called**, decided by the tool's **stable id**.
 Those two differ the moment a binding renames a tool, and `_policy.py` is the
-only place allowed to translate between them — see "Renamed tools" below.
+only place allowed to translate between them - see "Renamed tools" below.
 
 Gating used to be per capability id, on the argument
 that "this agent may send email" is the decision a person actually makes. That
 argument only holds for a capability with one tool. A `filesystem` capability
 wants `write_file` gated and `read_file` not; an `email` capability wants
 `send_email` gated and `draft_email` not. Per capability there is no way to say
-that — you approve all of it or none of it, and a queue that asks about reads is
+that - you approve all of it or none of it, and a queue that asks about reads is
 a queue people learn to click through, which is how the write gets approved too.
 
 So a capability declares its `tools` in the registry (a stable id plus the
@@ -80,7 +80,7 @@ for them here would be a guess.
 ### Declared tools, and the drift that threatens them
 
 The declaration is a second copy of something the code already knows, so it can
-go stale — and stale in the direction that matters, a new side-effecting tool
+go stale - and stale in the direction that matters, a new side-effecting tool
 nobody declared and therefore nobody can gate. Deriving the list instead would
 mean building every capability to read the catalog, and two of them build to
 nothing without database rows (`knowledge` without a collection, `skills`
@@ -88,7 +88,7 @@ without skills), so deriving would mean fabricating rows on a catalog request.
 
 The declaration stays, and `tests/test_capability_registry.py` holds it honest:
 it builds every registered capability, gives the two that need resources some,
-and asserts the declared ids are exactly the tools the model is offered — then
+and asserts the declared ids are exactly the tools the model is offered - then
 does it again through a binding that renames all of them, so a tool nobody
 declared still cannot hide behind the rename.
 
@@ -96,14 +96,14 @@ declared still cannot hide behind the rename.
 
 A binding may rename a tool and reword its description (`tool_overrides` on the
 spec, applied by `ToolOverrides` in `capabilities/_overrides.py`). Approval is
-keyed on the tool's stable id, so the operator's decision survives the rename —
+keyed on the tool's stable id, so the operator's decision survives the rename -
 but the gate matches `tool_def.name`, which after a rename is not that id.
 
 `approval_required_tools` therefore **decides by id and answers with the
 effective name**, via `CapabilityDef.effective_tools`. Returning `tool.name`
 from the static declaration instead would leave the gate watching for a tool the
-model never calls, while the renamed one — the side-effecting tool somebody
-deliberately gated — ran unapproved with nothing reporting it. That is the
+model never calls, while the renamed one - the side-effecting tool somebody
+deliberately gated - ran unapproved with nothing reporting it. That is the
 failure this arrangement exists to prevent, and
 `tests/test_tool_overrides.py::TestARenamedToolIsStillGated` drives it through a
 real agent.
@@ -122,11 +122,11 @@ tools sharing a name.
 | Decision | What the gate does |
 |---|---|
 | `ApprovalGranted(tool_args)` | Executes **the approved arguments**, not the ones the model just produced |
-| `ApprovalRejected(note)` | Returns a refusal as the tool's result — the model responds, the run lives |
+| `ApprovalRejected(note)` | Returns a refusal as the tool's result - the model responds, the run lives |
 | `ApprovalPending()` | Raises `ApprovalRequired`, ending the run with the call parked |
 
 No callback at all (`AgentDeps.request_approval is None`) is a refusal too. An
-agent running where nobody can be asked — a schedule, a webhook — must not
+agent running where nobody can be asked - a schedule, a webhook - must not
 decide on its own that unattended is fine.
 
 ## Parking and resuming
@@ -139,11 +139,11 @@ mean a database connection and a task per pending decision, for however long a
 person takes to look.
 
 On resume the runner replays those messages with
-`ToolApproved(override_args=<stored args>)` for every decided call — including
+`ToolApproved(override_args=<stored args>)` for every decided call - including
 rejected ones. That looks odd for a rejection and is deliberate: `ToolApproved`
 means "let this call reach the tool pipeline", and the gate is the single place
 allowed to decide whether a side effect happens. Splitting that authority
 between the library and the gate would give refusals two sources of truth.
 
 The decision is consumed once. If the model calls the same tool again later in
-the resumed run, it parks again — a second act needs a second approval.
+the resumed run, it parks again - a second act needs a second approval.

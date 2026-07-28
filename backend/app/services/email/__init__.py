@@ -1,4 +1,4 @@
-"""Email module — transactional email via Resend, SMTP, or log (dev)."""
+"""Email module - transactional email via Resend, SMTP, or log (dev)."""
 
 from app.core.config import settings
 from app.services.email.providers.base import EmailProvider

@@ -7,8 +7,8 @@ uses, so the common servers are listed here with the metadata needed to connect
 them.
 
 This is deliberately a hand-maintained list rather than a mirror of the public
-registry. Each entry is a small promise — that we have looked at the server, that
-the auth flow works, that the description is honest — and a mirrored registry
+registry. Each entry is a small promise - that we have looked at the server, that
+the auth flow works, that the description is honest - and a mirrored registry
 cannot make that promise. Adding an entry is cheap; the URL is what varies.
 """
 
@@ -36,14 +36,14 @@ class CatalogEntry:
     category: str
     auth: CatalogAuth
     # Where the server lives. Empty when the client hosts it themselves and must
-    # supply the URL — self-hosted databases, internal services.
+    # supply the URL - self-hosted databases, internal services.
     url: str = ""
     docs_url: str = ""
     # What to tell the person pasting a credential. Generic instructions are the
     # main reason token setup fails.
     token_hint: str = ""
     # The brand mark to draw, as `BrandIcon` names them. Empty falls back to a
-    # monogram, which is a deliberate look rather than a missing one — every
+    # monogram, which is a deliberate look rather than a missing one - every
     # icon set is finite and this catalog is not.
     icon: str = ""
 
@@ -97,7 +97,7 @@ CATALOG: tuple[CatalogEntry, ...] = (
         category="data",
         auth=CatalogAuth.TOKEN,
         docs_url="https://github.com/modelcontextprotocol/servers/tree/main/src/postgres",
-        token_hint="Point this at a server you run against read-only views — never at a primary with write access.",
+        token_hint="Point this at a server you run against read-only views - never at a primary with write access.",
         icon="postgres",
     ),
     CatalogEntry(
@@ -150,7 +150,7 @@ CATALOG: tuple[CatalogEntry, ...] = (
         docs_url="https://docs.stripe.com/mcp",
         token_hint=(
             "A restricted API key. Give it read scopes only unless an agent is meant to move "
-            "money — this server can act, and the approval gate does not cover MCP tools."
+            "money - this server can act, and the approval gate does not cover MCP tools."
         ),
         icon="stripe",
     ),
@@ -192,7 +192,7 @@ CATALOG: tuple[CatalogEntry, ...] = (
         auth=CatalogAuth.TOKEN,
         docs_url="https://supabase.com/docs/guides/getting-started/mcp",
         token_hint=(
-            "A personal access token. Point it at a read-only project or a branch — the server "
+            "A personal access token. Point it at a read-only project or a branch - the server "
             "can run SQL."
         ),
         icon="supabase",
@@ -360,7 +360,7 @@ CATALOG: tuple[CatalogEntry, ...] = (
         description="Send transactional and marketing email.",
         category="marketing",
         auth=CatalogAuth.TOKEN,
-        token_hint="An API key. Sending is a side effect — scope it to one domain.",
+        token_hint="An API key. Sending is a side effect - scope it to one domain.",
         icon="resend",
     ),
     CatalogEntry(
@@ -385,7 +385,7 @@ CATALOG: tuple[CatalogEntry, ...] = (
         description="Retrieve structured and unstructured data.",
         category="data",
         auth=CatalogAuth.TOKEN,
-        token_hint="Point it at a read-only role — this server can run SQL.",
+        token_hint="Point it at a read-only role - this server can run SQL.",
         icon="snowflake",
     ),
     CatalogEntry(

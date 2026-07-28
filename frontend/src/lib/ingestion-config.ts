@@ -1,7 +1,7 @@
 /**
  * The ingestion contract as the browser needs it: the options that exist, the
  * bounds the API enforces, and the two questions a form has to answer before it
- * sends anything — "is this valid" and "did anybody actually change it".
+ * sends anything - "is this valid" and "did anybody actually change it".
  *
  * The vocabulary is duplicated from the backend rather than fetched, because
  * there is no endpoint that publishes it: `IngestionConfig` is a field of the
@@ -34,8 +34,8 @@ export const DEFAULT_IMAGE_PROMPT =
  * These *are* the API's defaults now. They used to be only an approximation of
  * them: the API filled a missing object from environment variables an operator
  * could have set differently, so posting these would silently overrule a
- * deployment's own settings. Those variables are gone — how a collection parses
- * is a per-collection choice and the field defaults are the only defaults — so
+ * deployment's own settings. Those variables are gone - how a collection parses
+ * is a per-collection choice and the field defaults are the only defaults - so
  * this and the server agree by construction.
  *
  * Still a starting point for an editor somebody deliberately opened rather than
@@ -93,7 +93,7 @@ export const LITEPARSE_OUTPUT_FORMATS: readonly Choice<LiteParseOutputFormat>[] 
   {
     value: "markdown",
     label: "Markdown",
-    hint: "Rebuilds headings, tables and lists — what the Markdown chunking strategy splits on.",
+    hint: "Rebuilds headings, tables and lists - what the Markdown chunking strategy splits on.",
   },
   {
     value: "text",
@@ -113,7 +113,7 @@ export const CHUNKING_STRATEGIES: readonly Choice<ChunkingStrategy>[] = [
   {
     value: "recursive",
     label: "Recursive",
-    hint: "Split on paragraphs, then sentences, then words — whatever fits.",
+    hint: "Split on paragraphs, then sentences, then words - whatever fits.",
   },
   {
     value: "markdown",
@@ -152,7 +152,7 @@ export const INGESTION_LIMITS = {
 
 /**
  * Tesseract language codes, which are three letters and not the two-letter ISO
- * codes used for UI locales — "eng", not "en". Several are joined with `+`.
+ * codes used for UI locales - "eng", not "en". Several are joined with `+`.
  *
  * The same expression the API enforces. Worth refusing here rather than on a
  * round trip: "pl" reads as a plausible answer and is the one Tesseract has no
@@ -166,7 +166,7 @@ export const OCR_LANGUAGE_PATTERN = /^[a-z]{3}(\+[a-z]{3})*$/;
  * They are the server's own field names, which is what makes the routing work:
  * a problem reported about `ingestion_config.chunk_size` is matched by its leaf.
  * `ingestion_config` itself is here for the one rule that is about two fields at
- * once — an overlap that does not fit inside a chunk — which the server
+ * once - an overlap that does not fit inside a chunk - which the server
  * attributes to the object rather than to either of them.
  *
  * `model_profile_id` is deliberately absent. The server refuses an unusable
@@ -190,8 +190,8 @@ export const INGESTION_FORM_FIELDS: readonly string[] = [
  * Everything this configuration would be refused for, keyed by the field to say
  * it under. Empty when the API would accept it.
  *
- * This is not a substitute for the server's answer — `describe_images` needs a
- * model profile it can resolve, which only the server knows — and nothing here
+ * This is not a substitute for the server's answer - `describe_images` needs a
+ * model profile it can resolve, which only the server knows - and nothing here
  * is allowed to hide one. It covers the refusals whose whole input is on screen,
  * so that typing an overlap larger than a chunk is answered where it is typed
  * rather than after a submit that discards the rest of the form.
@@ -220,7 +220,7 @@ export function ingestionProblems(config: IngestionConfig): Readonly<Record<stri
   }
   if (!OCR_LANGUAGE_PATTERN.test(config.ocr_language.trim())) {
     problems.ocr_language =
-      'Tesseract codes are three letters — "eng", not "en". Join several with "+", as in "eng+pol".';
+      'Tesseract codes are three letters - "eng", not "en". Join several with "+", as in "eng+pol".';
   }
   if (!isWhole(config.liteparse_dpi, liteparseDpi.min, liteparseDpi.max)) {
     problems.liteparse_dpi = `A whole number between ${liteparseDpi.min} and ${liteparseDpi.max}.`;
@@ -243,7 +243,7 @@ function isWhole(value: number, min: number, max: number): boolean {
  * Read a number field back, keeping "nothing typed" out of the model.
  *
  * `Number("")` is 0, which for a chunk size is both a valid-looking number and a
- * value the API refuses — so an emptied box would silently become a refusal
+ * value the API refuses - so an emptied box would silently become a refusal
  * about zero rather than a box somebody is halfway through editing. NaN stays
  * NaN and `ingestionProblems` names it.
  */
@@ -326,7 +326,7 @@ function assign<K extends Exclude<keyof IngestionConfig, "image_description">>(
   override[key] = value;
 }
 
-/** Every field of the configuration, exhaustively — adding one breaks the build. */
+/** Every field of the configuration, exhaustively - adding one breaks the build. */
 function ingestionKeys(): (keyof IngestionConfig)[] {
   return Object.keys(DEFAULT_INGESTION_CONFIG) as (keyof IngestionConfig)[];
 }

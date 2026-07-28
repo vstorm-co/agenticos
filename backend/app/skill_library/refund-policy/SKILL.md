@@ -27,7 +27,7 @@ Escalate rather than deciding, when:
 - The order is over 30 days old and no exception in `exceptions.md` applies.
 - The amount is over the per-order limit.
 - The same customer has had more than two refunds in ninety days.
-- The payment was disputed with the bank — that is a chargeback, and a refund
+- The payment was disputed with the bank - that is a chargeback, and a refund
   on top of it pays twice.
 
 ## Saying no

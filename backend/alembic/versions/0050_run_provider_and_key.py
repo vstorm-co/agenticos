@@ -4,7 +4,7 @@ Revision ID: 0050_run_provider
 Revises: 0049_agent_embeds
 Create Date: 2026-07-28
 
-A run recorded `model_label`, which is a display name somebody chose — "GPT-4.1
+A run recorded `model_label`, which is a display name somebody chose - "GPT-4.1
 (prod)". Two questions a bill arrives with could therefore not be answered at
 all: what did we spend at OpenAI versus Anthropic, and which key is costing the
 most. Both are now columns.
@@ -18,7 +18,7 @@ spent. A run's own history has to stay what happened.
 `exposure_id` is: deleting a key must not delete the record of what it spent.
 
 Existing rows keep NULL in both. Backfilling from the profile would be exactly
-the rewrite this column exists to prevent — a profile pointing somewhere else
+the rewrite this column exists to prevent - a profile pointing somewhere else
 today would attribute old spend to a provider that never served it. Reports read
 NULL as "before this was recorded" and say so.
 """

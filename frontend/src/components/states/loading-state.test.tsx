@@ -109,7 +109,7 @@ describe("LoadingState", () => {
 /**
  * The regression net.
  *
- * The dots were never chosen — they were the default, and thirteen call sites
+ * The dots were never chosen - they were the default, and thirteen call sites
  * inherited them. Asserting on the component alone would not have caught that,
  * so this reads the source: no page may ask for a shapeless wait, and the
  * variant that provided one may not come back.
@@ -135,7 +135,7 @@ describe("no page asks for a shapeless wait", () => {
 
   it("renders no bare shared LoadingState in a page or panel", () => {
     // A bare `<LoadingState />` still gets a skeleton, but it gets a generic
-    // one — the shape is the caller's decision, so it has to be made. Scoped to
+    // one - the shape is the caller's decision, so it has to be made. Scoped to
     // files that import the shared component: `file-preview-card.tsx` defines a
     // private one of its own for a fetch with no layout to promise.
     const offenders = sourceFiles(SRC).filter((file) => {

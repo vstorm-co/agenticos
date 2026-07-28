@@ -173,7 +173,7 @@ export function SyncSourceWizard({
         <DialogHeader className="border-foreground/10 border-b px-6 py-4">
           <DialogTitle className="text-base font-semibold">Add sync source</DialogTitle>
 
-          {/* Mode toggle — visible on the first step so user can switch between new/clone */}
+          {/* Mode toggle - visible on the first step so user can switch between new/clone */}
           {hasOrgIntegrations && step === "source" && (
             <div className="border-foreground/10 mt-3 flex items-center gap-2 rounded-xl border p-1">
               <button
@@ -205,7 +205,7 @@ export function SyncSourceWizard({
             </div>
           )}
 
-          {/* Step indicator — only for new mode */}
+          {/* Step indicator - only for new mode */}
           {mode === "new" && (
             <ol className="mt-3 flex items-center gap-2">
               {STEPS.map((s, i) => {

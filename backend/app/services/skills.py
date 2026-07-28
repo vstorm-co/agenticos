@@ -1,4 +1,4 @@
-"""Skills — an organization's reusable know-how, stored in the database.
+"""Skills - an organization's reusable know-how, stored in the database.
 
 A skill is a piece of know-how written once and attached to many agents: how
 refunds are handled, what the house style is, which checks a report must pass.
@@ -25,7 +25,7 @@ from app.services.access import SKILL, resolve_access
 logger = logging.getLogger(__name__)
 
 # What a skill's files may be. They are handed to a model as text, so a format
-# it cannot read is not a smaller feature — it is a file the agent is told
+# it cannot read is not a smaller feature - it is a file the agent is told
 # about and then cannot use.
 MAX_RESOURCE_BYTES = 512 * 1024
 
@@ -34,15 +34,15 @@ def _clean_resource_path(raw: str) -> str:
     """A resource name from an uploaded path, or a refusal.
 
     Uploads arrive with whatever the browser sent: a leading folder from a
-    directory picker, Windows separators, and — from an archive somebody
-    crafted — ``..``. The name is a key in a table rather than a location on
+    directory picker, Windows separators, and - from an archive somebody
+    crafted - ``..``. The name is a key in a table rather than a location on
     disk, so nothing here can escape anything; it is refused anyway, because a
     name that *reads* as an escape is a name nobody can reason about.
     """
     parts = [segment for segment in raw.replace("\\", "/").split("/") if segment not in ("", ".")]
     if any(segment == ".." for segment in parts):
         raise BadRequestError(
-            message=f"'{raw}' is not a usable file name — a path cannot step outside the skill",
+            message=f"'{raw}' is not a usable file name - a path cannot step outside the skill",
             details={"name": raw},
         )
     name = "/".join(parts)
@@ -50,7 +50,7 @@ def _clean_resource_path(raw: str) -> str:
         raise BadRequestError(message="A file needs a name", details={"name": raw})
     if len(name) > 128:
         raise BadRequestError(
-            message=f"'{name}' is too long a path — 128 characters is the limit",
+            message=f"'{name}' is too long a path - 128 characters is the limit",
             details={"name": name},
         )
     return name
@@ -60,7 +60,7 @@ def _decode_text(name: str, raw: bytes) -> str:
     """The file as text, or a refusal that says which file and why.
 
     Skills are read by a model, and what it receives is a string. A PDF stored
-    here would be handed over as mojibake — a file the agent is told it has and
+    here would be handed over as mojibake - a file the agent is told it has and
     cannot use, which is worse than not having it.
     """
     if len(raw) > MAX_RESOURCE_BYTES:
@@ -74,7 +74,7 @@ def _decode_text(name: str, raw: bytes) -> str:
         raise BadRequestError(
             message=(
                 f"'{name}' is not text. A skill's files are handed to the model as text, so a "
-                "binary one would arrive as noise — keep it somewhere the agent can fetch and "
+                "binary one would arrive as noise - keep it somewhere the agent can fetch and "
                 "reference it by URL instead."
             ),
             details={"name": name},
@@ -151,7 +151,7 @@ class SkillService:
             raise AlreadyExistsError(
                 message=(
                     f"A skill named '{name}' already exists. The name is how a model refers to a "
-                    "skill and cannot be changed afterwards, so choose a different one — or open "
+                    "skill and cannot be changed afterwards, so choose a different one - or open "
                     "the existing skill and edit it, which reaches every agent bound to it."
                 ),
                 details={"name": name},
@@ -178,7 +178,7 @@ class SkillService:
     async def update(self, ctx: AuthContext, skill_id: UUID, update_data: dict) -> Skill:
         """Edit a skill, bumping its version.
 
-        The version is informational — agents bind to a skill, not a version, so
+        The version is informational - agents bind to a skill, not a version, so
         an edit reaches every agent immediately. That is the point of skills:
         fix the policy once.
         """
@@ -193,7 +193,7 @@ class SkillService:
             target_type="skill",
             target_id=str(skill.id),
             # An edit changes the instructions every bound agent executes on its
-            # next run — the highest-consequence of the three skill events, and
+            # next run - the highest-consequence of the three skill events, and
             # the one most worth being able to attribute afterwards.
             details={"name": skill.name, "version": updated.version, "fields": sorted(update_data)},
         )
@@ -203,13 +203,13 @@ class SkillService:
         """Copy a bundled skill into this organization, files and all.
 
         A copy, not a link. From this moment it is an ordinary skill the
-        organization owns and can edit — which is the whole point of skills, and
+        organization owns and can edit - which is the whole point of skills, and
         would be taken away by a live reference back to the shipped folder.
 
         Raises:
             NotFoundError: If no such skill ships with this deployment.
             AlreadyExistsError: If the organization already has one by that
-                name — installing twice would otherwise produce a second skill
+                name - installing twice would otherwise produce a second skill
                 the model cannot tell from the first.
         """
         bundled = skill_library.get(key)
@@ -255,7 +255,7 @@ class SkillService:
         """Attach a file to a skill.
 
         A skill is not only its body. The body says how the work is done; the
-        files are the reference table, the template, the worked example — the
+        files are the reference table, the template, the worked example - the
         detail that would bury the instructions if it were inlined and that the
         model loads only when it decides it needs it.
 
@@ -302,11 +302,11 @@ class SkillService:
         skill_id: UUID,
         files: Sequence[tuple[str, bytes]],
     ) -> list[SkillResource]:
-        """Write a set of files at once — an upload of a folder, or of several.
+        """Write a set of files at once - an upload of a folder, or of several.
 
         Named by relative path, so a folder keeps its shape: ``references/
         workflows.md`` is one resource whose name says where it sits. There are
-        no folder rows and there is deliberately no folder table — a folder is
+        no folder rows and there is deliberately no folder table - a folder is
         a prefix that some file has, which means an empty one cannot exist and
         nothing has to keep the two in step.
 
@@ -317,7 +317,7 @@ class SkillService:
 
         Raises:
             BadRequestError: If a file is not text, or a path escapes the skill.
-                Both are refused for the same reason — what the model is handed
+                Both are refused for the same reason - what the model is handed
                 has to be readable, and a name is a key rather than a location
                 on anybody's disk.
         """
@@ -412,7 +412,7 @@ class SkillService:
         """Record that what bound agents execute has changed.
 
         A file is part of the skill as far as an agent is concerned, so adding,
-        editing or removing one is the same kind of event as editing the body —
+        editing or removing one is the same kind of event as editing the body -
         and a version that only moved for the body would say an agent was
         unchanged when its reference table had been rewritten.
         """

@@ -87,8 +87,8 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
       onOpenChange(false);
       onCreated?.(kb.id);
     } catch (error) {
-      // No `identifiedBy`: collection names are deliberately not unique — each
-      // one gets its own physical collection — so nothing here can come back as
+      // No `identifiedBy`: collection names are deliberately not unique - each
+      // one gets its own physical collection - so nothing here can come back as
       // a conflict, and claiming a conflict was about the name would be a guess.
       //
       // A refusal about the image model names a profile rather than a field, so
@@ -146,8 +146,8 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="personal">Personal — only you</SelectItem>
-                  <SelectItem value="org">Organization — all members</SelectItem>
+                  <SelectItem value="personal">Personal - only you</SelectItem>
+                  <SelectItem value="org">Organization - all members</SelectItem>
                 </SelectContent>
               </Select>
             </div>

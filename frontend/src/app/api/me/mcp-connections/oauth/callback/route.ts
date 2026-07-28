@@ -6,7 +6,7 @@ import { backendFetch } from "@/lib/server-api";
  * OAuth redirect target. The provider sends the user here with `code` + `state`
  * (or an `error`). We forward them to the backend's state-authenticated
  * callback, then bounce the browser back to the integrations settings page
- * with a status the page turns into a toast. No auth cookie is required —
+ * with a status the page turns into a toast. No auth cookie is required -
  * the `state` token authenticates the exchange.
  */
 export async function GET(request: NextRequest) {

@@ -1,7 +1,7 @@
 """One sharing API, generated per resource type.
 
-Agents, collections and skills share the same sharing model — an owner, a
-visibility, and a list of explicit grants — because the access rules underneath
+Agents, collections and skills share the same sharing model - an owner, a
+visibility, and a list of explicit grants - because the access rules underneath
 them are deliberately resource-type agnostic. Writing the same four endpoints
 three times would guarantee they drift: the fix applied to one, the field added
 to another.
@@ -17,7 +17,7 @@ Writing them out three times would buy nothing but three places to fix the next
 bug in.
 
 Nothing here builds a response body. Turning rows into `ResourceSharing` is
-`ResourceSharing.of` — a route module that also owns serialization is how the
+`ResourceSharing.of` - a route module that also owns serialization is how the
 fourth resource type ends up with a subtly different payload.
 """
 
@@ -54,7 +54,7 @@ def build_sharing_router(
 
     The path parameter is `resource_id` for every type rather than `agent_id`,
     `kb_id` and so on: FastAPI binds path parameters by name, so per-type names
-    would mean a separate handler per type — four near-identical functions for a
+    would mean a separate handler per type - four near-identical functions for a
     cosmetic difference in the generated schema.
 
     Args:

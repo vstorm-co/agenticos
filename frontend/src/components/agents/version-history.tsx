@@ -40,7 +40,7 @@ const DRAFT = "__draft__";
  * a spec is instructions, capability bindings, tool renames, tool descriptions,
  * budgets and model settings, and a per-field comparison would be a list of
  * every field somebody remembered to add to it. The text is the whole
- * configuration, so the diff is the whole change — including the tool
+ * configuration, so the diff is the whole change - including the tool
  * description somebody reworded, which is exactly the edit a field-by-field
  * view would have omitted.
  */
@@ -78,7 +78,7 @@ export function VersionHistory({
           >
             <span className="font-mono">v{version.version}</span>
             <span className="text-muted-foreground min-w-0 flex-1 truncate">
-              {version.note ?? "—"}
+              {version.note ?? "-"}
             </span>
             <span className="text-muted-foreground text-xs">
               {/* Who and when, together: a timeline that says only "when" makes
@@ -171,7 +171,7 @@ function SpecDiff({ before, after }: { before: AgentSpec; after: AgentSpec }) {
   const rows = useMemo(() => collapseUnchanged(lines), [lines]);
 
   if (stat.added === 0 && stat.removed === 0) {
-    return <p className="text-muted-foreground text-sm">Identical — nothing changed.</p>;
+    return <p className="text-muted-foreground text-sm">Identical - nothing changed.</p>;
   }
 
   return (

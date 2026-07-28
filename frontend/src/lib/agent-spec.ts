@@ -12,7 +12,7 @@ import type { AgentSpec, CapabilityBindingSpec } from "@/types/agents";
 /** The capability that turns bound skills into tools the model can call. */
 export const SKILLS_ID = "skills";
 
-/** The capability configured with the model settings — it contributes no tools. */
+/** The capability configured with the model settings - it contributes no tools. */
 export const THINKING_ID = "thinking";
 
 /**
@@ -50,7 +50,7 @@ export function withCapability(
  *
  * `skill_ids` resolves the skills into the run's resources; the `skills`
  * capability is what turns them into tools the model can call. Bound without
- * it, the skills were fetched and then thrown away — an agent that silently
+ * it, the skills were fetched and then thrown away - an agent that silently
  * knew nothing, with nothing anywhere saying why. Nobody wants one half of
  * this, so one function owns both.
  */

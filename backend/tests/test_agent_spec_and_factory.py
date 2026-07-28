@@ -1,7 +1,7 @@
 """Tests for the agent spec and the factory that instantiates it.
 
-The spec is the platform's most load-bearing type — the Builder writes it, the
-database versions it, and clients commit it to their own repositories — so what
+The spec is the platform's most load-bearing type - the Builder writes it, the
+database versions it, and clients commit it to their own repositories - so what
 is guarded here is its contract: it round-trips, it refuses contradictions, and
 it never carries a secret.
 """
@@ -148,7 +148,7 @@ class TestBudgetComposition:
     ``min()`` and checked against a single organization-wide total, which made
     ``AgentSpec.budget.monthly_usd`` a cap on the organization: an agent with a
     $10 limit was refused because its neighbours had spent $10. Two caps, two
-    quantities — so what these assert is not one number but which lookup each
+    quantities - so what these assert is not one number but which lookup each
     cap ended up holding.
     """
 
@@ -174,7 +174,7 @@ class TestBudgetComposition:
 
         A $100 agent under a $40 ceiling is not "a $40 agent": its own cap is
         still $100 on its own spend, and the organization's $40 is what stops it
-        — because the agent's spend is part of the organization's, so the
+        - because the agent's spend is part of the organization's, so the
         organization's entry always binds first when it is the smaller of the
         two. That is the tighten-never-loosen rule, kept without a ``min()``.
         """
@@ -206,7 +206,7 @@ class TestBudgetComposition:
 
         One lookup handed to both caps is what made an agent's limit answerable
         by its neighbours' spending, and the two are indistinguishable by their
-        numbers alone — only by which callable each one carries.
+        numbers alone - only by which callable each one carries.
         """
         agent_spend = AsyncMock(return_value=Decimal("1"))
         org_spend = AsyncMock(return_value=Decimal("2"))
@@ -227,7 +227,7 @@ class TestBudgetComposition:
         """No lookup at all: the ledger the guard writes is exact and free.
 
         That is the one genuine difference between the caps, and it is expressed
-        by the limit carrying no ``period_spend`` — not by the per-run cap being
+        by the limit carrying no ``period_spend`` - not by the per-run cap being
         a different kind of thing. The exposure's per-run cap has always said it
         this way.
         """
@@ -251,7 +251,7 @@ class TestBudgetComposition:
         assert self._limits(built) == [("Run", Decimal("0.1"))]
 
     def test_an_agent_with_no_budget_under_an_uncapped_org_is_unlimited(self):
-        """Nothing to enforce is nothing to look up — and no round trip either."""
+        """Nothing to enforce is nothing to look up - and no round trip either."""
         built = build_agent(AgentSpec(name="x"), _model_spec(), organization_id=uuid.uuid4())
 
         assert built.budget.limits == []
@@ -274,7 +274,7 @@ class TestBudgetComposition:
 
 
 class TestMaxSteps:
-    """A cap on model requests — what stops a tool loop that a budget only bills for."""
+    """A cap on model requests - what stops a tool loop that a budget only bills for."""
 
     def test_a_spec_that_says_nothing_runs_under_the_platform_default(self):
         # The default matches Pydantic AI's own, so making the limit explicit

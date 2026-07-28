@@ -20,7 +20,7 @@ class SkillResourceRead(BaseSchema):
 
 
 class SkillResourceSummary(BaseSchema):
-    """A file as a listing names it — without the body.
+    """A file as a listing names it - without the body.
 
     The bodies are the whole point of progressive disclosure: an agent reads the
     names, decides, and loads one. A list that carried every body would defeat
@@ -75,7 +75,7 @@ class SkillRead(BaseSchema):
 
 
 class SkillSummary(BaseSchema):
-    """What the Builder's picker shows — the body is loaded on demand."""
+    """What the Builder's picker shows - the body is loaded on demand."""
 
     id: UUID
     name: str
@@ -111,7 +111,7 @@ class SkillUpdate(BaseSchema):
 class LibrarySkillRead(BaseSchema):
     """One skill this deployment ships with, as the gallery shows it."""
 
-    key: str = Field(description="The folder it lives in — how an install names it")
+    key: str = Field(description="The folder it lives in - how an install names it")
     name: str
     description: str
     content: str = Field(description="The body, so the gallery can show it before installing")

@@ -2,7 +2,7 @@
 
 One flow, and it exists for a failure that is otherwise found at the worst
 possible moment. OAuth tokens are refreshed lazily, when a run needs one, and
-that is the right place for it — no schedule renews a token more precisely than
+that is the right place for it - no schedule renews a token more precisely than
 the moment it is used. But a *refresh token* can die: the grant is withdrawn in
 the provider's console, or it sits unused past its own lifetime. Nothing notices
 until an agent reaches for the server mid-conversation, in front of whoever

@@ -14,7 +14,7 @@ export interface MarkdownContentProps {
  * pages that never render chat markdown. The prop API is unchanged, so callers
  * (message rendering, file preview) need no changes.
  *
- * `ssr: false` is safe here — chat content is client-rendered and streamed in.
+ * `ssr: false` is safe here - chat content is client-rendered and streamed in.
  * The fallback mirrors the streamed text so progressive rendering still shows
  * content immediately while the renderer chunk loads, then swaps to the rich
  * markdown output once ready.

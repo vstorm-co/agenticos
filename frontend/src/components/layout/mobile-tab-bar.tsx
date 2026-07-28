@@ -27,7 +27,7 @@ export function MobileTabBar() {
   const t = useTranslations("nav");
 
   // `stripLocale`, not a two-letter regex. The regex matched *any* two letters,
-  // so `/chat` became "at" and `/kb` became "" — the Chat and Knowledge tabs
+  // so `/chat` became "at" and `/kb` became "" - the Chat and Knowledge tabs
   // could never light up. The same shape-based guess broke the desktop sidebar;
   // this helper checks the segment against the real locale list instead.
   const stripped = stripLocale(pathname);

@@ -42,14 +42,14 @@ const roleBadgeVariant: Record<OrgRole, "default" | "secondary" | "outline"> = {
 /**
  * What each role is *for*, in the picker.
  *
- * The names alone do not answer the question somebody is actually asking —
- * "which of these lets them build an agent but not publish it" — and the
+ * The names alone do not answer the question somebody is actually asking -
+ * "which of these lets them build an agent but not publish it" - and the
  * permission matrix that does answer it is a different page. One line each,
  * here, at the moment of the decision.
  */
 const roleBlurb: Record<OrgRole, string> = {
   owner: "Everything, including billing and transferring the organization",
-  admin: "Everything except ownership — members, keys, budgets",
+  admin: "Everything except ownership - members, keys, budgets",
   builder: "Builds and publishes agents, skills and collections",
   operator: "Runs agents and decides approvals; does not change them",
   member: "Uses what is shared with them",

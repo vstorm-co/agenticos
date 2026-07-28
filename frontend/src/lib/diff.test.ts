@@ -28,7 +28,7 @@ describe("diffLines", () => {
   });
 
   it("numbers each side against its own text", () => {
-    // A removed line has no line number in the new file, and vice versa —
+    // A removed line has no line number in the new file, and vice versa -
     // inventing one is how a diff points at the wrong place.
     const lines = diffLines(text("a", "gone", "b"), text("a", "b"));
 

@@ -90,7 +90,7 @@ class TestAnswer:
             )
 
     async def test_an_unlinked_sender_is_asked_to_link_before_anything_is_looked_up(self):
-        """No membership, no role — and a run with no role has no checks."""
+        """No membership, no role - and a run with no role has no checks."""
         db = MagicMock()
         with (
             patch("app.services.channels.mentions.agent_repo") as agents,
@@ -143,7 +143,7 @@ class TestAnswer:
 
         assert refused.value.details == {"slug": "nobody"}
         # A handle that names nothing must not be distinguishable from one naming
-        # an agent that is merely not bound here — the binding is never consulted.
+        # an agent that is merely not bound here - the binding is never consulted.
         exposures.get_for_bot.assert_not_called()
 
     async def test_an_agent_nobody_bound_to_this_bot_is_refused_with_the_fix(self):

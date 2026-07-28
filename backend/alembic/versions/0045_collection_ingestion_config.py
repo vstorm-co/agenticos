@@ -13,7 +13,7 @@ contracts as for a folder of Markdown. They move onto the collection here.
 JSON because the set of options is going to grow and a new parser flag should
 not be a migration. The two mean different things and are not redundant: the
 collection's is the configuration in force *now*, the document's is the one it
-was actually read with — the collection's, with whatever that single upload
+was actually read with - the collection's, with whatever that single upload
 overrode already folded in. A collection's configuration changes and its
 existing documents are not re-parsed, so without the second column "why is this
 one chunked differently" has no answer at all.
@@ -23,14 +23,14 @@ preference. ``PgVectorStore`` creates a collection's table once, as
 ``embedding vector(N)``, with ``N`` derived from the deployment's
 ``EMBEDDING_MODEL``. Until now that environment variable was the only record of
 what any collection had been indexed with, so changing it broke every existing
-collection silently — either every insert failed on a width mismatch, or, for
+collection silently - either every insert failed on a width mismatch, or, for
 two models that happen to share a width, vectors from a different space were
 written next to the old ones and compared against them as though the numbers
 meant the same thing. Recording it per collection is what lets the platform
 refuse the second case instead of answering searches that are quietly wrong.
 
 **The backfill.** Existing rows are stamped with this deployment's current
-settings, because that is what they were in fact built with — there is no other
+settings, because that is what they were in fact built with - there is no other
 record, and a null here is a collection nobody can decide whether it is safe to
 index into. The values are read from ``settings`` rather than hardcoded so the
 stamp matches the running installation. Documents ingested before this
@@ -40,7 +40,7 @@ model that may never have run on it would be worse than saying nothing.
 
 The downgrade drops all seven columns. That loses the record of what each
 collection was indexed with, which is exactly the state this migration exists to
-end — so a downgrade is only safe while the deployment's ``EMBEDDING_MODEL`` is
+end - so a downgrade is only safe while the deployment's ``EMBEDDING_MODEL`` is
 still the one everything was built with.
 """
 
@@ -78,8 +78,8 @@ def _deployment_config() -> str:
     the chain on a restored dump produces different rows from the first run.
 
     ``describe_images`` is false whatever ``RAG_ENABLE_IMAGE_DESCRIPTION`` says.
-    The flag it replaces cost nothing to leave on — the model came from
-    ``AI_MODEL`` and the key from the environment — while the column it becomes
+    The flag it replaces cost nothing to leave on - the model came from
+    ``AI_MODEL`` and the key from the environment - while the column it becomes
     requires a model profile the organization pays for. Backfilling it as true
     would turn every existing collection into one that refuses uploads until
     somebody picks a model.
@@ -87,7 +87,7 @@ def _deployment_config() -> str:
     The values are literals for the reason the paragraph above gives, which the
     first version of this file stated and then contradicted: it read
     ``settings.PDF_PARSER`` and its siblings live. Those settings were deleted
-    one commit later — parsing is a per-collection choice now — and the whole
+    one commit later - parsing is a per-collection choice now - and the whole
     chain stopped being runnable from scratch with
     ``AttributeError: 'Settings' object has no attribute 'PDF_PARSER'``. Nobody
     saw it because every existing database was already past this revision; it

@@ -43,7 +43,7 @@ describe("parseErrorMessage", () => {
 
   it("falls back rather than stringifying something it does not recognise", () => {
     // `{"detail": [...]}` passed straight to `Error` used to render as
-    // "[object Object]" — a message that says nothing and looks like a crash.
+    // "[object Object]" - a message that says nothing and looks like a crash.
     expect(parseErrorMessage(null)).toBe("Request failed");
     expect(parseErrorMessage({ error: { code: "X" } })).toBe("Request failed");
   });

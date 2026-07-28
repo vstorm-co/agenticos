@@ -49,7 +49,7 @@ const RESTING: Record<"temperature" | "top_p", number> = { temperature: 1, top_p
  * control removes the key rather than writing `null`.
  */
 export function ModelSettingsForm({ value, onChange, disabled }: ModelSettingsFormProps) {
-  /** Remove the key rather than store an empty value — see the note above. */
+  /** Remove the key rather than store an empty value - see the note above. */
   const set = <K extends keyof ModelSettingsSpec>(key: K, next: ModelSettingsSpec[K]) => {
     const updated = { ...value };
     if (next === undefined) {
@@ -65,7 +65,7 @@ export function ModelSettingsForm({ value, onChange, disabled }: ModelSettingsFo
       <OptionalSlider
         id="model-temperature"
         label="Temperature"
-        description="How varied the answer is. Near 0 for classification and extraction, higher for drafting. Some providers cap this at 1, and reasoning models reject it entirely — leave it alone there."
+        description="How varied the answer is. Near 0 for classification and extraction, higher for drafting. Some providers cap this at 1, and reasoning models reject it entirely - leave it alone there."
         max={2}
         value={value.temperature}
         resting={RESTING.temperature}
@@ -165,7 +165,7 @@ function parallelToolCalls(allowed: boolean | undefined): string {
   return allowed ? "parallel" : "sequential";
 }
 
-/** Empty is unset, which is not zero — the same reading `SchemaForm` uses. */
+/** Empty is unset, which is not zero - the same reading `SchemaForm` uses. */
 function asNumber(raw: string): number | undefined {
   return raw === "" ? undefined : Number(raw);
 }

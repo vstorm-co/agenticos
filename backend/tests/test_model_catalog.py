@@ -1,6 +1,6 @@
 """Which models a provider offers, and what happens when it will not say.
 
-The field this fills is free text and always will be — providers ship models
+The field this fills is free text and always will be - providers ship models
 faster than any list here is refreshed. So the only thing worth guarding is that
 the suggestions are *right when they exist* and *absent rather than wrong when
 they do not*: a dropdown of ids the provider does not serve is worse than an
@@ -105,7 +105,7 @@ class TestWhenTheProviderWillNotSay:
     @pytest.mark.anyio
     async def test_a_failed_call_falls_back_instead_of_raising(self):
         """This fills a dropdown. A 502 in a dropdown is the worst of the three
-        possible outcomes — worse than stale, and worse than empty."""
+        possible outcomes - worse than stale, and worse than empty."""
         client = _responds({})
         client.get = AsyncMock(side_effect=httpx.ConnectError("no route"))
         with patch(f"{MODULE}.httpx.AsyncClient", return_value=client):
@@ -172,6 +172,6 @@ class TestTheCuratedList:
 
     def test_openrouter_ids_are_namespaced_and_the_others_are_not(self):
         """The one rule this platform enforces on a model id, kept true of the
-        suggestions it makes — otherwise the form refuses its own dropdown."""
+        suggestions it makes - otherwise the form refuses its own dropdown."""
         assert all("/" in entry.id for entry in CURATED["openrouter"])
         assert all("/" not in entry.id for entry in CURATED["anthropic"])

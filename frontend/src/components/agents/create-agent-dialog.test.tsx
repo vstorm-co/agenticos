@@ -91,7 +91,7 @@ describe("CreateAgentDialog", () => {
     expect(name()).toHaveValue("Support");
     expect(screen.getByLabelText("Description")).toHaveValue("Answers questions.");
     expect(onCreated).not.toHaveBeenCalled();
-    // And it is not also announced as a failure — one problem, one place.
+    // And it is not also announced as a failure - one problem, one place.
     expect(toast.error).not.toHaveBeenCalled();
   });
 

@@ -74,7 +74,7 @@ async def sync_local_in_background(
                 )
                 ingested += 1
             except Exception as exc:
-                logger.warning("sync_file_failed: %s — %s", filepath, exc)
+                logger.warning("sync_file_failed: %s - %s", filepath, exc)
                 failed += 1
     except Exception as exc:
         logger.error("local_sync_failed: %s", exc)
@@ -128,7 +128,7 @@ async def sync_source_in_background(source_id: str, sync_log_id: str) -> None:
                         )
                         ingested += 1
                     except Exception as exc:
-                        logger.warning("connector_file_failed: %s — %s", f.name, exc)
+                        logger.warning("connector_file_failed: %s - %s", f.name, exc)
                         failed += 1
             await sync_svc.complete_sync(
                 sync_log_id,

@@ -30,7 +30,7 @@ const BODY = "SKILL.md";
 
 interface SkillWorkbenchProps {
   skill: Skill;
-  /** Without it the body is still readable — the write controls are the part that goes. */
+  /** Without it the body is still readable - the write controls are the part that goes. */
   canEdit: boolean;
   isSaving: boolean;
   onSave: (edit: SkillEdit) => void;
@@ -42,7 +42,7 @@ interface SkillWorkbenchProps {
  *
  * One editor rather than two stacked forms. The body and the files were
  * separate panels with a footer between them, which put Save halfway down the
- * dialog and left the files looking like an afterthought bolted below it —
+ * dialog and left the files looking like an afterthought bolted below it -
  * they are not, they are the same skill.
  *
  * So the body sits in the tree as `SKILL.md`, where a reader who has seen a
@@ -132,7 +132,7 @@ export function SkillWorkbench({
               </Button>
               <UploadButton icon={Upload} label="Files" onPick={upload} />
               {/* A directory picker sends every file with its relative path,
-                  which is exactly the name a resource takes — so a dropped
+                  which is exactly the name a resource takes - so a dropped
                   folder arrives as a folder with nothing to reconstruct. */}
               <UploadButton icon={Upload} label="Folder" directory onPick={upload} />
             </div>

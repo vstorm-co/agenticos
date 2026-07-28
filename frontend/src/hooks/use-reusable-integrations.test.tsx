@@ -135,7 +135,7 @@ describe("useReusableIntegrations", () => {
 
   it("clones through the destination knowledge base and keeps the original", async () => {
     // Two things at once: the clone goes to the route that resolves the origin
-    // inside the caller's organization, and the row stays on the list — an
+    // inside the caller's organization, and the row stays on the list - an
     // integration usable once would not be reusable.
     vi.mocked(apiClient.post).mockResolvedValue(source({ id: "s2", collection_name: "handbook" }));
     const { result } = await loaded();

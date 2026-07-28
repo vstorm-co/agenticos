@@ -61,7 +61,7 @@ class EmailService:
 
         There is deliberately no opt-out check here. This signature used to
         carry a `force` flag documented as skipping "category opt-out checks",
-        and no such check existed anywhere — nothing stored a preference and
+        and no such check existed anywhere - nothing stored a preference and
         nothing consulted one, so the parameter described a feature rather than
         the code. Every key below is transactional; when a key arrives that a
         recipient may genuinely decline, the check belongs in this method, where

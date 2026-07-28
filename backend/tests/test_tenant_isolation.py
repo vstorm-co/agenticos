@@ -1,4 +1,4 @@
-"""Tests for tenant isolation — conversations and RAG documents scoped to orgs.
+"""Tests for tenant isolation - conversations and RAG documents scoped to orgs.
 
 Verifies that listing and creating resources always uses the active organization
 context so users in different orgs cannot see each other's data.
@@ -82,7 +82,7 @@ class TestConversationTenantIsolation:
         org_a = uuid.uuid4()
         user_a = uuid.uuid4()
 
-        # Simulate repo correctly filtering by org — returns empty for org A
+        # Simulate repo correctly filtering by org - returns empty for org A
         with (
             patch(
                 "app.repositories.conversation_repo.get_conversations_by_user",

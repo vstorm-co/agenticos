@@ -30,7 +30,7 @@ import { DEFAULT_EMBED_THEME, type Embed, type EmbedAuthMode } from "@/types/emb
 
 interface EmbedsPanelProps {
   agentId: string;
-  /** `agents:publish` on this agent — the same permission an exposure needs. */
+  /** `agents:publish` on this agent - the same permission an exposure needs. */
   canManage: boolean;
 }
 
@@ -99,7 +99,7 @@ export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
           Website widget
         </CardTitle>
         <CardDescription>
-          Publish this agent as a chat widget for a site you do not control — one script tag, no
+          Publish this agent as a chat widget for a site you do not control - one script tag, no
           build step. The key in that tag is public, so what actually protects the agent is the list
           of sites it may be opened from. An empty list allows nothing.
         </CardDescription>
@@ -135,7 +135,7 @@ export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
                   placeholder="Website widget"
                 />
                 <p className="text-muted-foreground text-xs">
-                  For you, not for visitors — which placement this is.
+                  For you, not for visitors - which placement this is.
                 </p>
               </div>
               <div className="space-y-2">
@@ -168,7 +168,7 @@ export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
                 className="font-mono text-sm"
               />
               <p className="text-muted-foreground text-xs">
-                One per line. A different port or subdomain is a different site — the browser treats
+                One per line. A different port or subdomain is a different site - the browser treats
                 them as such, so this list has to.
               </p>
             </div>
@@ -188,7 +188,7 @@ export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
                       <span className="flex flex-col">
                         <span>Anyone on those sites</span>
                         <span className="text-muted-foreground text-xs">
-                          No sign-in — a marketing page
+                          No sign-in - a marketing page
                         </span>
                       </span>
                     </SelectItem>
@@ -248,7 +248,7 @@ export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
               </Button>
               {parseOrigins(origins).length === 0 && (
                 <span className="text-muted-foreground text-xs">
-                  Add at least one site — a widget allowed nowhere cannot open.
+                  Add at least one site - a widget allowed nowhere cannot open.
                 </span>
               )}
             </div>
@@ -268,7 +268,7 @@ export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
           open
           onOpenChange={() => setPendingDelete(null)}
           title={`Remove ${pendingDelete.name}?`}
-          description="Every page carrying its key stops working immediately. The key cannot be reissued — a new widget gets a new one."
+          description="Every page carrying its key stops working immediately. The key cannot be reissued - a new widget gets a new one."
           confirmLabel="Remove"
           destructive
           loading={remove.isPending}
@@ -342,7 +342,7 @@ function EmbedRow({
         <Code2 className="h-3 w-3 shrink-0" />
         <span className={cn("truncate", embed.allowed_origins.length === 0 && "text-destructive")}>
           {embed.allowed_origins.length === 0
-            ? "No sites allowed — this widget cannot open anywhere"
+            ? "No sites allowed - this widget cannot open anywhere"
             : embed.allowed_origins.join(", ")}
         </span>
       </p>

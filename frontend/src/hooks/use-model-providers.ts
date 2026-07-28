@@ -16,7 +16,7 @@ export interface NewModelProfile {
   label: string;
   provider: string;
   model: string;
-  /** The vault secret to key it with. Required — there is no second store. */
+  /** The vault secret to key it with. Required - there is no second store. */
   secret_id: string;
 }
 
@@ -25,12 +25,12 @@ export interface NewModelProfile {
  * defined on them.
  *
  * Keys are not here. They live in the vault with every other secret, and a model
- * names one by id — there was a second store for them once, with its own form
+ * names one by id - there was a second store for them once, with its own form
  * and its own rotation, and two stores for one thing was two of everything.
  *
  * The catalog is fetched rather than listed in code. It says which shape of key
  * each provider takes, whether it accepts a custom endpoint and whether it can
- * run with no key at all — three questions a hardcoded list of four providers
+ * run with no key at all - three questions a hardcoded list of four providers
  * answered wrongly for the other twenty.
  */
 export function useModelProviders() {
@@ -116,7 +116,7 @@ interface ProviderModelList {
  *
  * Suggestions, never a constraint. A provider ships a model the morning after
  * this list was cached, and a picker that cannot express "that one" is a picker
- * somebody has to work around — so the field stays free text and this only
+ * somebody has to work around - so the field stays free text and this only
  * fills its dropdown.
  *
  * Cached for an hour rather than indefinitely: a catalog changes when a provider

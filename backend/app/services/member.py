@@ -153,7 +153,7 @@ class MemberService:
     async def leave(self, organization_id: UUID, requester_id: UUID) -> None:
         """Current user leaves the org.
 
-        OWNER must transfer ownership first (unless they are the last member — then delete org).
+        OWNER must transfer ownership first (unless they are the last member - then delete org).
         """
         membership = await member_repo.get(
             self.db, organization_id=organization_id, user_id=requester_id

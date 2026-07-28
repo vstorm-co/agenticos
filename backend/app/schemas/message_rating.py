@@ -21,7 +21,7 @@ def _sanitize_comment(comment: str | None) -> str | None:
     """Normalize user comment for storage.
 
     Strips whitespace and removes dangerous control characters. HTML escaping
-    is intentionally NOT done here — the comment is stored raw and escaped
+    is intentionally NOT done here - the comment is stored raw and escaped
     at render time (React does this automatically; CSV export escapes
     separately against formula injection).
     """

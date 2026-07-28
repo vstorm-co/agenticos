@@ -14,7 +14,7 @@ import type { Organization, OrganizationList, CreateOrganizationInput } from "@/
  * Split out because it is the one request that survives a broken selection:
  * `/orgs` is keyed on the caller, not on the `X-Organization-Id` header, so it
  * still answers when the active organization is one the server refuses. That
- * makes it the only sound basis for recovering from one — see
+ * makes it the only sound basis for recovering from one - see
  * `use-active-organization.ts`.
  *
  * React Query owns the list: cached across navigations, deduped, no refetch
@@ -51,7 +51,7 @@ export function useOrganizations() {
 
   const { data: orgs = [] } = useOrganizationList();
 
-  // Default the active org once the list loads and nothing is selected yet —
+  // Default the active org once the list loads and nothing is selected yet -
   // preserves the behavior that used to live inside fetchOrgs, and is also what
   // settles the selection after a refused organization has been cleared.
   useEffect(() => {
@@ -84,8 +84,8 @@ export function useOrganizations() {
    * Create an organization, and let the caller decide how a refusal is shown.
    *
    * This used to swallow the error and toast "Failed to create organization",
-   * which discarded the server's account of what was wrong — a name that is
-   * too short, a slug already in use — and left nothing to put beside a field.
+   * which discarded the server's account of what was wrong - a name that is
+   * too short, a slug already in use - and left nothing to put beside a field.
    */
   const createOrg = useCallback(
     async (input: CreateOrganizationInput): Promise<Organization> => {
@@ -116,8 +116,8 @@ export function useOrganizations() {
    * Set the organization's monthly spending ceiling, or lift it with `null`.
    *
    * Separate from `patchOrg`, and for the same reason `createOrg` is: this one
-   * can be refused with something a person can act on — a limit below what the
-   * month has already spent, a role that may not change settings — and
+   * can be refused with something a person can act on - a limit below what the
+   * month has already spent, a role that may not change settings - and
    * `patchOrg` turns every refusal into "Failed to update organization".
    *
    * The field is always sent, including as `null`. Omitting it is how every

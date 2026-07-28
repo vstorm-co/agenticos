@@ -71,7 +71,7 @@ class TestUnsetStaysUnset:
         """The failure this whole shape exists for.
 
         Reasoning models reject `temperature` outright, so an agent whose author
-        never touched the control must produce a request with no such key — not
+        never touched the control must produce a request with no such key - not
         one carrying `null`, and not one carrying a default the platform picked.
         """
         assert "temperature" not in _built_settings(AgentSpec(name="x"))

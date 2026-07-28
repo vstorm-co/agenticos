@@ -10,7 +10,7 @@ interface RatingDayPoint {
 
 /**
  * Ratings-per-day bar chart. Split out so the ratings page doesn't statically
- * import recharts — loaded on demand via `next/dynamic`.
+ * import recharts - loaded on demand via `next/dynamic`.
  */
 export function RatingsChart({ data }: { data: RatingDayPoint[] }) {
   return (

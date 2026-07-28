@@ -1,4 +1,4 @@
-# Route is lifecycle plumbing only — auth, accept, dispatch loop, disconnect.
+# Route is lifecycle plumbing only - auth, accept, dispatch loop, disconnect.
 # Per-turn orchestration lives in app.services.agent_session.AgentSession.
 import logging
 

@@ -24,7 +24,7 @@ const SCHEMA: JsonSchema = {
     },
     verbose: { type: "boolean", default: false },
     effort: {
-      // How Pydantic renders `Literal[...] | None` — the values live on a
+      // How Pydantic renders `Literal[...] | None` - the values live on a
       // branch, not on the property.
       anyOf: [{ type: "string", enum: ["low", "medium", "high"] }, { type: "null" }],
       title: "Effort",
@@ -72,7 +72,7 @@ describe("SchemaForm", () => {
   it("renders an optional string as a text input rather than falling through", () => {
     // Pydantic's anyOf: [string, null] is the shape every optional field takes.
     // Reading past the null branch is what keeps them from all becoming text
-    // boxes by accident — and this one genuinely is a text box, so assert the
+    // boxes by accident - and this one genuinely is a text box, so assert the
     // number field is what proves the branch works.
     renderForm();
     expect(screen.getByLabelText(/Default top k/)).toHaveAttribute("type", "number");
@@ -169,7 +169,7 @@ describe("SchemaForm", () => {
   });
 
   it("shows an optional enum nobody has answered as unset", () => {
-    // Not as the first option, which would claim a choice was made — and for
+    // Not as the first option, which would claim a choice was made - and for
     // this field that choice is what turns thinking on.
     renderForm();
     expect(screen.getByRole("combobox", { name: /Effort/ })).toHaveTextContent("Not set");
@@ -263,8 +263,8 @@ const AWS_SCHEMA: JsonSchema = {
 
 describe("SchemaForm · reading back what was pasted", () => {
   it("reveals one secret field without unmasking the others", async () => {
-    // A key is pasted, never typed, and a paste that went wrong — a trailing
-    // newline, half a value, the wrong clipboard entry — is invisible behind
+    // A key is pasted, never typed, and a paste that went wrong - a trailing
+    // newline, half a value, the wrong clipboard entry - is invisible behind
     // dots. The vault never shows a stored secret again, so this is the only
     // moment the value can be checked at all.
     render(<SchemaForm schema={AWS_SCHEMA} value={{}} onChange={vi.fn()} idPrefix="secret" />);

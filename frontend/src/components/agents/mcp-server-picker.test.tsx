@@ -95,8 +95,8 @@ describe("McpServerPicker", () => {
   });
 
   it("warns that a server cannot be reached before it is attached", () => {
-    // Attaching a connection that has never been authorized is allowed — it may
-    // be authorized later — but it should not look ready.
+    // Attaching a connection that has never been authorized is allowed - it may
+    // be authorized later - but it should not look ready.
     render(
       <McpServerPicker
         connections={[connection({ auth_type: "oauth", oauth_authorized: false })]}
@@ -228,7 +228,7 @@ describe("McpServerPicker", () => {
 
   it("searches names and descriptions, not just names", async () => {
     // Somebody looking for issue tracking does not know the product is called
-    // Linear — and this picker shows sixty cards.
+    // Linear - and this picker shows sixty cards.
     const linear = entry({
       key: "linear",
       name: "Linear",

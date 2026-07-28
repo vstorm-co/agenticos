@@ -51,7 +51,7 @@ export function TermsBodyEn() {
 
       <h2>4. Your content</h2>
       <p>
-        You own what you put in — prompts, documents, chat content (&ldquo;Customer Data&rdquo;).
+        You own what you put in - prompts, documents, chat content (&ldquo;Customer Data&rdquo;).
         You grant us a limited license to host, process, and display Customer Data only to operate
         the Service for you.
       </p>
@@ -62,7 +62,7 @@ export function TermsBodyEn() {
       <h2>5. Subscriptions and billing</h2>
       <p>
         Paid plans renew automatically until canceled. Fees are non-refundable except where required
-        by law. You can cancel anytime — your plan stays active until the end of the current billing
+        by law. You can cancel anytime - your plan stays active until the end of the current billing
         period.
       </p>
       <p>
@@ -94,7 +94,7 @@ export function TermsBodyEn() {
       <h2>9. Disclaimers</h2>
       <p>
         The Service is provided &ldquo;as is.&rdquo; To the maximum extent permitted by law, we
-        disclaim all warranties — express, implied, statutory — including merchantability, fitness
+        disclaim all warranties - express, implied, statutory - including merchantability, fitness
         for a particular purpose, and non-infringement.
       </p>
       <p>
@@ -151,7 +151,7 @@ export function TermsBodyPl() {
 
       <h2>1. Usługa</h2>
       <p>
-        {APP_NAME} dostarcza oprogramowanie produktywności wspomagane AI — agentów do chatu,
+        {APP_NAME} dostarcza oprogramowanie produktywności wspomagane AI - agentów do chatu,
         retrieval augmented generation (RAG) oraz powiązane narzędzia developerskie. Funkcje
         ewoluują na bieżąco; możemy je dodawać, zmieniać lub usuwać.
       </p>
@@ -178,7 +178,7 @@ export function TermsBodyPl() {
 
       <h2>4. Twoje treści</h2>
       <p>
-        Jesteś właścicielem tego, co wprowadzasz — promptów, dokumentów, treści rozmów (&bdquo;Dane
+        Jesteś właścicielem tego, co wprowadzasz - promptów, dokumentów, treści rozmów (&bdquo;Dane
         Klienta&rdquo;). Udzielasz nam ograniczonej licencji na hostowanie, przetwarzanie i
         wyświetlanie Danych Klienta wyłącznie w celu obsługi Usługi dla Ciebie.
       </p>
@@ -189,7 +189,7 @@ export function TermsBodyPl() {
       <h2>5. Subskrypcje i płatności</h2>
       <p>
         Plany płatne odnawiają się automatycznie do momentu anulowania. Opłaty są bezzwrotne, z
-        wyjątkiem przypadków wymaganych prawem. Możesz anulować w każdej chwili — Twój plan
+        wyjątkiem przypadków wymaganych prawem. Możesz anulować w każdej chwili - Twój plan
         pozostaje aktywny do końca bieżącego okresu rozliczeniowego.
       </p>
       <p>
@@ -222,7 +222,7 @@ export function TermsBodyPl() {
       <h2>9. Wyłączenia odpowiedzialności</h2>
       <p>
         Usługa jest dostarczana &bdquo;tak jak jest&rdquo;. W maksymalnym zakresie dozwolonym prawem
-        wyłączamy wszelkie gwarancje — wyrażone, dorozumiane, ustawowe — w tym merkantylność,
+        wyłączamy wszelkie gwarancje - wyrażone, dorozumiane, ustawowe - w tym merkantylność,
         przydatność do określonego celu i nienaruszalność.
       </p>
       <p>

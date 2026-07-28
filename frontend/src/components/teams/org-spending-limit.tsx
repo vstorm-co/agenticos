@@ -25,7 +25,7 @@ function asInputValue(limit: number | null): string {
  *
  * The limit over every agent in the workspace, as opposed to the per-agent one
  * in the Builder. Without it an organization with twelve agents has twelve
- * independent caps and no ceiling — each one right, and the bill twelve times
+ * independent caps and no ceiling - each one right, and the bill twelve times
  * what anybody agreed to.
  *
  * Rendered only for someone who may change organization settings. The whole
@@ -36,7 +36,7 @@ function asInputValue(limit: number | null): string {
 export function OrgSpendingLimit({ org }: { org: Organization }) {
   const { can } = usePermissions();
   // The form is a separate component so that its queries are not merely
-  // ignored for someone without the permission — they are never issued. A
+  // ignored for someone without the permission - they are never issued. A
   // hook above this branch would still fetch, and `/spend` answers the same
   // roles this section is for.
   return can(Perm.orgSettings) ? <SpendingLimitForm org={org} /> : null;
@@ -50,7 +50,7 @@ function SpendingLimitForm({ org }: { org: Organization }) {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // Re-seed when the stored value changes underneath — another tab, or the
+  // Re-seed when the stored value changes underneath - another tab, or the
   // request this form just made coming back with what the server settled on.
   useEffect(() => {
     setValue(asInputValue(org.monthly_budget_usd));
@@ -62,7 +62,7 @@ function SpendingLimitForm({ org }: { org: Organization }) {
   const monthToDate = Number(spend?.month_to_date_usd ?? 0);
 
   const handleSave = async () => {
-    // `null` is a real value here — it is how the ceiling is lifted — so the
+    // `null` is a real value here - it is how the ceiling is lifted - so the
     // only thing to reject locally is a box holding something that is not a
     // number. Everything else is the server's call.
     if (parsed !== null && !Number.isFinite(parsed)) {

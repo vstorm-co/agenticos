@@ -1,7 +1,7 @@
 """Settings -> AI providers: the models an organization can select.
 
 Credentials are write-only from the API's point of view. They go in, they are
-sealed, and what comes back is a label and four characters — there is no
+sealed, and what comes back is a label and four characters - there is no
 endpoint that returns a secret, because no legitimate client needs one.
 
 The catalog endpoint is what the model form is built from: it says which shape
@@ -64,7 +64,7 @@ async def list_provider_catalog() -> Any:
     dependencies=[Depends(require(Perm.AGENTS_VIEW))],
 )
 async def list_model_profiles(service: ModelProfileSvc, ctx: Auth) -> Any:
-    """Selectable models. Readable by anyone who can see agents — the Builder's dropdown."""
+    """Selectable models. Readable by anyone who can see agents - the Builder's dropdown."""
     items = await service.list_profiles(ctx)
     return ModelProfileList(items=items, total=len(items))
 
@@ -109,7 +109,7 @@ async def delete_model_profile(profile_id: UUID, service: ModelProfileSvc, ctx: 
 async def list_provider_models(provider: str, db: DBSession, ctx: Auth) -> Any:
     """What this provider offers, for the field where a model id is chosen.
 
-    Suggestions, not a constraint — the field stays free text, because a
+    Suggestions, not a constraint - the field stays free text, because a
     provider ships a model the morning after this was cached. `source` says
     whether the provider answered or the deployment's own list was used, so the
     UI can be honest about which it is showing.
@@ -134,8 +134,8 @@ async def list_provider_models(provider: str, db: DBSession, ctx: Auth) -> Any:
 async def _listing_key(db: Any, provider: str, *, organization_id: UUID) -> str | None:
     """A key for this provider from the vault, if one is stored and is an API key.
 
-    Any of them will do — a listing is the same for every key an organization
-    holds — so the first is taken rather than making somebody choose. The other
+    Any of them will do - a listing is the same for every key an organization
+    holds - so the first is taken rather than making somebody choose. The other
     secret shapes (an AWS pair, a service-account JSON) are not bearer tokens
     and no listing endpoint takes them, so they are skipped rather than
     mangled into a header.

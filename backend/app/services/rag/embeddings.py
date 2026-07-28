@@ -58,9 +58,9 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
         was built while FastAPI was still resolving dependencies.
 
         The key is required rather than left to the SDK's ``OPENAI_API_KEY``
-        fallback. That fallback could not work here — ``base_url`` points at
+        fallback. That fallback could not work here - ``base_url`` points at
         OpenRouter, so an OpenAI key would have been accepted at construction
-        and rejected on the first request — and silently sending one vendor's
+        and rejected on the first request - and silently sending one vendor's
         credential to another is not a fallback worth keeping.
         """
         if self._client is None:

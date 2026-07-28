@@ -66,7 +66,7 @@ describe("withSkills", () => {
     /**
      * The bug this exists for. `skill_ids` resolves skills into the run's
      * resources; the `skills` capability is what turns them into tools. Bound
-     * without it, the skills were fetched and thrown away — an agent that
+     * without it, the skills were fetched and thrown away - an agent that
      * silently knew nothing.
      */
     const updated = withSkills(spec(), ["skill-1"]);

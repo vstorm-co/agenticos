@@ -34,7 +34,7 @@ describe("AgentMap", () => {
 
   it("says an agent has no instructions instead of drawing an empty panel", () => {
     // A blank centre reads as a rendering failure, and "no instructions" is a
-    // finding — that agent answers as whatever the model felt like.
+    // finding - that agent answers as whatever the model felt like.
     render(<AgentMap agentName="Support" instructions="   " nodes={[]} />);
 
     expect(screen.getByText("No instructions written")).toBeInTheDocument();

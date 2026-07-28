@@ -3,7 +3,7 @@
  *
  * The one thing nothing here can express is a value coming back out. There is
  * no endpoint that returns a plaintext, by design, so a stored secret is a
- * name, a kind and four characters — and a `SecretPayload` only ever travels
+ * name, a kind and four characters - and a `SecretPayload` only ever travels
  * outward.
  */
 
@@ -16,7 +16,7 @@ export type SecretKind =
 /**
  * Every kind a person can save. `none` is not one of them: it says "there is no
  * credential", which is an answer a provider credential may give and a secret
- * may not — `POST /secrets` refuses it with a 422.
+ * may not - `POST /secrets` refuses it with a 422.
  */
 export type StorableSecretKind = Exclude<SecretKind, "none">;
 
@@ -25,8 +25,8 @@ export type StorableSecretKind = Exclude<SecretKind, "none">;
  * `SecretRequirement` in `app/core/secret_kinds.py`.
  *
  * A capability names a *kind*, never an instance: the code says "I need an API
- * key", the binding says which one. `none` is not among the kinds it may name —
- * the server refuses that declaration outright — which is what lets a picker
+ * key", the binding says which one. `none` is not among the kinds it may name -
+ * the server refuses that declaration outright - which is what lets a picker
  * compare this against a stored secret's own kind directly.
  */
 export interface SecretRequirement {
@@ -36,7 +36,7 @@ export interface SecretRequirement {
   /**
    * When the key is actually needed, or null for "always".
    *
-   * A capability can offer several providers where only some authenticate — web
+   * A capability can offer several providers where only some authenticate - web
    * search takes a key for Tavily and none for DuckDuckGo. The rule is data
    * rather than a predicate precisely so this side can evaluate the same one
    * the server does: asking for a key the server will not demand is as wrong as
@@ -66,7 +66,7 @@ export function secretIsRequired(
  *
  * The fields are deliberately not enumerated. `GET /secrets/kinds` serves the
  * JSON Schema each form is generated from, and a second copy of those five
- * shapes written out here is a copy that drifts — which is the reason the
+ * shapes written out here is a copy that drifts - which is the reason the
  * endpoint exists at all. What the shapes have in common is the discriminator,
  * and that is what this type states.
  */
@@ -101,7 +101,7 @@ export interface SecretPurpose {
   id: string;
   label: string;
   category: "model_provider" | "search" | "other";
-  /** The shape of credential this service takes — the form follows from it. */
+  /** The shape of credential this service takes - the form follows from it. */
   kind: StorableSecretKind;
   help_url: string | null;
   description: string;
@@ -122,11 +122,11 @@ export interface Secret {
   kind: StorableSecretKind;
   /**
    * Four characters of the field that *identifies* the credential rather than
-   * the one that authenticates it, where the two differ — an AWS access key id
+   * the one that authenticates it, where the two differ - an AWS access key id
    * is not confidential and its secret access key is.
    */
   hint: string;
-  /** What the key is for — a provider id, a service id, or `custom`. */
+  /** What the key is for - a provider id, a service id, or `custom`. */
   purpose?: string;
   visibility?: SecretVisibility;
   owner_user_id?: string | null;
@@ -172,7 +172,7 @@ export interface NewSecret {
  *
  * Rotation keeps the id, which is the point: every agent binding names a secret
  * by id, so replacing the value leaves all of them working. The kind cannot
- * change — the server answers 400 — so it is not offered.
+ * change - the server answers 400 - so it is not offered.
  */
 export interface SecretEdit {
   id: string;

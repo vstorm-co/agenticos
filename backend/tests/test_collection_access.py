@@ -1,7 +1,7 @@
 """The tenant boundary under /rag, one predicate and one resolver at a time.
 
 ``tests/integration/test_platform_flows.py`` proves the boundary holds through
-the real routes against a real database — that is the test which would have
+the real routes against a real database - that is the test which would have
 caught the bug, and it asserts refusals. This file covers the same module from
 underneath: the rows a request in that suite never produces (an app-scoped
 collection, an id that is not a UUID) and the success paths a refusal test
@@ -9,7 +9,7 @@ cannot reach.
 
 The repositories are replaced with an in-memory set of rows that filters the way
 the real query does, so ``list_by_collection_name`` returning two candidates for
-one name — the case that makes ``get_by_collection_name`` unsafe — is expressible
+one name - the case that makes ``get_by_collection_name`` unsafe - is expressible
 here rather than only against Postgres.
 """
 
@@ -129,7 +129,7 @@ class TestWhoMayReadACollection:
         assert can_read(_kb("handbook"), user_id=CALLER, organization_id=HOME_ORG)
 
     def test_an_organizations_collection_is_not_readable_from_another_organization(self) -> None:
-        """Even by the user who owns the row — the organization is checked, not the owner."""
+        """Even by the user who owns the row - the organization is checked, not the owner."""
         kb = _kb("handbook", organization_id=OTHER_ORG, owner_user_id=CALLER)
 
         assert not can_read(kb, user_id=CALLER, organization_id=HOME_ORG)
@@ -275,7 +275,7 @@ class TestResolvingADocument:
     async def test_a_document_in_another_tenants_collection_is_reported_as_a_missing_document(
         self, service: CollectionAccessService, rows: Rows
     ) -> None:
-        """Not as a missing *collection* — that would confirm the id exists."""
+        """Not as a missing *collection* - that would confirm the id exists."""
         doc = _document("handbook")
         rows.collections = [_kb("handbook", organization_id=OTHER_ORG)]
         rows.documents = [doc]
@@ -291,7 +291,7 @@ class TestResolvingADocument:
     async def test_a_document_with_no_knowledge_base_left_is_unreachable(
         self, service: CollectionAccessService, rows: Rows
     ) -> None:
-        """An orphan — its collection was dropped — belongs to nobody, so nobody gets it."""
+        """An orphan - its collection was dropped - belongs to nobody, so nobody gets it."""
         doc = _document("handbook")
         rows.documents = [doc]
 

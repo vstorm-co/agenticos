@@ -1,4 +1,4 @@
-"""Tests for run notifications — the emails about runs nobody was watching.
+"""Tests for run notifications - the emails about runs nobody was watching.
 
 What is worth guarding here is not the wording. It is who hears about a run
 that stopped, that the run itself never fails because of the email, and that a
@@ -98,7 +98,7 @@ class TestBudgetExceeded:
 
     @pytest.mark.anyio
     async def test_an_address_that_is_both_owner_and_admin_is_mailed_once(self, sent):
-        """The common case in a small organization — and two identical emails read as a bug."""
+        """The common case in a small organization - and two identical emails read as a bug."""
         with (
             patch(
                 f"{MODULE}.member_repo.list_emails_by_role",
@@ -250,7 +250,7 @@ class TestDelivery:
 
     @pytest.mark.anyio
     async def test_a_mail_server_that_is_down_does_not_raise(self):
-        """Nothing is left to raise into — the run it was reporting on has ended."""
+        """Nothing is left to raise into - the run it was reporting on has ended."""
         from app.services.notifications import _deliver
 
         with patch(

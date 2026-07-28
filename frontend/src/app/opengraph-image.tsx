@@ -2,12 +2,12 @@ import { ImageResponse } from "next/og";
 
 import { SITE } from "@/lib/seo";
 
-export const alt = `${SITE.name} — ${SITE.tagline}`;
+export const alt = `${SITE.name} - ${SITE.tagline}`;
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 export const dynamic = "force-static";
 
-/** Default Open Graph image — what a link to a deployment unfurls as. Black
+/** Default Open Graph image - what a link to a deployment unfurls as. Black
  *  background, oversized title with a lime highlight on a key word, plus the
  *  brand mark and the tagline. */
 export default function OpengraphImage() {

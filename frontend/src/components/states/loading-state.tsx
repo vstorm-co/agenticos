@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
  * default to three pulsing dots, so twelve pages showed a shapeless wait
  * because nobody passed a prop. A component whose default is its worst option
  * is a trap, so the shapeless option is gone rather than demoted. A mid-action
- * pause with no layout to promise — a submitting button, an OAuth round-trip —
+ * pause with no layout to promise - a submitting button, an OAuth round-trip -
  * is `Spinner`'s job, not this one's.
  */
 type Variant =
@@ -26,8 +26,8 @@ type Variant =
  * A count cannot be read from the data: React Query only reports `isLoading`
  * while the cache is empty, so the `total` these hooks return arrives with the
  * rows themselves and is zero here. Failing that, these are chosen to fill
- * roughly one screen without over-promising — six cards is two rows of three at
- * 1440px, which is what the grids show first — rather than the largest number
+ * roughly one screen without over-promising - six cards is two rows of three at
+ * 1440px, which is what the grids show first - rather than the largest number
  * that would still fit.
  */
 const DEFAULT_ROWS: Record<Variant, number> = {
@@ -56,7 +56,7 @@ interface LoadingStateProps {
  * A placeholder shaped like the content that is about to replace it.
  *
  * Pick the variant that matches what the page renders, and pass `className` to
- * reconcile the last difference — the grid variants' column counts are merged
+ * reconcile the last difference - the grid variants' column counts are merged
  * by `cn`, so a two-up page passes `lg:grid-cols-2` instead of getting a
  * variant of its own.
  *
@@ -108,7 +108,7 @@ function Shell({ className, children }: { className?: string; children: ReactNod
   );
 }
 
-/** Keys for a fixed-length placeholder run — index is the only identity there is. */
+/** Keys for a fixed-length placeholder run - index is the only identity there is. */
 function keys(count: number): number[] {
   return Array.from({ length: count }, (_, i) => i);
 }
@@ -133,7 +133,7 @@ function RowList({ count, className }: { count: number; className?: string }) {
   );
 }
 
-/** Grid of text cards — name, slug, status badge, two lines. Agents, skills, MCP servers. */
+/** Grid of text cards - name, slug, status badge, two lines. Agents, skills, MCP servers. */
 function CardGrid({ count, className }: { count: number; className?: string }) {
   return (
     <Shell className={cn("grid gap-3 sm:grid-cols-2 xl:grid-cols-3", className)}>
@@ -240,7 +240,7 @@ function Panel({ rows, className }: { rows: number; className?: string }) {
   );
 }
 
-/** Stat tiles — label, figure, sparkline slot. Admin dashboards, activity totals. */
+/** Stat tiles - label, figure, sparkline slot. Admin dashboards, activity totals. */
 function Stats({ count, className }: { count: number; className?: string }) {
   return (
     <Shell className={cn("grid gap-4 sm:grid-cols-2 lg:grid-cols-4", className)}>

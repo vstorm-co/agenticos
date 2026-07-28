@@ -4,7 +4,7 @@ import { defaultLocale, type Locale } from "@/i18n";
 import { ROUTES } from "@/lib/constants";
 
 /**
- * AgenticOS is self-hosted — there is no public landing page, so the root is
+ * AgenticOS is self-hosted - there is no public landing page, so the root is
  * just a door into the app.
  *
  * The redirect lives here rather than in the middleware or `next.config`

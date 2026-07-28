@@ -1,7 +1,7 @@
 """Who may reach a RAG collection, and a refusal that gives nothing away.
 
 A collection has two names in this system. One is the vector table the chunks
-live in — a string any caller can type into a URL. The other is the
+live in - a string any caller can type into a URL. The other is the
 ``knowledge_bases`` row that owns it, and it is the only one of the two that
 knows an organization. The row is therefore the authority: every ``/rag`` route
 resolves the name through it before touching a vector, a document or a sync
@@ -15,8 +15,8 @@ already information.
 
 The read rule lives here rather than in :mod:`app.services.knowledge_base` on
 purpose. Both surfaces answer the same question about the same rows, and it was
-two copies of that question — ``/rag/collections`` filtering by organization
-while ``/rag/collections/{name}/info`` did not — that let one tenant read
+two copies of that question - ``/rag/collections`` filtering by organization
+while ``/rag/collections/{name}/info`` did not - that let one tenant read
 another's collection while the listing looked perfectly scoped.
 """
 
@@ -65,7 +65,7 @@ def can_write(
     Reading it is the baseline; the one addition is that an app-scoped base is
     shared by every tenant in the deployment, so only a platform admin may write
     to one. Which *roles* may write at all is decided a layer up, by the
-    ``collections:edit`` gate on the route — this answers "which rows".
+    ``collections:edit`` gate on the route - this answers "which rows".
     """
     if kb.scope == KBScope.APP.value:
         return is_app_admin
@@ -75,7 +75,7 @@ def can_write(
 def _as_uuid(value: str) -> UUID | None:
     """The id, or ``None`` when the caller sent something that cannot be one.
 
-    A malformed id is not a bad request, it is an id that matches nothing — and
+    A malformed id is not a bad request, it is an id that matches nothing - and
     saying so keeps the 500 that ``UUID(value)`` used to raise out of the
     refusal path.
     """
@@ -144,7 +144,7 @@ class CollectionAccessService:
         return kb
 
     async def readable_all(self, ctx: AuthContext, names: list[str]) -> list[KnowledgeBase]:
-        """All of them, or none — one unreachable name refuses the request.
+        """All of them, or none - one unreachable name refuses the request.
 
         A multi-collection search that quietly dropped the name it could not
         reach would answer with fewer results than were asked for and no sign
@@ -167,9 +167,9 @@ class CollectionAccessService:
     async def readable_names_for(self, ctx: AuthContext, name: str | None) -> list[str]:
         """What a listing may include: the collection asked for, or all of theirs.
 
-        The unfiltered case is the one that leaked — ``GET /rag/documents`` with
+        The unfiltered case is the one that leaked - ``GET /rag/documents`` with
         no ``collection_name`` used to answer with every document in the
-        deployment — so "no filter" now means "mine", never "everything".
+        deployment - so "no filter" now means "mine", never "everything".
         """
         if name is None:
             return await self.readable_names(ctx)
@@ -182,7 +182,7 @@ class CollectionAccessService:
         collection name share one table, so granting a name that is taken
         elsewhere would wire this organization straight into another's chunks.
         The collision is reported, which does reveal that the name is in use
-        somewhere — that is a property of every global namespace and the price
+        somewhere - that is a property of every global namespace and the price
         of letting callers choose the name. It says nothing about who holds it or
         what is in it.
 
@@ -236,7 +236,7 @@ class CollectionAccessService:
         """The integration with this id inside the caller's organization.
 
         The organization column is the whole rule here: a sync source has no
-        owner and nothing to share, and it holds encrypted credentials — which
+        owner and nothing to share, and it holds encrypted credentials - which
         is what made the unscoped version worth exploiting. Cloning one copies
         those credentials, so reading somebody else's row was enough to sync
         their Drive into your collection.

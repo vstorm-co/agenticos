@@ -3,7 +3,7 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 export interface SectionHeadingProps {
-  /** Small mono "kicker" above the title — the editorial-technical signature. */
+  /** Small mono "kicker" above the title - the editorial-technical signature. */
   eyebrow?: React.ReactNode;
   title: React.ReactNode;
   description?: React.ReactNode;

@@ -1,4 +1,4 @@
-"""Tests for the capability registry — the code/configuration boundary.
+"""Tests for the capability registry - the code/configuration boundary.
 
 What is guarded: configuration may reach only what code registered, a capability
 that contributes nothing is not attached, and a spec asking for something
@@ -52,7 +52,7 @@ class TestSelfLoading:
 
     It used to: ``load_builtins()`` ran in the FastAPI lifespan and nowhere
     else, so the CLI, a worker or a script got an empty registry and every
-    publish failed with "Unknown capability" — naming a capability that is in
+    publish failed with "Unknown capability" - naming a capability that is in
     the repository, listed in the picker and documented. The gap only showed up
     when somebody actually ran `make platform-bootstrap`.
     """
@@ -170,7 +170,7 @@ class TestToolDeclarations:
 
         Renaming is the one thing that makes "declared" and "offered" legitimately
         different strings, so the check above could have been satisfied by
-        loosening it — and a loosened version would stop catching the failure it
+        loosening it - and a loosened version would stop catching the failure it
         exists for. Instead the expectation moves with the rename: every declared
         tool must arrive under its new name, and a tool nobody declared has no new
         name to arrive under, so it still shows up as a difference.
@@ -301,7 +301,7 @@ class TestBuilding:
         assert [type(c) for c in built] == [Charts, Clock]
 
     def test_knowledge_is_not_attached_without_collections(self):
-        """A search tool that always returns empty is worse than none — the model keeps trying."""
+        """A search tool that always returns empty is worse than none - the model keeps trying."""
         built = build(
             [CapabilityBinding(capability_id="knowledge")],
             granted_scopes=frozenset({"knowledge:read"}),

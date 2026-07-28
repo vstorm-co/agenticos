@@ -1,4 +1,4 @@
-"""The organization's MCP servers — the ones an agent may be built on.
+"""The organization's MCP servers - the ones an agent may be built on.
 
 Distinct from ``/me/mcp-connections``, which is a person's own. A connection
 here belongs to the organization, is gated on ``connections:manage``, and is the
@@ -6,7 +6,7 @@ only kind an agent spec can bind: a published agent whose reach depended on
 whose session ran it would be neither reviewable nor reproducible.
 
 Every route carries a ``require(...)`` gate, per-resource ones included. That is
-not a break with the rule those gates follow elsewhere — it is the same rule.
+not a break with the rule those gates follow elsewhere - it is the same rule.
 A gate is wrong on a route whose answer a resource grant could widen, because a
 role check cannot see the grant; an MCP connection has no grants and no owner to
 share it with, so ``connections:manage`` is the whole of the decision. The
@@ -75,7 +75,7 @@ async def start_org_mcp_oauth(data: McpOAuthStart, service: McpConnectionSvc, ct
     """Begin the OAuth flow for a server the organization will own.
 
     Somebody consents, and the connection that comes back belongs to the
-    organization — which is what a shared service account is for. The grant is
+    organization - which is what a shared service account is for. The grant is
     still theirs at the provider, so revoking their access there stops the
     organization's server working until it is authorized again. An organization
     that wants this should consent with an account it controls.

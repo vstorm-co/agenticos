@@ -52,7 +52,7 @@ describe("useOrgMcpConnections", () => {
 
   it("reads the organization's servers, not the caller's own", async () => {
     // The two endpoints return the same shape, so calling the wrong one fails
-    // no type check and no render — it just quietly puts one member's private
+    // no type check and no render - it just quietly puts one member's private
     // credentials in front of every agent author in the organization.
     const { result } = await loaded();
 

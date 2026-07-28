@@ -1,8 +1,8 @@
 """The admin system-health endpoint.
 
 Two things worth a test through the app rather than against the service: that it
-refuses a caller who is not an app admin — the whole reason the probe details can
-be published at all — and that every check it returns carries the detail of what
+refuses a caller who is not an app admin - the whole reason the probe details can
+be published at all - and that every check it returns carries the detail of what
 was verified. A row that says "healthy" and nothing else is what the admin page
 used to render, and it rendered it for services nothing had checked.
 """

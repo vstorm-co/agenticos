@@ -81,7 +81,7 @@ export default function OrgMembersPage({ params }: PageProps) {
   const canManage = can(Perm.membersManage);
   const pendingInvitations = invitations.filter((i) => i.status === "pending");
 
-  // Workspace profile state — name edits stay local until "Save" lands the
+  // Workspace profile state - name edits stay local until "Save" lands the
   // PATCH; avatar uploads are immediate (a separate POST endpoint).
   const [name, setName] = useState("");
   const [savingName, setSavingName] = useState(false);
@@ -334,7 +334,7 @@ export default function OrgMembersPage({ params }: PageProps) {
       {org && <OrgSpendingLimit org={org} />}
 
       {/* The table draws its own skeleton from the same column definitions, so
-          the header and every column width are already right while it loads —
+          the header and every column width are already right while it loads -
           a stand-in list could only approximate them. */}
       {!isLoading && members.length === 0 ? (
         <EmptyState

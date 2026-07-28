@@ -28,7 +28,7 @@ describe("isActive", () => {
 
   it("keeps a two-letter section lit on its detail pages", () => {
     // The reported bug: the locale prefix used to be stripped by shape rather
-    // than by name, so `/kb` was mistaken for a locale and eaten — leaving
+    // than by name, so `/kb` was mistaken for a locale and eaten - leaving
     // `/5eacffcc-…`, which is inside nothing. Both the list and the detail page
     // showed a sidebar with no entry lit at all.
     expect(isActive("/kb", "/kb")).toBe(true);
@@ -78,7 +78,7 @@ describe("SidebarNav", () => {
   });
 
   it("hides what the caller's role does not allow", () => {
-    // Presentation, not enforcement — but a link that can only refuse them is
+    // Presentation, not enforcement - but a link that can only refuse them is
     // an invitation to try something that cannot work.
     can.mockImplementation((permission) => permission !== "skills:view");
 

@@ -41,7 +41,7 @@ class S3Connector(BaseSyncConnector):
             "required": False,
             "default": "",
             "label": "Path Prefix",
-            "help": "e.g. 'documents/legal/' — leave empty for entire bucket",
+            "help": "e.g. 'documents/legal/' - leave empty for entire bucket",
         },
         "access_key_id": {
             "type": "string",
@@ -84,7 +84,7 @@ class S3Connector(BaseSyncConnector):
         return boto3.client("s3", **client_kwargs, config=Config(signature_version="s3v4"))
 
     async def validate_config(self, config: dict) -> tuple[bool, str | None]:
-        """Validate required fields only — connectivity is checked at sync time."""
+        """Validate required fields only - connectivity is checked at sync time."""
         return await super().validate_config(config)
 
     async def list_files(self, config: dict) -> list[RemoteFile]:

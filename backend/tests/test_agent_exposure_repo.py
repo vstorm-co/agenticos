@@ -1,4 +1,4 @@
-"""Tests for the exposure repository — the table behind "where is this available".
+"""Tests for the exposure repository - the table behind "where is this available".
 
 A repository's behaviour *is* the statement it builds, so these read the
 statement back rather than counting calls. The predicate is the whole point
@@ -6,8 +6,8 @@ here: a dropped ``organization_id`` filter is a cross-tenant read that no
 assertion about "the repository was called" would notice, and a binding lookup
 that forgot the bot would restore the hole the table was added to close.
 
-What the schema guarantees on top of this — one binding per agent per bot, only
-the surfaces something serves, cascades from both sides — is asserted against a
+What the schema guarantees on top of this - one binding per agent per bot, only
+the surfaces something serves, cascades from both sides - is asserted against a
 real database in ``tests/integration/test_schema_guarantees.py``.
 """
 
@@ -88,7 +88,7 @@ class TestReading:
     async def test_a_binding_is_looked_up_by_agent_and_bot_together(self):
         """Either half alone is the hole this table exists to close.
 
-        By agent alone, any bot in the organization reaches it — the original
+        By agent alone, any bot in the organization reaches it - the original
         behaviour. By bot alone, every agent it serves answers every handle.
         """
         agent_id, bot_id = uuid.uuid4(), uuid.uuid4()

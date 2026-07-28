@@ -1,4 +1,4 @@
-"""Approval capability — hold a side-effecting tool call until a human answers.
+"""Approval capability - hold a side-effecting tool call until a human answers.
 
 The decision types live in :mod:`app.agents.approval`, a layer below: they are
 the contract between the gate, the surfaces and the approvals service, and only

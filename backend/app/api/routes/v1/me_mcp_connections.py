@@ -1,7 +1,7 @@
 """User-scoped MCP server connections (Settings → Integrations).
 
 Routes are nested under ``/me/mcp-connections`` because they always operate
-on the current user — there's no cross-user view of these. The stored bearer
+on the current user - there's no cross-user view of these. The stored bearer
 token never appears in any response (only ``has_auth_token``).
 """
 
@@ -34,7 +34,7 @@ router = APIRouter()
 
 @router.get("/workspace", response_model=WorkspaceMcpServerList)
 async def list_workspace_mcp_servers(user: CurrentUser) -> Any:
-    """Deployment-managed MCP servers (MCP_SERVERS) — always-on, read-only."""
+    """Deployment-managed MCP servers (MCP_SERVERS) - always-on, read-only."""
     items = [
         WorkspaceMcpServerRead(name=cfg.name, allowed_tools=cfg.allowed_tools)
         for cfg in settings.MCP_SERVERS

@@ -1,4 +1,4 @@
-"""MCP server connections — a person's own, and an organization's.
+"""MCP server connections - a person's own, and an organization's.
 
 Each row is one remote MCP server, and ``scope`` says who it belongs to.
 A ``"user"`` row is somebody's own (Settings → Your connections) and only
@@ -9,7 +9,7 @@ depend on whose session happens to run it.
 ``auth_token`` must be recoverable to send as a Bearer header on every
 request, so hashing is not an option, but a DB dump alone must not leak
 it. Both scopes seal it through :mod:`app.core.vault`; what differs is
-who the envelope is bound to — the organization for an ``"org"`` row, the
+who the envelope is bound to - the organization for an ``"org"`` row, the
 owning member for a ``"user"`` one, which has no organization to bind to
 and whose owner may belong to several. ``secret_key_version`` records
 which vault master key sealed this row's secrets; one version governs
@@ -92,7 +92,7 @@ class McpConnection(Base, TimestampMixin):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    # The owner of a personal connection, and NULL for an organization one —
+    # The owner of a personal connection, and NULL for an organization one -
     # which is not an omission but the ownership itself. Cascading is right for
     # a personal token: it dies with the account it belonged to.
     user_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -102,7 +102,7 @@ class McpConnection(Base, TimestampMixin):
         index=True,
     )
     # Who added an organization connection. Recorded for the audit trail, never
-    # for authorization — an organization connection must outlive the person who
+    # for authorization - an organization connection must outlive the person who
     # set it up, so this nulls where ``user_id`` cascades.
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
@@ -127,7 +127,7 @@ class McpConnection(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(String(64), nullable=False)
     url: Mapped[str] = mapped_column(String(2048), nullable=False)
     auth_token: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # Which vault master key sealed this row's secrets — the bearer token and
+    # Which vault master key sealed this row's secrets - the bearer token and
     # both OAuth payloads. One version per row, so a rotation moves them
     # together and a payload can never be readable while the token beside it is
     # not.

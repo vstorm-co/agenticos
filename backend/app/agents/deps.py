@@ -2,7 +2,7 @@
 
 ``AgentDeps`` is the only channel through which a tool learns anything the model
 did not tell it: which collections the agent may search, what the tool was
-configured with, who is asking. That separation is the security boundary — a
+configured with, who is asking. That separation is the security boundary - a
 tool's *parameters* are model-controlled and therefore untrusted, while its
 *deps* are resolved server-side from the agent spec and the request.
 

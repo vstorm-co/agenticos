@@ -13,7 +13,7 @@ const alertVariants = cva(
         default: "border-foreground/15 bg-card text-foreground",
         destructive:
           "border-destructive/30 bg-destructive/5 text-destructive [&>svg]:text-destructive",
-        // `info` carries the accent — that is what the accent is for. There is
+        // `info` carries the accent - that is what the accent is for. There is
         // no `success` variant: the one it replaced was tinted with the brand,
         // which now reads as "primary action" rather than "this worked", and
         // nothing in the app referenced it.

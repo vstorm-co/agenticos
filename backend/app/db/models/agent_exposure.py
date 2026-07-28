@@ -1,16 +1,16 @@
-"""Where an agent is available — one row per place it can be reached.
+"""Where an agent is available - one row per place it can be reached.
 
 An agent's author decides which surfaces it answers on. That decision is
 operational, not part of what the agent *is*: publishing a new version must not
 silently change who can reach it, and unbinding a Slack bot must not mint a new
-agent version. Different lifecycle, different table — which is exactly what
+agent version. Different lifecycle, different table - which is exactly what
 :class:`app.agents.spec.AgentSpec` already says about itself, having
 deliberately excluded "anything about where the agent runs (surfaces, channels)
 and anything about who may use it".
 
 The table is deliberately narrow right now. It binds an agent to a *channel
-bot*, and nothing else: the columns a public surface needs — an auth mode, its
-own budget, its own rate limits, the reach its author acknowledged — arrive with
+bot*, and nothing else: the columns a public surface needs - an auth mode, its
+own budget, its own rate limits, the reach its author acknowledged - arrive with
 the routes that serve one. Adding them ahead of that would mean nullable columns
 no constraint could tie to a surface and no test could exercise, which is how a
 schema starts describing something the code does not do.
@@ -18,7 +18,7 @@ schema starts describing something the code does not do.
 What the binding replaces is the absence of one. ``@slug`` used to resolve
 against every published agent in the bot's organization, so one Slack app was a
 door onto all of them, and nobody chose that. An agent is now reachable through
-a bot when — and only when — a row here says so.
+a bot when - and only when - a row here says so.
 """
 
 import enum
@@ -86,7 +86,7 @@ class AgentExposure(Base, TimestampMixin):
     # What this binding may spend, metered against its own runs and nobody
     # else's. Two limits because they fail differently: a monthly cap stops a
     # slow leak, and only a per-run cap stops one adversarial prompt driving a
-    # loop — a rate limiter cannot see cost.
+    # loop - a rate limiter cannot see cost.
     #
     # Both optional here and worth having on a channel binding already. They
     # become mandatory for a surface open to anonymous visitors, where a budget
@@ -113,7 +113,7 @@ class AgentExposure(Base, TimestampMixin):
             "surface IN ('slack', 'telegram', 'mattermost')", name="ck_exposure_surface"
         ),
         # A limit of zero or less is not a tighter limit, it is a binding that
-        # can never answer — which somebody would eventually reach by clearing
+        # can never answer - which somebody would eventually reach by clearing
         # a field rather than by deciding to.
         CheckConstraint(
             "(max_per_run_usd IS NULL OR max_per_run_usd > 0) "

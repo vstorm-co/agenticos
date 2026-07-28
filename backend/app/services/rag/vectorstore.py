@@ -148,7 +148,7 @@ from app.services.rag.embeddings import EmbeddingService
 #
 # This was reachable for the first time today. The dev and CI databases ran
 # stock `postgres:16-alpine`, so `CREATE EXTENSION vector` failed first and hid
-# it — and the shipped default, `text-embedding-3-large`, is 3072 wide. Every
+# it - and the shipped default, `text-embedding-3-large`, is 3072 wide. Every
 # collection created with the default configuration would have failed on its
 # first upload, in a worker, with a 500 and no explanation on screen.
 _HNSW_MAX_VECTOR_DIM = 2000
@@ -197,7 +197,7 @@ class PgVectorStore(BaseVectorStore):
         pgvector's HNSW takes at most 2000 dimensions on a ``vector`` column but
         4000 on ``halfvec``, so anything wider is indexed and compared at half
         precision. That is pgvector's own answer for wide embeddings, and the
-        alternative is not full precision — it is no index at all.
+        alternative is not full precision - it is no index at all.
 
         Building the index on one expression and ordering by another silently
         costs the index, so both come from here.
@@ -325,7 +325,7 @@ class PgVectorStore(BaseVectorStore):
         """Vector count for a collection, reporting an absent one as empty.
 
         A collection's table is created lazily by the first ingest, so "no table"
-        and "nothing indexed yet" are the same state in this design — which is
+        and "nothing indexed yet" are the same state in this design - which is
         why this reports zero rather than raising. It used to run the COUNT
         unconditionally and let asyncpg's ``UndefinedTableError`` become a 500,
         so asking about a knowledge base nobody had uploaded to yet looked like

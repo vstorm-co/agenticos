@@ -15,8 +15,8 @@ export const GENERAL_ASSISTANT_LABEL = "General assistant";
 /**
  * Whether an agent can be chatted with at all.
  *
- * Only a published agent has a version to run — the backend refuses a draft or
- * an archived one — so offering it would turn the picker into a trap.
+ * Only a published agent has a version to run - the backend refuses a draft or
+ * an archived one - so offering it would turn the picker into a trap.
  */
 export const isRunnable = (agent: Agent): boolean => agent.status === "published";
 
@@ -28,7 +28,7 @@ export const isRunnable = (agent: Agent): boolean => agent.status === "published
  * here, showing the agent's face, because "which of these five agents am I
  * talking to" is answered faster by a picture than by reading five names.
  *
- * The choice applies from the next message, not retroactively — switching
+ * The choice applies from the next message, not retroactively - switching
  * mid-conversation is a supported thing to do, and the transcript records the
  * agent and version per turn, so a thread that changed hands says so rather
  * than relabelling everything above it.

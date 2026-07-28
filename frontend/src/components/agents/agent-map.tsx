@@ -12,7 +12,7 @@ export interface MapNode {
   title: string;
   icon: LucideIcon;
   items: string[];
-  /** What to say when there is nothing — the reason to open the map at all. */
+  /** What to say when there is nothing - the reason to open the map at all. */
   empty: string;
   /** Which side of the agent it hangs off. */
   side: "in" | "out";
@@ -35,7 +35,7 @@ function curve(from: { x: number; y: number }, to: { x: number; y: number }): st
  *
  * The Builder is a column of forms, which is the right shape for editing one
  * thing and the wrong shape for the question people actually ask before they
- * publish — *what is this agent, in total?* Six collapsed sections do not answer
+ * publish - *what is this agent, in total?* Six collapsed sections do not answer
  * that; a picture does, and an empty box on it is the fastest way to notice the
  * skill nobody attached.
  *

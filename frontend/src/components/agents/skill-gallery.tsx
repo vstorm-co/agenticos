@@ -12,7 +12,7 @@ interface SkillGalleryProps {
   skills: SkillSummary[];
   /**
    * How many the organization has, which may exceed what was fetched. Only the
-   * orphan warning depends on the difference — see below.
+   * orphan warning depends on the difference - see below.
    */
   total: number;
   /** `spec.skill_ids`. */
@@ -31,7 +31,7 @@ interface SkillGalleryProps {
  *
  * Skills that no longer exist are named rather than dropped. An id that
  * silently vanishes from a form is an id that silently vanishes from the spec,
- * and this one refuses at publish rather than at edit — so the Builder has to
+ * and this one refuses at publish rather than at edit - so the Builder has to
  * say it is there.
  */
 export function SkillGallery({
@@ -44,7 +44,7 @@ export function SkillGallery({
   const chosen = new Set(selectedIds);
   const known = new Set(skills.map((skill) => skill.id));
   // Only when this is the whole set. Against a page of it, every skill the
-  // caller did not fetch reads as one the organization deleted — an accusation
+  // caller did not fetch reads as one the organization deleted - an accusation
   // that publishing will be refused, made about a skill that is fine.
   const orphaned = skills.length >= total ? selectedIds.filter((id) => !known.has(id)) : [];
 

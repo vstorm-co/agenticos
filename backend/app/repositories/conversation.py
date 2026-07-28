@@ -22,7 +22,7 @@ async def agents_in_conversations(
     One query for the whole page rather than one per row: a conversation list is
     fifty rows, and the alternative is fifty round trips to render a chip.
 
-    An agent appears once however many times it answered — the list says who
+    An agent appears once however many times it answered - the list says who
     took part, not how often. Ordering by the first message it sent makes that
     order stable across refreshes, which a set could not promise.
     """
@@ -188,7 +188,7 @@ async def admin_list_with_users(
 
     `agent_id` narrows to threads *an agent answered in*, which is an EXISTS on
     messages rather than a column on the conversation: an agent is not a
-    property of a thread — the picker can be changed mid-conversation, so one
+    property of a thread - the picker can be changed mid-conversation, so one
     thread can have several. A join would multiply the rows and quietly inflate
     every message count on the page.
     """
@@ -210,7 +210,7 @@ async def admin_list_with_users(
     if agent_id is not None:
         # `select_from` and `correlate` are both load-bearing. Left to itself
         # SQLAlchemy correlates *every* table it recognises from the enclosing
-        # query — including `messages` — and the subquery ends up with no FROM
+        # query - including `messages` - and the subquery ends up with no FROM
         # clause at all, which raises rather than returning wrong rows. Only
         # `conversations` may be correlated; `messages` is what this selects.
         answered_here = (
@@ -275,7 +275,7 @@ async def create_conversation(
 
     ``organization_id`` has no default on purpose: every conversation belongs to
     a tenant, and a caller that cannot name one has a bug rather than a default.
-    ``user_id`` stays optional — channel conversations have no user.
+    ``user_id`` stays optional - channel conversations have no user.
     """
     conversation = Conversation(
         user_id=user_id,

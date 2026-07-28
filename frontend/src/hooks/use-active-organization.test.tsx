@@ -35,7 +35,7 @@ function organizationRefused(orgId: string) {
   return new ApiError(404, body.error.message, body);
 }
 
-/** `/orgs` still answers when the active organization does not — it is keyed on the caller. */
+/** `/orgs` still answers when the active organization does not - it is keyed on the caller. */
 function answerWith(orgs: Array<{ id: string; is_personal: boolean }>, permissions: unknown) {
   vi.mocked(apiClient.get).mockImplementation((endpoint: string) => {
     if (endpoint === "/orgs") {
@@ -101,8 +101,8 @@ describe("useActiveOrganizationRecovery", () => {
   it("falls back to an organization the caller belongs to", async () => {
     // The reported failure: a persisted org id outlived the org. `can()` is
     // false while permissions are unavailable, so a permanent refusal
-    // permanently empties the sidebar — Agents, Skills, Activity, Knowledge
-    // bases, RAG search, providers and MCP servers — with nothing said.
+    // permanently empties the sidebar - Agents, Skills, Activity, Knowledge
+    // bases, RAG search, providers and MCP servers - with nothing said.
     useOrgStore.setState({ activeOrgId: STALE });
     answerWith([{ id: PERSONAL, is_personal: true }], organizationRefused(STALE));
 

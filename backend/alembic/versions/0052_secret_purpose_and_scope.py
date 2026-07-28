@@ -12,13 +12,13 @@ key is equally visible to every member.
 
 Three columns close that:
 
-`purpose` — what the key is for (`openai`, `tavily`, `custom`; see
+`purpose` - what the key is for (`openai`, `tavily`, `custom`; see
 `app.core.secret_purposes`). This is what makes the model picker derivable: an
 organization can run on the providers it holds keys for. Existing rows become
-`custom`, which is true of them — nothing recorded what they were for, and
+`custom`, which is true of them - nothing recorded what they were for, and
 guessing from a name would be a guess written into a database.
 
-`owner_user_id` and `visibility` — the same ownership and three-value
+`owner_user_id` and `visibility` - the same ownership and three-value
 visibility every other shared resource here has, so one `resolve_access` and
 one sharing panel serve secrets too. Existing rows become organization-wide and
 unowned, which is exactly what they were: `GET /secrets` returned all of them to

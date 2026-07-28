@@ -1,4 +1,4 @@
-// Mirrors OrgRoleName in the backend permission catalog — the roles a member
+// Mirrors OrgRoleName in the backend permission catalog - the roles a member
 // can hold. What each role may actually do lives in ROLE_PERMS server-side and
 // reaches the UI via /me/permissions, never hardcoded here.
 export type OrgRole = "owner" | "admin" | "builder" | "operator" | "member" | "viewer";
@@ -40,8 +40,8 @@ export interface OrganizationMemberList {
 }
 
 // Without the token, because the API no longer sends one here: a token is a
-// bearer credential — whoever holds it joins the organization as the role
-// offered to somebody else's address — and this is what the members page lists.
+// bearer credential - whoever holds it joins the organization as the role
+// offered to somebody else's address - and this is what the members page lists.
 // Revoking goes by `id`.
 export interface Invitation {
   id: string;
@@ -66,7 +66,7 @@ export interface NewInviteLink {
   email_domain?: string | null;
 }
 
-/** The reply to sending an invitation — the only one carrying the token. */
+/** The reply to sending an invitation - the only one carrying the token. */
 export interface InvitationCreated extends Invitation {
   invitation_token: string;
 }

@@ -37,7 +37,7 @@ _TOKEN = "a-live-bearer-credential"
 
 
 def _invitation() -> SimpleNamespace:
-    """A pending row as the repository hands it to the route — token included."""
+    """A pending row as the repository hands it to the route - token included."""
     return SimpleNamespace(
         id=_INVITATION_ID,
         organization_id=_ORGANIZATION_ID,
@@ -97,7 +97,7 @@ class TestListingDoesNotHandOutTokens:
     async def test_it_still_returns_what_an_administrator_decides_on(
         self, client: AsyncClient
     ) -> None:
-        """Removing a field is easy to overdo — the members page still has to work."""
+        """Removing a field is easy to overdo - the members page still has to work."""
         item = (await client.get(_org_url("/invitations"))).json()["items"][0]
 
         assert item["id"] == str(_INVITATION_ID)
@@ -109,7 +109,7 @@ class TestListingDoesNotHandOutTokens:
 
 class TestCreatingReturnsTheTokenOnce:
     async def test_the_inviter_gets_the_token_back(self, client: AsyncClient) -> None:
-        """Sending the email can fail — the service logs it and carries on — so the
+        """Sending the email can fail - the service logs it and carries on - so the
         person who just invited somebody gets the link they can pass on by hand."""
         response = await client.post(
             _org_url("/invitations"), json={"email": "invitee@example.com", "role": "member"}
@@ -143,7 +143,7 @@ class TestRevokingAsTheInvitee:
     async def test_the_token_route_is_still_served(
         self, client: AsyncClient, service: MagicMock
     ) -> None:
-        """An invitee knows the token and nothing else — no id, no organization.
+        """An invitee knows the token and nothing else - no id, no organization.
 
         Retiring this route along with the admin one would leave declining an
         invitation impossible for the only person entitled to.

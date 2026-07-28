@@ -37,7 +37,7 @@ export function useAdminConversations() {
       limit?: number;
       search?: string;
       user_id?: string;
-      /** Only threads this agent answered in — an EXISTS on messages server-side. */
+      /** Only threads this agent answered in - an EXISTS on messages server-side. */
       agent_id?: string;
       status?: "active" | "archived" | "all";
       sort_by?: string;

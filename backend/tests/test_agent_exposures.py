@@ -35,7 +35,7 @@ def _named(**attributes: object) -> MagicMock:
     """A stand-in with a real ``.name``.
 
     ``MagicMock(name=...)`` names the *mock* rather than setting an attribute, so
-    ``.name`` comes back as another mock — which a schema then rejects several
+    ``.name`` comes back as another mock - which a schema then rejects several
     layers away from the mistake.
     """
     mock = MagicMock(**{key: value for key, value in attributes.items() if key != "name"})
@@ -54,8 +54,8 @@ def _bot(*, platform: str = "slack", name: str = "Acme Support", bot_id=None) ->
 def _service(agent: MagicMock | None = None) -> AgentExposureService:
     """A service whose agent lookup succeeds, so the tests can be about bindings.
 
-    The registry's own refusals — a missing agent, one the caller may not
-    publish, another tenant's — are proven in ``tests/test_agent_registry.py``
+    The registry's own refusals - a missing agent, one the caller may not
+    publish, another tenant's - are proven in ``tests/test_agent_registry.py``
     against the real ``resolve_access``. Re-proving them through a second
     service would test the mock.
     """
@@ -126,7 +126,7 @@ class TestCreate:
 
     @pytest.mark.parametrize("is_active", [True, False])
     async def test_a_second_binding_to_the_same_bot_is_refused(self, is_active):
-        """Including a paused one — it still occupies the unique constraint.
+        """Including a paused one - it still occupies the unique constraint.
 
         Letting the insert reach the database would turn a question the service
         can answer into an IntegrityError with nothing useful in it.

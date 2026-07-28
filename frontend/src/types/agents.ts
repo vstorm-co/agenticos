@@ -18,7 +18,7 @@ export type ApprovalMode = "default" | "required" | "never";
  *
  * Both are prompt, not labelling: the description is what the model reads
  * before deciding whether to call the tool, and the name steers it just as
- * hard — `search_refund_policy` gets chosen for questions `search_documents`
+ * hard - `search_refund_policy` gets chosen for questions `search_documents`
  * would be passed over for. An absent key means the value the capability
  * declared in code.
  */
@@ -53,7 +53,7 @@ export interface CapabilityBindingSpec {
    * Which of the organization's secrets satisfies this capability's
    * requirement, or null when nothing has been chosen.
    *
-   * An id, never a value — a spec is exported as YAML into a client's
+   * An id, never a value - a spec is exported as YAML into a client's
    * repository. Publishing refuses an id that is missing, belongs to another
    * organization or holds the wrong kind, refuses the absence of one where the
    * capability declares a requirement, and refuses a reference on a capability
@@ -65,7 +65,7 @@ export interface CapabilityBindingSpec {
 
 /** Where this agent's traces go, when not to the deployment's own project. */
 export interface ObservabilitySpec {
-  /** An organization secret holding a Logfire write token — an id, never a token. */
+  /** An organization secret holding a Logfire write token - an id, never a token. */
   token_secret_id?: string | null;
   /** What the agent is called in Logfire; falls back to the agent's name. */
   service_name?: string | null;
@@ -85,7 +85,7 @@ export interface BudgetSpec {
  * rather than at publish.
  *
  * **An absent key means the setting is not sent at all**, which is not the same
- * as sending the provider's default — reasoning models reject `temperature`
+ * as sending the provider's default - reasoning models reject `temperature`
  * outright, so an agent whose author never touched it must produce a request
  * with no such key. `undefined`, never `null`: `JSON.stringify` drops the
  * former, and the backend stores what it is given.
@@ -95,7 +95,7 @@ export interface BudgetSpec {
 export interface ModelSettingsSpec {
   /** 0–2. How varied the answer is; rejected outright by reasoning models. */
   temperature?: number;
-  /** 0–1. Nucleus sampling — set this or `temperature`, not both. */
+  /** 0–1. Nucleus sampling - set this or `temperature`, not both. */
   top_p?: number;
   max_tokens?: number;
   /** Whether the model may call several tools in one step. */
@@ -109,7 +109,7 @@ export interface AgentSpec {
    * Stamped by the server, never authored here.
    *
    * Present on everything the API returns and omitted when creating, so the
-   * current version has one definition — in `backend/app/agents/spec.py` — and
+   * current version has one definition - in `backend/app/agents/spec.py` - and
    * the next bump is one edit rather than two repositories agreeing by hand.
    * A spec read at version 2 and saved back keeps its 2: re-saving a draft is
    * not the moment to quietly migrate what somebody published.
@@ -164,13 +164,13 @@ export interface AgentVersion {
    *
    * A uuid answers "who changed this" with another question, and that question
    * is the reason a history is read at all. Null means the account has since
-   * left the organization — itself an answer worth showing.
+   * left the organization - itself an answer worth showing.
    */
   published_by_email?: string | null;
   created_at?: string;
 }
 
-/** One version with the spec it froze — what a diff is read from. */
+/** One version with the spec it froze - what a diff is read from. */
 export interface AgentVersionDetail extends AgentVersion {
   spec: AgentSpec;
 }
@@ -182,7 +182,7 @@ export interface AgentVersionList {
 
 /** One tool a capability exposes, as the model is offered it. */
 export interface CapabilityTool {
-  /** Defined in code and never configurable — what both per-tool maps key on. */
+  /** Defined in code and never configurable - what both per-tool maps key on. */
   id: string;
   /**
    * The name the model calls, with this agent's override already applied.
@@ -199,7 +199,7 @@ export interface CapabilityTool {
  * One tool as the *model* meets it.
  *
  * `CapabilityTool` carries the summary line, which is what a list needs. This
- * is the rest — the whole docstring the model reads before deciding to call,
+ * is the rest - the whole docstring the model reads before deciding to call,
  * and the schema of the arguments. Someone rewording a tool for their agent is
  * rewriting against this, and its first sentence is not it.
  */
@@ -218,7 +218,7 @@ export interface CapabilityCatalogEntry {
   description: string;
   side_effecting: boolean;
   scopes: string[];
-  /** Empty for a capability that is not tools at all — a guardrail, or instructions. */
+  /** Empty for a capability that is not tools at all - a guardrail, or instructions. */
   tools: CapabilityTool[];
   /** What each tool above tells the model, in full. Keyed by `tool_id`. */
   contracts: CapabilityToolContract[];
@@ -226,7 +226,7 @@ export interface CapabilityCatalogEntry {
   config_schema: JsonSchema | null;
   /**
    * The credential this capability cannot work without, declared as a kind, or
-   * null for one that needs none — which is every builtin so far.
+   * null for one that needs none - which is every builtin so far.
    *
    * A binding answers it with `secret_id`. The value itself never reaches the
    * catalog, the spec or the model; only the agent runner ever reads one.
@@ -279,7 +279,7 @@ export interface JsonSchemaProperty {
   maxLength?: number;
   enum?: unknown[];
   /**
-   * The single value this field may take — a Pydantic `Literal` of one, which
+   * The single value this field may take - a Pydantic `Literal` of one, which
    * is how every secret payload carries its own `kind`. A control for it could
    * only ever be wrong, so the form omits it and the caller supplies it.
    */

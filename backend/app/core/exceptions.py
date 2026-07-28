@@ -93,7 +93,7 @@ class BadRequestError(AppException):
 
 
 class PaymentRequiredError(AppException):
-    """Payment required — seat or usage limit reached (402)."""
+    """Payment required - seat or usage limit reached (402)."""
 
     message = "Payment required"
     code = "PAYMENT_REQUIRED"
@@ -114,7 +114,7 @@ class ConfigurationError(AppException):
     Distinct from :class:`ExternalServiceError`, which says an upstream we do
     have credentials for is down, and from :class:`BadRequestError`, which
     blames the caller. This one is nobody's mistake but the operator's, so the
-    message must name the setting to change rather than describing a symptom —
+    message must name the setting to change rather than describing a symptom -
     a missing credential surfacing as a 500 from inside a vendor SDK is the
     failure this class exists to stop.
     """

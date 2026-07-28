@@ -1,4 +1,4 @@
-"""Migration tests — verify Alembic upgrade/downgrade cycle.
+"""Migration tests - verify Alembic upgrade/downgrade cycle.
 
 These tests ensure that:
 1. All migrations can be applied (upgrade head)
@@ -7,7 +7,7 @@ These tests ensure that:
 
 **They run against a database of their own, and that is not a nicety.**
 `downgrade base` drops every table. These tests used to inherit whatever
-`POSTGRES_DB` resolved to — which, in a checkout with a populated `.env`, is the
+`POSTGRES_DB` resolved to - which, in a checkout with a populated `.env`, is the
 developer's working database. An ordinary `pytest` run emptied it: model tables
 gone, `alembic_version` recreated by the upgrade that followed, and nothing in
 the output to say so. The name below is the fix, and it is passed explicitly to
@@ -59,7 +59,7 @@ def _db_available() -> bool:
 
 pytestmark = pytest.mark.skipif(
     not _db_available(),
-    reason="No live database available — skipping migration tests",
+    reason="No live database available - skipping migration tests",
 )
 
 
@@ -121,7 +121,7 @@ class TestMigrations:
         assert heads.returncode == 0
 
         if not heads.stdout.strip():
-            pytest.skip("No migration revisions found — nothing to verify")
+            pytest.skip("No migration revisions found - nothing to verify")
 
         # Check current
         result = _alembic("current")

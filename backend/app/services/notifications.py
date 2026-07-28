@@ -14,7 +14,7 @@ because SMTP was down. Every send is wrapped, and a failure is logged.
 `finally` block does not wait on a mail server.
 
 *Never notify twice for the same fact.* A budget breach is reported once per
-run, at the moment the run is recorded as stopped — not per model request that
+run, at the moment the run is recorded as stopped - not per model request that
 was refused.
 """
 

@@ -116,7 +116,7 @@ async def request_password_reset(
 ) -> Any:
     """Email a single-use reset link to the address.
 
-    Always returns 200 with the same body — we don't disclose whether the
+    Always returns 200 with the same body - we don't disclose whether the
     email is in our system. The caller (email service) is best-effort.
     """
     issued = await user_service.issue_password_reset_token(body.email)

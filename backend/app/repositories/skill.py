@@ -25,7 +25,7 @@ async def get_by_name(db: AsyncSession, name: str, *, organization_id: UUID) -> 
 async def get_many(
     db: AsyncSession, skill_ids: list[UUID], *, organization_id: UUID
 ) -> dict[UUID, Skill]:
-    """Fetch several skills at once — one query per run, not one per binding."""
+    """Fetch several skills at once - one query per run, not one per binding."""
     if not skill_ids:
         return {}
     result = await db.execute(
@@ -48,7 +48,7 @@ async def list_for_org(
     and "50 of 380" are the same list until somebody counts the rest.
 
     Search covers the name and the description because those are the two things
-    a person remembers about a skill — the body is what the *model* reads, and
+    a person remembers about a skill - the body is what the *model* reads, and
     matching on it would return rows whose visible text explains nothing about
     why they matched.
     """

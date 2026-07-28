@@ -8,4 +8,4 @@ Please verify your email address to complete your registration.
 
 This link expires in [[expires_in]].
 
-— The [[app_name]] Team
+- The [[app_name]] Team

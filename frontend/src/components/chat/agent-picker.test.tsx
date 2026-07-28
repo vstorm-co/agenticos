@@ -69,7 +69,7 @@ describe("the chat's agent picker", () => {
 
   it("shows the agent's face on the trigger", async () => {
     // Radix only swaps in the <img> once the image has loaded, which jsdom
-    // never does — so what is assertable here is that the avatar mounted for
+    // never does - so what is assertable here is that the avatar mounted for
     // this agent, by the initials it falls back to.
     listed.mockReturnValue([{ ...PUBLISHED[0]!, has_avatar: true }]);
     selectedId.mockReturnValue("a1");
@@ -116,7 +116,7 @@ describe("the chat's agent picker", () => {
   });
 
   it("reports null when the general assistant is picked back", async () => {
-    // The way back matters as much as the way in — an agent chat has a budget
+    // The way back matters as much as the way in - an agent chat has a budget
     // and a run history the assistant does not, and users need to leave it.
     await open(PUBLISHED, "a1");
 

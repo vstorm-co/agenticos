@@ -148,7 +148,7 @@ class TestEmbeddingCredential:
         Fixing the credential got the request as far as the COUNT, which then
         failed with ``UndefinedTableError``: a collection's table is created by
         its first ingest, so a knowledge base nobody has uploaded to has no
-        table. "Nothing indexed yet" is the answer, not a server fault — and
+        table. "Nothing indexed yet" is the answer, not a server fault - and
         ``get_documents`` had been answering the same question that way all
         along.
         """
@@ -167,7 +167,7 @@ class TestEmbeddingCredential:
         """``get_embedding_service`` is a FastAPI dependency of every RAG route.
 
         Raising here failed the request before any handler ran, which is why
-        ``GET /rag/collections/{name}/info`` — a COUNT(*) that embeds nothing —
+        ``GET /rag/collections/{name}/info`` - a COUNT(*) that embeds nothing -
         answered 500 with an OpenAI SDK traceback instead of its row count.
         """
         monkeypatch.setattr(app_settings, "OPENROUTER_API_KEY", "")

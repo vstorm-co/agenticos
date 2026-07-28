@@ -2,7 +2,7 @@
  * A folder tree built from a flat list of paths.
  *
  * There are no folder rows and deliberately no folder table: a folder is a
- * prefix that some file has. That is what makes an empty folder impossible —
+ * prefix that some file has. That is what makes an empty folder impossible -
  * which is the honest model, because a skill's files are read by name and a
  * folder nothing is in is a folder the agent can never ask for.
  */
@@ -11,7 +11,7 @@ export interface TreeFile {
   kind: "file";
   /** The full path, which is the resource's name. */
   path: string;
-  /** The last segment — what the row shows. */
+  /** The last segment - what the row shows. */
   label: string;
   id: string;
   sizeBytes: number;
@@ -86,7 +86,7 @@ function sortNodes(nodes: TreeNode[]): TreeNode[] {
   return nodes;
 }
 
-/** Every folder path in the tree — what "expand all" needs to know. */
+/** Every folder path in the tree - what "expand all" needs to know. */
 export function folderPaths(nodes: TreeNode[]): string[] {
   return nodes.flatMap((node) =>
     node.kind === "folder" ? [node.path, ...folderPaths(node.children)] : [],

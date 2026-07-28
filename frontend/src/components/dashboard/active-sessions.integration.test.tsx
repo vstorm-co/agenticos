@@ -29,8 +29,8 @@ function session(n: number): Session {
 /**
  * A server that actually holds the rows.
  *
- * Paging and revoking are only interesting together — the case worth a test is a
- * revocation that empties the page the user is standing on — and a stubbed
+ * Paging and revoking are only interesting together - the case worth a test is a
+ * revocation that empties the page the user is standing on - and a stubbed
  * response per call cannot show that. This one serves whatever slice is asked
  * for and shrinks when a row is deleted, so the assertions are about what the
  * component does with a moving list.

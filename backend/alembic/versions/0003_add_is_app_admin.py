@@ -6,7 +6,7 @@ Create Date: 2026-07-26T18:01:04.489757+00:00
 
 Adds the is_app_admin boolean flag to the users table. App admins can
 manage the platform across all organizations (create global KBs, view all
-orgs, etc.). Default false — grant via the ``create-app-admin`` CLI command.
+orgs, etc.). Default false - grant via the ``create-app-admin`` CLI command.
 """
 
 import sqlalchemy as sa

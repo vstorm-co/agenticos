@@ -4,8 +4,8 @@ Lets the model reason before it answers. Contributes no tools.
 
 ## Why it is a capability and not a model setting
 
-Reasoning is the setting people most want per agent — a triage bot answering in
-Slack wants none of it, an agent drafting a migration plan wants all of it — and
+Reasoning is the setting people most want per agent - a triage bot answering in
+Slack wants none of it, an agent drafting a migration plan wants all of it - and
 the platform already has one place where "what this agent does" is composed: the
 capability picker. Putting it there costs no new concept, arrives with a
 generated config form, and is enabled and disabled the same way everything else
@@ -22,7 +22,7 @@ existed has it folded into a binding on load (see `SPEC_VERSION` 6 in
 ## Why it wraps nothing
 
 The builder returns `pydantic_ai.capabilities.Thinking` directly. It sets the
-unified `thinking` setting in `ModelSettings`, which works across providers —
+unified `thinking` setting in `ModelSettings`, which works across providers -
 provider-specific settings (`anthropic_thinking`, `openai_reasoning_effort`)
 take precedence where both are set, and nothing here sets those. A capability of
 ours around it would be a second place for the same value to be written.
@@ -37,8 +37,8 @@ ours around it would be a second place for the same value to be written.
 | `effort` | unset | `minimal`, `low`, `medium`, `high` or `xhigh` |
 
 Unset means the provider's own default effort, which is what `Thinking(effort=True)`
-asks for. A level a provider does not implement maps to its nearest one —
-`xhigh` becomes `high`, `minimal` becomes `low` — so an agent stays portable
+asks for. A level a provider does not implement maps to its nearest one -
+`xhigh` becomes `high`, `minimal` becomes `low` - so an agent stays portable
 across a model swap.
 
 ## What this deliberately does not do
@@ -46,7 +46,7 @@ across a model swap.
 **It does not offer "off".** `ThinkingLevel` includes `False`, which means
 "disable thinking, and be ignored on a model that always thinks". Not binding
 the capability says the same thing to every model that can be told either way,
-and the picker already reads as an on/off switch — a capability whose config can
+and the picker already reads as an on/off switch - a capability whose config can
 turn itself off is two switches for one decision.
 
 **It does not expose provider-specific reasoning.** `anthropic_thinking` and

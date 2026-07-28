@@ -1,4 +1,4 @@
-"""The secret vault — envelope encryption for everything the platform stores.
+"""The secret vault - envelope encryption for everything the platform stores.
 
 Every provider key, channel bot token, MCP credential and organization secret
 passes through here, and there is deliberately no second mechanism. Two
@@ -6,10 +6,10 @@ properties matter and both come from the envelope:
 
 *Binding to an owner.* Each secret is sealed with its own random data key, which
 is itself sealed with a key derived from the master key **and the scope that
-owns it** — an organization, or the member a personal connection belongs to. A
+owns it** - an organization, or the member a personal connection belongs to. A
 ciphertext therefore cannot be moved between owners: even with database access,
 a row copied from org A into org B fails to unwrap. A single global Fernet key
-— what this codebase used for channel tokens and MCP tokens — gives no such
+- what this codebase used for channel tokens and MCP tokens - gives no such
 guarantee, which is the whole reason it is gone.
 
 *Rotatable master key.* The master key never encrypts payloads directly, only
@@ -22,8 +22,8 @@ job (``connections:manage``). This module only guarantees that a secret at rest
 is unreadable without the master key and unusable outside the scope it was
 sealed for.
 
-This module handles opaque strings. The typed shapes a secret can take — an API
-key, an AWS key pair, a service account — live in :mod:`app.core.secret_kinds`,
+This module handles opaque strings. The typed shapes a secret can take - an API
+key, an AWS key pair, a service account - live in :mod:`app.core.secret_kinds`,
 which seals through here.
 """
 
@@ -63,7 +63,7 @@ class VaultScope:
     """Who a sealed secret belongs to.
 
     Almost everything is owned by an organization; the exception is a member's
-    personal MCP connection, which belongs to them and to no tenant — the row
+    personal MCP connection, which belongs to them and to no tenant - the row
     has no ``organization_id`` at all, and a member may be in several
     organizations, so binding it to whichever one happened to be active when
     they added it would make the token unreadable after they switch.
@@ -128,7 +128,7 @@ def seal(plaintext: str, *, scope: VaultScope, key_version: int = 1) -> SealedSe
         BadRequestError: If the secret is empty. An empty credential is always a
             mistake, and storing one produces a key that fails much later at the
             provider with a far less obvious message. A component that genuinely
-            needs no credential — a local model endpoint — is stored as
+            needs no credential - a local model endpoint - is stored as
             :data:`app.core.secret_kinds.SecretKind.NONE` with no envelope at
             all, rather than as an envelope around nothing.
     """
@@ -160,7 +160,7 @@ def unseal(ciphertext: str, *, scope: VaultScope, key_version: int = 1) -> str:
     Raises:
         BadRequestError: If the envelope is malformed, or was sealed with a
             different master key or for a different owner. All three surface the
-            same message — distinguishing them would tell an attacker which of
+            same message - distinguishing them would tell an attacker which of
             the three they got wrong.
     """
     try:
@@ -175,7 +175,7 @@ def unseal(ciphertext: str, *, scope: VaultScope, key_version: int = 1) -> str:
         return Fernet(data_key).decrypt(payload).decode()
     except (InvalidToken, ValueError) as exc:
         raise BadRequestError(
-            message="Failed to decrypt secret — wrong master key or owner"
+            message="Failed to decrypt secret - wrong master key or owner"
         ) from exc
 
 
@@ -195,7 +195,7 @@ def rewrap(
         envelope = json.loads(ciphertext)
         wrapped_key = envelope["k"].encode()
     # The same set unseal() catches. A rotation job walks every row, so it is
-    # exactly where an envelope with a non-string key would surface — and it
+    # exactly where an envelope with a non-string key would surface - and it
     # should surface as "malformed", not as a raw AttributeError from .encode().
     except (json.JSONDecodeError, KeyError, AttributeError, TypeError) as exc:
         raise BadRequestError(message="Stored secret is malformed") from exc

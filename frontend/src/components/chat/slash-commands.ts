@@ -1,15 +1,15 @@
 /**
- * Slash command registry — drives the `/command` palette in <ChatInput>.
+ * Slash command registry - drives the `/command` palette in <ChatInput>.
  *
  * Two layers:
- *   - BUILTIN_COMMANDS below — defined in code, shared across every user.
+ *   - BUILTIN_COMMANDS below - defined in code, shared across every user.
  *     Some are "client" actions (clear chat, open settings); others send a
  *     canned prompt as a user message.
  *   - User-defined commands fetched from `/api/me/slash-commands`. Always
- *     "send-as-message" — they're just shortcuts for prompts the user types
+ *     "send-as-message" - they're just shortcuts for prompts the user types
  *     a lot. Settings page lets users disable individual built-ins, too.
  *
- * `mergeWithUserCommands()` fuses the two — that's what <ChatContainer> hands
+ * `mergeWithUserCommands()` fuses the two - that's what <ChatContainer> hands
  * down to <ChatInput>.
  */
 
@@ -20,7 +20,7 @@ export type SlashCommandAction =
   | { kind: "send-as-message"; replaceWith: string };
 
 export interface SlashCommand {
-  /** No leading slash — e.g. "clear", "regen". */
+  /** No leading slash - e.g. "clear", "regen". */
   name: string;
   /** One-line description shown in the palette. */
   description: string;
@@ -67,7 +67,7 @@ export const BUILTIN_COMMANDS: SlashCommand[] = [
     action: {
       kind: "send-as-message",
       replaceWith:
-        "Please give me a concise summary of our conversation so far — key topics, decisions, and any open questions.",
+        "Please give me a concise summary of our conversation so far - key topics, decisions, and any open questions.",
     },
     source: "builtin",
   },
@@ -77,7 +77,7 @@ export const BUILTIN_COMMANDS: SlashCommand[] = [
     action: {
       kind: "send-as-message",
       replaceWith:
-        "Explain your last response again, in simpler terms — assume I don't have technical background.",
+        "Explain your last response again, in simpler terms - assume I don't have technical background.",
     },
     source: "builtin",
   },
@@ -99,7 +99,7 @@ export function mergeWithUserCommands(userRecords: UserSlashCommandRecord[]): Sl
 
   for (const r of userRecords) {
     if (r.prompt === null) {
-      // Built-in override row — only the is_enabled flag matters.
+      // Built-in override row - only the is_enabled flag matters.
       overridesByName.set(r.name, r);
     } else if (r.is_enabled) {
       customs.push({
@@ -126,7 +126,7 @@ function previewPrompt(prompt: string): string {
 }
 
 /**
- * Filter commands by a query — matches name + aliases by prefix, falls back
+ * Filter commands by a query - matches name + aliases by prefix, falls back
  * to substring on description.
  */
 export function searchCommands(commands: SlashCommand[], query: string): SlashCommand[] {

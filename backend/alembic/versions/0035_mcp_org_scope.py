@@ -9,7 +9,7 @@ session happens to run it, so an agent spec needs connections that belong to the
 organization rather than to a member.
 
 Both scopes stay. A developer's personal token should not end up in everyone
-else's agents, and an org connection should not vanish when its creator leaves —
+else's agents, and an org connection should not vanish when its creator leaves -
 which is exactly the distinction ``scope`` records.
 """
 

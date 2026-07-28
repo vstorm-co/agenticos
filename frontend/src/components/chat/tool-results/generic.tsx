@@ -67,7 +67,7 @@ export function RawToolView({ toolCall, resultText }: { toolCall: ToolCall; resu
 }
 
 /** Default formatted view for any tool without a specialized renderer.
- *  Pretty-prints JSON output, otherwise shows readable wrapped text — so a
+ *  Pretty-prints JSON output, otherwise shows readable wrapped text - so a
  *  newly added backend tool renders sensibly with no frontend changes. */
 export function GenericToolResult({
   toolCall,
@@ -83,7 +83,7 @@ export function GenericToolResult({
       prettyJson = JSON.stringify(parsed, null, 2);
     }
   } catch {
-    /* not JSON — render as text */
+    /* not JSON - render as text */
   }
 
   if (toolCall.status !== "completed" && !resultText) {

@@ -6,7 +6,7 @@ import { persist } from "zustand/middleware";
 /**
  * Which published agent the chat is addressed to.
  *
- * `null` is the general assistant — the product the chat has always been, and
+ * `null` is the general assistant - the product the chat has always been, and
  * what the backend runs for a frame carrying no `agent_id`. There is no
  * per-organization default on either side: an unset selection means the
  * assistant, never "guess an agent".

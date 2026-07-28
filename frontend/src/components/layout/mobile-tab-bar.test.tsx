@@ -15,7 +15,7 @@ vi.mock("@/hooks", () => ({ useAuth: () => ({ user: { role: "member" } }) }));
 /**
  * The tab bar had the same bug the desktop sidebar had, in a worse form: it
  * stripped any two leading letters as if they were a locale, so `/chat` became
- * "at" and `/kb` became "". Those two tabs could never light up on a phone —
+ * "at" and `/kb` became "". Those two tabs could never light up on a phone -
  * and nobody reported it, because a tab bar that highlights nothing looks
  * merely plain rather than broken.
  */

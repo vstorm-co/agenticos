@@ -8,7 +8,7 @@ up without drifting, and whether a grant written by one service is seen by
 another.
 
 Every test drives the real services, so what it asserts is what the platform
-does — not what a stub was told to return.
+does - not what a stub was told to return.
 """
 
 from __future__ import annotations
@@ -176,7 +176,7 @@ async def _default_model(db, tenant: Tenant) -> ModelProfile:
 async def _keyed_model_profile(db, tenant: Tenant) -> ModelProfile:
     """A default profile with credentials behind it, so a run can be *built*.
 
-    ``_default_model`` above is enough to publish a spec — publishing only
+    ``_default_model`` above is enough to publish a spec - publishing only
     checks that a profile exists. Assembling a run resolves the profile and
     unseals its key, so anything that actually executes needs this one.
     """
@@ -213,8 +213,8 @@ async def _published_agent(db, tenant: Tenant, *, spec: AgentSpec) -> Agent:
     """An agent with a live version, created through the registry that guards it.
 
     A spec that names no model is given whichever one the test already created.
-    Publishing refuses a spec without one — there is no organization-wide
-    default to fall back on — and every test here that does not care which model
+    Publishing refuses a spec without one - there is no organization-wide
+    default to fall back on - and every test here that does not care which model
     an agent runs on would otherwise have to say so anyway.
     """
     if spec.model_profile_id is None:
@@ -253,7 +253,7 @@ async def _mcp_connection(
 ) -> McpConnection:
     """One MCP connection row, always carrying its organization.
 
-    A personal connection keeps ``organization_id`` too — that is the case worth
+    A personal connection keeps ``organization_id`` too - that is the case worth
     having rows for, because filtering on the organization alone would let a
     member's own token into a shared agent.
 
@@ -440,7 +440,7 @@ class RagEstate:
     """Two organizations, each with a full set of RAG rows, plus one shared name.
 
     The collections are ``org``-scoped, which is what both ``POST /kb`` and
-    ``POST /rag/collections/{name}`` actually create — and the other tenant's
+    ``POST /rag/collections/{name}`` actually create - and the other tenant's
     carries the *home* user as its owner, for the same reason ``TwoTenants``
     does: ownership must not be a way in.
 
@@ -476,8 +476,8 @@ async def _kb_row(
 ) -> KnowledgeBase:
     """One knowledge base row, always saying what its vectors were built with.
 
-    ``embedding_model`` has no database default on purpose — see
-    ``app.repositories.knowledge_base.create`` — so every row that exists in a
+    ``embedding_model`` has no database default on purpose - see
+    ``app.repositories.knowledge_base.create`` - so every row that exists in a
     test says the same thing a row in production would.
     """
     kb = KnowledgeBase(
@@ -582,7 +582,7 @@ class _NeverAsked:
 
     Every refusal below has to happen before the collection is opened. A stub
     that politely returned an empty answer would let a route that checks nothing
-    pass a test which only reads the status code — so this one is louder.
+    pass a test which only reads the status code - so this one is louder.
     """
 
     def __getattr__(self, name: str) -> Any:
@@ -638,7 +638,7 @@ async def kb_api(db) -> AsyncIterator[KbClient]:
 
     Its own client because ``/kb`` resolves three things about a caller where
     ``/rag`` resolves one: the user, the active organization and the auth
-    context. A caller is therefore a whole tenant here, not a context — passing
+    context. A caller is therefore a whole tenant here, not a context - passing
     only the context would leave the other two dependencies real, and the
     request would be refused for having no token rather than for the reason
     under test.
@@ -661,7 +661,7 @@ async def kb_api(db) -> AsyncIterator[KbClient]:
 class TestTenantIsolation:
     """An owner of one organization is a stranger to every other one.
 
-    Owner is the strongest role there is — ``Scope.ALL`` on everything — so if
+    Owner is the strongest role there is - ``Scope.ALL`` on everything - so if
     the boundary holds for them it holds for everyone.
     """
 
@@ -674,7 +674,7 @@ class TestTenantIsolation:
     async def test_an_agent_in_another_tenant_is_not_found_by_its_own_owner(
         self, db, estate: TwoTenants
     ) -> None:
-        """Owning the row is not access — the organization is checked first."""
+        """Owning the row is not access - the organization is checked first."""
         with pytest.raises(NotFoundError):
             await AgentRegistryService(db).get(estate.home.ctx, estate.other_agent.id)
 
@@ -682,7 +682,7 @@ class TestTenantIsolation:
         items, total = await SkillService(db).list_skills(estate.home.ctx)
 
         assert [skill.id for skill in items] == [estate.home_skill.id]
-        # The count is the tenant's, not the table's — a pager built on a total
+        # The count is the tenant's, not the table's - a pager built on a total
         # that counted another organization's rows offers a page that is empty.
         assert total == 1
 
@@ -753,13 +753,13 @@ class TestTenantIsolation:
         """The listing and the collection itself must agree, or the listing is decoration.
 
         Both halves in one test on purpose: they were inconsistent, and it is
-        the inconsistency — not either answer alone — that was the bug.
+        the inconsistency - not either answer alone - that was the bug.
 
         Containment rather than equality because ``estate`` contributes two
         *personal* collections that this same user owns, one of them created
         inside the other organization. A personal knowledge base belongs to its
         owner rather than to an organization, so it follows them between org
-        contexts — deliberate, and the reason this asserts on the org-scoped
+        contexts - deliberate, and the reason this asserts on the org-scoped
         rows the fixture names.
         """
         client = rag_api(rag_estate.home.ctx)
@@ -1029,7 +1029,7 @@ class TestTenantIsolation:
     async def test_a_deployment_wide_base_is_refused_as_forbidden_rather_than_missing(
         self, db, rag_estate: RagEstate
     ) -> None:
-        """The one write refusal that stays a 403 — and the reason it is not a leak.
+        """The one write refusal that stays a 403 - and the reason it is not a leak.
 
         An app-scoped base is readable by every caller in the deployment by
         design, which this test asserts first: the ``get`` succeeds. Reporting the
@@ -1272,7 +1272,7 @@ class TestHowACollectionReadsItsDocuments:
         """The wire format, asserted where a client actually meets it.
 
         An upload is ``multipart/form-data``, so the settings cannot ride along
-        as a JSON body — they are one form field holding JSON. Proving the merge
+        as a JSON body - they are one form field holding JSON. Proving the merge
         through the service would say nothing about whether that field is wired
         up, which is the half a frontend depends on.
         """
@@ -1356,7 +1356,7 @@ class TestHowACollectionReadsItsDocuments:
         """The one new way an override reaches outside the document it belongs to.
 
         Resolution is organization-scoped, so a profile id from another tenant
-        is not "forbidden" but simply not found — the same answer their
+        is not "forbidden" but simply not found - the same answer their
         collections give.
         """
         home = await _tenant(db, name="Home")
@@ -1388,7 +1388,7 @@ class TestTheEmbeddingModelACollectionWasBuiltWith:
     ``embedding vector(N)``. Until this was recorded per collection the only
     record was an environment variable, so changing it broke every existing
     collection with no error anybody could trace: either the width no longer
-    matched and inserts failed, or — between two models that share a width —
+    matched and inserts failed, or - between two models that share a width -
     vectors from a different space were written next to the old ones and search
     went on answering, wrongly.
     """
@@ -1407,7 +1407,7 @@ class TestTheEmbeddingModelACollectionWasBuiltWith:
         """The refusal names both models, because the fix is a decision.
 
         Restoring the variable and re-ingesting into a new collection are both
-        reasonable, and the platform cannot pick between them — but it can
+        reasonable, and the platform cannot pick between them - but it can
         refuse to make the choice moot by corrupting the collection first.
         """
         tenant = await _tenant(db, name="Switched")
@@ -1579,7 +1579,7 @@ class TestRenamingAToolOnAPublishedAgent:
     """`tool_overrides` through publish and back out of the database.
 
     Both halves need real rows. The refusals are only real if the publish path
-    actually runs them — a spec that saves as a draft and fails on the way to a
+    actually runs them - a spec that saves as a draft and fails on the way to a
     version is the whole point of validating there. And the gate's names have to
     survive the round trip through JSONB: the spec that decides them is not the
     object somebody built, it is the one a run reads back.
@@ -1625,7 +1625,7 @@ class TestRenamingAToolOnAPublishedAgent:
 
         The gate matches what the model called. If the stored spec resolved back
         to the *declared* name, the gate would wait for a tool nobody calls and
-        the renamed one would run unattended — with nothing reporting it.
+        the renamed one would run unattended - with nothing reporting it.
         """
         tenant = await _tenant(db, name="Renamer")
         agent = await self._draft(
@@ -1651,7 +1651,7 @@ class TestManagingTheOrganizationsMcpServers:
 
     The read half is proven below: a personal connection carrying the right
     ``organization_id`` does not satisfy an org binding. The same trap exists on
-    every write — a filter on the organization alone would let one member edit
+    every write - a filter on the organization alone would let one member edit
     or delete another member's personal connection through routes that never ask
     whose it is, and would let an admin in one tenant reach into another.
     """
@@ -1772,7 +1772,7 @@ class TestManagingTheOrganizationsMcpServers:
         """The row carries this exact ``organization_id``, so a filter on the
         organization alone finds it. It is still refused, and it has to be: this
         is somebody's personal credential, reachable here by an admin who never
-        asked whose it was — and editable into pointing anywhere.
+        asked whose it was - and editable into pointing anywhere.
         """
         tenant = await _tenant(db, name="Personal")
         personal = await _mcp_connection(db, tenant, name="notion", scope="user")
@@ -1785,11 +1785,11 @@ class TestManagingTheOrganizationsMcpServers:
 
 
 class TestBindingAnMcpServerToAnAgent:
-    """`mcp_server_ids` against real rows — the only place the scope rule is real.
+    """`mcp_server_ids` against real rows - the only place the scope rule is real.
 
     A mock can be told that a connection is organization-scoped. Whether the
-    query actually says so — and therefore whether a member's personal token can
-    be smuggled into an agent everybody runs — is a question only Postgres
+    query actually says so - and therefore whether a member's personal token can
+    be smuggled into an agent everybody runs - is a question only Postgres
     answers.
     """
 
@@ -1826,7 +1826,7 @@ class TestBindingAnMcpServerToAnAgent:
         assert str(connection.id) in refused.value.details["problems"][0]
 
     async def test_another_organizations_connection_is_refused_at_publish(self, db) -> None:
-        """Ids in a spec are just data — an exported spec can name anything."""
+        """Ids in a spec are just data - an exported spec can name anything."""
         mine = await _tenant(db, name="Mine")
         theirs = await _tenant(db, name="Theirs")
         connection = await _mcp_connection(db, theirs, name="linear", scope="org")
@@ -1838,7 +1838,7 @@ class TestBindingAnMcpServerToAnAgent:
         assert str(connection.id) in refused.value.details["problems"][0]
 
     async def test_a_run_attaches_the_bound_server_and_nothing_else(self, db, monkeypatch) -> None:
-        """What the agent reaches is what it named — not everything the org has.
+        """What the agent reaches is what it named - not everything the org has.
 
         The probe is replaced because it would dial out; everything up to it is
         real, which is the part that decides which servers a run may talk to.
@@ -1872,7 +1872,7 @@ class TestLockingAnMcpConnectionBeforeSpendingItsRefreshToken:
     options are worth, and both answers are severe: Postgres refuses
     ``FOR UPDATE`` on the nullable side of an outer join outright, so a lock
     taken with ``McpConnection.user`` still joined does not merely serialize
-    badly — it raises, and every OAuth refresh becomes a failed turn. And a lock
+    badly - it raises, and every OAuth refresh becomes a failed turn. And a lock
     granted over a stale identity-map copy would hand back exactly the expired
     token the caller waited for the lock to stop using.
     """
@@ -1891,7 +1891,7 @@ class TestLockingAnMcpConnectionBeforeSpendingItsRefreshToken:
     ) -> None:
         """The winner of the lock writes a new payload; the loser is holding an
         ORM instance that predates it. Re-reading the columns is the whole
-        mechanism by which the loser stops re-spending the old refresh token —
+        mechanism by which the loser stops re-spending the old refresh token -
         without it SQLAlchemy keeps every attribute the session already loaded
         and hands back the expired token the lock was waited on to replace.
 
@@ -1918,7 +1918,7 @@ class TestLockingAnMcpConnectionBeforeSpendingItsRefreshToken:
 
 class TestDecidingAnApproval:
     async def test_a_decision_records_who_made_it(self, db) -> None:
-        """The point of the queue is attribution — an anonymous approval is a rubber stamp."""
+        """The point of the queue is attribution - an anonymous approval is a rubber stamp."""
         tenant = await _tenant(db, name="Approver")
         agent = await _agent_row(
             db,
@@ -1989,8 +1989,8 @@ class TestBudgetAccumulation:
     async def test_a_months_runs_sum_exactly(self, db) -> None:
         """The same three values as floats give 0.6000000000000001.
 
-        Numeric all the way through — column, sum, and the value the service
-        returns — is what keeps a monthly total reconcilable against an invoice.
+        Numeric all the way through - column, sum, and the value the service
+        returns - is what keeps a monthly total reconcilable against an invoice.
         """
         tenant = await _tenant(db, name="Spender")
         agent = await _agent_row(
@@ -2092,7 +2092,7 @@ class TestTheOrganizationsMonthlyCap:
 
     These drive the real runner against real rows, because that is the part that
     was wrong. A unit test with the cap handed in would have passed against the
-    broken code — the number was never the problem, the lookup was.
+    broken code - the number was never the problem, the lookup was.
     """
 
     @staticmethod
@@ -2112,7 +2112,7 @@ class TestTheOrganizationsMonthlyCap:
     async def test_a_run_is_refused_once_the_organization_is_over_its_cap(self, db) -> None:
         """No caller passes this cap, so nothing but the lookup can produce it.
 
-        The agent below has no budget of its own — under the old code its run
+        The agent below has no budget of its own - under the old code its run
         was unlimited, which is the whole defect.
         """
         tenant = await _tenant(db, name="Capped", monthly_budget_usd=Decimal("10"))
@@ -2210,7 +2210,7 @@ class TestAnAgentsOwnMonthlyCap:
     made it a second organization-wide cap wearing an agent's name: an agent with
     a $10 limit was refused because its neighbours had spent $10, and its own
     spend was never isolated. Both caps were then collapsed with ``min()`` and
-    compared to that one number — two ceilings measured against one quantity.
+    compared to that one number - two ceilings measured against one quantity.
 
     These need real rows for the same reason the organization's do. The number
     was never the problem; the lookup was, and a unit test handed the spend would
@@ -2252,7 +2252,7 @@ class TestAnAgentsOwnMonthlyCap:
     async def test_a_neighbours_spending_does_not_exhaust_this_agents_cap(self, db) -> None:
         """The defect, stated as a run: a $10 agent refused for somebody else's $12.
 
-        Nothing about this agent has changed — it has spent nothing all month —
+        Nothing about this agent has changed - it has spent nothing all month -
         so a cap on it cannot be exhausted.
         """
         tenant = await _tenant(db, name="Neighbourly")
@@ -2269,7 +2269,7 @@ class TestAnAgentsOwnMonthlyCap:
         assert await _answer(prepared) == "thirty days"
 
     async def test_an_agent_is_refused_once_its_own_spend_reaches_its_cap(self, db) -> None:
-        """The cap still has to bind — on the spend that is actually the agent's.
+        """The cap still has to bind - on the spend that is actually the agent's.
 
         The neighbour is what makes the reported figure worth asserting: metered
         organization-wide the refusal would read $15.50 against a $10 agent limit,
@@ -2296,7 +2296,7 @@ class TestAnAgentsOwnMonthlyCap:
     async def test_a_tighter_agent_cap_binds_on_its_own_spend(self, db) -> None:
         """$5 under a $50 ceiling, and the $6 that binds it is this agent's own.
 
-        Both caps are in force and the tighter one stops the run — but it stops
+        Both caps are in force and the tighter one stops the run - but it stops
         it at $6, not at the $26 the organization has spent. Taking ``min()`` of
         the two and checking it against the organization's total gave the right
         verdict here for the wrong reason, and the wrong verdict above.
@@ -2323,7 +2323,7 @@ class TestAnAgentsOwnMonthlyCap:
         """Two caps, two quantities, and the one that binds names itself.
 
         The agent asks for $100 and has spent $4 of it, so its own cap is nowhere
-        near. The organization's $10 is exhausted by $12 across both agents —
+        near. The organization's $10 is exhausted by $12 across both agents -
         which is the number that stops the run, and the number an operator has to
         raise. Under one shared lookup this pair was indistinguishable.
         """
@@ -2353,7 +2353,7 @@ class TestGrantWidenedAccess:
     """A grant lifts access for one row, and taking it back lowers it again.
 
     Written by :class:`SharingService` and read by the registry through
-    ``resolve_access`` — two services that only agree if the row in between says
+    ``resolve_access`` - two services that only agree if the row in between says
     what both of them think it says.
     """
 
@@ -2497,7 +2497,7 @@ class TestMentioningAnAgentFromAChannel:
 
     The unit suite proves the parsing and the refusals with the database
     stubbed. What it cannot prove is that the slug lookup, the membership lookup
-    and the *binding* lookup agree with the tables they read — which is the whole
+    and the *binding* lookup agree with the tables they read - which is the whole
     of what this path does before it spends a token.
 
     Every test that expects an answer has to bind the agent to the bot. That is
@@ -2540,7 +2540,7 @@ class TestMentioningAnAgentFromAChannel:
         """The hole this closed: a published agent used to be reachable from any bot.
 
         No backfill was written, so the agent below is exactly what every agent
-        in an upgraded deployment looks like — reachable by handle, bound to
+        in an upgraded deployment looks like - reachable by handle, bound to
         nothing, and now refused.
         """
         tenant = await _tenant(db, name="Unbound")
@@ -2648,7 +2648,7 @@ class TestMentioningAnAgentFromAChannel:
         execute.assert_not_called()
 
     async def test_a_sender_who_is_not_a_member_here_is_refused(self, db) -> None:
-        """A real account, a real bound agent — and no standing in this workspace."""
+        """A real account, a real bound agent - and no standing in this workspace."""
         tenant = await _tenant(db, name="Closed")
         outsider = await _new_user(db)
         agent = await _agent_row(
@@ -2692,7 +2692,7 @@ class TestChattingWithAPublishedAgent:
 
     The unit suite proves the accounting with the database stubbed. What only a
     real database can answer is whether the chat reaches the same rows every
-    other surface does — whether the run it opens is the one `/runs` lists, and
+    other surface does - whether the run it opens is the one `/runs` lists, and
     whether a socket that authenticated a person is still bound by that person's
     role once they name an agent.
     """
@@ -2739,8 +2739,8 @@ class TestChattingWithAPublishedAgent:
         """One chat turn whose surface never advances the run.
 
         Not iterating means no model request leaves the process, which is the
-        point: everything up to the first token is real — the membership, the
-        published version, the model profile, the run row — and the run then
+        point: everything up to the first token is real - the membership, the
+        published version, the model profile, the run row - and the run then
         ends the way a surface that died mid-stream would end it.
         """
         return await ChatAgentRunner(db).run(
@@ -2762,7 +2762,7 @@ class TestChattingWithAPublishedAgent:
         """A chat run missing from `/runs` is a run nobody is accountable for.
 
         It records the version it executed and the person it belonged to, and it
-        is there even though this turn ended badly — the tokens up to the point
+        is there even though this turn ended badly - the tokens up to the point
         it broke were still spent.
         """
         tenant = await _tenant(db, name="Chatters")
@@ -2836,7 +2836,7 @@ class TestManyKeysForOneProvider:
     The shape a real deployment arrives in: separate keys per team, per client
     or per cost centre, all with the same provider, and each agent billed to
     its own. Uniqueness on credentials is `(organization, label)` rather than
-    `(organization, provider)` precisely so this is possible — the label is
+    `(organization, provider)` precisely so this is possible - the label is
     what forces the five to be told apart in a dropdown.
 
     Worth an integration test rather than a unit one because the guarantee is
@@ -3110,7 +3110,7 @@ class TestFilteringConversationsByAgent:
     hit: the filter is a correlated `EXISTS`, and its failure mode is a query
     SQLAlchemy refuses to compile. A mocked session accepts any expression and
     reports nothing; only a database says "no FROM clauses due to
-    auto-correlation" — which is what the route returned as a 500.
+    auto-correlation" - which is what the route returned as a 500.
     """
 
     async def _conversation(self, db, tenant: Tenant, *, title: str) -> Conversation:
@@ -3263,7 +3263,7 @@ class TestWhichSecretsAMemberSees:
 
     async def test_an_owner_sees_every_key_including_private_ones(self, db) -> None:
         """An owner's role reaches the whole organization, so the predicate is
-        skipped entirely — which is the branch a scoped query must not take."""
+        skipped entirely - which is the branch a scoped query must not take."""
         owner = await _tenant(db, name="Everything")
         await self._store(db, owner, name="Team key")
         await self._store(db, owner, name="Private key", visibility=Visibility.PRIVATE)

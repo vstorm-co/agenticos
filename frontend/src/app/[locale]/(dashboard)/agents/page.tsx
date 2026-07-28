@@ -63,7 +63,7 @@ export default function AgentsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Agents"
-        description="An agent is configuration, not code. Build it here, publish a version, and it runs the same way everywhere — chat, API, Slack."
+        description="An agent is configuration, not code. Build it here, publish a version, and it runs the same way everywhere - chat, API, Slack."
         actions={
           canEdit ? (
             <Button onClick={() => setCreateOpen(true)}>

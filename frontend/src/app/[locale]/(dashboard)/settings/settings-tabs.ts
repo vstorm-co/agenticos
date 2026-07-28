@@ -8,8 +8,8 @@ import { ROUTES } from "@/lib/constants";
  *
  * `/settings/` is *your* configuration: your profile, your account, your
  * notifications, your slash commands, and the MCP connections that carry your
- * credentials. Anything the organization owns — the provider keys it runs on,
- * the MCP servers its agents are built on — is a primary destination in the
+ * credentials. Anything the organization owns - the provider keys it runs on,
+ * the MCP servers its agents are built on - is a primary destination in the
  * sidebar and lives at the top level, so no page is claimed by two navigations
  * at once.
  *
@@ -24,7 +24,7 @@ import { ROUTES } from "@/lib/constants";
  * by typing their URL.
  *
  * It sits beside `layout.tsx` rather than in it because a route file may export
- * nothing but the route — `next build` rejects the extra export — and this
+ * nothing but the route - `next build` rejects the extra export - and this
  * table has to be readable by the test that guards it.
  */
 export const SETTINGS_TABS: readonly PageTab[] = [

@@ -50,7 +50,7 @@ export default function AccountSettingsPage() {
       setNewPassword("");
       setConfirmPassword("");
     } catch (err) {
-      // Backend may not have this endpoint yet — surface a helpful message.
+      // Backend may not have this endpoint yet - surface a helpful message.
       if (err instanceof ApiError && err.status === 404) {
         toast.error("Password change requires backend wiring (POST /auth/password/change).");
       } else {
@@ -83,7 +83,7 @@ export default function AccountSettingsPage() {
     <div className="space-y-6">
       <SectionCard
         title="Change password"
-        description="Use a strong, unique password — 8+ characters, mixed case, numbers."
+        description="Use a strong, unique password - 8+ characters, mixed case, numbers."
         action={
           <Button
             onClick={handleChangePassword}

@@ -3,7 +3,7 @@
 The chat is the one surface that does not simply await an answer: it iterates
 the run, forwards events, and can be stopped halfway by a person closing a tab.
 That is what makes the accounting worth proving here rather than trusting the
-runner to have covered it — every way a chat turn can end has to reach run
+runner to have covered it - every way a chat turn can end has to reach run
 history, including the ways that are not an answer.
 
 The other half is who the run belongs to. A socket is long-lived; a membership
@@ -39,7 +39,7 @@ pytestmark = pytest.mark.anyio
 
 
 class _Iteration:
-    """Stands in for ``agent.iter`` — an async context manager over one run."""
+    """Stands in for ``agent.iter`` - an async context manager over one run."""
 
     def __init__(self, agent_run: MagicMock) -> None:
         self.agent_run = agent_run
@@ -127,7 +127,7 @@ async def _run(
 
 
 class TestAddressingAnAgent:
-    """Which agent a frame names — and what happens when it names nothing."""
+    """Which agent a frame names - and what happens when it names nothing."""
 
     @pytest.mark.parametrize("frame", [{}, {"agent_id": None}, {"agent_id": ""}])
     def test_a_frame_that_names_no_agent_keeps_the_general_assistant(self, frame):
@@ -293,8 +293,8 @@ class TestPausingMidRun:
         assert prepared.deps.ask_user is ask_user
 
     async def test_a_parked_tool_call_leaves_the_run_resumable(self):
-        """The decision arrives later, from the queue — possibly tomorrow, in
-        another process — so everything needed to continue goes on the row."""
+        """The decision arrives later, from the queue - possibly tomorrow, in
+        another process - so everything needed to continue goes on the row."""
         prepared = _prepared(DeferredToolRequests())
 
         with _runner(prepared) as runner:

@@ -66,7 +66,7 @@ class AgentInvocationService:
         await self._persist_user_message(conversation_id, user_message)
 
         history = await self._load_history(conversation_id)
-        # Resolve active KB collections server-side — never trust the client
+        # Resolve active KB collections server-side - never trust the client
         kb_collection_names = await self._load_active_kb_collection_names(
             conversation_id=conversation_id,
             user_id=user_id,

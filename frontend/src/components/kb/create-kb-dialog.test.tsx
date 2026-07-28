@@ -46,7 +46,7 @@ describe("CreateKBDialog", () => {
   it("sends no ingestion configuration for a collection nobody configured", async () => {
     // The one that matters. The API fills a *missing* object from the
     // deployment's own settings, which an operator may have set to something
-    // other than the platform's — so posting the form's starting values would
+    // other than the platform's - so posting the form's starting values would
     // quietly overrule them for every collection anyone ever made here.
     await userEvent.type(screen.getByLabelText("Name"), "Handbook");
     await userEvent.click(create());
@@ -67,7 +67,7 @@ describe("CreateKBDialog", () => {
   });
 
   it("sends the whole configuration once one field is moved off it", async () => {
-    // Update and create both replace it wholesale — there is no partial merge —
+    // Update and create both replace it wholesale - there is no partial merge -
     // so a chosen chunk size has to arrive with the nine other fields it was
     // chosen alongside.
     await userEvent.type(screen.getByLabelText("Name"), "Handbook");

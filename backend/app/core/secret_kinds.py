@@ -4,13 +4,13 @@ A secret is not always a string. An AWS key pair is an id, a secret and a
 region; an Azure OpenAI deployment is a key plus an endpoint and an API version;
 a Vertex credential is a service account document. Forcing all of them into one
 "API key" field produces a form somebody can fill in correctly and still end up
-with a credential that fails at the first run — which is why a secret has a
+with a credential that fails at the first run - which is why a secret has a
 *kind*, and why the kind decides which fields exist.
 
 The kinds are the shapes that actually exist, and no more:
 
 ``none``
-    Not a secret at all — the marker for an endpoint that needs no credential,
+    Not a secret at all - the marker for an endpoint that needs no credential,
     which is the normal case for a self-hosted model server. It exists so the
     resolver can switch on a total set instead of treating "no credential" as a
     missing value, and it is the answer to "what do you store for Ollama on
@@ -22,7 +22,7 @@ The kinds are the shapes that actually exist, and no more:
     Azure routes by deployment endpoint and pins an API version, so both travel
     with the key or the credential is unusable.
 ``aws_credentials``
-    An access key id, a secret access key and a region — plus an optional
+    An access key id, a secret access key and a region - plus an optional
     session token for STS. The id is not secret and the secret is; a single
     field cannot express that.
 ``gcp_service_account``
@@ -72,8 +72,8 @@ def _reveal(value: SecretStr) -> str:
     return value.get_secret_value()
 
 
-# A secret field that masks itself in every repr — the way a plaintext key
-# usually escapes is a dataclass or a Pydantic model being logged whole — but
+# A secret field that masks itself in every repr - the way a plaintext key
+# usually escapes is a dataclass or a Pydantic model being logged whole - but
 # serialises to its real value in JSON, which is the one place it has to: on the
 # way into the vault. `model_dump()` still yields the SecretStr, so the accident
 # of dumping a model into a log line stays harmless.
@@ -90,7 +90,7 @@ class _SecretBase(BaseModel):
         """Four characters an operator can recognise this credential by.
 
         Taken from the field that identifies the credential rather than from the
-        one that authenticates it where the two differ — an AWS access key id is
+        one that authenticates it where the two differ - an AWS access key id is
         public, and showing four characters of it is strictly better than
         showing four of the secret access key.
         """
@@ -98,7 +98,7 @@ class _SecretBase(BaseModel):
 
 
 class NoSecret(_SecretBase):
-    """No credential at all — a model server reached over the network unauthenticated."""
+    """No credential at all - a model server reached over the network unauthenticated."""
 
     kind: Literal[SecretKind.NONE] = SecretKind.NONE
 
@@ -187,7 +187,7 @@ class GcpServiceAccountSecret(_SecretBase):
             raise ValueError("Service account credentials must be the downloaded JSON") from exc
         if not isinstance(document, dict) or document.get("type") != "service_account":
             raise ValueError(
-                "This is not a service account key — its 'type' is not service_account"
+                "This is not a service account key - its 'type' is not service_account"
             )
         missing = [field for field in _SERVICE_ACCOUNT_FIELDS if not document.get(field)]
         if missing:
@@ -227,7 +227,7 @@ SecretValue = Annotated[
     NoSecret | ApiKeySecret | AzureOpenAISecret | AwsCredentialsSecret | GcpServiceAccountSecret,
     Field(discriminator="kind"),
 ]
-"""What the runtime holds — :data:`StorableSecret` plus "there is no credential"."""
+"""What the runtime holds - :data:`StorableSecret` plus "there is no credential"."""
 
 STORABLE_KINDS: frozenset[SecretKind] = frozenset(SecretKind) - {SecretKind.NONE}
 
@@ -257,7 +257,7 @@ def unseal_secret(
     Raises:
         BadRequestError: If the envelope cannot be opened, holds something that
             is not a secret payload, or holds a different kind than the column
-            says — which would mean a row was edited underneath the schema.
+            says - which would mean a row was edited underneath the schema.
     """
     value = _STORABLE_ADAPTER.validate_json(
         unseal(ciphertext, scope=scope, key_version=key_version)
@@ -300,7 +300,7 @@ _KIND_LABELS: dict[SecretKind, tuple[str, str]] = {
     ),
     SecretKind.AWS_CREDENTIALS: (
         "AWS credentials",
-        "An access key id, its secret access key and a region — for Bedrock and other AWS APIs.",
+        "An access key id, its secret access key and a region - for Bedrock and other AWS APIs.",
     ),
     SecretKind.GCP_SERVICE_ACCOUNT: (
         "Google service account",
@@ -327,8 +327,8 @@ class SecretCondition(BaseModel):
 
     A predicate would be shorter to write and impossible to ship: the Builder
     has to ask for a key at exactly the moments the server will demand one, and
-    a lambda cannot cross the wire. So the rule is a value — "this config field
-    equals one of these" — evaluated by the same definition on both sides.
+    a lambda cannot cross the wire. So the rule is a value - "this config field
+    equals one of these" - evaluated by the same definition on both sides.
 
     It is deliberately the simplest thing that covers the real case: a capability
     offering several providers where only some authenticate. Anything more
@@ -371,5 +371,5 @@ class SecretRequirement(BaseModel):
     @model_validator(mode="after")
     def _a_requirement_is_for_a_real_secret(self) -> SecretRequirement:
         if self.kind is SecretKind.NONE:
-            raise ValueError("A capability cannot require the 'none' kind — that is no secret")
+            raise ValueError("A capability cannot require the 'none' kind - that is no secret")
         return self

@@ -92,7 +92,7 @@ async def claim_parked_run(
     """Read a run and hold its row for the rest of the transaction.
 
     Resuming replays a side-effecting tool call, so two requests arriving
-    together — a double-clicked Approve — must not both replay it. The second
+    together - a double-clicked Approve - must not both replay it. The second
     waits here and then finds the run no longer parked.
     """
     result = await db.execute(
@@ -140,7 +140,7 @@ async def sum_cost_since(
     agent_id: UUID | None = None,
     exposure_id: UUID | None = None,
 ) -> Decimal:
-    """Total spend in a window — what a monthly budget is checked against.
+    """Total spend in a window - what a monthly budget is checked against.
 
     The narrowing arguments are what make several caps possible at once. Each
     cap has to be measured against the spend it is a cap *on*: an exposure's
@@ -166,7 +166,7 @@ async def cost_breakdown(
     organization_id: UUID,
     since: datetime,
 ) -> list[tuple[UUID, str | None, Decimal, int]]:
-    """Spend grouped by agent — the cost dashboard's main query.
+    """Spend grouped by agent - the cost dashboard's main query.
 
     Returns (agent_id, model_label, total_cost, run_count) rows.
     """
@@ -193,7 +193,7 @@ async def spend_by_provider(
     organization_id: UUID,
     since: datetime,
 ) -> list[tuple[str | None, Decimal, int]]:
-    """Spend grouped by model provider — "what did we spend at OpenAI".
+    """Spend grouped by model provider - "what did we spend at OpenAI".
 
     Reads the provider recorded *on the run*, not the one its model profile
     points at today: a repointed profile would otherwise rewrite what last
@@ -299,7 +299,7 @@ async def list_pending_approvals(
 async def list_approvals_for_run(
     db: AsyncSession, *, run_id: UUID, organization_id: UUID
 ) -> list[ToolApproval]:
-    """Every approval raised by one run, oldest first — what a resume checks."""
+    """Every approval raised by one run, oldest first - what a resume checks."""
     result = await db.execute(
         select(ToolApproval)
         .where(

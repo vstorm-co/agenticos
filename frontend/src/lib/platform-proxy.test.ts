@@ -2,8 +2,8 @@
  * Tests for the BFF proxy, and two sweeps over everything that talks to it.
  *
  * The sweeps exist because both failures they catch shipped, and neither broke
- * a single test. The whole platform surface — agents, skills, runs, approvals,
- * providers, permissions — once called `/api/*` paths with no route file behind
+ * a single test. The whole platform surface - agents, skills, runs, approvals,
+ * providers, permissions - once called `/api/*` paths with no route file behind
  * them: every request a Next 404. Then `/kb` and `/rag` shipped hand-rolled
  * route files that forwarded the token and forgot the active organization, so
  * both pages answered for the caller's personal organization and rendered an
@@ -38,7 +38,7 @@ function request(url: string, init: RequestInit & { token?: string } = {}) {
 type ForwardedCall = { url: string; init: RequestInit & { headers: Record<string, string> } };
 
 function backendReplies(body: string, init: ResponseInit = {}) {
-  // `null`, not `""` — the Response constructor rejects a body on a 204.
+  // `null`, not `""` - the Response constructor rejects a body on a 204.
   const fetchMock = vi.fn().mockResolvedValue(new Response(body || null, init));
   vi.stubGlobal("fetch", fetchMock);
   return {
@@ -127,8 +127,8 @@ describe("platformProxy", () => {
 
   it("forwards the caller's own content type, boundary and all", async () => {
     // A file upload is multipart with a boundary only the browser knows.
-    // Overwriting it with `application/json` — which this proxy used to do
-    // unconditionally — makes FastAPI report the file field as missing.
+    // Overwriting it with `application/json` - which this proxy used to do
+    // unconditionally - makes FastAPI report the file field as missing.
     const backend = backendReplies("{}");
     const boundary = "multipart/form-data; boundary=----WebKitFormBoundaryXYZ";
 
@@ -144,8 +144,8 @@ describe("platformProxy", () => {
   });
 
   it("moves a binary body through unchanged in both directions", async () => {
-    // A PDF is not UTF-8. Reading the response as text and re-encoding it — the
-    // shape every hand-rolled route in this app was written in — replaces every
+    // A PDF is not UTF-8. Reading the response as text and re-encoding it - the
+    // shape every hand-rolled route in this app was written in - replaces every
     // byte it cannot decode, which corrupts the file silently.
     const pdf = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37, 0x00, 0xff, 0xfe]);
     vi.stubGlobal(
@@ -303,7 +303,7 @@ function isRouted(path: string): boolean {
  *
  * Two forms, because the app writes both: a path handed to `apiClient`, which
  * prefixes `/api` itself, and an absolute `/api/...` string given to `fetch`,
- * `XMLHttpRequest` or an `<a href>` — the download links, which no hook ever
+ * `XMLHttpRequest` or an `<a href>` - the download links, which no hook ever
  * touches. Newlines are collapsed first so a method call split across lines by
  * the formatter still matches.
  */
@@ -318,7 +318,7 @@ function calledPaths(): Set<string> {
   );
   for (const file of files) {
     // `backendFetch` takes a *backend* path, not a BFF one, and there is no
-    // route file behind `/api/v1/...` here by design — those calls run on the
+    // route file behind `/api/v1/...` here by design - those calls run on the
     // server and go straight to FastAPI. Dropping the argument keeps them out
     // without having to exempt `/api/v1` wholesale, which is what let
     // `<a href="/api/v1/agents/{id}/spec.yaml">` 404 unnoticed.
@@ -345,7 +345,7 @@ function calledPaths(): Set<string> {
  * Paths the client asks for on purpose that no route answers, and why.
  *
  * Both are calls to endpoints the backend has never had, made by pages that
- * handle the 404 explicitly — a fallback query and a message naming the missing
+ * handle the 404 explicitly - a fallback query and a message naming the missing
  * endpoint. They are listed rather than deleted because the UI they belong to is
  * real; they are listed rather than ignored because "the client calls something
  * that does not exist" is otherwise exactly the thing this sweep is for.
@@ -360,7 +360,7 @@ const CALLED_WITHOUT_AN_ENDPOINT: ReadonlySet<string> = new Set([
 
 describe("every endpoint the client calls is proxied", () => {
   it("finds the calls it is supposed to be checking", () => {
-    // Without this the guard below passes when the regex stops matching —
+    // Without this the guard below passes when the regex stops matching -
     // vacuously green, which is exactly the failure it exists to prevent.
     const paths = calledPaths();
 

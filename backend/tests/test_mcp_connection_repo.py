@@ -1,4 +1,4 @@
-"""Tests for the MCP connection repository — the rows that hold third-party credentials.
+"""Tests for the MCP connection repository - the rows that hold third-party credentials.
 
 A repository's behaviour *is* the statement it builds, so these tests read the
 statement back rather than counting calls. Three of the predicates here are load
@@ -12,7 +12,7 @@ bearing in a way no "the repository was called" assertion would notice:
 - ``list_for_user`` is the order those locks are taken in; reorder it and two
   concurrent turns can deadlock on the same pair of rows.
 
-That the lock is really acceptable to Postgres — the eager-join half — can only
+That the lock is really acceptable to Postgres - the eager-join half - can only
 be answered by a database, and is asserted in
 ``tests/integration/test_platform_flows.py``.
 """
@@ -61,7 +61,7 @@ class _RecordingSession:
 
     async def commit(self) -> None:
         raise AssertionError(
-            "repositories must not commit — get_db_session owns the transaction boundary"
+            "repositories must not commit - get_db_session owns the transaction boundary"
         )
 
 
@@ -143,20 +143,20 @@ class TestGetByIdForUpdate:
 
     async def test_the_row_is_locked(self):
         """Without the lock, two turns reaching an expired token at the same
-        moment both spend the refresh token — and a provider that rotates it
+        moment both spend the refresh token - and a provider that rotates it
         invalidates whichever copy is redeemed second."""
         assert "FOR UPDATE" in _sql(await self._record())
 
     async def test_the_models_eager_join_is_dropped(self):
         """``McpConnection.user`` is a joined eager load, which makes this a
-        LEFT OUTER JOIN — and Postgres refuses ``FOR UPDATE`` on the nullable
+        LEFT OUTER JOIN - and Postgres refuses ``FOR UPDATE`` on the nullable
         side of one, so the lock would fail rather than merely be slow."""
         assert "JOIN" not in _sql(await self._record())
 
     async def test_the_columns_are_re_read_rather_than_taken_from_the_identity_map(self):
         """The whole point of waiting for the lock is to see what the other
         transaction committed. Without ``populate_existing`` the session hands
-        back its cached copy — the stale token we were trying to replace."""
+        back its cached copy - the stale token we were trying to replace."""
         session = await self._record()
 
         assert session.statements[-1].get_execution_options()["populate_existing"] is True
@@ -378,7 +378,7 @@ class TestCreateOrgScoped:
     async def test_the_row_belongs_to_the_organization_and_to_nobody(self):
         """``user_id`` stays NULL and the author goes in ``created_by_user_id``.
         An organization server that carried an owner would be reachable through
-        the personal routes, which ask for no organization permission at all —
+        the personal routes, which ask for no organization permission at all -
         and would vanish the day that account was closed."""
         session = _RecordingSession()
         organization_id = uuid.uuid4()
@@ -461,7 +461,7 @@ class TestCreate:
 
     async def test_the_row_is_flushed_and_refreshed_but_never_committed(self):
         """``get_db_session`` owns the transaction. A repository that commits
-        would make the request's later failure unrollbackable — and the caller
+        would make the request's later failure unrollbackable - and the caller
         still needs the refresh to see the server-side id and timestamps."""
         session = _RecordingSession()
 
@@ -498,7 +498,7 @@ class TestUpdate:
 
 class TestDelete:
     async def test_the_row_is_removed_within_the_callers_transaction(self):
-        """Flushed, not committed — deleting a connection is part of the request
+        """Flushed, not committed - deleting a connection is part of the request
         that asked for it and rolls back with it."""
         session = _RecordingSession()
         connection = _connection()

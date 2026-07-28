@@ -50,7 +50,7 @@ export default async function MagicLinkSentPage({ searchParams }: PageProps) {
               to <span className="text-foreground font-medium">{email}</span>
             </>
           ) : null}
-          . Click it to continue — expires in 15 minutes.
+          . Click it to continue - expires in 15 minutes.
         </p>
       </div>
 

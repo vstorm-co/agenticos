@@ -1,11 +1,11 @@
 """Channel management CLI commands.
 
 Commands:
-    channel-list-bots         — List all registered channel bots
-    channel-add-bot           — Register a new channel bot
-    channel-webhook-register  — Register webhook URL for a bot with Telegram
-    channel-webhook-delete    — Remove webhook for a bot (switches to polling)
-    channel-test-message      — Send a test message through a bot
+    channel-list-bots         - List all registered channel bots
+    channel-add-bot           - Register a new channel bot
+    channel-webhook-register  - Register webhook URL for a bot with Telegram
+    channel-webhook-delete    - Remove webhook for a bot (switches to polling)
+    channel-test-message      - Send a test message through a bot
 """
 
 import asyncio

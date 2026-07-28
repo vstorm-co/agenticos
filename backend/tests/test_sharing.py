@@ -1,4 +1,4 @@
-"""Tests for the sharing service — changing who reaches a resource.
+"""Tests for the sharing service - changing who reaches a resource.
 
 Sharing is an edit: only someone who can already change the resource may change
 who else can. Every change is audited, which is what makes "who gave whom
@@ -47,7 +47,7 @@ class TestGetSharing:
         """Anything else turns the share list into a way to confirm ids exist.
 
         Refusing with "forbidden" would answer the only question the caller
-        actually had, so the refusal has to look like an absence — and it must
+        actually had, so the refusal has to look like an absence - and it must
         happen before the grant rows are read, not after.
         """
         ctx = _ctx(OrgRoleName.MEMBER)
@@ -238,12 +238,12 @@ class TestVisibility:
     @pytest.mark.anyio
     async def test_making_an_unowned_resource_private_gives_it_an_owner(self):
         """Private to whom? An organization-wide vault secret has no owner, and
-        an unowned private row is one nobody can see and nobody can delete —
+        an unowned private row is one nobody can see and nobody can delete -
         which the database refuses outright, arriving as a 500.
 
         The caller becomes the owner rather than being told to "transfer it
         first", because nothing in this product transfers ownership: that
-        instruction has no way to be followed. It gives away nothing either —
+        instruction has no way to be followed. It gives away nothing either -
         whoever gets here already passed the edit check, and editing a key
         includes rotating and deleting it."""
         ctx = _ctx(OrgRoleName.OWNER)

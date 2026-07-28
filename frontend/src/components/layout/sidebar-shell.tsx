@@ -21,14 +21,14 @@
  * - **The destinations scroll on their own.** With enough entries the list has
  *   to move; the organization above and the account below must not move with
  *   it.
- * - **Language and theme are settings, not navigation** — two quiet icons in
+ * - **Language and theme are settings, not navigation** - two quiet icons in
  *   the footer, deliberately not shaped like the nav entries above them.
  * - **The account is last.** Least used, and where every comparable product
  *   puts it.
  *
  * It takes the nav as `children` so the desktop column and the slide-over pass
  * their own (the drawer needs its links to close it). Neither surface can end
- * up with controls the other lacks — the phone would lose the ability to switch
+ * up with controls the other lacks - the phone would lose the ability to switch
  * organization or sign out, and nobody reports that, because each surface looks
  * complete on its own.
  */

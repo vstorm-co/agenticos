@@ -1,6 +1,6 @@
 """Run history, the approval queue and the cost dashboard.
 
-Three views of the same fact — that an agent did something — from three angles:
+Three views of the same fact - that an agent did something - from three angles:
 what happened (runs), what needs a person (approvals), and what it cost (spend).
 """
 

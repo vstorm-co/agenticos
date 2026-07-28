@@ -18,7 +18,7 @@ class KnowledgeBaseCreate(BaseSchema):
     name: str = Field(..., min_length=1, max_length=128, description="KB display name")
     description: str | None = Field(default=None, max_length=500)
     scope: KBScopeLiteral = Field(default="personal", description="Visibility scope")
-    # Optional — auto-derived from name + a short random suffix when missing.
+    # Optional - auto-derived from name + a short random suffix when missing.
     collection_name: str | None = Field(
         default=None, min_length=1, max_length=255, description="Vector store collection"
     )
