@@ -448,8 +448,18 @@ class ConversationService:
         organization_id: UUID | None = None,
     ) -> Message:
         """Append one message. `organization_id=None` is unscoped - see
-        `get_conversation_with_messages`."""
-        await self._resolve(conversation_id, organization_id=organization_id)
+        `get_conversation_with_messages`.
+
+        An archived conversation is closed to new messages: archiving is the
+        user saying "this thread is finished", and a message appended afterwards
+        would silently reopen it.
+        """
+        conversation = await self._resolve(conversation_id, organization_id=organization_id)
+        if conversation.is_archived:
+            raise BadRequestError(
+                message="Conversation is archived",
+                details={"conversation_id": str(conversation_id)},
+            )
         return await conversation_repo.create_message(
             self.db,
             conversation_id=conversation_id,

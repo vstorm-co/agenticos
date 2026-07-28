@@ -6,10 +6,10 @@ import { persist } from "zustand/middleware";
 /**
  * Which published agent the chat is addressed to.
  *
- * `null` is the general assistant - the product the chat has always been, and
- * what the backend runs for a frame carrying no `agent_id`. There is no
- * per-organization default on either side: an unset selection means the
- * assistant, never "guess an agent".
+ * `null` means no agent has been chosen yet - a fresh browser, or a selection
+ * pointing at an agent that has since been unpublished. The chat offers only
+ * published agents, so the picker resolves `null` to the first one as soon as
+ * the list arrives rather than leaving the composer unaddressed.
  *
  * Persisted to localStorage the same way the knowledge-base draft is, so the
  * choice survives a refresh or a new tab. Only the id is kept: the name is

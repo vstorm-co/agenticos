@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { ChevronDown, Cpu, Settings2, Sliders } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
+import { ChatModelPicker } from "./chat-model-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
 import { useModelProviders } from "@/hooks";
 import { useConversationStore } from "@/stores";
@@ -42,9 +42,11 @@ interface ChatControlsProps {
  * the organization's models to spend, and how hard it should think. Both are
  * recorded on the run, so an override stays attributable.
  *
- * The model list is the vault's, not a separate list of names - an organization
- * that rotates a key or repoints a profile changes what this picker offers,
- * because it is the same set of rows.
+ * The model is chosen the way the Builder chooses one - provider first, then
+ * the model - and what runs is still one of the vault's model profiles: a
+ * choice that matches an existing profile reuses it, a new one is created on
+ * the provider's vault key. An organization that rotates a key changes what
+ * this picker can offer, because it is the same set of rows.
  */
 export function ChatControls({
   onModelProfileChange,
@@ -126,8 +128,7 @@ export function ChatControls({
                 Run this conversation on a different model. Everything else about the agent stays as
                 it is.
               </p>
-              <ModelProfilePicker
-                profiles={profiles}
+              <ChatModelPicker
                 value={profileId}
                 onChange={(next) => {
                   setProfileId(next);

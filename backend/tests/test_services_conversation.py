@@ -6,7 +6,7 @@ from uuid import uuid4
 
 import pytest
 
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import BadRequestError, NotFoundError
 from app.services.conversation import ConversationService
 
 # Every conversation belongs to a tenant; the service refuses reads from another one.
@@ -623,6 +623,24 @@ class TestConversationServiceAddMessage:
             assert result.content == "Hello"
             assert result.role == "user"
             mock_repo.create_message.assert_called_once()
+
+    @pytest.mark.anyio
+    async def test_add_message_to_archived_conversation_raises_bad_request(
+        self, service: ConversationService
+    ):
+        """Archiving closes a thread; a message appended afterwards would silently reopen it."""
+        conv_id = uuid4()
+        mock_conv = MockConversation(id=conv_id, is_archived=True)
+        mock_data = MagicMock()
+
+        with patch("app.services.conversation.conversation_repo") as mock_repo:
+            mock_repo.get_conversation_by_id = AsyncMock(return_value=mock_conv)
+            mock_repo.create_message = AsyncMock()
+
+            with pytest.raises(BadRequestError):
+                await service.add_message(conv_id, mock_data, organization_id=TEST_ORG_ID)
+
+            mock_repo.create_message.assert_not_called()
 
     @pytest.mark.anyio
     async def test_add_message_verifies_conversation_exists(self, service: ConversationService):

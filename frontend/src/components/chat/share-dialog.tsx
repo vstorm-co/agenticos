@@ -22,8 +22,9 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useTranslations } from "next-intl";
-import { useConversationShares } from "@/hooks";
-import type { ConversationShare } from "@/types";
+import { useConversationShares, useMembers } from "@/hooks";
+import { useOrgStore } from "@/stores";
+import type { ConversationShare, OrganizationMember } from "@/types";
 import { getErrorMessage } from "@/lib/utils";
 
 interface ShareDialogProps {
@@ -32,17 +33,44 @@ interface ShareDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
+/**
+ * The members whose email or name contains the query, for the typeahead.
+ *
+ * An exact match is not a suggestion - the field already says it - and the cap
+ * keeps the list a shortlist rather than the members page in a dropdown.
+ */
+export function matchingMembers(
+  members: readonly OrganizationMember[],
+  query: string,
+  limit = 6,
+): OrganizationMember[] {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return [];
+  return members
+    .filter(
+      (member) =>
+        member.email.toLowerCase() !== needle &&
+        (member.email.toLowerCase().includes(needle) ||
+          (member.full_name?.toLowerCase().includes(needle) ?? false)),
+    )
+    .slice(0, limit);
+}
+
 export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogProps) {
   const t = useTranslations("chat");
   const { shares, isLoading, shareConversation, fetchShares, revokeShare } =
     useConversationShares();
+  const activeOrgId = useOrgStore((state) => state.activeOrgId);
+  const { members } = useMembers(activeOrgId ?? "");
   const [email, setEmail] = useState("");
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const [permission, setPermission] = useState<"view" | "edit">("view");
   const [shareLink, setShareLink] = useState<string | null>(null);
   const { copy, copied } = useCopyToClipboard();
   const [isSharing, setIsSharing] = useState(false);
   const [isGeneratingLink, setIsGeneratingLink] = useState(false);
   const [revokingId, setRevokingId] = useState<string | null>(null);
+  const suggestions = matchingMembers(members, email);
 
   useEffect(() => {
     if (open && conversationId) {
@@ -115,12 +143,52 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
 
         <div className="space-y-4">
           <div className="flex gap-2">
-            <Input
-              placeholder={t("userIdOrEmail")}
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleShare()}
-            />
+            <div className="relative min-w-0 flex-1">
+              <Input
+                type="email"
+                placeholder={t("memberEmail")}
+                aria-label={t("memberEmail")}
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setSuggestionsOpen(true);
+                }}
+                onFocus={() => setSuggestionsOpen(true)}
+                onBlur={() => setSuggestionsOpen(false)}
+                onKeyDown={(e) => e.key === "Enter" && handleShare()}
+              />
+              {suggestionsOpen && suggestions.length > 0 && (
+                <div
+                  role="listbox"
+                  aria-label={t("memberSuggestions")}
+                  className="border-border bg-popover absolute top-full right-0 left-0 z-50 mt-1 overflow-hidden rounded-md border shadow-md"
+                >
+                  {suggestions.map((member) => (
+                    <button
+                      key={member.user_id}
+                      type="button"
+                      role="option"
+                      aria-selected={false}
+                      // onMouseDown, so the pick lands before the input's blur
+                      // closes the list.
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        setEmail(member.email);
+                        setSuggestionsOpen(false);
+                      }}
+                      className="hover:bg-accent w-full px-3 py-2 text-left"
+                    >
+                      <span className="block truncate text-sm">{member.email}</span>
+                      {member.full_name && (
+                        <span className="text-muted-foreground block truncate text-xs">
+                          {member.full_name}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <Select value={permission} onValueChange={(v) => setPermission(v as "view" | "edit")}>
               <SelectTrigger className="w-24">
                 <SelectValue />

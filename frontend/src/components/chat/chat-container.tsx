@@ -28,8 +28,14 @@ export function ChatContainer() {
     isLoading: isConversationLoading,
   } = useConversationStore();
   const { addMessage: addChatMessage } = useChatStore();
-  const { fetchConversations } = useConversations();
+  const { conversations, fetchConversations } = useConversations();
   const prevConversationIdRef = useRef<string | null | undefined>(undefined);
+
+  // An archived conversation is read-only: the backend refuses new messages on
+  // it, so the composer says so instead of letting a send fail server-side.
+  const isArchived =
+    conversations.find((conversation) => conversation.id === currentConversationId)
+      ?.is_archived ?? false;
 
   const handleConversationCreated = useCallback(() => {
     fetchConversations();
@@ -190,6 +196,7 @@ export function ChatContainer() {
       isLoadingConversation={
         currentConversationId !== null && isConversationLoading && messages.length === 0
       }
+      isArchived={isArchived}
       sendMessage={sendMessage}
       onModelProfileChange={setModelProfile}
       onTemperatureChange={setTemperature}
@@ -216,6 +223,8 @@ interface ChatUIProps {
   isProcessing: boolean;
   /** True while a saved conversation is being loaded - show a skeleton, not empty state. */
   isLoadingConversation?: boolean;
+  /** True for an archived conversation - the composer is closed with a notice. */
+  isArchived?: boolean;
   sendMessage: (
     content: string,
     fileIds?: string[],
@@ -243,6 +252,7 @@ function ChatUI({
   isConnected,
   isProcessing,
   isLoadingConversation,
+  isArchived,
   sendMessage,
   onModelProfileChange,
   onTemperatureChange,
@@ -304,10 +314,16 @@ function ChatUI({
           )}
           <div className="bg-card border-border focus-within:border-foreground/30 rounded-2xl border transition-colors">
             <div className="px-3 pt-3 sm:px-4 sm:pt-4">
+              {isArchived && (
+                <p className="text-muted-foreground pb-2 text-center font-mono text-[11px] tracking-wider uppercase">
+                  This conversation is archived
+                </p>
+              )}
               <ChatInput
                 onSend={sendMessage}
                 disabled={
                   !isConnected ||
+                  isArchived ||
                   !!pendingApproval ||
                   !!(pendingQuestions && pendingQuestions.length)
                 }

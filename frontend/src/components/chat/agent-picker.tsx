@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { Bot, Check, ChevronDown } from "lucide-react";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
@@ -8,9 +9,6 @@ import { useAgents } from "@/hooks";
 import { useAgentSelectionStore, useConversationStore } from "@/stores";
 import { cn } from "@/lib/utils";
 import type { Agent } from "@/types/agents";
-
-/** What the general assistant is called wherever the agent choice is shown. */
-export const GENERAL_ASSISTANT_LABEL = "General assistant";
 
 /**
  * Whether an agent can be chatted with at all.
@@ -27,6 +25,11 @@ export const isRunnable = (agent: Agent): boolean => agent.status === "published
  * choice in the conversation two clicks behind a slider. It is first-class
  * here, showing the agent's face, because "which of these five agents am I
  * talking to" is answered faster by a picture than by reading five names.
+ *
+ * Only the organization's published agents are offered - there is no general
+ * assistant to fall back to. An empty or stale selection resolves to the first
+ * published agent as soon as the list arrives, so the composer always
+ * addresses someone real.
  *
  * The choice applies from the next message, not retroactively - switching
  * mid-conversation is a supported thing to do, and the transcript records the
@@ -45,12 +48,21 @@ export function AgentPicker() {
   const selected =
     agents.find((agent) => agent.id === selectedAgentId && isRunnable(agent)) ?? null;
 
+  // No selection, or one pointing at an agent that has since been unpublished,
+  // resolves to the first published agent. The store is read at send time, so
+  // this is also what keeps a frame from going out without an agent.
+  useEffect(() => {
+    if (isLoading || selected !== null) return;
+    const first = runnable[0];
+    if (first) selectAgent(first.id);
+  }, [isLoading, selected, runnable, selectAgent]);
+
   return (
     <Popover>
       <PopoverTrigger asChild>
         <button
           type="button"
-          aria-label={`Agent: ${selected?.name ?? GENERAL_ASSISTANT_LABEL}`}
+          aria-label={`Agent: ${selected?.name ?? "none selected"}`}
           className="border-foreground/10 bg-card hover:border-foreground/25 hover:bg-foreground/[0.04] text-foreground inline-flex items-center gap-1.5 rounded-full border py-1 pr-2 pl-1 transition-colors"
         >
           {selected ? (
@@ -66,7 +78,7 @@ export function AgentPicker() {
             </span>
           )}
           <span className="max-w-[160px] truncate font-mono text-[11px] tracking-wider uppercase">
-            {selected?.name ?? GENERAL_ASSISTANT_LABEL}
+            {selected?.name ?? "Choose agent"}
           </span>
           <ChevronDown className="text-foreground/45 h-3 w-3" />
         </button>
@@ -84,18 +96,10 @@ export function AgentPicker() {
         </p>
 
         <div role="radiogroup" aria-label="Agent" className="space-y-1">
-          <AgentOption
-            name={GENERAL_ASSISTANT_LABEL}
-            description="The default assistant, on the model picked in controls."
-            selected={selectedAgentId === null}
-            onSelect={() => selectAgent(null)}
-          />
           {runnable.map((agent) => (
             <AgentOption
               key={agent.id}
               agent={agent}
-              name={agent.name}
-              description={agent.description}
               selected={selectedAgentId === agent.id}
               onSelect={() => selectAgent(agent.id)}
             />
@@ -118,14 +122,10 @@ export function AgentPicker() {
 
 function AgentOption({
   agent,
-  name,
-  description,
   selected,
   onSelect,
 }: {
-  agent?: Agent;
-  name: string;
-  description?: string | null;
+  agent: Agent;
   selected: boolean;
   onSelect: () => void;
 }) {
@@ -142,18 +142,12 @@ function AgentOption({
           : "border-border text-foreground/75 hover:border-foreground/25 hover:bg-accent/60 hover:text-foreground",
       )}
     >
-      {agent ? (
-        <AgentAvatar agentId={agent.id} name={agent.name} hasAvatar={agent.has_avatar} size="md" />
-      ) : (
-        <span className="bg-foreground/8 flex h-9 w-9 shrink-0 items-center justify-center rounded-full">
-          <Bot className="h-4 w-4" />
-        </span>
-      )}
+      <AgentAvatar agentId={agent.id} name={agent.name} hasAvatar={agent.has_avatar} size="md" />
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-xs font-medium">{name}</span>
-        {description && (
+        <span className="block truncate text-xs font-medium">{agent.name}</span>
+        {agent.description && (
           <span className="text-foreground/55 mt-0.5 line-clamp-2 block text-[11px] leading-relaxed">
-            {description}
+            {agent.description}
           </span>
         )}
       </span>

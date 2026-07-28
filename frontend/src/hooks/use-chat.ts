@@ -430,9 +430,9 @@ export function useChat(options: UseChatOptions = {}) {
       if (activeKBIds.length) payload.active_knowledge_base_ids = activeKBIds;
       // Read at send time, not captured in the closure: the queue drainer calls
       // this up to a turn later, and the frame must name whatever is selected
-      // when it actually leaves. Omitted entirely for the general assistant -
-      // the backend has no default agent, and an absent `agent_id` is what asks
-      // for the assistant rather than a guess.
+      // when it actually leaves. The picker keeps a published agent selected
+      // whenever the organization has one, so a frame without an `agent_id`
+      // only happens when nothing is published at all.
       const agentId = useAgentSelectionStore.getState().selectedAgentId;
       if (agentId) payload.agent_id = agentId;
       turnAgentIdRef.current = agentId;

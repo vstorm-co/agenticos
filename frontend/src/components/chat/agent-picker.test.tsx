@@ -43,7 +43,7 @@ const PUBLISHED: Agent[] = [
 ];
 
 /** Opens the popover; every assertion below is about what is inside it. */
-async function open(agents: Agent[] = PUBLISHED, selected: string | null = null) {
+async function open(agents: Agent[] = PUBLISHED, selected: string | null = "a1") {
   listed.mockReturnValue(agents);
   selectedId.mockReturnValue(selected);
   render(<AgentPicker />);
@@ -80,49 +80,56 @@ describe("the chat's agent picker", () => {
     expect(within(trigger).getByText("S")).toBeInTheDocument();
   });
 
-  it("offers the general assistant as a listed choice, first", async () => {
-    // Not an empty state: "nothing selected" reads as a broken picker, and the
-    // assistant is a real product rather than the absence of an agent.
+  it("does not offer a general assistant - only the published agents", async () => {
+    // The chat runs the organization's agents, and nothing else. A row for
+    // "no agent" would be an offer the backend cannot honestly serve.
     await open();
 
+    expect(screen.queryByText(/General assistant/)).not.toBeInTheDocument();
     const options = screen.getAllByRole("radio");
-    expect(options[0]).toHaveAccessibleName(/General assistant/);
-    expect(options[0]).toHaveAttribute("aria-checked", "true");
+    expect(options).toHaveLength(2);
+    expect(options[0]).toHaveAccessibleName(/Support/);
+    expect(options[1]).toHaveAccessibleName(/Sales/);
   });
 
-  it("lists the published agents alongside it", async () => {
-    await open();
+  it("resolves an empty selection to the first published agent", async () => {
+    // The store starts at null (or points at an agent that was unpublished);
+    // the composer must never send into a void, so the picker claims the
+    // first published agent as soon as the list arrives.
+    listed.mockReturnValue(PUBLISHED);
+    selectedId.mockReturnValue(null);
 
-    expect(screen.getAllByRole("radio")).toHaveLength(3);
-    expect(screen.getByText("Support")).toBeInTheDocument();
-    expect(screen.getByText("Sales")).toBeInTheDocument();
+    render(<AgentPicker />);
+
+    expect(select).toHaveBeenCalledWith("a1");
+  });
+
+  it("does not auto-select while the list is still loading", async () => {
+    // An empty list mid-flight is not "nothing published" - claiming an agent
+    // from it would overwrite a valid stored selection with nothing.
+    loading = true;
+    listed.mockReturnValue([]);
+    selectedId.mockReturnValue(null);
+
+    render(<AgentPicker />);
+
+    expect(select).not.toHaveBeenCalled();
   });
 
   it("marks the selected agent and only that one", async () => {
     await open(PUBLISHED, "a2");
 
-    const [assistant, support, sales] = screen.getAllByRole("radio");
-    expect(assistant).toHaveAttribute("aria-checked", "false");
+    const [support, sales] = screen.getAllByRole("radio");
     expect(support).toHaveAttribute("aria-checked", "false");
     expect(sales).toHaveAttribute("aria-checked", "true");
   });
 
   it("reports the agent that was picked", async () => {
-    await open();
+    await open(PUBLISHED, "a2");
 
     await userEvent.click(screen.getByText("Support"));
 
     expect(select).toHaveBeenCalledWith("a1");
-  });
-
-  it("reports null when the general assistant is picked back", async () => {
-    // The way back matters as much as the way in - an agent chat has a budget
-    // and a run history the assistant does not, and users need to leave it.
-    await open(PUBLISHED, "a1");
-
-    await userEvent.click(screen.getByText("General assistant"));
-
-    expect(select).toHaveBeenCalledWith(null);
   });
 
   it("says a switch applies from the next message, not retroactively", async () => {
@@ -144,20 +151,20 @@ describe("the chat's agent picker", () => {
 
     expect(screen.queryByText("Half-built")).not.toBeInTheDocument();
     expect(screen.queryByText("Retired")).not.toBeInTheDocument();
-    expect(screen.getAllByRole("radio")).toHaveLength(3);
+    expect(screen.getAllByRole("radio")).toHaveLength(2);
   });
 
-  it("still offers the assistant when nothing has been published", async () => {
-    await open([]);
+  it("offers nothing when nothing has been published", async () => {
+    await open([], null);
 
-    expect(screen.getAllByRole("radio")).toHaveLength(1);
+    expect(screen.queryAllByRole("radio")).toHaveLength(0);
     expect(screen.getByText(/No published agents yet/)).toBeInTheDocument();
   });
 
   it("does not claim there is nothing published while the list is still loading", async () => {
     loading = true;
 
-    await open([]);
+    await open([], null);
 
     expect(screen.queryByText(/No published agents yet/)).not.toBeInTheDocument();
     expect(screen.getByText("Loading…")).toBeInTheDocument();
