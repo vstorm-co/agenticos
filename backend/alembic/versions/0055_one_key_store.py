@@ -74,7 +74,6 @@ def downgrade() -> None:
             postgresql.UUID(as_uuid=True),
             sa.ForeignKey("organizations.id", ondelete="CASCADE"),
             nullable=False,
-            index=True,
         ),
         sa.Column("provider", sa.String(length=64), nullable=False),
         sa.Column("label", sa.String(length=128), nullable=False),
@@ -94,6 +93,23 @@ def downgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
         sa.UniqueConstraint("organization_id", "label", name="uq_credential_org_label"),
     )
+    # 0038 added this constraint and its downgrade drops it, so the table this
+    # recreates must carry it or `downgrade base` dies there. The name is
+    # written out in the form the metadata naming convention produced at 0038
+    # (`ck` wraps even explicitly named constraints, because its template uses
+    # %(constraint_name)s); create_table here builds a bare MetaData without
+    # that convention, so naming it via CheckConstraint would come out unwrapped
+    # and 0038 would still miss it.
+    op.execute(
+        "ALTER TABLE credentials ADD CONSTRAINT "
+        "credentials_ck_credential_kind_matches_secret_check "
+        "CHECK ((kind = 'none') = (sealed_secret IS NULL))"
+    )
+    # Same reasoning for the indexes 0031's downgrade drops by name. All three
+    # are created explicitly: `index=True` inside create_table names its index
+    # through whatever convention is in scope, which is not the name 0031 wrote.
+    op.create_index("ix_credentials_organization_id", "credentials", ["organization_id"])
+    op.create_index("ix_credentials_provider", "credentials", ["provider"])
 
     op.drop_constraint("agent_runs_secret_id_fkey", "agent_runs", type_="foreignkey")
     op.alter_column("agent_runs", "secret_id", new_column_name="credential_id")
@@ -118,3 +134,4 @@ def downgrade() -> None:
         ["id"],
         ondelete="SET NULL",
     )
+    op.create_index("ix_model_profiles_credential_id", "model_profiles", ["credential_id"])
