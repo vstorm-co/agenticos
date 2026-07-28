@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { Building2, ChevronDown, ExternalLink, Plug, Plus, User } from "lucide-react";
 import { toast } from "sonner";
 
@@ -9,6 +10,9 @@ import {
   Button,
   Card,
   CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
   Dialog,
   DialogContent,
   DialogFooter,
@@ -28,6 +32,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Skeleton,
   Switch,
   useListControls,
 } from "@/components/ui";
@@ -114,6 +119,35 @@ interface DraftState {
 interface McpServerListProps {
   /** False for a member without `connections:manage` - the organization column reads only. */
   canManageOrganization: boolean;
+}
+
+/** How many servers the catalog holds, in words rather than a bare digit. */
+function serverCount(count: number): string {
+  return count === 1 ? "1 server" : `${count} servers`;
+}
+
+/**
+ * The catalog's frame, drawn whether or not there is anything in it - the
+ * always-visible container the vault draws around its keys. The page uses it
+ * for the loading and empty states too, so the panel never disappears; only
+ * what is inside it changes.
+ */
+export function ServersCard({ count, children }: { count: number | null; children: ReactNode }) {
+  return (
+    <Card>
+      <CardHeader className="flex-row items-center justify-between space-y-0 border-b px-5 py-4">
+        <div className="space-y-1">
+          <CardTitle className="text-sm">Servers</CardTitle>
+          <CardDescription className="text-xs">
+            {/* `null` is "the request has not answered". Rendering "0 servers"
+                there would state something nothing has said yet. */}
+            {count === null ? <Skeleton className="h-3 w-20" /> : serverCount(count)}
+          </CardDescription>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4 p-4">{children}</CardContent>
+    </Card>
+  );
 }
 
 /**
@@ -432,66 +466,72 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
        * cards then land in two or three rows with no scrolling, which is the
        * only reason to lay a catalog out as a grid rather than as rows.
        */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {list.visible.map((row) => (
-          <Card key={row.key} role="group" aria-label={row.name} className="h-full">
-            {/* No hover state, unlike the agents grid: there a card is a link and
+      <ServersCard count={rows.length}>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {list.visible.map((row) => (
+            <Card key={row.key} role="group" aria-label={row.name} className="h-full">
+              {/* No hover state, unlike the agents grid: there a card is a link and
                 the border lighting up says so. Here the actions are inside the
                 card, and a card that responds to a hover but does nothing when
                 clicked is a worse lie than a flat one. */}
-            <CardContent className="flex h-full flex-col gap-3 p-4">
-              <div className="flex items-start gap-2.5">
-                <McpServerIcon
-                  icon={row.entry?.icon ?? null}
-                  name={row.name}
-                  className="mt-0.5 h-6 w-6"
-                />
-                <div className="min-w-0 flex-1 space-y-1">
-                  <div className="flex items-start justify-between gap-2">
-                    <span className="truncate text-sm font-medium">{row.name}</span>
-                    <Badge variant="outline" className="shrink-0">
-                      {MCP_AUTH_LABEL[row.auth]}
-                    </Badge>
+              <CardContent className="flex h-full flex-col gap-3 p-4">
+                <div className="flex items-start gap-2.5">
+                  <McpServerIcon
+                    icon={row.entry?.icon ?? null}
+                    name={row.name}
+                    className="mt-0.5 h-6 w-6"
+                  />
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="truncate text-sm font-medium">{row.name}</span>
+                      <Badge variant="outline" className="shrink-0">
+                        {MCP_AUTH_LABEL[row.auth]}
+                      </Badge>
+                    </div>
+                    <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
+                      {row.category === CUSTOM_CATEGORY
+                        ? "not in the catalog"
+                        : categoryLabel(row.category)}
+                    </p>
+                    {row.description && (
+                      <p className="text-muted-foreground line-clamp-2 text-sm">
+                        {row.description}
+                      </p>
+                    )}
+                    {row.url === null ? (
+                      // Prose, so it is set as prose. Monospacing this sentence
+                      // and then truncating it produced "Self-hosted - you supply
+                      // the…", which reads as a URL that got cut off.
+                      <p className="text-muted-foreground text-xs">
+                        Self-hosted - you supply the URL when connecting
+                      </p>
+                    ) : (
+                      // Truncated rather than wrapped: spelled out, the URL is the
+                      // tallest thing on the card, and the full editable copy is
+                      // one click away in the dialog.
+                      <p
+                        className="text-muted-foreground truncate font-mono text-xs"
+                        title={row.url}
+                      >
+                        {/* A query string may carry a key - never render one. */}
+                        {`${row.url.split("?")[0]}${row.url.includes("?") ? "?…" : ""}`}
+                      </p>
+                    )}
+                    {row.docsUrl && (
+                      <a
+                        href={row.docsUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs underline underline-offset-4"
+                      >
+                        Documentation
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    )}
                   </div>
-                  <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
-                    {row.category === CUSTOM_CATEGORY
-                      ? "not in the catalog"
-                      : categoryLabel(row.category)}
-                  </p>
-                  {row.description && (
-                    <p className="text-muted-foreground line-clamp-2 text-sm">{row.description}</p>
-                  )}
-                  {row.url === null ? (
-                    // Prose, so it is set as prose. Monospacing this sentence
-                    // and then truncating it produced "Self-hosted - you supply
-                    // the…", which reads as a URL that got cut off.
-                    <p className="text-muted-foreground text-xs">
-                      Self-hosted - you supply the URL when connecting
-                    </p>
-                  ) : (
-                    // Truncated rather than wrapped: spelled out, the URL is the
-                    // tallest thing on the card, and the full editable copy is
-                    // one click away in the dialog.
-                    <p className="text-muted-foreground truncate font-mono text-xs" title={row.url}>
-                      {/* A query string may carry a key - never render one. */}
-                      {`${row.url.split("?")[0]}${row.url.includes("?") ? "?…" : ""}`}
-                    </p>
-                  )}
-                  {row.docsUrl && (
-                    <a
-                      href={row.docsUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs underline underline-offset-4"
-                    >
-                      Documentation
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
-                  )}
                 </div>
-              </div>
 
-              {/* Pushed to the foot, and the rule above it is why that reads as
+                {/* Pushed to the foot, and the rule above it is why that reads as
                   a decision rather than a hole. An earlier version kept the
                   actions directly under the description to avoid a void in the
                   middle of the card - but cards in a row are the same height and
@@ -499,70 +539,73 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                   different height in every column. Consistent placement is worth
                   more than tight spacing: a separator turns the slack into an
                   action bar. */}
-              <div className="mt-auto">
-                {/* One row, always, and always at the foot of the card.
+                <div className="mt-auto">
+                  {/* One row, always, and always at the foot of the card.
                     The block above takes the slack, so a description that runs
                     to four lines and one that runs to two put their actions in
                     the same place - which is the whole reason a grid of cards
                     is scannable. State rides on the trigger rather than on a
                     chip of its own, because a chip on some cards and not others
                     is the misalignment again, one row up. */}
-                <div className="border-border mt-3 flex flex-wrap items-center gap-1.5 border-t pt-3">
-                  {(row.organization === null || row.personal === null) && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => openDraft(defaultScope(row, canManageOrganization), row, null)}
-                      disabled={busyId === row.key}
-                    >
-                      <Plug className="mr-1 h-3.5 w-3.5" />
-                      {busyId === row.key ? "Redirecting…" : "Connect"}
-                    </Button>
-                  )}
-                  {row.organization && canManageOrganization && (
-                    <ConnectionMenu
-                      scope="organization"
-                      row={row}
-                      connection={row.organization}
-                      busyId={busyId}
-                      onEdit={(connection) => openDraft("organization", row, connection)}
-                      onTools={(connection) => handleTools("organization", connection)}
-                      onDisconnect={(connection) => handleDisconnect("organization", connection)}
-                      onOAuth={() =>
-                        handleOAuth(row, row.organization?.name ?? row.name, "organization")
-                      }
-                    />
-                  )}
-                  {row.organization && !canManageOrganization && (
-                    <ScopeChip scope="organization" connection={row.organization} />
-                  )}
-                  {row.personal && (
-                    <ConnectionMenu
-                      scope="personal"
-                      row={row}
-                      connection={row.personal}
-                      busyId={busyId}
-                      onEdit={(connection) => openDraft("personal", row, connection)}
-                      onTools={(connection) => handleTools("personal", connection)}
-                      onDisconnect={(connection) => handleDisconnect("personal", connection)}
-                      onOAuth={() => handleOAuth(row, row.personal?.name ?? row.name, "personal")}
-                    />
-                  )}
+                  <div className="border-border mt-3 flex flex-wrap items-center gap-1.5 border-t pt-3">
+                    {(row.organization === null || row.personal === null) && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          openDraft(defaultScope(row, canManageOrganization), row, null)
+                        }
+                        disabled={busyId === row.key}
+                      >
+                        <Plug className="mr-1 h-3.5 w-3.5" />
+                        {busyId === row.key ? "Redirecting…" : "Connect"}
+                      </Button>
+                    )}
+                    {row.organization && canManageOrganization && (
+                      <ConnectionMenu
+                        scope="organization"
+                        row={row}
+                        connection={row.organization}
+                        busyId={busyId}
+                        onEdit={(connection) => openDraft("organization", row, connection)}
+                        onTools={(connection) => handleTools("organization", connection)}
+                        onDisconnect={(connection) => handleDisconnect("organization", connection)}
+                        onOAuth={() =>
+                          handleOAuth(row, row.organization?.name ?? row.name, "organization")
+                        }
+                      />
+                    )}
+                    {row.organization && !canManageOrganization && (
+                      <ScopeChip scope="organization" connection={row.organization} />
+                    )}
+                    {row.personal && (
+                      <ConnectionMenu
+                        scope="personal"
+                        row={row}
+                        connection={row.personal}
+                        busyId={busyId}
+                        onEdit={(connection) => openDraft("personal", row, connection)}
+                        onTools={(connection) => handleTools("personal", connection)}
+                        onDisconnect={(connection) => handleDisconnect("personal", connection)}
+                        onOAuth={() => handleOAuth(row, row.personal?.name ?? row.name, "personal")}
+                      />
+                    )}
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
 
-      <Pager
-        page={list.page}
-        pageCount={list.pageCount}
-        matched={list.matched}
-        total={list.total}
-        onPage={list.setPage}
-        noun="servers"
-      />
+        <Pager
+          page={list.page}
+          pageCount={list.pageCount}
+          matched={list.matched}
+          total={list.total}
+          onPage={list.setPage}
+          noun="servers"
+        />
+      </ServersCard>
 
       <Dialog open={draft !== null} onOpenChange={(open) => !open && !submitting && setDraft(null)}>
         <DialogContent>

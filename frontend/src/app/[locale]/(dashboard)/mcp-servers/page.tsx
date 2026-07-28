@@ -3,8 +3,8 @@
 import { Plug } from "lucide-react";
 
 import { PageHeader } from "@/components/dashboard/page-header";
-import { McpServerList } from "@/components/mcp/mcp-server-list";
-import { EmptyState, LoadingState } from "@/components/states";
+import { McpServerList, ServersCard } from "@/components/mcp/mcp-server-list";
+import { Skeleton } from "@/components/ui";
 import { useMcpServers, usePermissions } from "@/hooks";
 import { Perm } from "@/types/permissions";
 
@@ -38,16 +38,43 @@ export default function McpServersPage() {
         description="External tools your agents and your assistant can call. Connecting a server for the organization makes it available to every agent; connecting it for yourself keeps it to your own chat. A published agent can only use the organization's, because what an agent reaches must not depend on who is running it."
       />
 
-      {/* `McpServerList` lays the catalog out three-up, four on a wide window,
-          so the skeleton takes those columns rather than the variant's default. */}
       {isLoading ? (
-        <LoadingState variant="skeleton-cards" rows={8} className="lg:grid-cols-3 xl:grid-cols-4" />
+        // The same card frame the list draws, with card-shaped skeletons in the
+        // same columns - a skeleton that draws a different shape is a layout
+        // jump on every load.
+        <ServersCard count={null}>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {Array.from({ length: 8 }, (_, tile) => (
+              <div key={tile} className="border-border rounded-xl border p-4">
+                <div className="flex items-start gap-2.5">
+                  <Skeleton className="mt-0.5 h-6 w-6 shrink-0 rounded-md" />
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-3 w-full" />
+                  </div>
+                </div>
+                <div className="border-border mt-4 border-t pt-3">
+                  <Skeleton className="h-8 w-24" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </ServersCard>
       ) : rows.length === 0 ? (
-        <EmptyState
-          icon={Plug}
-          title="No servers to connect"
-          description="The catalog is compiled into the backend, and nobody has added a server of their own. An empty list here means this deployment ships none."
-        />
+        <ServersCard count={0}>
+          {/* Inline rather than an `EmptyState`: that component draws its own
+              bordered box, and inside a card it would frame one message twice. */}
+          <div className="px-6 py-12 text-center">
+            <div className="bg-muted text-muted-foreground mx-auto flex h-11 w-11 items-center justify-center rounded-xl">
+              <Plug className="h-5 w-5" />
+            </div>
+            <p className="text-foreground mt-4 text-sm font-medium">No servers to connect</p>
+            <p className="text-muted-foreground mx-auto mt-1 max-w-sm text-sm">
+              The catalog is compiled into the backend, and nobody has added a server of their own.
+              An empty list here means this deployment ships none.
+            </p>
+          </div>
+        </ServersCard>
       ) : (
         <McpServerList canManageOrganization={can(Perm.connectionsManage)} />
       )}

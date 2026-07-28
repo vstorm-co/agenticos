@@ -1,14 +1,23 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { ArrowUpRight, Database, Lock, Plus, Sparkles, Trash2, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { CreateKBDialog, ReusableIntegrations } from "@/components/kb";
 import { PageHeader } from "@/components/dashboard/page-header";
-import { EmptyState, LoadingState } from "@/components/states";
-import { Badge, Button } from "@/components/ui";
+import {
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  Skeleton,
+} from "@/components/ui";
 import { useKnowledgeBases } from "@/hooks";
 import { cn } from "@/lib/utils";
 import { ROUTES } from "@/lib/constants";
@@ -19,6 +28,34 @@ const SCOPE_META: Record<KBScope, { label: string; icon: LucideIcon }> = {
   org: { label: "Organization", icon: Users },
   app: { label: "App-wide", icon: Sparkles },
 };
+
+/** How many bases there are, in words rather than a bare digit. */
+function storedCount(count: number): string {
+  return count === 1 ? "1 knowledge base" : `${count} knowledge bases`;
+}
+
+/**
+ * The list's frame, drawn whether or not there is anything in it - the same
+ * always-visible container the vault draws around its keys. Same header, same
+ * border, in every state: what changes is what is inside it.
+ */
+function BasesCard({ count, children }: { count: number | null; children: ReactNode }) {
+  return (
+    <Card>
+      <CardHeader className="flex-row items-center justify-between space-y-0 border-b px-5 py-4">
+        <div className="space-y-1">
+          <CardTitle className="text-sm">Bases</CardTitle>
+          <CardDescription className="text-xs">
+            {/* `null` is "the request has not answered". Rendering "0 knowledge
+                bases" there would state something nothing has said yet. */}
+            {count === null ? <Skeleton className="h-3 w-32" /> : storedCount(count)}
+          </CardDescription>
+        </div>
+      </CardHeader>
+      <CardContent className="p-4">{children}</CardContent>
+    </Card>
+  );
+}
 
 export default function KBPage() {
   const { kbs, isLoading, fetchKBs, deleteKB } = useKnowledgeBases();
@@ -34,6 +71,8 @@ export default function KBPage() {
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
   });
 
+  const loading = isLoading && kbs.length === 0;
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -47,22 +86,49 @@ export default function KBPage() {
         }
       />
 
-      {isLoading && kbs.length === 0 ? (
-        <LoadingState variant="skeleton-tiles" />
-      ) : kbs.length === 0 ? (
-        <EmptyState
-          icon={Database}
-          title="No knowledge bases yet"
-          description="Create one to give your assistant access to documents from your collections."
-          cta={{ label: "Create knowledge base", onClick: () => setCreateOpen(true) }}
-        />
-      ) : (
-        <div className="grid auto-rows-fr gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {sorted.map((kb) => (
-            <KBCard key={kb.id} kb={kb} onDelete={() => deleteKB(kb.id)} />
-          ))}
-        </div>
-      )}
+      <BasesCard count={loading ? null : kbs.length}>
+        {loading ? (
+          // The same tiles the populated grid draws, as skeletons - a skeleton
+          // that draws a different shape is a layout jump on every load.
+          <div className="grid auto-rows-fr gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {[0, 1, 2].map((tile) => (
+              <div key={tile} className="border-border rounded-xl border p-5">
+                <Skeleton className="h-9 w-9 rounded-lg" />
+                <Skeleton className="mt-4 h-4 w-32" />
+                <Skeleton className="mt-2 h-3 w-full" />
+                <Skeleton className="mt-5 h-3 w-24" />
+              </div>
+            ))}
+          </div>
+        ) : kbs.length === 0 ? (
+          // Inline rather than an `EmptyState`: that component draws its own
+          // bordered box, and inside a card it would frame one message twice.
+          <div className="px-6 py-12 text-center">
+            <div className="bg-muted text-muted-foreground mx-auto flex h-11 w-11 items-center justify-center rounded-xl">
+              <Database className="h-5 w-5" />
+            </div>
+            <p className="text-foreground mt-4 text-sm font-medium">No knowledge bases yet</p>
+            <p className="text-muted-foreground mx-auto mt-1 max-w-sm text-sm">
+              Create one to give your assistant access to documents from your collections.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-5"
+              onClick={() => setCreateOpen(true)}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Create knowledge base
+            </Button>
+          </div>
+        ) : (
+          <div className="grid auto-rows-fr gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {sorted.map((kb) => (
+              <KBCard key={kb.id} kb={kb} onDelete={() => deleteKB(kb.id)} />
+            ))}
+          </div>
+        )}
+      </BasesCard>
 
       {/* Below the collections, because it is the thing they are fed from: a
           connector configured once and cloned into each base that needs it. */}
