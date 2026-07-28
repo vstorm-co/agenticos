@@ -173,13 +173,13 @@ function NavLink({ item, onNavigate }: { item: NavItem; onNavigate?: () => void 
       onClick={onNavigate}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm transition-colors",
-        // Selected is the accent's other job: a tinted surface plus accent
-        // label, so "where am I" reads without a second glance. Hover stays
-        // neutral - it is a pointer state, not a selection.
+        "flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm transition-colors",
+        // Selected is a neutral raised pill with a dark label - the register
+        // OpenAI's and ElevenLabs' consoles use. The accent stays out of the
+        // nav so the one place it appears in content still reads as a signal.
         active
-          ? "bg-brand-subtle text-brand font-medium"
-          : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+          ? "bg-accent text-foreground font-medium"
+          : "text-muted-foreground hover:text-foreground",
       )}
     >
       <item.icon className="h-4 w-4 shrink-0" aria-hidden />

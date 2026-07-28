@@ -63,8 +63,10 @@ function Chip({
       onClick={onClick}
       className={cn(
         "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+        // Ink for the chosen chip, same register as the primary button - the
+        // accent stays out of filter chrome.
         active
-          ? "bg-brand text-brand-foreground border-transparent"
+          ? "bg-primary text-primary-foreground border-transparent"
           : "text-muted-foreground hover:bg-accent hover:text-foreground border-border",
       )}
     >

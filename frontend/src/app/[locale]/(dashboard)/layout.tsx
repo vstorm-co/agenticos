@@ -26,9 +26,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <main
             id="main"
             tabIndex={-1}
-            className="flex min-h-0 flex-1 flex-col overflow-auto px-3 pt-4 pb-20 sm:px-6 sm:pt-8 lg:pb-8"
+            className="flex min-h-0 flex-1 flex-col overflow-auto px-3 pt-4 pb-20 sm:px-6 sm:pt-8 lg:px-10 lg:pb-8"
           >
-            <PageTransition>{children}</PageTransition>
+            {/* Content is measured, not wall-to-wall: a 1200px reading width
+                centred in whatever is left keeps forms and cards from
+                stretching into ribbons on wide monitors. */}
+            <div className="mx-auto w-full max-w-6xl flex-1">
+              <PageTransition>{children}</PageTransition>
+            </div>
           </main>
         </div>
         <Sidebar />

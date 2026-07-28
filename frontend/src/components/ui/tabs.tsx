@@ -13,7 +13,7 @@ const TabsList = React.forwardRef<
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      "bg-muted text-muted-foreground inline-flex h-9 items-center justify-center rounded-lg p-1",
+      "bg-muted text-muted-foreground inline-flex h-9 items-center justify-center rounded-full p-1",
       className,
     )}
     {...props}
@@ -28,9 +28,9 @@ const TabsTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      // The raised pill already says "selected"; the accent label is what makes
-      // it readable at a glance without tinting the whole track.
-      "ring-offset-background focus-visible:ring-ring data-[state=active]:bg-background data-[state=active]:text-brand inline-flex items-center justify-center rounded-md px-3 py-1 text-sm font-medium whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 data-[state=active]:shadow",
+      // The raised white pill is the whole selection signal - dark label, no
+      // accent tint, the way a console tab strip reads.
+      "ring-offset-background focus-visible:ring-ring data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-card inline-flex items-center justify-center rounded-full px-3.5 py-1 text-sm font-medium whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50",
       className,
     )}
     {...props}

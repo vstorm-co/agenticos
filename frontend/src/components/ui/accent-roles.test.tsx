@@ -5,52 +5,60 @@ import { Badge } from "./badge";
 import { Button, buttonVariants } from "./button";
 
 /**
- * The accent's role assignments, as behaviour.
+ * The colour role assignments, as behaviour.
  *
- * These assert which elements are *allowed to name* the accent tokens, never
- * what those tokens resolve to. Retheming the product is a one-line change to
- * `--brand-h` in globals.css, and a test that pinned `oklch(48% …)` or `blue`
- * would make that change expensive for no safety - the point of the token
- * layer is that the colour can move while the roles cannot.
+ * These assert which elements are *allowed to name* which tokens, never what
+ * those tokens resolve to. Retheming the product is a token edit in
+ * globals.css, and a test that pinned `oklch(48% ...)` or `black` would make
+ * that change expensive for no safety - the point of the token layer is that
+ * the colour can move while the roles cannot.
  *
- * What is actually protected here: the accent stays scarce. A page has one
- * primary action; if `secondary`, `outline` or `ghost` ever grows an accent
- * fill, the accent stops distinguishing anything and these fail.
+ * The roles being protected: the primary action is INK (`primary`, near-black
+ * on light surfaces, white on dark ones), and the accent (`brand`) never
+ * fills a button - it keeps the quieter jobs of links, selection and focus.
+ * If a neutral variant grows a fill, or a fill grows the accent, the register
+ * collapses and these fail.
  */
 
 const classesOf = (value: string): string[] => value.split(/\s+/).filter(Boolean);
 
 const NEUTRAL_VARIANTS = ["secondary", "outline", "ghost"] as const;
 
-describe("accent roles", () => {
-  it("fills only the primary action with the accent", () => {
-    expect(classesOf(buttonVariants({ variant: "default" }))).toContain("bg-brand");
-  });
-
-  it.each(NEUTRAL_VARIANTS)("leaves the %s action neutral", (variant) => {
-    expect(classesOf(buttonVariants({ variant }))).not.toContain("bg-brand");
-  });
-
-  it("keeps destructive off the accent, so 'delete' can never read as 'confirm'", () => {
-    const classes = classesOf(buttonVariants({ variant: "destructive" }));
-    expect(classes).toContain("bg-destructive");
+describe("colour roles", () => {
+  it("fills the primary action with ink, never the accent", () => {
+    const classes = classesOf(buttonVariants({ variant: "default" }));
+    expect(classes).toContain("bg-primary");
     expect(classes).not.toContain("bg-brand");
   });
 
-  it("steps the primary button's pointer states along the accent ramp", () => {
-    // Not `hover:bg-brand/90`: an alpha fade lightens over a cream surface and
-    // darkens over a near-black one, so one class would drift in opposite
-    // directions between the two themes.
-    const classes = classesOf(buttonVariants({ variant: "default" }));
-    expect(classes).toContain("hover:bg-brand-hover");
-    expect(classes).toContain("active:bg-brand-active");
-    expect(classes.filter((c) => c.startsWith("hover:bg-brand/"))).toHaveLength(0);
+  it.each(NEUTRAL_VARIANTS)("leaves the %s action unfilled by ink or accent", (variant) => {
+    const classes = classesOf(buttonVariants({ variant }));
+    expect(classes).not.toContain("bg-primary");
+    expect(classes).not.toContain("bg-brand");
   });
 
-  it("renders a link as accent text rather than an accent fill", () => {
+  it("keeps destructive on its own tone, so 'delete' can never read as 'confirm'", () => {
+    const classes = classesOf(buttonVariants({ variant: "destructive" }));
+    expect(classes).toContain("bg-destructive");
+    expect(classes).not.toContain("bg-primary");
+    expect(classes).not.toContain("bg-brand");
+  });
+
+  it("steps the primary button's pointer states along explicit tokens", () => {
+    // Not `hover:bg-primary/90`: an alpha fade lightens over a white surface
+    // and darkens over a graphite one, so one class would drift in opposite
+    // directions between the two themes.
+    const classes = classesOf(buttonVariants({ variant: "default" }));
+    expect(classes).toContain("hover:bg-primary-hover");
+    expect(classes).toContain("active:bg-primary-active");
+    expect(classes.filter((c) => c.startsWith("hover:bg-primary/"))).toHaveLength(0);
+  });
+
+  it("renders a link as accent text rather than any fill", () => {
     const classes = classesOf(buttonVariants({ variant: "link" }));
     expect(classes).toContain("text-brand");
     expect(classes).not.toContain("bg-brand");
+    expect(classes).not.toContain("bg-primary");
   });
 
   it("gives every button variant a distinct appearance", () => {
@@ -59,7 +67,7 @@ describe("accent roles", () => {
     expect(new Set(rendered).size).toBe(variants.length);
   });
 
-  it("paints a default badge from the same accent tokens as the primary button", () => {
+  it("paints a default badge from the same ink tokens as the primary button", () => {
     // The whole point of the exercise: comparable elements match because they
     // name the same role, not because two class lists happen to agree.
     render(
@@ -72,7 +80,7 @@ describe("accent roles", () => {
     const button = classesOf(screen.getByRole("button").className);
     const badge = classesOf(screen.getByText("live").className);
 
-    for (const token of ["bg-brand", "text-brand-foreground"]) {
+    for (const token of ["bg-primary", "text-primary-foreground"]) {
       expect(button).toContain(token);
       expect(badge).toContain(token);
     }

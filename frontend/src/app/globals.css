@@ -94,13 +94,16 @@
   --color-card-foreground: oklch(15% 0 0);
   --color-popover: oklch(100% 0 0);
   --color-popover-foreground: oklch(15% 0 0);
-  /* `primary` is the shadcn-era name for the accent, kept as a role alias
-     because ~6 app call sites and the third-party-shaped primitives already
-     write `bg-primary`. It is not a second palette - it always equals brand,
-     and it follows brand through every theme override because `@theme` emits
-     var() references verbatim rather than inlining them. */
-  --color-primary: var(--color-brand);
-  --color-primary-foreground: var(--color-brand-foreground);
+  /* `primary` is INK, not the accent: the platform's primary action is a
+     near-black button (white in dark themes), the way OpenAI's and
+     ElevenLabs' consoles draw theirs. The accent keeps the quieter jobs -
+     links, selection, focus, charts - which is what keeps it legible as
+     "you are here" rather than "click me". Pointer states are explicit
+     steps, not alpha fades, for the same reason the brand ramp's are. */
+  --color-primary: oklch(21% 0.01 250);
+  --color-primary-foreground: oklch(98.5% 0 0);
+  --color-primary-hover: oklch(30% 0.01 250);
+  --color-primary-active: oklch(37% 0.012 250);
   --color-secondary: oklch(94% 0.004 250);
   --color-secondary-foreground: oklch(20% 0 0);
   --color-muted: oklch(94% 0.004 250);
@@ -123,6 +126,12 @@
   --radius: 0.5rem;
   --radius-card: 0.5rem;
   --radius-pill: 999px;
+
+  /* Elevation. One soft step for resting cards - borders do the separating,
+     the shadow only lifts the surface off the page - and a heavier one for
+     things that float (menus, dialogs). */
+  --shadow-card: 0 1px 2px 0 oklch(0% 0 0 / 0.05), 0 1px 3px 0 oklch(0% 0 0 / 0.03);
+  --shadow-float: 0 4px 6px -2px oklch(0% 0 0 / 0.05), 0 10px 15px -3px oklch(0% 0 0 / 0.08);
 
   /* Typography */
   --font-display: var(--font-display), "Bricolage Grotesque", system-ui, sans-serif;
@@ -152,7 +161,11 @@
     /* Accent roles, dark mapping. The fill lightens - a bright accent reads as
        forward on near-black - and its foreground flips to near-black ink,
        which buys more contrast than white-on-blue reaches at any lightness.
-       `primary` is absent on purpose: it resolves through `--color-brand`. */
+       Ink flips with it: the primary button goes white on graphite. */
+    --color-primary: oklch(96% 0.003 250);
+    --color-primary-foreground: oklch(16% 0.01 250);
+    --color-primary-hover: oklch(88% 0.004 250);
+    --color-primary-active: oklch(81% 0.005 250);
     --color-brand: var(--brand-400);
     --color-brand-hover: var(--brand-300);
     --color-brand-active: var(--brand-200);
@@ -181,6 +194,10 @@
   --color-popover-foreground: oklch(95% 0.005 250);
   /* Keep in sync with the `prefers-color-scheme: dark` block above and with
      `.theme-dark` below - three places, one mapping. */
+  --color-primary: oklch(96% 0.003 250);
+  --color-primary-foreground: oklch(16% 0.01 250);
+  --color-primary-hover: oklch(88% 0.004 250);
+  --color-primary-active: oklch(81% 0.005 250);
   --color-brand: var(--brand-400);
   --color-brand-hover: var(--brand-300);
   --color-brand-active: var(--brand-200);
@@ -214,6 +231,10 @@
   --color-border: oklch(89% 0.004 250);
   /* A pinned-light subtree inside a dark root needs the light accent mapping
      too, or its buttons and links keep the root theme's accent. */
+  --color-primary: oklch(21% 0.01 250);
+  --color-primary-foreground: oklch(98.5% 0 0);
+  --color-primary-hover: oklch(30% 0.01 250);
+  --color-primary-active: oklch(37% 0.012 250);
   --color-brand: var(--brand-700);
   --color-brand-hover: var(--brand-800);
   --color-brand-active: var(--brand-900);
@@ -232,6 +253,10 @@
   --color-muted: oklch(22% 0.006 250);
   --color-muted-foreground: oklch(68% 0.008 250);
   --color-border: oklch(28% 0.008 250);
+  --color-primary: oklch(96% 0.003 250);
+  --color-primary-foreground: oklch(16% 0.01 250);
+  --color-primary-hover: oklch(88% 0.004 250);
+  --color-primary-active: oklch(81% 0.005 250);
   --color-brand: var(--brand-400);
   --color-brand-hover: var(--brand-300);
   --color-brand-active: var(--brand-200);
