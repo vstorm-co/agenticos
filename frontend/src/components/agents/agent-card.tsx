@@ -4,16 +4,20 @@ import Link from "next/link";
 import {
   ArchiveRestore,
   Archive,
+  Building2,
   Copy,
+  Lock,
   MoreHorizontal,
   Pencil,
   Trash2,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { AgentStatusBadge } from "@/components/agents/status-badge";
 import {
+  Badge,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -23,6 +27,27 @@ import {
 import { ROUTES } from "@/lib/constants";
 import { cn, formatDate } from "@/lib/utils";
 import type { Agent } from "@/types/agents";
+
+/** Chip labels for the surfaces an agent answers on. Unknown values pass through. */
+const CHANNEL_LABEL: Record<string, string> = {
+  slack: "Slack",
+  telegram: "Telegram",
+  mattermost: "Mattermost",
+};
+
+/**
+ * Who can reach this agent, as one chip.
+ *
+ * Visibility answers for the broad settings; the grant count only matters for a
+ * private agent, where "Private" and "Shared with 3" are different facts.
+ */
+export function accessSummary(agent: Agent): { icon: LucideIcon; label: string } {
+  if (agent.visibility === "org") return { icon: Building2, label: "Organization" };
+  if (agent.visibility === "team") return { icon: Users, label: "Team" };
+  const count = agent.shared_user_count ?? 0;
+  if (count > 0) return { icon: Users, label: `Shared with ${count}` };
+  return { icon: Lock, label: "Private" };
+}
 
 export interface AgentCardActions {
   onDuplicate: () => void;
@@ -80,11 +105,19 @@ export function AgentCard({
           <p className="text-muted-foreground mt-2 line-clamp-2 min-h-[2.5rem] text-sm">
             {agent.description || "No description."}
           </p>
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <AccessChip agent={agent} />
+            {(agent.channels ?? []).map((channel) => (
+              <Badge key={channel} variant="outline" className="text-muted-foreground font-normal">
+                {CHANNEL_LABEL[channel] ?? channel}
+              </Badge>
+            ))}
+          </div>
         </div>
       </div>
 
       <div className="relative mt-3 flex items-center justify-between gap-2 border-t pt-3">
-        <span className="text-muted-foreground pointer-events-none font-mono text-[11px]">
+        <span className="text-muted-foreground pointer-events-none text-xs">
           {agent.updated_at ? `edited ${formatDate(agent.updated_at)}` : "never edited"}
         </span>
 
@@ -94,11 +127,6 @@ export function AgentCard({
               icon={Pencil}
               label={`Edit ${agent.name}`}
               href={ROUTES.AGENT_DETAIL(agent.id)}
-            />
-            <IconAction
-              icon={Copy}
-              label={`Duplicate ${agent.name}`}
-              onClick={actions.onDuplicate}
             />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -140,6 +168,16 @@ export function AgentCard({
         )}
       </div>
     </div>
+  );
+}
+
+function AccessChip({ agent }: { agent: Agent }) {
+  const { icon: Icon, label } = accessSummary(agent);
+  return (
+    <Badge variant="outline" className="text-muted-foreground gap-1 font-normal">
+      <Icon className="h-3 w-3" aria-hidden />
+      {label}
+    </Badge>
   );
 }
 

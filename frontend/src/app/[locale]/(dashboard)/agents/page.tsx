@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Bot, Plus, Search } from "lucide-react";
 
@@ -8,8 +9,17 @@ import { AgentCard } from "@/components/agents/agent-card";
 import { CreateAgentDialog } from "@/components/agents/create-agent-dialog";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { SegmentedControl } from "@/components/dashboard/segmented-control";
-import { EmptyState, LoadingState } from "@/components/states";
-import { Button, ConfirmDialog, Input } from "@/components/ui";
+import {
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  ConfirmDialog,
+  Input,
+  Skeleton,
+} from "@/components/ui";
 import { useAgents, usePermissions } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import { Perm } from "@/types/permissions";
@@ -23,6 +33,45 @@ const FILTERS: { label: string; value: Filter }[] = [
   { label: "Drafts", value: "draft" },
   { label: "Archived", value: "archived" },
 ];
+
+/** The gallery count, in words, honest about a filter narrowing the view. */
+function shownCount(visible: number, total: number): string {
+  if (visible === total) return total === 1 ? "1 agent" : `${total} agents`;
+  return `${visible} of ${total} shown`;
+}
+
+/**
+ * The gallery's frame, drawn whether or not anything is in it - the same
+ * bargain as the vault's KeysCard: one panel with one header in every state,
+ * so an emptied filter changes what is inside the panel, never the page shape.
+ */
+function AgentsCard({
+  visible,
+  total,
+  children,
+}: {
+  visible: number | null;
+  total: number;
+  children: ReactNode;
+}) {
+  return (
+    <Card>
+      <CardHeader className="flex-row items-center justify-between space-y-0 border-b px-5 py-4">
+        <div className="space-y-1">
+          <CardTitle className="text-sm">Catalog</CardTitle>
+          <CardDescription className="text-xs">
+            {visible === null ? (
+              <Skeleton className="h-3 w-24" />
+            ) : (
+              shownCount(visible, total)
+            )}
+          </CardDescription>
+        </div>
+      </CardHeader>
+      <CardContent className="p-5">{children}</CardContent>
+    </Card>
+  );
+}
 
 export default function AgentsPage() {
   const router = useRouter();
@@ -93,52 +142,79 @@ export default function AgentsPage() {
       </div>
 
       {/* The header and the controls are static, so they stay put while the
-          list loads rather than being replaced by a placeholder of themselves. */}
+          list loads rather than being replaced by a placeholder of themselves.
+          The panel below is equally static - loading, empty and populated all
+          render inside the same frame. */}
       {isLoading ? (
-        <LoadingState variant="skeleton-cards" />
-      ) : visible.length === 0 ? (
-        <EmptyState
-          icon={Bot}
-          title={agents.length === 0 ? "No agents yet" : "Nothing matches"}
-          description={
-            agents.length === 0
-              ? canEdit
-                ? "Create one, give it instructions and a few capabilities, then publish it."
-                : "Nobody has shared an agent with you yet."
-              : "No agent here matches that filter and search."
-          }
-          cta={
-            agents.length > 0
-              ? {
-                  label: "Clear filters",
-                  onClick: () => {
+        <AgentsCard visible={null} total={0}>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {[0, 1, 2].map((row) => (
+              <div key={row} className="border-border rounded-xl border p-4">
+                <div className="flex items-start gap-3">
+                  <Skeleton className="h-10 w-10 shrink-0 rounded-lg" />
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-3 w-24" />
+                    <Skeleton className="h-3 w-full" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </AgentsCard>
+      ) : (
+        <AgentsCard visible={visible.length} total={agents.length}>
+          {visible.length === 0 ? (
+            <div className="px-6 py-16 text-center">
+              <div className="bg-muted text-muted-foreground mx-auto flex h-11 w-11 items-center justify-center rounded-xl">
+                <Bot className="h-5 w-5" />
+              </div>
+              <p className="text-foreground mt-4 text-sm font-medium">
+                {agents.length === 0 ? "No agents yet" : "Nothing matches"}
+              </p>
+              <p className="text-muted-foreground mx-auto mt-1 max-w-sm text-sm">
+                {agents.length === 0
+                  ? canEdit
+                    ? "Create one, give it instructions and a few capabilities, then publish it."
+                    : "Nobody has shared an agent with you yet."
+                  : "No agent here matches that filter and search."}
+              </p>
+              {agents.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-5"
+                  onClick={() => {
                     setFilter("all");
                     setQuery("");
-                  },
-                }
-              : undefined
-          }
-        />
-      ) : (
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {visible.map((agent) => (
-            <AgentCard
-              key={agent.id}
-              agent={agent}
-              canEdit={canEdit}
-              busy={busyId === agent.id}
-              actions={{
-                onDuplicate: () =>
-                  clone.mutate(agent.id, {
-                    onSuccess: (created) => router.push(ROUTES.AGENT_DETAIL(created.id)),
-                  }),
-                onArchive: () => setPendingArchive(agent),
-                onRestore: () => unarchive.mutate(agent.id),
-                onDelete: () => setPendingDelete(agent),
-              }}
-            />
-          ))}
-        </div>
+                  }}
+                >
+                  Clear filters
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {visible.map((agent) => (
+                <AgentCard
+                  key={agent.id}
+                  agent={agent}
+                  canEdit={canEdit}
+                  busy={busyId === agent.id}
+                  actions={{
+                    onDuplicate: () =>
+                      clone.mutate(agent.id, {
+                        onSuccess: (created) => router.push(ROUTES.AGENT_DETAIL(created.id)),
+                      }),
+                    onArchive: () => setPendingArchive(agent),
+                    onRestore: () => unarchive.mutate(agent.id),
+                    onDelete: () => setPendingDelete(agent),
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </AgentsCard>
       )}
 
       <CreateAgentDialog

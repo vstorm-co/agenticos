@@ -35,6 +35,7 @@ from app.core.exceptions import (
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.repositories import (
+    agent_exposure_repo,
     agent_repo,
     credential_repo,
     knowledge_base_repo,
@@ -43,7 +44,7 @@ from app.repositories import (
     organization_secret_repo,
     resource_grant_repo,
 )
-from app.schemas.agent import AgentVersionRead
+from app.schemas.agent import AgentRead, AgentVersionRead
 from app.services.access import AGENT, COLLECTION, SECRET, resolve_access, visible_resource_ids
 from app.services.file_storage import IMAGE_MIME_TYPES, MAX_AVATAR_SIZE, get_file_storage
 
@@ -153,7 +154,7 @@ class AgentRegistryService:
         include_archived: bool = False,
         skip: int = 0,
         limit: int = 50,
-    ) -> tuple[list[Agent], int]:
+    ) -> tuple[list[AgentRead], int]:
         """Agents visible to the caller under their role scope and grants."""
         # `None` is `visible_resource_ids` saying the role already reaches every
         # agent, which is exactly what `see_all` tells the query - so both come
@@ -162,7 +163,7 @@ class AgentRegistryService:
         shared = await visible_resource_ids(
             self.db, ctx, resource_type=AGENT, perm=Perm.AGENTS_VIEW
         )
-        return await agent_repo.list_visible(
+        agents, total = await agent_repo.list_visible(
             self.db,
             organization_id=ctx.organization_id,
             user_id=ctx.subject_id,
@@ -172,6 +173,38 @@ class AgentRegistryService:
             skip=skip,
             limit=limit,
         )
+        # How far each agent reaches, one grouped query per question rather than
+        # one per row: the gallery card says "shared with 3" and "on Slack", and
+        # twenty cards must not mean forty queries.
+        agent_ids = [agent.id for agent in agents]
+        shared_counts = await resource_grant_repo.count_for_resources(
+            self.db,
+            organization_id=ctx.organization_id,
+            resource_type=AGENT.key,
+            resource_ids=agent_ids,
+        )
+        surfaces = await agent_exposure_repo.active_surfaces_for_agents(
+            self.db, organization_id=ctx.organization_id, agent_ids=agent_ids
+        )
+        rows = [
+            AgentRead(
+                id=agent.id,
+                slug=agent.slug,
+                name=agent.name,
+                description=agent.description,
+                status=agent.status,
+                visibility=agent.visibility,
+                owner_user_id=agent.owner_user_id,
+                current_version_id=agent.current_version_id,
+                has_avatar=agent.has_avatar,
+                shared_user_count=shared_counts.get(agent.id, 0),
+                channels=surfaces.get(agent.id, []),
+                created_at=agent.created_at,
+                updated_at=agent.updated_at,
+            )
+            for agent in agents
+        ]
+        return rows, total
 
     # -- writing --------------------------------------------------------
 

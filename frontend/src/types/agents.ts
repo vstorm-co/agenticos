@@ -141,6 +141,10 @@ export interface Agent {
   current_version_id: string | null;
   /** Whether `/api/agents/{id}/avatar` will answer with an image. */
   has_avatar?: boolean;
+  /** How many members hold an explicit grant. Filled by the listing only. */
+  shared_user_count?: number;
+  /** Surfaces with an active binding ("slack", "telegram", ...). Listing only. */
+  channels?: string[];
   created_at?: string;
   updated_at?: string;
 }

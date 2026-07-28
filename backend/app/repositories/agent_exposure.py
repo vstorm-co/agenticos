@@ -36,6 +36,35 @@ async def list_for_agent(
     return list(result.scalars().all())
 
 
+async def active_surfaces_for_agents(
+    db: AsyncSession, *, organization_id: UUID, agent_ids: list[UUID]
+) -> dict[UUID, list[str]]:
+    """Which surfaces each agent is actively available on.
+
+    One grouped query for a whole page rather than one per row, for the same
+    reason as ``resource_grant.count_for_resources``: the agent gallery wants a
+    channel badge on every card. Paused bindings are excluded - a card saying
+    "Slack" about an agent that stopped answering there is worse than no badge.
+    Agents with no active binding are simply absent from the result.
+    """
+    if not agent_ids:
+        return {}
+    result = await db.execute(
+        select(AgentExposure.agent_id, AgentExposure.surface)
+        .where(
+            AgentExposure.organization_id == organization_id,
+            AgentExposure.agent_id.in_(agent_ids),
+            AgentExposure.is_active.is_(True),
+        )
+        .distinct()
+        .order_by(AgentExposure.agent_id, AgentExposure.surface)
+    )
+    surfaces: dict[UUID, list[str]] = {}
+    for agent_id, surface in result.all():
+        surfaces.setdefault(agent_id, []).append(surface)
+    return surfaces
+
+
 async def get_for_bot(
     db: AsyncSession, *, agent_id: UUID, channel_bot_id: UUID
 ) -> AgentExposure | None:

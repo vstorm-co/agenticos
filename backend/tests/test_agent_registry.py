@@ -101,8 +101,12 @@ def _agent(ctx: AuthContext, **overrides):
     agent.status = AgentStatus.DRAFT.value
     agent.slug = "support"
     agent.name = "Support"
+    agent.description = None
+    agent.has_avatar = False
     agent.draft_spec = _spec().model_dump(mode="json")
     agent.current_version_id = None
+    agent.created_at = None
+    agent.updated_at = None
     for key, value in overrides.items():
         setattr(agent, key, value)
     return agent
@@ -234,18 +238,61 @@ class TestList:
         )
 
     @pytest.mark.anyio
+    async def test_a_listed_agent_says_who_reaches_it_and_where_it_answers(self):
+        """The gallery card reads 'shared with 3, on Slack' straight off the row.
+
+        Both numbers come from one grouped query per page; an agent nobody
+        shared and nobody exposed reads 0 and [], not a missing key.
+        """
+        ctx = _ctx(OrgRoleName.OWNER)
+        listed = _agent(ctx)
+        lonely = _agent(ctx)
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.list_visible",
+                new=AsyncMock(return_value=([listed, lonely], 2)),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.resource_grant_repo.count_for_resources",
+                new=AsyncMock(return_value={listed.id: 3}),
+            ) as counts,
+            patch(
+                f"{REGISTRY_PATH}.agent_exposure_repo.active_surfaces_for_agents",
+                new=AsyncMock(return_value={listed.id: ["slack", "telegram"]}),
+            ) as surfaces,
+        ):
+            rows, total = await AgentRegistryService(_db()).list_agents(ctx)
+
+        assert total == 2
+        assert (rows[0].shared_user_count, rows[0].channels) == (3, ["slack", "telegram"])
+        assert (rows[1].shared_user_count, rows[1].channels) == (0, [])
+        assert counts.call_args.kwargs["resource_ids"] == [listed.id, lonely.id]
+        assert surfaces.call_args.kwargs["agent_ids"] == [listed.id, lonely.id]
+
+    @pytest.mark.anyio
     async def test_the_listing_returns_the_page_and_the_total(self):
         """The total is the page count, not the page size - pagination depends on it."""
         ctx = _ctx(OrgRoleName.OWNER)
         agent = _agent(ctx)
 
-        with patch(
-            f"{REGISTRY_PATH}.agent_repo.list_visible",
-            new=AsyncMock(return_value=([agent], 37)),
+        with (
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.list_visible",
+                new=AsyncMock(return_value=([agent], 37)),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.resource_grant_repo.count_for_resources",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_exposure_repo.active_surfaces_for_agents",
+                new=AsyncMock(return_value={}),
+            ),
         ):
             agents, total = await AgentRegistryService(_db()).list_agents(ctx)
 
-        assert (agents, total) == ([agent], 37)
+        assert ([row.id for row in agents], total) == ([agent.id], 37)
 
 
 class TestCreate:

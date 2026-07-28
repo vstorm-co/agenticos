@@ -32,6 +32,21 @@ class AgentRead(BaseSchema):
             "would be holding a second, unchecked way to name the file."
         ),
     )
+    shared_user_count: int = Field(
+        default=0,
+        description=(
+            "How many members hold an explicit grant on this agent. Filled by the "
+            "listing, which is the one place a card says 'shared with 3'; write "
+            "endpoints answer with the default rather than paying a count nobody reads."
+        ),
+    )
+    channels: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Surfaces with an active binding - 'slack', 'telegram', 'mattermost'. "
+            "Filled by the listing, same bargain as shared_user_count."
+        ),
+    )
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
