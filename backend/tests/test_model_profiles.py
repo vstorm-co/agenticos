@@ -40,7 +40,6 @@ from app.services.model_profile import (
     MAX_FALLBACK_DEPTH,
     ModelProfileService,
     provider_catalog,
-    validate_endpoint_url,
 )
 
 

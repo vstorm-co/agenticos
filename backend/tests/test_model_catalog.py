@@ -41,7 +41,11 @@ class TestReadingAListing:
         deployment can offer suggestions for before anybody has stored anything."""
         payload = {
             "data": [
-                {"id": "anthropic/claude-opus-5", "name": "Claude Opus 5", "context_length": 1000000}
+                {
+                    "id": "anthropic/claude-opus-5",
+                    "name": "Claude Opus 5",
+                    "context_length": 1000000,
+                }
             ]
         }
         with patch(f"{MODULE}.httpx.AsyncClient", return_value=_responds(payload)):

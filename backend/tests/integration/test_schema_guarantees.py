@@ -21,9 +21,9 @@ from app.db.models.agent_exposure import AgentExposure, ExposureSurface
 from app.db.models.agent_run import AgentRun, RunStatus, ToolApproval
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.credential import ModelProfile
-from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization import Organization, OrganizationMember
+from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
 from app.db.models.skill import Skill
 from app.db.models.user import User

@@ -234,7 +234,7 @@ def _read_listing(payload: Any, spec: ListingSpec) -> list[CatalogModel]:
     """Turn one provider's response into models, skipping rows it cannot read."""
     rows = payload if spec.array_path == "" else payload.get(spec.array_path)
     if not isinstance(rows, list):
-        raise ValueError(f"Expected a list at {spec.array_path or '<root>'}")
+        raise TypeError(f"Expected a list at {spec.array_path or '<root>'}")
 
     models: list[CatalogModel] = []
     for row in rows:

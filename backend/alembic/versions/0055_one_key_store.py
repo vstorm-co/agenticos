@@ -34,8 +34,9 @@ nothing refills them - the sealed keys are gone with the rows.
 """
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision = "0055_one_key_store"
 down_revision = "0054_no_default_model"

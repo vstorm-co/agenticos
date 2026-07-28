@@ -2339,7 +2339,8 @@ class TestAnAgentsOwnMonthlyCap:
     @staticmethod
     async def _published(db, tenant: Tenant, *, spec: AgentSpec, spent: Decimal) -> Agent:
         """A published agent with ``spent`` already booked against *it*."""
-        model = await _keyed_model_profile(db, tenant)
+        # For the side effect: publishing needs a resolvable model profile.
+        await _keyed_model_profile(db, tenant)
         agent = await _published_agent(db, tenant, spec=spec)
         if spent:
             await _run_row(

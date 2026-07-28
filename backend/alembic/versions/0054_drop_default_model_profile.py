@@ -26,6 +26,7 @@ concurrent writes from both claiming the flag.
 """
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision = "0054_no_default_model"
