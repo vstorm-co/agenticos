@@ -185,7 +185,7 @@ async def count_for_resources(
     if not resource_ids:
         return {}
     result = await db.execute(
-        select(ResourceGrant.resource_id, func.count().label("count"))
+        select(ResourceGrant.resource_id, func.count())
         .where(
             ResourceGrant.organization_id == organization_id,
             ResourceGrant.resource_type == resource_type,
@@ -193,4 +193,7 @@ async def count_for_resources(
         )
         .group_by(ResourceGrant.resource_id)
     )
-    return {row.resource_id: row.count for row in result.all()}
+    # dict() over the rows rather than `row.count` attribute reads: a column
+    # named `count` shadows the Row sequence method as far as a type checker
+    # can tell, even though SQLAlchemy resolves it to the value at run time.
+    return dict(result.tuples().all())
