@@ -419,21 +419,20 @@ class TestValidateSpec:
         assert any(problem.startswith("Collection not found:") for problem in problems)
 
     @pytest.mark.anyio
-    async def test_an_agent_with_no_model_and_no_org_default_cannot_publish(self):
-        """Nothing downstream can invent a model, so this has to be caught here."""
+    async def test_an_agent_with_no_model_cannot_publish(self):
+        """Nothing downstream can invent a model, so this has to be caught here.
+
+        There is no organization default to fall back on since 0054: a model an
+        agent did not choose is one somebody else's change can swap underneath
+        it, so the absence is refused outright.
+        """
         ctx = _ctx()
 
-        with (
-            patch(
-                f"{REGISTRY_PATH}.credential_repo.get_default_profile",
-                new=AsyncMock(return_value=None),
-            ),
-            pytest.raises(BadRequestError) as refused,
-        ):
+        with pytest.raises(BadRequestError) as refused:
             await AgentRegistryService(_db()).validate_spec(ctx, _spec())
 
         assert refused.value.details["problems"] == [
-            "No model selected and this organization has no default model configured"
+            "No model selected - pick one before publishing"
         ]
 
     @pytest.mark.anyio
@@ -445,7 +444,7 @@ class TestValidateSpec:
 
         with (
             patch(
-                f"{REGISTRY_PATH}.credential_repo.get_default_profile",
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
                 new=AsyncMock(return_value=MagicMock()),
             ),
             patch(
@@ -455,7 +454,7 @@ class TestValidateSpec:
             pytest.raises(BadRequestError) as refused,
         ):
             await AgentRegistryService(_db()).validate_spec(
-                ctx, _spec(collection_ids=[collection_id])
+                ctx, _spec(collection_ids=[collection_id], model_profile_id=uuid.uuid4())
             )
 
         assert refused.value.details["problems"] == [f"Collection not found: {collection_id}"]
@@ -477,7 +476,7 @@ class TestValidateSpec:
 
         with (
             patch(
-                f"{REGISTRY_PATH}.credential_repo.get_default_profile",
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
                 new=AsyncMock(return_value=MagicMock()),
             ),
             patch(
@@ -491,7 +490,7 @@ class TestValidateSpec:
             pytest.raises(BadRequestError) as refused,
         ):
             await AgentRegistryService(_db()).validate_spec(
-                ctx, _spec(collection_ids=[collection_id])
+                ctx, _spec(collection_ids=[collection_id], model_profile_id=uuid.uuid4())
             )
 
         assert refused.value.details["problems"] == [f"Collection not found: {collection_id}"]
@@ -511,7 +510,7 @@ class TestValidateSpec:
 
         with (
             patch(
-                f"{REGISTRY_PATH}.credential_repo.get_default_profile",
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
                 new=AsyncMock(return_value=MagicMock()),
             ),
             patch(
@@ -521,7 +520,7 @@ class TestValidateSpec:
             pytest.raises(BadRequestError) as refused,
         ):
             await AgentRegistryService(_db()).validate_spec(
-                ctx, _spec(mcp_server_ids=[connection_id])
+                ctx, _spec(mcp_server_ids=[connection_id], model_profile_id=uuid.uuid4())
             )
 
         problem = refused.value.details["problems"][0]
@@ -670,7 +669,9 @@ class TestToolOverrideValidation:
     @pytest.mark.anyio
     async def test_a_rename_a_model_can_call_is_accepted(self):
         """Dashes and digits are as callable as underscores; refusing them is noise."""
+        # The model profile resolves through _service()'s db.execute mock.
         spec = _spec(
+            model_profile_id=uuid.uuid4(),
             capabilities=[
                 {
                     "id": "skills",
@@ -681,7 +682,7 @@ class TestToolOverrideValidation:
                         }
                     },
                 }
-            ]
+            ],
         )
 
         await self._service().validate_spec(_ctx(), spec)
@@ -692,14 +693,14 @@ class TestPublish:
     async def test_publishing_freezes_the_draft_as_the_version_that_runs(self):
         """The pointer and the frozen copy have to move together, or a run reads a draft."""
         ctx = _ctx()
-        spec = _spec("Support", instructions="Be brief")
+        spec = _spec("Support", instructions="Be brief", model_profile_id=uuid.uuid4())
         agent = _agent(ctx, draft_spec=spec.model_dump(mode="json"))
         version = _version(agent.id, number=3, spec=spec)
 
         with (
             patch(f"{REGISTRY_PATH}.agent_repo.get", new=AsyncMock(return_value=agent)),
             patch(
-                f"{REGISTRY_PATH}.credential_repo.get_default_profile",
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
                 new=AsyncMock(return_value=MagicMock()),
             ),
             patch(f"{REGISTRY_PATH}.agent_repo.next_version_number", new=AsyncMock(return_value=3)),
@@ -729,14 +730,11 @@ class TestPublish:
     async def test_a_draft_that_does_not_validate_freezes_nothing(self):
         """A refused publish must leave the previous version live and untouched."""
         ctx = _ctx()
+        # The default draft names no model, which is the refusal.
         agent = _agent(ctx)
 
         with (
             patch(f"{REGISTRY_PATH}.agent_repo.get", new=AsyncMock(return_value=agent)),
-            patch(
-                f"{REGISTRY_PATH}.credential_repo.get_default_profile",
-                new=AsyncMock(return_value=None),
-            ),
             patch(f"{REGISTRY_PATH}.agent_repo.create_version", new=AsyncMock()) as create_version,
             patch(f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock()) as update,
             pytest.raises(BadRequestError),
@@ -757,7 +755,9 @@ class TestRollback:
         """
         ctx = _ctx()
         agent = _agent(ctx)
-        old_spec = _spec("Support", instructions="The version that worked")
+        old_spec = _spec(
+            "Support", instructions="The version that worked", model_profile_id=uuid.uuid4()
+        )
         source = _version(agent.id, number=1, spec=old_spec)
         fresh = _version(agent.id, number=5, spec=old_spec)
 
@@ -765,7 +765,7 @@ class TestRollback:
             patch(f"{REGISTRY_PATH}.agent_repo.get", new=AsyncMock(return_value=agent)),
             patch(f"{REGISTRY_PATH}.agent_repo.get_version", new=AsyncMock(return_value=source)),
             patch(
-                f"{REGISTRY_PATH}.credential_repo.get_default_profile",
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
                 new=AsyncMock(return_value=MagicMock()),
             ),
             patch(f"{REGISTRY_PATH}.agent_repo.next_version_number", new=AsyncMock(return_value=5)),
@@ -832,7 +832,7 @@ class TestRollback:
             patch(f"{REGISTRY_PATH}.agent_repo.get", new=AsyncMock(return_value=agent)),
             patch(f"{REGISTRY_PATH}.agent_repo.get_version", new=AsyncMock(return_value=source)),
             patch(
-                f"{REGISTRY_PATH}.credential_repo.get_default_profile",
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
                 new=AsyncMock(return_value=MagicMock()),
             ),
             patch(

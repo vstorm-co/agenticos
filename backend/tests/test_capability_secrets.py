@@ -172,11 +172,11 @@ async def _publish_problems(binding: CapabilityBindingSpec, *, secret: MagicMock
         # organization by construction. Publish now also asks whether the
         # publisher may *reach* it, and that check starts with the tenant.
         secret.organization_id = ctx.organization_id
-    spec = AgentSpec(name="Forecast", capabilities=[binding])
+    spec = AgentSpec(name="Forecast", model_profile_id=uuid.uuid4(), capabilities=[binding])
     lookup = AsyncMock(return_value=secret)
     with (
         patch(
-            "app.services.agent_registry.credential_repo.get_default_profile",
+            "app.services.agent_registry.credential_repo.get_profile",
             new=AsyncMock(return_value=MagicMock()),
         ),
         patch("app.services.agent_registry.organization_secret_repo.get", new=lookup),
@@ -257,12 +257,13 @@ class TestPublishValidation:
         secret_row.visibility = Visibility.PRIVATE.value
         spec = AgentSpec(
             name="Forecast",
+            model_profile_id=uuid.uuid4(),
             capabilities=[CapabilityBindingSpec(id=CAPABILITY_ID, secret_id=secret_row.id)],
         )
 
         with (
             patch(
-                "app.services.agent_registry.credential_repo.get_default_profile",
+                "app.services.agent_registry.credential_repo.get_profile",
                 new=AsyncMock(return_value=MagicMock()),
             ),
             patch(
@@ -295,12 +296,13 @@ class TestPublishValidation:
         secret_row.visibility = Visibility.PRIVATE.value
         spec = AgentSpec(
             name="Forecast",
+            model_profile_id=uuid.uuid4(),
             capabilities=[CapabilityBindingSpec(id=CAPABILITY_ID, secret_id=secret_row.id)],
         )
 
         with (
             patch(
-                "app.services.agent_registry.credential_repo.get_default_profile",
+                "app.services.agent_registry.credential_repo.get_profile",
                 new=AsyncMock(return_value=MagicMock()),
             ),
             patch(

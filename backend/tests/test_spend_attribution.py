@@ -28,7 +28,7 @@ def _ctx() -> AuthContext:
     return AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.OWNER)
 
 
-def _model_spec(credential_id: uuid.UUID | None) -> ModelRequestSpec:
+def _model_spec(secret_id: uuid.UUID | None) -> ModelRequestSpec:
     return ModelRequestSpec(
         profile_id=uuid.uuid4(),
         label="GPT-4.1 (prod)",
@@ -36,7 +36,7 @@ def _model_spec(credential_id: uuid.UUID | None) -> ModelRequestSpec:
         model="gpt-4.1",
         params={},
         credential=ResolvedCredential(provider="openai", secret=ApiKeySecret(api_key="sk-x")),
-        credential_id=credential_id,
+        secret_id=secret_id,
         fallbacks=[],
     )
 
@@ -44,13 +44,13 @@ def _model_spec(credential_id: uuid.UUID | None) -> ModelRequestSpec:
 class TestWhatARunRecords:
     def test_the_resolver_carries_which_key_it_resolved(self):
         """Without it the run has a provider and no way to say whose key paid."""
-        credential_id = uuid.uuid4()
-        assert _model_spec(credential_id).credential_id == credential_id
+        secret_id = uuid.uuid4()
+        assert _model_spec(secret_id).secret_id == secret_id
 
     def test_a_keyless_provider_records_no_key(self):
         """A self-hosted server has no key to attribute spend to, and inventing
         one would put a row under a credential that does not exist."""
-        assert _model_spec(None).credential_id is None
+        assert _model_spec(None).secret_id is None
 
 
 class TestAggregation:
@@ -70,14 +70,12 @@ class TestAggregation:
 
     @pytest.mark.anyio
     async def test_spend_is_grouped_by_the_key_that_paid(self):
-        credential_id = uuid.uuid4()
-        rows = [(credential_id, "OpenAI production", Decimal("9.00"), 12)]
-        with patch(
-            f"{RUNNER}.agent_run_repo.spend_by_credential", new=AsyncMock(return_value=rows)
-        ):
-            result = await AgentRunnerService(MagicMock()).spend_by_credential(_ctx(), days=30)
+        secret_id = uuid.uuid4()
+        rows = [(secret_id, "OpenAI production", Decimal("9.00"), 12)]
+        with patch(f"{RUNNER}.agent_run_repo.spend_by_key", new=AsyncMock(return_value=rows)):
+            result = await AgentRunnerService(MagicMock()).spend_by_key(_ctx(), days=30)
 
-        assert result[0][0] == credential_id
+        assert result[0][0] == secret_id
         assert result[0][1] == "OpenAI production"
 
     @pytest.mark.anyio
@@ -85,9 +83,7 @@ class TestAggregation:
         """The money was spent whether or not the key still exists. Dropping the
         row would make a month's total quietly stop adding up."""
         rows = [(None, None, Decimal("4.20"), 3)]
-        with patch(
-            f"{RUNNER}.agent_run_repo.spend_by_credential", new=AsyncMock(return_value=rows)
-        ):
-            result = await AgentRunnerService(MagicMock()).spend_by_credential(_ctx(), days=30)
+        with patch(f"{RUNNER}.agent_run_repo.spend_by_key", new=AsyncMock(return_value=rows)):
+            result = await AgentRunnerService(MagicMock()).spend_by_key(_ctx(), days=30)
 
         assert result[0][2] == Decimal("4.20")

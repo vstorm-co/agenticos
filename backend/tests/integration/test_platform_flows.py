@@ -2952,12 +2952,12 @@ class TestManyKeysForOneProvider:
 
     The shape a real deployment arrives in: separate keys per team, per client
     or per cost centre, all with the same provider, and each agent billed to
-    its own. Uniqueness on credentials is `(organization, label)` rather than
-    `(organization, provider)` precisely so this is possible - the label is
-    what forces the five to be told apart in a dropdown.
+    its own. Vault names are unique per organization rather than per provider
+    precisely so this is possible - the name is what forces the five to be
+    told apart in a dropdown.
 
     Worth an integration test rather than a unit one because the guarantee is
-    the *chain*: credential → profile → spec → the key the run actually
+    the *chain*: vault secret → profile → spec → the key the run actually
     unseals. Every link is a different service, and a stub agrees with whatever
     it is told.
     """
@@ -2965,22 +2965,23 @@ class TestManyKeysForOneProvider:
     @staticmethod
     async def _five(db, tenant) -> list[tuple[str, uuid.UUID]]:
         """Five keys for one provider, each behind its own named profile."""
-        service = ModelProfileService(db)
+        vault = OrganizationSecretService(db)
+        profiles = ModelProfileService(db)
         made = []
         for index in range(5):
             secret = f"sk-openai-team-{index}"
-            credential = await service.add_credential(
+            stored = await vault.create(
                 tenant.ctx,
-                provider="openai",
-                label=f"OpenAI team {index}",
-                secret=ApiKeySecret(api_key=secret),
+                name=f"OpenAI team {index}",
+                value=ApiKeySecret(api_key=secret),
+                purpose="openai",
             )
-            profile = await service.create_profile(
+            profile = await profiles.create_profile(
                 tenant.ctx,
                 label=f"GPT for team {index}",
                 provider="openai",
                 model="gpt-4.1",
-                credential_id=credential.id,
+                secret_id=stored.id,
             )
             made.append((secret, profile.id))
         return made
@@ -2989,9 +2990,9 @@ class TestManyKeysForOneProvider:
         tenant = await _tenant(db, name="ManyKeys")
 
         await self._five(db, tenant)
-        credentials = await ModelProfileService(db).list_credentials(tenant.ctx)
+        secrets = await OrganizationSecretService(db).list_secrets(tenant.ctx)
 
-        assert len([c for c in credentials if c.provider == "openai"]) == 5
+        assert len([row for row in secrets if row.purpose == "openai"]) == 5
 
     async def test_each_agent_resolves_the_key_its_own_profile_points_at(self, db) -> None:
         """The point of the whole chain: no agent reaches another's key."""
@@ -3019,36 +3020,36 @@ class TestManyKeysForOneProvider:
             resolved = await service.resolve(tenant.ctx, profile_id=spec.model_profile_id)
             assert resolved.credential.secret.api_key.get_secret_value() == expected_secret
 
-    async def test_two_keys_cannot_share_a_label(self, db) -> None:
+    async def test_two_keys_cannot_share_a_name(self, db) -> None:
         """Five rows all called "OpenAI" would be five keys nobody can tell apart.
 
         This used to assert `IntegrityError`, which was the truth and the bug:
-        the constraint was doing the refusing, so a person who reused a label
+        the constraint was doing the refusing, so a person who reused a name
         was answered with a 500. The refusal now comes from the service, before
         the write, with something the reader can act on.
         """
         tenant = await _tenant(db, name="Named")
-        service = ModelProfileService(db)
-        await service.add_credential(
+        vault = OrganizationSecretService(db)
+        await vault.create(
             tenant.ctx,
-            provider="openai",
-            label="OpenAI",
-            secret=ApiKeySecret(api_key="sk-first"),
+            name="OpenAI",
+            value=ApiKeySecret(api_key="sk-first"),
+            purpose="openai",
         )
 
         with pytest.raises(AlreadyExistsError) as refused:
-            await service.add_credential(
+            await vault.create(
                 tenant.ctx,
-                provider="openai",
-                label="OpenAI",
-                secret=ApiKeySecret(api_key="sk-second"),
+                name="OpenAI",
+                value=ApiKeySecret(api_key="sk-second"),
+                purpose="openai",
             )
         assert refused.value.status_code == 409
 
         # The session is still usable, which is the other half of refusing
         # before the flush: an IntegrityError leaves the transaction in a state
         # where every later statement fails too.
-        assert len(await service.list_credentials(tenant.ctx)) == 1
+        assert len(await vault.list_secrets(tenant.ctx)) == 1
 
     async def test_deleting_one_key_leaves_the_other_agents_running(self, db) -> None:
         """Retiring one team's key must not take the other four down with it."""
@@ -3058,9 +3059,9 @@ class TestManyKeysForOneProvider:
         profile = await credential_repo.get_profile(
             db, made[0][1], organization_id=tenant.organization.id
         )
-        assert profile is not None and profile.credential_id is not None
+        assert profile is not None and profile.secret_id is not None
 
-        await service.delete_credential(tenant.ctx, profile.credential_id)
+        await OrganizationSecretService(db).delete(tenant.ctx, profile.secret_id)
 
         with pytest.raises(BadRequestError):
             await service.resolve(tenant.ctx, profile_id=made[0][1])

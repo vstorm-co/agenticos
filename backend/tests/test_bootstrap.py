@@ -31,9 +31,9 @@ class TestProviderDefaults:
     def test_every_provider_bootstrap_offers_is_one_the_platform_supports(self):
         """Bootstrap offers a shortlist, not the catalog - but not a fiction either.
 
-        A provider here that the catalog does not have would fail inside
-        `add_credential`, after the owner and the organization were already
-        created, leaving a half-built install.
+        A provider here that the catalog does not have would fail at profile
+        creation, after the owner and the organization were already created,
+        leaving a half-built install.
         """
         assert set(DEFAULT_MODELS) <= set(PROVIDERS)
 
@@ -88,7 +88,7 @@ class TestModel:
 
     @pytest.mark.anyio
     async def test_a_key_is_stored_and_the_profile_points_at_it(self):
-        credential = MagicMock(id=uuid.uuid4(), hint="1234")
+        secret = MagicMock(id=uuid.uuid4(), hint="1234")
         profile = MagicMock(id=uuid.uuid4(), label="openai default")
 
         with (
@@ -97,8 +97,8 @@ class TestModel:
                 new=AsyncMock(return_value=[]),
             ),
             patch(
-                "app.commands.bootstrap.ModelProfileService.add_credential",
-                new=AsyncMock(return_value=credential),
+                "app.commands.bootstrap.OrganizationSecretService.create",
+                new=AsyncMock(return_value=secret),
             ),
             patch(
                 "app.commands.bootstrap.ModelProfileService.create_profile",
@@ -107,7 +107,7 @@ class TestModel:
         ):
             await _resolve_model(MagicMock(), _ctx(), "openai", "sk-test-1234", None)
 
-        assert create_profile.call_args.kwargs["credential_id"] == credential.id
+        assert create_profile.call_args.kwargs["secret_id"] == secret.id
 
     @pytest.mark.anyio
     async def test_without_a_key_no_profile_is_created_at_all(self):
@@ -140,7 +140,7 @@ class TestModel:
                 new=AsyncMock(return_value=[]),
             ),
             patch(
-                "app.commands.bootstrap.ModelProfileService.add_credential",
+                "app.commands.bootstrap.OrganizationSecretService.create",
                 new=AsyncMock(return_value=MagicMock(id=uuid.uuid4(), hint="abcd")),
             ),
             patch(
