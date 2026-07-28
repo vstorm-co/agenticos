@@ -108,3 +108,6 @@ Thumbs.db
 .fastapi-fullstack.json.candidate
 
 # Project specific
+
+# Runtime uploads and RAG scratch files - never source
+backend/media/
