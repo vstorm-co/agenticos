@@ -19,12 +19,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
-import { useInvitations } from "@/hooks";
+import { useAssignableRoles, useInvitations } from "@/hooks";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import type { OrgRole } from "@/types";
-
-/** Owner is never offered: ownership moves by transfer, not by a link. */
-const ASSIGNABLE: OrgRole[] = ["admin", "builder", "operator", "member", "viewer"];
 
 interface InviteLinkDialogProps {
   open: boolean;
@@ -48,6 +45,7 @@ interface InviteLinkDialogProps {
 export function InviteLinkDialog({ open, onOpenChange, orgId }: InviteLinkDialogProps) {
   const { createLink } = useInvitations(orgId);
   const { copy, copied } = useCopyToClipboard();
+  const assignable = useAssignableRoles();
 
   const [role, setRole] = useState<OrgRole>("member");
   const [maxUses, setMaxUses] = useState("25");
@@ -98,7 +96,7 @@ export function InviteLinkDialog({ open, onOpenChange, orgId }: InviteLinkDialog
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {ASSIGNABLE.map((option) => (
+                  {assignable.map((option) => (
                     <SelectItem key={option} value={option} className="capitalize">
                       {option}
                     </SelectItem>

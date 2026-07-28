@@ -7,6 +7,7 @@ import pytest
 
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
+from app.db.models.resource_grant import GrantLevel
 from app.schemas.knowledge_base import KnowledgeBaseCreate
 from app.services.knowledge_base import KnowledgeBaseService
 
@@ -26,6 +27,7 @@ def _kb(scope: str, owner_user_id=None, organization_id=None, is_default: bool =
     kb.owner_user_id = owner_user_id
     kb.organization_id = organization_id
     kb.is_default = is_default
+    kb.visibility = "private"
     return kb
 
 
@@ -202,6 +204,141 @@ class TestKBAccessControl:
             svc = KnowledgeBaseService(mock_db)
             with pytest.raises(AuthorizationError):
                 await svc.delete(kb.id, user_id=uuid.uuid4(), is_app_admin=False)
+
+    @pytest.mark.anyio
+    async def test_a_viewer_who_can_read_an_org_kb_cannot_write_to_it(self, mock_db):
+        """The audit finding: the six per-KB write routes resolved READ access only.
+
+        A Viewer holds ``collections:view`` and nothing else, so uploading,
+        deleting documents and wiring sync sources must refuse them - as a 403,
+        because they can already open the row through ``GET /kb/{kb_id}``.
+        """
+        org_id = uuid.uuid4()
+        kb = _kb("org", organization_id=org_id)
+        ctx = AuthContext(
+            user_id=uuid.uuid4(), organization_id=org_id, role=OrgRoleName.VIEWER.value
+        )
+
+        with (
+            patch("app.repositories.knowledge_base_repo.get_by_id", new=AsyncMock(return_value=kb)),
+            patch(
+                "app.repositories.resource_grant_repo.get_level", new=AsyncMock(return_value=None)
+            ),
+        ):
+            svc = KnowledgeBaseService(mock_db)
+            with pytest.raises(AuthorizationError):
+                await svc.get_for_write(kb.id, ctx=ctx)
+
+    @pytest.mark.anyio
+    async def test_an_edit_grant_lets_a_viewer_write_to_that_one_kb(self, mock_db):
+        """A grant widens what a role allows; a role gate on the route could not see it."""
+        org_id = uuid.uuid4()
+        kb = _kb("org", organization_id=org_id)
+        ctx = AuthContext(
+            user_id=uuid.uuid4(), organization_id=org_id, role=OrgRoleName.VIEWER.value
+        )
+
+        with (
+            patch("app.repositories.knowledge_base_repo.get_by_id", new=AsyncMock(return_value=kb)),
+            patch(
+                "app.repositories.resource_grant_repo.get_level",
+                new=AsyncMock(return_value=GrantLevel.EDIT),
+            ),
+        ):
+            svc = KnowledgeBaseService(mock_db)
+            assert await svc.get_for_write(kb.id, ctx=ctx) is kb
+
+    @pytest.mark.anyio
+    async def test_a_read_grant_is_not_an_edit_grant(self, mock_db):
+        """Levels are ordered: being shown a base is not being handed its contents."""
+        org_id = uuid.uuid4()
+        kb = _kb("org", organization_id=org_id)
+        ctx = AuthContext(
+            user_id=uuid.uuid4(), organization_id=org_id, role=OrgRoleName.VIEWER.value
+        )
+
+        with (
+            patch("app.repositories.knowledge_base_repo.get_by_id", new=AsyncMock(return_value=kb)),
+            patch(
+                "app.repositories.resource_grant_repo.get_level",
+                new=AsyncMock(return_value=GrantLevel.READ),
+            ),
+        ):
+            svc = KnowledgeBaseService(mock_db)
+            with pytest.raises(AuthorizationError):
+                await svc.get_for_write(kb.id, ctx=ctx)
+
+    @pytest.mark.anyio
+    async def test_a_member_holding_collections_edit_writes_without_a_grant(self, mock_db):
+        """The same pair of decisions that admits a bulk /rag ingest admits this one."""
+        org_id = uuid.uuid4()
+        kb = _kb("org", organization_id=org_id)
+        ctx = AuthContext(
+            user_id=uuid.uuid4(), organization_id=org_id, role=OrgRoleName.MEMBER.value
+        )
+        grant_lookup = AsyncMock(return_value=None)
+
+        with (
+            patch("app.repositories.knowledge_base_repo.get_by_id", new=AsyncMock(return_value=kb)),
+            patch("app.repositories.resource_grant_repo.get_level", new=grant_lookup),
+        ):
+            svc = KnowledgeBaseService(mock_db)
+            assert await svc.get_for_write(kb.id, ctx=ctx) is kb
+
+        grant_lookup.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_a_write_from_another_tenant_is_reported_as_missing(self, mock_db):
+        """The write path answers exactly as the read path: 404, never an oracle."""
+        kb = _kb("org", organization_id=uuid.uuid4())
+        ctx = AuthContext(
+            user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.OWNER.value
+        )
+        grant_lookup = AsyncMock(return_value=GrantLevel.EDIT)
+
+        with (
+            patch("app.repositories.knowledge_base_repo.get_by_id", new=AsyncMock(return_value=kb)),
+            patch("app.repositories.resource_grant_repo.get_level", new=grant_lookup),
+        ):
+            svc = KnowledgeBaseService(mock_db)
+            with pytest.raises(NotFoundError):
+                await svc.get_for_write(kb.id, ctx=ctx)
+
+        grant_lookup.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_an_app_scoped_kb_refuses_a_member_write_as_forbidden(self, mock_db):
+        """Everyone can read an app base, so only the write refusal protects it."""
+        kb = _kb("app")
+        ctx = AuthContext(
+            user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.OWNER.value
+        )
+
+        with (
+            patch("app.repositories.knowledge_base_repo.get_by_id", new=AsyncMock(return_value=kb)),
+            patch(
+                "app.repositories.resource_grant_repo.get_level", new=AsyncMock(return_value=None)
+            ),
+        ):
+            svc = KnowledgeBaseService(mock_db)
+            with pytest.raises(AuthorizationError):
+                await svc.get_for_write(kb.id, ctx=ctx)
+
+    @pytest.mark.anyio
+    async def test_an_app_admin_writes_to_an_app_scoped_kb(self, mock_db):
+        kb = _kb("app")
+        ctx = AuthContext(
+            user_id=uuid.uuid4(),
+            organization_id=uuid.uuid4(),
+            role=OrgRoleName.VIEWER.value,
+            is_app_admin=True,
+        )
+
+        with patch(
+            "app.repositories.knowledge_base_repo.get_by_id", new=AsyncMock(return_value=kb)
+        ):
+            svc = KnowledgeBaseService(mock_db)
+            assert await svc.get_for_write(kb.id, ctx=ctx) is kb
 
     @pytest.mark.anyio
     async def test_list_accessible_passes_correct_params(self, mock_db):

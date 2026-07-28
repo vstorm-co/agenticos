@@ -79,7 +79,10 @@ export default function VaultPage() {
   } = useSecrets();
   const { purposes } = useSecretPurposes();
   const { can } = usePermissions();
-  const canManage = can(Perm.connectionsManage);
+  // The backend gates writes on secrets:edit, not connections:manage - a
+  // Member holds it at OWN scope, so the "Add key" button must not vanish
+  // for them.
+  const canManage = can(Perm.secretsEdit);
 
   const [secretOpen, setSecretOpen] = useState(false);
   const [rotating, setRotating] = useState<Secret | null>(null);

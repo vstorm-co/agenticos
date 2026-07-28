@@ -14,7 +14,7 @@ import pytest
 from app.agents.capabilities.skills import SAFE_SKILL_TOOLS, Skills
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
-from app.db.models.resource_grant import Visibility
+from app.db.models.resource_grant import GrantLevel, Visibility
 from app.services.skills import (
     MAX_RESOURCE_BYTES,
     SkillService,
@@ -216,13 +216,61 @@ class TestSkillManagement:
         mine = _skill(ctx=ctx)
 
         with patch(
-            "app.services.skills.skill_repo.list_for_org", new=AsyncMock(return_value=([mine], 1))
-        ) as list_for_org:
+            "app.services.skills.skill_repo.list_visible", new=AsyncMock(return_value=([mine], 1))
+        ) as list_visible:
             listed, total = await SkillService(_db()).list_skills(ctx)
 
         assert listed == [mine]
         assert total == 1
-        assert list_for_org.call_args.kwargs["organization_id"] == ctx.organization_id
+        assert list_visible.call_args.kwargs["organization_id"] == ctx.organization_id
+
+    @pytest.mark.anyio
+    async def test_a_role_that_sees_everything_never_looks_up_grants(self):
+        """A query per listing, on every page, for a set that cannot widen anything."""
+        ctx = _ctx(OrgRoleName.OWNER)
+
+        with (
+            patch(
+                "app.services.access.resource_grant_repo.list_shared_ids", new=AsyncMock()
+            ) as shared_ids,
+            patch(
+                "app.services.skills.skill_repo.list_visible",
+                new=AsyncMock(return_value=([], 0)),
+            ) as list_visible,
+        ):
+            await SkillService(_db()).list_skills(ctx)
+
+        assert shared_ids.await_count == 0
+        assert list_visible.call_args.kwargs["see_all"] is True
+        assert list_visible.call_args.kwargs["shared_ids"] == []
+
+    @pytest.mark.anyio
+    async def test_a_narrower_role_lists_only_theirs_plus_what_was_shared(self):
+        """The listing must admit exactly the rows resolve_access would, one by one.
+
+        A viewer's role scope is "mine plus what was shared with me", so the
+        query gets their user id for the ownership predicate and the granted
+        ids for the shared one - and never the whole organization.
+        """
+        ctx = _ctx(OrgRoleName.VIEWER)
+        shared = uuid.uuid4()
+
+        with (
+            patch(
+                "app.services.access.resource_grant_repo.list_shared_ids",
+                new=AsyncMock(return_value=[shared]),
+            ) as shared_ids,
+            patch(
+                "app.services.skills.skill_repo.list_visible",
+                new=AsyncMock(return_value=([], 0)),
+            ) as list_visible,
+        ):
+            await SkillService(_db()).list_skills(ctx)
+
+        assert shared_ids.call_args.kwargs["minimum_level"] is GrantLevel.READ
+        assert list_visible.call_args.kwargs["see_all"] is False
+        assert list_visible.call_args.kwargs["shared_ids"] == [shared]
+        assert list_visible.call_args.kwargs["user_id"] == ctx.user_id
 
     @pytest.mark.anyio
     async def test_the_search_is_the_databases_and_so_is_the_page(self):
@@ -230,13 +278,13 @@ class TestSkillManagement:
         ctx = _ctx()
 
         with patch(
-            "app.services.skills.skill_repo.list_for_org", new=AsyncMock(return_value=([], 0))
-        ) as list_for_org:
+            "app.services.skills.skill_repo.list_visible", new=AsyncMock(return_value=([], 0))
+        ) as list_visible:
             await SkillService(_db()).list_skills(ctx, search="refund", skip=50, limit=25)
 
-        assert list_for_org.call_args.kwargs["search"] == "refund"
-        assert list_for_org.call_args.kwargs["skip"] == 50
-        assert list_for_org.call_args.kwargs["limit"] == 25
+        assert list_visible.call_args.kwargs["search"] == "refund"
+        assert list_visible.call_args.kwargs["skip"] == 50
+        assert list_visible.call_args.kwargs["limit"] == 25
 
     @pytest.mark.anyio
     async def test_the_category_filter_and_the_sort_are_the_databases_too(self):
@@ -244,12 +292,12 @@ class TestSkillManagement:
         ctx = _ctx()
 
         with patch(
-            "app.services.skills.skill_repo.list_for_org", new=AsyncMock(return_value=([], 0))
-        ) as list_for_org:
+            "app.services.skills.skill_repo.list_visible", new=AsyncMock(return_value=([], 0))
+        ) as list_visible:
             await SkillService(_db()).list_skills(ctx, category="devops", sort="updated")
 
-        assert list_for_org.call_args.kwargs["category"] == "devops"
-        assert list_for_org.call_args.kwargs["sort"] == "updated"
+        assert list_visible.call_args.kwargs["category"] == "devops"
+        assert list_visible.call_args.kwargs["sort"] == "updated"
 
     @pytest.mark.anyio
     async def test_the_category_choices_come_from_the_whole_organization(self):

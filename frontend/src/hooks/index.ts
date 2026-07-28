@@ -15,7 +15,7 @@ export { useSlashCommands, isBuiltinEnabled, BUILTIN_COMMAND_LIST } from "./use-
 export { useReusableIntegrations } from "./use-reusable-integrations";
 export { useMcpConnections } from "./use-mcp-connections";
 export { useOrgMcpConnections } from "./use-org-mcp-connections";
-export { usePermissions, useRoleCatalog } from "./use-permissions";
+export { usePermissions, useRoleCatalog, useAssignableRoles } from "./use-permissions";
 export {
   useAgent,
   useAgents,

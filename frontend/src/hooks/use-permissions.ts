@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import { useOrgStore } from "@/stores";
+import type { OrgRole } from "@/types";
 import type { MyPermissions, Permission, PermissionScope, RoleCatalog } from "@/types/permissions";
 
 /**
@@ -79,4 +80,26 @@ export function useRoleCatalog() {
   });
 
   return { catalog: data, isLoading };
+}
+
+/** What a role picker offers before the catalog has answered. */
+const ASSIGNABLE_FALLBACK: OrgRole[] = ["admin", "builder", "operator", "member", "viewer"];
+
+/**
+ * The roles a picker may offer, in catalog order.
+ *
+ * From the server where possible: the roles a deployment actually seeds are the
+ * backend's to decide, and a picker offering one it does not have puts a 422
+ * behind a control that looked fine. Owner is never among them - ownership
+ * moves by transferring the organization, not by a role edit.
+ */
+export function useAssignableRoles(): OrgRole[] {
+  const { catalog } = useRoleCatalog();
+  // Stable per catalog, so a memo keyed on the result does not rebuild every render.
+  return useMemo(
+    () =>
+      catalog?.roles.map((role) => role.name).filter((name) => name !== "owner") ??
+      ASSIGNABLE_FALLBACK,
+    [catalog],
+  );
 }

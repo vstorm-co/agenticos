@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { InviteLinkDialog } from "./invite-link-dialog";
+import { InviteMemberDialog } from "./invite-member-dialog";
 import { apiClient } from "@/lib/api-client";
 
 vi.mock("@/lib/api-client", async () => {
@@ -24,10 +24,10 @@ function wrapper({ children }: { children: ReactNode }) {
 }
 
 function mount() {
-  render(<InviteLinkDialog open onOpenChange={vi.fn()} orgId="org-1" />, { wrapper });
+  render(<InviteMemberDialog open onOpenChange={vi.fn()} orgId="org-1" />, { wrapper });
 }
 
-describe("InviteLinkDialog", () => {
+describe("InviteMemberDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // The dialog fetches two things: the invitation list and the role catalog
@@ -51,10 +51,10 @@ describe("InviteLinkDialog", () => {
     vi.mocked(apiClient.post).mockResolvedValue({
       id: "inv-1",
       organization_id: "org-1",
-      email: null,
-      role: "member",
+      email: "colleague@acme.test",
+      role: "operator",
       status: "pending",
-      max_uses: 25,
+      max_uses: null,
       used_count: 0,
       email_domain: null,
       invitation_token: "tok-abc",
@@ -63,47 +63,39 @@ describe("InviteLinkDialog", () => {
     });
   });
 
-  it("sends the limits the administrator chose", async () => {
+  it("offers every role the deployment has, not just admin and member", async () => {
+    // The regression: this platform seeds six roles and the picker offered two,
+    // so "builder" and "operator" were unreachable from an emailed invitation.
     mount();
 
-    await userEvent.clear(screen.getByLabelText("How many people"));
-    await userEvent.type(screen.getByLabelText("How many people"), "5");
-    await userEvent.type(screen.getByLabelText("Only this email domain"), "acme.com");
-    await userEvent.click(screen.getByRole("button", { name: "Create link" }));
+    await userEvent.click(screen.getByLabelText("Role"));
 
-    await waitFor(() =>
-      expect(apiClient.post).toHaveBeenCalledWith("/orgs/org-1/invitations/link", {
-        role: "member",
-        max_uses: 5,
-        email_domain: "acme.com",
-      }),
-    );
+    const labels = screen.getAllByRole("option").map((option) => option.textContent?.trim());
+
+    expect(labels).toEqual(["admin", "builder", "operator", "member", "viewer"]);
   });
 
-  it("shows the URL once, because no later request returns it", async () => {
+  it("never offers owner, because ownership moves by transfer", async () => {
     mount();
 
-    await userEvent.click(screen.getByRole("button", { name: "Create link" }));
-
-    expect(await screen.findByText(/\/invitations\/tok-abc$/)).toBeInTheDocument();
-  });
-
-  it("warns when a link is both unlimited and open to any address", async () => {
-    // Not a refusal - it is a legitimate thing to want. But a URL in a channel
-    // can be forwarded, and that has to be said where the choice is made.
-    mount();
-
-    await userEvent.clear(screen.getByLabelText("How many people"));
-
-    expect(screen.getByText(/still a working link/)).toBeInTheDocument();
-  });
-
-  it("does not offer owner, because ownership moves by transfer", async () => {
-    mount();
-
-    await userEvent.click(screen.getByLabelText("Join as"));
+    await userEvent.click(screen.getByLabelText("Role"));
 
     expect(screen.queryByRole("option", { name: /^owner$/i })).toBeNull();
-    expect(screen.getByRole("option", { name: /^builder$/i })).toBeInTheDocument();
+  });
+
+  it("sends the role the administrator chose", async () => {
+    mount();
+
+    await userEvent.type(screen.getByLabelText("Email address"), "colleague@acme.test");
+    await userEvent.click(screen.getByLabelText("Role"));
+    await userEvent.click(screen.getByRole("option", { name: /^operator$/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Send invite" }));
+
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith("/orgs/org-1/invitations", {
+        email: "colleague@acme.test",
+        role: "operator",
+      }),
+    );
   });
 });

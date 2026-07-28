@@ -1,11 +1,17 @@
-"""Skill repository (PostgreSQL async)."""
+"""Skill repository (PostgreSQL async).
+
+Listing a skill is not a plain org filter: what a member sees depends on their
+role scope and on what was shared with them, so ``list_visible`` takes the
+predicate pieces the access layer resolved rather than re-deriving them here.
+"""
 
 from typing import Literal
 from uuid import UUID
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import false, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill, SkillResource
 
 # How a listing may be ordered: by name, or by when a skill last changed.
@@ -38,17 +44,25 @@ async def get_many(
     return {skill.id: skill for skill in result.scalars().all()}
 
 
-async def list_for_org(
+async def list_visible(
     db: AsyncSession,
     *,
     organization_id: UUID,
+    user_id: UUID,
+    see_all: bool,
+    shared_ids: list[UUID],
     search: str | None = None,
     category: str | None = None,
     sort: SkillSort = "name",
     skip: int = 0,
     limit: int = 50,
 ) -> tuple[list[Skill], int]:
-    """One organization's skills, filtered and paged, with the unpaged total.
+    """The skills one member may see, filtered and paged, with the unpaged total.
+
+    Args:
+        see_all: True when the caller's role reaches the whole organization;
+            the ownership predicate is then skipped entirely.
+        shared_ids: Skill ids explicitly shared with this member.
 
     The total is what a pager needs and a page cannot supply: "showing 50 of 50"
     and "50 of 380" are the same list until somebody counts the rest.
@@ -65,6 +79,18 @@ async def list_for_org(
     say otherwise.
     """
     where = [Skill.organization_id == organization_id]
+    if not see_all:
+        # The same predicate every shared resource here uses: mine, the
+        # organization's, or one explicitly shared with me. A team-visible
+        # skill nobody granted is deliberately invisible - "team" means named
+        # members, not everybody.
+        where.append(
+            or_(
+                Skill.owner_user_id == user_id,
+                Skill.visibility == Visibility.ORG.value,
+                Skill.id.in_(shared_ids) if shared_ids else false(),
+            )
+        )
     if search:
         safe = search.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
         where.append(

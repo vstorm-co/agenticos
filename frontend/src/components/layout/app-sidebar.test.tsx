@@ -88,6 +88,25 @@ describe("SidebarNav", () => {
     expect(screen.getByRole("link", { name: "agents" })).toBeInTheDocument();
   });
 
+  it("shows the Vault to anyone who can view secrets, without connections:manage", () => {
+    // The backend gates the Vault's listing on secrets:view; a Member holds it
+    // at OWN scope but never holds connections:manage. Gating the nav on the
+    // latter hid the Vault from everyone below admin.
+    can.mockImplementation((permission) => permission === "secrets:view");
+
+    renderNav();
+
+    expect(screen.getByRole("link", { name: "vault" })).toBeInTheDocument();
+  });
+
+  it("hides the Vault when the caller cannot even list secrets", () => {
+    can.mockImplementation((permission) => permission === "connections:manage");
+
+    renderNav();
+
+    expect(screen.queryByRole("link", { name: "vault" })).not.toBeInTheDocument();
+  });
+
   it("reveals nothing while permissions are still loading", () => {
     // `can()` answers false until they arrive, so the nav fills in rather than
     // briefly offering entries that are about to vanish.

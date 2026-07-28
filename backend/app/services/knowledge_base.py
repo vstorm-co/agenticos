@@ -6,10 +6,11 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
-from app.core.permissions import AuthContext
+from app.core.permissions import AuthContext, Perm
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.repositories import conversation_repo, knowledge_base_repo
 from app.schemas.knowledge_base import KnowledgeBaseCreate, KnowledgeBaseUpdate
+from app.services.access import COLLECTION, resolve_access
 from app.services.collection_access import can_read, can_write
 from app.services.ingestion_config import (
     IngestionConfig,
@@ -172,6 +173,51 @@ class KnowledgeBaseService:
             raise _no_knowledge_base(kb_id)
         self._check_read_access(kb, user_id=user_id, organization_id=organization_id)
         return kb
+
+    async def get_for_write(self, kb_id: UUID, *, ctx: AuthContext) -> KnowledgeBase:
+        """The knowledge base, resolved for a caller about to change its contents.
+
+        :meth:`get` answers for reading; every route that ingests a document,
+        removes one, or wires a sync source resolves through here instead. The
+        read rule alone let anyone who could *see* a base write into it - a
+        Viewer holds ``collections:view`` and nothing else, and could still
+        upload, delete documents and point sync sources at the collection.
+
+        Writing takes the role permission the ``/rag`` write routes gate on
+        (``collections:edit``, at any scope) plus reach to the row - the same
+        pair of decisions, one at the gate and one in
+        :func:`app.services.collection_access.can_write`, that admits a bulk
+        ingest. Failing that, an explicit ``edit`` grant on this base admits the
+        caller through :func:`app.services.access.resolve_access`: a grant
+        widens what a role allows, it never narrows it, so a Viewer shared into
+        one base can feed it without being promoted.
+
+        A base the caller cannot read stays "not found", exactly as :meth:`get`
+        answers, so the write path is not an oracle for ids. A refusal on a base
+        they can read is a 403 - concealing a row the caller can already open
+        would cost the sentence that explains the refusal and protect nothing.
+        """
+        kb = await knowledge_base_repo.get_by_id(self.db, kb_id)
+        if not kb:
+            raise _no_knowledge_base(kb_id)
+        self._check_read_access(kb, user_id=ctx.subject_id, organization_id=ctx.organization_id)
+        role_may_write = ctx.has(Perm.COLLECTIONS_EDIT) or ctx.is_app_admin
+        if role_may_write and can_write(
+            kb,
+            user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            is_app_admin=ctx.is_app_admin,
+        ):
+            return kb
+        if await resolve_access(self.db, ctx, kb, Perm.COLLECTIONS_EDIT, resource_type=COLLECTION):
+            return kb
+        if kb.scope == KBScope.APP.value:
+            raise AuthorizationError(
+                message="App admin required to modify app-scoped knowledge base"
+            )
+        raise AuthorizationError(
+            message="Changing this knowledge base requires 'collections:edit' or an edit grant"
+        )
 
     async def create(
         self,

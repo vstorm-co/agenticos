@@ -68,7 +68,7 @@ from app.repositories import (
 )
 from app.schemas.knowledge_base import KnowledgeBaseCreate, KnowledgeBaseUpdate
 from app.schemas.mcp_connection import OrgMcpConnectionCreate, OrgMcpConnectionUpdate
-from app.services.access import AGENT, COLLECTION, resolve_access
+from app.services.access import AGENT, COLLECTION, SKILL, resolve_access
 from app.services.agent_chat import ChatAgentRunner
 from app.services.agent_registry import AgentRegistryService
 from app.services.agent_runner import AgentRunnerService, month_start
@@ -1055,6 +1055,124 @@ class TestTenantIsolation:
                 user_id=home.user.id,
                 organization_id=home.organization.id,
             )
+
+
+async def _joined_tenant(db, tenant: Tenant, role: OrgRoleName) -> Tenant:
+    """A second member of the same organization, shaped for ``kb_api``."""
+    ctx = await _join(db, tenant, role)
+    user = await db.get(User, ctx.user_id)
+    return Tenant(organization=tenant.organization, user=user, ctx=ctx)
+
+
+class TestWritingToAKnowledgeBaseTakesMoreThanReading:
+    """The per-KB write routes resolve write access, where they resolved read.
+
+    A Viewer holds ``collections:view`` and nothing else, and these six routes
+    used to ask only whether the base was *visible* - so a Viewer could upload,
+    delete documents and point sync sources at any base they could see. Through
+    the app rather than the service on purpose: the bug was the routes calling
+    the read resolver, and a service-level test cannot say which resolver a
+    route asks.
+    """
+
+    async def test_a_viewer_cannot_upload_into_a_base_they_can_read(
+        self, db, kb_api: KbClient, rag_estate: RagEstate
+    ) -> None:
+        viewer = await _joined_tenant(db, rag_estate.home, OrgRoleName.VIEWER)
+        # The refusal must arrive before the vector store is ever consulted.
+        app.dependency_overrides[deps.get_vectorstore] = lambda: _NeverAsked()
+
+        response = await kb_api(viewer).post(
+            f"{settings.API_V1_STR}/kb/{rag_estate.home_collection.id}/documents",
+            files={"file": ("notes.txt", b"hello", "text/plain")},
+        )
+
+        assert response.status_code == 403
+
+    async def test_a_viewer_cannot_delete_a_document(
+        self, db, kb_api: KbClient, rag_estate: RagEstate
+    ) -> None:
+        viewer = await _joined_tenant(db, rag_estate.home, OrgRoleName.VIEWER)
+
+        response = await kb_api(viewer).delete(
+            f"{settings.API_V1_STR}/kb/{rag_estate.home_collection.id}"
+            f"/documents/{rag_estate.home_document.id}",
+        )
+
+        assert response.status_code == 403
+        assert await db.get(RAGDocument, rag_estate.home_document.id) is not None
+
+    async def test_a_viewer_cannot_wire_a_sync_source(
+        self, db, kb_api: KbClient, rag_estate: RagEstate
+    ) -> None:
+        """A sync source is a standing feed into the collection, not a one-off write."""
+        viewer = await _joined_tenant(db, rag_estate.home, OrgRoleName.VIEWER)
+
+        response = await kb_api(viewer).post(
+            f"{settings.API_V1_STR}/kb/{rag_estate.home_collection.id}/sync-sources",
+            json={"name": "Drive", "connector_type": "gdrive", "config": {"folder_id": "abc"}},
+        )
+
+        assert response.status_code == 403
+        rows = await db.execute(
+            select(SyncSource).where(
+                SyncSource.collection_name == rag_estate.home_collection.collection_name
+            )
+        )
+        assert [source.id for source in rows.scalars()] == [rag_estate.home_source.id]
+
+    async def test_a_viewer_cannot_trigger_or_remove_a_sync_source(
+        self, db, kb_api: KbClient, rag_estate: RagEstate
+    ) -> None:
+        viewer = await _joined_tenant(db, rag_estate.home, OrgRoleName.VIEWER)
+        base = (
+            f"{settings.API_V1_STR}/kb/{rag_estate.home_collection.id}"
+            f"/sync-sources/{rag_estate.home_source.id}"
+        )
+
+        triggered = await kb_api(viewer).post(f"{base}/trigger")
+        removed = await kb_api(viewer).delete(base)
+
+        assert triggered.status_code == 403
+        assert removed.status_code == 403
+        assert await db.get(SyncSource, rag_estate.home_source.id) is not None
+
+    async def test_an_owner_still_removes_a_sync_source(
+        self, db, kb_api: KbClient, rag_estate: RagEstate
+    ) -> None:
+        """The check refuses a role, not the route: an editor's write still lands."""
+        response = await kb_api(rag_estate.home).delete(
+            f"{settings.API_V1_STR}/kb/{rag_estate.home_collection.id}"
+            f"/sync-sources/{rag_estate.home_source.id}",
+        )
+
+        assert response.status_code == 204
+        assert await db.get(SyncSource, rag_estate.home_source.id) is None
+
+    async def test_an_edit_grant_lets_a_viewer_feed_the_shared_base(
+        self, db, rag_estate: RagEstate
+    ) -> None:
+        """The reason the routes carry no ``require(collections:edit)`` gate.
+
+        A role gate would refuse this Viewer before their grant was ever read;
+        the service consults the grant and admits them on this one base.
+        """
+        viewer = await _join(db, rag_estate.home, OrgRoleName.VIEWER)
+        service = KnowledgeBaseService(db)
+
+        with pytest.raises(AuthorizationError):
+            await service.get_for_write(rag_estate.home_collection.id, ctx=viewer)
+
+        await SharingService(db).share(
+            rag_estate.home.ctx,
+            rag_estate.home_collection,
+            resource_type=COLLECTION,
+            subject_user_id=viewer.user_id,
+            level=GrantLevel.EDIT,
+        )
+
+        resolved = await service.get_for_write(rag_estate.home_collection.id, ctx=viewer)
+        assert resolved.id == rag_estate.home_collection.id
 
 
 # -- how a collection reads its documents -------------------------------------
@@ -2729,9 +2847,7 @@ class TestChattingWithAPublishedAgent:
         await db.flush()
 
         registry = AgentRegistryService(db)
-        agent = await registry.create(
-            tenant.ctx, AgentSpec(name=name, model_profile_id=profile.id)
-        )
+        agent = await registry.create(tenant.ctx, AgentSpec(name=name, model_profile_id=profile.id))
         await registry.publish(tenant.ctx, agent.id)
         return agent
 
@@ -3313,6 +3429,93 @@ class TestWhichSecretsAMemberSees:
             await OrganizationSecretService(db)._get(member_ctx, theirs.id)
 
 
+class TestWhichSkillsAMemberSees:
+    """The skills visibility predicate, against real rows.
+
+    The same boundary the vault holds for keys: a mock session accepts any
+    expression, so only a database can prove the SQL really says "mine, the
+    organization's, or shared with me" - and getting it wrong shows one member
+    another member's private know-how by name and description.
+    """
+
+    @staticmethod
+    async def _skill_row(
+        db,
+        *,
+        organization_id: uuid.UUID,
+        owner_user_id: uuid.UUID,
+        name: str,
+        visibility: Visibility = Visibility.PRIVATE,
+    ) -> Skill:
+        skill = Skill(
+            id=uuid.uuid4(),
+            organization_id=organization_id,
+            owner_user_id=owner_user_id,
+            name=name,
+            description=f"What {name} is for",
+            visibility=visibility.value,
+        )
+        db.add(skill)
+        await db.flush()
+        return skill
+
+    async def test_a_viewer_does_not_list_another_members_private_skill(self, db) -> None:
+        """The leak this predicate closes: before it, GET /skills answered a
+        viewer with every skill in the organization, private ones included."""
+        tenant = await _tenant(db, name="Shelved")
+        viewer = await _join(db, tenant, OrgRoleName.VIEWER)
+        org_id = tenant.organization.id
+
+        await self._skill_row(
+            db, organization_id=org_id, owner_user_id=tenant.user.id, name="owner-private"
+        )
+        await self._skill_row(
+            db,
+            organization_id=org_id,
+            owner_user_id=tenant.user.id,
+            name="org-wide",
+            visibility=Visibility.ORG,
+        )
+        await self._skill_row(
+            db, organization_id=org_id, owner_user_id=viewer.user_id, name="viewers-own"
+        )
+        shared = await self._skill_row(
+            db, organization_id=org_id, owner_user_id=tenant.user.id, name="shared-with-viewer"
+        )
+        await SharingService(db).share(
+            tenant.ctx,
+            shared,
+            resource_type=SKILL,
+            subject_user_id=viewer.user_id,
+            level=GrantLevel.READ,
+        )
+
+        items, total = await SkillService(db).list_skills(viewer)
+
+        assert {skill.name for skill in items} == {"org-wide", "viewers-own", "shared-with-viewer"}
+        # The count carries the same predicate as the page, or the pager offers
+        # pages of rows the viewer will never receive.
+        assert total == 3
+
+    async def test_an_owner_still_sees_every_skill_including_private_ones(self, db) -> None:
+        """An owner's role reaches the whole organization, so the predicate is
+        skipped entirely - which is the branch a scoped query must not take."""
+        tenant = await _tenant(db, name="Overseen")
+        member = await _join(db, tenant, OrgRoleName.MEMBER)
+
+        await self._skill_row(
+            db,
+            organization_id=tenant.organization.id,
+            owner_user_id=member.user_id,
+            name="members-private",
+        )
+
+        items, total = await SkillService(db).list_skills(tenant.ctx)
+
+        assert {skill.name for skill in items} == {"members-private"}
+        assert total == 1
+
+
 class TestWhoStillHearsAboutRuns:
     """The notification opt-outs, against real rows.
 
@@ -3323,9 +3526,7 @@ class TestWhoStillHearsAboutRuns:
     """
 
     @pytest.mark.anyio
-    async def test_a_member_who_opted_out_is_dropped_from_the_recipient_query(
-        self, db
-    ) -> None:
+    async def test_a_member_who_opted_out_is_dropped_from_the_recipient_query(self, db) -> None:
         tenant = await _tenant(db, name="Optout")
         admin_ctx = await _join(db, tenant, OrgRoleName.ADMIN)
         admin = await db.get(User, admin_ctx.user_id)

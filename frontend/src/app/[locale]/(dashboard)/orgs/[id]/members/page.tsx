@@ -32,7 +32,14 @@ import {
   SelectValue,
   type Column,
 } from "@/components/ui";
-import { useAuth, useInvitations, useMembers, useOrganizations, usePermissions } from "@/hooks";
+import {
+  useAssignableRoles,
+  useAuth,
+  useInvitations,
+  useMembers,
+  useOrganizations,
+  usePermissions,
+} from "@/hooks";
 import { Perm } from "@/types/permissions";
 import type { OrganizationMember, OrgRole } from "@/types";
 import { formatDate, getErrorMessage, MAX_AVATAR_SIZE_BYTES } from "@/lib/utils";
@@ -76,6 +83,7 @@ export default function OrgMembersPage({ params }: PageProps) {
   }, [fetchMembers, fetchInvitations, fetchOrgs]);
 
   const { can } = usePermissions();
+  const assignable = useAssignableRoles();
   const org = orgs.find((o) => o.id === id);
   // Derived from the server's permission catalog rather than a role-name check,
   // so adding a role that may manage members needs no change here.
@@ -165,12 +173,15 @@ export default function OrgMembersPage({ params }: PageProps) {
           if (canManage && !isOwner && !isSelf) {
             return (
               <Select value={m.role} onValueChange={(v) => changeRole(m.user_id, v as OrgRole)}>
-                <SelectTrigger className="h-8 w-28">
+                <SelectTrigger className="h-8 w-32" aria-label={`Role for ${m.email}`}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="member">Member</SelectItem>
+                  {assignable.map((option) => (
+                    <SelectItem key={option} value={option} className="capitalize">
+                      {option}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             );
@@ -217,7 +228,7 @@ export default function OrgMembersPage({ params }: PageProps) {
     }
 
     return cols;
-  }, [canManage, user?.id, changeRole, removeMember]);
+  }, [canManage, user?.id, assignable, changeRole, removeMember]);
 
   return (
     <div className="space-y-6">

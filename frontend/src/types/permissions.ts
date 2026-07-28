@@ -48,6 +48,8 @@ export const Perm = {
   skillsEdit: "skills:edit",
   approvalsDecide: "approvals:decide",
   connectionsManage: "connections:manage",
+  secretsView: "secrets:view",
+  secretsEdit: "secrets:edit",
   mcpManage: "mcp:manage",
   channelsManage: "channels:manage",
   membersManage: "members:manage",

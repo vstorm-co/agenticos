@@ -21,7 +21,7 @@ from app.db.models.skill import Skill, SkillResource
 from app.repositories import resource_grant_repo, skill_repo
 from app.repositories.skill import SkillSort
 from app.services import skill_library
-from app.services.access import SKILL, resolve_access
+from app.services.access import SKILL, resolve_access, visible_resource_ids
 
 logger = logging.getLogger(__name__)
 
@@ -108,10 +108,26 @@ class SkillService:
         skip: int = 0,
         limit: int = 50,
     ) -> tuple[list[Skill], int]:
-        """A page of this organization's skills, and how many there are in all."""
-        return await skill_repo.list_for_org(
+        """A page of the skills this caller may see, and how many there are in all.
+
+        Scoped like every shared resource: a role that reaches the whole
+        organization lists everything, anyone else lists their own skills, the
+        org-visible ones and those explicitly shared with them - the same set
+        :func:`resolve_access` would admit one row at a time.
+        """
+        # `None` is `visible_resource_ids` saying the role already reaches every
+        # skill, which is exactly what `see_all` tells the query - so both come
+        # from the one call rather than from the scope being read twice and the
+        # two answers being trusted to agree.
+        shared = await visible_resource_ids(
+            self.db, ctx, resource_type=SKILL, perm=Perm.SKILLS_VIEW
+        )
+        return await skill_repo.list_visible(
             self.db,
             organization_id=ctx.organization_id,
+            user_id=ctx.subject_id,
+            see_all=shared is None,
+            shared_ids=[] if shared is None else shared,
             search=search,
             category=category,
             sort=sort,

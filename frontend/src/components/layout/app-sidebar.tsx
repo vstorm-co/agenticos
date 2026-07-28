@@ -97,10 +97,13 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { labelKey: "organizations", href: ROUTES.ORGS, icon: Building2 },
       {
+        // Gated on what the backend gates listing on: a Member holding secrets
+        // at OWN scope can use the Vault, so the nav must not hide it behind
+        // the broader connections:manage.
         labelKey: "vault",
         href: ROUTES.VAULT,
         icon: KeyRound,
-        permission: Perm.connectionsManage,
+        permission: Perm.secretsView,
       },
       {
         labelKey: "mcpServers",

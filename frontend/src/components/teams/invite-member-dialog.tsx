@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useInvitations } from "@/hooks";
+import { useAssignableRoles, useInvitations } from "@/hooks";
 import type { OrgRole } from "@/types";
 
 interface InviteMemberDialogProps {
@@ -33,6 +33,7 @@ export function InviteMemberDialog({ open, onOpenChange, orgId }: InviteMemberDi
   const [role, setRole] = useState<OrgRole>("member");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { invite } = useInvitations(orgId);
+  const assignable = useAssignableRoles();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,8 +72,11 @@ export function InviteMemberDialog({ open, onOpenChange, orgId }: InviteMemberDi
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="member">Member</SelectItem>
-                <SelectItem value="admin">Admin</SelectItem>
+                {assignable.map((option) => (
+                  <SelectItem key={option} value={option} className="capitalize">
+                    {option}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

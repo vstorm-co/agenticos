@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Trash2 } from "lucide-react";
-import { useRoleCatalog } from "@/hooks";
+import { useAssignableRoles } from "@/hooks";
 import type { OrganizationMember, OrgRole } from "@/types";
 
 interface MembersTableProps {
@@ -56,9 +56,6 @@ const roleBlurb: Record<OrgRole, string> = {
   viewer: "Reads only",
 };
 
-/** Owner is never in the picker: it moves by transferring the organization. */
-const ASSIGNABLE: OrgRole[] = ["admin", "builder", "operator", "member", "viewer"];
-
 export function MembersTable({
   members,
   currentUserId,
@@ -66,13 +63,7 @@ export function MembersTable({
   onRoleChange,
   onRemove,
 }: MembersTableProps) {
-  // From the server where possible: the roles a deployment actually seeds are
-  // the backend's to decide, and a picker offering one it does not have puts a
-  // 422 behind a control that looked fine. The constant is the fallback for a
-  // catalog that has not arrived yet.
-  const { catalog } = useRoleCatalog();
-  const assignable =
-    catalog?.roles.map((role) => role.name).filter((name) => name !== "owner") ?? ASSIGNABLE;
+  const assignable = useAssignableRoles();
 
   return (
     <Table>

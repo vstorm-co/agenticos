@@ -200,7 +200,6 @@ async def upload_kb_document(
     rag_doc_service: RAGDocumentSvc,
     vector_store: VectorStoreSvc,
     ctx: Auth,
-    current_user: CurrentUser,
     active_org: ActiveOrg,
     file: UploadFile = File(...),
     replace: bool = Query(False),
@@ -215,15 +214,15 @@ async def upload_kb_document(
 ) -> Any:
     """Upload a file into the KB's underlying vector collection.
 
-    Auth is per-KB (owner / org member / admin) - unlike the bulk
-    ``/rag/{collection}/documents`` endpoint which is admin-only - so a
-    workspace user can manage their own KB without elevation. Overriding how
-    this one file is parsed needs no permission beyond the one the upload
-    already needs: it changes nothing outside the document being added, and
-    anybody who can upload can already change the collection's configuration,
-    upload, and change it back.
+    Auth is per-KB rather than the app-admin role the bulk
+    ``/rag/{collection}/documents`` endpoint demands, so a workspace user can
+    manage their own KB without elevation - but it is *write* access the
+    service resolves, not read: ``collections:edit`` reaching this base, or an
+    explicit edit grant on it. Overriding how this one file is parsed needs no
+    permission beyond that: it changes nothing outside the document being
+    added.
     """
-    kb = await service.get(kb_id, user_id=current_user.id, organization_id=active_org.id)
+    kb = await service.get_for_write(kb_id, ctx=ctx)
     data = await file.read()
     return await rag_doc_service.dispatch_upload(
         ctx=ctx,
@@ -304,8 +303,7 @@ async def delete_kb_document(
     doc_id: UUID,
     service: KnowledgeBaseSvc,
     rag_doc_service: RAGDocumentSvc,
-    current_user: CurrentUser,
-    active_org: ActiveOrg,
+    ctx: Auth,
 ) -> None:
     """Remove a document from the KB (cascades to vectors + file storage).
 
@@ -313,7 +311,7 @@ async def delete_kb_document(
     check a KB owner could pass any doc_id and remove docs from KBs they
     don't own.
     """
-    kb = await service.get(kb_id, user_id=current_user.id, organization_id=active_org.id)
+    kb = await service.get_for_write(kb_id, ctx=ctx)
     doc = await rag_doc_service.get_document(str(doc_id))
     if doc.collection_name != kb.collection_name:
         raise NotFoundError(
@@ -387,7 +385,7 @@ async def create_kb_sync_source(
     data: SyncSourceCreate,
     service: KnowledgeBaseSvc,
     sync_source_svc: SyncSourceSvc,
-    current_user: CurrentUser,
+    ctx: Auth,
     active_org: ActiveOrg,
 ) -> Any:
     """Wire up a sync source (Google Drive, S3, …) feeding this KB.
@@ -395,7 +393,7 @@ async def create_kb_sync_source(
     The ``collection_name`` field on the request body is overridden with the
     KB's own collection - clients should not need to know that detail.
     """
-    kb = await service.get(kb_id, user_id=current_user.id, organization_id=active_org.id)
+    kb = await service.get_for_write(kb_id, ctx=ctx)
     payload = data.model_copy(update={"collection_name": kb.collection_name})
     return await sync_source_svc.create_source(payload, organization_id=active_org.id)
 
@@ -413,7 +411,6 @@ async def clone_kb_sync_source(
     sync_source_svc: SyncSourceSvc,
     access: CollectionAccessSvc,
     ctx: Auth,
-    current_user: CurrentUser,
     active_org: ActiveOrg,
 ) -> Any:
     """Clone an existing org integration into this KB.
@@ -426,7 +423,7 @@ async def clone_kb_sync_source(
     cloning re-encrypts the credentials it finds - so a caller could point
     another tenant's Google Drive at their own collection and sync it.
     """
-    kb = await service.get(kb_id, user_id=current_user.id, organization_id=active_org.id)
+    kb = await service.get_for_write(kb_id, ctx=ctx)
     source = await access.sync_source(ctx, str(source_id))
     clone_data = data.model_copy(update={"collection_name": kb.collection_name})
     return await sync_source_svc.clone_source(
@@ -443,11 +440,10 @@ async def trigger_kb_sync_source(
     source_id: UUID,
     service: KnowledgeBaseSvc,
     sync_source_svc: SyncSourceSvc,
-    current_user: CurrentUser,
-    active_org: ActiveOrg,
+    ctx: Auth,
 ) -> Any:
     """Manually trigger a sync run for one of this KB's sources."""
-    kb = await service.get(kb_id, user_id=current_user.id, organization_id=active_org.id)
+    kb = await service.get_for_write(kb_id, ctx=ctx)
     source = await sync_source_svc.get_source(str(source_id))
     if source.collection_name != kb.collection_name:
         raise NotFoundError(
@@ -508,11 +504,10 @@ async def delete_kb_sync_source(
     source_id: UUID,
     service: KnowledgeBaseSvc,
     sync_source_svc: SyncSourceSvc,
-    current_user: CurrentUser,
-    active_org: ActiveOrg,
+    ctx: Auth,
 ) -> None:
     """Remove a sync source from this KB."""
-    kb = await service.get(kb_id, user_id=current_user.id, organization_id=active_org.id)
+    kb = await service.get_for_write(kb_id, ctx=ctx)
     source = await sync_source_svc.get_source(str(source_id))
     if source.collection_name != kb.collection_name:
         raise NotFoundError(
