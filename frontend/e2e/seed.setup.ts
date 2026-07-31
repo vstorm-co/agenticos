@@ -180,10 +180,20 @@ setup("the organization has connected an MCP server", async ({ page }) => {
   await dialog.getByLabel("Access token").fill(SEEDED_ORG_MCP_SECRET);
   await dialog.getByRole("button", { name: "Connect & check" }).click();
 
-  // The row appears before the check finishes — the probe dials a host that
-  // does not answer, and a red dot next to a stored server is a correct
-  // outcome here, not a failed fixture.
-  await expect(page.getByText(SEEDED_ORG_MCP_NAME, { exact: true }).first()).toBeVisible();
+  // Asserted through the API, not by looking for the row. The page is a
+  // paginated catalog of every connectable server, so a custom connection is not
+  // reliably on the first page - and this step's job is that the fixture exists,
+  // not that it is visible from here. `mcp-servers.spec.ts` is what tests
+  // whether a connected server the catalog does not carry shows up.
+  //
+  // The probe behind "Connect & check" dials a host that answers 405, so the
+  // connection is stored with an error status. That is the correct outcome for a
+  // fixture; a red dot is not a failed seed.
+  await expect
+    .poll(() => alreadyThere(page.request, "/api/mcp-connections", "name", SEEDED_ORG_MCP_NAME), {
+      message: "the organization MCP connection was never stored",
+    })
+    .toBe(true);
 });
 
 setup("a colleague is a member of the organization", async ({ page, browser }) => {
