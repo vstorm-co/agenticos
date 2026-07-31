@@ -111,3 +111,6 @@ Thumbs.db
 
 # Runtime uploads and RAG scratch files - never source
 backend/media/
+
+# MkDocs build output.
+site/

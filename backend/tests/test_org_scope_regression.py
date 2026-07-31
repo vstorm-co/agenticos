@@ -3,13 +3,13 @@
 Two kinds of check:
   - behavioural - a resource from another organization is not readable;
   - structural - the repository signatures that caused the problem cannot come
-    back. ``organization_id: UUID | None = None`` made the unsafe call (no
+    back. `organization_id: UUID | None = None` made the unsafe call (no
     tenant filter, every tenant's rows) look identical to the safe one, so an
     omitted argument silently widened a query. These functions must take the
     tenant as a required keyword.
 
-Queries that legitimately cross tenants are named for it - ``get_for_inbound``,
-``get_active_polling_bots`` - and are listed here as deliberate exceptions.
+Queries that legitimately cross tenants are named for it - `get_for_inbound`,
+`get_active_polling_bots` - and are listed here as deliberate exceptions.
 """
 
 import inspect

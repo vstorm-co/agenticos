@@ -43,20 +43,22 @@ describe("useSkills", () => {
     });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    expect(apiClient.get).toHaveBeenCalledWith("/skills", {
-      params: { q: "refund", sort: "name", skip: "50", limit: "50" },
-    });
+    expect(apiClient.get).toHaveBeenCalledWith("/skills?q=refund&sort=name&skip=50&limit=50");
   });
 
-  it("sends the category filter and the sort to the server, same as the search", async () => {
-    const { result } = renderHook(() => useSkills({ category: "devops", sort: "updated" }), {
-      wrapper,
-    });
+  it("sends every picked category to the server, repeated, same as the search", async () => {
+    // The filter is a multi-select and `category` repeats in the query string:
+    // the server reads two occurrences as "either shelf". Joined or last-wins
+    // encodings would silently narrow the filter.
+    const { result } = renderHook(
+      () => useSkills({ categories: ["devops", "data"], sort: "updated" }),
+      { wrapper },
+    );
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    expect(apiClient.get).toHaveBeenCalledWith("/skills", {
-      params: { category: "devops", sort: "updated", skip: "0", limit: "50" },
-    });
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "/skills?category=devops&category=data&sort=updated&skip=0&limit=50",
+    );
   });
 
   it("hands back the organization's category choices alongside the page", async () => {

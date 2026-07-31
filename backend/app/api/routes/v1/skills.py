@@ -4,8 +4,8 @@ Skills are content: a support lead edits the refund policy here and every agent
 bound to it is current on the next run, with no deploy and no version bump to
 chase.
 
-Routes acting on the collection carry a ``require(...)`` gate; routes acting on
-one skill deliberately do not, and delegate to ``SkillService`` instead. A
+Routes acting on the collection carry a `require(...)` gate; routes acting on
+one skill deliberately do not, and delegate to `SkillService` instead. A
 role-level gate cannot see the grants on a row, so it would refuse a viewer who
 was explicitly given edit on a single skill - the exact case sharing exists for.
 """
@@ -34,6 +34,7 @@ from app.schemas.skill import (
     SkillUpdate,
 )
 from app.services import skill_library
+from app.services.skills import SUGGESTED_CATEGORIES
 
 router = APIRouter()
 
@@ -41,7 +42,7 @@ router = APIRouter()
 def _summary(skill: Skill, bundled_names: frozenset[str]) -> SkillSummary:
     """A skill as the listing shows it.
 
-    ``built_in`` is a name match against the shipped library because that is
+    `built_in` is a name match against the shipped library because that is
     all installing keeps: an install copies the folder into an ordinary row,
     and the name - unique per organization, never editable - is the one trace
     of where it came from.
@@ -62,26 +63,29 @@ async def list_skills(
     service: SkillSvc,
     ctx: Auth,
     q: str | None = Query(None, max_length=100, description="Match on name or description"),
-    category: str | None = Query(None, max_length=64, description="Exact category to filter to"),
+    # Repeatable: `?category=devops&category=data` means "either shelf". One
+    # value keeps meaning what it always did.
+    category: list[str] | None = Query(None, description="Exact categories to filter to"),
     sort: SkillSort = Query("name", description="`name` A-Z, or `updated` newest change first"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
     """Names and descriptions - the Builder's picker, not the bodies.
 
-    ``total`` is the count before paging, which is what a pager needs and a page
-    cannot supply. ``categories`` is the whole organization's, not the page's:
+    `total` is the count before paging, which is what a pager needs and a page
+    cannot supply. `categories` is the whole organization's, not the page's:
     a filter chip that vanished with the page it filtered would strand whoever
     pressed it.
     """
     items, total = await service.list_skills(
-        ctx, search=q, category=category, sort=sort, skip=skip, limit=limit
+        ctx, search=q, categories=category, sort=sort, skip=skip, limit=limit
     )
     bundled_names = frozenset(entry.name for entry in skill_library.library())
     return SkillList(
         items=[_summary(skill, bundled_names) for skill in items],
         total=total,
         categories=await service.list_categories(ctx),
+        suggested_categories=list(SUGGESTED_CATEGORIES),
     )
 
 
@@ -109,7 +113,7 @@ async def create_skill(data: SkillCreate, service: SkillSvc, ctx: Auth) -> Any:
 async def list_library(service: SkillSvc, ctx: Auth) -> Any:
     """The skills this deployment ships with, and whether they are installed.
 
-    Declared above ``/{skill_id}`` because that route parses its segment as a
+    Declared above `/{skill_id}` because that route parses its segment as a
     UUID and would answer this path with a 422 instead.
     """
     # Every skill, not a page of them: the gallery marks what is already

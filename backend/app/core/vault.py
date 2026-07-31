@@ -14,11 +14,11 @@ guarantee, which is the whole reason it is gone.
 
 *Rotatable master key.* The master key never encrypts payloads directly, only
 data keys, so rotating it means re-wrapping one small blob per secret rather
-than re-encrypting every value. ``key_version`` records which master key sealed
+than re-encrypting every value. `key_version` records which master key sealed
 a given envelope, which is what makes a staged rotation possible at all.
 
 Nothing here decides *who* may read a secret; that is the permission layer's
-job (``connections:manage``). This module only guarantees that a secret at rest
+job (`connections:manage`). This module only guarantees that a secret at rest
 is unreadable without the master key and unusable outside the scope it was
 sealed for.
 
@@ -64,7 +64,7 @@ class VaultScope:
 
     Almost everything is owned by an organization; the exception is a member's
     personal MCP connection, which belongs to them and to no tenant - the row
-    has no ``organization_id`` at all, and a member may be in several
+    has no `organization_id` at all, and a member may be in several
     organizations, so binding it to whichever one happened to be active when
     they added it would make the token unreadable after they switch.
     """
@@ -88,7 +88,7 @@ class VaultScope:
 class SealedSecret:
     """An encrypted secret plus the metadata needed to unseal and display it.
 
-    ``hint`` is a four-character fragment of the plaintext. It is stored in the
+    `hint` is a four-character fragment of the plaintext. It is stored in the
     clear on purpose: operators need to tell two keys apart in a dropdown, and
     four characters of a provider key identify it to its owner without being
     useful to anyone else.
@@ -102,9 +102,9 @@ class SealedSecret:
 def _master_key() -> str:
     """The deployment's master key.
 
-    Falls back to ``SECRET_KEY`` so a fresh checkout runs without extra setup;
-    production deployments set ``VAULT_MASTER_KEY`` explicitly, and the config
-    validator refuses the default ``SECRET_KEY`` outside development.
+    Falls back to `SECRET_KEY` so a fresh checkout runs without extra setup;
+    production deployments set `VAULT_MASTER_KEY` explicitly, and the config
+    validator refuses the default `SECRET_KEY` outside development.
     """
     configured = getattr(settings, "VAULT_MASTER_KEY", "") or ""
     return configured or settings.SECRET_KEY
@@ -210,5 +210,5 @@ def rewrap(
 
 
 def generate_master_key() -> str:
-    """A fresh master key, for ``VAULT_MASTER_KEY`` in a new deployment."""
+    """A fresh master key, for `VAULT_MASTER_KEY` in a new deployment."""
     return base64.urlsafe_b64encode(os.urandom(32)).decode()

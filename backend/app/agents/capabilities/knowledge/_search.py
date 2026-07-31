@@ -1,3 +1,4 @@
+# TODO refactor it
 """RAG tool for agent knowledge base search."""
 
 import contextvars
@@ -6,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from app.core.config import settings
 from app.core.exceptions import AppException, ExternalServiceError
+from app.services.embedding_resolution import embeddings_for_collection
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.retrieval import RetrievalService
 from app.services.rag.vectorstore import PgVectorStore
@@ -26,7 +28,9 @@ def get_retrieval_service() -> "BaseRetrievalService":
 
     rag_settings = settings.rag
     embedding_service = EmbeddingService(rag_settings)
-    vector_store = PgVectorStore(rag_settings, embedding_service)
+    vector_store = PgVectorStore(
+        rag_settings, embedding_service, resolver=embeddings_for_collection
+    )
     _retrieval_service = RetrievalService(vector_store, rag_settings)
     return _retrieval_service
 
@@ -73,8 +77,8 @@ async def search_knowledge_base(
     Args:
         query: The search query string.
         kb_collection_names: Vector-store collection names resolved server-side from the
-            conversation's active_knowledge_base_ids. Never supplied by the LLM directly -
-            injected via PydanticAI Deps or the _active_kb_collections ContextVar.
+            agent's spec. Never supplied by the LLM directly - injected via
+            PydanticAI Deps or the _active_kb_collections ContextVar.
         top_k: Number of top results to retrieve (default: 5).
     """
     resolved = kb_collection_names if kb_collection_names else (_active_kb_collections.get() or [])

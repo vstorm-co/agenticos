@@ -28,7 +28,7 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 from sqlalchemy import select, text
 
 from app.agents.capabilities.approval import approval_required_tools
-from app.agents.capabilities.budget import BudgetExceeded
+from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
 from app.agents.spec import AgentSpec
 from app.api import deps
 from app.core.config import settings
@@ -62,9 +62,11 @@ from app.repositories import (
     agent_run_repo,
     conversation_repo,
     credential_repo,
+    ingestion_spend_repo,
     mcp_connection_repo,
     member_repo,
     organization_secret_repo,
+    rag_document_repo,
 )
 from app.schemas.knowledge_base import KnowledgeBaseCreate, KnowledgeBaseUpdate
 from app.schemas.mcp_connection import OrgMcpConnectionCreate, OrgMcpConnectionUpdate
@@ -177,7 +179,7 @@ async def _default_model(db, tenant: Tenant) -> ModelProfile:
 async def _keyed_model_profile(db, tenant: Tenant) -> ModelProfile:
     """A default profile with credentials behind it, so a run can be *built*.
 
-    ``_default_model`` above is enough to publish a spec - publishing only
+    `_default_model` above is enough to publish a spec - publishing only
     checks that a profile exists. Assembling a run resolves the profile and
     unseals its key, so anything that actually executes needs this one.
     """
@@ -254,7 +256,7 @@ async def _mcp_connection(
 ) -> McpConnection:
     """One MCP connection row, always carrying its organization.
 
-    A personal connection keeps ``organization_id`` too - that is the case worth
+    A personal connection keeps `organization_id` too - that is the case worth
     having rows for, because filtering on the organization alone would let a
     member's own token into a shared agent.
 
@@ -440,12 +442,12 @@ async def estate(db) -> TwoTenants:
 class RagEstate:
     """Two organizations, each with a full set of RAG rows, plus one shared name.
 
-    The collections are ``org``-scoped, which is what both ``POST /kb`` and
-    ``POST /rag/collections/{name}`` actually create - and the other tenant's
-    carries the *home* user as its owner, for the same reason ``TwoTenants``
+    The collections are `org`-scoped, which is what both `POST /kb` and
+    `POST /rag/collections/{name}` actually create - and the other tenant's
+    carries the *home* user as its owner, for the same reason `TwoTenants`
     does: ownership must not be a way in.
 
-    ``home_private`` is the second boundary in this system and is easy to miss
+    `home_private` is the second boundary in this system and is easy to miss
     while looking at the first: a personal collection belonging to another
     member of your *own* organization.
     """
@@ -474,13 +476,20 @@ async def _kb_row(
     is_default: bool = False,
     ingestion_config: IngestionConfig | None = None,
     embedding_model: str | None = None,
+    visibility: str | None = None,
 ) -> KnowledgeBase:
     """One knowledge base row, always saying what its vectors were built with.
 
-    ``embedding_model`` has no database default on purpose - see
-    ``app.repositories.knowledge_base.create`` - so every row that exists in a
+    `embedding_model` has no database default on purpose - see
+    `app.repositories.knowledge_base.create` - so every row that exists in a
     test says the same thing a row in production would.
+
+    Org rows default to org-wide visibility, which is what every ownerless org
+    row in production carries after `0063_kb_org_visibility` - a private one
+    is a deliberate choice a test states explicitly.
     """
+    if visibility is None:
+        visibility = Visibility.ORG.value if scope is KBScope.ORG else Visibility.PRIVATE.value
     kb = KnowledgeBase(
         id=uuid.uuid4(),
         name=collection_name,
@@ -489,6 +498,7 @@ async def _kb_row(
         organization_id=tenant.organization.id,
         owner_user_id=owner_user_id,
         is_default=is_default,
+        visibility=visibility,
         ingestion_config=(ingestion_config or deployment_defaults()).model_dump(mode="json"),
         embedding_model=embedding_model or settings.EMBEDDING_MODEL,
         embedding_dim=settings.rag.embeddings_config.dim,
@@ -595,16 +605,16 @@ RagClient = Callable[[AuthContext], AsyncClient]
 
 @pytest.fixture
 async def rag_api(db, mock_redis: MagicMock) -> AsyncIterator[RagClient]:
-    """Real requests to the routes under ``/rag``, against the real database.
+    """Real requests to the routes under `/rag`, against the real database.
 
     Everything else in this file drives services directly, because the service
     is where the decision lives. That was exactly what made this class of bug
-    invisible for ``/rag``: the services were fine and the routes never asked
+    invisible for `/rag`: the services were fine and the routes never asked
     them anything about an organization, so a service-level test would have
-    passed while ``GET /rag/collections/{someone else's}/info`` answered 200.
+    passed while `GET /rag/collections/{someone else's}/info` answered 200.
     Here the request is the unit under test.
 
-    The vector store, retriever and ingester are ``_NeverAsked``: these tests
+    The vector store, retriever and ingester are `_NeverAsked`: these tests
     assert refusals, and a refusal that arrives after the vectors have been read
     is a filter on the way out, not a boundary.
     """
@@ -635,10 +645,10 @@ KbClient = Callable[[Tenant], AsyncClient]
 
 @pytest.fixture
 async def kb_api(db) -> AsyncIterator[KbClient]:
-    """Real requests to the routes under ``/kb``, as one of the tenants.
+    """Real requests to the routes under `/kb`, as one of the tenants.
 
-    Its own client because ``/kb`` resolves three things about a caller where
-    ``/rag`` resolves one: the user, the active organization and the auth
+    Its own client because `/kb` resolves three things about a caller where
+    `/rag` resolves one: the user, the active organization and the auth
     context. A caller is therefore a whole tenant here, not a context - passing
     only the context would leave the other two dependencies real, and the
     request would be refused for having no token rather than for the reason
@@ -662,7 +672,7 @@ async def kb_api(db) -> AsyncIterator[KbClient]:
 class TestTenantIsolation:
     """An owner of one organization is a stranger to every other one.
 
-    Owner is the strongest role there is - ``Scope.ALL`` on everything - so if
+    Owner is the strongest role there is - `Scope.ALL` on everything - so if
     the boundary holds for them it holds for everyone.
     """
 
@@ -696,7 +706,7 @@ class TestTenantIsolation:
     async def test_a_collection_in_another_tenant_is_unreachable(
         self, db, estate: TwoTenants
     ) -> None:
-        """Checked through ``resolve_access``: every collection read goes through it."""
+        """Checked through `resolve_access`: every collection read goes through it."""
         assert await resolve_access(
             db,
             estate.home.ctx,
@@ -756,7 +766,7 @@ class TestTenantIsolation:
         Both halves in one test on purpose: they were inconsistent, and it is
         the inconsistency - not either answer alone - that was the bug.
 
-        Containment rather than equality because ``estate`` contributes two
+        Containment rather than equality because `estate` contributes two
         *personal* collections that this same user owns, one of them created
         inside the other organization. A personal knowledge base belongs to its
         owner rather than to an organization, so it follows them between org
@@ -843,7 +853,7 @@ class TestTenantIsolation:
     ) -> None:
         """A partial answer that looks complete is worse than an error.
 
-        The retriever is ``_NeverAsked``, so this also asserts the request is
+        The retriever is `_NeverAsked`, so this also asserts the request is
         refused before the reachable half of it has been searched.
         """
         response = await rag_api(rag_estate.home.ctx).post(
@@ -943,7 +953,7 @@ class TestTenantIsolation:
         whatever credentials it finds and re-encrypts them into the
         destination. So owning any collection was enough to pull another
         tenant's Drive into it. It is also the route the reusable-integration
-        list on ``/kb`` posts to, which is why the assertion is on the request
+        list on `/kb` posts to, which is why the assertion is on the request
         rather than on the service behind it.
         """
         response = await kb_api(rag_estate.home).post(
@@ -974,21 +984,9 @@ class TestTenantIsolation:
         home = rag_estate.home
 
         with pytest.raises(NotFoundError) as theirs:
-            await service.update(
-                rag_estate.other_collection.id,
-                rename,
-                ctx=home.ctx,
-                user_id=home.user.id,
-                organization_id=home.organization.id,
-            )
+            await service.update(rag_estate.other_collection.id, rename, ctx=home.ctx)
         with pytest.raises(NotFoundError) as invented:
-            await service.update(
-                uuid.uuid4(),
-                rename,
-                ctx=home.ctx,
-                user_id=home.user.id,
-                organization_id=home.organization.id,
-            )
+            await service.update(uuid.uuid4(), rename, ctx=home.ctx)
 
         assert theirs.value.status_code == invented.value.status_code == 404
         assert theirs.value.code == invented.value.code
@@ -998,15 +996,11 @@ class TestTenantIsolation:
     async def test_a_knowledge_base_in_another_tenant_cannot_be_deleted_by_its_own_owner(
         self, db, rag_estate: RagEstate
     ) -> None:
-        """``other_collection`` carries the home user as its owner: owning it is not access."""
+        """`other_collection` carries the home user as its owner: owning it is not access."""
         home = rag_estate.home
 
         with pytest.raises(NotFoundError):
-            await KnowledgeBaseService(db).delete(
-                rag_estate.other_collection.id,
-                user_id=home.user.id,
-                organization_id=home.organization.id,
-            )
+            await KnowledgeBaseService(db).delete(rag_estate.other_collection.id, ctx=home.ctx)
 
         assert await db.get(KnowledgeBase, rag_estate.other_collection.id) is not None
 
@@ -1023,9 +1017,7 @@ class TestTenantIsolation:
         home = rag_estate.home
 
         with pytest.raises(NotFoundError):
-            await KnowledgeBaseService(db).delete(
-                theirs.id, user_id=home.user.id, organization_id=home.organization.id
-            )
+            await KnowledgeBaseService(db).delete(theirs.id, ctx=home.ctx)
 
     async def test_a_deployment_wide_base_is_refused_as_forbidden_rather_than_missing(
         self, db, rag_estate: RagEstate
@@ -1033,7 +1025,7 @@ class TestTenantIsolation:
         """The one write refusal that stays a 403 - and the reason it is not a leak.
 
         An app-scoped base is readable by every caller in the deployment by
-        design, which this test asserts first: the ``get`` succeeds. Reporting the
+        design, which this test asserts first: the `get` succeeds. Reporting the
         write as "not found" would therefore conceal nothing at all, while costing
         the caller the one sentence that explains why they were refused.
         """
@@ -1043,22 +1035,14 @@ class TestTenantIsolation:
         service = KnowledgeBaseService(db)
         home = rag_estate.home
 
-        assert await service.get(
-            shared.id, user_id=home.user.id, organization_id=home.organization.id
-        )
+        assert await service.get(shared.id, ctx=home.ctx)
 
         with pytest.raises(AuthorizationError):
-            await service.update(
-                shared.id,
-                KnowledgeBaseUpdate(name="renamed"),
-                ctx=home.ctx,
-                user_id=home.user.id,
-                organization_id=home.organization.id,
-            )
+            await service.update(shared.id, KnowledgeBaseUpdate(name="renamed"), ctx=home.ctx)
 
 
 async def _joined_tenant(db, tenant: Tenant, role: OrgRoleName) -> Tenant:
-    """A second member of the same organization, shaped for ``kb_api``."""
+    """A second member of the same organization, shaped for `kb_api`."""
     ctx = await _join(db, tenant, role)
     user = await db.get(User, ctx.user_id)
     return Tenant(organization=tenant.organization, user=user, ctx=ctx)
@@ -1067,7 +1051,7 @@ async def _joined_tenant(db, tenant: Tenant, role: OrgRoleName) -> Tenant:
 class TestWritingToAKnowledgeBaseTakesMoreThanReading:
     """The per-KB write routes resolve write access, where they resolved read.
 
-    A Viewer holds ``collections:view`` and nothing else, and these six routes
+    A Viewer holds `collections:view` and nothing else, and these six routes
     used to ask only whether the base was *visible* - so a Viewer could upload,
     delete documents and point sync sources at any base they could see. Through
     the app rather than the service on purpose: the bug was the routes calling
@@ -1152,7 +1136,7 @@ class TestWritingToAKnowledgeBaseTakesMoreThanReading:
     async def test_an_edit_grant_lets_a_viewer_feed_the_shared_base(
         self, db, rag_estate: RagEstate
     ) -> None:
-        """The reason the routes carry no ``require(collections:edit)`` gate.
+        """The reason the routes carry no `require(collections:edit)` gate.
 
         A role gate would refuse this Viewer before their grant was ever read;
         the service consults the grant and admits them on this one base.
@@ -1224,8 +1208,6 @@ async def _collection_with(
     return await KnowledgeBaseService(db).create(
         KnowledgeBaseCreate(name=name, scope="org", collection_name=name, ingestion_config=config),
         ctx=tenant.ctx,
-        user_id=tenant.user.id,
-        organization_id=tenant.organization.id,
     )
 
 
@@ -1280,8 +1262,6 @@ class TestHowACollectionReadsItsDocuments:
         collection = await KnowledgeBaseService(db).create(
             KnowledgeBaseCreate(name="notes", scope="org", collection_name="notes"),
             ctx=tenant.ctx,
-            user_id=tenant.user.id,
-            organization_id=tenant.organization.id,
         )
 
         assert collection.ingestion_config == deployment_defaults().model_dump(mode="json")
@@ -1390,7 +1370,7 @@ class TestHowACollectionReadsItsDocuments:
     ) -> None:
         """The wire format, asserted where a client actually meets it.
 
-        An upload is ``multipart/form-data``, so the settings cannot ride along
+        An upload is `multipart/form-data`, so the settings cannot ride along
         as a JSON body - they are one form field holding JSON. Proving the merge
         through the service would say nothing about whether that field is wired
         up, which is the half a frontend depends on.
@@ -1503,8 +1483,8 @@ class TestHowACollectionReadsItsDocuments:
 class TestTheEmbeddingModelACollectionWasBuiltWith:
     """The one setting that is not a preference.
 
-    ``PgVectorStore`` creates a collection's table once, as
-    ``embedding vector(N)``. Until this was recorded per collection the only
+    `PgVectorStore` creates a collection's table once, as
+    `embedding vector(N)`. Until this was recorded per collection the only
     record was an environment variable, so changing it broke every existing
     collection with no error anybody could trace: either the width no longer
     matched and inserts failed, or - between two models that share a width -
@@ -1520,29 +1500,25 @@ class TestTheEmbeddingModelACollectionWasBuiltWith:
         assert collection.embedding_model == settings.EMBEDDING_MODEL
         assert collection.embedding_dim == settings.rag.embeddings_config.dim
 
-    async def test_nothing_more_can_be_indexed_once_the_deployment_embeds_differently(
+    async def test_a_changed_deployment_default_no_longer_strands_a_collection(
         self, db, uploads, monkeypatch
     ) -> None:
-        """The refusal names both models, because the fix is a decision.
+        """The store embeds each collection with its own recorded model.
 
-        Restoring the variable and re-ingesting into a new collection are both
-        reasonable, and the platform cannot pick between them - but it can
-        refuse to make the choice moot by corrupting the collection first.
+        Changing `EMBEDDING_MODEL` used to make every existing collection
+        refuse ingestion until the variable was restored. The default now only
+        decides what *new* collections are built with - this one keeps
+        indexing, and its documents keep recording the model that actually
+        produced their vectors.
         """
         tenant = await _tenant(db, name="Switched")
         collection = await _collection_with(db, tenant, name="switched", config=IngestionConfig())
         built_with = collection.embedding_model
         monkeypatch.setattr(settings, "EMBEDDING_MODEL", "voyage-3")
 
-        with pytest.raises(BadRequestError) as refusal:
-            await _upload(db, tenant, collection)
+        document = await _upload(db, tenant, collection)
 
-        assert built_with in refusal.value.message
-        assert "voyage-3" in refusal.value.message
-        rows = await db.execute(
-            select(RAGDocument).where(RAGDocument.collection_name == "switched")
-        )
-        assert rows.scalars().all() == []
+        assert document.embedding_model == built_with
 
     async def test_a_document_records_the_model_its_vectors_came_from(self, db, uploads) -> None:
         tenant = await _tenant(db, name="Traceable")
@@ -1569,8 +1545,6 @@ class TestTheEmbeddingModelACollectionWasBuiltWith:
                 {"name": "renamed", "embedding_model": "voyage-3", "embedding_dim": 1024}
             ),
             ctx=tenant.ctx,
-            user_id=tenant.user.id,
-            organization_id=tenant.organization.id,
         )
 
         await db.refresh(collection)
@@ -1593,14 +1567,107 @@ class TestTheEmbeddingModelACollectionWasBuiltWith:
                 ingestion_config=IngestionConfig(pdf_parser=PdfParserName.LITEPARSE)
             ),
             ctx=tenant.ctx,
-            user_id=tenant.user.id,
-            organization_id=tenant.organization.id,
         )
 
         await db.refresh(already_there)
         assert already_there.ingestion_config["pdf_parser"] == "pymupdf"
         await db.refresh(collection)
         assert collection.ingestion_config["pdf_parser"] == "liteparse"
+
+
+class TestWhatACollectionReportsItHolds:
+    """The counts a picker shows, against a real `GROUP BY`.
+
+    Aggregation is the half a mock cannot check: whether the grouping keys on
+    the right column, whether the `FILTER` clause counts what it claims, and
+    whether a collection with nothing in it comes back absent rather than zero.
+    """
+
+    async def test_counts_are_grouped_per_collection_and_do_not_bleed(self, db) -> None:
+        """Two collections in one query must not pool their documents."""
+        tenant = await _tenant(db, name="Counted")
+        busy = await _collection_with(db, tenant, name="busy", config=IngestionConfig())
+        quiet = await _collection_with(db, tenant, name="quiet", config=IngestionConfig())
+        for index in range(3):
+            await _rag_document(db, collection_name=busy.collection_name, filename=f"{index}.txt")
+        await _rag_document(db, collection_name=quiet.collection_name, filename="only.txt")
+
+        counts = await rag_document_repo.counts_by_collection(
+            db, collections=[busy.collection_name, quiet.collection_name]
+        )
+
+        assert counts[busy.collection_name].documents == 3
+        assert counts[quiet.collection_name].documents == 1
+
+    async def test_a_collection_nothing_was_uploaded_to_is_absent_not_zero(self, db) -> None:
+        """No row to group means no key, which is what the route defaults."""
+        tenant = await _tenant(db, name="Empty")
+        collection = await _collection_with(db, tenant, name="empty", config=IngestionConfig())
+
+        counts = await rag_document_repo.counts_by_collection(
+            db, collections=[collection.collection_name]
+        )
+
+        assert collection.collection_name not in counts
+
+    async def test_only_completed_documents_count_as_indexed(self, db) -> None:
+        """A failed upload stays in `documents` and drops out of `indexed`.
+
+        This is what makes a half-broken collection legible on a listing: the
+        two numbers disagreeing is the only signal that something died, since
+        the vectors it never wrote leave no trace anywhere else.
+        """
+        tenant = await _tenant(db, name="Partial")
+        collection = await _collection_with(db, tenant, name="partial", config=IngestionConfig())
+        done = await _rag_document(
+            db, collection_name=collection.collection_name, filename="ok.txt"
+        )
+        done.status = "completed"
+        done.chunk_count = 7
+        broken = await _rag_document(
+            db, collection_name=collection.collection_name, filename="dead.txt"
+        )
+        broken.status = "failed"
+        broken.chunk_count = 0
+        await db.flush()
+
+        counts = await rag_document_repo.counts_by_collection(
+            db, collections=[collection.collection_name]
+        )
+
+        assert counts[collection.collection_name].documents == 2
+        assert counts[collection.collection_name].indexed == 1
+        assert counts[collection.collection_name].chunks == 7
+
+    async def test_another_tenants_documents_are_not_counted(self, db) -> None:
+        """The counts are keyed on `collection_name`, and `rag_documents` carries a
+        nullable `organization_id` that a sync task never stamps - so the tenant
+        boundary here is the set of collection names the caller was allowed to see,
+        not a column on the document.
+
+        That makes it worth asserting rather than assuming: a collection name is
+        slug-plus-random and unique in practice, but the query is only ever safe
+        because the caller hands it names `list_accessible` already filtered.
+        """
+        mine = await _tenant(db, name="Mine")
+        theirs = await _tenant(db, name="Theirs")
+        my_collection = await _collection_with(db, mine, name="mine", config=IngestionConfig())
+        their_collection = await _collection_with(
+            db, theirs, name="theirs", config=IngestionConfig()
+        )
+        await _rag_document(db, collection_name=my_collection.collection_name, filename="a.txt")
+        for index in range(5):
+            await _rag_document(
+                db, collection_name=their_collection.collection_name, filename=f"{index}.txt"
+            )
+
+        # What the route does: count only over the names this caller may read.
+        counts = await rag_document_repo.counts_by_collection(
+            db, collections=[my_collection.collection_name]
+        )
+
+        assert counts[my_collection.collection_name].documents == 1
+        assert their_collection.collection_name not in counts
 
 
 # -- publish, run, approve ----------------------------------------------------
@@ -1654,7 +1721,7 @@ class TestPublishAndRollback:
     ) -> None:
         """History must show that a rollback happened, not that v2 never existed.
 
-        Moving ``current_version_id`` backwards would be cheaper and would make
+        Moving `current_version_id` backwards would be cheaper and would make
         every run recorded against v2 unexplainable.
         """
         tenant = await _tenant(db, name="Roller")
@@ -1759,7 +1826,7 @@ class TestRenamingAToolOnAPublishedAgent:
         registry = AgentRegistryService(db)
         await registry.publish(tenant.ctx, agent.id)
 
-        _, published = await registry.get_runnable_spec(tenant.ctx, agent.id)
+        _, published, _ = await registry.get_runnable_spec(tenant.ctx, agent.id)
 
         assert published.capabilities[0].tool_approval == {}
         assert approval_required_tools(published) == frozenset({"search_refund_policy"})
@@ -1769,7 +1836,7 @@ class TestManagingTheOrganizationsMcpServers:
     """The write half of the scope rule, against real rows.
 
     The read half is proven below: a personal connection carrying the right
-    ``organization_id`` does not satisfy an org binding. The same trap exists on
+    `organization_id` does not satisfy an org binding. The same trap exists on
     every write - a filter on the organization alone would let one member edit
     or delete another member's personal connection through routes that never ask
     whose it is, and would let an admin in one tenant reach into another.
@@ -1888,7 +1955,7 @@ class TestManagingTheOrganizationsMcpServers:
     async def test_a_members_own_connection_cannot_be_written_to_as_the_organizations(
         self, db, write
     ) -> None:
-        """The row carries this exact ``organization_id``, so a filter on the
+        """The row carries this exact `organization_id`, so a filter on the
         organization alone finds it. It is still refused, and it has to be: this
         is somebody's personal credential, reachable here by an admin who never
         asked whose it was - and editable into pointing anywhere.
@@ -1987,10 +2054,10 @@ class TestLockingAnMcpConnectionBeforeSpendingItsRefreshToken:
     """The row lock that stops two chat turns redeeming one refresh token.
 
     A compiled statement can show that the eager join was dropped and that
-    ``populate_existing`` was asked for. Only a database can say what those two
+    `populate_existing` was asked for. Only a database can say what those two
     options are worth, and both answers are severe: Postgres refuses
-    ``FOR UPDATE`` on the nullable side of an outer join outright, so a lock
-    taken with ``McpConnection.user`` still joined does not merely serialize
+    `FOR UPDATE` on the nullable side of an outer join outright, so a lock
+    taken with `McpConnection.user` still joined does not merely serialize
     badly - it raises, and every OAuth refresh becomes a failed turn. And a lock
     granted over a stale identity-map copy would hand back exactly the expired
     token the caller waited for the lock to stop using.
@@ -2201,6 +2268,56 @@ class TestBudgetAccumulation:
         assert await runner.monthly_spend(tenant.ctx) == Decimal("13.25")
 
 
+class TestIngestionUnderTheOrganizationsCap:
+    """Ingesting is spending, so the cap that stops a run stops an upload too.
+
+    Real rows, because the seam under test is the sum: the spend that blocks
+    this upload is itself an ingestion row, which is exactly the money the
+    organization's total used to be blind to.
+    """
+
+    async def test_an_upload_against_a_spent_cap_is_refused_before_anything_is_kept(
+        self, db, uploads
+    ) -> None:
+        tenant = await _tenant(db, name="CappedDocs", monthly_budget_usd=Decimal("10"))
+        collection = await _collection_with(
+            db, tenant, name="capped_docs", config=IngestionConfig()
+        )
+        await ingestion_spend_repo.record(
+            db,
+            organization_id=tenant.organization.id,
+            rag_document_id=None,
+            model="text-embedding-3-large",
+            input_tokens=80_000_000,
+            output_tokens=0,
+            cost_usd=Decimal("10.40"),
+            cost_is_partial=False,
+        )
+
+        with pytest.raises(BudgetExceeded) as refused:
+            await _upload(db, tenant, collection)
+
+        assert refused.value.scope is BudgetScope.ORGANIZATION
+        # Refused before anything was persisted: no parse was queued and no
+        # document row sits in the listing waiting for a worker that will
+        # never come.
+        assert uploads == []
+        remaining = await db.execute(
+            select(RAGDocument).where(RAGDocument.collection_name == "capped_docs")
+        )
+        assert remaining.scalars().all() == []
+
+    async def test_an_upload_under_the_cap_is_accepted(self, db, uploads) -> None:
+        """A ceiling that refuses uploads below it is an outage, not a budget."""
+        tenant = await _tenant(db, name="RoomyDocs", monthly_budget_usd=Decimal("10"))
+        collection = await _collection_with(db, tenant, name="roomy_docs", config=IngestionConfig())
+
+        document = await _upload(db, tenant, collection)
+
+        assert document.status == "processing"
+        assert len(uploads) == 1
+
+
 class TestTheOrganizationsMonthlyCap:
     """The ceiling over every agent an organization has, enforced on a real run.
 
@@ -2216,7 +2333,7 @@ class TestTheOrganizationsMonthlyCap:
 
     @staticmethod
     async def _prepare(db, tenant: Tenant, *, spec: AgentSpec, spent: Decimal):
-        """A published agent under this tenant, with ``spent`` already booked."""
+        """A published agent under this tenant, with `spent` already booked."""
         await _keyed_model_profile(db, tenant)
         agent = await _published_agent(db, tenant, spec=spec)
         await _run_row(
@@ -2247,7 +2364,7 @@ class TestTheOrganizationsMonthlyCap:
         # Which of two possible caps stopped it. An operator told only "budget
         # exhausted" has to guess, and guessing wrong means editing an agent
         # that was never the constraint.
-        assert refused.value.scope == "Organization monthly"
+        assert refused.value.scope is BudgetScope.ORGANIZATION
         assert "Organization monthly budget exhausted" in str(refused.value)
 
     async def test_a_run_under_the_cap_answers_normally(self, db) -> None:
@@ -2273,7 +2390,7 @@ class TestTheOrganizationsMonthlyCap:
             await _answer(prepared)
 
         assert refused.value.limit_usd == Decimal("5")
-        assert refused.value.scope == "Agent monthly"
+        assert refused.value.scope is BudgetScope.AGENT
 
     async def test_an_agents_own_cap_cannot_loosen_the_organizations(self, db) -> None:
         """$100 asked for under a $10 ceiling still stops at $10.
@@ -2294,7 +2411,7 @@ class TestTheOrganizationsMonthlyCap:
             await _answer(prepared)
 
         assert refused.value.limit_usd == Decimal("10")
-        assert refused.value.scope == "Organization monthly"
+        assert refused.value.scope is BudgetScope.ORGANIZATION
 
     async def test_the_cap_is_read_for_the_organization_that_is_running(self, db) -> None:
         """One organization's ceiling must not stop another organization's agent.
@@ -2323,12 +2440,12 @@ class TestTheOrganizationsMonthlyCap:
 
 
 class TestAnAgentsOwnMonthlyCap:
-    """``AgentSpec.budget.monthly_usd`` is a cap on *this agent*, not on the org.
+    """`AgentSpec.budget.monthly_usd` is a cap on *this agent*, not on the org.
 
     It used to be metered against the organization's month-to-date total, which
     made it a second organization-wide cap wearing an agent's name: an agent with
     a $10 limit was refused because its neighbours had spent $10, and its own
-    spend was never isolated. Both caps were then collapsed with ``min()`` and
+    spend was never isolated. Both caps were then collapsed with `min()` and
     compared to that one number - two ceilings measured against one quantity.
 
     These need real rows for the same reason the organization's do. The number
@@ -2338,7 +2455,7 @@ class TestAnAgentsOwnMonthlyCap:
 
     @staticmethod
     async def _published(db, tenant: Tenant, *, spec: AgentSpec, spent: Decimal) -> Agent:
-        """A published agent with ``spent`` already booked against *it*."""
+        """A published agent with `spent` already booked against *it*."""
         # For the side effect: publishing needs a resolvable model profile.
         await _keyed_model_profile(db, tenant)
         agent = await _published_agent(db, tenant, spec=spec)
@@ -2411,13 +2528,13 @@ class TestAnAgentsOwnMonthlyCap:
 
         assert refused.value.limit_usd == Decimal("10")
         assert refused.value.spent_usd == Decimal("10.5")
-        assert refused.value.scope == "Agent monthly"
+        assert refused.value.scope is BudgetScope.AGENT
 
     async def test_a_tighter_agent_cap_binds_on_its_own_spend(self, db) -> None:
         """$5 under a $50 ceiling, and the $6 that binds it is this agent's own.
 
         Both caps are in force and the tighter one stops the run - but it stops
-        it at $6, not at the $26 the organization has spent. Taking ``min()`` of
+        it at $6, not at the $26 the organization has spent. Taking `min()` of
         the two and checking it against the organization's total gave the right
         verdict here for the wrong reason, and the wrong verdict above.
         """
@@ -2437,7 +2554,7 @@ class TestAnAgentsOwnMonthlyCap:
 
         assert refused.value.limit_usd == Decimal("5")
         assert refused.value.spent_usd == Decimal("6")
-        assert refused.value.scope == "Agent monthly"
+        assert refused.value.scope is BudgetScope.AGENT
 
     async def test_a_looser_agent_cap_does_not_lift_the_organizations(self, db) -> None:
         """Two caps, two quantities, and the one that binds names itself.
@@ -2463,7 +2580,7 @@ class TestAnAgentsOwnMonthlyCap:
 
         assert refused.value.limit_usd == Decimal("10")
         assert refused.value.spent_usd == Decimal("12")
-        assert refused.value.scope == "Organization monthly"
+        assert refused.value.scope is BudgetScope.ORGANIZATION
 
 
 # -- grants -------------------------------------------------------------------
@@ -2473,7 +2590,7 @@ class TestGrantWidenedAccess:
     """A grant lifts access for one row, and taking it back lowers it again.
 
     Written by :class:`SharingService` and read by the registry through
-    ``resolve_access`` - two services that only agree if the row in between says
+    `resolve_access` - two services that only agree if the row in between says
     what both of them think it says.
     """
 
@@ -3015,7 +3132,7 @@ class TestManyKeysForOneProvider:
                 tenant.ctx, AgentSpec(name=f"Team {index}", model_profile_id=profile_id)
             )
             await registry.publish(tenant.ctx, agent.id, note="bound")
-            _, spec = await registry.get_runnable_spec(tenant.ctx, agent.id)
+            _, spec, _ = await registry.get_runnable_spec(tenant.ctx, agent.id)
 
             assert spec.model_profile_id == profile_id
             resolved = await service.resolve(tenant.ctx, profile_id=spec.model_profile_id)

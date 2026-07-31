@@ -1,7 +1,7 @@
 """Channel bot management routes.
 
 Bots are organization resources: every endpoint here acts on the caller's
-active organization and requires ``channels:manage``. The inbound webhook routes
+active organization and requires `channels:manage`. The inbound webhook routes
 live elsewhere and are deliberately unscoped.
 """
 

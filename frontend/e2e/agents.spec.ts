@@ -25,9 +25,9 @@ import {
  * panel.
  *
  * Anchored to the start of the accessible name because the entry prints its
- * tool count after the name ("Knowledge search 1 tool") and because the panel
- * for a capability nobody has granted offers a button called "Give this agent
- * Knowledge search" — the same words, a different control.
+ * tool count after the name ("Knowledge search 1 tool"). It is the only *button*
+ * bearing the capability's name - the two controls that grant it are switches,
+ * named "Give this agent Knowledge search" and "Knowledge search enabled".
  */
 function capabilityEntry(page: Page, name: string): Locator {
   return page.getByRole("button", { name: new RegExp(`^${name}\\b`) });
@@ -63,16 +63,24 @@ async function toolRow(page: Page): Promise<Locator> {
   return row;
 }
 
-/** The checkbox that grants one capability, by the name it is labelled with. */
-function capabilityCheckbox(page: Page, name: string): Locator {
-  return page.getByRole("checkbox", { name: `Give this agent ${name}`, exact: true });
+/**
+ * The switch that grants one capability, in the list it is picked from.
+ *
+ * A switch rather than a checkbox: this is one capability being on or off, not
+ * one of a set. The panel on the right carries a second switch for the same
+ * capability, labelled `<name> enabled` - two controls doing the same thing is
+ * fine, two answering to the same accessible name is not, which is why this one
+ * keeps the "Give this agent" wording.
+ */
+function capabilitySwitch(page: Page, name: string): Locator {
+  return page.getByRole("switch", { name: `Give this agent ${name}`, exact: true });
 }
 
 /** The Builder, open on the draft agent with the tool-bearing capability on. */
 async function openToolRow(page: Page): Promise<Locator> {
   await openAgent(page, DRAFT_AGENT_NAME);
 
-  const capability = capabilityCheckbox(page, CAPABILITY_WITH_TOOLS);
+  const capability = capabilitySwitch(page, CAPABILITY_WITH_TOOLS);
   await expect(capability).toBeVisible();
   // These specs save the draft, so a second run opens an agent that already has
   // the capability on — clicking then would switch it off.
@@ -221,15 +229,16 @@ test.describe("Agents", () => {
       /You are a helpful assistant running on AgenticOS/,
     );
 
-    // The model is a list of the organization's profiles now, and the profile
-    // this agent names is the one that must be marked — not merely present.
-    // "Organization default" resolves to the same profile in this deployment,
-    // so a Builder that dropped `model_profile_id` and fell back would render
-    // the same two rows and only differ in which one carries the mark.
+    // The model section leads with the profile this agent actually runs on, and
+    // that summary is what proves `model_profile_id` came back: it renders only
+    // for an id that resolves to one of the organization's profiles. A Builder
+    // that dropped the field and fell back to "Organization default" would draw
+    // no such row at all. The saved-profile list is one disclosure below and is
+    // a way to change the answer, not a statement of it.
     await expect(
-      page.getByRole("radio", { name: SEEDED_MODEL_LABEL, exact: true }),
-    ).toHaveAttribute("aria-checked", "true");
-    await expect(capabilityCheckbox(page, "Date and time")).toHaveAttribute("aria-checked", "true");
+      page.getByRole("group", { name: "Current model" }).getByText(SEEDED_MODEL_LABEL),
+    ).toBeVisible();
+    await expect(capabilitySwitch(page, "Date and time")).toHaveAttribute("aria-checked", "true");
   });
 
   test("an unpublished agent cannot be opened in chat", async ({ page }) => {
@@ -407,7 +416,7 @@ test.describe("Agents", () => {
     }
 
     await openAgent(page, DRAFT_AGENT_NAME);
-    const capability = capabilityCheckbox(page, needy.name);
+    const capability = capabilitySwitch(page, needy.name);
     await expect(capability).toBeVisible();
 
     // Establish the starting state rather than assume it, as the specs above do —

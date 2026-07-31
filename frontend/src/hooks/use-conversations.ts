@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import { getErrorMessage, setUrlParam } from "@/lib/utils";
-import { useConversationStore, useChatStore } from "@/stores";
+import { useAgentSelectionStore, useConversationStore, useChatStore } from "@/stores";
 import type { Conversation, ConversationMessage, ConversationListResponse } from "@/types";
 
 interface CreateConversationResponse {
@@ -249,23 +249,13 @@ export function useConversations() {
     },
     [writeCache, setError],
   );
-  const updateActiveKBs = useCallback(
-    async (conversationId: string, kbIds: string[]) => {
-      writeCache((prev) =>
-        prev.map((c) => (c.id === conversationId ? { ...c, active_knowledge_base_ids: kbIds } : c)),
-      );
-      try {
-        await apiClient.patch(`/conversations/${conversationId}`, {
-          active_knowledge_base_ids: kbIds,
-        });
-      } catch {
-        toast.error("Failed to update knowledge bases");
-      }
-    },
-    [writeCache],
-  );
-
   const startNewChat = useCallback(async () => {
+    // A new chat starts with the user's default agent, when one is starred.
+    // Mid-thread switches stay per-thread; this is the reset point. If the
+    // default has since been unpublished, the picker resolves the stale
+    // selection to the first published agent as usual.
+    const { defaultAgentId, select } = useAgentSelectionStore.getState();
+    if (defaultAgentId) select(defaultAgentId);
     // If current conversation is empty (no messages), just reuse it
     const currentId = useConversationStore.getState().currentConversationId;
     if (currentId) {
@@ -300,6 +290,5 @@ export function useConversations() {
     deleteConversation,
     renameConversation,
     startNewChat,
-    updateActiveKBs,
   };
 }

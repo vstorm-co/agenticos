@@ -2,15 +2,15 @@
 
 Note where the permission checks are, and where they are not. Routes that act on
 the *collection* of agents - listing, creating, reading the catalogs - carry a
-``require(...)`` gate, because there is no specific agent whose grants could
+`require(...)` gate, because there is no specific agent whose grants could
 change the answer.
 
 Routes that act on *one* agent deliberately do not. A resource permission cannot
 be decided without the resource: a Viewer holding an explicit edit grant on a
 single agent is entitled to edit it, and a role-level gate would refuse them
-before ``resolve_access`` ever saw the grant - contradicting the rule the whole
+before `resolve_access` ever saw the grant - contradicting the rule the whole
 access layer is built on, that a grant widens what a role allows. Those routes
-delegate to ``AgentRegistryService``, which checks the role scope *and* the
+delegate to `AgentRegistryService`, which checks the role scope *and* the
 grant, and reports a refusal as "not found" so ids stay unprobeable.
 
 Every endpoint here is part of the public API by design: the Builder UI is one
@@ -367,6 +367,7 @@ async def run_agent(
         data.prompt,
         surface=RunSurface.API,
         conversation_id=data.conversation_id,
+        environment_id=data.environment_id,
     )
     return AgentRunResult(
         run_id=run.id,

@@ -8,10 +8,10 @@ recovers by clearing the selection and falling back to one the caller actually
 belongs to - but only if it can tell "your organization is gone" apart from
 "the agent you asked for is missing" and from "the server broke".
 
-``/me/permissions`` is what makes that possible: it takes no path parameter and
+`/me/permissions` is what makes that possible: it takes no path parameter and
 loads no resource, so the only 404 it can produce is the organization one, and
-it carries the refused id in ``details.org_id``. Both halves are asserted here,
-because the recovery in ``use-active-organization.ts`` is built on them.
+it carries the refused id in `details.org_id`. Both halves are asserted here,
+because the recovery in `use-active-organization.ts` is built on them.
 """
 
 from __future__ import annotations
@@ -92,7 +92,7 @@ class TestARefusedOrganizationHeader:
         """The frontend reads a 404 here as "your organization is gone".
 
         That inference is only sound while this route has nothing else to fail
-        to find - no path parameter, no resource lookup. A future ``{org_id}``
+        to find - no path parameter, no resource lookup. A future `{org_id}`
         segment or a row read in the handler would quietly turn a missing
         resource into a signal that reassigns somebody's organization, which is
         the one outcome the recovery must never produce.

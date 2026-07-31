@@ -11,8 +11,15 @@ export function getErrorMessage(err: unknown, fallback = "An unexpected error oc
   return err instanceof Error ? err.message : fallback;
 }
 
-export function isAppAdmin(user: { role?: string } | null | undefined): boolean {
-  return user?.role === "admin";
+export function isAppAdmin(user: { is_app_admin?: boolean } | null | undefined): boolean {
+  // The one flag the backend gates /admin on. There used to be a
+  // `role === "admin"` fallback here for template deployments that never set
+  // it; the column is gone, and while it existed the fallback meant the client
+  // showed an /admin surface that every request behind it was refused from.
+  //
+  // Optional rather than required: a persisted auth store can predate the flag,
+  // and absent has to mean "not an admin" rather than `undefined === true`.
+  return user?.is_app_admin === true;
 }
 
 export function setUrlParam(key: string, value: string | null): void {

@@ -123,6 +123,19 @@ class TestCodeExecutionTool:
         ):
             assert await run("print(6*7)") == "42"
 
+    @pytest.mark.anyio
+    async def test_the_bindings_limits_reach_the_sandbox(self):
+        """The config is only real if the sandbox call carries it - a limit
+        raised in the Builder that never reaches Monty bounds nothing."""
+        toolset = CodeExecution(timeout_secs=30.0, max_memory_mb=512).get_toolset()
+        run = toolset.tools["run_python"].function
+        sandbox = AsyncMock(return_value="ok")
+
+        with patch("app.agents.capabilities.code_execution._toolset.run_python", new=sandbox):
+            await run("6*7")
+
+        assert sandbox.call_args.kwargs == {"timeout_secs": 30.0, "max_memory_mb": 512}
+
     def test_long_output_is_clipped_rather_than_flooding_the_context(self):
         clipped = _clip("x" * 100_000)
         assert len(clipped) < 100_000

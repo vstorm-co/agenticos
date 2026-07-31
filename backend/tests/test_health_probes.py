@@ -2,13 +2,13 @@
 
 A health check nobody has watched fail is a health check that does not work: the
 failure path is the entire product. So each probe here is exercised three or four
-ways - it answered, it refused, it hung - and the assertions are on the ``detail``
+ways - it answered, it refused, it hung - and the assertions are on the `detail`
 as much as the status, because a status with nothing behind it is what this
 module was written to remove.
 
-The fakes are hand-written rather than ``MagicMock``: a probe is a few lines of
+The fakes are hand-written rather than `MagicMock`: a probe is a few lines of
 branching over what a query returned, and a fake that returns rows makes that
-readable in a way a mock with three ``side_effect`` lists does not.
+readable in a way a mock with three `side_effect` lists does not.
 """
 
 from __future__ import annotations
@@ -129,7 +129,7 @@ class TestRedisProbe:
         assert check.latency_ms is not None
 
     async def test_an_unanswered_ping_is_unhealthy(self) -> None:
-        """``RedisClient.ping`` returns False when it has no connection."""
+        """`RedisClient.ping` returns False when it has no connection."""
         check = await health.probe_redis(_Redis(answers=False))  # type: ignore[arg-type]
 
         assert check.status == "unhealthy"

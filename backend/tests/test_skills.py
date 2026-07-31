@@ -34,7 +34,7 @@ def _ctx(role: str = OrgRoleName.OWNER, *, org_id=None, user_id=None) -> AuthCon
 
 
 def _skill(name="refunds", enabled=True, resources=None, *, ctx=None, owner_user_id=None):
-    """A skill row; given a ``ctx`` it is one the caller owns, so role scope reaches it."""
+    """A skill row; given a `ctx` it is one the caller owns, so role scope reaches it."""
     skill = MagicMock()
     skill.id = uuid.uuid4()
     skill.organization_id = ctx.organization_id if ctx else uuid.uuid4()
@@ -288,16 +288,34 @@ class TestSkillManagement:
 
     @pytest.mark.anyio
     async def test_the_category_filter_and_the_sort_are_the_databases_too(self):
-        """Same reason as the search: a page of fifty cannot be regrouped client-side."""
+        """Same reason as the search: a page of fifty cannot be regrouped client-side.
+
+        Plural: the filter is a multi-select, and "either shelf" has to reach
+        the query as the whole list, not as whichever entry won.
+        """
         ctx = _ctx()
 
         with patch(
             "app.services.skills.skill_repo.list_visible", new=AsyncMock(return_value=([], 0))
         ) as list_visible:
-            await SkillService(_db()).list_skills(ctx, category="devops", sort="updated")
+            await SkillService(_db()).list_skills(
+                ctx, categories=["devops", "data"], sort="updated"
+            )
 
-        assert list_visible.call_args.kwargs["category"] == "devops"
+        assert list_visible.call_args.kwargs["categories"] == ["devops", "data"]
         assert list_visible.call_args.kwargs["sort"] == "updated"
+
+    def test_every_suggested_category_is_storable(self):
+        """The pickers offer these before an organization invents its own; a
+        suggestion the create endpoint would then refuse is a trap, so each one
+        must pass the same validation a typed category does."""
+        from app.schemas.skill import SkillCreate
+        from app.services.skills import SUGGESTED_CATEGORIES
+
+        assert SUGGESTED_CATEGORIES
+        assert len(set(SUGGESTED_CATEGORIES)) == len(SUGGESTED_CATEGORIES)
+        for name in SUGGESTED_CATEGORIES:
+            SkillCreate(name="x", description="d", category=name)
 
     @pytest.mark.anyio
     async def test_the_category_choices_come_from_the_whole_organization(self):
@@ -613,7 +631,7 @@ class TestResourceNames:
         assert refused.value.details == {"name": raw}
 
     def test_a_path_longer_than_the_column_is_refused_rather_than_truncated(self):
-        """``skill_resources.name`` is 128 characters. Truncating would collapse
+        """`skill_resources.name` is 128 characters. Truncating would collapse
         two deep paths onto one name, and the second upload would then silently
         overwrite the first."""
         assert len(_clean_resource_path("a" * 128)) == 128

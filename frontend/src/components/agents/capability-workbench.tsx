@@ -1,10 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Check, ShieldAlert, Wrench } from "lucide-react";
+import { ShieldAlert } from "lucide-react";
 
 import { CapabilityDetail } from "@/components/agents/capability-settings";
-import { Badge, SearchInput } from "@/components/ui";
+import { SearchInput, Switch } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import type { CapabilityBindingSpec, CapabilityCatalogEntry } from "@/types/agents";
 
@@ -17,9 +17,29 @@ interface CapabilityWorkbenchProps {
 }
 
 /**
+ * The binding a capability would get if somebody switched it on.
+ *
+ * Exists so the detail panel has something to render for a capability nobody has
+ * granted yet. Deliberately the same shape `withCapability` creates, and
+ * deliberately not passed to `onChange`: it is what the panel *would* be
+ * configuring, shown so the decision can be made on the real thing.
+ */
+function unboundBinding(capabilityId: string): CapabilityBindingSpec {
+  return {
+    id: capabilityId,
+    config: {},
+    approval: "default",
+    tool_approval: {},
+    tool_overrides: {},
+    secret_id: null,
+    enabled: false,
+  };
+}
+
+/**
  * Choose what an agent can do, and configure the one you are looking at.
  *
- * Master–detail rather than a grid of checkboxes over a pile of settings cards.
+ * Master-detail rather than a grid of checkboxes over a pile of settings cards.
  * The pile was the problem: switching on five capabilities produced five
  * configuration panels stacked below the grid, each one separated from the
  * checkbox that created it by everything else somebody had switched on. The
@@ -30,6 +50,14 @@ interface CapabilityWorkbenchProps {
  * capability offers, down to the arguments of each tool, before deciding to
  * give it to an agent; and an enabled capability does not steal the panel from
  * the one you were reading.
+ *
+ * The panel shows the same thing either way. There used to be a second,
+ * smaller rendering for capabilities nobody had granted - tool names and
+ * one-line descriptions, no arguments, no approval, no configuration schema -
+ * which meant the way to find out what granting a capability actually involved
+ * was to grant it. Now the detail is the detail, with its controls inert until
+ * the capability is on: reading is still not granting, but the thing being read
+ * is no longer an abridgement.
  */
 export function CapabilityWorkbench({
   catalog,
@@ -69,7 +97,8 @@ export function CapabilityWorkbench({
     catalog.find((entry) => entry.id === focusedId) ??
     catalog.find((entry) => enabled.has(entry.id)) ??
     catalog[0];
-  const binding = selected.find((entry) => entry.id === focused?.id);
+  const bound = selected.find((entry) => entry.id === focused?.id);
+  const isOn = focused !== undefined && enabled.has(focused.id);
 
   if (catalog.length === 0) return null;
 
@@ -113,20 +142,47 @@ export function CapabilityWorkbench({
       </div>
 
       <div className="min-w-0">
-        {focused && binding?.enabled ? (
-          <CapabilityDetail
-            binding={binding}
-            definition={focused}
-            onChange={onChange}
-            disabled={disabled}
-          />
-        ) : focused ? (
-          <CapabilityPreview
-            entry={focused}
-            disabled={disabled}
-            onEnable={() => onToggle(focused.id)}
-          />
-        ) : null}
+        {focused && (
+          <div className="space-y-3">
+            {/* The switch travels with the panel as well as sitting in the row.
+                The list scrolls independently, so the capability being read can
+                be off screen from the control that grants it. */}
+            <div className="border-border bg-card flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium">
+                  {isOn ? `${focused.name} is on` : `Give this agent ${focused.name}`}
+                </p>
+                <p className="text-muted-foreground mt-0.5 text-xs">
+                  {isOn
+                    ? "Everything below applies to this agent alone."
+                    : "Read it here first - the settings below are what switching it on configures."}
+                </p>
+              </div>
+              <Switch
+                checked={isOn}
+                disabled={disabled}
+                // Named as the state of the capability on show, not as the
+                // picker's own control above. Two switches doing the same thing
+                // is fine; two switches answering to the same name is not - a
+                // screen reader announces them identically and neither says
+                // which capability it belongs to.
+                aria-label={`${focused.name} enabled`}
+                onCheckedChange={() => onToggle(focused.id)}
+              />
+            </div>
+
+            <CapabilityDetail
+              binding={bound ?? unboundBinding(focused.id)}
+              definition={focused}
+              onChange={onChange}
+              // A capability nobody granted has nothing to configure yet, so its
+              // controls are shown at their real values and left inert. The
+              // alternative - live controls writing to a binding that does not
+              // exist - would make reading a capability grant it by accident.
+              disabled={disabled || !isOn}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -154,24 +210,6 @@ function CapabilityRow({
         focused ? "border-foreground/25 bg-accent" : "hover:bg-accent/50 border-transparent",
       )}
     >
-      {/* The checkbox is its own control, not the row. Reading what a capability
-          offers must not be the same gesture as granting it. */}
-      <button
-        type="button"
-        role="checkbox"
-        aria-checked={enabled}
-        aria-label={`Give this agent ${entry.name}`}
-        disabled={disabled}
-        onClick={onToggle}
-        className={cn(
-          "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors",
-          enabled ? "border-brand bg-brand text-brand-foreground" : "border-input",
-          disabled && "cursor-not-allowed opacity-60",
-        )}
-      >
-        {enabled && <Check className="h-3 w-3" />}
-      </button>
-
       <button
         type="button"
         onClick={onFocus}
@@ -192,60 +230,17 @@ function CapabilityRow({
               : `${entry.tools.length} tools`}
         </span>
       </button>
-    </div>
-  );
-}
 
-/**
- * A capability nobody has switched on, read rather than configured.
- *
- * Its tools are the whole of what it is, so they are what the panel shows -
- * the alternative is asking someone to grant a capability to find out what
- * granting it does.
- */
-function CapabilityPreview({
-  entry,
-  disabled,
-  onEnable,
-}: {
-  entry: CapabilityCatalogEntry;
-  disabled?: boolean;
-  onEnable: () => void;
-}) {
-  return (
-    <div className="border-border bg-card rounded-xl border p-5">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm font-medium">{entry.name}</span>
-        <span className="text-muted-foreground font-mono text-xs">{entry.id}</span>
-        {entry.side_effecting && (
-          <Badge variant="outline" className="gap-1">
-            <ShieldAlert className="h-3 w-3" />
-            acts on the outside world
-          </Badge>
-        )}
-      </div>
-      <p className="text-muted-foreground mt-2 text-sm">{entry.description}</p>
-
-      {entry.tools.length > 0 && (
-        <ul className="mt-4 space-y-2">
-          {entry.tools.map((tool) => (
-            <li key={tool.id} className="border-border rounded-md border p-3">
-              <p className="font-mono text-xs">{tool.name}</p>
-              <p className="text-muted-foreground mt-1 text-xs">{tool.description}</p>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <button
-        type="button"
+      {/* Its own control, not the row. Reading what a capability offers must not
+          be the same gesture as granting it - and a switch says "on or off",
+          which is what this is, where a checkbox says "one of a set". */}
+      <Switch
+        checked={enabled}
         disabled={disabled}
-        onClick={onEnable}
-        className="border-input hover:bg-accent mt-4 inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        <Wrench className="h-3.5 w-3.5" />
-        Give this agent {entry.name}
-      </button>
+        aria-label={`Give this agent ${entry.name}`}
+        onCheckedChange={onToggle}
+        className="mt-0.5 shrink-0"
+      />
     </div>
   );
 }

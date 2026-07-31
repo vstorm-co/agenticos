@@ -33,12 +33,13 @@ import { FileViewer } from "@/components/kb/file-viewer";
 import { IngestionDialog } from "@/components/kb/ingestion-dialog";
 import { IngestionPanel } from "@/components/kb/ingestion-panel";
 import { UploadOverrideDialog } from "@/components/kb/upload-override-dialog";
-import { useKBDetail, usePollWhileIngesting } from "@/hooks";
+import { useKBDetail, usePermissions, usePollWhileIngesting } from "@/hooks";
 import { cn, formatBytes, formatDateTime } from "@/lib/utils";
 import { overrideSize } from "@/lib/ingestion-config";
 import { downloadKBDocument } from "@/lib/rag-api";
 import type { SyncSourceRead } from "@/lib/rag-api";
 import type { IngestionOverride, KBDocument, KBScope } from "@/types";
+import { Perm } from "@/types/permissions";
 
 const SCOPE_META: Record<KBScope, { label: string; icon: LucideIcon }> = {
   personal: { label: "Personal", icon: Lock },
@@ -80,6 +81,12 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
     triggerSyncSource,
     deleteSyncSource,
   } = useKBDetail(id);
+
+  // Presentation, never enforcement - the write routes resolve access per
+  // row on the server. A Viewer holds `collections:view` only; offering them
+  // upload and delete would be offering actions that can only refuse.
+  const { can } = usePermissions();
+  const mayEdit = can(Perm.collectionsEdit);
 
   const [isDragging, setIsDragging] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -123,7 +130,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
   usePollWhileIngesting(documents, refresh);
 
   const handleFiles = async (files: FileList | null) => {
-    if (!files || files.length === 0) return;
+    if (!mayEdit || !files || files.length === 0) return;
     for (const file of Array.from(files)) {
       try {
         await uploadDocument(file, uploadOverride);
@@ -213,25 +220,27 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
                   </Button>
                 </>
               )}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-muted-foreground hover:text-destructive h-8 w-8 p-0"
-                onClick={() => {
-                  if (confirm(`Remove "${doc.filename}" from this knowledge base?`))
-                    deleteDocument(doc.id);
-                }}
-                title="Remove document"
-                aria-label="Remove document"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
+              {mayEdit && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground hover:text-destructive h-8 w-8 p-0"
+                  onClick={() => {
+                    if (confirm(`Remove "${doc.filename}" from this knowledge base?`))
+                      deleteDocument(doc.id);
+                  }}
+                  title="Remove document"
+                  aria-label="Remove document"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              )}
             </div>
           );
         },
       },
     ],
-    [deleteDocument, downloadingId, handleDownload, setViewerDoc],
+    [deleteDocument, downloadingId, handleDownload, setViewerDoc, mayEdit],
   );
 
   if (isLoading && !kb) return <KBDetailSkeleton />;
@@ -305,23 +314,31 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
               <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
               Refresh
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setOverrideOpen(true)}
-              disabled={isUploading}
-            >
-              <SlidersHorizontal className="h-4 w-4" />
-              Parse options
-            </Button>
-            <Button size="sm" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
-              {isUploading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Upload className="h-4 w-4" />
-              )}
-              {isUploading ? "Uploading…" : "Upload"}
-            </Button>
+            {mayEdit && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setOverrideOpen(true)}
+                  disabled={isUploading}
+                >
+                  <SlidersHorizontal className="h-4 w-4" />
+                  Parse options
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading}
+                >
+                  {isUploading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Upload className="h-4 w-4" />
+                  )}
+                  {isUploading ? "Uploading…" : "Upload"}
+                </Button>
+              </>
+            )}
           </>
         }
       />
@@ -403,8 +420,16 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
             <EmptyState
               icon={Upload}
               title="No documents yet"
-              description="Drag files anywhere on this page, or pick from your computer."
-              cta={{ label: "Choose files", onClick: () => fileInputRef.current?.click() }}
+              description={
+                mayEdit
+                  ? "Drag files anywhere on this page, or pick from your computer."
+                  : "Nothing has been uploaded here yet."
+              }
+              cta={
+                mayEdit
+                  ? { label: "Choose files", onClick: () => fileInputRef.current?.click() }
+                  : undefined
+              }
             />
           }
         />
@@ -432,13 +457,13 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
           above raises: the parser column says what read each file, and this says
           what will read the next one. */}
       <div className="mb-8">
-        <IngestionPanel kb={kb} onEdit={() => setIngestionOpen(true)} />
+        <IngestionPanel kb={kb} onEdit={mayEdit ? () => setIngestionOpen(true) : undefined} />
       </div>
 
       <section>
         <div className="mb-3 flex items-center justify-between gap-2">
           <h2 className="text-foreground text-sm font-semibold">Sync sources</h2>
-          {connectors.length > 0 && (
+          {mayEdit && connectors.length > 0 && (
             <Button variant="outline" size="sm" onClick={() => setWizardOpen(true)}>
               <Plus className="h-4 w-4" />
               Connect
@@ -456,7 +481,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
                 : "Configure connectors at the workspace level to start syncing from external sources."
             }
             cta={
-              connectors.length > 0
+              mayEdit && connectors.length > 0
                 ? { label: "Connect source", onClick: () => setWizardOpen(true) }
                 : undefined
             }
@@ -470,8 +495,8 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
                     key={source.id}
                     source={source}
                     kbId={id}
-                    onTrigger={() => triggerSyncSource(source.id)}
-                    onDelete={() => deleteSyncSource(source.id)}
+                    onTrigger={mayEdit ? () => triggerSyncSource(source.id) : undefined}
+                    onDelete={mayEdit ? () => deleteSyncSource(source.id) : undefined}
                   />
                 ),
               )}
@@ -589,8 +614,9 @@ function SyncSourceRow({
 }: {
   source: SyncSourceRead;
   kbId: string;
-  onTrigger: () => void;
-  onDelete: () => void;
+  /** Absent when the caller may not write - the buttons are then not drawn. */
+  onTrigger?: () => void;
+  onDelete?: () => void;
 }) {
   const lastSync = source.last_sync_at ? formatDateTime(source.last_sync_at) : "Never";
   const brand = connectorBrand(source.connector_type);
@@ -621,28 +647,32 @@ function SyncSourceRow({
         {source.last_sync_status && (
           <SyncStatusBadge status={source.last_sync_status} message={source.last_error} />
         )}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-muted-foreground hover:text-foreground h-8 w-8 p-0"
-          onClick={onTrigger}
-          title="Trigger sync now"
-          aria-label="Trigger sync now"
-        >
-          <RotateCw className="h-3.5 w-3.5" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-muted-foreground hover:text-destructive h-8 w-8 p-0"
-          onClick={() => {
-            if (confirm(`Disconnect "${source.name}"?`)) onDelete();
-          }}
-          title="Remove source"
-          aria-label="Remove source"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </Button>
+        {onTrigger && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground hover:text-foreground h-8 w-8 p-0"
+            onClick={onTrigger}
+            title="Trigger sync now"
+            aria-label="Trigger sync now"
+          >
+            <RotateCw className="h-3.5 w-3.5" />
+          </Button>
+        )}
+        {onDelete && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground hover:text-destructive h-8 w-8 p-0"
+            onClick={() => {
+              if (confirm(`Disconnect "${source.name}"?`)) onDelete();
+            }}
+            title="Remove source"
+            aria-label="Remove source"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        )}
       </div>
       <SyncSourceLogs logsPath={`/kb/${kbId}/sync-sources/${source.id}/logs`} />
     </li>

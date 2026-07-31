@@ -9,12 +9,11 @@ from fastapi import APIRouter, File, UploadFile, status
 from fastapi.responses import FileResponse
 
 from app.api.deps import (
-    CurrentAdmin,
+    CurrentAppAdmin,
     CurrentUser,
     UserSvc,
 )
 from app.core.exceptions import BadRequestError, NotFoundError
-from app.db.models.user import UserRole
 from app.schemas.user import UserRead, UserUpdate
 
 router = APIRouter()
@@ -34,9 +33,14 @@ async def update_current_user(
     current_user: CurrentUser,
     user_service: UserSvc,
 ) -> Any:
-    """Update current user profile."""
-    if user_in.role is not None and not current_user.has_role(UserRole.ADMIN):
-        user_in.role = None
+    """Update current user profile.
+
+    No privilege can be granted from here. `UserUpdate` carries no role and no
+    `is_app_admin`, so the guard this used to need - stripping a role a
+    non-admin had put in the body - has nothing left to strip. Granting the one
+    global privilege is a CLI act (`agenticos cmd create-app-admin`), which
+    keeps it off the surface a user can PATCH.
+    """
     return await user_service.update(current_user.id, user_in)
 
 
@@ -73,7 +77,7 @@ async def get_avatar(user_id: UUID, user_service: UserSvc) -> Any:
 async def read_user(
     user_id: UUID,
     user_service: UserSvc,
-    _: CurrentAdmin,
+    _: CurrentAppAdmin,
 ) -> Any:
     """Get user by ID (admin only)."""
     return await user_service.get_by_id(user_id)
@@ -84,7 +88,7 @@ async def update_user_by_id(
     user_id: UUID,
     user_in: UserUpdate,
     user_service: UserSvc,
-    _: CurrentAdmin,
+    _: CurrentAppAdmin,
 ) -> Any:
     """Update user by ID (admin only)."""
     return await user_service.update(user_id, user_in)
@@ -94,7 +98,7 @@ async def update_user_by_id(
 async def delete_user_by_id(
     user_id: UUID,
     user_service: UserSvc,
-    _: CurrentAdmin,
+    _: CurrentAppAdmin,
 ) -> None:
     """Delete user by ID (admin only)."""
     await user_service.delete(user_id)

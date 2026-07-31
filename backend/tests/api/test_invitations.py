@@ -70,8 +70,8 @@ def service() -> MagicMock:
 async def client(service: MagicMock) -> AsyncIterator[AsyncClient]:
     """A client whose caller is signed in and whose service is the stub above.
 
-    Who may call these routes is decided in ``InvitationService`` and tested in
-    ``tests/test_services_members.py``. What is under test here is the shape of
+    Who may call these routes is decided in `InvitationService` and tested in
+    `tests/test_services_members.py`. What is under test here is the shape of
     the request and of the response.
     """
     app.dependency_overrides[deps.get_current_user] = lambda: SimpleNamespace(id=uuid4())

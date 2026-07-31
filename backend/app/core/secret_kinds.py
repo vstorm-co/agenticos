@@ -9,29 +9,29 @@ with a credential that fails at the first run - which is why a secret has a
 
 The kinds are the shapes that actually exist, and no more:
 
-``none``
+`none`
     Not a secret at all - the marker for an endpoint that needs no credential,
     which is the normal case for a self-hosted model server. It exists so the
     resolver can switch on a total set instead of treating "no credential" as a
     missing value, and it is the answer to "what do you store for Ollama on
     localhost"; an empty string is not, and the vault refuses one.
-``api_key``
+`api_key`
     One opaque token. All but three of the model providers want exactly this,
     and so does every third-party API a custom capability might call.
-``azure_openai``
+`azure_openai`
     Azure routes by deployment endpoint and pins an API version, so both travel
     with the key or the credential is unusable.
-``aws_credentials``
+`aws_credentials`
     An access key id, a secret access key and a region - plus an optional
     session token for STS. The id is not secret and the secret is; a single
     field cannot express that.
-``gcp_service_account``
+`gcp_service_account`
     The service account JSON. Validated on the way in, because the failure mode
     of a malformed one is an authentication error hours later with nothing
     pointing back at the paste that caused it.
 
 Two unions, deliberately. :data:`StorableSecret` is what a person can save;
-:data:`SecretValue` adds ``none``, which the runtime can hold but nobody can
+:data:`SecretValue` adds `none`, which the runtime can hold but nobody can
 store. That difference is what keeps "a secret with no value" out of the API
 schema.
 """
@@ -348,7 +348,7 @@ class SecretCondition(BaseModel):
 
 
 class SecretRequirement(BaseModel):
-    """A secret a capability needs, as it declares it in ``register(...)``.
+    """A secret a capability needs, as it declares it in `register(...)`.
 
     A capability names a *kind*, never an instance: the code says "I need an API
     key", the configuration says which one, and neither the model nor the person

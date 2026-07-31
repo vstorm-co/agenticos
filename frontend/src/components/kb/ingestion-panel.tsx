@@ -14,7 +14,8 @@ import type { KnowledgeBase } from "@/types";
 
 interface IngestionPanelProps {
   kb: KnowledgeBase;
-  onEdit: () => void;
+  /** Absent when the caller may not write - the panel is then facts only. */
+  onEdit?: () => void;
 }
 
 /**
@@ -42,10 +43,12 @@ export function IngestionPanel({ kb, onEdit }: IngestionPanelProps) {
         <h2 id="kb-ingestion-heading" className="text-foreground text-sm font-semibold">
           How documents are read
         </h2>
-        <Button variant="outline" size="sm" onClick={onEdit}>
-          <SlidersHorizontal className="h-4 w-4" />
-          Edit
-        </Button>
+        {onEdit && (
+          <Button variant="outline" size="sm" onClick={onEdit}>
+            <SlidersHorizontal className="h-4 w-4" />
+            Edit
+          </Button>
+        )}
       </div>
 
       <dl className="divide-border divide-y">

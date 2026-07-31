@@ -1,8 +1,8 @@
 """User-scoped MCP server connections (Settings → Integrations).
 
-Routes are nested under ``/me/mcp-connections`` because they always operate
+Routes are nested under `/me/mcp-connections` because they always operate
 on the current user - there's no cross-user view of these. The stored bearer
-token never appears in any response (only ``has_auth_token``).
+token never appears in any response (only `has_auth_token`).
 """
 
 from typing import Any
@@ -12,7 +12,6 @@ from fastapi import APIRouter, HTTPException, status
 
 from app.agents.mcp_oauth import OAuthError
 from app.api.deps import CurrentUser, McpConnectionSvc
-from app.core.config import settings
 from app.core.exceptions import NotFoundError
 from app.schemas.mcp_connection import (
     McpConnectionCreate,
@@ -25,21 +24,9 @@ from app.schemas.mcp_connection import (
     McpOAuthStart,
     McpOAuthStartResult,
     McpToolRead,
-    WorkspaceMcpServerList,
-    WorkspaceMcpServerRead,
 )
 
 router = APIRouter()
-
-
-@router.get("/workspace", response_model=WorkspaceMcpServerList)
-async def list_workspace_mcp_servers(user: CurrentUser) -> Any:
-    """Deployment-managed MCP servers (MCP_SERVERS) - always-on, read-only."""
-    items = [
-        WorkspaceMcpServerRead(name=cfg.name, allowed_tools=cfg.allowed_tools)
-        for cfg in settings.MCP_SERVERS
-    ]
-    return WorkspaceMcpServerList(items=items, total=len(items))
 
 
 @router.get("", response_model=McpConnectionList)
@@ -70,7 +57,7 @@ async def update_mcp_connection(
     service: McpConnectionSvc,
     user: CurrentUser,
 ) -> Any:
-    """Patch a connection. ``auth_token: ""`` clears the stored token."""
+    """Patch a connection. `auth_token: ""` clears the stored token."""
     db_connection = await service.update(user_id=user.id, connection_id=connection_id, data=data)
     return McpConnectionRead.from_model(db_connection)
 
@@ -105,7 +92,7 @@ async def complete_mcp_oauth(
     data: McpOAuthCallback,
     service: McpConnectionSvc,
 ) -> Any:
-    """Finish the OAuth flow. Authenticated by the ``state`` token (no session),
+    """Finish the OAuth flow. Authenticated by the `state` token (no session),
     so the provider redirect can reach it without our auth cookie."""
     try:
         connection = await service.oauth_callback(state=data.state, code=data.code)

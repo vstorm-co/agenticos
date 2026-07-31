@@ -15,23 +15,23 @@ class DocumentExtensions(StrEnum):
 
 
 # Extensions read by the built-in Python parsers, whichever PDF parser is
-# configured: ``TextDocumentParser`` and ``DocxDocumentParser`` handle these and
+# configured: `TextDocumentParser` and `DocxDocumentParser` handle these and
 # the parser choice never enters into it.
 NATIVE_FORMATS: set[str] = {".txt", ".md", ".docx"}
 
 # Extensions each PDF parser is routed for, *in addition* to the native ones.
 #
-# These sets are a promise, not a wish list: ``/rag/supported-formats``
-# advertises them, ``RAGDocumentService.upload`` accepts on them, and
-# ``DocumentProcessor.process_file`` has to be able to route every one. They
-# used to be aspirational - LiteParse claimed ``.xlsx``/``.pptx``/images and
-# LlamaParse claimed thirty formats down to ``.mp3``, while ``process_file``
-# routed four extensions and raised ``ValueError`` on everything else. Nothing
+# These sets are a promise, not a wish list: `/rag/supported-formats`
+# advertises them, `RAGDocumentService.upload` accepts on them, and
+# `DocumentProcessor.process_file` has to be able to route every one. They
+# used to be aspirational - LiteParse claimed `.xlsx`/`.pptx`/images and
+# LlamaParse claimed thirty formats down to `.mp3`, while `process_file`
+# routed four extensions and raised `ValueError` on everything else. Nothing
 # refused the upload: the file was stored, a document row was created and the
 # ingestion task was dispatched, so the failure surfaced in a worker minutes
 # later as a document stuck at "processing" with no explanation on screen.
 #
-# ``tests/services/test_supported_formats.py`` pins each set against what the
+# `tests/services/test_supported_formats.py` pins each set against what the
 # pipeline actually routes, so widening one here without teaching the parser
 # fails the suite rather than the user's upload.
 PYMUPDF_PDF_FORMATS: set[str] = {".pdf"}

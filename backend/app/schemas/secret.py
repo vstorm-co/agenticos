@@ -1,6 +1,6 @@
 """Schemas for organization secrets.
 
-No schema here can carry a value outward. ``SecretRead`` exposes a name, a kind
+No schema here can carry a value outward. `SecretRead` exposes a name, a kind
 and four characters, and there is deliberately no endpoint that returns a
 plaintext - reading one is the runtime's privilege, not a client's.
 """
@@ -58,7 +58,7 @@ class SecretPurposeRead(BaseSchema):
 
     id: str
     label: str
-    category: Literal["model_provider", "search", "other"]
+    category: Literal["model_provider", "search", "observability", "other"]
     kind: SecretKind
     help_url: str | None = None
     description: str = ""

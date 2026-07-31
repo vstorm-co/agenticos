@@ -8,13 +8,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
-from app.repositories import conversation_repo, knowledge_base_repo
+from app.db.models.resource_grant import Visibility
+from app.repositories import knowledge_base_repo, organization_secret_repo, rag_document_repo
+from app.repositories.rag_document import CollectionCounts
 from app.schemas.knowledge_base import KnowledgeBaseCreate, KnowledgeBaseUpdate
-from app.services.access import COLLECTION, resolve_access
-from app.services.collection_access import can_read, can_write
+from app.services.access import COLLECTION, visible_resource_ids
+from app.services.collection_access import readable_kb, writable_kb
+from app.services.embedding_resolution import EMBEDDING_KEY_PURPOSES
 from app.services.ingestion_config import (
     IngestionConfig,
     IngestionConfigService,
+    chosen_embedding,
     deployment_defaults,
     deployment_embedding,
 )
@@ -42,13 +46,35 @@ class KnowledgeBaseService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def list_accessible(
-        self,
-        user_id: UUID,
-        organization_id: UUID | None = None,
-    ) -> list[KnowledgeBase]:
+    async def list_accessible(self, ctx: AuthContext) -> list[KnowledgeBase]:
+        """The knowledge bases this caller may read: personal + reachable org + app.
+
+        Which org rows are reachable is the caller's `collections:view` scope -
+        own plus org-visible for a Member, everything for a Builder - widened
+        by explicit grants, exactly as :func:`collection_access.readable_kb`
+        answers per row.
+        """
+        shared = await visible_resource_ids(
+            self.db, ctx, resource_type=COLLECTION, perm=Perm.COLLECTIONS_VIEW
+        )
         return await knowledge_base_repo.get_accessible(
-            self.db, user_id=user_id, organization_id=organization_id
+            self.db,
+            user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            see_all_org=shared is None,
+            shared_org_ids=shared or [],
+        )
+
+    async def counts_for(self, bases: list[KnowledgeBase]) -> dict[str, CollectionCounts]:
+        """What each of these collections holds, keyed by collection name.
+
+        Takes the rows the caller already resolved rather than re-deriving them:
+        this is the second half of a listing whose first half already answered
+        "which of these may they see", and asking that question twice is how the
+        two answers drift.
+        """
+        return await rag_document_repo.counts_by_collection(
+            self.db, collections=[kb.collection_name for kb in bases]
         )
 
     async def create_for_rag_collection(
@@ -58,9 +84,9 @@ class KnowledgeBaseService:
         user_id: UUID,
         organization_id: UUID | None = None,
     ) -> KnowledgeBase:
-        """Create a KB backed by an explicit ``collection_name`` (idempotent).
+        """Create a KB backed by an explicit `collection_name` (idempotent).
 
-        Used by ``POST /rag/collections/{name}`` so a collection created on the
+        Used by `POST /rag/collections/{name}` so a collection created on the
         /rag page also appears on /kb. The collection name is used verbatim
         (the /rag endpoint already validates it) rather than slug-derived, and
         the KB is org-scoped so it is visible to the workspace. Returns the
@@ -78,6 +104,10 @@ class KnowledgeBaseService:
             scope=scope,
             owner_user_id=user_id if scope == KBScope.PERSONAL.value else None,
             organization_id=organization_id,
+            # Org-visible on purpose: the /rag page creates workspace-wide
+            # collections, and an ownerless private row would be reachable
+            # only by roles whose `collections:view` spans the organization.
+            visibility=Visibility.ORG.value if scope == KBScope.ORG.value else None,
             ingestion_config=deployment_defaults().model_dump(mode="json"),
             embedding_model=embedding_model,
             embedding_dim=embedding_dim,
@@ -87,7 +117,7 @@ class KnowledgeBaseService:
         """Delete the KB row a dropped collection belonged to.
 
         Keeps the KB table in sync when a collection is dropped via
-        ``DELETE /rag/collections/{name}``. A default KB is left intact so the
+        `DELETE /rag/collections/{name}`. A default KB is left intact so the
         org keeps a usable knowledge base.
 
         Takes the row rather than the name: the caller has already resolved
@@ -98,99 +128,29 @@ class KnowledgeBaseService:
         if not kb.is_default:
             await knowledge_base_repo.delete(self.db, kb.id)
 
-    async def resolve_active_collection_names(
-        self,
-        conversation_id: UUID,
-        user_id: UUID | None,
-    ) -> list[str]:
-        """Return active KB collection names for a conversation.
-
-        Always resolved server-side from `Conversation.active_knowledge_base_ids`,
-        intersected with KBs the user can access. Falls back to the org default
-        KB when no KBs are explicitly active. Never trust collection names from
-        the LLM or client.
-        """
-        try:
-            conv = await conversation_repo.get_conversation_by_id(self.db, conversation_id)
-            if not conv:
-                return []
-            org_id = getattr(conv, "organization_id", None)
-            active: list[UUID] = conv.active_knowledge_base_ids or []
-            if not active:
-                if org_id:
-                    default_kb = await knowledge_base_repo.get_default_for_org(self.db, org_id)
-                    if default_kb:
-                        return [default_kb.collection_name]
-                return []
-            accessible = await knowledge_base_repo.get_accessible(
-                self.db,
-                user_id=user_id,
-                organization_id=org_id,
-            )
-            active_set = {str(i) for i in active}
-            return [kb.collection_name for kb in accessible if str(kb.id) in active_set]
-        except Exception as exc:
-            logger.warning("KB collection resolution failed: %s", exc)
-            return []
-
-    async def resolve_collection_names_for_ids(
-        self,
-        *,
-        kb_ids: list[UUID],
-        user_id: UUID | None,
-        organization_id: UUID | None,
-    ) -> list[str]:
-        """Resolve a client-supplied list of KB IDs to collection names.
-
-        Used when the conversation hasn't been saved yet so we can't read
-        ``Conversation.active_knowledge_base_ids`` from DB. Intersects with
-        the caller's accessible KBs - clients can never reach a KB they
-        don't own (or that isn't shared with their org).
-        """
-        if not kb_ids:
-            return []
-        try:
-            accessible = await knowledge_base_repo.get_accessible(
-                self.db,
-                user_id=user_id,
-                organization_id=organization_id,
-            )
-            wanted = {str(i) for i in kb_ids}
-            return [kb.collection_name for kb in accessible if str(kb.id) in wanted]
-        except Exception as exc:
-            logger.warning("KB collection override resolution failed: %s", exc)
-            return []
-
-    async def get(
-        self,
-        kb_id: UUID,
-        *,
-        user_id: UUID,
-        organization_id: UUID | None = None,
-    ) -> KnowledgeBase:
+    async def get(self, kb_id: UUID, *, ctx: AuthContext) -> KnowledgeBase:
+        """The knowledge base, or "not found" - for absent and out-of-reach alike."""
         kb = await knowledge_base_repo.get_by_id(self.db, kb_id)
-        if not kb:
+        if not kb or not await readable_kb(self.db, ctx, kb):
             raise _no_knowledge_base(kb_id)
-        self._check_read_access(kb, user_id=user_id, organization_id=organization_id)
         return kb
 
     async def get_for_write(self, kb_id: UUID, *, ctx: AuthContext) -> KnowledgeBase:
-        """The knowledge base, resolved for a caller about to change its contents.
+        """The knowledge base, resolved for a caller about to change it.
 
-        :meth:`get` answers for reading; every route that ingests a document,
-        removes one, or wires a sync source resolves through here instead. The
-        read rule alone let anyone who could *see* a base write into it - a
-        Viewer holds ``collections:view`` and nothing else, and could still
-        upload, delete documents and point sync sources at the collection.
+        :meth:`get` answers for reading; every route that renames or deletes a
+        base, ingests a document, removes one, or wires a sync source resolves
+        through here instead. The read rule alone let anyone who could *see* a
+        base write into it - a Viewer holds `collections:view` and nothing
+        else, and could still upload, delete documents and point sync sources
+        at the collection.
 
-        Writing takes the role permission the ``/rag`` write routes gate on
-        (``collections:edit``, at any scope) plus reach to the row - the same
-        pair of decisions, one at the gate and one in
-        :func:`app.services.collection_access.can_write`, that admits a bulk
-        ingest. Failing that, an explicit ``edit`` grant on this base admits the
-        caller through :func:`app.services.access.resolve_access`: a grant
-        widens what a role allows, it never narrows it, so a Viewer shared into
-        one base can feed it without being promoted.
+        The decision is :func:`app.services.collection_access.writable_kb`:
+        `collections:edit` reaching this row - the role's scope against the
+        row's owner and visibility, or an explicit `edit` grant lifting this
+        one base into reach. A grant widens what a role allows, it never
+        narrows it, so a Viewer shared into one base can feed it without being
+        promoted.
 
         A base the caller cannot read stays "not found", exactly as :meth:`get`
         answers, so the write path is not an oracle for ids. A refusal on a base
@@ -198,25 +158,16 @@ class KnowledgeBaseService:
         would cost the sentence that explains the refusal and protect nothing.
         """
         kb = await knowledge_base_repo.get_by_id(self.db, kb_id)
-        if not kb:
+        if not kb or not await readable_kb(self.db, ctx, kb):
             raise _no_knowledge_base(kb_id)
-        self._check_read_access(kb, user_id=ctx.subject_id, organization_id=ctx.organization_id)
-        role_may_write = ctx.has(Perm.COLLECTIONS_EDIT) or ctx.is_app_admin
-        if role_may_write and can_write(
-            kb,
-            user_id=ctx.subject_id,
-            organization_id=ctx.organization_id,
-            is_app_admin=ctx.is_app_admin,
-        ):
-            return kb
-        if await resolve_access(self.db, ctx, kb, Perm.COLLECTIONS_EDIT, resource_type=COLLECTION):
+        if await writable_kb(self.db, ctx, kb):
             return kb
         if kb.scope == KBScope.APP.value:
             raise AuthorizationError(
                 message="App admin required to modify app-scoped knowledge base"
             )
         raise AuthorizationError(
-            message="Changing this knowledge base requires 'collections:edit' or an edit grant"
+            message="Changing this knowledge base requires 'collections:edit' on it or an edit grant"
         )
 
     async def create(
@@ -224,29 +175,35 @@ class KnowledgeBaseService:
         data: KnowledgeBaseCreate,
         *,
         ctx: AuthContext,
-        user_id: UUID,
-        organization_id: UUID | None = None,
-        is_app_admin: bool = False,
     ) -> KnowledgeBase:
         """Create a knowledge base, with the configuration its documents get.
 
-        The embedding model is read from the deployment and written onto the
-        row; it is not something the caller supplies, and there is no endpoint
-        that changes it afterwards. See
-        :func:`app.services.ingestion_config.deployment_embedding`.
+        The embedding model is the caller's choice, frozen at creation: the
+        vector column is created at the chosen model's width, so there is no
+        endpoint that changes it afterwards. Omitted, it is the deployment's
+        default - see :func:`app.services.ingestion_config.deployment_embedding`.
+        The credential can be one of the organization's own vault keys, so a
+        tenant's embeddings are billed to the tenant rather than the operator.
+
+        Raises:
+            BadRequestError: If the named model has no known vector width, or
+                the named key is not an API key this organization holds.
         """
-        self._check_create_permission(
-            scope=data.scope,
-            user_id=user_id,
-            organization_id=organization_id,
-            is_app_admin=is_app_admin,
-        )
+        self._check_create_permission(scope=data.scope, ctx=ctx)
         config = await self._usable_config(ctx, data.ingestion_config)
-        owner_user_id = user_id if data.scope == KBScope.PERSONAL.value else None
+        # The creator owns what they create, org scope included: `own` in the
+        # permission matrix is meaningless for a row nobody owns, and sharing
+        # starts from an owner. App-scoped bases stay ownerless - they belong
+        # to the deployment.
+        owner_user_id = None if data.scope == KBScope.APP.value else ctx.subject_id
         org_id = (
-            organization_id if data.scope in (KBScope.ORG.value, KBScope.PERSONAL.value) else None
+            ctx.organization_id
+            if data.scope in (KBScope.ORG.value, KBScope.PERSONAL.value)
+            else None
         )
-        embedding_model, embedding_dim = deployment_embedding()
+        embedding_model, embedding_dim = chosen_embedding(data.embedding_model)
+        if data.embedding_secret_id is not None:
+            await self._check_embedding_secret(data.embedding_secret_id, organization_id=org_id)
         return await knowledge_base_repo.create(
             self.db,
             name=data.name,
@@ -258,7 +215,39 @@ class KnowledgeBaseService:
             ingestion_config=config.model_dump(mode="json"),
             embedding_model=embedding_model,
             embedding_dim=embedding_dim,
+            embedding_secret_id=data.embedding_secret_id,
         )
+
+    async def _check_embedding_secret(
+        self, secret_id: UUID, *, organization_id: UUID | None
+    ) -> None:
+        """Refuse a key the organization does not hold, or one of the wrong kind.
+
+        Checked at creation, where the person choosing can fix it - the
+        resolver deliberately degrades to the deployment key at embed time, so
+        this is the only moment a wrong choice is visible.
+        """
+        if organization_id is None:
+            raise BadRequestError(
+                message="Only an organization collection can carry a vault key",
+                details={"embedding_secret_id": str(secret_id)},
+            )
+        row = await organization_secret_repo.get(
+            self.db, secret_id, organization_id=organization_id
+        )
+        if row is None:
+            raise BadRequestError(
+                message="That key is not in this organization's vault",
+                details={"embedding_secret_id": str(secret_id)},
+            )
+        if row.purpose not in EMBEDDING_KEY_PURPOSES:
+            raise BadRequestError(
+                message=(
+                    f"That key is for {row.purpose}; embeddings run through "
+                    f"{', '.join(EMBEDDING_KEY_PURPOSES)}"
+                ),
+                details={"purpose": row.purpose},
+            )
 
     async def create_default_for_org(
         self,
@@ -277,6 +266,10 @@ class KnowledgeBaseService:
             description="Default knowledge base",
             organization_id=organization_id,
             is_default=True,
+            # The default base is the whole workspace's - ownerless and
+            # org-visible, or a Member could not reach the one base every
+            # fresh organization is given.
+            visibility=Visibility.ORG.value,
             ingestion_config=deployment_defaults().model_dump(mode="json"),
             embedding_model=embedding_model,
             embedding_dim=embedding_dim,
@@ -288,16 +281,8 @@ class KnowledgeBaseService:
         data: KnowledgeBaseUpdate,
         *,
         ctx: AuthContext,
-        user_id: UUID,
-        organization_id: UUID | None = None,
-        is_app_admin: bool = False,
     ) -> KnowledgeBase:
-        kb = await knowledge_base_repo.get_by_id(self.db, kb_id)
-        if not kb:
-            raise _no_knowledge_base(kb_id)
-        self._check_write_access(
-            kb, user_id=user_id, organization_id=organization_id, is_app_admin=is_app_admin
-        )
+        kb = await self.get_for_write(kb_id, ctx=ctx)
         config = (
             None
             if data.ingestion_config is None
@@ -324,94 +309,23 @@ class KnowledgeBaseService:
         :func:`app.services.model_profile._validate_model_id` makes.
         """
         chosen = config or deployment_defaults()
-        await IngestionConfigService(self.db).resolved_image_model(ctx.organization_id, chosen)
+        service = IngestionConfigService(self.db)
+        await service.resolved_image_model(ctx.organization_id, chosen)
+        await service.check_llamaparse_secret(ctx.organization_id, chosen)
         return chosen
 
-    async def delete(
-        self,
-        kb_id: UUID,
-        *,
-        user_id: UUID,
-        organization_id: UUID | None = None,
-        is_app_admin: bool = False,
-    ) -> None:
-        kb = await knowledge_base_repo.get_by_id(self.db, kb_id)
-        if not kb:
-            raise _no_knowledge_base(kb_id)
+    async def delete(self, kb_id: UUID, *, ctx: AuthContext) -> None:
         # Access first, then the rule about default bases: "cannot delete the
         # default knowledge base" is a statement about a row, so answering it for
         # another organization's id confirms both that the id exists and that it
         # is their default.
-        self._check_write_access(
-            kb, user_id=user_id, organization_id=organization_id, is_app_admin=is_app_admin
-        )
+        kb = await self.get_for_write(kb_id, ctx=ctx)
         if kb.is_default:
             raise BadRequestError(message="Cannot delete the default knowledge base")
-        await knowledge_base_repo.delete(self.db, kb_id)
+        await knowledge_base_repo.delete(self.db, kb.id)
 
-    def _check_read_access(
-        self,
-        kb: KnowledgeBase,
-        *,
-        user_id: UUID,
-        organization_id: UUID | None,
-    ) -> None:
-        """Refuse a knowledge base out of reach, as though it were not there.
-
-        The rule itself is :func:`app.services.collection_access.can_read`,
-        shared with the ``/rag`` routes: the same rows, the same question, and
-        one implementation - two of them is how the collection a listing hid
-        stayed readable by name.
-        """
-        if not can_read(kb, user_id=user_id, organization_id=organization_id):
-            raise _no_knowledge_base(kb.id)
-
-    def _check_write_access(
-        self,
-        kb: KnowledgeBase,
-        *,
-        user_id: UUID,
-        organization_id: UUID | None,
-        is_app_admin: bool,
-    ) -> None:
-        """Refuse a write, revealing only what the caller could already read.
-
-        The rule is :func:`app.services.collection_access.can_write`, shared with
-        the ``/rag`` routes rather than restated here - this method used to be a
-        third copy of the scope rules, and it answered 403. "Forbidden" on
-        another organization's ``kb_id`` confirms that the id exists, which is
-        precisely the oracle ``_check_read_access`` reports as not-found to
-        avoid; one surface out of step is enough to reinstate it, and a write
-        refusal is as good a probe as a read.
-
-        The single refusal that stays a 403 is an app-scoped base a non-admin may
-        read but not modify. They can see the row through ``GET /kb/{kb_id}``, so
-        calling it missing would conceal nothing and would cost them the one
-        sentence that explains the refusal.
-        """
-        if can_write(
-            kb, user_id=user_id, organization_id=organization_id, is_app_admin=is_app_admin
-        ):
-            return
-        if kb.scope == KBScope.APP.value:
-            raise AuthorizationError(
-                message="App admin required to modify app-scoped knowledge base"
-            )
-        raise _no_knowledge_base(kb.id)
-
-    def _check_create_permission(
-        self,
-        *,
-        scope: str,
-        user_id: UUID,
-        organization_id: UUID | None,
-        is_app_admin: bool,
-    ) -> None:
-        if scope == KBScope.APP.value and not is_app_admin:
+    def _check_create_permission(self, *, scope: str, ctx: AuthContext) -> None:
+        if scope == KBScope.APP.value and not ctx.is_app_admin:
             raise AuthorizationError(
                 message="App admin required to create app-scoped knowledge base"
-            )
-        if scope == KBScope.ORG.value and not organization_id:
-            raise AuthorizationError(
-                message="Organization context required to create org-scoped knowledge base"
             )

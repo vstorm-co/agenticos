@@ -15,9 +15,9 @@ from app.worker.tasks.rag_tasks import sync_collection_flow
 def _as_item(log: SyncLog) -> RAGSyncLogItem:
     """One sync log as the API reports it.
 
-    Built field by field rather than with ``model_validate``, which raised on
-    every row: the schema's ``id`` is a string and the column is a ``UUID``, so
-    ``GET /rag/sync/logs`` answered 500 for any organization that had ever
+    Built field by field rather than with `model_validate`, which raised on
+    every row: the schema's `id` is a string and the column is a `UUID`, so
+    `GET /rag/sync/logs` answered 500 for any organization that had ever
     synced anything.
     """
     return RAGSyncLogItem(
@@ -51,7 +51,7 @@ class RAGSyncService:
     ) -> RAGSyncLogList:
         """Return up to `limit` sync log entries ordered newest-first.
 
-        ``collections`` is required and has no default: the caller has already
+        `collections` is required and has no default: the caller has already
         decided which collections it may report on, and "all of them" must not
         be reachable by omission. The caller also chooses `limit` - no
         server-side cap beyond `limit` is applied.

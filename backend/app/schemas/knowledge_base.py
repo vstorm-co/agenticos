@@ -22,6 +22,22 @@ class KnowledgeBaseCreate(BaseSchema):
     collection_name: str | None = Field(
         default=None, min_length=1, max_length=255, description="Vector store collection"
     )
+    embedding_model: str | None = Field(
+        default=None,
+        max_length=128,
+        description=(
+            "Which embedding model this collection indexes with. Frozen at "
+            "creation - the vector column is created at this model's width - "
+            "so it cannot be changed later. Omit for the deployment default."
+        ),
+    )
+    embedding_secret_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The organization vault key that pays for this collection's "
+            "embeddings. Omit to use the deployment's key."
+        ),
+    )
     ingestion_config: IngestionConfig | None = Field(
         default=None,
         description=(
@@ -60,12 +76,27 @@ class KnowledgeBaseRead(BaseSchema, TimestampSchema):
     is_default: bool = False
     visibility: VisibilityLiteral = "private"
     ingestion_config: IngestionConfig
-    # Read-only, and the reason they are exposed at all: a collection whose
-    # vectors were produced by a model the deployment no longer uses can no
-    # longer be indexed into, and the refusal should not be the first time
-    # anybody hears which model that was.
+    # Read-only after creation: the vector column was created at this model's
+    # width, so the choice is frozen with the collection.
     embedding_model: str
     embedding_dim: int
+    embedding_secret_id: UUID | None = None
+    # Derived per request from `rag_documents`, not stored. Defaulted rather than
+    # required so the single-row responses - create, read, update - stay
+    # constructible straight from the ORM row, which is what they are: a
+    # collection somebody just created holds nothing, and counting to prove it
+    # is a query for an answer already known.
+    document_count: int = Field(
+        default=0,
+        description="Tracked documents in this collection, including ones still parsing or failed",
+    )
+    indexed_count: int = Field(
+        default=0,
+        description="How many of those finished. Below `document_count` means parsing or failed.",
+    )
+    chunk_count: int = Field(
+        default=0, description="Embedded chunks across this collection's documents"
+    )
 
 
 class KnowledgeBaseList(BaseSchema):

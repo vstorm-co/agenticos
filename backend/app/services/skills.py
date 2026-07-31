@@ -10,10 +10,13 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
+from typing import Annotated
 from uuid import UUID
 
+from pydantic import StringConstraints, TypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import catalog
 from app.core.audit import record_audit
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
@@ -24,6 +27,15 @@ from app.services import skill_library
 from app.services.access import SKILL, resolve_access, visible_resource_ids
 
 logger = logging.getLogger(__name__)
+
+# The shelf names the pickers suggest before an organization has invented its
+# own. Data, not behaviour - a deployment edits the catalog file - and bounded
+# like `SkillCreate.category`, so a suggestion is never something the create
+# endpoint would then refuse.
+SUGGESTED_CATEGORIES: tuple[str, ...] = catalog.load(
+    "skill_categories.json",
+    TypeAdapter(tuple[Annotated[str, StringConstraints(min_length=1, max_length=64)], ...]),
+)
 
 # What a skill's files may be. They are handed to a model as text, so a format
 # it cannot read is not a smaller feature - it is a file the agent is told
@@ -36,7 +48,7 @@ def _clean_resource_path(raw: str) -> str:
 
     Uploads arrive with whatever the browser sent: a leading folder from a
     directory picker, Windows separators, and - from an archive somebody
-    crafted - ``..``. The name is a key in a table rather than a location on
+    crafted - `..`. The name is a key in a table rather than a location on
     disk, so nothing here can escape anything; it is refused anyway, because a
     name that *reads* as an escape is a name nobody can reason about.
     """
@@ -103,7 +115,7 @@ class SkillService:
         ctx: AuthContext,
         *,
         search: str | None = None,
-        category: str | None = None,
+        categories: Sequence[str] | None = None,
         sort: SkillSort = "name",
         skip: int = 0,
         limit: int = 50,
@@ -129,7 +141,7 @@ class SkillService:
             see_all=shared is None,
             shared_ids=[] if shared is None else shared,
             search=search,
-            category=category,
+            categories=categories,
             sort=sort,
             skip=skip,
             limit=limit,

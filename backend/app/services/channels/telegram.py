@@ -148,7 +148,7 @@ class TelegramAdapter(ChannelAdapter):
     ) -> bool:
         """Verify that the request came from Telegram via the secret token header.
 
-        The ``body`` parameter is unused for Telegram (signature is header-only)
+        The `body` parameter is unused for Telegram (signature is header-only)
         but accepted for interface compatibility with ChannelAdapter.
         """
         received = headers.get("x-telegram-bot-api-secret-token", "")

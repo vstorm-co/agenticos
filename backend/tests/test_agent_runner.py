@@ -16,7 +16,7 @@ from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai.usage import RequestUsage
 
 from app.agents.capabilities.approval import ApprovalGranted, ApprovalRejected
-from app.agents.capabilities.budget import BudgetExceeded, SpendLedger
+from app.agents.capabilities.budget import BudgetExceeded, BudgetScope, SpendLedger
 from app.agents.spec import AgentSpec, ObservabilitySpec
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
@@ -61,6 +61,9 @@ def _parked_run(**overrides):
         # below. A MagicMock here would be truthy and send the resume path
         # looking up a binding that does not exist.
         exposure_id=None,
+        # Same reasoning for the environment: None keeps the resume path from
+        # looking up observability for an environment that does not exist.
+        environment_id=None,
         surface=RunSurface.API.value,
         status=RunStatus.AWAITING_APPROVAL.value,
         paused_state={"messages": [], "tool_call_ids": {}},
@@ -104,7 +107,7 @@ class TestPrepare:
             patch.object(
                 service.registry,
                 "get_runnable_spec",
-                new=AsyncMock(return_value=(agent, spec)),
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
             ),
             patch.object(
                 service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
@@ -165,7 +168,7 @@ class TestPrepare:
             patch.object(
                 service.registry,
                 "get_runnable_spec",
-                new=AsyncMock(return_value=(agent, spec)),
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
             ),
             patch.object(
                 service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
@@ -203,7 +206,7 @@ class TestPrepare:
             patch.object(
                 service.registry,
                 "get_runnable_spec",
-                new=AsyncMock(return_value=(agent, spec)),
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
             ),
             patch.object(
                 service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
@@ -282,7 +285,9 @@ class TestPrepare:
             patch.object(
                 service.registry,
                 "get_runnable_spec",
-                new=AsyncMock(return_value=(agent, AgentSpec(name="Support"))),
+                new=AsyncMock(
+                    return_value=(agent, AgentSpec(name="Support"), agent.current_version_id)
+                ),
             ),
             patch.object(
                 service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
@@ -308,22 +313,30 @@ class TestPrepare:
         ctx = _ctx()
         built = await self._period_lookups(ctx)
 
-        with patch(
-            "app.services.agent_runner.agent_run_repo.sum_cost_since",
-            new=AsyncMock(return_value=Decimal("4.50")),
-        ) as total:
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.sum_cost_since",
+                new=AsyncMock(return_value=Decimal("4.50")),
+            ) as total,
+            patch(
+                "app.services.spend.ingestion_spend_repo.sum_cost_since",
+                new=AsyncMock(return_value=Decimal("0")),
+            ),
+        ):
             spent = await built["org_period_spend"]()
 
         assert spent == Decimal("4.50")
         assert total.call_args.kwargs["organization_id"] == ctx.organization_id
         assert total.call_args.kwargs["since"] == month_start()
-        assert total.call_args.kwargs["agent_id"] is None
+        # The organization-wide sum narrows to no agent - that absence is the
+        # difference between this lookup and the one above it.
+        assert total.call_args.kwargs.get("agent_id") is None
 
     @pytest.mark.anyio
     async def test_the_agents_own_cap_is_metered_on_the_agents_own_spend(self):
         """The defect this pair exists to keep fixed.
 
-        ``AgentSpec.budget.monthly_usd`` used to be checked against the very
+        `AgentSpec.budget.monthly_usd` used to be checked against the very
         lookup above - the organization's month-to-date - so an agent with a $10
         cap was refused once *other* agents had spent $10, and its own spend was
         never isolated. The narrowing argument existed the whole time; this path
@@ -361,6 +374,47 @@ class TestSpendReporting:
         assert total.call_args.kwargs["organization_id"] == ctx.organization_id
         assert total.call_args.kwargs["since"] == month_start()
         assert total.call_args.kwargs["agent_id"] == agent_id
+
+    @pytest.mark.anyio
+    async def test_the_organizations_month_includes_what_ingestion_embedded(self):
+        """The organization's cap is a cap on the bill, not on one kind of line
+        item - and ingestion spend is the half of the bill runs cannot see."""
+        ctx = _ctx()
+
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.sum_cost_since",
+                new=AsyncMock(return_value=Decimal("10")),
+            ),
+            patch(
+                "app.services.spend.ingestion_spend_repo.sum_cost_since",
+                new=AsyncMock(return_value=Decimal("2.5")),
+            ) as ingested,
+        ):
+            spent = await AgentRunnerService(_db()).monthly_spend(ctx)
+
+        assert spent == Decimal("12.5")
+        assert ingested.call_args.kwargs["organization_id"] == ctx.organization_id
+        assert ingested.call_args.kwargs["since"] == month_start()
+
+    @pytest.mark.anyio
+    async def test_an_agents_month_does_not_carry_ingestion_spend(self):
+        """Indexing a shared knowledge base is nobody's agent's spend - charging
+        it to whichever agent runs first would exhaust that agent's cap for work
+        every agent shares."""
+        ctx = _ctx()
+
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.sum_cost_since",
+                new=AsyncMock(return_value=Decimal("10")),
+            ),
+            patch("app.services.spend.ingestion_spend_repo.sum_cost_since") as ingested,
+        ):
+            spent = await AgentRunnerService(_db()).monthly_spend(ctx, agent_id=uuid.uuid4())
+
+        assert spent == Decimal("10")
+        ingested.assert_not_called()
 
     @pytest.mark.anyio
     async def test_the_cost_breakdown_looks_back_the_number_of_days_it_was_asked_for(self):
@@ -422,7 +476,7 @@ class TestRunAccounting:
         prepared = _prepared()
         prepared.built.agent.run = AsyncMock(
             side_effect=BudgetExceeded(
-                limit_usd=Decimal("1"), spent_usd=Decimal("1.2"), scope="Run"
+                limit_usd=Decimal("1"), spent_usd=Decimal("1.2"), scope=BudgetScope.AGENT
             )
         )
 
@@ -879,10 +933,10 @@ class TestResume:
 class TestWhoTheRunSaysItIs:
     """What the agent is told about the person asking.
 
-    ``AgentDeps.user_id`` reaches every tool, and a tool that writes it into a
+    `AgentDeps.user_id` reaches every tool, and a tool that writes it into a
     record, a filter or a prompt cannot tell a real id from a plausible-looking
     string. That makes stringifying an absent subject worse than passing none:
-    ``"None"`` is the one wrong answer that looks like an answer.
+    `"None"` is the one wrong answer that looks like an answer.
     """
 
     @staticmethod
@@ -895,7 +949,9 @@ class TestWhoTheRunSaysItIs:
             patch.object(
                 service.registry,
                 "get_runnable_spec",
-                new=AsyncMock(return_value=(agent, AgentSpec(name="Support"))),
+                new=AsyncMock(
+                    return_value=(agent, AgentSpec(name="Support"), agent.current_version_id)
+                ),
             ),
             patch.object(
                 service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
@@ -919,14 +975,14 @@ class TestWhoTheRunSaysItIs:
 
     @pytest.mark.anyio
     async def test_a_run_with_nobody_behind_it_says_nobody_rather_than_the_string_None(self):
-        """``str(None)`` is `"None"`, and a tool would take it for an id."""
+        """`str(None)` is `"None"`, and a tool would take it for an id."""
         anonymous = AuthContext.anonymous(uuid.uuid4())
 
         assert (await self._built_with(anonymous))["user_id"] is None
 
     @pytest.mark.anyio
     async def test_a_run_with_nobody_behind_it_opens_a_row_with_no_user(self):
-        """``agent_runs.user_id`` is nullable, and null is the honest value.
+        """`agent_runs.user_id` is nullable, and null is the honest value.
 
         The run is still accounted for - it has an organization, a cost and a
         surface - it simply has no person to attribute it to.
@@ -938,7 +994,9 @@ class TestWhoTheRunSaysItIs:
             patch.object(
                 service.registry,
                 "get_runnable_spec",
-                new=AsyncMock(return_value=(agent, AgentSpec(name="Support"))),
+                new=AsyncMock(
+                    return_value=(agent, AgentSpec(name="Support"), agent.current_version_id)
+                ),
             ),
             patch.object(
                 service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
@@ -955,23 +1013,21 @@ class TestWhoTheRunSaysItIs:
         assert create_run.call_args.kwargs["user_id"] is None
 
 
-def _exposure(*, max_per_run=None, monthly=None, organization_id=None):
-    """A binding row, with whatever caps the test is about."""
+def _exposure(*, organization_id=None, environment_id=None):
+    """A binding row."""
     return MagicMock(
         id=uuid.uuid4(),
         organization_id=organization_id or uuid.uuid4(),
-        max_per_run_usd=max_per_run,
-        monthly_usd=monthly,
+        environment_id=environment_id,
     )
 
 
 class TestARunThatArrivedThroughABinding:
-    """Attribution and the ceilings that depend on it.
+    """Attribution: the run has to carry which binding admitted it.
 
-    An exposure's budget is the only thing between a place an agent was
-    published to and somebody's card, and it is not a budget unless it is
-    metered against that binding's own runs. Both halves are here: the run has
-    to carry which binding admitted it, and the cap has to read that.
+    "Where did this run come from" is the first question asked about a run
+    nobody recognizes, and after the binding is deleted the run's own row is
+    the only record of the answer.
     """
 
     @staticmethod
@@ -985,7 +1041,9 @@ class TestARunThatArrivedThroughABinding:
             patch.object(
                 service.registry,
                 "get_runnable_spec",
-                new=AsyncMock(return_value=(agent, AgentSpec(name="Support"))),
+                new=AsyncMock(
+                    return_value=(agent, AgentSpec(name="Support"), agent.current_version_id)
+                ),
             ),
             patch.object(
                 service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
@@ -1000,6 +1058,45 @@ class TestARunThatArrivedThroughABinding:
             await service.prepare(_ctx(), agent.id, exposure=exposure)
 
         return create_run.call_args.kwargs, build.call_args.kwargs
+
+    @pytest.mark.anyio
+    async def test_the_bindings_environment_decides_the_version_and_is_recorded(self):
+        """A bot bound to `dev` serves dev without the channel router knowing
+        environments exist - the binding carries it, the run records it."""
+        environment_id = uuid.uuid4()
+        exposure = _exposure(environment_id=environment_id)
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        pinned_version_id = uuid.uuid4()
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, AgentSpec(name="Support"), pinned_version_id)),
+            ) as resolve,
+            patch(
+                "app.services.agent_runner.agent_environment_repo.get",
+                new=AsyncMock(return_value=None),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ) as create_run,
+            patch("app.services.agent_runner.build_agent"),
+        ):
+            await service.prepare(_ctx(), agent.id, exposure=exposure)
+
+        assert resolve.call_args.kwargs["environment_id"] == environment_id
+        opened = create_run.call_args.kwargs
+        assert opened["environment_id"] == environment_id
+        # The run records the version the environment resolved, not the
+        # default of the moment - or history would lie about what answered.
+        assert opened["agent_version_id"] == pinned_version_id
 
     @pytest.mark.anyio
     async def test_the_run_records_the_binding_that_admitted_it(self):
@@ -1017,109 +1114,88 @@ class TestARunThatArrivedThroughABinding:
 
         assert opened["exposure_id"] is None
 
-    @pytest.mark.anyio
-    async def test_a_binding_with_no_caps_imposes_none(self):
-        """Binding an agent to a bot is not the same act as budgeting it."""
-        _, built = await self._prepare(_exposure())
 
-        assert built["extra_limits"] == []
+class TestEnvironmentObservability:
+    """An environment aims its runs' traces; the tag is always its name."""
 
     @pytest.mark.anyio
-    async def test_both_caps_travel_as_their_own_named_limits(self):
-        """Not one composed number: they measure different things.
-
-        The tighter of "this conversation" and "this month" is not a meaningful
-        quantity, and collapsing them would leave the refusal unable to say
-        which one stopped the run.
-        """
-        _, built = await self._prepare(_exposure(max_per_run=Decimal("0.5"), monthly=Decimal("25")))
-
-        assert [(limit.scope, limit.limit_usd) for limit in built["extra_limits"]] == [
-            ("Exposure run", Decimal("0.5")),
-            ("Exposure monthly", Decimal("25")),
-        ]
-
-    @pytest.mark.anyio
-    async def test_the_per_run_cap_reads_the_ledger_rather_than_the_database(self):
-        _, built = await self._prepare(_exposure(max_per_run=Decimal("0.5")))
-
-        assert built["extra_limits"][0].period_spend is None
-
-    @pytest.mark.anyio
-    async def test_the_monthly_cap_meters_this_bindings_runs_and_nobody_elses(self):
-        """The whole point. Measured against the organization's total it would be
-        exhausted by unrelated internal traffic, while this binding's own spend
-        stayed invisible in it - which is not a cap on the binding at all.
-        """
-        organization_id = uuid.uuid4()
-        exposure = _exposure(monthly=Decimal("25"), organization_id=organization_id)
-        _, built = await self._prepare(exposure)
-
-        with patch(
-            "app.services.agent_runner.agent_run_repo.sum_cost_since",
-            new=AsyncMock(return_value=Decimal("3")),
-        ) as summed:
-            assert await built["extra_limits"][0].period_spend() == Decimal("3")
-
-        assert summed.call_args.kwargs["exposure_id"] == exposure.id
-        assert summed.call_args.kwargs["organization_id"] == organization_id
-
-
-class TestAResumedRunKeepsItsCeilings:
-    @pytest.mark.anyio
-    async def test_a_continuation_is_metered_on_the_binding_the_run_arrived_through(self):
-        """Otherwise one approval reopens a budget the run had already spent.
-
-        The argument is not available on the resume path - nobody re-supplies
-        the binding when an approver clicks yes - so it is read back off the row,
-        which is the only thing that still knows.
-        """
-        service = AgentRunnerService(_db())
-        exposure = _exposure(monthly=Decimal("25"))
-        run = _parked_run(exposure_id=exposure.id)
-
-        with patch(
-            "app.services.agent_runner.agent_exposure_repo.get",
-            new=AsyncMock(return_value=exposure),
-        ) as lookup:
-            found = await service._exposure_for(run)
-
-        assert found is exposure
-        assert lookup.call_args.kwargs["organization_id"] == run.organization_id
-
-    @pytest.mark.anyio
-    async def test_a_run_that_arrived_through_no_binding_looks_nothing_up(self):
+    async def test_the_environments_token_and_name_win(self):
+        """The tag comes from the row's name, never from configuration - so the
+        tag and the environment cannot disagree."""
+        env_secret = uuid.uuid4()
+        spec = AgentSpec(
+            name="Support",
+            observability=ObservabilitySpec(
+                token_secret_id=uuid.uuid4(), service_name="from-spec", environment="free-text"
+            ),
+        )
+        environment = MagicMock(logfire_token_secret_id=env_secret, service_name="from-env")
+        environment.name = "client-prod"
         service = AgentRunnerService(_db())
 
-        with patch("app.services.agent_runner.agent_exposure_repo.get") as lookup:
-            assert await service._exposure_for(_parked_run(exposure_id=None)) is None
-
-        lookup.assert_not_called()
-
-    @pytest.mark.anyio
-    async def test_a_binding_deleted_while_the_run_waited_stops_capping_it(self):
-        """The honest outcome: the ceiling belonged to a place that is gone.
-
-        The alternative - refusing to continue - would strand a run somebody had
-        already approved, over a limit nobody can raise any more.
-        """
-        service = AgentRunnerService(_db())
-        run = _parked_run(exposure_id=uuid.uuid4())
-
         with patch(
-            "app.services.agent_runner.agent_exposure_repo.get", new=AsyncMock(return_value=None)
+            "app.services.agent_runner.agent_environment_repo.get",
+            new=AsyncMock(return_value=environment),
         ):
-            assert await service._exposure_for(run) is None
+            merged = await service._with_environment_observability(
+                _ctx(), spec, environment_id=uuid.uuid4()
+            )
+
+        assert merged.observability is not None
+        assert merged.observability.token_secret_id == env_secret
+        assert merged.observability.service_name == "from-env"
+        assert merged.observability.environment == "client-prod"
 
     @pytest.mark.anyio
-    async def test_caps_are_dropped_when_the_row_carries_no_binding(self):
-        """Guards the pairing itself: a cap metered on ``None`` sums every run
-        that ever arrived through no binding at all, which is most of them."""
+    async def test_an_environment_without_a_token_falls_through_to_the_specs(self):
+        spec_secret = uuid.uuid4()
+        spec = AgentSpec(
+            name="Support",
+            observability=ObservabilitySpec(token_secret_id=spec_secret, environment="free-text"),
+        )
+        environment = MagicMock(logfire_token_secret_id=None, service_name=None)
+        environment.name = "dev"
         service = AgentRunnerService(_db())
 
-        limits = service._exposure_limits(_exposure(monthly=Decimal("25")), run_exposure_id=None)
+        with patch(
+            "app.services.agent_runner.agent_environment_repo.get",
+            new=AsyncMock(return_value=environment),
+        ):
+            merged = await service._with_environment_observability(
+                _ctx(), spec, environment_id=uuid.uuid4()
+            )
 
-        assert limits == []
+        assert merged.observability is not None
+        assert merged.observability.token_secret_id == spec_secret
+        # The one thing the environment always decides.
+        assert merged.observability.environment == "dev"
+
+    @pytest.mark.anyio
+    async def test_no_token_from_either_source_stays_untraced(self):
+        """A tag into nowhere is not observability - the spec is left alone."""
+        spec = AgentSpec(name="Support")
+        environment = MagicMock(logfire_token_secret_id=None, service_name=None)
+        environment.name = "dev"
+        service = AgentRunnerService(_db())
+
+        with patch(
+            "app.services.agent_runner.agent_environment_repo.get",
+            new=AsyncMock(return_value=environment),
+        ):
+            merged = await service._with_environment_observability(
+                _ctx(), spec, environment_id=uuid.uuid4()
+            )
+
+        assert merged is spec
+
+    @pytest.mark.anyio
+    async def test_no_environment_means_the_spec_as_written(self):
+        spec = AgentSpec(name="Support")
+        service = AgentRunnerService(_db())
+
+        merged = await service._with_environment_observability(_ctx(), spec, environment_id=None)
+
+        assert merged is spec
 
 
 class TestTracingSecret:
@@ -1145,7 +1221,7 @@ class TestTracingSecret:
             patch.object(
                 service.registry,
                 "get_runnable_spec",
-                new=AsyncMock(return_value=(agent, spec)),
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
             ),
             patch.object(
                 service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))

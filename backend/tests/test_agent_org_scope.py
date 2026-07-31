@@ -1,8 +1,8 @@
 """Tests for organization scoping of agent sessions.
 
 Covers the two halves of the WebSocket org boundary:
-  - ``get_active_organization_ws`` - which org a socket runs as
-  - ``persist_user_turn`` - which org a turn is written to, and the refusal to
+  - `get_active_organization_ws` - which org a socket runs as
+  - `persist_user_turn` - which org a turn is written to, and the refusal to
     resume a conversation belonging to another org
 """
 

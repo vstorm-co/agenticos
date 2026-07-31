@@ -44,20 +44,7 @@ interface McpConnectionList {
   total: number;
 }
 
-export interface WorkspaceMcpServer {
-  name: string;
-  /** null = every tool the server offers. */
-  allowed_tools: string[] | null;
-}
-
 const ROOT = "/me/mcp-connections";
-
-export async function listWorkspaceMcpServers(): Promise<WorkspaceMcpServer[]> {
-  const data = await apiClient.get<{ items: WorkspaceMcpServer[]; total: number }>(
-    `${ROOT}/workspace`,
-  );
-  return data.items;
-}
 
 export async function listMcpConnections(): Promise<McpConnectionRecord[]> {
   const data = await apiClient.get<McpConnectionList>(ROOT);

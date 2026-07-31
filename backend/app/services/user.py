@@ -14,7 +14,7 @@ from app.core.security import (
     verify_password,
     verify_special_token,
 )
-from app.db.models.user import User, UserRole
+from app.db.models.user import User
 from app.repositories import session_repo, user_repo
 from app.schemas.conversation_share import AdminUserList, AdminUserRead
 from app.schemas.user import UserCreate, UserUpdate
@@ -81,9 +81,8 @@ class UserService:
                 id=user.id,
                 email=user.email,
                 full_name=user.full_name,
-                role=user.role,
                 is_active=user.is_active,
-                is_app_admin=getattr(user, "is_app_admin", False),
+                is_app_admin=user.is_app_admin,
                 conversation_count=conv_count,
                 created_at=user.created_at,
             )
@@ -108,7 +107,6 @@ class UserService:
             email=user_in.email,
             hashed_password=hashed_password,
             full_name=user_in.full_name,
-            role=UserRole.ADMIN.value if is_first_user else user_in.role.value,
             is_app_admin=is_first_user,
         )
         org_service = OrganizationService(self.db)

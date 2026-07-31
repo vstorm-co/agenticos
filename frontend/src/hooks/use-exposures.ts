@@ -6,13 +6,7 @@ import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import { getErrorMessage } from "@/lib/utils";
-import type {
-  Exposure,
-  ExposureBudget,
-  ExposureList,
-  ExposureTarget,
-  ExposureTargetList,
-} from "@/types/exposures";
+import type { Exposure, ExposureList, ExposureTarget, ExposureTargetList } from "@/types/exposures";
 
 /**
  * Where one agent is available, and where it could be.
@@ -59,8 +53,8 @@ export function useExposures(agentId: string | null) {
   const setActive = useMutation({
     mutationFn: ({ exposureId, isActive }: { exposureId: string; isActive: boolean }) =>
       // Only `is_active`. The server applies exactly the fields it was sent, so
-      // sending a budget here - even the one just read back - would let a pause
-      // overwrite a cap somebody changed in between.
+      // sending more here - even values just read back - would let a pause
+      // overwrite an environment somebody rebound in between.
       apiClient.patch<Exposure>(`${base}/${exposureId}`, { is_active: isActive }),
     onSuccess: async (exposure) => {
       await invalidate();
@@ -73,13 +67,18 @@ export function useExposures(agentId: string | null) {
     onError: (error) => toast.error(getErrorMessage(error)),
   });
 
-  const setBudget = useMutation({
-    mutationFn: ({ exposureId, budget }: { exposureId: string; budget: ExposureBudget }) =>
-      apiClient.patch<Exposure>(`${base}/${exposureId}`, budget),
-    onSuccess: async () => {
-      await invalidate();
-      toast.success("Spending limits updated");
-    },
+  const setEnvironment = useMutation({
+    mutationFn: ({
+      exposureId,
+      environmentId,
+    }: {
+      exposureId: string;
+      environmentId: string | null;
+    }) =>
+      // Explicit null returns the binding to the default environment - the
+      // server reads the distinction off the request, so only this field goes.
+      apiClient.patch<Exposure>(`${base}/${exposureId}`, { environment_id: environmentId }),
+    onSuccess: invalidate,
     onError: (error) => toast.error(getErrorMessage(error)),
   });
 
@@ -108,7 +107,7 @@ export function useExposures(agentId: string | null) {
     ),
     expose,
     setActive,
-    setBudget,
+    setEnvironment,
     revoke,
   };
 }

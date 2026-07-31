@@ -1,30 +1,30 @@
 """MCP server connections - a person's own, and an organization's.
 
-Each row is one remote MCP server, and ``scope`` says who it belongs to.
-A ``"user"`` row is somebody's own (Settings → Your connections) and only
-their assistant uses it. An ``"org"`` row belongs to the organization and
+Each row is one remote MCP server, and `scope` says who it belongs to.
+A `"user"` row is somebody's own (Settings → Your connections) and only
+their assistant uses it. An `"org"` row belongs to the organization and
 is what an agent spec may bind, because a published agent's reach cannot
 depend on whose session happens to run it.
 
-``auth_token`` must be recoverable to send as a Bearer header on every
+`auth_token` must be recoverable to send as a Bearer header on every
 request, so hashing is not an option, but a DB dump alone must not leak
 it. Both scopes seal it through :mod:`app.core.vault`; what differs is
-who the envelope is bound to - the organization for an ``"org"`` row, the
-owning member for a ``"user"`` one, which has no organization to bind to
-and whose owner may belong to several. ``secret_key_version`` records
+who the envelope is bound to - the organization for an `"org"` row, the
+owning member for a `"user"` one, which has no organization to bind to
+and whose owner may belong to several. `secret_key_version` records
 which vault master key sealed this row's secrets; one version governs
 every envelope in the row.
 
-``allowed_tools`` is NULL when the user exposes every tool the server
+`allowed_tools` is NULL when the user exposes every tool the server
 offers; otherwise it's the list of unprefixed tool names they picked.
 
-``auth_type`` is ``"bearer"`` (a static token in ``auth_token``) or
-``"oauth"`` (the OAuth 2.1 authorization-code flow, RFC 9728 / 8414 /
+`auth_type` is `"bearer"` (a static token in `auth_token`) or
+`"oauth"` (the OAuth 2.1 authorization-code flow, RFC 9728 / 8414 /
 7591 + PKCE). For OAuth connections the discovered endpoints, registered
 client credentials and access/refresh tokens live vault-sealed in
-``oauth_payload`` (a JSON blob). An authorization redirect that is still
-in flight is staged separately in ``oauth_pending_payload`` (keyed by the
-CSRF token in ``oauth_state``) and only replaces ``oauth_payload`` once
+`oauth_payload` (a JSON blob). An authorization redirect that is still
+in flight is staged separately in `oauth_pending_payload` (keyed by the
+CSRF token in `oauth_state`) and only replaces `oauth_payload` once
 the callback brings back real tokens.
 """
 
@@ -78,9 +78,9 @@ class McpConnection(Base, TimestampMixin):
             name="ck_mcp_connection_org_scope_has_org",
         ),
         # The pair below is what keeps the personal routes off an organization
-        # row. They authorize on ``user_id`` alone, so an organization row that
+        # row. They authorize on `user_id` alone, so an organization row that
         # carried one would be editable and deletable by whoever created it,
-        # with no ``connections:manage`` anywhere in the request.
+        # with no `connections:manage` anywhere in the request.
         CheckConstraint(
             "scope <> 'user' OR user_id IS NOT NULL",
             name="ck_mcp_connection_user_scope_has_user",
@@ -103,7 +103,7 @@ class McpConnection(Base, TimestampMixin):
     )
     # Who added an organization connection. Recorded for the audit trail, never
     # for authorization - an organization connection must outlive the person who
-    # set it up, so this nulls where ``user_id`` cascades.
+    # set it up, so this nulls where `user_id` cascades.
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),

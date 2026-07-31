@@ -3,7 +3,9 @@ export interface User {
   email: string;
   full_name?: string | null;
   is_active: boolean;
-  role?: string;
+  /** Platform-superadmin flag - the gate for the /admin surface. Optional
+   *  because a persisted store may predate it; absent means not an admin. */
+  is_app_admin?: boolean;
   created_at: string;
   avatar_url?: string | null;
   /** ISO timestamp when the user finished the onboarding wizard. `null` means

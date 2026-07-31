@@ -23,6 +23,7 @@ import click
 from app.commands import command, error, info, success, warning
 from app.db.session import get_db_context
 from app.schemas.sync_source import SyncSourceCreate
+from app.services.embedding_resolution import embeddings_for_collection
 from app.services.rag.config import DocumentExtensions, RAGSettings
 from app.services.rag.documents import DocumentProcessor
 from app.services.rag.embeddings import EmbeddingService
@@ -53,7 +54,9 @@ def get_rag_services() -> tuple[
     """
     settings = RAGSettings()
     embedder = EmbeddingService(settings=settings)
-    vector_store = PgVectorStore(settings=settings, embedding_service=embedder)
+    vector_store = PgVectorStore(
+        settings=settings, embedding_service=embedder, resolver=embeddings_for_collection
+    )
     processor = DocumentProcessor(settings=settings)
     retrieval = RetrievalService(vector_store=vector_store, settings=settings)
     ingestion = IngestionService(processor=processor, vector_store=vector_store)

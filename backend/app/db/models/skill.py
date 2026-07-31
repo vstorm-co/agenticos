@@ -111,7 +111,7 @@ class SkillResource(Base, TimestampMixin):
 
     @property
     def size_bytes(self) -> int:
-        """What a listing reports instead of the body - see ``SkillResourceSummary``."""
+        """What a listing reports instead of the body - see `SkillResourceSummary`."""
         return len(self.content.encode("utf-8"))
 
     __table_args__ = (UniqueConstraint("skill_id", "name", name="uq_skill_resource_name"),)

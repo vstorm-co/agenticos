@@ -100,7 +100,7 @@ export interface SecretUsage {
 export interface SecretPurpose {
   id: string;
   label: string;
-  category: "model_provider" | "search" | "other";
+  category: "model_provider" | "search" | "observability" | "other";
   /** The shape of credential this service takes - the form follows from it. */
   kind: StorableSecretKind;
   help_url: string | null;

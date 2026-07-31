@@ -1,6 +1,6 @@
 """Data access for MCP server connections (PostgreSQL async).
 
-Two owners share one table, so nearly every query here filters on ``scope`` as
+Two owners share one table, so nearly every query here filters on `scope` as
 well as on the id that identifies the owner. The filter is not belt-and-braces:
 a personal query that matched an organization row would hand a member a shared
 credential to edit, and an organization query that matched a personal one would
@@ -25,12 +25,12 @@ async def get_by_id(db: AsyncSession, connection_id: UUID) -> McpConnection | No
 
 
 async def get_by_id_for_update(db: AsyncSession, connection_id: UUID) -> McpConnection | None:
-    """Fetch a connection and lock the row (``SELECT ... FOR UPDATE``).
+    """Fetch a connection and lock the row (`SELECT ... FOR UPDATE`).
 
     Used before spending an OAuth refresh token, so two concurrent chat turns
-    can't both redeem it. ``lazyload`` drops the model's eager join on ``users``
-    (PostgreSQL refuses ``FOR UPDATE`` on the nullable side of an outer join),
-    and ``populate_existing`` re-reads the columns so the caller sees what the
+    can't both redeem it. `lazyload` drops the model's eager join on `users`
+    (PostgreSQL refuses `FOR UPDATE` on the nullable side of an outer join),
+    and `populate_existing` re-reads the columns so the caller sees what the
     other transaction committed rather than the stale identity-map copy.
     """
     result = await db.execute(
@@ -48,8 +48,8 @@ async def get_org_scoped_by_id(
 ) -> McpConnection | None:
     """One organization-scoped connection, looked up inside one organization.
 
-    Both filters carry weight. ``organization_id`` stops an agent spec from
-    another tenant reaching this row, and ``scope`` stops a member's personal
+    Both filters carry weight. `organization_id` stops an agent spec from
+    another tenant reaching this row, and `scope` stops a member's personal
     connection being bound to a published agent even though it belongs to the
     same organization - a shared agent must not run on somebody's private token.
     """
@@ -208,8 +208,8 @@ async def create_org_scoped(
     """Store a connection the organization owns.
 
     Separate from :func:`create` rather than a flag on it, because the two
-    differ in the fields that matter: no ``user_id`` (the check constraint
-    refuses one), a ``created_by_user_id`` that records rather than authorizes,
+    differ in the fields that matter: no `user_id` (the check constraint
+    refuses one), a `created_by_user_id` that records rather than authorizes,
     and a catalog key. A single function taking both shapes would make the wrong
     combination expressible.
     """

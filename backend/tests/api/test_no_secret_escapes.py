@@ -2,11 +2,11 @@
 
 A secret escapes through the schema somebody added last, which is exactly the
 route no hand-written test names. So this sweeps the generated OpenAPI document
-instead: every response schema of every route, with ``$ref`` chains resolved,
+instead: every response schema of every route, with `$ref` chains resolved,
 checked against the shapes and the field names a plaintext could travel in.
 
 Two checks, because they fail differently. The *model* check catches a
-``SecretRead`` that grew a ``value`` field by echoing back what it was sent -
+`SecretRead` that grew a `value` field by echoing back what it was sent -
 the payload models are reachable from request bodies on purpose and from
 responses never. The *field* check catches a new schema that spells a secret out
 by hand without going through those models at all.
@@ -90,6 +90,17 @@ _PATTERN_ALLOWED: dict[str, str] = {
     # rather than kept "just in case". That round trip is what the rule is for.
     "invitation_token": "the inviter's own copy of the link, returned once at creation",
     "secret_id": "a reference to a stored secret, not the secret",
+    "llamaparse_secret_id": (
+        "a collection's pointer at the vault key its parses are billed to - an id, never the key"
+    ),
+    "logfire_token_secret_id": (
+        "an environment's pointer at a vault-held write token - the id names "
+        "which key, never the key"
+    ),
+    "embedding_secret_id": (
+        "the same again: which vault key a collection embeds on - the id of a "
+        "reference the organization can revoke, never the key itself"
+    ),
     "token_secret_id": (
         "the same, named for what it points at: an agent's Logfire write token "
         "lives in the vault and the spec carries only its id, because a spec is "

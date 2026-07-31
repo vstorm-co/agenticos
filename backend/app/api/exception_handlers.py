@@ -1,7 +1,7 @@
 """Exception handlers for FastAPI application.
 
 These handlers convert domain exceptions to proper HTTP responses.
-WebSocket connections that raise an ``AppException`` before ``accept()`` are
+WebSocket connections that raise an `AppException` before `accept()` are
 handled too - Starlette closes the socket with 403 and we just log the
 incident; we cannot return an HTTP body for a non-HTTP scope.
 
@@ -10,7 +10,7 @@ Everything a client can be refused with leaves here in one shape::
     {"error": {"code": ..., "message": ..., "details": ...}}
 
 including schema validation, which FastAPI would otherwise answer in its own
-``{"detail": [...]}`` format. Two shapes on the wire means every caller either
+`{"detail": [...]}` format. Two shapes on the wire means every caller either
 handles both or silently mishandles one, and the one it mishandles is the one
 that carries the field names a form needs.
 """
@@ -24,19 +24,20 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.requests import HTTPConnection
 
+from app.agents.capabilities.budget import BudgetExceeded
 from app.core.exceptions import AppException, ValidationError
 
 logger = logging.getLogger(__name__)
 
 # Where a validation error came from, as Pydantic reports it in the first
-# element of ``loc``. Nothing a form can act on, so it is dropped from the path.
+# element of `loc`. Nothing a form can act on, so it is dropped from the path.
 _LOCATIONS = frozenset({"body", "query", "path", "header", "cookie"})
 
 
 def _connection_meta(conn: HTTPConnection) -> dict[str, Any]:
     """Common log fields shared by HTTP requests and WebSocket connections.
 
-    ``method`` exists only on HTTP ``Request`` - for WebSockets we surface the
+    `method` exists only on HTTP `Request` - for WebSockets we surface the
     scope type so log filters can still distinguish the two.
     """
     return {
@@ -53,7 +54,7 @@ async def app_exception_handler(request: HTTPConnection, exc: AppException) -> J
     """Handle application exceptions for both HTTP and WebSocket scopes.
 
     Logs 5xx errors as errors and 4xx as warnings. Returns a JSON response
-    for HTTP scopes; returns ``None`` for WebSocket scopes (Starlette will
+    for HTTP scopes; returns `None` for WebSocket scopes (Starlette will
     close the socket on its own).
     """
     log_extra = {
@@ -92,8 +93,8 @@ def _field_path(location: Sequence[str | int]) -> str:
     """The dotted path of the field a validation error is about.
 
     Pydantic reports where the value came from as well as where it sits -
-    ``("body", "spec", "name")``. A form can do nothing with "body", so it is
-    dropped and the rest joined: ``spec.name``. List indices stay in the path,
+    `("body", "spec", "name")`. A form can do nothing with "body", so it is
+    dropped and the rest joined: `spec.name`. List indices stay in the path,
     because "the third capability" is exactly what the reader needs to know.
     """
     parts = list(location)
@@ -131,6 +132,38 @@ async def validation_exception_handler(
     )
 
 
+async def budget_exceeded_handler(
+    request: HTTPConnection, exc: BudgetExceeded
+) -> JSONResponse | None:
+    """A budget refusal is the platform working, not the platform broken.
+
+    `BudgetExceeded` is not an `AppException` - it is raised inside agent runs,
+    where each surface records it as the run's outcome. But a request refused
+    *before* any work started - a document upload against a spent monthly cap -
+    lets it reach HTTP, and answering 500 would tell the operator something
+    crashed when the correct reading is "raise the limit or wait for the first
+    of the month".
+    """
+    if _is_websocket(request):
+        logger.warning("BUDGET_EXCEEDED: %s", exc, extra=_connection_meta(request))
+        return None
+
+    return JSONResponse(
+        status_code=402,
+        content={
+            "error": {
+                "code": "BUDGET_EXCEEDED",
+                "message": str(exc),
+                "details": {
+                    "scope": exc.scope,
+                    "limit_usd": str(exc.limit_usd),
+                    "spent_usd": str(exc.spent_usd),
+                },
+            }
+        },
+    )
+
+
 async def unhandled_exception_handler(
     request: HTTPConnection, exc: Exception
 ) -> JSONResponse | None:
@@ -164,5 +197,6 @@ def register_exception_handlers(app: FastAPI) -> None:
     # Handler returns None for WebSocket connections (no JSONResponse there),
     # which Starlette's HTTP-handler type doesn't model.
     app.add_exception_handler(AppException, app_exception_handler)  # ty: ignore[invalid-argument-type]
+    app.add_exception_handler(BudgetExceeded, budget_exceeded_handler)  # ty: ignore[invalid-argument-type]
     app.add_exception_handler(RequestValidationError, validation_exception_handler)  # ty: ignore[invalid-argument-type]
     app.add_exception_handler(Exception, unhandled_exception_handler)  # ty: ignore[invalid-argument-type]

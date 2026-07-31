@@ -3,34 +3,34 @@
 Routes are HTTP plumbing only. Business logic, file I/O and task dispatch all
 live in their respective services. Domain exceptions raised by services are
 mapped to HTTP responses by the global exception handlers in
-``app.api.exception_handlers``; routes do not catch and re-wrap them.
+`app.api.exception_handlers`; routes do not catch and re-wrap them.
 
 Two things every route here does before it touches anything:
 
-*The gate.* Reading requires ``collections:view``, writing ``collections:edit``
-- the same permissions ``/kb`` is gated on, because it is the same resource at a
+*The gate.* Reading requires `collections:view`, writing `collections:edit`
+- the same permissions `/kb` is gated on, because it is the same resource at a
 different address. These routes used to require the *platform admin* role, which
 looked strict and was not: it kept ordinary members out of RAG entirely while
 letting any platform admin read every tenant's collections, because the role says
 nothing about which organization is being asked about.
 
 *The resolution.* A collection name in a URL is a string; the
-``knowledge_bases`` row behind it is the thing that has an owner. Every route
+`knowledge_bases` row behind it is the thing that has an owner. Every route
 resolves the name through :class:`app.services.collection_access.CollectionAccessService`
 and works with what came back, so a name belonging to another organization is
 indistinguishable from one that was never created.
 
-``GET /supported-formats`` and ``GET /sync/connectors`` are the exceptions, and
+`GET /supported-formats` and `GET /sync/connectors` are the exceptions, and
 deliberately: they describe how this deployment is configured - which parsers and
 connectors exist - and have no tenant dimension to scope to.
 
-There used to be a third, ``GET /status/stream``: an SSE feed of every ingestion
+There used to be a third, `GET /status/stream`: an SSE feed of every ingestion
 event in the deployment, with no authentication and no organization in its
 payload. It is gone rather than fixed, and anything replacing it needs all three
 of the pieces it never had - a tenant on each event (published by
-``app.worker.tasks.rag_tasks``, which does not put one there), an authentication
-scheme a browser ``EventSource`` can actually use, since it cannot send an
-``Authorization`` header, and a subscription filtered by that tenant. The /kb
+`app.worker.tasks.rag_tasks`, which does not put one there), an authentication
+scheme a browser `EventSource` can actually use, since it cannot send an
+`Authorization` header, and a subscription filtered by that tenant. The /kb
 page already reports ingestion status by polling the org-scoped document
 listing, which is why the stream was not worth rebuilding.
 """
@@ -44,7 +44,7 @@ from fastapi.responses import FileResponse
 from app.api.deps import (
     Auth,
     CollectionAccessSvc,
-    CurrentAdmin,
+    CurrentAppAdmin,
     IngestionSvc,
     KnowledgeBaseSvc,
     RAGDocumentSvc,
@@ -54,9 +54,11 @@ from app.api.deps import (
     VectorStoreSvc,
     require,
 )
+from app.core.config import settings
 from app.core.exceptions import NotFoundError
 from app.core.permissions import Perm
 from app.schemas.rag import (
+    EmbeddingModelsResponse,
     RAGCollectionInfo,
     RAGCollectionList,
     RAGDocumentList,
@@ -81,9 +83,26 @@ from app.schemas.sync_source import (
     SyncSourceUpdate,
 )
 from app.services.ingestion_config import PdfParserName, parse_override
-from app.services.rag.config import get_supported_formats
+from app.services.rag.config import EMBEDDING_DIMENSIONS, get_supported_formats
 
 router = APIRouter()
+
+
+@router.get("/embedding-models", response_model=EmbeddingModelsResponse)
+async def list_embedding_models() -> Any:
+    """The embedding models this build can index with, and their widths.
+
+    Deployment description, like `/supported-formats`: the list feeds the
+    create-collection form, and hardcoding it in the client is how the form
+    and the build drift apart. The default is named so the form can preselect
+    what an untouched deployment would use.
+    """
+    return {
+        "default": settings.EMBEDDING_MODEL,
+        "models": [
+            {"model": model, "dim": dim} for model, dim in sorted(EMBEDDING_DIMENSIONS.items())
+        ],
+    }
 
 
 @router.get("/supported-formats", response_model=SupportedFormatsResponse)
@@ -96,8 +115,8 @@ async def get_supported_formats_endpoint(
     """Return the file formats a parser reads.
 
     Which formats an upload form may offer follows the *collection's*
-    ``ingestion_config.pdf_parser``, so the caller names the parser. This used
-    to answer for a single installation-wide ``PDF_PARSER``, which meant a
+    `ingestion_config.pdf_parser`, so the caller names the parser. This used
+    to answer for a single installation-wide `PDF_PARSER`, which meant a
     collection set to LlamaParse advertised only what PyMuPDF reads.
     """
     return {"parser": parser.value, "formats": sorted(get_supported_formats(parser.value))}
@@ -226,7 +245,7 @@ async def search_documents(
 
     Every collection named is resolved before the first vector is read, and one
     the caller cannot reach refuses the whole search rather than being dropped
-    from it - see ``CollectionAccessService.readable_all``.
+    from it - see `CollectionAccessService.readable_all`.
     """
     names = request.collection_names or [request.collection_name]
     collections = [kb.collection_name for kb in await access.readable_all(ctx, names)]
@@ -300,8 +319,8 @@ async def ingest_file(
     """Upload and queue a file for ingestion into a collection.
 
     The collection row resolved above is what says how the file is read; the
-    ``ingestion`` field departs from that for this one document and is recorded
-    on it. No further permission is required for the override - ``collections:edit``
+    `ingestion` field departs from that for this one document and is recorded
+    on it. No further permission is required for the override - `collections:edit`
     on this collection already allows changing its configuration outright.
     """
     collection = await access.writable(ctx, name)
@@ -331,7 +350,7 @@ async def list_rag_documents(
 ) -> Any:
     """List tracked RAG documents.
 
-    Without ``collection_name`` this answers with the caller's collections -
+    Without `collection_name` this answers with the caller's collections -
     not, as it once did, with every document in the deployment.
     """
     collections = await access.readable_names_for(ctx, collection_name)
@@ -421,13 +440,13 @@ async def trigger_local_sync(
     rag_sync_svc: RAGSyncSvc,
     access: CollectionAccessSvc,
     ctx: Auth,
-    _: CurrentAdmin,
+    _: CurrentAppAdmin,
 ) -> Any:
     """Trigger a local directory sync via background task.
 
-    The one route here that keeps the platform-admin role, because ``path``
+    The one route here that keeps the platform-admin role, because `path`
     names a directory on the server rather than anything a tenant owns: opening
-    it to ``collections:edit`` would hand every member a read of arbitrary
+    it to `collections:edit` would hand every member a read of arbitrary
     server files, ingested into a collection they can then search. It is a
     deployment-operations endpoint that happens to live under /rag, and it is
     still resolved against the caller's organization.
@@ -474,7 +493,7 @@ async def list_sync_sources(
 ) -> Any:
     """List sync sources for the active organization.
 
-    Pass ``collection_name`` to see only sources assigned to a specific KB.
+    Pass `collection_name` to see only sources assigned to a specific KB.
     Omit it to list all org-level integrations (assigned and unassigned).
     """
     return await sync_source_svc.list_sources(
@@ -497,7 +516,7 @@ async def create_sync_source(
 ) -> Any:
     """Create a new sync source configuration.
 
-    Omit ``collection_name`` to create an org-level integration template
+    Omit `collection_name` to create an org-level integration template
     that can later be cloned into one or more knowledge bases. Naming a
     collection the caller cannot write is refused: a sync writes *into* the
     collection, so pointing one at another tenant's is an injection, not a read.

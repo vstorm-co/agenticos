@@ -30,7 +30,7 @@ from app.services.skills import SkillService
 @click.option("--org", "org_id", help="Organization id. Defaults to every organization.")
 @click.option("--dry-run", is_flag=True, help="Say what would be installed and stop")
 def seed_skills(org_id: str | None, dry_run: bool) -> None:
-    """Copy every skill in ``app/skill_library`` into an organization."""
+    """Copy every skill in `app/core/catalog/skills` into an organization."""
     asyncio.run(_run(org_id, dry_run))
 
 
@@ -46,7 +46,7 @@ async def _owner_of(db: AsyncSession, organization_id: UUID) -> UUID | None:
 async def _run(org_id: str | None, dry_run: bool) -> None:
     bundled = skill_library.library()
     if not bundled:
-        warning("No bundled skills found - is app/skill_library missing?")
+        warning("No bundled skills found - is app/core/catalog/skills missing?")
         return
 
     info(f"{len(bundled)} bundled skill(s): {', '.join(skill.key for skill in bundled)}")

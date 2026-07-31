@@ -31,6 +31,7 @@ from app.agents.capabilities import build as build_capabilities
 from app.agents.capabilities.approval import ApprovalGate, approval_required_tools
 from app.agents.capabilities.budget import (
     BudgetGuard,
+    BudgetScope,
     PeriodSpendLookup,
     SpendLedger,
     SpendLimit,
@@ -103,7 +104,6 @@ def build_agent(
     agent_period_spend: PeriodSpendLookup | None = None,
     org_period_spend: PeriodSpendLookup | None = None,
     org_monthly_budget_usd: Decimal | None = None,
-    extra_limits: list[SpendLimit] | None = None,
     request_approval: ApprovalCallback | None = None,
 ) -> BuiltAgent:
     """Instantiate an agent from its spec.
@@ -111,14 +111,14 @@ def build_agent(
     Args:
         spec: The published (or draft, when previewing) agent definition.
         model_spec: Already-resolved model and credentials.
-        granted_scopes: Scopes the organization allows. Passing ``None`` skips
+        granted_scopes: Scopes the organization allows. Passing `None` skips
             the check and is for internal runs only.
         resources: Values resolved from the database for this run - collection
             names, skills - which capabilities need but must never fetch
             themselves.
         secrets: The unsealed secrets this spec's bindings reference, keyed by
             id. They reach the capability instance and stop there: nothing here
-            puts one in ``AgentDeps``, in a tool argument or in the model's
+            puts one in `AgentDeps`, in a tool argument or in the model's
             context, and a spec carries only the id.
         extra_toolsets: Toolsets resolved outside the registry, such as MCP
             servers configured per organization.
@@ -131,11 +131,6 @@ def build_agent(
             its neighbours' spending.
         org_monthly_budget_usd: The organization-wide cap, which applies on top
             of whatever the agent's own spec asks for.
-        extra_limits: Further caps this run is under, each metering its own
-            spend - the exposure that admitted it, for instance. Whichever binds
-            first stops the run, and the refusal names it. This is where a new
-            kind of cap belongs; see :class:`SpendLimit` for why they cannot be
-            folded into one number.
         request_approval: How to put a gated tool call to a human. Omitted on a
             surface that cannot ask anyone, where the gate refuses instead.
 
@@ -179,7 +174,6 @@ def build_agent(
             agent_period_spend=agent_period_spend,
             org_period_spend=org_period_spend,
             org_monthly_budget_usd=org_monthly_budget_usd,
-            extra_limits=extra_limits or [],
         ),
     )
 
@@ -213,7 +207,7 @@ def build_agent(
         model=model_spec.build(),
         model_settings=model_settings,
         system_prompt=spec.instructions or "",
-        # ``str`` first so the model answers in text; ``DeferredToolRequests``
+        # `str` first so the model answers in text; `DeferredToolRequests`
         # is not a shape the model can choose, it is what the run ends with when
         # the approval gate parks a call.
         output_type=[str, DeferredToolRequests],
@@ -239,8 +233,8 @@ def _as_decimal(value: float) -> Decimal:
     """Convert a spec's float budget to Decimal for exact accumulation.
 
     Money accumulated as float drifts; the spec uses float because JSON has no
-    decimal type, and this is the boundary where that ends. Via ``str`` rather
-    than ``Decimal(value)``, which would carry the binary approximation across
+    decimal type, and this is the boundary where that ends. Via `str` rather
+    than `Decimal(value)`, which would carry the binary approximation across
     intact - 0.1 becoming 0.1000000000000000055511151231257827.
     """
     return Decimal(str(value))
@@ -252,16 +246,15 @@ def _spend_limits(
     agent_period_spend: PeriodSpendLookup | None,
     org_period_spend: PeriodSpendLookup | None,
     org_monthly_budget_usd: Decimal | None,
-    extra_limits: list[SpendLimit],
 ) -> list[SpendLimit]:
     """Every ceiling this run is under, narrowest first.
 
     The agent's monthly cap and the organization's are two entries rather than
-    ``min()`` of the two, because they meter different spend: one agent's month
+    `min()` of the two, because they meter different spend: one agent's month
     and the whole organization's. Taking the tighter of two numbers only says
     something when both count the same thing, and the previous version of this
     function did it against a single organization-wide total - which turned
-    ``AgentSpec.budget.monthly_usd`` into "stop this agent once *anyone* has
+    `AgentSpec.budget.monthly_usd` into "stop this agent once *anyone* has
     spent X" and refused an agent that had spent nothing all month.
 
     Keeping them separate loses nothing the collapse provided. An agent still
@@ -273,39 +266,30 @@ def _spend_limits(
     the refusal names the cap that actually bound instead of inferring it from
     which of two numbers was smaller.
 
-    Order is narrowest first so a run under several exhausted ceilings reports
+    Order is narrowest first so a run under both exhausted ceilings reports
     the one nearest the person reading it. The organization's is deliberately
-    last of the three the spec and the tenant imply: it is the one an agent's
-    author cannot raise, and hearing about it first would send them to somebody
-    else for a limit they could have fixed themselves.
+    last: it is the one an agent's author cannot raise, and hearing about it
+    first would send them to somebody else for a limit they could have fixed
+    themselves.
     """
     limits: list[SpendLimit] = []
-    if spec.budget is not None:
-        if spec.budget.max_per_run_usd is not None:
-            # No lookup: a per-run cap *is* the ledger this guard writes, so it is
-            # exact and costs no round trip. That is a property this limit has,
-            # not a reason for it to be a different kind of thing - the exposure's
-            # per-run cap has always been expressed this way.
-            limits.append(
-                SpendLimit(scope="Run", limit_usd=_as_decimal(spec.budget.max_per_run_usd))
+    if spec.budget is not None and spec.budget.monthly_usd is not None:
+        limits.append(
+            SpendLimit(
+                scope=BudgetScope.AGENT,
+                limit_usd=_as_decimal(spec.budget.monthly_usd),
+                period_spend=agent_period_spend,
             )
-        if spec.budget.monthly_usd is not None:
-            limits.append(
-                SpendLimit(
-                    scope="Agent monthly",
-                    limit_usd=_as_decimal(spec.budget.monthly_usd),
-                    period_spend=agent_period_spend,
-                )
-            )
+        )
     if org_monthly_budget_usd is not None:
         limits.append(
             SpendLimit(
-                scope="Organization monthly",
+                scope=BudgetScope.ORGANIZATION,
                 limit_usd=org_monthly_budget_usd,
                 period_spend=org_period_spend,
             )
         )
-    return [*limits, *extra_limits]
+    return limits
 
 
 def _instrument(

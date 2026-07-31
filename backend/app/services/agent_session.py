@@ -2,7 +2,6 @@
 import asyncio
 import contextlib
 import logging
-from collections.abc import Awaitable, Callable
 from typing import Any
 from uuid import UUID
 
@@ -24,7 +23,6 @@ from pydantic_ai.messages import (
     ThinkingPartDelta,
 )
 
-from app.agents.assistant import Deps, get_agent
 from app.agents.capabilities.budget import BudgetExceeded
 from app.api.deps import get_conversation_service
 from app.core.exceptions import AppException, AuthorizationError
@@ -35,19 +33,23 @@ from app.services.agent import (
     build_message_history,
     persist_assistant_turn,
     persist_user_turn,
-    resolve_kb_collections,
     send_event,
 )
 from app.services.agent_chat import (
     ChatAgentRunner,
     display_output,
     requested_agent_id,
+    requested_environment_id,
     requested_model_profile_id,
 )
 from app.services.file_storage import get_file_storage
-from app.services.mcp_connection import build_toolsets_for_user
 
 logger = logging.getLogger(__name__)
+
+# Said to a frame that names no agent. There is nothing else a frame could run:
+# the general assistant the template shipped is gone, and guessing an agent on
+# the user's behalf would mean something they never picked answering them.
+_PICK_AN_AGENT = "Pick an agent to chat with. If none is listed, publish one in the Builder first."
 
 
 class AgentSession:
@@ -63,8 +65,6 @@ class AgentSession:
         self.user = user
         self.organization_id = organization.id
         self.conversation_history: list[dict[str, str]] = []
-        self.deps = Deps()
-        self.deps.ask_user = self._ask_user
         self.current_conversation_id: str | None = None
         self._turn_task: asyncio.Task[None] | None = None
         self._ask_user_future: asyncio.Future[list[dict[str, Any]]] | None = None
@@ -72,7 +72,7 @@ class AgentSession:
     async def handle_frame(self, data: dict[str, Any]) -> None:
         """Dispatch one incoming WebSocket frame.
 
-        A ``stop`` cancels the running turn; an ``ask_user_response`` unblocks a
+        A `stop` cancels the running turn; an `ask_user_response` unblocks a
         paused run; any other control frame is ignored; a bare message starts a
         new turn as a cancellable background task.
         """
@@ -111,7 +111,7 @@ class AgentSession:
                 logger.error("Agent turn task crashed", exc_info=exc)
 
     async def _run_turn(self, data: dict[str, Any]) -> None:
-        """Run one turn, emitting a terminal ``complete`` even when stopped."""
+        """Run one turn, emitting a terminal `complete` even when stopped."""
         try:
             await self.process_message(data)
         except asyncio.CancelledError:
@@ -146,6 +146,16 @@ class AgentSession:
         if not user_message and not file_ids:
             await send_event(self.websocket, "error", {"message": "Empty message"})
             return
+        # Refused before the user turn is persisted: a message nothing will
+        # answer does not belong in the transcript.
+        try:
+            agent_id = requested_agent_id(data)
+        except AppException as exc:
+            await send_event(self.websocket, "error", {"message": exc.message})
+            return
+        if agent_id is None:
+            await send_event(self.websocket, "error", {"message": _PICK_AN_AGENT})
+            return
         try:
             self.current_conversation_id, newly_created = await persist_user_turn(
                 self.user,
@@ -168,7 +178,6 @@ class AgentSession:
         await send_event(self.websocket, "user_prompt", {"content": user_message})
 
         try:
-            agent_id = requested_agent_id(data)
             model_history = build_message_history(self.conversation_history)
             user_input = await self._build_multimodal_input(user_message, file_ids)
 
@@ -180,47 +189,36 @@ class AgentSession:
                     agent_run, user_message, collected_tool_calls, collected_thinking
                 )
 
-            output: str | None
-            model_label: str | None
-            # The general assistant has no version to record; only a published
-            # agent runs a frozen spec.
-            agent_version_id: UUID | None = None
-            if agent_id is None:
-                output, model_label = await self._run_assistant(
-                    data, user_input, model_history, stream
+            # One session for the whole turn: the run row, the approvals it
+            # parks and the cost it books are a single unit of work, and
+            # `finish` writes back to the row `prepare` opened.
+            async with get_db_context() as db:
+                turn = await ChatAgentRunner(db).run(
+                    user=self.user,
+                    organization_id=self.organization_id,
+                    agent_id=agent_id,
+                    user_input=user_input,
+                    message_history=model_history,
+                    conversation_id=(
+                        UUID(self.current_conversation_id) if self.current_conversation_id else None
+                    ),
+                    ask_user=self._ask_user,
+                    stream=stream,
+                    # The chat may run a published agent on another of the
+                    # organization's models. Only the model changes; the run
+                    # records which one, and the budget is the agent's.
+                    model_profile_id=requested_model_profile_id(data),
+                    environment_id=requested_environment_id(data),
                 )
-            else:
-                # One session for the whole turn: the run row, the approvals it
-                # parks and the cost it books are a single unit of work, and
-                # ``finish`` writes back to the row ``prepare`` opened.
-                async with get_db_context() as db:
-                    turn = await ChatAgentRunner(db).run(
-                        user=self.user,
-                        organization_id=self.organization_id,
-                        agent_id=agent_id,
-                        user_input=user_input,
-                        message_history=model_history,
-                        conversation_id=(
-                            UUID(self.current_conversation_id)
-                            if self.current_conversation_id
-                            else None
-                        ),
-                        ask_user=self._ask_user,
-                        stream=stream,
-                        # The chat may run a published agent on another of the
-                        # organization's models. Only the model changes; the run
-                        # records which one, and the budget is the agent's.
-                        model_profile_id=requested_model_profile_id(data),
-                    )
-                output, model_label = turn.output, turn.model_label
-                agent_version_id = turn.agent_version_id
+            output = turn.output
+            model_label = turn.model_label
+            agent_version_id = turn.agent_version_id
 
             # Update in-memory history only after a complete agent run
-            if output is not None:
-                self.conversation_history.append({"role": "user", "content": user_message})
-                self.conversation_history.append({"role": "assistant", "content": output})
+            self.conversation_history.append({"role": "user", "content": user_message})
+            self.conversation_history.append({"role": "assistant", "content": output})
             assistant_msg_id: str | None = None
-            if self.current_conversation_id and output is not None:
+            if self.current_conversation_id:
                 assistant_msg_id = await persist_assistant_turn(
                     self.current_conversation_id,
                     output,
@@ -251,53 +249,19 @@ class AgentSession:
         except (AppException, BudgetExceeded) as exc:
             # A refusal - an agent that is unpublished, archived, or not theirs
             # to see - and a budget stop are the platform working, not a crash.
-            # The client is told plainly; the general assistant never answers in
-            # the named agent's place.
+            # The client is told plainly; nothing answers in the named agent's
+            # place.
             logger.info("Agent turn refused: %s", exc)
             await send_event(self.websocket, "error", {"message": str(exc)})
         except Exception as e:
             logger.exception("Error processing agent request")
             await send_event(self.websocket, "error", {"message": str(e)})
 
-    async def _run_assistant(
-        self,
-        data: dict[str, Any],
-        user_input: str | list[Any],
-        model_history: list[Any],
-        stream: Callable[[Any], Awaitable[None]],
-    ) -> tuple[str | None, str | None]:
-        """Run the general assistant - what a frame naming no agent has always got."""
-        # Rebuilt every turn so Settings → Integrations changes apply
-        # immediately; unreachable/unauthorized servers are skipped there.
-        mcp_toolsets = await build_toolsets_for_user(self.user.id)
-        assistant = get_agent(
-            model_name=data.get("model"),
-            thinking_effort=data.get("thinking_effort"),
-            extra_toolsets=mcp_toolsets,
-        )
-        self.deps.kb_collection_names = await resolve_kb_collections(
-            self.current_conversation_id,
-            self.user.id,
-            override_kb_ids=(
-                [str(i) for i in (data.get("active_knowledge_base_ids") or [])]
-                if "active_knowledge_base_ids" in data
-                and isinstance(data.get("active_knowledge_base_ids"), list)
-                else None
-            ),
-            organization_id=str(self.organization_id),
-        )
-        async with assistant.agent.iter(
-            user_input, deps=self.deps, message_history=model_history
-        ) as agent_run:
-            await stream(agent_run)
-        output = None if agent_run.result is None else agent_run.result.output
-        return output, getattr(assistant, "model_name", None)
-
     async def _ask_user(self, questions: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Pause the run: ask the client questions and block until they answer.
 
-        Emits an ``ask_user`` event with the whole batch, then awaits a future the
-        frame dispatcher completes when the matching ``ask_user_response`` arrives.
+        Emits an `ask_user` event with the whole batch, then awaits a future the
+        frame dispatcher completes when the matching `ask_user_response` arrives.
         The client returns a list of answers parallel to the questions.
         """
         loop = asyncio.get_running_loop()

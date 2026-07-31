@@ -1,15 +1,15 @@
 """How a collection's documents are read, split and described.
 
-Every one of these choices used to be a deployment setting. ``PDF_PARSER`` named
-one parser for the whole installation, ``RAG_CHUNK_SIZE`` one chunk size, and
-``RAG_IMAGE_DESCRIPTION_MODEL`` one model - read from the environment, invisible
+Every one of these choices used to be a deployment setting. `PDF_PARSER` named
+one parser for the whole installation, `RAG_CHUNK_SIZE` one chunk size, and
+`RAG_IMAGE_DESCRIPTION_MODEL` one model - read from the environment, invisible
 in the product, and the same for a scanned archive of contracts as for a folder
 of Markdown notes. This module moves that decision onto the collection, where
 the person who owns the documents can see it and change it.
 
 Those variables are gone rather than kept as defaults. Leaving them would have
 meant two places to look and one of them unreachable from the product, so the
-field defaults below are the only defaults; what stays in ``Settings`` is the
+field defaults below are the only defaults; what stays in `Settings` is the
 deployment's half - where vectors live, and the credentials and network
 addresses a tenant must not choose (see :func:`rag_settings_for`).
 
@@ -18,8 +18,8 @@ Three things are worth stating before reading the models below.
 **The parser is per collection and may be overridden per upload; the embedding
 model is neither.** Changing which parser reads PDFs affects only documents
 ingested afterwards, so an override for one file is meaningful and harmless.
-The embedding model is not like that: ``PgVectorStore`` writes
-``embedding vector(N)`` into the collection's table at creation, with ``N``
+The embedding model is not like that: `PgVectorStore` writes
+`embedding vector(N)` into the collection's table at creation, with `N`
 derived from the model name, so a second model either produces vectors that
 cannot be written at all or vectors that sit next to the first model's and are
 compared against them as though they meant the same thing. It is therefore
@@ -30,19 +30,20 @@ recorded on the knowledge base at creation and enforced at ingest - see
 this platform picks a model by profile id and lets
 :class:`app.services.model_profile.ModelProfileService` unseal the credential
 for the organization that owns it. Image description was the last caller
-constructing ``Agent("some/model")`` and letting Pydantic AI find a key in the
+constructing `Agent("some/model")` and letting Pydantic AI find a key in the
 environment, which on a multi-tenant deployment bills one organization's
 ingestion to a platform-wide key.
 
 **Image description is off by default.** The deployment flag it replaces
-(``RAG_ENABLE_IMAGE_DESCRIPTION``) defaulted to on because it cost nothing to
-say so - the model came from ``AI_MODEL`` and the key from the environment.
+(`RAG_ENABLE_IMAGE_DESCRIPTION`) defaulted to on because it cost nothing to
+say so - the model came from `AI_MODEL` and the key from the environment.
 Turning it on now means choosing a model profile whose key the organization
 pays for, which is a decision somebody should make rather than inherit.
 """
 
 from __future__ import annotations
 
+import logging
 from enum import StrEnum
 from uuid import UUID
 
@@ -52,6 +53,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.exceptions import BadRequestError
+from app.core.secret_kinds import ApiKeySecret, SecretKind, unseal_secret
+from app.core.vault import VaultScope
+from app.repositories import organization_secret_repo
 from app.services.model_profile import ModelProfileService
 from app.services.rag.config import (
     EMBEDDING_DIMENSIONS,
@@ -85,9 +89,9 @@ __all__ = [
 class PdfParserName(StrEnum):
     """Which of the three implemented parsers reads a PDF.
 
-    ``pymupdf`` is local, fast and free, and the only one that extracts embedded
-    images for description. ``llamaparse`` is a cloud service billed per page
-    that returns markdown. ``liteparse`` is local and layout-aware, keeping
+    `pymupdf` is local, fast and free, and the only one that extracts embedded
+    images for description. `llamaparse` is a cloud service billed per page
+    that returns markdown. `liteparse` is local and layout-aware, keeping
     tables as ASCII grids rather than flattening them into markdown.
     """
 
@@ -108,7 +112,7 @@ class LlamaParseTier(StrEnum):
 class LiteParseOutputFormat(StrEnum):
     """What LiteParse renders a page as.
 
-    ``json`` is the binding's own default and carries bounding boxes we do not
+    `json` is the binding's own default and carries bounding boxes we do not
     index, so it is not offered: for RAG the choice is between reconstructed
     markdown and the spatial text grid.
     """
@@ -165,7 +169,7 @@ class ImageDescription(BaseModel):
         """The provider parameters this configuration asks for, and no others.
 
         Built by omission rather than by defaulting, for the reason
-        :class:`app.agents.spec.ModelSettingsSpec` gives: a ``temperature`` key
+        :class:`app.agents.spec.ModelSettingsSpec` gives: a `temperature` key
         with a value nobody chose is a request some models refuse outright.
         """
         chosen: ModelSettings = {}
@@ -177,7 +181,7 @@ class ImageDescription(BaseModel):
 
 
 class IngestionConfig(BaseModel):
-    """What a collection's owner chose. Stored on ``knowledge_bases``.
+    """What a collection's owner chose. Stored on `knowledge_bases`.
 
     The defaults are the values the template shipped as environment defaults, so
     a collection created without an opinion behaves as this platform always did
@@ -200,6 +204,13 @@ class IngestionConfig(BaseModel):
     llamaparse_tier: LlamaParseTier = Field(
         default=LlamaParseTier.AGENTIC,
         description="LlamaParse quality tier. Ignored by the other parsers.",
+    )
+    llamaparse_secret_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The organization vault key LlamaParse calls are billed to. Omit "
+            "for the deployment's key. Ignored by the other parsers."
+        ),
     )
     auto_ocr: bool = Field(
         default=True,
@@ -270,7 +281,7 @@ class IngestionConfig(BaseModel):
     def overlap_fits_inside_a_chunk(self) -> IngestionConfig:
         """An overlap at least as large as the chunk never terminates.
 
-        ``RecursiveCharacterTextSplitter`` warns and then produces chunks that
+        `RecursiveCharacterTextSplitter` warns and then produces chunks that
         each start where the previous one did, so a document either grows
         without bound or is silently cut wrong. Refusing the pair here means the
         form is what says so.
@@ -286,11 +297,11 @@ class IngestionConfig(BaseModel):
 class ImageDescriptionOverride(BaseModel):
     """The image-description fields for one upload; unset fields inherit.
 
-    ``None`` is a value here, not an absence: sending ``model_profile_id: null``
+    `None` is a value here, not an absence: sending `model_profile_id: null`
     asks for the organization's default profile even when the collection names a
-    specific one. Omitting the key inherits. Pydantic's ``model_fields_set`` is
+    specific one. Omitting the key inherits. Pydantic's `model_fields_set` is
     what tells the two apart, which is why the merge below uses
-    ``exclude_unset``.
+    `exclude_unset`.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -302,6 +313,9 @@ class ImageDescriptionOverride(BaseModel):
 
     def applied_to(self, base: ImageDescription) -> ImageDescription:
         return base.model_copy(update=self.model_dump(exclude_unset=True))
+
+
+logger = logging.getLogger(__name__)
 
 
 class IngestionOverride(BaseModel):
@@ -342,8 +356,8 @@ class IngestionOverride(BaseModel):
         """The configuration this upload actually runs with.
 
         Re-validated rather than copied, because the merged pair is what has to
-        be legal: a collection with ``chunk_size=512`` and an override setting
-        ``chunk_overlap=600`` is two individually valid numbers and one
+        be legal: a collection with `chunk_size=512` and an override setting
+        `chunk_overlap=600` is two individually valid numbers and one
         configuration that does not terminate.
         """
         changes = self.model_dump(exclude_unset=True, exclude={"image_description"})
@@ -355,7 +369,7 @@ class IngestionOverride(BaseModel):
 def parse_override(raw: str | None) -> IngestionOverride | None:
     """Read a per-upload override off a multipart form field.
 
-    An upload is ``multipart/form-data``, so its settings cannot travel as a
+    An upload is `multipart/form-data`, so its settings cannot travel as a
     JSON body next to the file. They travel as one field holding JSON rather
     than as a dozen flat fields, so the wire format is the same shape as the
     stored configuration and the nested image-description group survives.
@@ -394,11 +408,34 @@ def deployment_defaults() -> IngestionConfig:
     return IngestionConfig()
 
 
+def chosen_embedding(model: str | None) -> tuple[str, int]:
+    """The embedding model a new collection will index with, and its width.
+
+    `None` is the deployment default; a named model must be one this build
+    knows the width of, because the vector column is created at that number
+    and a wrong guess poisons the collection from its first insert.
+
+    Raises:
+        BadRequestError: If the named model has no known dimension.
+    """
+    if model is None:
+        return deployment_embedding()
+    if model not in EMBEDDING_DIMENSIONS:
+        raise BadRequestError(
+            message=(
+                f"'{model}' is not an embedding model this build knows. "
+                f"Choose one of: {', '.join(sorted(EMBEDDING_DIMENSIONS))}."
+            ),
+            details={"model": model, "known": sorted(EMBEDDING_DIMENSIONS)},
+        )
+    return model, EMBEDDING_DIMENSIONS[model]
+
+
 def deployment_embedding() -> tuple[str, int]:
     """The embedding model this deployment indexes with, and its dimension.
 
     Recorded on every collection at creation. The dimension travels with the
-    name because ``EMBEDDING_DIMENSIONS`` is a lookup table that can gain
+    name because `EMBEDDING_DIMENSIONS` is a lookup table that can gain
     entries: a collection built today must keep the number its table was
     actually created with, not the one a later release would derive.
 
@@ -421,14 +458,17 @@ def deployment_embedding() -> tuple[str, int]:
     return model, EMBEDDING_DIMENSIONS[model]
 
 
-def rag_settings_for(config: IngestionConfig) -> RAGSettings:
+def rag_settings_for(
+    config: IngestionConfig, *, llamaparse_api_key: str | None = None
+) -> RAGSettings:
     """Turn a collection's choices into the settings object the pipeline takes.
 
-    The two values deliberately *not* taken from the configuration are the
-    LlamaParse API key and the LiteParse OCR server URL. The first is a
-    deployment credential; the second is an address on the deployment's own
-    network, and letting a tenant choose one is the request forgery this
-    platform refuses everywhere else (:func:`app.core.sanitize.validate_webhook_url`).
+    `llamaparse_api_key` is the resolved credential when the configuration
+    names one of the organization's vault keys; absent, the deployment's key
+    applies. The LiteParse OCR server URL stays deliberately out of the
+    configuration: it is an address on the deployment's own network, and
+    letting a tenant choose one is the request forgery this platform refuses
+    everywhere else (:func:`app.core.sanitize.validate_webhook_url`).
     """
     return RAGSettings(
         chunk_size=config.chunk_size,
@@ -438,7 +478,7 @@ def rag_settings_for(config: IngestionConfig) -> RAGSettings:
         embeddings_config=EmbeddingsConfig(model=settings.EMBEDDING_MODEL),
         pdf_parser=PdfParser(
             method=config.pdf_parser.value,
-            api_key=settings.LLAMAPARSE_API_KEY,
+            api_key=llamaparse_api_key or settings.LLAMAPARSE_API_KEY,
             tier=config.llamaparse_tier.value,
             liteparse_ocr_server_url=settings.LITEPARSE_OCR_SERVER_URL or None,
             liteparse_ocr_language=config.ocr_language,
@@ -466,7 +506,7 @@ class IngestionConfigService:
     async def resolved_image_model(
         self, organization_id: UUID, config: IngestionConfig
     ) -> str | None:
-        """The ``provider:model`` image description will use, or ``None`` if off.
+        """The `provider:model` image description will use, or `None` if off.
 
         Called when a configuration is *set* rather than when it is used, which
         is this platform's habit: a model profile that does not resolve is a
@@ -488,32 +528,28 @@ class IngestionConfigService:
         return f"{spec.provider}:{spec.model}"
 
     def check_embedding_model(self, *, collection: str, built_with: str) -> None:
-        """Refuse to index into a collection with a model it was not built for.
+        """Refuse to index into a collection whose model this build cannot run.
 
-        The failure this prevents is silent and total. ``PgVectorStore`` reads
-        its dimension from the deployment's ``EMBEDDING_MODEL``: change that
-        variable and every existing collection either rejects inserts outright,
-        because the column is a different width, or - between two models that
-        happen to share a width - accepts vectors from a different space and
-        compares them against the old ones as though the numbers meant the same
-        thing. The second is worse, because search keeps answering.
+        The store embeds each collection with the model recorded on its row,
+        so a deployment changing `EMBEDDING_MODEL` no longer strands existing
+        collections - they keep embedding with what they were built with. What
+        still has to be refused is a model this build has *no width for*: the
+        vectors could not be produced at all, and the upload would otherwise be
+        accepted and die in a worker with nothing on screen.
 
         Raises:
-            BadRequestError: If the deployment's model is no longer the one this
-                collection's vectors were produced by.
+            BadRequestError: If the collection's recorded model has no known
+                dimension in this build.
         """
-        current = settings.EMBEDDING_MODEL
-        if current == built_with:
+        if built_with in EMBEDDING_DIMENSIONS:
             return
         raise BadRequestError(
             message=(
-                f"Collection '{collection}' was indexed with '{built_with}' and this "
-                f"deployment now embeds with '{current}'. Vectors from the two are not "
-                "comparable, so nothing more can be added to it: either restore "
-                f"EMBEDDING_MODEL to '{built_with}', or create a new collection and "
-                "re-ingest its documents."
+                f"Collection '{collection}' was indexed with '{built_with}', which this "
+                "build does not know how to embed with. Upgrade the deployment, or create "
+                "a new collection and re-ingest its documents."
             ),
-            details={"collection": collection, "built_with": built_with, "configured": current},
+            details={"collection": collection, "built_with": built_with},
         )
 
     async def build_describer(
@@ -557,6 +593,75 @@ class IngestionConfigService:
     ) -> DocumentProcessor:
         """The parser/chunker pair a document is about to be run through."""
         return DocumentProcessor(
-            settings=rag_settings_for(config),
+            settings=rag_settings_for(
+                config,
+                llamaparse_api_key=await self._llamaparse_key(organization_id, config),
+            ),
             image_describer=await self.build_describer(organization_id, config),
         )
+
+    async def check_llamaparse_secret(
+        self, organization_id: UUID | None, config: IngestionConfig
+    ) -> None:
+        """Refuse a key the organization does not hold, while the form is open.
+
+        The resolver deliberately degrades to the deployment key at parse time,
+        so this is the only moment a wrong choice is visible to the person who
+        made it.
+
+        Raises:
+            BadRequestError: If the named key is missing from the vault, or is
+                for something other than LlamaParse.
+        """
+        if config.llamaparse_secret_id is None:
+            return
+        if organization_id is None:
+            raise BadRequestError(
+                message="Only an organization collection can carry a vault key",
+                details={"llamaparse_secret_id": str(config.llamaparse_secret_id)},
+            )
+        row = await organization_secret_repo.get(
+            self.db, config.llamaparse_secret_id, organization_id=organization_id
+        )
+        if row is None:
+            raise BadRequestError(
+                message="That key is not in this organization's vault",
+                details={"llamaparse_secret_id": str(config.llamaparse_secret_id)},
+            )
+        if row.purpose != "llamaparse":
+            raise BadRequestError(
+                message=f"That key is for {row.purpose}, not LlamaParse",
+                details={"purpose": row.purpose},
+            )
+
+    async def _llamaparse_key(
+        self, organization_id: UUID | None, config: IngestionConfig
+    ) -> str | None:
+        """The organization's chosen LlamaParse key, or None for the deployment's.
+
+        Every failure path degrades to the deployment key with a log line, the
+        same bargain the embedding resolver makes: whose key *pays* for a parse
+        must never decide whether a document can be read.
+        """
+        if config.llamaparse_secret_id is None or organization_id is None:
+            return None
+        row = await organization_secret_repo.get(
+            self.db, config.llamaparse_secret_id, organization_id=organization_id
+        )
+        if row is None:
+            logger.warning("llamaparse_secret_missing", extra={"org": str(organization_id)})
+            return None
+        try:
+            secret = unseal_secret(
+                row.sealed_secret,
+                kind=SecretKind(row.kind),
+                scope=VaultScope.organization(organization_id),
+                key_version=row.key_version,
+            )
+        except Exception:
+            logger.warning("llamaparse_secret_unusable", extra={"org": str(organization_id)})
+            return None
+        if not isinstance(secret, ApiKeySecret):
+            logger.warning("llamaparse_secret_wrong_kind", extra={"org": str(organization_id)})
+            return None
+        return secret.api_key.get_secret_value()

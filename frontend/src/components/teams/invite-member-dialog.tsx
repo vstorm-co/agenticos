@@ -68,7 +68,7 @@ export function InviteMemberDialog({ open, onOpenChange, orgId }: InviteMemberDi
           <div className="space-y-1.5">
             <Label htmlFor="invite-role">Role</Label>
             <Select value={role} onValueChange={(v) => setRole(v as OrgRole)}>
-              <SelectTrigger id="invite-role">
+              <SelectTrigger id="invite-role" className="capitalize">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

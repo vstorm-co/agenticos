@@ -1,34 +1,81 @@
 """Tests for Knowledge Base scoping - personal / org / app access rules."""
 
 import uuid
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.api.routes.v1.knowledge_bases import _read_with_counts
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
-from app.db.models.resource_grant import GrantLevel
+from app.db.models.knowledge_base import KBScope, KnowledgeBase
+from app.db.models.resource_grant import GrantLevel, Visibility
+from app.repositories.rag_document import CollectionCounts
 from app.schemas.knowledge_base import KnowledgeBaseCreate
+from app.services.ingestion_config import deployment_defaults
 from app.services.knowledge_base import KnowledgeBaseService
 
 
-def _ctx(organization_id: uuid.UUID | None = None) -> AuthContext:
+def _ctx(
+    *,
+    organization_id: uuid.UUID | None = None,
+    user_id: uuid.UUID | None = None,
+    role: str = OrgRoleName.OWNER.value,
+    app_admin: bool = False,
+) -> AuthContext:
     return AuthContext(
-        user_id=uuid.uuid4(),
+        user_id=user_id or uuid.uuid4(),
         organization_id=organization_id or uuid.uuid4(),
-        role=OrgRoleName.OWNER.value,
+        role=role,
+        is_app_admin=app_admin,
     )
 
 
-def _kb(scope: str, owner_user_id=None, organization_id=None, is_default: bool = False):
+def _kb(
+    scope: str,
+    owner_user_id=None,
+    organization_id=None,
+    is_default: bool = False,
+    visibility: str = Visibility.PRIVATE.value,
+):
     kb = MagicMock()
     kb.id = uuid.uuid4()
     kb.scope = scope
     kb.owner_user_id = owner_user_id
     kb.organization_id = organization_id
     kb.is_default = is_default
-    kb.visibility = "private"
+    kb.visibility = visibility
     return kb
+
+
+def _readable_kb(collection_name: str) -> KnowledgeBase:
+    """A real ORM row, because this one goes through the response schema.
+
+    Deliberately not the `MagicMock` the scoping tests use. `KnowledgeBaseRead`
+    validates `from_attributes`, and a `MagicMock` answers *every* attribute -
+    including the three counts, which it hands over as mocks that Pydantic
+    coerces to `1`. The test then passes while asserting nothing, or fails while
+    the code is correct. A real row has no such attributes, so the schema
+    defaults are what get exercised.
+    """
+    return KnowledgeBase(
+        id=uuid.uuid4(),
+        name="Collection",
+        description=None,
+        scope=KBScope.ORG.value,
+        collection_name=collection_name,
+        is_default=False,
+        visibility=Visibility.ORG.value,
+        ingestion_config=deployment_defaults().model_dump(mode="json"),
+        embedding_model="text-embedding-3-small",
+        embedding_dim=1536,
+        embedding_secret_id=None,
+        organization_id=uuid.uuid4(),
+        owner_user_id=None,
+        created_at=datetime(2026, 7, 31, tzinfo=UTC),
+        updated_at=None,
+    )
 
 
 class TestKBAccessControl:
@@ -47,65 +94,90 @@ class TestKBAccessControl:
             "app.repositories.knowledge_base_repo.get_by_id", new=AsyncMock(return_value=kb)
         ):
             svc = KnowledgeBaseService(mock_db)
-            result = await svc.get(kb.id, user_id=user_id)
+            result = await svc.get(kb.id, ctx=_ctx(user_id=user_id))
             assert result is kb
 
     @pytest.mark.anyio
     async def test_personal_kb_hidden_from_other_user(self, mock_db):
-        owner = uuid.uuid4()
-        other = uuid.uuid4()
-        kb = _kb("personal", owner_user_id=owner)
+        kb = _kb("personal", owner_user_id=uuid.uuid4())
 
         with patch(
             "app.repositories.knowledge_base_repo.get_by_id", new=AsyncMock(return_value=kb)
         ):
             svc = KnowledgeBaseService(mock_db)
             with pytest.raises(NotFoundError):
-                await svc.get(kb.id, user_id=other)
+                await svc.get(kb.id, ctx=_ctx())
 
     @pytest.mark.anyio
-    async def test_org_kb_visible_to_member(self, mock_db):
+    async def test_org_kb_visible_to_a_role_that_sees_the_whole_org(self, mock_db):
         org_id = uuid.uuid4()
-        user_id = uuid.uuid4()
         kb = _kb("org", organization_id=org_id)
 
         with patch(
             "app.repositories.knowledge_base_repo.get_by_id", new=AsyncMock(return_value=kb)
         ):
             svc = KnowledgeBaseService(mock_db)
-            result = await svc.get(kb.id, user_id=user_id, organization_id=org_id)
+            result = await svc.get(kb.id, ctx=_ctx(organization_id=org_id))
+            assert result is kb
+
+    @pytest.mark.anyio
+    async def test_a_private_org_kb_is_hidden_from_a_member_who_does_not_own_it(self, mock_db):
+        """The audit finding: membership alone used to read every org collection."""
+        org_id = uuid.uuid4()
+        kb = _kb("org", organization_id=org_id, owner_user_id=uuid.uuid4())
+
+        with (
+            patch("app.repositories.knowledge_base_repo.get_by_id", new=AsyncMock(return_value=kb)),
+            patch(
+                "app.repositories.resource_grant_repo.get_level", new=AsyncMock(return_value=None)
+            ),
+        ):
+            svc = KnowledgeBaseService(mock_db)
+            with pytest.raises(NotFoundError):
+                await svc.get(kb.id, ctx=_ctx(organization_id=org_id, role="member"))
+
+    @pytest.mark.anyio
+    async def test_an_org_visible_kb_is_readable_by_a_member(self, mock_db):
+        org_id = uuid.uuid4()
+        kb = _kb(
+            "org",
+            organization_id=org_id,
+            owner_user_id=uuid.uuid4(),
+            visibility=Visibility.ORG.value,
+        )
+
+        with patch(
+            "app.repositories.knowledge_base_repo.get_by_id", new=AsyncMock(return_value=kb)
+        ):
+            svc = KnowledgeBaseService(mock_db)
+            result = await svc.get(kb.id, ctx=_ctx(organization_id=org_id, role="member"))
             assert result is kb
 
     @pytest.mark.anyio
     async def test_org_kb_hidden_from_other_org(self, mock_db):
-        org_a = uuid.uuid4()
-        org_b = uuid.uuid4()
-        user_id = uuid.uuid4()
-        kb = _kb("org", organization_id=org_a)
+        kb = _kb("org", organization_id=uuid.uuid4())
 
         with patch(
             "app.repositories.knowledge_base_repo.get_by_id", new=AsyncMock(return_value=kb)
         ):
             svc = KnowledgeBaseService(mock_db)
             with pytest.raises(NotFoundError):
-                await svc.get(kb.id, user_id=user_id, organization_id=org_b)
+                await svc.get(kb.id, ctx=_ctx())
 
     @pytest.mark.anyio
     async def test_app_kb_visible_to_anyone(self, mock_db):
-        user_id = uuid.uuid4()
         kb = _kb("app")
 
         with patch(
             "app.repositories.knowledge_base_repo.get_by_id", new=AsyncMock(return_value=kb)
         ):
             svc = KnowledgeBaseService(mock_db)
-            result = await svc.get(kb.id, user_id=user_id)
+            result = await svc.get(kb.id, ctx=_ctx(role="viewer"))
             assert result is kb
 
     @pytest.mark.anyio
     async def test_cannot_delete_default_kb(self, mock_db):
         org_id = uuid.uuid4()
-        user_id = uuid.uuid4()
         kb = _kb("org", organization_id=org_id, is_default=True)
 
         with patch(
@@ -113,7 +185,7 @@ class TestKBAccessControl:
         ):
             svc = KnowledgeBaseService(mock_db)
             with pytest.raises(BadRequestError):
-                await svc.delete(kb.id, user_id=user_id, organization_id=org_id)
+                await svc.delete(kb.id, ctx=_ctx(organization_id=org_id))
 
     @pytest.mark.anyio
     async def test_default_kb_in_another_org_is_reported_as_missing_not_undeletable(self, mock_db):
@@ -130,20 +202,18 @@ class TestKBAccessControl:
         ):
             svc = KnowledgeBaseService(mock_db)
             with pytest.raises(NotFoundError):
-                await svc.delete(kb.id, user_id=uuid.uuid4(), organization_id=uuid.uuid4())
+                await svc.delete(kb.id, ctx=_ctx())
 
     @pytest.mark.anyio
     async def test_non_app_admin_cannot_create_app_kb(self, mock_db):
-        user_id = uuid.uuid4()
         data = KnowledgeBaseCreate(name="Global KB", scope="app", collection_name="global")
 
         svc = KnowledgeBaseService(mock_db)
         with pytest.raises(AuthorizationError):
-            await svc.create(data, ctx=_ctx(), user_id=user_id, is_app_admin=False)
+            await svc.create(data, ctx=_ctx())
 
     @pytest.mark.anyio
     async def test_app_admin_can_create_app_kb(self, mock_db):
-        user_id = uuid.uuid4()
         data = KnowledgeBaseCreate(name="Global KB", scope="app", collection_name="global")
         mock_kb = MagicMock()
 
@@ -151,17 +221,22 @@ class TestKBAccessControl:
             "app.repositories.knowledge_base_repo.create", new=AsyncMock(return_value=mock_kb)
         ):
             svc = KnowledgeBaseService(mock_db)
-            result = await svc.create(data, ctx=_ctx(), user_id=user_id, is_app_admin=True)
+            result = await svc.create(data, ctx=_ctx(app_admin=True))
             assert result is mock_kb
 
     @pytest.mark.anyio
-    async def test_org_kb_creation_without_org_raises(self, mock_db):
-        user_id = uuid.uuid4()
+    async def test_an_org_kb_is_created_owned_by_its_creator(self, mock_db):
+        """`own` in the matrix is meaningless for a row nobody owns."""
+        creator = uuid.uuid4()
         data = KnowledgeBaseCreate(name="Team KB", scope="org", collection_name="team")
 
-        svc = KnowledgeBaseService(mock_db)
-        with pytest.raises(AuthorizationError):
-            await svc.create(data, ctx=_ctx(), user_id=user_id, organization_id=None)
+        with patch(
+            "app.repositories.knowledge_base_repo.create", new=AsyncMock(return_value=MagicMock())
+        ) as created:
+            svc = KnowledgeBaseService(mock_db)
+            await svc.create(data, ctx=_ctx(user_id=creator))
+
+        assert created.call_args.kwargs["owner_user_id"] == creator
 
     @pytest.mark.anyio
     async def test_personal_kb_owner_can_delete(self, mock_db):
@@ -173,25 +248,23 @@ class TestKBAccessControl:
             patch("app.repositories.knowledge_base_repo.delete", new=AsyncMock(return_value=True)),
         ):
             svc = KnowledgeBaseService(mock_db)
-            await svc.delete(kb.id, user_id=user_id)
+            await svc.delete(kb.id, ctx=_ctx(user_id=user_id))
 
     @pytest.mark.anyio
     async def test_personal_kb_non_owner_is_refused_as_missing(self, mock_db):
         """Somebody else's personal base is reported absent, not forbidden.
 
         The read path has always answered this way; the write path answering 403
-        made it a way to confirm that a ``kb_id`` belongs to somebody.
+        made it a way to confirm that a `kb_id` belongs to somebody.
         """
-        owner = uuid.uuid4()
-        other = uuid.uuid4()
-        kb = _kb("personal", owner_user_id=owner)
+        kb = _kb("personal", owner_user_id=uuid.uuid4())
 
         with patch(
             "app.repositories.knowledge_base_repo.get_by_id", new=AsyncMock(return_value=kb)
         ):
             svc = KnowledgeBaseService(mock_db)
             with pytest.raises(NotFoundError):
-                await svc.delete(kb.id, user_id=other)
+                await svc.delete(kb.id, ctx=_ctx())
 
     @pytest.mark.anyio
     async def test_app_kb_non_admin_is_refused_as_forbidden(self, mock_db):
@@ -203,21 +276,20 @@ class TestKBAccessControl:
         ):
             svc = KnowledgeBaseService(mock_db)
             with pytest.raises(AuthorizationError):
-                await svc.delete(kb.id, user_id=uuid.uuid4(), is_app_admin=False)
+                await svc.delete(kb.id, ctx=_ctx())
 
     @pytest.mark.anyio
     async def test_a_viewer_who_can_read_an_org_kb_cannot_write_to_it(self, mock_db):
         """The audit finding: the six per-KB write routes resolved READ access only.
 
-        A Viewer holds ``collections:view`` and nothing else, so uploading,
+        A Viewer holds `collections:view` and nothing else, so uploading,
         deleting documents and wiring sync sources must refuse them - as a 403,
-        because they can already open the row through ``GET /kb/{kb_id}``.
+        because an org-visible row is one they can already open through
+        `GET /kb/{kb_id}`.
         """
         org_id = uuid.uuid4()
-        kb = _kb("org", organization_id=org_id)
-        ctx = AuthContext(
-            user_id=uuid.uuid4(), organization_id=org_id, role=OrgRoleName.VIEWER.value
-        )
+        kb = _kb("org", organization_id=org_id, visibility=Visibility.ORG.value)
+        ctx = _ctx(organization_id=org_id, role=OrgRoleName.VIEWER.value)
 
         with (
             patch("app.repositories.knowledge_base_repo.get_by_id", new=AsyncMock(return_value=kb)),
@@ -234,9 +306,7 @@ class TestKBAccessControl:
         """A grant widens what a role allows; a role gate on the route could not see it."""
         org_id = uuid.uuid4()
         kb = _kb("org", organization_id=org_id)
-        ctx = AuthContext(
-            user_id=uuid.uuid4(), organization_id=org_id, role=OrgRoleName.VIEWER.value
-        )
+        ctx = _ctx(organization_id=org_id, role=OrgRoleName.VIEWER.value)
 
         with (
             patch("app.repositories.knowledge_base_repo.get_by_id", new=AsyncMock(return_value=kb)),
@@ -253,9 +323,7 @@ class TestKBAccessControl:
         """Levels are ordered: being shown a base is not being handed its contents."""
         org_id = uuid.uuid4()
         kb = _kb("org", organization_id=org_id)
-        ctx = AuthContext(
-            user_id=uuid.uuid4(), organization_id=org_id, role=OrgRoleName.VIEWER.value
-        )
+        ctx = _ctx(organization_id=org_id, role=OrgRoleName.VIEWER.value)
 
         with (
             patch("app.repositories.knowledge_base_repo.get_by_id", new=AsyncMock(return_value=kb)),
@@ -269,13 +337,12 @@ class TestKBAccessControl:
                 await svc.get_for_write(kb.id, ctx=ctx)
 
     @pytest.mark.anyio
-    async def test_a_member_holding_collections_edit_writes_without_a_grant(self, mock_db):
-        """The same pair of decisions that admits a bulk /rag ingest admits this one."""
+    async def test_a_member_writes_their_own_kb_without_a_grant(self, mock_db):
+        """`collections:edit: own` reaches the member's own row with no grant lookup."""
         org_id = uuid.uuid4()
-        kb = _kb("org", organization_id=org_id)
-        ctx = AuthContext(
-            user_id=uuid.uuid4(), organization_id=org_id, role=OrgRoleName.MEMBER.value
-        )
+        member_id = uuid.uuid4()
+        kb = _kb("org", organization_id=org_id, owner_user_id=member_id)
+        ctx = _ctx(organization_id=org_id, user_id=member_id, role=OrgRoleName.MEMBER.value)
         grant_lookup = AsyncMock(return_value=None)
 
         with (
@@ -288,12 +355,32 @@ class TestKBAccessControl:
         grant_lookup.assert_not_called()
 
     @pytest.mark.anyio
+    async def test_a_member_cannot_write_an_org_visible_kb_they_do_not_own(self, mock_db):
+        """Org-wide visibility shares *reading*; writing still takes ownership or a grant."""
+        org_id = uuid.uuid4()
+        kb = _kb(
+            "org",
+            organization_id=org_id,
+            owner_user_id=uuid.uuid4(),
+            visibility=Visibility.ORG.value,
+        )
+        ctx = _ctx(organization_id=org_id, role=OrgRoleName.MEMBER.value)
+
+        with (
+            patch("app.repositories.knowledge_base_repo.get_by_id", new=AsyncMock(return_value=kb)),
+            patch(
+                "app.repositories.resource_grant_repo.get_level", new=AsyncMock(return_value=None)
+            ),
+        ):
+            svc = KnowledgeBaseService(mock_db)
+            with pytest.raises(AuthorizationError):
+                await svc.get_for_write(kb.id, ctx=ctx)
+
+    @pytest.mark.anyio
     async def test_a_write_from_another_tenant_is_reported_as_missing(self, mock_db):
         """The write path answers exactly as the read path: 404, never an oracle."""
         kb = _kb("org", organization_id=uuid.uuid4())
-        ctx = AuthContext(
-            user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.OWNER.value
-        )
+        ctx = _ctx()
         grant_lookup = AsyncMock(return_value=GrantLevel.EDIT)
 
         with (
@@ -310,29 +397,18 @@ class TestKBAccessControl:
     async def test_an_app_scoped_kb_refuses_a_member_write_as_forbidden(self, mock_db):
         """Everyone can read an app base, so only the write refusal protects it."""
         kb = _kb("app")
-        ctx = AuthContext(
-            user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.OWNER.value
-        )
 
-        with (
-            patch("app.repositories.knowledge_base_repo.get_by_id", new=AsyncMock(return_value=kb)),
-            patch(
-                "app.repositories.resource_grant_repo.get_level", new=AsyncMock(return_value=None)
-            ),
+        with patch(
+            "app.repositories.knowledge_base_repo.get_by_id", new=AsyncMock(return_value=kb)
         ):
             svc = KnowledgeBaseService(mock_db)
             with pytest.raises(AuthorizationError):
-                await svc.get_for_write(kb.id, ctx=ctx)
+                await svc.get_for_write(kb.id, ctx=_ctx())
 
     @pytest.mark.anyio
     async def test_an_app_admin_writes_to_an_app_scoped_kb(self, mock_db):
         kb = _kb("app")
-        ctx = AuthContext(
-            user_id=uuid.uuid4(),
-            organization_id=uuid.uuid4(),
-            role=OrgRoleName.VIEWER.value,
-            is_app_admin=True,
-        )
+        ctx = _ctx(role=OrgRoleName.VIEWER.value, app_admin=True)
 
         with patch(
             "app.repositories.knowledge_base_repo.get_by_id", new=AsyncMock(return_value=kb)
@@ -341,18 +417,109 @@ class TestKBAccessControl:
             assert await svc.get_for_write(kb.id, ctx=ctx) is kb
 
     @pytest.mark.anyio
-    async def test_list_accessible_passes_correct_params(self, mock_db):
-        user_id = uuid.uuid4()
-        org_id = uuid.uuid4()
+    async def test_list_accessible_passes_the_callers_scope_to_the_query(self, mock_db):
+        """An org-wide role skips the ownership predicate; a narrow one narrows it."""
+        ctx = _ctx()
 
         with patch(
             "app.repositories.knowledge_base_repo.get_accessible",
             new=AsyncMock(return_value=[]),
         ) as mock_list:
             svc = KnowledgeBaseService(mock_db)
-            await svc.list_accessible(user_id=user_id, organization_id=org_id)
+            await svc.list_accessible(ctx)
 
             mock_list.assert_called_once()
             _, kwargs = mock_list.call_args
-            assert kwargs.get("user_id") == user_id
-            assert kwargs.get("organization_id") == org_id
+            assert kwargs.get("user_id") == ctx.user_id
+            assert kwargs.get("organization_id") == ctx.organization_id
+            assert kwargs.get("see_all_org") is True
+
+    @pytest.mark.anyio
+    async def test_list_accessible_narrows_for_a_member_and_carries_their_grants(self, mock_db):
+        granted = uuid.uuid4()
+        ctx = _ctx(role=OrgRoleName.MEMBER.value)
+
+        with (
+            patch(
+                "app.repositories.knowledge_base_repo.get_accessible",
+                new=AsyncMock(return_value=[]),
+            ) as mock_list,
+            patch(
+                "app.repositories.resource_grant_repo.list_shared_ids",
+                new=AsyncMock(return_value=[granted]),
+            ),
+        ):
+            svc = KnowledgeBaseService(mock_db)
+            await svc.list_accessible(ctx)
+
+            _, kwargs = mock_list.call_args
+            assert kwargs.get("see_all_org") is False
+            assert list(kwargs.get("shared_org_ids")) == [granted]
+
+
+class TestCollectionCounts:
+    """The listing's document and chunk counts.
+
+    They exist so a picker can tell a filled collection from an empty one, so
+    what matters is that the count reaches the response - not that a repository
+    was called.
+    """
+
+    @pytest.fixture
+    def mock_db(self):
+        return MagicMock()
+
+    @pytest.mark.anyio
+    async def test_counts_are_asked_for_by_collection_name_not_by_id(self, mock_db):
+        """`rag_documents` is keyed by collection name; the KB id is not in it.
+
+        A count keyed on the wrong column comes back empty rather than wrong,
+        which reads on screen as every collection being empty.
+        """
+        first = _kb("org")
+        first.collection_name = "docs_a1b2c3"
+        second = _kb("org")
+        second.collection_name = "wiki_d4e5f6"
+
+        with patch(
+            "app.repositories.rag_document_repo.counts_by_collection",
+            new=AsyncMock(return_value={}),
+        ) as mock_counts:
+            await KnowledgeBaseService(mock_db).counts_for([first, second])
+
+        _, kwargs = mock_counts.call_args
+        assert kwargs.get("collections") == ["docs_a1b2c3", "wiki_d4e5f6"]
+
+    @pytest.mark.anyio
+    async def test_counting_nothing_asks_the_database_nothing(self, mock_db):
+        """An organization with no collections must not issue an `IN ()` query."""
+        counts = await KnowledgeBaseService(mock_db).counts_for([])
+        assert counts == {}
+
+    def test_a_collection_nothing_was_written_to_reads_as_zero(self):
+        """The group query returns no row for an empty collection, not a zero row.
+
+        The route defaults that absence, so a brand-new collection has to render
+        as `0 documents` rather than as a missing key blowing up the listing.
+        """
+        read = _read_with_counts(_readable_kb("fresh_000000"), None)
+
+        assert read.document_count == 0
+        assert read.indexed_count == 0
+        assert read.chunk_count == 0
+
+    def test_a_failed_document_still_counts_as_a_document(self):
+        """`indexed_count` below `document_count` is how a failure stays visible.
+
+        Reporting only what indexed would make a collection where half the
+        uploads died look like a collection half that size, with nothing on the
+        listing to suggest otherwise.
+        """
+        read = _read_with_counts(
+            _readable_kb("half_broken"),
+            CollectionCounts(documents=12, chunks=340, indexed=8),
+        )
+
+        assert read.document_count == 12
+        assert read.indexed_count == 8
+        assert read.chunk_count == 340

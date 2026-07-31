@@ -99,6 +99,13 @@ class SkillList(BaseSchema):
             "unaffected by the search and paging that shaped `items`"
         ),
     )
+    suggested_categories: list[str] = Field(
+        default_factory=list,
+        description=(
+            "The deployment's predefined shelf names, for the category pickers - "
+            "a suggestion beside the free-typed value, never a constraint on it"
+        ),
+    )
 
 
 class SkillCreate(BaseSchema):

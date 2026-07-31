@@ -92,7 +92,7 @@ export function InviteLinkDialog({ open, onOpenChange, orgId }: InviteLinkDialog
             <div className="space-y-2">
               <Label htmlFor="link-role">Join as</Label>
               <Select value={role} onValueChange={(value) => setRole(value as OrgRole)}>
-                <SelectTrigger id="link-role">
+                <SelectTrigger id="link-role" className="capitalize">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -135,8 +135,8 @@ export function InviteLinkDialog({ open, onOpenChange, orgId }: InviteLinkDialog
             {maxUses.trim() === "" && domain.trim() === "" && (
               <p className="text-muted-foreground border-border rounded-md border border-dashed p-3 text-xs">
                 Unlimited and open to any address: whoever this URL reaches can join as{" "}
-                <span className="font-medium">{role}</span>. A link forwarded out of a channel is
-                still a working link.
+                <span className="font-medium capitalize">{role}</span>. A link forwarded out of a
+                channel is still a working link.
               </p>
             )}
           </div>

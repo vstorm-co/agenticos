@@ -33,8 +33,8 @@ class UserSlashCommandCustomCreate(UserSlashCommandBase):
 
 
 class UserSlashCommandUpdate(BaseSchema):
-    """Patch a custom command. ``prompt`` only applies to custom commands;
-    built-in overrides accept just ``is_enabled``."""
+    """Patch a custom command. `prompt` only applies to custom commands;
+    built-in overrides accept just `is_enabled`."""
 
     name: str | None = Field(default=None, min_length=1, max_length=32, pattern=NAME_PATTERN)
     prompt: str | None = Field(default=None, min_length=1, max_length=10_000)

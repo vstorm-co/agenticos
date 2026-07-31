@@ -120,12 +120,12 @@ export function UserDetailDrawer({
             <Badge variant={user.is_active ? "default" : "secondary"} className="text-[10px]">
               {user.is_active ? "Active" : "Suspended"}
             </Badge>
-            <Badge variant="outline" className="text-[10px]">
-              <Shield className="mr-1 h-3 w-3" />
-              {user.role}
-            </Badge>
+            {/* One privilege, so one badge. There used to be a second one
+                printing `users.role`, which said "user" for every account on
+                the deployment - including the ones that administered it. */}
             {user.is_app_admin && (
               <Badge className="bg-brand text-brand-foreground border-transparent text-[10px]">
+                <Shield className="mr-1 h-3 w-3" />
                 App admin
               </Badge>
             )}
@@ -136,7 +136,6 @@ export function UserDetailDrawer({
             <KV label="Email" value={user.email} mono />
             {user.full_name && <KV label="Display name" value={user.full_name} />}
             <KV label="Joined" value={formatDateTime(user.created_at)} />
-            <KV label="Role" value={user.role} mono />
           </dl>
 
           <section className="mt-7">

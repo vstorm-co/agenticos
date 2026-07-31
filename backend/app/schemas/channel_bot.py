@@ -29,21 +29,38 @@ class ChannelBotCreate(BaseSchema):
     webhook_mode: bool = False
     webhook_url: str | None = None
     access_policy: AccessPolicy = Field(default_factory=AccessPolicy)
-    ai_model_override: str | None = None
-    system_prompt_override: str | None = None
+    slack_signing_secret: str | None = Field(
+        default=None,
+        min_length=8,
+        max_length=255,
+        description=(
+            "This Slack app's signing secret - inbound events are verified "
+            "with it. Slack bots only; sealed in the vault, never returned."
+        ),
+    )
+    slack_app_token: str | None = Field(
+        default=None,
+        min_length=8,
+        max_length=500,
+        description="This Slack app's xapp- token, for Socket Mode. Slack bots only.",
+    )
 
 
 class ChannelBotUpdate(BaseSchema):
-    """Schema for updating a channel bot (all fields optional)."""
+    """Schema for updating a channel bot (all fields optional).
+
+    The Slack credentials distinguish omission from an explicit null: omitted
+    leaves the stored value, null clears it.
+    """
 
     name: str | None = Field(default=None, max_length=255)
     token: str | None = Field(default=None, min_length=10, max_length=500)
     webhook_mode: bool | None = None
     webhook_url: str | None = None
     access_policy: AccessPolicy | None = None
-    ai_model_override: str | None = None
-    system_prompt_override: str | None = None
     is_active: bool | None = None
+    slack_signing_secret: str | None = Field(default=None, min_length=8, max_length=255)
+    slack_app_token: str | None = Field(default=None, min_length=8, max_length=500)
 
 
 class ChannelBotRead(BaseSchema):
@@ -56,8 +73,10 @@ class ChannelBotRead(BaseSchema):
     webhook_mode: bool
     webhook_url: str | None
     access_policy: AccessPolicy
-    ai_model_override: str | None
-    system_prompt_override: str | None
+    # Booleans, never the values: the panel needs "is this configured", and a
+    # response is the way a sealed credential usually escapes.
+    has_slack_signing_secret: bool = False
+    has_slack_app_token: bool = False
     created_at: datetime
     updated_at: datetime | None = None
 

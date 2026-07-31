@@ -1,9 +1,6 @@
-"""AI Agents module using PydanticAI.
+"""Agents built from published specs.
 
-This module contains agents that handle AI-powered interactions.
-Tools are defined in the tools/ subdirectory.
+There is exactly one way to get a runnable agent: :func:`app.agents.factory.build_agent`,
+fed by an :class:`app.agents.spec.AgentSpec`. Surfaces reach it through
+`app.services.agent_runner`; nothing here is imported as a ready-made agent.
 """
-
-from app.agents.assistant import AssistantAgent, Deps
-
-__all__ = ["AssistantAgent", "Deps"]

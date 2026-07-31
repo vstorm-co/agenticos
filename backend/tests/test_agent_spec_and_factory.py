@@ -14,10 +14,15 @@ import pytest
 from pydantic import ValidationError
 
 from app.agents.capabilities import load_builtins
-from app.agents.capabilities.budget import SpendLimit
+from app.agents.capabilities.budget import BudgetScope
 from app.agents.factory import DEFAULT_MAX_STEPS, build_agent
 from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
-from app.agents.spec import AgentSpec
+from app.agents.spec import (
+    AgentSpec,
+    AlertAudience,
+    AlertSpec,
+    NotificationSpec,
+)
 from app.core.exceptions import BadRequestError
 from app.core.secret_kinds import ApiKeySecret
 
@@ -74,7 +79,15 @@ class TestSpecContract:
 
     def test_negative_budgets_are_refused(self):
         with pytest.raises(ValueError):
-            AgentSpec(name="x", budget={"max_per_run_usd": 0})
+            AgentSpec(name="x", budget={"monthly_usd": 0})
+
+    def test_a_per_run_cap_is_no_longer_a_thing_a_spec_can_say(self):
+        """The platform has exactly two budget levels - the agent's month and
+        the organization's. A spec still carrying the old key must fail loudly
+        at validation, which is what the 0062 data migration exists to prevent
+        for rows written before the key was removed."""
+        with pytest.raises(ValueError):
+            AgentSpec(name="x", budget={"max_per_run_usd": 1})
 
 
 class TestFactory:
@@ -145,19 +158,19 @@ class TestBudgetComposition:
     """Every ceiling a run is under, as its own entry with its own lookup.
 
     The agent's monthly cap and the organization's used to be collapsed with
-    ``min()`` and checked against a single organization-wide total, which made
-    ``AgentSpec.budget.monthly_usd`` a cap on the organization: an agent with a
+    `min()` and checked against a single organization-wide total, which made
+    `AgentSpec.budget.monthly_usd` a cap on the organization: an agent with a
     $10 limit was refused because its neighbours had spent $10. Two caps, two
     quantities - so what these assert is not one number but which lookup each
     cap ended up holding.
     """
 
     @staticmethod
-    def _limits(built) -> list[tuple[str, Decimal]]:
+    def _limits(built) -> list[tuple[BudgetScope, Decimal]]:
         return [(limit.scope, limit.limit_usd) for limit in built.budget.limits]
 
     @staticmethod
-    def _lookups(built) -> dict[str, object]:
+    def _lookups(built) -> dict[BudgetScope, object]:
         return {limit.scope: limit.period_spend for limit in built.budget.limits}
 
     def test_org_limit_applies_when_the_agent_sets_none(self):
@@ -167,7 +180,7 @@ class TestBudgetComposition:
             organization_id=uuid.uuid4(),
             org_monthly_budget_usd=Decimal("40"),
         )
-        assert self._limits(built) == [("Organization monthly", Decimal("40"))]
+        assert self._limits(built) == [(BudgetScope.ORGANIZATION, Decimal("40"))]
 
     def test_an_agent_may_tighten_but_not_loosen_the_org_limit(self):
         """Both stand at their own number, and both are enforced.
@@ -176,7 +189,7 @@ class TestBudgetComposition:
         still $100 on its own spend, and the organization's $40 is what stops it
         - because the agent's spend is part of the organization's, so the
         organization's entry always binds first when it is the smaller of the
-        two. That is the tighten-never-loosen rule, kept without a ``min()``.
+        two. That is the tighten-never-loosen rule, kept without a `min()`.
         """
         loosening = build_agent(
             AgentSpec(name="x", budget={"monthly_usd": 100}),
@@ -185,8 +198,8 @@ class TestBudgetComposition:
             org_monthly_budget_usd=Decimal("40"),
         )
         assert self._limits(loosening) == [
-            ("Agent monthly", Decimal("100")),
-            ("Organization monthly", Decimal("40")),
+            (BudgetScope.AGENT, Decimal("100")),
+            (BudgetScope.ORGANIZATION, Decimal("40")),
         ]
 
         tightening = build_agent(
@@ -196,8 +209,8 @@ class TestBudgetComposition:
             org_monthly_budget_usd=Decimal("40"),
         )
         assert self._limits(tightening) == [
-            ("Agent monthly", Decimal("10")),
-            ("Organization monthly", Decimal("40")),
+            (BudgetScope.AGENT, Decimal("10")),
+            (BudgetScope.ORGANIZATION, Decimal("40")),
         ]
 
     @pytest.mark.anyio
@@ -220,35 +233,17 @@ class TestBudgetComposition:
         )
 
         lookups = self._lookups(built)
-        assert await lookups["Agent monthly"]() == Decimal("1")
-        assert await lookups["Organization monthly"]() == Decimal("2")
-
-    def test_the_per_run_cap_meters_this_run_rather_than_a_period(self):
-        """No lookup at all: the ledger the guard writes is exact and free.
-
-        That is the one genuine difference between the caps, and it is expressed
-        by the limit carrying no ``period_spend`` - not by the per-run cap being
-        a different kind of thing. The exposure's per-run cap has always said it
-        this way.
-        """
-        built = build_agent(
-            AgentSpec(name="x", budget={"max_per_run_usd": 0.1, "monthly_usd": 10}),
-            _model_spec(),
-            organization_id=uuid.uuid4(),
-            agent_period_spend=AsyncMock(return_value=Decimal("0")),
-        )
-
-        assert self._limits(built) == [("Run", Decimal("0.1")), ("Agent monthly", Decimal("10"))]
-        assert self._lookups(built)["Run"] is None
+        assert await lookups[BudgetScope.AGENT]() == Decimal("1")
+        assert await lookups[BudgetScope.ORGANIZATION]() == Decimal("2")
 
     def test_budgets_are_decimal_not_float(self):
         """Money accumulated as float drifts; the boundary ends here."""
         built = build_agent(
-            AgentSpec(name="x", budget={"max_per_run_usd": 0.1}),
+            AgentSpec(name="x", budget={"monthly_usd": 0.1}),
             _model_spec(),
             organization_id=uuid.uuid4(),
         )
-        assert self._limits(built) == [("Run", Decimal("0.1"))]
+        assert self._limits(built) == [(BudgetScope.AGENT, Decimal("0.1"))]
 
     def test_an_agent_with_no_budget_under_an_uncapped_org_is_unlimited(self):
         """Nothing to enforce is nothing to look up - and no round trip either."""
@@ -256,21 +251,16 @@ class TestBudgetComposition:
 
         assert built.budget.limits == []
 
-    def test_caps_a_surface_adds_come_after_the_ones_the_spec_implies(self):
-        """Narrowest first, so the refusal names the ceiling nearest the reader."""
+    def test_a_previewed_cap_meters_only_this_runs_ledger(self):
+        """No database to ask on a preview, so the cap carries no lookup and
+        binds on what this run alone has booked."""
         built = build_agent(
             AgentSpec(name="x", budget={"monthly_usd": 10}),
             _model_spec(),
             organization_id=uuid.uuid4(),
-            org_monthly_budget_usd=Decimal("40"),
-            extra_limits=[SpendLimit(scope="Exposure run", limit_usd=Decimal("0.5"))],
         )
 
-        assert self._limits(built) == [
-            ("Agent monthly", Decimal("10")),
-            ("Organization monthly", Decimal("40")),
-            ("Exposure run", Decimal("0.5")),
-        ]
+        assert self._lookups(built)[BudgetScope.AGENT] is None
 
 
 class TestMaxSteps:
@@ -295,3 +285,61 @@ class TestMaxSteps:
         # storing it produces a published agent that fails on its first turn.
         with pytest.raises(ValidationError):
             AgentSpec(name="a", max_steps=0)
+
+
+class TestWhoHearsAboutAnAgent:
+    """The notification block, and the four configurations it refuses.
+
+    Each refusal is a spec somebody would write believing they had set an alert
+    up. Accepting any of them means an alert that resolves to nobody, or to
+    exactly the people it would have reached anyway - and the only place that
+    becomes visible is when the email everybody was relying on does not arrive.
+    """
+
+    def test_an_agent_published_before_this_existed_keeps_the_old_behaviour(self):
+        """The whole point of a defaulted field: nothing stored has to be migrated."""
+        spec = AgentSpec.model_validate({"name": "Legacy", "spec_version": 4})
+
+        assert spec.notifications.budget.to == [AlertAudience.ADMINS, AlertAudience.OWNER]
+        assert spec.notifications.approvals.to == [
+            AlertAudience.INITIATOR,
+            AlertAudience.ADMINS,
+        ]
+        # Off, because a per-agent report nobody asked for is one more weekly
+        # email arriving for an agent that used to send none.
+        assert spec.notifications.usage.enabled is False
+
+    def test_naming_nobody_for_a_chosen_audience_is_refused(self):
+        with pytest.raises(ValidationError, match="at least one member"):
+            AlertSpec(to=[AlertAudience.CHOSEN])
+
+    def test_naming_people_without_choosing_them_is_refused(self):
+        """Ids with no `chosen` in `to` are ids nothing reads - which reads, in
+        the Builder, exactly like a list of people who will be mailed."""
+        with pytest.raises(ValidationError, match="only read when"):
+            AlertSpec(to=[AlertAudience.ADMINS], user_ids=[uuid.uuid4()])
+
+    def test_an_enabled_alert_with_no_audience_is_refused(self):
+        with pytest.raises(ValidationError, match="at least one audience"):
+            AlertSpec(enabled=True, to=[])
+
+    def test_a_disabled_alert_needs_no_audience(self):
+        """Switching an alert off is not the same as misconfiguring it."""
+        assert AlertSpec(enabled=False, to=[]).enabled is False
+
+    def test_a_usage_report_cannot_be_sent_to_the_initiator(self):
+        """A report covers a period, not a run, so there is no such person - and an
+        audience that silently contributes nothing is the failure being prevented."""
+        with pytest.raises(ValidationError, match="no initiator"):
+            NotificationSpec(usage=AlertSpec(to=[AlertAudience.INITIATOR]))
+
+    def test_the_notification_block_survives_a_yaml_round_trip(self):
+        """A spec is exported to a client's repository and read back."""
+        spec = AgentSpec(
+            name="Support",
+            notifications=NotificationSpec(
+                approvals=AlertSpec(to=[AlertAudience.CHOSEN], user_ids=[uuid.uuid4()])
+            ),
+        )
+
+        assert AgentSpec.from_yaml(spec.to_yaml()) == spec

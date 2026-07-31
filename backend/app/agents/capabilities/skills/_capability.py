@@ -19,7 +19,7 @@ from pydantic_ai_skills import SkillsToolset
 
 from app.db.models.skill import Skill
 
-# What the toolset exposes. ``run_skill_script`` is absent by construction, not
+# What the toolset exposes. `run_skill_script` is absent by construction, not
 # merely unused: without a sandbox it is remote code execution wearing a
 # helpful name.
 SAFE_SKILL_TOOLS = ("list_skills", "load_skill", "read_skill_resource")
@@ -60,7 +60,7 @@ class Skills(AbstractCapability[AgentDepsT]):
     def get_toolset(self) -> AbstractToolset[Any] | None:
         """The skills toolset, or nothing when the agent has no skills.
 
-        Returning ``None`` keeps three unusable tools out of an agent that has
+        Returning `None` keeps three unusable tools out of an agent that has
         no skills - every tool in the list is context the model reads each turn.
         """
         if not self.skills:

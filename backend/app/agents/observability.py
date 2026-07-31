@@ -26,9 +26,6 @@ from pydantic_ai import Agent as PydanticAgent
 
 logger = logging.getLogger(__name__)
 
-# Keyed by what makes two configurations genuinely different. A dict rather than
-# `functools.cache` so the key can stay a tuple of plain strings - the token is
-# in it, which is why this never leaves the process and is never logged.
 _instances: dict[tuple[str, str, str], logfire.Logfire] = {}
 
 
@@ -56,9 +53,6 @@ def instrument_agent(
                 service_name=service_name,
                 environment=environment or "",
                 send_to_logfire=True,
-                # The console belongs to the deployment's own configuration; a
-                # per-agent instance writing there too would double every line
-                # an operator reads.
                 console=False,
             )
         except Exception:

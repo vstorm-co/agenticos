@@ -14,22 +14,29 @@ import {
   MessageSquare,
   MoreHorizontal,
   Network,
+  Plug,
   Trash2,
   Upload,
 } from "lucide-react";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { AgentMap, MAP_ICONS, type MapNode } from "@/components/agents/agent-map";
-import { AgentStatusBadge, RunStatusBadge } from "@/components/agents/status-badge";
+import { AgentStatusBadge } from "@/components/agents/status-badge";
+import { AlertsPanel } from "@/components/agents/alerts-panel";
 import { CapabilityWorkbench } from "@/components/agents/capability-workbench";
+import { ChannelBotsPanel } from "@/components/agents/channel-bots-panel";
+import { CollectionPicker } from "@/components/agents/collection-picker";
 import { EmbedsPanel } from "@/components/agents/embeds-panel";
 import { ExposuresPanel } from "@/components/agents/exposures-panel";
 import { McpServerPicker } from "@/components/agents/mcp-server-picker";
+import { McpServerList } from "@/components/mcp/mcp-server-list";
 import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
 import { ObservabilityCard } from "@/components/agents/observability-card";
+import { RunSummary } from "@/components/agents/run-summary";
 import { ModelSettingsForm } from "@/components/agents/model-settings-form";
 import { SkillGallery } from "@/components/agents/skill-gallery";
 import { ThinkingSetting } from "@/components/agents/thinking-setting";
+import { EnvironmentsPanel } from "@/components/agents/environments-panel";
 import { VersionHistory } from "@/components/agents/version-history";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { SharingPanel } from "@/components/sharing/sharing-panel";
@@ -54,14 +61,15 @@ import {
   CardTitle,
   Input,
   Label,
+  MarkdownEditor,
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
-  Textarea,
 } from "@/components/ui";
 import {
   useAgent,
+  useAgentEnvironments,
   useAgents,
   useAgentVersions,
   useCapabilityCatalog,
@@ -89,6 +97,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const { id } = use(params);
   const router = useRouter();
   const { agent, isLoading, saveDraft, validate, publish, rollback, setAvatar } = useAgent(id);
+  const { environments, promote } = useAgentEnvironments(id);
   const { clone, archive, unarchive, remove } = useAgents();
   const { capabilities } = useCapabilityCatalog();
   const { profiles } = useModelProviders();
@@ -114,6 +123,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const [problems, setProblems] = useState<string[]>([]);
   const [confirming, setConfirming] = useState<"archive" | "delete" | null>(null);
   const [mapOpen, setMapOpen] = useState(false);
+  const [connectingMcp, setConnectingMcp] = useState(false);
   // Bumped after an upload so the <img> src changes; the URL is otherwise
   // identical and the browser would keep showing the picture it replaced.
   const [avatarVersion, setAvatarVersion] = useState(0);
@@ -225,11 +235,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
         title: "Budget",
         icon: MAP_ICONS.budget,
         side: "out",
-        items: [
-          spec.budget?.max_per_run_usd ? `$${spec.budget.max_per_run_usd} per run` : null,
-          spec.budget?.monthly_usd ? `$${spec.budget.monthly_usd} per month` : null,
-        ].filter((entry): entry is string => entry !== null),
-        empty: "Spends without a ceiling",
+        items: spec.budget?.monthly_usd ? [`$${spec.budget.monthly_usd} per month`] : [],
+        empty: "Spends without a ceiling of its own",
       },
     ];
   }, [spec, exposures, collections, profiles, capabilities, mcpConnections, skills]);
@@ -467,6 +474,25 @@ export default function AgentBuilderPage({ params }: PageProps) {
         </DialogContent>
       </Dialog>
 
+      {/* The catalog itself, not a second connect form beside it. `McpServerList`
+          reads and writes the same query cache the picker above does, so a server
+          connected in here appears in the picker as soon as the dialog closes -
+          without a refetch, and without this page knowing how a connection is
+          made. */}
+      <Dialog open={connectingMcp} onOpenChange={setConnectingMcp}>
+        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-[72rem]">
+          <DialogHeader>
+            <DialogTitle>Connect an MCP server</DialogTitle>
+            <DialogDescription>
+              Connect a server for the organization and it becomes bindable here. A personal
+              connection is for your own chat and is refused at publish, so an agent everyone runs
+              never depends on whose credential is behind it.
+            </DialogDescription>
+          </DialogHeader>
+          <McpServerList canManageOrganization={can(Perm.connectionsManage)} />
+        </DialogContent>
+      </Dialog>
+
       {confirming === "archive" && (
         <ConfirmDialog
           open
@@ -523,6 +549,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           <TabsTrigger value="build">Build</TabsTrigger>
           <TabsTrigger value="toolbox">Toolbox</TabsTrigger>
           <TabsTrigger value="knowledge">Knowledge</TabsTrigger>
+          <TabsTrigger value="skills">Skills</TabsTrigger>
           <TabsTrigger value="limits">Limits</TabsTrigger>
           <TabsTrigger value="availability">Availability</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
@@ -534,21 +561,22 @@ export default function AgentBuilderPage({ params }: PageProps) {
               <CardTitle>Instructions</CardTitle>
               <CardDescription>
                 The agent&apos;s behaviour lives here, not in code. Be specific about what it should
-                do, what it should refuse, and how it should cite.
+                do, what it should refuse, and how it should cite. Markdown, and the model reads the
+                structure - headings and lists are what make a long prompt followable, so being able
+                to see them rendered is the point of the preview.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Textarea
+              <MarkdownEditor
                 // Named, because a placeholder is not a label: it is the only
                 // accessible name this control had, and it is the one thing that
                 // disappears the moment somebody types into it.
-                aria-label="Instructions"
+                label="Instructions"
                 value={spec.instructions}
-                onChange={(event) => update({ instructions: event.target.value })}
+                onChange={(instructions) => update({ instructions })}
                 rows={10}
                 disabled={!canEdit}
                 placeholder="You are Support Copilot. Answer from the product wiki and cite the document you used. If the wiki does not cover it, say so rather than guessing."
-                className="font-mono text-sm"
               />
               <div className="space-y-2">
                 <Label>Model</Label>
@@ -613,16 +641,33 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
           <Card>
             <CardHeader>
-              <CardTitle>MCP servers</CardTitle>
-              <CardDescription>
-                External tools this agent may call, from the servers{" "}
-                <Link href={ROUTES.MCP_SERVERS} className="underline">
-                  your organization has connected
-                </Link>
-                . Only the organization&apos;s servers appear here - an agent everyone runs cannot
-                depend on whose credential is behind it, so a personal connection is refused at
-                publish.
-              </CardDescription>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0 space-y-1.5">
+                  <CardTitle>MCP servers</CardTitle>
+                  <CardDescription>
+                    External tools this agent may call, from the servers{" "}
+                    <Link href={ROUTES.MCP_SERVERS} className="underline">
+                      your organization has connected
+                    </Link>
+                    . Only the organization&apos;s servers appear here - an agent everyone runs
+                    cannot depend on whose credential is behind it, so a personal connection is
+                    refused at publish.
+                  </CardDescription>
+                </div>
+                {/* Connecting a server was a different page, and the trip was
+                    the problem: the moment you need one is while binding tools
+                    to an agent, and leaving the Builder to get it meant leaving
+                    an unsaved draft. The dialog holds the real catalog rather
+                    than a second copy of the connect form - one flow, one set
+                    of refusals, and the connection it creates lands in the same
+                    cache this picker reads. */}
+                {can(Perm.connectionsManage) && (
+                  <Button variant="outline" size="sm" onClick={() => setConnectingMcp(true)}>
+                    <Plug className="h-3.5 w-3.5" />
+                    Connect a server
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               <McpServerPicker
@@ -651,33 +696,29 @@ export default function AgentBuilderPage({ params }: PageProps) {
               <CardTitle>Collections</CardTitle>
               <CardDescription>
                 What this agent may search. The model chooses what to look for; it can never widen
-                where it looks.
+                where it looks. Each collection says what it holds, because attaching an empty one
+                produces an agent that searches, finds nothing, and reads as broken.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-2">
-              {collections.length === 0 && (
-                <p className="text-muted-foreground text-sm">No collections yet.</p>
-              )}
-              {collections.map((collection) => (
-                <label
-                  key={collection.id}
-                  className="hover:bg-muted/50 flex cursor-pointer items-center gap-3 rounded-md border p-3"
-                >
-                  <input
-                    type="checkbox"
-                    aria-label={collection.name}
-                    checked={spec.collection_ids.includes(collection.id)}
-                    onChange={() =>
-                      update({ collection_ids: toggleId(spec.collection_ids, collection.id) })
-                    }
-                    disabled={!canEdit}
-                  />
-                  <span className="text-sm">{collection.name}</span>
-                </label>
-              ))}
+            <CardContent>
+              <CollectionPicker
+                collections={collections}
+                selectedIds={spec.collection_ids}
+                onToggle={(collectionId) =>
+                  update({ collection_ids: toggleId(spec.collection_ids, collectionId) })
+                }
+                disabled={!canEdit}
+              />
             </CardContent>
           </Card>
+        </TabsContent>
 
+        {/* Its own tab rather than a card under Knowledge. A collection is
+            something the agent searches; a skill is something it reads and then
+            acts on. Sharing a tab made the gallery look like a second picker for
+            the same decision, and put the two things with the most to read on
+            one scroll. */}
+        <TabsContent value="skills" className="mt-4 space-y-6">
           <Card>
             <CardHeader>
               <CardTitle>Skills</CardTitle>
@@ -705,34 +746,12 @@ export default function AgentBuilderPage({ params }: PageProps) {
             <CardHeader>
               <CardTitle>Run limits</CardTitle>
               <CardDescription>
-                Two spending limits, because they fail differently: a per-run cap stops one runaway
-                conversation, a monthly cap stops a slow leak nobody is watching. The
-                organization&apos;s own limit still applies on top - an agent can tighten it, never
-                loosen it. The step limit is the third kind of runaway: a tool loop that is cheap
-                per call and never finishes.
+                This agent&apos;s own monthly spending limit. The organization&apos;s limit still
+                applies on top - an agent can tighten it, never loosen it. The step limit catches
+                the other kind of runaway: a tool loop that is cheap per call and never finishes.
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="per-run">Max per run (USD)</Label>
-                <Input
-                  id="per-run"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={spec.budget?.max_per_run_usd ?? ""}
-                  disabled={!canEdit}
-                  onChange={(event) =>
-                    update({
-                      budget: {
-                        ...spec.budget,
-                        max_per_run_usd: event.target.value ? Number(event.target.value) : null,
-                      },
-                    })
-                  }
-                  placeholder="No limit"
-                />
-              </div>
               <div className="space-y-2">
                 <Label htmlFor="monthly">Monthly (USD)</Label>
                 <Input
@@ -775,6 +794,15 @@ export default function AgentBuilderPage({ params }: PageProps) {
               </div>
             </CardContent>
           </Card>
+          {/* Beside the budget rather than in a settings page of its own: the two
+              questions are "how much may this agent spend" and "who is told when
+              it stops", and answering the first without the second is how a run
+              stops quietly. */}
+          <AlertsPanel
+            value={spec.notifications}
+            onChange={(notifications) => update({ notifications })}
+            disabled={!canEdit}
+          />
           <ObservabilityCard
             value={spec.observability}
             onChange={(observability) => update({ observability })}
@@ -785,11 +813,29 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
         <TabsContent value="availability" className="mt-4 space-y-6">
           <ExposuresPanel agentId={id} canManage={canPublish} />
+          {/* Bots stay organization resources - one bot serves many agents -
+              but they are registered here, beside the binding they exist for.
+              The panel hides itself from anyone without channels:manage. */}
+          <ChannelBotsPanel canManage={can(Perm.channelsManage)} />
           <EmbedsPanel agentId={id} canManage={canPublish} />
           <SharingPanel resourceType="agent" resourceId={id} canManage={canEdit} />
         </TabsContent>
 
         <TabsContent value="history" className="mt-4 space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Environments</CardTitle>
+              <CardDescription>
+                Named pointers at published versions. Publish moves only the default; every other
+                environment stays pinned until a version is promoted onto it from the list below.
+                A bot bound to an environment serves its version.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <EnvironmentsPanel agentId={id} canManage={canPublish} />
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -816,6 +862,11 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   rollback.mutate(versionId, { onSuccess: () => setSpec(null) })
                 }
                 restoring={rollback.isPending}
+                environments={environments}
+                onPromote={(environmentId, versionId) =>
+                  promote.mutate({ environmentId, versionId })
+                }
+                promoting={promote.isPending}
               />
             </CardContent>
           </Card>
@@ -823,32 +874,14 @@ export default function AgentBuilderPage({ params }: PageProps) {
           <Card>
             <CardHeader>
               <CardTitle>Recent runs</CardTitle>
+              <CardDescription>
+                Whether this agent is working, and what it has cost. The full history - surfaces,
+                tokens, the version each run executed - lives in Activity rather than being
+                half-rebuilt here.
+              </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-2">
-              {runs.length === 0 && <p className="text-muted-foreground text-sm">No runs yet.</p>}
-              {runs.slice(0, 10).map((agentRun) => (
-                <div
-                  key={agentRun.id}
-                  className="flex items-center justify-between gap-3 rounded-md border p-3 text-sm"
-                >
-                  <RunStatusBadge status={agentRun.status} />
-                  <span className="text-muted-foreground font-mono text-xs">
-                    {agentRun.model_label ?? "-"}
-                  </span>
-                  <span className="font-mono text-xs">
-                    ${Number(agentRun.cost_usd).toFixed(4)}
-                    {agentRun.cost_is_partial && (
-                      <span
-                        className="text-muted-foreground"
-                        title="A model in this run had no price; the cost is a floor"
-                      >
-                        {" "}
-                        +
-                      </span>
-                    )}
-                  </span>
-                </div>
-              ))}
+            <CardContent>
+              <RunSummary agentId={id} runs={runs} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -861,7 +894,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
  * The Builder's own skeleton.
  *
  * None of the shared variants fit: this page is a breadcrumbed header with four
- * actions, a six-tab strip, and a card whose body is dominated by a ten-row
+ * actions, a seven-tab strip, and a card whose body is dominated by a ten-row
  * textarea. Approximating that with a card grid would move the tab strip the
  * moment the agent arrived, which is the jump the skeleton exists to prevent.
  * `ConversationSkeleton` in `chat-container.tsx` is the same argument.
@@ -887,9 +920,9 @@ function BuilderSkeleton() {
         </div>
       </div>
 
-      {/* Tab strip - six tabs, at the widths their labels take. */}
+      {/* Tab strip - seven tabs, at the widths their labels take. */}
       <div className="bg-muted inline-flex h-9 items-center gap-1 rounded-lg p-1">
-        {["w-12", "w-20", "w-24", "w-28", "w-16", "w-14"].map((width) => (
+        {["w-12", "w-20", "w-24", "w-16", "w-16", "w-24", "w-16"].map((width) => (
           <div key={width} className={cn("bg-foreground/10 h-7 animate-pulse rounded-md", width)} />
         ))}
       </div>

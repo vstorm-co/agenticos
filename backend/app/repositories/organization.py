@@ -129,9 +129,9 @@ async def set_monthly_budget(
     """Set or remove the organization's monthly spending ceiling.
 
     Its own function rather than another keyword on :func:`update`, which skips
-    any argument that is ``None``. That convention cannot express clearing a
+    any argument that is `None`. That convention cannot express clearing a
     nullable setting: "leave the cap alone" and "remove the cap" would both
-    arrive as ``None``, and the second is the one that costs money.
+    arrive as `None`, and the second is the one that costs money.
     """
     org.monthly_budget_usd = limit_usd
     await db.flush()

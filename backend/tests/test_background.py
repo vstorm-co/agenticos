@@ -100,7 +100,7 @@ class TestDrainingOnShutdown:
         assert not background._running
 
     async def test_work_that_is_nearly_done_is_allowed_to_finish(self) -> None:
-        """Otherwise a restart leaves documents stuck in ``processing`` forever."""
+        """Otherwise a restart leaves documents stuck in `processing` forever."""
         finished: list[str] = []
 
         async def work() -> None:

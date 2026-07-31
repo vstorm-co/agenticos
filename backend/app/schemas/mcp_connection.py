@@ -119,7 +119,7 @@ class OrgMcpConnectionUpdate(BaseSchema):
 class OrgMcpConnectionRead(McpConnectionRead):
     """An organization connection as the API returns it.
 
-    Adds only ``catalog_key``: the Builder and the servers page both want to
+    Adds only `catalog_key`: the Builder and the servers page both want to
     show a curated server's real name and logo, and matching on the URL - which
     is what the frontend does for personal connections - guesses where this
     knows.
@@ -141,22 +141,6 @@ class OrgMcpConnectionList(BaseSchema):
 class McpToolRead(BaseSchema):
     name: str
     description: str
-
-
-class WorkspaceMcpServerRead(BaseSchema):
-    """Deployment-managed server from MCP_SERVERS - read-only in the UI.
-
-    Deliberately omits the URL and headers: those are deployment config and
-    may point at internal infrastructure.
-    """
-
-    name: str
-    allowed_tools: list[str] | None
-
-
-class WorkspaceMcpServerList(BaseSchema):
-    items: list[WorkspaceMcpServerRead]
-    total: int
 
 
 class McpConnectionTestResult(BaseSchema):

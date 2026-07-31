@@ -32,6 +32,13 @@ export const qk = {
   channelBots: {
     list: () => ["channel-bots"] as const,
   },
+  catalog: {
+    icons: () => ["catalog", "icons"] as const,
+  },
+  environments: {
+    all: () => ["environments"] as const,
+    list: (agentId: string) => ["environments", agentId] as const,
+  },
   exposures: {
     all: () => ["exposures"] as const,
     list: (agentId: string) => ["exposures", agentId] as const,

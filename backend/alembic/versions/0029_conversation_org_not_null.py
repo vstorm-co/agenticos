@@ -6,7 +6,7 @@ Create Date: 2026-07-26
 
 0027 could only assert "a user-owned conversation has an org", because channel
 conversations had no tenant to inherit. 0028 gave channel bots an organization
-and the router now stamps it, so every writer of ``conversations`` supplies one
+and the router now stamps it, so every writer of `conversations` supplies one
 and the column can carry the invariant itself.
 
 Rows left over from before 0028 (channel conversations opened while bots were

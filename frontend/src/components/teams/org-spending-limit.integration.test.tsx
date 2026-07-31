@@ -55,7 +55,7 @@ function serve(role: OrgRole, monthToDate = "12.5") {
         is_app_admin: false,
         // The hook reads the catalog the server sends, so the role alone does
         // not decide anything here - this is the permission under test.
-        permissions: role === "owner" ? [{ permission: "org:settings", scope: "all" }] : [],
+        permissions: role === "owner" ? [{ permission: "budgets:manage", scope: "all" }] : [],
       };
     }
     if (path === "/spend") return { period_days: 30, month_to_date_usd: monthToDate, by_agent: [] };

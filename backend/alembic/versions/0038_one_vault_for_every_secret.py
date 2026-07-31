@@ -5,7 +5,7 @@ Revises: 0037_mcp_owner
 Create Date: 2026-07-27
 
 Three mechanisms held secrets at rest and only one of them bound a ciphertext
-to its owner. Provider keys went through ``app.core.vault`` (an envelope keyed
+to its owner. Provider keys went through `app.core.vault` (an envelope keyed
 on the organization); channel bot tokens went through a single deployment-wide
 Fernet key; MCP bearer tokens and OAuth payloads went through another one. A
 ciphertext for a Slack token or an MCP token could be copied from one
@@ -15,15 +15,15 @@ member's personal MCP connection, which has no organization - to the member.
 
 Three schema changes follow from that:
 
-* ``channel_bots.secret_key_version`` - the token is now an envelope, and a
+* `channel_bots.secret_key_version` - the token is now an envelope, and a
   staged master-key rotation has to know which key sealed each row.
-* ``credentials.kind`` plus a nullable ``sealed_secret`` - a credential is no
+* `credentials.kind` plus a nullable `sealed_secret` - a credential is no
   longer always an API key. Azure needs an endpoint and an API version, Bedrock
   an AWS key pair and a region, Vertex a service account, and a self-hosted
   model server needs no credential at all. The check constraint ties the two
   together so a row cannot claim to be keyless and carry a secret, or claim a
   shape and carry nothing.
-* ``organization_secrets`` - a named, kind-tagged secret a capability can be
+* `organization_secrets` - a named, kind-tagged secret a capability can be
   pointed at by id. Referenced, never handed around: the plaintext reaches the
   capability instance and nothing else.
 

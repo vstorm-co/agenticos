@@ -108,9 +108,8 @@ def channel_webhook_register(bot_id: str) -> None:
             token = svc.get_decrypted_token(bot)
 
         adapter = get_adapter("telegram")
-        webhook_url = (
-            f"{settings.TELEGRAM_WEBHOOK_BASE_URL}/api/v1/channels/telegram/{bot_id}/webhook"
-        )
+        base = settings.PUBLIC_BASE_URL.rstrip("/")
+        webhook_url = f"{base}/api/v1/channels/telegram/{bot_id}/webhook"
 
         info(f"Registering webhook: {webhook_url}")
         ok = await adapter.register_webhook(token, url=webhook_url, secret=bot.webhook_secret)

@@ -3,16 +3,16 @@
 Deliberately *outside* the capability that enforces them. These types are the
 contract between four parties: the gate raises the question, a surface carries
 it to a person, the approvals service records what they said, and
-``AgentDeps`` carries the callback that joins them. Only one of those four is
+`AgentDeps` carries the callback that joins them. Only one of those four is
 the capability.
 
-They lived in the gate's own module, which made ``app/agents/deps.py`` - the
+They lived in the gate's own module, which made `app/agents/deps.py` - the
 module every capability imports - depend on a capability that imports it back.
-The cycle survived only because the annotation hid behind ``TYPE_CHECKING`` and
+The cycle survived only because the annotation hid behind `TYPE_CHECKING` and
 a lazily-evaluated alias, with a comment apologising for it. Moving the types
 down a layer, below both, removes the cycle rather than tiptoeing around it.
 
-This module imports nothing from ``app``.
+This module imports nothing from `app`.
 """
 
 from __future__ import annotations

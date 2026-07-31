@@ -15,8 +15,8 @@ from app.schemas.user import UserRead
 _ID = UUID
 
 # The organization's monthly ceiling, as a client states it. Constrained inside
-# the union rather than on the field so that ``null`` stays a legal value: it is
-# how the cap is *removed*, and a ``gt=0`` applied to the whole field would
+# the union rather than on the field so that `null` stays a legal value: it is
+# how the cap is *removed*, and a `gt=0` applied to the whole field would
 # reject the one request that lifts the limit.
 MonthlyBudgetUsd = Annotated[Decimal, Field(gt=0, max_digits=12, decimal_places=6)]
 
@@ -40,8 +40,8 @@ class OrganizationCreate(BaseSchema):
 class OrganizationUpdate(BaseSchema):
     """A partial update to an organization's settings.
 
-    ``monthly_budget_usd`` is the one field where omitting it and sending
-    ``null`` mean different things: absent leaves the cap as it stands, ``null``
+    `monthly_budget_usd` is the one field where omitting it and sending
+    `null` mean different things: absent leaves the cap as it stands, `null`
     removes it. Renaming an organization must not uncap it, so the service keys
     on whether the client named the field rather than on its value.
     """
@@ -141,10 +141,10 @@ class InvitationRead(BaseSchema):
 
     Deliberately without the token. A token is a bearer credential - whoever
     holds one joins the organization as the role offered to somebody else's
-    address - and this model is what ``GET /orgs/{id}/invitations`` returns, so
+    address - and this model is what `GET /orgs/{id}/invitations` returns, so
     carrying the token here handed out every pending credential on every call.
     Email, role, status and expiry are what an administrator decides on;
-    revoking addresses the invitation by ``id``.
+    revoking addresses the invitation by `id`.
     """
 
     id: _ID

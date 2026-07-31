@@ -5,25 +5,25 @@ bit - should traffic come here - from an endpoint nobody authenticates to, and
 it wants it while everything else is timing out. An operator on the admin page
 wants to know which backing service is broken and what was tested to decide
 that. The generated template served both from one payload, which is how
-``/health/ready`` came to carry a Stripe row, a vector-store check that never
+`/health/ready` came to carry a Stripe row, a vector-store check that never
 checked anything, and a provider check reading environment variables that no run
 has touched since credentials moved into the vault.
 
 So the probes live here, each returning what it verified, and the two endpoints
 compose only the checks they are entitled to:
 
-* ``GET /health/ready`` - unauthenticated. The two dependencies that gate
+* `GET /health/ready` - unauthenticated. The two dependencies that gate
   traffic, as status and latency and nothing else. It deliberately does not echo
   a driver error: "connection to server at 10.0.1.7 failed: password
   authentication failed for user postgres" is a useful line in a log and a map
   of the network to a stranger.
-* ``GET /admin/system`` - authenticated, app admin. The same two, plus the
+* `GET /admin/system` - authenticated, app admin. The same two, plus the
   deployment facts an operator asks about, each with the detail behind it.
 
 Two rules hold for everything below.
 
-**No probe reports a status it did not verify.** ``healthy`` means a query came
-back. A check that cannot be performed says ``unconfigured`` or ``not_checked``
+**No probe reports a status it did not verify.** `healthy` means a query came
+back. A check that cannot be performed says `unconfigured` or `not_checked`
 and says why; nothing here guesses.
 
 **No probe hangs.** Every await is bounded by :data:`PROBE_TIMEOUT_SECONDS`. A
@@ -106,7 +106,7 @@ def _not_checked(key: str, because: str) -> SystemCheck:
 async def probe_database(db: AsyncSession) -> SystemCheck:
     """Round-trip a trivial query.
 
-    The broad ``except`` is deliberate: this runs on the endpoint an operator
+    The broad `except` is deliberate: this runs on the endpoint an operator
     reads *because* something is wrong, and a probe that propagates turns a
     diagnosis into a 500.
     """
@@ -130,8 +130,8 @@ async def probe_database(db: AsyncSession) -> SystemCheck:
 async def probe_redis(redis: RedisClient) -> SystemCheck:
     """PING the cache and queue broker.
 
-    ``RedisClient.ping`` answers False rather than raising when it has no
-    connection, so False is the ordinary failure; the ``except`` covers a client
+    `RedisClient.ping` answers False rather than raising when it has no
+    connection, so False is the ordinary failure; the `except` covers a client
     breaking in a way it did not anticipate.
     """
     start = perf_counter()
@@ -161,7 +161,7 @@ async def probe_vector_store(db: AsyncSession) -> SystemCheck:
     installed and how many collection tables exist. Both are catalog reads,
     which is what makes this cheap enough for a page that refreshes itself.
 
-    A missing extension is ``unconfigured``, not ``unhealthy``: a deployment
+    A missing extension is `unconfigured`, not `unhealthy`: a deployment
     that never ingests a document is working exactly as installed. The detail
     says what happens if it does, which is the part worth knowing before the
     first upload rather than after.
@@ -209,7 +209,7 @@ async def probe_model_access(db: AsyncSession) -> SystemCheck:
 
     What is answerable - and what an operator is actually asking when they look
     at this row - is whether any organization could run anything. The join
-    mirrors what ``ModelProfileService.resolve`` requires, a profile pointing at
+    mirrors what `ModelProfileService.resolve` requires, a profile pointing at
     a credential that is still active, so a profile counted here is a profile a
     run can use up to the key having been revoked upstream. The count says that
     much and claims nothing more.
@@ -277,7 +277,7 @@ async def system_health(*, db: AsyncSession, redis: RedisClient) -> SystemHealth
 
     The database probe gates the two that read through it. Not for speed - a
     timed-out query leaves the session unusable, and the cascade of driver errors
-    that follows reports three broken things when one is. ``not_checked`` names
+    that follows reports three broken things when one is. `not_checked` names
     the reason instead.
     """
     database, redis_check = await asyncio.gather(probe_database(db), probe_redis(redis))

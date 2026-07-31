@@ -8,7 +8,6 @@ from uuid import uuid4
 import httpx
 import pytest
 from mcp.shared.auth import OAuthToken
-from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 
 from app.agents import mcp_oauth
@@ -21,10 +20,8 @@ from app.agents.mcp import (
     _tool_prefix,
     build_mcp_toolsets,
     probe_mcp_server,
-    static_server_specs,
 )
 from app.agents.mcp_oauth import McpOAuthPayload
-from app.core.config import McpServerConfig, settings
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.core.sanitize import SSRFBlockedError
@@ -233,6 +230,33 @@ class TestBuildMcpToolsets:
         assert probed == ["https://workspace.example/mcp"]
 
 
+class TestProbeSuccess:
+    @pytest.mark.anyio
+    async def test_a_reachable_server_lists_its_tools(self, monkeypatch):
+        """The probe's whole product: the tool names an admin picks from,
+        with a missing description read as empty rather than None."""
+        described = MagicMock(description="Search issues")
+        described.name = "search"
+        bare = MagicMock(description=None)
+        bare.name = "create_issue"
+        session = AsyncMock()
+        session.list_tools = AsyncMock(return_value=MagicMock(tools=[described, bare]))
+
+        monkeypatch.setattr(
+            "app.agents.mcp._mcp_transport",
+            lambda url, headers: _acm((MagicMock(), MagicMock())),
+        )
+        monkeypatch.setattr("mcp.ClientSession", lambda read, write: _acm(session))
+
+        tools = await probe_mcp_server("https://example.com/mcp")
+
+        assert tools == [
+            McpToolInfo(name="search", description="Search issues"),
+            McpToolInfo(name="create_issue", description=""),
+        ]
+        session.initialize.assert_awaited_once()
+
+
 class TestProbeErrors:
     """A dead server must never abort the turn - including when the failure
     arrives as an exception group out of the anyio task group."""
@@ -263,144 +287,12 @@ class TestProbeErrors:
             await probe_mcp_server("https://example.com/mcp")
 
 
-class TestStaticServerSpecs:
-    def test_maps_settings_entries(self, monkeypatch):
-        monkeypatch.setattr(
-            settings,
-            "MCP_SERVERS",
-            [
-                McpServerConfig(
-                    name="github",
-                    url="https://example.com/mcp",
-                    headers={"Authorization": "Bearer x"},
-                    allowed_tools=["search"],
-                )
-            ],
-        )
-        specs = static_server_specs()
-        assert specs == [
-            McpServerSpec(
-                name="github",
-                url="https://example.com/mcp",
-                headers={"Authorization": "Bearer x"},
-                allowed_tools=["search"],
-            )
-        ]
-
-    def test_name_must_be_a_slug(self):
-        """The name becomes the tool prefix, so anything outside the slug rule
-        would silently collapse two servers onto one prefix."""
-        with pytest.raises(ValidationError):
-            McpServerConfig(name="My Server!", url="https://example.com/mcp")
-
-    def test_duplicate_names_are_rejected_at_startup(self):
-        """Two servers with one name means one of them never reaches a chat
-        turn. Fail at boot rather than at runtime, where nobody would see it."""
-        with pytest.raises(ValidationError, match="duplicate server names"):
-            type(settings)(
-                MCP_SERVERS=[
-                    McpServerConfig(name="github", url="https://a.example/mcp"),
-                    McpServerConfig(name="github", url="https://b.example/mcp"),
-                ]
-            )
-
-
-class TestToolsetsForUser:
-    @pytest.mark.anyio
-    async def test_no_user_still_gets_workspace_servers(self, monkeypatch):
-        """Channel traffic that isn't mapped to an account: the deployment's
-        MCP_SERVERS still apply, and no database session is opened for the
-        per-user connections that can't exist."""
-
-        def _no_db():  # pragma: no cover - only called if the guard regresses
-            raise AssertionError("build_toolsets_for_user(None) must not open a session")
-
-        monkeypatch.setattr(
-            mcp_connection_service,
-            "static_server_specs",
-            lambda: [McpServerSpec(name="workspace", url="https://example.com/mcp")],
-        )
-        monkeypatch.setattr(mcp_connection_service, "get_db_context", _no_db)
-        seen: list[list[McpServerSpec]] = []
-
-        async def fake_build(specs: list[McpServerSpec]) -> list[str]:
-            seen.append(specs)
-            return ["toolset"]
-
-        monkeypatch.setattr(mcp_connection_service, "build_mcp_toolsets", fake_build)
-
-        assert await mcp_connection_service.build_toolsets_for_user(None) == ["toolset"]
-        assert [spec.name for spec in seen[0]] == ["workspace"]
-
-    @staticmethod
-    def _wire(monkeypatch, connections: list[McpConnection]) -> tuple[list, AsyncMock]:
-        """Run the per-user path over *connections*, capturing the specs built."""
-        monkeypatch.setattr(
-            mcp_connection_service,
-            "static_server_specs",
-            lambda: [McpServerSpec(name="workspace", url="https://example.com/mcp")],
-        )
-        monkeypatch.setattr(mcp_connection_service, "get_db_context", lambda: _acm(AsyncMock()))
-        listed = AsyncMock(return_value=(connections, len(connections)))
-        monkeypatch.setattr(mcp_connection_service.mcp_connection_repo, "list_for_user", listed)
-        seen: list[list[McpServerSpec]] = []
-
-        async def fake_build(specs: list[McpServerSpec]) -> list[str]:
-            seen.append(specs)
-            return [spec.name for spec in specs]
-
-        monkeypatch.setattr(mcp_connection_service, "build_mcp_toolsets", fake_build)
-        return seen, listed
-
-    @pytest.mark.anyio
-    async def test_a_users_own_connections_are_added_to_the_deployments_servers(self, monkeypatch):
-        """The general assistant is the one place a personal connection belongs:
-        the person asking is the person whose token gets spent."""
-        connection = _connection(name="github", allowed_tools=["search_issues"])
-        seen, _ = self._wire(monkeypatch, [connection])
-
-        toolsets = await mcp_connection_service.build_toolsets_for_user(connection.user_id)
-
-        assert toolsets == ["workspace", "github"]
-        # The allowlist the user picked travels with the server, not beside it.
-        assert seen[0][1].allowed_tools == ["search_issues"]
-        assert seen[0][1].url == connection.url
-
-    @pytest.mark.anyio
-    async def test_only_connections_the_user_left_switched_on_are_asked_for(self, monkeypatch):
-        """Switching a connection off in Settings is how a user stops the
-        assistant reaching a server; a listing that ignored the flag would keep
-        attaching its tools."""
-        _, listed = self._wire(monkeypatch, [])
-        user_id = uuid4()
-
-        await mcp_connection_service.build_toolsets_for_user(user_id)
-
-        assert listed.await_args.kwargs == {"user_id": user_id, "enabled_only": True}
-
-    @pytest.mark.anyio
-    async def test_a_connection_with_unusable_credentials_is_skipped_not_sent_unauthenticated(
-        self, monkeypatch
-    ):
-        """A rotated SECRET_KEY makes a stored bearer token undecryptable. The
-        turn loses that server; what it must not do is dial the same URL with no
-        Authorization header at all, or take the whole conversation down."""
-        broken = _connection(name="linear", auth_token="enc:not-valid-ciphertext")
-        healthy = _connection(name="github")
-        seen, _ = self._wire(monkeypatch, [broken, healthy])
-
-        toolsets = await mcp_connection_service.build_toolsets_for_user(uuid4())
-
-        assert toolsets == ["workspace", "github"]
-        assert [spec.name for spec in seen[0]] == ["workspace", "github"]
-
-
 class TestToolsetsForAgent:
     """What a *published* agent reaches: the servers its spec named, nothing else.
 
-    The distinction from `build_toolsets_for_user` is the whole point. An agent
-    that picked up whatever the person triggering it had enabled would answer
-    differently depending on who asked, and would run on that person's tokens.
+    An agent that picked up whatever the person triggering it had enabled would
+    answer differently depending on who asked, and would run on that person's
+    tokens.
     """
 
     @staticmethod
@@ -422,13 +314,6 @@ class TestToolsetsForAgent:
         Including them would put tools in a published agent that its spec does
         not mention and that publish-time validation never checked.
         """
-        # Non-empty, so that "only linear came through" is a real assertion
-        # rather than one the empty test configuration would satisfy anyway.
-        monkeypatch.setattr(
-            mcp_connection_service,
-            "static_server_specs",
-            lambda: [McpServerSpec(name="workspace", url="https://example.com/mcp")],
-        )
         seen = self._capture(monkeypatch)
         bound = _connection(name="linear", url="https://mcp.linear.app/sse")
         monkeypatch.setattr(
@@ -736,8 +621,8 @@ class TestOAuthTokens:
 
     @pytest.mark.anyio
     async def test_a_connection_awaiting_first_consent_has_no_payload_to_read(self):
-        """``oauth_start`` writes the row before the user ever sees the consent
-        screen, so ``oauth_payload`` is NULL rather than unreadable. That is not
+        """`oauth_start` writes the row before the user ever sees the consent
+        screen, so `oauth_payload` is NULL rather than unreadable. That is not
         a licence to reach the server anonymously - the plugin is simply not
         usable until the callback lands."""
         conn = _connection(auth_type="oauth", oauth_payload=None, oauth_state="pending")
@@ -747,7 +632,7 @@ class TestOAuthTokens:
 class TestRefreshUnderLock:
     """What happens between finding an expired token and spending the refresh one.
 
-    Every case here ends in ``None``, and the reason is the same each time: a
+    Every case here ends in `None`, and the reason is the same each time: a
     turn that loses one server is a worse answer, while a refresh token redeemed
     against the wrong copy of the row is a connection the user has to notice is
     broken and re-authorize by hand. When the locked row disagrees with the copy
@@ -763,7 +648,7 @@ class TestRefreshUnderLock:
 
     @staticmethod
     def _locked(monkeypatch, row: McpConnection | None) -> AsyncMock:
-        """What ``SELECT ... FOR UPDATE`` finds once the lock is granted."""
+        """What `SELECT ... FOR UPDATE` finds once the lock is granted."""
         monkeypatch.setattr(
             mcp_connection_service.mcp_connection_repo,
             "get_by_id_for_update",
@@ -787,7 +672,7 @@ class TestRefreshUnderLock:
     async def test_a_payload_cleared_under_the_lock_is_not_refreshed_from_the_stale_copy(
         self, monkeypatch
     ):
-        """Moving a connection's URL wipes ``oauth_payload``, because tokens
+        """Moving a connection's URL wipes `oauth_payload`, because tokens
         belong to the host that issued them. A turn holding the pre-lock copy
         must not resurrect them against the new host."""
         refresh = self._locked(monkeypatch, _connection(auth_type="oauth", oauth_payload=None))
@@ -883,7 +768,7 @@ class TestOAuthSweep:
     async def test_a_token_that_is_still_good_is_counted_and_left_alone(self, repo, monkeypatch):
         """The lazy refresh renews a token at the moment it is needed, which no
         schedule beats. A sweep that renewed early would spend a refresh token
-        for nothing, and one that wrote ``last_checked_at`` anyway would cost a
+        for nothing, and one that wrote `last_checked_at` anyway would cost a
         write per connection per pass to say what it already said."""
         healthy = _oauth_connection(
             _base_payload(access_token="live", expires_at=datetime.now(UTC).timestamp() + 3600)
@@ -1048,7 +933,7 @@ class TestMcpConnectionService:
         self, service, repo, monkeypatch
     ):
         """Two requests can both pass the name check before either one inserts.
-        ``uq_mcp_connections_user_name`` is what actually decides, and the loser
+        `uq_mcp_connections_user_name` is what actually decides, and the loser
         must get the same 409 as if it had simply arrived second - not a 500."""
         _allow_any_url(monkeypatch)
         repo.create.side_effect = IntegrityError("INSERT", {}, Exception("duplicate key"))
@@ -1103,7 +988,7 @@ class TestMcpConnectionService:
 
     @pytest.mark.anyio
     async def test_clearing_the_allowlist_exposes_every_tool_again(self, service, repo):
-        """``allowed_tools: null`` in a PATCH body cannot be told apart from "not
+        """`allowed_tools: null` in a PATCH body cannot be told apart from "not
         provided", so the reset needs its own flag. Without it a user could
         narrow an allowlist and never widen it back."""
         user_id = uuid4()
@@ -1120,7 +1005,7 @@ class TestMcpConnectionService:
 
     @pytest.mark.anyio
     async def test_an_update_that_asks_for_nothing_writes_nothing(self, service, repo):
-        """An empty PATCH body must not bump ``updated_at`` - a row that changes
+        """An empty PATCH body must not bump `updated_at` - a row that changes
         for no reason is one that looks edited to whoever reads it next."""
         user_id = uuid4()
         conn = _connection(user_id=user_id)
@@ -1461,7 +1346,7 @@ class TestOrganizationConnections:
     Everything here turns on two things a personal connection does not have: a
     credential sealed for the organization rather than for the deployment, and
     no owner at all - which is what keeps the personal routes, that authorize on
-    ``user_id`` alone, from ever reaching one of these rows.
+    `user_id` alone, from ever reaching one of these rows.
     """
 
     @pytest.fixture
@@ -1547,7 +1432,7 @@ class TestOrganizationConnections:
         self, service, ctx, repo, audit, monkeypatch
     ):
         """An empty secret is refused by the vault, so a tokenless server has to
-        skip sealing rather than seal ``""`` and fail at the provider later."""
+        skip sealing rather than seal `""` and fail at the provider later."""
         _allow_any_url(monkeypatch)
 
         await service.create_for_org(
@@ -1885,7 +1770,7 @@ class TestOrganizationConnections:
 
     @pytest.mark.anyio
     async def test_the_personal_routes_cannot_reach_an_organization_server(self, service, repo):
-        """``/me/mcp-connections`` authorizes on ``user_id`` and asks for no
+        """`/me/mcp-connections` authorizes on `user_id` and asks for no
         organization permission. Without the scope check, whoever created a
         shared server could repoint a published agent at a host of their own."""
         user_id = uuid4()

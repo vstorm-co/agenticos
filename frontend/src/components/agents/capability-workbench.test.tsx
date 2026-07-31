@@ -105,6 +105,43 @@ describe("the capability workbench", () => {
     expect(screen.getByText("load_skill")).toBeInTheDocument();
   });
 
+  it("shows an ungranted capability at full detail, not an abridgement", async () => {
+    // The whole point of dropping the second, smaller rendering: the way to find
+    // out what granting a capability involves used to be to grant it. Approval,
+    // the editable description and the argument list are what that rendering
+    // left out, so they are what this asserts.
+    renderWorkbench();
+
+    await userEvent.click(screen.getByRole("button", { name: /^Charts/ }));
+
+    expect(screen.getByLabelText("Human approval")).toBeInTheDocument();
+    expect(screen.getByLabelText("Description the model reads")).toHaveValue(
+      "Draw a chart of numbers you already have.\n\nFor a scatter chart, give every row a numeric x and y.",
+    );
+    expect(screen.getByText("Arguments (3)")).toBeInTheDocument();
+  });
+
+  it("leaves the settings of an ungranted capability inert", async () => {
+    // Reading is still not granting. Live controls writing into a binding that
+    // does not exist would make opening a capability configure it by accident.
+    renderWorkbench();
+
+    await userEvent.click(screen.getByRole("button", { name: /^Charts/ }));
+
+    expect(screen.getByLabelText("Description the model reads")).toBeDisabled();
+  });
+
+  it("grants the capability on show from the panel, not only from the list", async () => {
+    // The list scrolls on its own, so the capability being read can be off
+    // screen from the row that grants it.
+    const onToggle = vi.fn();
+    renderWorkbench({ onToggle });
+
+    await userEvent.click(screen.getByRole("switch", { name: "Charts enabled" }));
+
+    expect(onToggle).toHaveBeenCalledWith("charts");
+  });
+
   it("reading a capability is not granting it", async () => {
     const onToggle = vi.fn();
     renderWorkbench({ onToggle });
@@ -114,11 +151,11 @@ describe("the capability workbench", () => {
     expect(onToggle).not.toHaveBeenCalled();
   });
 
-  it("grants a capability from its checkbox", async () => {
+  it("grants a capability from its switch", async () => {
     const onToggle = vi.fn();
     renderWorkbench({ onToggle });
 
-    await userEvent.click(screen.getByRole("checkbox", { name: "Give this agent Charts" }));
+    await userEvent.click(screen.getByRole("switch", { name: "Give this agent Charts" }));
 
     expect(onToggle).toHaveBeenCalledWith("charts");
   });
@@ -126,7 +163,7 @@ describe("the capability workbench", () => {
   it("configures the capability it is showing, not every one that is on", async () => {
     // The pile of settings cards under the old grid is the thing being replaced:
     // five enabled capabilities produced five panels, none of them beside the
-    // checkbox that created it.
+    // switch that created it.
     renderWorkbench({ selected: [binding("charts"), binding("skills")] });
 
     const panel = screen.getByRole("group", { name: "Charts" });

@@ -35,6 +35,7 @@ from app.core.exceptions import (
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.repositories import (
+    agent_environment_repo,
     agent_exposure_repo,
     agent_repo,
     credential_repo,
@@ -67,7 +68,7 @@ _NAME_LIMIT = 128
 
 
 def _copy_name(base: str, attempt: int) -> str:
-    """What the nth copy of ``base`` is called."""
+    """What the nth copy of `base` is called."""
     suffix = " (copy)" if attempt == 1 else f" (copy {attempt})"
     return f"{base[: _NAME_LIMIT - len(suffix)].rstrip()}{suffix}"
 
@@ -114,7 +115,7 @@ def _tool_override_problems(binding: CapabilityBindingSpec, definition: Capabili
 def slugify(name: str) -> str:
     """A URL- and mention-safe handle derived from a name.
 
-    Used in agent URLs and as the ``@handle`` on chat platforms, so it must stay
+    Used in agent URLs and as the `@handle` on chat platforms, so it must stay
     stable and unambiguous - which is why it is generated once at creation and
     then owned by the row, not recomputed when the name changes.
     """
@@ -297,7 +298,7 @@ class AgentRegistryService:
         Cloning twice is ordinary, and the second one has no name field to
         correct - the name is derived, so refusing it with "pick another name"
         would be asking for something the caller was never offered. Numbering
-        stops at :data:`_MAX_COPIES`, after which ``create`` raises and says the
+        stops at :data:`_MAX_COPIES`, after which `create` raises and says the
         handle is taken, which by then is the honest answer.
         """
         for attempt in range(1, _MAX_COPIES + 1):
@@ -334,7 +335,7 @@ class AgentRegistryService:
         the difference between a Builder people use and one they avoid.
 
         Raises:
-            BadRequestError: With a ``problems`` list naming each broken
+            BadRequestError: With a `problems` list naming each broken
                 reference.
         """
         problems: list[str] = []
@@ -507,6 +508,7 @@ class AgentRegistryService:
                 "status": AgentStatus.PUBLISHED.value,
             },
         )
+        await self._repoint_default_environment(ctx, agent=agent, version=version)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -517,6 +519,34 @@ class AgentRegistryService:
             details={"version": number, "note": note},
         )
         return version
+
+    async def _repoint_default_environment(
+        self, ctx: AuthContext, *, agent: Agent, version: AgentVersion
+    ) -> None:
+        """Keep the default environment on the version that was just published.
+
+        Publish moves exactly one pointer: the default. Named environments
+        somebody pinned - dev on v12, a client's env held back on v9 - stay
+        where they were put; promotion is `AgentEnvironmentService.update`,
+        on purpose and audited. An agent published for the first time gets its
+        `production` default here, so every published agent has one without a
+        backfill ever being anyone's job again.
+        """
+        default = await agent_environment_repo.get_default_for_agent(self.db, agent_id=agent.id)
+        if default is None:
+            await agent_environment_repo.create(
+                self.db,
+                organization_id=ctx.organization_id,
+                agent_id=agent.id,
+                name="production",
+                version_id=version.id,
+                is_default=True,
+                created_by_user_id=ctx.user_id,
+            )
+            return
+        await agent_environment_repo.update(
+            self.db, environment=default, update_data={"version_id": version.id}
+        )
 
     async def rollback(
         self, ctx: AuthContext, agent_id: UUID, *, to_version_id: UUID
@@ -557,6 +587,7 @@ class AgentRegistryService:
                 "draft_spec": source.spec,
             },
         )
+        await self._repoint_default_environment(ctx, agent=agent, version=version)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -744,13 +775,23 @@ class AgentRegistryService:
             for version in versions
         ]
 
-    async def get_runnable_spec(self, ctx: AuthContext, agent_id: UUID) -> tuple[Agent, AgentSpec]:
-        """The published spec for a run.
+    async def get_runnable_spec(
+        self, ctx: AuthContext, agent_id: UUID, *, environment_id: UUID | None = None
+    ) -> tuple[Agent, AgentSpec, UUID]:
+        """The published spec for a run, and the version id it was resolved to.
+
+        Which version answers is the environment's decision: an explicit
+        `environment_id` (a dev bot, an env-pinned surface) resolves to the
+        version that environment pins; nothing named resolves to
+        `current_version_id`, which publish keeps in sync with the default
+        environment. The resolved id is returned so the run row records the
+        version that actually answered, not the default of the moment.
 
         Raises:
             BadRequestError: If the agent has never been published or is
                 archived - running a draft would mean running something nobody
                 approved.
+            NotFoundError: If the named environment is not this agent's.
         """
         agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
         if agent.status == AgentStatus.ARCHIVED.value:
@@ -762,12 +803,25 @@ class AgentRegistryService:
                 message=f"Agent '{agent.name}' has not been published yet",
                 details={"agent_id": str(agent.id)},
             )
+
+        version_id = agent.current_version_id
+        if environment_id is not None:
+            environment = await agent_environment_repo.get(
+                self.db, environment_id, organization_id=ctx.organization_id
+            )
+            if environment is None or environment.agent_id != agent.id:
+                raise NotFoundError(
+                    message="Environment not found",
+                    details={"environment_id": str(environment_id)},
+                )
+            version_id = environment.version_id
+
         version = await agent_repo.get_version(
-            self.db, agent.current_version_id, organization_id=ctx.organization_id
+            self.db, version_id, organization_id=ctx.organization_id
         )
         if version is None:
             raise BadRequestError(
                 message=f"Agent '{agent.name}' points at a missing version",
                 details={"agent_id": str(agent.id)},
             )
-        return agent, AgentSpec.model_validate(version.spec)
+        return agent, AgentSpec.model_validate(version.spec), version.id

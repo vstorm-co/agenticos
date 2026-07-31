@@ -72,6 +72,7 @@ interface AddSecretDialogProps {
 const PURPOSE_GROUPS = [
   { id: "model_provider", label: "Model provider", hint: "OpenAI, Anthropic…" },
   { id: "search", label: "Web search", hint: "Tavily, Brave, Exa" },
+  { id: "observability", label: "Tracing", hint: "Logfire" },
   { id: "other", label: "Something else", hint: "Any other service" },
 ] as const;
 

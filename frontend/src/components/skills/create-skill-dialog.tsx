@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Upload } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { BookOpen, FilePlus, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -12,10 +12,19 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  FormField,
   Input,
-  Textarea,
+  Label,
 } from "@/components/ui";
+import { CategoryInput, categorySuggestions } from "@/components/skills/category-input";
+import {
+  FileTree,
+  FileViewer,
+  formatSize,
+  NewFileForm,
+  UploadButton,
+} from "@/components/skills/skill-files";
+import { buildTree, previewKind } from "@/lib/file-tree";
+import { cn } from "@/lib/utils";
 import { useSkills } from "@/hooks";
 import { apiClient } from "@/lib/api-client";
 import { submitFailure } from "@/lib/api-error";
@@ -25,7 +34,26 @@ const MAX_NAME = 64;
 const MAX_DESCRIPTION = 500;
 const MAX_CATEGORY = 64;
 
+/** The body's place in the tree - the same manifest slot the workbench gives it. */
+const BODY = "SKILL.md";
+
+/** Beyond this a pending file is shown as a fact, not read into the pane. */
+const MAX_PREVIEW_BYTES = 512 * 1024;
+
 type Field = "name" | "description" | "category" | "content";
+
+/** The path a picked file will be stored under - a folder drop keeps its layout. */
+function pathOf(file: File): string {
+  return file.webkitRelativePath || file.name;
+}
+
+/** Whether a pending file can honestly be shown as text. */
+function isReadableText(file: File): boolean {
+  if (file.size > MAX_PREVIEW_BYTES) return false;
+  const path = pathOf(file);
+  const extension = path.split(".").pop()?.toLowerCase() ?? "";
+  return previewKind(path) !== "text" || extension === "txt" || file.type.startsWith("text/");
+}
 
 interface CreateSkillDialogProps {
   open: boolean;
@@ -33,15 +61,22 @@ interface CreateSkillDialogProps {
 }
 
 /**
- * New skill: a name the model will refer to it by, and what it is for.
+ * New skill, laid out as the editor it becomes.
  *
- * The name is unique per organization and cannot be changed afterwards, so a
- * collision is both the likeliest refusal and the one that most needs to land
- * on the field rather than in a toast - everything the reader typed into a ten
- * row editor is still worth keeping.
+ * The same arrangement as `SkillWorkbench`, deliberately: a strip of facts on
+ * top, the body as `SKILL.md` in a file tree on the left, one pane reading a
+ * file on the right. It used to be a stacked form with a lone "Content"
+ * textarea, which meant the second time anybody saw their skill it looked
+ * nothing like the first - and the create form was the only place in the
+ * product where a skill did not look like a folder.
+ *
+ * What differs from the workbench is only what cannot exist yet: the name is
+ * editable here because it is being chosen, there is no Enabled switch because
+ * a skill is created enabled, and the files are local File objects held until
+ * the skill exists to attach them to.
  */
 export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps) {
-  const { create } = useSkills();
+  const { create, categories, suggestedCategories } = useSkills();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
@@ -50,6 +85,9 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
   // arrives, and making somebody create an empty one first to attach it is the
   // step this avoids.
   const [files, setFiles] = useState<File[]>([]);
+  // `null` is the body. Every other value is a pending file's path.
+  const [openPath, setOpenPath] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
 
   const setters: Record<Field, (value: string) => void> = {
@@ -66,13 +104,32 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
     if (errors[field]) setErrors(({ [field]: _removed, ...rest }) => rest);
   }
 
+  /** Add files, replacing by path: picking `checklist.md` twice is a re-pick. */
+  function addFiles(picked: File[]) {
+    if (picked.length === 0) return;
+    setFiles((current) => {
+      const incoming = new Set(picked.map(pathOf));
+      return [...current.filter((file) => !incoming.has(pathOf(file))), ...picked];
+    });
+  }
+
+  function removeFile(path: string) {
+    setFiles((current) => current.filter((file) => pathOf(file) !== path));
+    setOpenPath(null);
+  }
+
+  const tree = useMemo(
+    () =>
+      buildTree(
+        files.map((file) => ({ id: pathOf(file), name: pathOf(file), size_bytes: file.size })),
+      ),
+    [files],
+  );
+  const selected = files.find((file) => pathOf(file) === openPath) ?? null;
+
   /** The same multipart write the editor's upload makes, once the id exists. */
   async function uploadFiles(skillId: string, picked: File[]) {
-    await apiClient.uploadMany(
-      `/skills/${skillId}/resources/upload`,
-      picked,
-      (file) => file.webkitRelativePath || file.name,
-    );
+    await apiClient.uploadMany(`/skills/${skillId}/resources/upload`, picked, pathOf);
   }
 
   async function handleCreate() {
@@ -97,6 +154,8 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
       setCategory("");
       setContent("");
       setFiles([]);
+      setOpenPath(null);
+      setAdding(false);
       setErrors({});
       onOpenChange(false);
     } catch (error) {
@@ -111,151 +170,247 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="flex h-[92vh] flex-col sm:max-w-[92rem]">
         <DialogHeader>
           <DialogTitle>New skill</DialogTitle>
           <DialogDescription>
             It is available to every agent in this organization the moment you create it.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
-          <FormField
-            label="Name"
-            htmlFor="new-skill-name"
-            error={errors.name}
-            description="How the model refers to this skill. Unique in this organization, and it cannot be changed later."
-          >
-            <Input
-              value={name}
-              onChange={(event) => edit("name", event.target.value)}
-              placeholder="refund-policy"
-              maxLength={MAX_NAME}
-              className="font-mono"
-            />
-          </FormField>
-          <FormField
-            label="Description"
-            htmlFor="new-skill-description"
-            error={errors.description}
-            description="The only part the model reads before deciding whether to open the skill. Write when it applies, not what is inside it."
-          >
-            <Textarea
-              value={description}
-              onChange={(event) => edit("description", event.target.value)}
-              placeholder="How refunds and their exceptions are handled."
-              maxLength={MAX_DESCRIPTION}
-              rows={2}
-            />
-          </FormField>
-          <FormField
-            label="Category"
-            htmlFor="new-skill-category"
-            error={errors.category}
-            description="Optional. A shelf for the listing to group and filter by - it never reaches the model."
-          >
-            <Input
-              value={category}
-              onChange={(event) => edit("category", event.target.value)}
-              placeholder="support"
-              maxLength={MAX_CATEGORY}
-            />
-          </FormField>
-          <FormField
-            label="Content"
-            htmlFor="new-skill-content"
-            error={errors.content}
-            description="Markdown. You can fill this in later."
-          >
-            <Textarea
-              value={content}
-              onChange={(event) => edit("content", event.target.value)}
-              placeholder="## When a customer asks for a refund…"
-              rows={10}
-              className="font-mono text-xs"
-            />
-          </FormField>
 
-          <div className="space-y-1.5">
-            <p className="text-sm font-medium">Files</p>
-            <p className="text-muted-foreground text-xs">
-              Optional. Drop the folder a skill came in - `references/`, `scripts/` and the rest
-              keep their paths, and the agent loads one only when it decides it needs it.
-            </p>
-            <div className="flex flex-wrap items-center gap-1.5">
-              <FilePicker
-                label="Add files"
-                onPick={(picked) => setFiles((f) => [...f, ...picked])}
+        <div className="flex min-h-0 flex-1 flex-col gap-3">
+          <div className="flex flex-wrap items-start gap-4 rounded-md border p-3">
+            <div className="w-56 shrink-0 space-y-1.5">
+              <Label htmlFor="new-skill-name">Name</Label>
+              <Input
+                id="new-skill-name"
+                value={name}
+                onChange={(event) => edit("name", event.target.value)}
+                placeholder="refund-policy"
+                maxLength={MAX_NAME}
+                className="font-mono"
+                aria-invalid={errors.name ? true : undefined}
               />
-              <FilePicker
-                label="Add folder"
-                directory
-                onPick={(picked) => setFiles((f) => [...f, ...picked])}
+              <FieldNote error={errors.name}>
+                How the model refers to this skill. It cannot be changed later.
+              </FieldNote>
+            </div>
+            <div className="min-w-0 flex-1 basis-72 space-y-1.5">
+              <Label htmlFor="new-skill-description">Description</Label>
+              <Input
+                id="new-skill-description"
+                value={description}
+                onChange={(event) => edit("description", event.target.value)}
+                placeholder="How refunds and their exceptions are handled."
+                maxLength={MAX_DESCRIPTION}
+                aria-invalid={errors.description ? true : undefined}
               />
-              {files.length > 0 && (
+              <FieldNote error={errors.description}>
+                The only part the model reads before deciding whether to open the skill at all.
+                Write when it applies, not what is inside it.
+              </FieldNote>
+            </div>
+            <div className="w-56 shrink-0 space-y-1.5">
+              <Label htmlFor="new-skill-category">Category</Label>
+              <CategoryInput
+                id="new-skill-category"
+                value={category}
+                onChange={(value) => edit("category", value)}
+                suggestions={categorySuggestions(categories, suggestedCategories)}
+                maxLength={MAX_CATEGORY}
+              />
+              <FieldNote error={errors.category}>
+                Optional. Groups the listing. Never reaches the model.
+              </FieldNote>
+            </div>
+          </div>
+
+          <div className="grid min-h-0 flex-1 gap-3 md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">
+            <div className="flex min-h-0 flex-col gap-2">
+              <div className="grid grid-cols-3 gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="px-2"
+                  onClick={() => {
+                    setAdding(true);
+                    setOpenPath(null);
+                  }}
+                >
+                  <FilePlus className="h-3.5 w-3.5" />
+                  New
+                </Button>
+                <UploadButton
+                  icon={Upload}
+                  label="Files"
+                  onPick={(list) => addFiles(Array.from(list ?? []))}
+                />
+                {/* A directory picker sends every file with its relative path,
+                    which is exactly the name a resource takes - so a dropped
+                    folder arrives as a folder with nothing to reconstruct. */}
+                <UploadButton
+                  icon={Upload}
+                  label="Folder"
+                  directory
+                  onPick={(list) => addFiles(Array.from(list ?? []))}
+                />
+              </div>
+
+              <div className="min-h-0 flex-1 overflow-auto rounded-md border p-1">
                 <button
                   type="button"
-                  onClick={() => setFiles([])}
-                  className="text-muted-foreground hover:text-foreground text-xs underline-offset-2 hover:underline"
+                  onClick={() => {
+                    setOpenPath(null);
+                    setAdding(false);
+                  }}
+                  aria-current={openPath === null && !adding}
+                  className={cn(
+                    "flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-left transition-colors",
+                    openPath === null && !adding
+                      ? "bg-accent text-foreground"
+                      : "hover:bg-accent/60",
+                  )}
                 >
-                  Clear {files.length}
+                  <BookOpen className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate font-mono text-xs">{BODY}</span>
                 </button>
+                <FileTree
+                  nodes={tree}
+                  openId={openPath}
+                  onOpen={(id) => {
+                    setOpenPath(id);
+                    setAdding(false);
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="flex min-h-0 flex-col">
+              {adding ? (
+                <NewFileForm
+                  busy={false}
+                  onCancel={() => setAdding(false)}
+                  onSubmit={(draft) => {
+                    // A typed draft becomes a File so it rides the same upload
+                    // as a picked one once the skill exists.
+                    addFiles([new File([draft.content], draft.name, { type: "text/plain" })]);
+                    setAdding(false);
+                    setOpenPath(draft.name);
+                  }}
+                />
+              ) : selected ? (
+                <PendingFilePane
+                  key={pathOf(selected)}
+                  file={selected}
+                  onRemove={() => removeFile(pathOf(selected))}
+                />
+              ) : (
+                <FileViewer
+                  name={BODY}
+                  content={content}
+                  canEdit
+                  onChange={(next) => edit("content", next)}
+                  footer={
+                    <p
+                      className={cn(
+                        "text-xs",
+                        errors.content ? "text-destructive" : "text-muted-foreground",
+                      )}
+                    >
+                      {errors.content ??
+                        "Markdown. You can fill this in later - it is loaded only after the description convinced the model to."}
+                    </p>
+                  }
+                />
               )}
             </div>
-            {files.length > 0 && (
-              <ul className="max-h-32 overflow-auto rounded-md border p-2">
-                {files.map((file) => (
-                  <li
-                    key={file.webkitRelativePath || file.name}
-                    className="text-muted-foreground truncate font-mono text-xs"
-                  >
-                    {file.webkitRelativePath || file.name}
-                  </li>
-                ))}
-              </ul>
-            )}
           </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreate}
+              disabled={!name.trim() || !description.trim() || create.isPending}
+            >
+              Create
+            </Button>
+          </DialogFooter>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleCreate}
-            disabled={!name.trim() || !description.trim() || create.isPending}
-          >
-            Create
-          </Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
 
-function FilePicker({
-  label,
-  directory,
-  onPick,
-}: {
-  label: string;
-  directory?: boolean;
-  onPick: (files: File[]) => void;
-}) {
+/** A field's helper line, or the refusal that replaced it. */
+function FieldNote({ error, children }: { error?: string; children: React.ReactNode }) {
+  if (error) return <p className="text-destructive text-xs">{error}</p>;
+  return <p className="text-muted-foreground text-xs">{children}</p>;
+}
+
+/**
+ * A file that exists only in this dialog, read the way the workbench reads a
+ * saved one when it can be read at all. A binary or oversized pick is stated
+ * as a fact - name and size - rather than garbled into a text pane.
+ */
+function PendingFilePane({ file, onRemove }: { file: File; onRemove: () => void }) {
+  const path = pathOf(file);
+  const readable = isReadableText(file);
+  const [text, setText] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    if (!readable) return;
+    let cancelled = false;
+    file
+      .text()
+      .then((body) => {
+        if (!cancelled) setText(body);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [file, readable]);
+
+  const footer = (
+    <>
+      <p className="text-muted-foreground min-w-0 flex-1 truncate text-xs">
+        {formatSize(file.size)} · uploads when the skill is created
+      </p>
+      <Button variant="ghost" size="sm" onClick={onRemove}>
+        Remove
+      </Button>
+    </>
+  );
+
+  if (!readable || failed) {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col rounded-md border">
+        <div className="flex items-center gap-2 border-b px-3 py-2">
+          <span className="min-w-0 flex-1 truncate font-mono text-xs">{path}</span>
+        </div>
+        <div className="flex flex-1 items-center justify-center p-6">
+          <p className="text-muted-foreground max-w-sm text-center text-xs">
+            Not shown here - the agent reads it as a file either way.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 border-t px-3 py-2">{footer}</div>
+      </div>
+    );
+  }
+
   return (
-    <label className="border-input hover:bg-accent inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border px-3 text-sm transition-colors">
-      <Upload className="h-4 w-4" />
-      {label}
-      <input
-        type="file"
-        multiple
-        // Not in React's JSX types - a real attribute every browser that matters
-        // implements, and the only way to pick a folder.
-        {...(directory ? ({ webkitdirectory: "" } as Record<string, string>) : {})}
-        className="hidden"
-        onChange={(event) => {
-          onPick(Array.from(event.target.files ?? []));
-          event.target.value = "";
-        }}
-      />
-    </label>
+    <FileViewer
+      name={path}
+      content={text ?? ""}
+      loading={text === null}
+      canEdit={false}
+      onChange={() => undefined}
+      footer={footer}
+    />
   );
 }

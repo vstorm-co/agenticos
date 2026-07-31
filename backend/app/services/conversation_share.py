@@ -51,6 +51,7 @@ class ConversationShareService:
         shared_by: UUID,
         *,
         shared_with: UUID | None = None,
+        shared_with_email: str | None = None,
         generate_link: bool = False,
         permission: str = "view",
     ) -> dict:
@@ -79,14 +80,27 @@ class ConversationShareService:
             )
             return {"share": share, "share_url": f"/shared/{share_token}"}
 
-        if shared_with is None:
-            raise NotFoundError(message="Must provide shared_with user ID or generate_link=true")
+        # The dialog sends an email - people know each other by email, not by
+        # UUID - and the API keeps accepting an id for callers that hold one.
+        if shared_with is not None:
+            target_user = await user_repo.get_by_id(self.db, shared_with)
+            if not target_user:
+                raise NotFoundError(message="User not found", details={"user_id": str(shared_with)})
+        elif shared_with_email is not None:
+            target_user = await user_repo.get_by_email(self.db, shared_with_email)
+            if not target_user:
+                raise NotFoundError(
+                    message="No user with that email", details={"email": shared_with_email}
+                )
+            shared_with = target_user.id
+        else:
+            raise NotFoundError(
+                message="Must provide shared_with, shared_with_email or generate_link=true"
+            )
+
+        # After resolution, so sharing with your own email is refused too.
         if shared_with == shared_by:
             raise AlreadyExistsError(message="Cannot share a conversation with yourself")
-
-        target_user = await user_repo.get_by_id(self.db, shared_with)
-        if not target_user:
-            raise NotFoundError(message="User not found", details={"user_id": str(shared_with)})
 
         existing = await conversation_share_repo.get_share(self.db, conversation_id, shared_with)
         if existing:

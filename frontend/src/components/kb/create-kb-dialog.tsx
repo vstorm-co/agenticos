@@ -22,8 +22,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useQuery } from "@tanstack/react-query";
 import { IngestionSettings } from "@/components/kb/ingestion-settings";
-import { useKnowledgeBases } from "@/hooks";
+import { useKnowledgeBases, useSecrets } from "@/hooks";
+import { apiClient } from "@/lib/api-client";
 import { submitFailure } from "@/lib/api-error";
 import {
   DEFAULT_INGESTION_CONFIG,
@@ -37,6 +39,17 @@ import type { CreateKnowledgeBaseInput, IngestionConfig, KBScope } from "@/types
 const MAX_NAME = 128;
 const MAX_DESCRIPTION = 500;
 
+/** Purposes whose keys can pay for embeddings - mirrors the backend's list. */
+const EMBEDDING_KEY_PURPOSE = "openrouter";
+
+/** Sentinel for "the deployment's key" - a Select item may not be empty. */
+const DEPLOYMENT_KEY = "__deployment__";
+
+interface EmbeddingModels {
+  default: string;
+  models: { model: string; dim: number }[];
+}
+
 interface CreateKBDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -48,9 +61,20 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
   const [description, setDescription] = useState("");
   const [scope, setScope] = useState<KBScope>("personal");
   const [ingestion, setIngestion] = useState<IngestionConfig>(DEFAULT_INGESTION_CONFIG);
+  const [embeddingModel, setEmbeddingModel] = useState<string | null>(null);
+  const [embeddingSecretId, setEmbeddingSecretId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
   const { createKB } = useKnowledgeBases();
+  const { secrets } = useSecrets();
+  const embeddingKeys = secrets.filter((secret) => secret.purpose === EMBEDDING_KEY_PURPOSE);
+  // Which models this build can index with. A build property, not tenant data,
+  // so it never goes stale while a dialog is open.
+  const { data: embeddingModels } = useQuery({
+    queryKey: ["rag", "embedding-models"],
+    queryFn: () => apiClient.get<EmbeddingModels>("/rag/embedding-models"),
+    staleTime: Infinity,
+  });
 
   // Nobody has chosen an ingestion configuration until it differs from what is
   // shown, and sending one they did not choose is not a harmless default: the
@@ -66,6 +90,8 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
     setDescription("");
     setScope("personal");
     setIngestion(DEFAULT_INGESTION_CONFIG);
+    setEmbeddingModel(null);
+    setEmbeddingSecretId(null);
     setErrors({});
   };
 
@@ -82,6 +108,10 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
       // The key is absent rather than undefined: "inherit the deployment's
       // defaults" is a thing the API is told by being told nothing.
       if (chosen) input.ingestion_config = ingestion;
+      if (embeddingModel && embeddingModel !== embeddingModels?.default) {
+        input.embedding_model = embeddingModel;
+      }
+      if (embeddingSecretId) input.embedding_secret_id = embeddingSecretId;
       const kb = await createKB(input);
       reset();
       onOpenChange(false);
@@ -151,6 +181,74 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                 </SelectContent>
               </Select>
             </div>
+
+            {/*
+              Folded away like the parsing section: the choice is frozen at
+              creation (the vector column is created at the model's width), so
+              it matters - but the default is right for almost everyone.
+            */}
+            <details className="group border-border rounded-lg border">
+              <summary className="text-foreground flex cursor-pointer list-none items-center gap-1.5 p-3 text-sm">
+                <ChevronRight className="h-3.5 w-3.5 transition-transform group-open:rotate-90" />
+                Embeddings
+                <span className="text-muted-foreground ml-auto text-xs">
+                  {embeddingModel && embeddingModel !== embeddingModels?.default
+                    ? embeddingModel
+                    : "deployment default"}
+                </span>
+              </summary>
+              <div className="space-y-4 border-t p-4">
+                <p className="text-muted-foreground text-xs">
+                  Frozen at creation: the collection&apos;s vectors are produced by this model and
+                  cannot be re-indexed under another one later. The key decides whose account pays
+                  for embedding.
+                </p>
+                <div className="space-y-1.5">
+                  <Label htmlFor="kb-embedding-model">Model</Label>
+                  <Select
+                    value={embeddingModel ?? embeddingModels?.default ?? ""}
+                    onValueChange={setEmbeddingModel}
+                    disabled={!embeddingModels}
+                  >
+                    <SelectTrigger id="kb-embedding-model">
+                      <SelectValue placeholder="Loading models…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(embeddingModels?.models ?? []).map((entry) => (
+                        <SelectItem key={entry.model} value={entry.model}>
+                          {entry.model}
+                          {entry.model === embeddingModels?.default ? " (default)" : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="kb-embedding-key">Key</Label>
+                  <Select
+                    value={embeddingSecretId ?? DEPLOYMENT_KEY}
+                    onValueChange={(v) => setEmbeddingSecretId(v === DEPLOYMENT_KEY ? null : v)}
+                  >
+                    <SelectTrigger id="kb-embedding-key">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={DEPLOYMENT_KEY}>Deployment key</SelectItem>
+                      {embeddingKeys.map((secret) => (
+                        <SelectItem key={secret.id} value={secret.id}>
+                          {secret.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {embeddingKeys.length === 0 && (
+                    <p className="text-muted-foreground text-xs">
+                      Add an OpenRouter key in the vault to bill embeddings to this organization.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </details>
 
             {/*
               Folded away, because creating a collection is a two-field job and

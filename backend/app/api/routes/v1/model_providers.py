@@ -41,7 +41,7 @@ router = APIRouter()
 async def list_provider_catalog() -> Any:
     """Every provider a credential can be stored for, and what it needs.
 
-    Gated on ``agents:view`` rather than ``connections:manage``: the Builder's
+    Gated on `agents:view` rather than `connections:manage`: the Builder's
     model picker reads it to label a profile, and knowing that Bedrock takes an
     AWS key pair is not a secret.
     """

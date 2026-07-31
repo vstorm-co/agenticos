@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import type { ReactNode } from "react";
-import { BookOpen, Lock, Plus } from "lucide-react";
+import { BookOpen, ChevronDown, ListFilter, Lock, Plus } from "lucide-react";
 
 import { PageHeader } from "@/components/dashboard/page-header";
 import { CreateSkillDialog } from "@/components/skills/create-skill-dialog";
 import { SkillCard } from "@/components/skills/skill-card";
 import { SkillLibraryGallery } from "@/components/skills/skill-library-gallery";
 import { SkillWorkbench } from "@/components/skills/skill-workbench";
+import { categoryLabel, categorySuggestions } from "@/components/skills/category-input";
 import { EmptyState, LoadingState } from "@/components/states";
 import {
   Button,
@@ -23,6 +24,12 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
   PAGE_SIZE,
   Pager,
   SearchInput,
@@ -41,11 +48,11 @@ function skillCount(count: number): string {
 }
 
 /**
- * One pressed-or-not control, used for the category chips and the sort.
+ * One pressed-or-not control, used for the sort.
  *
- * Filtering and ordering are both "pick one of a short row", so they share a
- * shape - two visual languages for the same gesture would make the sort look
- * like a second filter that mysteriously never empties the list.
+ * The category filter used to share this shape, but it grew into a
+ * multi-select menu; the sort stays a two-chip row because "pick one of two"
+ * is exactly what a chip says.
  */
 function Chip({
   active,
@@ -110,15 +117,15 @@ function SkillsCard({
 
 export default function SkillsPage() {
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState<string | null>(null);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [sort, setSort] = useState<SkillSort>("name");
   const [page, setPage] = useState(0);
   // Debounced because the search is a request, not a filter: an organization's
   // skills are paged by the database, so the client never holds them all.
   const search = useDebounced(query);
-  const { skills, total, categories, isLoading, remove } = useSkills({
+  const { skills, total, categories, suggestedCategories, isLoading, remove } = useSkills({
     search,
-    category: category ?? undefined,
+    categories: selectedCategories,
     sort,
     skip: page * PAGE_SIZE,
     limit: PAGE_SIZE,
@@ -134,7 +141,14 @@ export default function SkillsPage() {
   const canEdit = can(Perm.skillsEdit);
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const isSearching = search.trim() !== "";
-  const isFiltering = isSearching || category !== null;
+  const isFiltering = isSearching || selectedCategories.length > 0;
+
+  function toggleCategory(entry: string) {
+    setSelectedCategories((picked) =>
+      picked.includes(entry) ? picked.filter((one) => one !== entry) : [...picked, entry],
+    );
+    setPage(0);
+  }
 
   async function handleSave(edit: SkillEdit) {
     await save.mutateAsync(edit);
@@ -210,34 +224,53 @@ export default function SkillsPage() {
         <div className="space-y-4">
           {(categories.length > 0 || isFiltering || total > 0) && (
             <div className="flex flex-wrap items-center justify-between gap-3">
-              {/* "All" exists so a pressed chip can be un-pressed from the same
-                  row it was pressed in. The chips appear only once somebody has
-                  categorized something - a filter over one shelf filters nothing. */}
+              {/* A menu of checkboxes rather than a chip row: shelves are
+                  additive - "devops or data" is a sensible question - and a
+                  row of twenty chips is a wall where a count is a summary.
+                  It appears only once somebody has categorized something -
+                  a filter over one shelf filters nothing. */}
               <div className="flex flex-wrap items-center gap-1.5">
                 {categories.length > 0 && (
-                  <>
-                    <Chip
-                      active={category === null}
-                      onClick={() => {
-                        setCategory(null);
-                        setPage(0);
-                      }}
-                    >
-                      All
-                    </Chip>
-                    {categories.map((entry) => (
-                      <Chip
-                        key={entry}
-                        active={category === entry}
-                        onClick={() => {
-                          setCategory(category === entry ? null : entry);
-                          setPage(0);
-                        }}
-                      >
-                        {entry}
-                      </Chip>
-                    ))}
-                  </>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm">
+                        <ListFilter className="h-4 w-4" />
+                        {selectedCategories.length === 0
+                          ? "All categories"
+                          : selectedCategories.length === 1
+                            ? categoryLabel(selectedCategories[0]!)
+                            : `${selectedCategories.length} categories`}
+                        <ChevronDown className="h-4 w-4 opacity-60" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                      {categories.map((entry) => (
+                        <DropdownMenuCheckboxItem
+                          key={entry}
+                          checked={selectedCategories.includes(entry)}
+                          onCheckedChange={() => toggleCategory(entry)}
+                          // Picking several is the point; the menu staying open
+                          // is what makes it a multi-select rather than a detour.
+                          onSelect={(event) => event.preventDefault()}
+                        >
+                          {categoryLabel(entry)}
+                        </DropdownMenuCheckboxItem>
+                      ))}
+                      {selectedCategories.length > 0 && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onSelect={() => {
+                              setSelectedCategories([]);
+                              setPage(0);
+                            }}
+                          >
+                            Clear filter
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 )}
               </div>
               <div className="flex items-center gap-1.5">
@@ -277,7 +310,7 @@ export default function SkillsPage() {
               </p>
               <p className="text-muted-foreground mx-auto mt-1 max-w-sm text-sm">
                 {isFiltering
-                  ? "Names, descriptions and the picked category were checked. Clear the search or the chip to see everything."
+                  ? "Names, descriptions and the picked categories were checked. Clear the search or the filter to see everything."
                   : canEdit
                     ? "Write down something your team explains more than once, and every agent can read it."
                     : "Nobody has written a skill for this organization yet."}
@@ -343,6 +376,7 @@ export default function SkillsPage() {
               <LoadingState variant="skeleton-panel" rows={2} />
             ) : (
               <SkillWorkbench
+                categorySuggestions={categorySuggestions(categories, suggestedCategories)}
                 key={skill.id}
                 skill={skill}
                 canEdit={canEdit}

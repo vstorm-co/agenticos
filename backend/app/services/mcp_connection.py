@@ -7,7 +7,7 @@ two places, both of which are the point:
 
 *Who owns it.* A personal connection (Settings → Your connections) is scoped to
 one member and reached only by their own assistant. An organization connection
-is scoped to the organization, gated on ``connections:manage``, and is the only
+is scoped to the organization, gated on `connections:manage`, and is the only
 kind an agent spec may bind - a published agent that answered differently
 depending on whose session ran it could not be reviewed or reasoned about.
 
@@ -47,7 +47,6 @@ from app.agents.mcp import (
     build_mcp_toolsets,
     probe_error_message,
     probe_mcp_server,
-    static_server_specs,
     validate_mcp_url,
 )
 from app.agents.mcp_oauth import McpOAuthPayload, OAuthError
@@ -57,7 +56,6 @@ from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundErr
 from app.core.permissions import AuthContext
 from app.core.vault import SealedSecret, VaultScope, seal, unseal
 from app.db.models.mcp_connection import McpConnection
-from app.db.session import get_db_context
 from app.repositories import mcp_connection_repo
 from app.schemas.mcp_connection import (
     McpConnectionCreate,
@@ -159,7 +157,7 @@ async def _refresh_under_lock(db: AsyncSession, connection: McpConnection) -> st
     the winner already stored.
 
     A turn can end up holding several of these at once; they're always taken in
-    ``list_for_user`` order (created_at ascending), so two turns can't deadlock
+    `list_for_user` order (created_at ascending), so two turns can't deadlock
     by grabbing the same pair of rows in opposite orders.
     """
     locked = await mcp_connection_repo.get_by_id_for_update(db, connection.id)
@@ -219,7 +217,7 @@ async def sweep_oauth_connections(db: AsyncSession) -> dict[str, int]:
 
     This is the sweep that finds it first. It touches only connections whose
     token is near expiry, so a fleet of healthy ones costs one query; and it
-    writes ``last_status`` either way, so the UI can say "needs authorization"
+    writes `last_status` either way, so the UI can say "needs authorization"
     without waiting for somebody's run to fail.
 
     Returns a count per outcome, for the flow to log.
@@ -461,12 +459,12 @@ class McpConnectionService:
 
         Discovers the authorization server, dynamically registers this app,
         stores the flow state (endpoints, client creds, PKCE verifier) in
-        ``oauth_pending_payload``, and returns the provider consent URL.
+        `oauth_pending_payload`, and returns the provider consent URL.
         Starting again with the same name re-authorizes the existing OAuth
-        connection: the live tokens in ``oauth_payload`` are left untouched
+        connection: the live tokens in `oauth_payload` are left untouched
         until the callback succeeds, so abandoning the consent screen leaves a
         working connection working. The pending flow stops being redeemable
-        after ``mcp_oauth.FLOW_TTL_SECS``.
+        after `mcp_oauth.FLOW_TTL_SECS`.
 
         What the two scopes differ in is only where the row lives and whose
         envelope seals it - so those are arguments, and the flow is written
@@ -577,7 +575,7 @@ class McpConnectionService:
     async def _get_owned(self, *, user_id: UUID, connection_id: UUID) -> McpConnection:
         db_connection = await mcp_connection_repo.get_by_id(self.db, connection_id)
         # The scope check is the load-bearing half. These routes authorize on
-        # ``user_id`` alone and demand no organization permission, so without it
+        # `user_id` alone and demand no organization permission, so without it
         # whoever created an organization connection could repoint a published
         # agent's server at a host of their choosing.
         if (
@@ -602,7 +600,7 @@ class McpConnectionService:
         """Seal a credential for this organization and store the connection.
 
         Raises:
-            BadRequestError: If ``catalog_key`` names no catalog entry. A key
+            BadRequestError: If `catalog_key` names no catalog entry. A key
                 nothing recognises would show up in the Builder as a server with
                 no name and no logo, which reads as a broken row rather than as
                 the typo it is.
@@ -741,55 +739,16 @@ class McpConnectionService:
         return db_connection
 
 
-async def build_toolsets_for_user(user_id: UUID | None) -> list[Any]:
-    """Agent toolsets for one chat turn: static MCP_SERVERS + the user's
-    enabled connections. Unreachable servers are skipped, never fatal.
-
-    ``user_id`` is None for channel traffic that isn't mapped to an account;
-    the deployment-managed servers still apply, there are just no per-user
-    connections to add.
-    """
-    specs = static_server_specs()
-    if user_id is not None:
-        async with get_db_context() as db:
-            connections, _ = await mcp_connection_repo.list_for_user(
-                db, user_id=user_id, enabled_only=True
-            )
-            for connection in connections:
-                headers = await _resolve_auth_headers(db, connection)
-                if headers is None:
-                    # OAuth not authorized / expired, or an undecryptable bearer
-                    # token (e.g. SECRET_KEY rotated) - skip, never crash the turn.
-                    logger.info(
-                        "Skipping MCP connection %r: no usable credentials", connection.name
-                    )
-                    continue
-                specs.append(
-                    McpServerSpec(
-                        name=connection.name,
-                        url=connection.url,
-                        headers=headers,
-                        allowed_tools=connection.allowed_tools,
-                    )
-                )
-    return await build_mcp_toolsets(specs)
-
-
 async def build_toolsets_for_agent(
     db: AsyncSession, *, organization_id: UUID, connection_ids: list[UUID]
 ) -> list[Any]:
     """Agent toolsets for a published agent: exactly the servers its spec names.
 
-    Deliberately not :func:`build_toolsets_for_user`. That one attaches every
-    connection the person running the turn has enabled, which is right for their
-    own assistant and wrong for a published agent: what an agent can reach is
-    part of the agent, and one that answers differently depending on whose Slack
-    account triggered it cannot be reasoned about or reviewed. Only
-    organization-scoped rows resolve here, so a member's personal token can never
-    end up inside a shared agent.
-
-    The deployment's ``MCP_SERVERS`` are left out for the same reason - nobody
-    bound them to this agent, and nothing validated them at publish.
+    Deliberately never the servers the person running the turn has enabled:
+    what an agent can reach is part of the agent, and one that answers
+    differently depending on whose Slack account triggered it cannot be
+    reasoned about or reviewed. Only organization-scoped rows resolve here, so
+    a member's personal token can never end up inside a shared agent.
 
     Runs in the caller's session rather than opening its own: an OAuth refresh
     spent here has to be persisted by the same transaction that recorded the run.

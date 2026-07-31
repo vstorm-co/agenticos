@@ -16,7 +16,7 @@ import {
   Switch,
   Textarea,
 } from "@/components/ui";
-import { useModelProviders } from "@/hooks";
+import { useModelProviders, useSecrets } from "@/hooks";
 import {
   CHUNKING_STRATEGIES,
   DEFAULT_IMAGE_PROMPT,
@@ -69,6 +69,9 @@ export interface IngestionSettingsProps {
  * PyMuPDF, and a control that changes nothing is worse than an absent one. The
  * values behind them are kept, so switching back finds the tier that was set.
  */
+/** Sentinel for "the deployment's key" - a Select item may not be empty. */
+const DEPLOYMENT_KEY = "__deployment__";
+
 export function IngestionSettings({
   value,
   onChange,
@@ -76,6 +79,8 @@ export function IngestionSettings({
   errors = {},
   disabled,
 }: IngestionSettingsProps) {
+  const { secrets } = useSecrets();
+  const llamaparseKeys = secrets.filter((secret) => secret.purpose === "llamaparse");
   const id = (suffix: string) => `${idPrefix}-${suffix}`;
   const set = <K extends keyof IngestionConfig>(key: K, next: IngestionConfig[K]) =>
     onChange({ ...value, [key]: next });
@@ -144,6 +149,35 @@ export function IngestionSettings({
                   {LLAMAPARSE_TIERS.map((choice) => (
                     <SelectItem key={choice.value} value={choice.value}>
                       {choice.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </OptionalSetting>
+          )}
+
+          {value.pdf_parser === "llamaparse" && (
+            <OptionalSetting
+              htmlFor={id("llamaparse-key")}
+              label="LlamaParse key"
+              description="Whose account each parse is billed to."
+              disabled={disabled}
+            >
+              <Select
+                value={value.llamaparse_secret_id ?? DEPLOYMENT_KEY}
+                disabled={disabled}
+                onValueChange={(next) =>
+                  set("llamaparse_secret_id", next === DEPLOYMENT_KEY ? null : next)
+                }
+              >
+                <SelectTrigger id={id("llamaparse-key")}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={DEPLOYMENT_KEY}>Deployment key</SelectItem>
+                  {llamaparseKeys.map((secret) => (
+                    <SelectItem key={secret.id} value={secret.id}>
+                      {secret.name}
                     </SelectItem>
                   ))}
                 </SelectContent>

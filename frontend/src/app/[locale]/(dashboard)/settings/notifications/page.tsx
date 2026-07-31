@@ -43,21 +43,24 @@ const OPTIONAL_EMAILS: readonly OptionalEmail[] = [
     key: "notify_budget_alerts",
     label: "Budget alerts",
     trigger: "An agent run stops because a spending limit was reached.",
-    audience: "Sent to organization owners and admins, and to the agent's owner.",
+    audience:
+      "An agent's own cap goes to whoever that agent names - by default the admins and its owner. The organization's cap always goes to the admins, because no agent's author can raise it.",
     icon: CircleDollarSign,
   },
   {
     key: "notify_approval_requests",
     label: "Approval requests",
     trigger: "A run parks because a tool call is waiting for a person to approve it.",
-    audience: "Sent to whoever started the run; for scheduled runs, to owners and admins.",
+    audience:
+      "Whoever the agent names - by default the person who started the run, plus the admins so a scheduled run's queue is not left unwatched.",
     icon: Hand,
   },
   {
     key: "notify_usage_reports",
     label: "Usage reports",
     trigger: "Weekly and monthly, when your organization's agents ran anything at all.",
-    audience: "Sent to organization owners and admins. A period with zero runs sends nothing.",
+    audience:
+      "The organization's report goes to owners and admins. An agent can also ask for a report of its own. A period with zero runs sends nothing.",
     icon: PieChart,
   },
 ];
@@ -123,7 +126,7 @@ export default function NotificationsSettingsPage() {
     <div className="space-y-6">
       <SectionCard
         title="Agent activity"
-        description="Emails about runs nobody is watching. Each switch is checked before the email is sent."
+        description="Emails about runs nobody is watching. Each switch is checked before the email is sent. These are your own opt-outs and only ever subtract: an agent decides who should hear about it, and switching one off here removes you from that list whatever the agent says. Who an agent tells is set on the agent, under Limits."
       >
         <ul className="divide-border divide-y">
           {OPTIONAL_EMAILS.map((email) => (

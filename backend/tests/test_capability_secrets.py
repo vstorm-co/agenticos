@@ -3,7 +3,7 @@
 The whole design of the secret store is in this handshake, and every test here
 is one half of it. Code declares a *kind*; configuration names an *instance*;
 the plaintext is unsealed at build time, reaches the capability object, and goes
-no further - not into ``AgentDeps``, not into a tool argument, not into the
+no further - not into `AgentDeps`, not into a tool argument, not into the
 model's context, not into a log line.
 """
 

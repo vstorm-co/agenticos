@@ -36,14 +36,13 @@ const TOKEN_HINT: Record<ChannelPlatform, string> = {
 };
 
 /**
- * The organization's channel bots - registered here, bound to agents in the
- * Builder.
+ * The organization's channel bots - the other half of the Builder's "where is
+ * this agent available" section, which can only bind to bots registered here.
  *
- * This panel is the missing half of the Builder's "where is this agent
- * available" section: that select can only offer bots, and until this existed
- * there was no way to create one outside the API. It lives with the other
- * organization settings because a bot is an organization resource - one bot
- * serves many agents.
+ * It renders in the Builder rather than with the organization settings so the
+ * register-then-bind flow is one screen, but a bot stays an organization
+ * resource: one bot serves many agents, and this same list appears in every
+ * agent's Availability tab.
  *
  * The token is write-only: sent once at registration, encrypted at rest, never
  * read back - the same bargain as the Vault.
@@ -53,13 +52,27 @@ export function ChannelBotsPanel({ canManage }: { canManage: boolean }) {
   const [platform, setPlatform] = useState<ChannelPlatform>("telegram");
   const [name, setName] = useState("");
   const [token, setToken] = useState("");
+  const [signingSecret, setSigningSecret] = useState("");
+  const [appToken, setAppToken] = useState("");
 
   if (!canManage) return null;
 
   async function register() {
-    await create.mutateAsync({ platform, name: name.trim(), token: token.trim() });
+    await create.mutateAsync({
+      platform,
+      name: name.trim(),
+      token: token.trim(),
+      // Slack only: each bot is its own Slack app and carries its own
+      // credentials. Absent rather than empty, like the token itself.
+      ...(platform === "slack" && signingSecret.trim()
+        ? { slack_signing_secret: signingSecret.trim() }
+        : {}),
+      ...(platform === "slack" && appToken.trim() ? { slack_app_token: appToken.trim() } : {}),
+    });
     setName("");
     setToken("");
+    setSigningSecret("");
+    setAppToken("");
   }
 
   return (
@@ -67,15 +80,16 @@ export function ChannelBotsPanel({ canManage }: { canManage: boolean }) {
       <CardHeader>
         <CardTitle>Channel bots</CardTitle>
         <CardDescription>
-          A bot connects this workspace to a chat platform; which agents answer on it is chosen per
-          agent in the Builder. The token is encrypted on arrival and never shown again.
+          A bot connects this organization to a chat platform and serves every agent bound to it -
+          registering is once per workspace, binding is per agent, above. The token is encrypted on
+          arrival and never shown again.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {!isLoading && bots.length === 0 && (
           <p className="text-muted-foreground text-sm">
-            No bots yet. Register one below and every agent&apos;s &quot;where is this agent
-            available&quot; section can bind to it.
+            No bots yet. Register one below and it becomes bindable in &quot;Where this agent is
+            available&quot; - here and on every other agent.
           </p>
         )}
 
@@ -89,6 +103,12 @@ export function ChannelBotsPanel({ canManage }: { canManage: boolean }) {
                 {bot.webhook_mode ? "Webhook" : "Polling"}
               </p>
             </div>
+            {bot.platform === "slack" && !bot.has_slack_signing_secret && (
+              // Without it, inbound events cannot be verified and the webhook
+              // refuses everything - worth a badge before anyone debugs a
+              // silent bot.
+              <Badge variant="secondary">no signing secret</Badge>
+            )}
             {!bot.is_active && <Badge variant="secondary">inactive</Badge>}
             <Button
               variant="ghost"
@@ -158,6 +178,31 @@ export function ChannelBotsPanel({ canManage }: { canManage: boolean }) {
             Register
           </Button>
         </div>
+
+        {platform === "slack" && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1">
+              <Label htmlFor="bot-signing-secret">Signing secret</Label>
+              <Input
+                id="bot-signing-secret"
+                type="password"
+                value={signingSecret}
+                onChange={(event) => setSigningSecret(event.target.value)}
+                placeholder="Basic Information → App Credentials → Signing Secret"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="bot-app-token">App-level token (optional)</Label>
+              <Input
+                id="bot-app-token"
+                type="password"
+                value={appToken}
+                onChange={(event) => setAppToken(event.target.value)}
+                placeholder="xapp-… for Socket Mode (dev)"
+              />
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

@@ -22,7 +22,11 @@ vi.mock("@/hooks", () => ({
   useSecrets: () => ({ secrets: listedSecrets() }),
 }));
 
-const purpose = (id: string, label: string, category: SecretPurpose["category"]): SecretPurpose => ({
+const purpose = (
+  id: string,
+  label: string,
+  category: SecretPurpose["category"],
+): SecretPurpose => ({
   id,
   label,
   category,

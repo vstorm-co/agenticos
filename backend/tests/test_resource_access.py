@@ -1,6 +1,6 @@
 """Tests for resource-level access - role scopes combined with explicit grants.
 
-The rule under test is ``effective = max(role scope, grant on this resource)``:
+The rule under test is `effective = max(role scope, grant on this resource)`:
 a grant widens access for one row, and no scope ever reaches across tenants.
 """
 
@@ -240,7 +240,7 @@ class TestARunWithNobodyBehindIt:
 
     Every run on this platform has a subject: a person with a role in an
     organization. Budgets, resource grants, the audit trail and the approval
-    gate all key on it, and ``mentions.py`` refuses an unlinked Slack identity
+    gate all key on it, and `mentions.py` refuses an unlinked Slack identity
     for exactly that reason - a run with no subject is one nobody is
     accountable for.
 
@@ -251,16 +251,16 @@ class TestARunWithNobodyBehindIt:
     a convention every future caller has to remember.
 
     The two failures it forecloses are different. A subject-less context whose
-    ``role`` string happens to name a real role would sail through the scope
+    `role` string happens to name a real role would sail through the scope
     check and reach everything - nothing structural stops one being built. And a
-    grant lookup keyed on a ``NULL`` subject asks the database a question whose
+    grant lookup keyed on a `NULL` subject asks the database a question whose
     answer depends on what rows exist rather than on the invariant.
     """
 
     @pytest.mark.anyio
     @pytest.mark.parametrize("role", list(OrgRoleName), ids=lambda role: role.value)
     async def test_no_role_string_lets_a_subjectless_context_reach_a_row(self, role):
-        """Including ``owner``, which is the whole point.
+        """Including `owner`, which is the whole point.
 
         The refusal cannot be "an anonymous context happens to carry a role with
         no permissions" - that is a property of the string it was built with. It
@@ -297,10 +297,10 @@ class TestARunWithNobodyBehindIt:
 
     @pytest.mark.anyio
     async def test_a_subjectless_context_owns_nothing_even_when_the_row_does_not_either(self):
-        """``owner_user_id IS NULL`` must not read as "owned by nobody, so mine".
+        """`owner_user_id IS NULL` must not read as "owned by nobody, so mine".
 
         Ownership is compared by value, and two absent values are equal. A row
-        whose owner was deleted - ``ON DELETE SET NULL`` leaves plenty - would
+        whose owner was deleted - `ON DELETE SET NULL` leaves plenty - would
         otherwise belong to every anonymous visitor.
         """
         org_id = uuid.uuid4()
@@ -314,7 +314,7 @@ class TestARunWithNobodyBehindIt:
 
     @pytest.mark.anyio
     async def test_a_listing_for_a_subjectless_context_is_empty_rather_than_unfiltered(self):
-        """``None`` means "the role reaches everything" to every caller of this.
+        """`None` means "the role reaches everything" to every caller of this.
 
         Returning it for a context with no subject would widen a listing to the
         whole organization - the opposite of the intent - so the empty list is
@@ -357,17 +357,17 @@ class TestTheAnonymousContext:
 
 
 class TestOperationsThatNeedAPerson:
-    """``subject_id`` - the accessor for work that cannot be done by nobody.
+    """`subject_id` - the accessor for work that cannot be done by nobody.
 
     Most of what a service does keys on a person: an audit entry names an actor,
     an approval names who decided, a listing of "mine plus what was shared with
-    me" is meaningless without a me. Those sites read ``subject_id`` rather than
-    ``user_id``, which keeps their ``UUID`` typing honest and - more usefully -
+    me" is meaningless without a me. Those sites read `subject_id` rather than
+    `user_id`, which keeps their `UUID` typing honest and - more usefully -
     makes "this needs a person" something the code says out loud.
 
-    It raises rather than returning ``None`` because the alternatives are worse.
-    The audit actor column is ``NOT NULL``, so passing the absence through
-    surfaces four layers down as an ``IntegrityError`` naming a constraint, at
+    It raises rather than returning `None` because the alternatives are worse.
+    The audit actor column is `NOT NULL`, so passing the absence through
+    surfaces four layers down as an `IntegrityError` naming a constraint, at
     which point the audit entry is lost and the request has already half
     happened. A refusal at the top says what was attempted and by whom.
     """

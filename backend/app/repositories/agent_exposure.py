@@ -1,12 +1,12 @@
 """Agent exposure repository (PostgreSQL async)."""
 
-from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models.agent import Agent
 from app.db.models.agent_exposure import AgentExposure
 
 
@@ -42,7 +42,7 @@ async def active_surfaces_for_agents(
     """Which surfaces each agent is actively available on.
 
     One grouped query for a whole page rather than one per row, for the same
-    reason as ``resource_grant.count_for_resources``: the agent gallery wants a
+    reason as `resource_grant.count_for_resources`: the agent gallery wants a
     channel badge on every card. Paused bindings are excluded - a card saying
     "Slack" about an agent that stopped answering there is worse than no badge.
     Agents with no active binding are simply absent from the result.
@@ -63,6 +63,32 @@ async def active_surfaces_for_agents(
     for agent_id, surface in result.all():
         surfaces.setdefault(agent_id, []).append(surface)
     return surfaces
+
+
+async def list_active_for_bot(
+    db: AsyncSession, *, channel_bot_id: UUID
+) -> list[tuple[AgentExposure, Agent]]:
+    """Every agent actively answering on this bot, with the agent row itself.
+
+    The agent comes back alongside the binding because the two callers both
+    need its slug: one to run the only agent a bot serves, the other to tell
+    the sender which handles they could have mentioned. Paused bindings are
+    excluded - an agent someone switched off is not an answer to either
+    question.
+
+    Not organization-scoped: the bot id comes from a row already loaded inside
+    one organization, and every binding cascades from that bot.
+    """
+    result = await db.execute(
+        select(AgentExposure, Agent)
+        .join(Agent, Agent.id == AgentExposure.agent_id)
+        .where(
+            AgentExposure.channel_bot_id == channel_bot_id,
+            AgentExposure.is_active.is_(True),
+        )
+        .order_by(Agent.slug)
+    )
+    return [(exposure, agent) for exposure, agent in result.all()]
 
 
 async def get_for_bot(
@@ -96,8 +122,7 @@ async def create(
     surface: str,
     channel_bot_id: UUID,
     created_by_user_id: UUID | None,
-    max_per_run_usd: Decimal | None = None,
-    monthly_usd: Decimal | None = None,
+    environment_id: UUID | None = None,
 ) -> AgentExposure:
     exposure = AgentExposure(
         organization_id=organization_id,
@@ -105,8 +130,7 @@ async def create(
         surface=surface,
         channel_bot_id=channel_bot_id,
         created_by_user_id=created_by_user_id,
-        max_per_run_usd=max_per_run_usd,
-        monthly_usd=monthly_usd,
+        environment_id=environment_id,
     )
     db.add(exposure)
     await db.flush()
@@ -120,8 +144,8 @@ async def update(
     """Apply the fields a caller actually sent.
 
     Takes a dict rather than named arguments so "not sent" stays distinguishable
-    from "cleared to null" - somebody pausing a binding must not silently drop
-    the budget another person set on it.
+    from "cleared to null" - somebody pausing a binding must not silently move
+    it back to the default environment.
     """
     for field_name, value in update_data.items():
         setattr(exposure, field_name, value)

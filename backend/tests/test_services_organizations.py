@@ -171,13 +171,13 @@ class TestOrganizationService:
 
     @pytest.mark.anyio
     @pytest.mark.parametrize("role", ["member", "builder", "operator", "viewer"])
-    async def test_setting_the_monthly_cap_needs_the_org_settings_permission(
+    async def test_setting_the_monthly_cap_needs_the_budgets_manage_permission(
         self, service, mock_db, role
     ):
-        """The spending ceiling is an organization setting, gated like the rest.
+        """The spending ceiling is gated on `budgets:manage`, held by Owner and Admin.
 
-        A role that cannot rename the organization must not be able to raise
-        what it may spend - the two arrive on the same request.
+        A role that cannot configure the organization must not be able to
+        raise what it may spend.
         """
         membership = MagicMock(role=role)
 
@@ -199,10 +199,49 @@ class TestOrganizationService:
         write.assert_not_awaited()
 
     @pytest.mark.anyio
+    async def test_the_cap_and_the_metadata_are_separate_entitlements(
+        self, service, mock_db, monkeypatch
+    ):
+        """`budgets:manage` moves the ceiling; `org:settings` renames. Not each other.
+
+        The built-in Owner and Admin hold both, so only a synthetic role can
+        prove the check reads the right permission for the right field - which
+        is what makes the `budgets:manage` row in the catalog mean something.
+        """
+        from app.core.permissions import ROLE_PERMS, Perm, Scope
+
+        monkeypatch.setitem(ROLE_PERMS, "test:budgets-only", {Perm.BUDGETS_MANAGE: Scope.ALL})
+        membership = MagicMock(role="test:budgets-only")
+        org = MagicMock()
+
+        with (
+            patch.object(service, "get_for_user", new=AsyncMock(return_value=(org, membership))),
+            patch(
+                "app.services.organization.organization_repo.set_monthly_budget",
+                new=AsyncMock(return_value=org),
+            ) as write,
+            patch("app.services.organization.organization_repo.update", new=AsyncMock()),
+        ):
+            await service.update(
+                uuid.uuid4(),
+                OrganizationUpdate(monthly_budget_usd=Decimal("500")),
+                requester_id=uuid.uuid4(),
+            )
+        write.assert_awaited_once()
+
+        with (
+            patch.object(service, "get_for_user", new=AsyncMock(return_value=(org, membership))),
+            pytest.raises(AuthorizationError),
+        ):
+            await service.update(
+                uuid.uuid4(), OrganizationUpdate(name="Renamed"), requester_id=uuid.uuid4()
+            )
+
+    @pytest.mark.anyio
     async def test_an_update_that_does_not_name_the_cap_leaves_it_alone(self, service, mock_db):
         """Renaming an organization must not uncap it.
 
-        ``None`` is a legal value for this field - it is how the ceiling is
+        `None` is a legal value for this field - it is how the ceiling is
         removed - so a service keying on the value rather than on whether the
         client named it would lift the limit on every rename.
         """
@@ -226,7 +265,7 @@ class TestOrganizationService:
     @pytest.mark.anyio
     @pytest.mark.parametrize("limit", [Decimal("500"), None])
     async def test_naming_the_cap_writes_exactly_what_was_named(self, service, mock_db, limit):
-        """Including an explicit ``null``, which is how the ceiling is lifted."""
+        """Including an explicit `null`, which is how the ceiling is lifted."""
         membership = MagicMock(role="owner")
         org = MagicMock()
 

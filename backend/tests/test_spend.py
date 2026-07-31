@@ -14,9 +14,12 @@ from pydantic_ai.usage import RequestUsage
 from app.agents.capabilities.budget import (
     BudgetExceeded,
     BudgetGuard,
+    BudgetScope,
     SpendLedger,
     SpendLimit,
+    metered_by,
     price_request,
+    record_ambient_usage,
 )
 
 MILLION = 1_000_000
@@ -132,7 +135,8 @@ class TestBudgetGuard:
     @pytest.mark.anyio
     async def test_allows_a_request_within_budget(self):
         guard = BudgetGuard(
-            ledger=SpendLedger(), limits=[SpendLimit(scope="Run", limit_usd=Decimal("1.00"))]
+            ledger=SpendLedger(),
+            limits=[SpendLimit(scope=BudgetScope.AGENT, limit_usd=Decimal("1.00"))],
         )
         await self._run(guard, _response("gpt-4.1"))
         assert guard.ledger.total_usd > 0
@@ -141,13 +145,14 @@ class TestBudgetGuard:
     async def test_stops_the_next_request_once_the_run_cap_is_reached(self):
         """Checked before the call: the request that breaks a budget is never paid for."""
         guard = BudgetGuard(
-            ledger=SpendLedger(), limits=[SpendLimit(scope="Run", limit_usd=Decimal("0.005"))]
+            ledger=SpendLedger(),
+            limits=[SpendLimit(scope=BudgetScope.AGENT, limit_usd=Decimal("0.005"))],
         )
         await self._run(guard, _response("gpt-4.1", 1000, 1000))
 
         with pytest.raises(BudgetExceeded) as exc:
             await self._run(guard, _response("gpt-4.1"))
-        assert exc.value.scope == "Run"
+        assert exc.value.scope is BudgetScope.AGENT
 
     @pytest.mark.anyio
     async def test_a_period_cap_counts_spend_from_earlier_runs(self):
@@ -155,7 +160,7 @@ class TestBudgetGuard:
             ledger=SpendLedger(),
             limits=[
                 SpendLimit(
-                    scope="Agent monthly",
+                    scope=BudgetScope.AGENT,
                     limit_usd=Decimal("10"),
                     period_spend=AsyncMock(return_value=Decimal("9.999")),
                 )
@@ -165,7 +170,7 @@ class TestBudgetGuard:
 
         with pytest.raises(BudgetExceeded) as exc:
             await self._run(guard, _response("gpt-4.1"))
-        assert exc.value.scope == "Agent monthly"
+        assert exc.value.scope is BudgetScope.AGENT
 
     @pytest.mark.anyio
     async def test_period_spend_is_read_once_per_run(self):
@@ -174,7 +179,7 @@ class TestBudgetGuard:
         guard = BudgetGuard(
             ledger=SpendLedger(),
             limits=[
-                SpendLimit(scope="Agent monthly", limit_usd=Decimal("100"), period_spend=lookup)
+                SpendLimit(scope=BudgetScope.AGENT, limit_usd=Decimal("100"), period_spend=lookup)
             ],
         )
         for _ in range(3):
@@ -192,7 +197,8 @@ class TestBudgetGuard:
     async def test_the_error_states_both_numbers(self):
         """An operator needs to see what was spent against what limit."""
         guard = BudgetGuard(
-            ledger=SpendLedger(), limits=[SpendLimit(scope="Run", limit_usd=Decimal("0.001"))]
+            ledger=SpendLedger(),
+            limits=[SpendLimit(scope=BudgetScope.AGENT, limit_usd=Decimal("0.001"))],
         )
         await self._run(guard, _response("gpt-4.1", 1000, 1000))
         with pytest.raises(BudgetExceeded) as exc:
@@ -202,12 +208,12 @@ class TestBudgetGuard:
 
 
 class TestSeveralCapsAtOnce:
-    """A run is under as many ceilings as apply to it, and each is its own.
+    """A run is under both ceilings at once, and each is its own.
 
-    The agent's spec sets one, the organization sets another, and the exposure
-    that admitted the run sets a third. They are not variations on one number:
-    each measures a different quantity, so the tighter of two is not a
-    meaningful thing to compute and the refusal has to say which one bound.
+    The agent's spec sets one, the organization sets the other. They are not
+    variations on one number: each measures a different quantity, so the
+    tighter of two is not a meaningful thing to compute and the refusal has to
+    say which one bound.
     """
 
     async def _run(self, guard: BudgetGuard, response) -> None:
@@ -220,12 +226,12 @@ class TestSeveralCapsAtOnce:
             ledger=SpendLedger(),
             limits=[
                 SpendLimit(
-                    scope="Organization monthly",
+                    scope=BudgetScope.ORGANIZATION,
                     limit_usd=Decimal("1000"),
                     period_spend=AsyncMock(return_value=Decimal("0")),
                 ),
                 SpendLimit(
-                    scope="Exposure monthly",
+                    scope=BudgetScope.AGENT,
                     limit_usd=Decimal("10"),
                     period_spend=AsyncMock(return_value=Decimal("9.999")),
                 ),
@@ -236,17 +242,17 @@ class TestSeveralCapsAtOnce:
         with pytest.raises(BudgetExceeded) as exc:
             await self._run(guard, _response("gpt-4.1"))
 
-        assert exc.value.scope == "Exposure monthly"
+        assert exc.value.scope is BudgetScope.AGENT
 
     @pytest.mark.anyio
     async def test_the_refusal_names_the_cap_that_bound(self):
-        """Three possible causes and one message is a message nobody can act on."""
+        """Two possible causes and one message is a message nobody can act on."""
         guard = BudgetGuard(
             ledger=SpendLedger(),
             limits=[
-                SpendLimit(scope="Exposure run", limit_usd=Decimal("0.005")),
+                SpendLimit(scope=BudgetScope.AGENT, limit_usd=Decimal("0.005")),
                 SpendLimit(
-                    scope="Exposure monthly",
+                    scope=BudgetScope.ORGANIZATION,
                     limit_usd=Decimal("1000"),
                     period_spend=AsyncMock(return_value=Decimal("0")),
                 ),
@@ -257,20 +263,49 @@ class TestSeveralCapsAtOnce:
         with pytest.raises(BudgetExceeded) as exc:
             await self._run(guard, _response("gpt-4.1"))
 
-        assert exc.value.scope == "Exposure run"
-        assert "Exposure run budget exhausted" in str(exc.value)
+        assert exc.value.scope is BudgetScope.AGENT
+        assert "Agent monthly budget exhausted" in str(exc.value)
 
     @pytest.mark.anyio
-    async def test_a_cap_with_no_lookup_meters_only_this_run(self):
-        """That is what makes a per-run cap expressible in the same shape.
+    async def test_the_organizations_cap_binding_says_so(self):
+        """The other half, and it decides more than the wording.
 
-        It reads the ledger this guard writes, so it is exact and costs no
-        database round trip - and a run cap that quietly summed the month would
-        stop a first conversation that had spent nothing.
+        `BudgetScope` is what the notifier reads to choose an audience: the
+        agent's cap goes to whoever its spec names, the organization's always goes
+        to the administrators because no agent's author can raise it. A guard that
+        reported the wrong scope would mail the wrong people about a limit they
+        could not act on - and every address involved would still look plausible.
         """
         guard = BudgetGuard(
             ledger=SpendLedger(),
-            limits=[SpendLimit(scope="Exposure run", limit_usd=Decimal("1000"))],
+            limits=[
+                SpendLimit(
+                    scope=BudgetScope.AGENT,
+                    limit_usd=Decimal("1000"),
+                    period_spend=AsyncMock(return_value=Decimal("0")),
+                ),
+                SpendLimit(
+                    scope=BudgetScope.ORGANIZATION,
+                    limit_usd=Decimal("10"),
+                    period_spend=AsyncMock(return_value=Decimal("10")),
+                ),
+            ],
+        )
+
+        with pytest.raises(BudgetExceeded) as exc:
+            await self._run(guard, _response("gpt-4.1"))
+
+        assert exc.value.scope is BudgetScope.ORGANIZATION
+        assert "Organization monthly budget exhausted" in str(exc.value)
+
+    @pytest.mark.anyio
+    async def test_a_cap_with_no_lookup_meters_only_this_run(self):
+        """The preview case: no database to ask, so the cap binds on what this
+        run alone has booked - and a first conversation that has spent nothing
+        must not be stopped by it."""
+        guard = BudgetGuard(
+            ledger=SpendLedger(),
+            limits=[SpendLimit(scope=BudgetScope.AGENT, limit_usd=Decimal("1000"))],
         )
         for _ in range(3):
             await self._run(guard, _response("gpt-4o-mini"))
@@ -292,12 +327,12 @@ class TestSeveralCapsAtOnce:
             ledger=SpendLedger(),
             limits=[
                 SpendLimit(
-                    scope="Agent monthly",
+                    scope=BudgetScope.AGENT,
                     limit_usd=Decimal("1000"),
                     period_spend=agent_spend,
                 ),
                 SpendLimit(
-                    scope="Organization monthly",
+                    scope=BudgetScope.ORGANIZATION,
                     limit_usd=Decimal("1000"),
                     period_spend=org_spend,
                 ),
@@ -316,3 +351,54 @@ class TestSeveralCapsAtOnce:
             await self._run(guard, _response("gpt-4o-mini"))
 
         assert guard.limits == []
+
+
+class TestAmbientMetering:
+    """Spend the request wrapper cannot see - embeddings - is booked ambiently.
+
+    The embedding service is process-global and serves every run and every
+    ingestion job at once, so whoever wants its calls billed opens a
+    `metered_by` block and the usage lands on that ledger and nobody else's.
+    """
+
+    def test_usage_inside_a_metered_block_lands_on_that_ledger(self):
+        """Also pins that `genai-prices` prices our embedding model under the
+        "openai" hint the provider sends - it cannot resolve the name without
+        one, and a zero here would mean every knowledge search embeds for free
+        again."""
+        ledger = SpendLedger()
+
+        with metered_by(ledger):
+            record_ambient_usage(
+                "text-embedding-3-large", _usage(input_tokens=MILLION), provider="openai"
+            )
+
+        assert ledger.input_tokens == MILLION
+        assert ledger.total_usd > 0
+        assert not ledger.has_unpriced_models
+
+    def test_usage_with_nobody_metering_is_dropped_not_raised(self):
+        """The CLI and a warmup have nothing to bill; the provider must not
+        refuse to embed because nobody is counting."""
+        record_ambient_usage("text-embedding-3-large", _usage(input_tokens=1000))
+
+    def test_metering_ends_with_the_block(self):
+        ledger = SpendLedger()
+
+        with metered_by(ledger):
+            pass
+        record_ambient_usage("text-embedding-3-large", _usage(input_tokens=1000))
+
+        assert ledger.entries == []
+
+    def test_nested_blocks_restore_the_outer_ledger(self):
+        """Two jobs metering in one task must not write into each other."""
+        outer, inner = SpendLedger(), SpendLedger()
+
+        with metered_by(outer):
+            with metered_by(inner):
+                record_ambient_usage("text-embedding-3-large", _usage(input_tokens=1))
+            record_ambient_usage("text-embedding-3-large", _usage(input_tokens=2))
+
+        assert [entry.input_tokens for entry in inner.entries] == [1]
+        assert [entry.input_tokens for entry in outer.entries] == [2]

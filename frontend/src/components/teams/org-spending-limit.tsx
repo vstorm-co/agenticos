@@ -38,8 +38,9 @@ export function OrgSpendingLimit({ org }: { org: Organization }) {
   // The form is a separate component so that its queries are not merely
   // ignored for someone without the permission - they are never issued. A
   // hook above this branch would still fetch, and `/spend` answers the same
-  // roles this section is for.
-  return can(Perm.orgSettings) ? <SpendingLimitForm org={org} /> : null;
+  // roles this section is for. `budgets:manage` is what the PATCH actually
+  // checks for this field, so it is what decides the section.
+  return can(Perm.budgetsManage) ? <SpendingLimitForm org={org} /> : null;
 }
 
 function SpendingLimitForm({ org }: { org: Organization }) {

@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
 """Find double backticks where they render literally.
 
-``text`` is reStructuredText. Markdown has no such construct: it reads the pair
-as an empty code span followed by plain text, so a README that meant to show a
-flag prints two backticks, the flag, and two more. The same is true of TSDoc,
-which editors render as Markdown in hover tooltips.
+Double-backtick spans are reStructuredText. Markdown has no such construct: it
+reads the pair as an empty code span followed by plain text, so a README that
+meant to show a flag prints two backticks, the flag, and two more. The same is
+true of TSDoc, which editors render as Markdown in hover tooltips.
 
-Python docstrings are deliberately **not** checked. This codebase writes them in
-Sphinx-flavoured RST — ``code``, :class:`Thing`, :mod:`app.agents.spec` — where
-the double backtick is correct and the *single* one would be the error. Changing
-that convention is a separate decision from fixing text that renders wrong.
+Python files are checked too, docstrings included. They used to be exempt as
+Sphinx-flavoured RST, but nothing here builds Sphinx docs — the one place a
+docstring is rendered is an editor hover, and editors render Markdown. Sphinx
+roles (:class:`Thing`, :mod:`app.agents.spec`) use single backticks and are
+untouched either way. Whole lines are scanned, string literals included: a
+runtime string holding a double-backtick span ends up in a chat message or a
+tool description, which is Markdown territory again.
+
+This file exempts itself — it has to be able to name the pattern it detects.
 
 Usage::
 
@@ -33,6 +38,11 @@ PAIR = re.compile(r"(?<!`)``(?!`)(?P<body>[^`\n]+?)(?<!`)``(?!`)")
 
 MARKDOWN_SUFFIXES = {".md", ".mdx"}
 TYPESCRIPT_SUFFIXES = {".ts", ".tsx", ".js", ".jsx"}
+PYTHON_SUFFIXES = {".py"}
+
+# This script's own docstring, regex and messages must be able to spell the
+# pattern out.
+SELF = Path(__file__).resolve()
 
 SKIP_DIRS = {
     ".git",
@@ -85,10 +95,14 @@ def typescript_comments(text: str) -> Iterator[tuple[int, str]]:
 
 def scan(path: Path) -> list[tuple[int, str]]:
     """Every offending line in one file, as (line number, line)."""
+    if path.resolve() == SELF:
+        return []
     if path.suffix in MARKDOWN_SUFFIXES:
         lines = markdown_prose(path.read_text(encoding="utf-8"))
     elif path.suffix in TYPESCRIPT_SUFFIXES:
         lines = typescript_comments(path.read_text(encoding="utf-8"))
+    elif path.suffix in PYTHON_SUFFIXES:
+        lines = enumerate(path.read_text(encoding="utf-8").splitlines(), start=1)
     else:
         return []
     return [(number, line) for number, line in lines if PAIR.search(line)]
@@ -119,7 +133,7 @@ def walk(roots: list[Path]) -> Iterator[Path]:
                 continue
             if any(part in SKIP_DIRS for part in path.parts):
                 continue
-            if path.suffix in MARKDOWN_SUFFIXES | TYPESCRIPT_SUFFIXES:
+            if path.suffix in MARKDOWN_SUFFIXES | TYPESCRIPT_SUFFIXES | PYTHON_SUFFIXES:
                 yield path
 
 
@@ -142,7 +156,7 @@ def main() -> int:
             print(f"{path}:{number}: {line.strip()}")
 
     if not found:
-        print("No double backticks in Markdown or TypeScript comments.")
+        print("No double backticks in Markdown, TypeScript comments or Python files.")
         return 0
     if args.fix:
         print(f"\nRewrote {found} line(s).")

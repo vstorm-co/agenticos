@@ -6,7 +6,7 @@ out of :class:`app.agents.spec.AgentSpec` is what makes the two lifecycles
 independent - publishing a new version cannot silently change who can reach the
 agent, and binding it to a bot cannot mint a version nobody reviewed.
 
-Who may decide this is ``agents:publish`` **on that agent**, resolved through
+Who may decide this is `agents:publish` **on that agent**, resolved through
 :func:`app.services.access.resolve_access` rather than a role gate. Two reasons,
 and the second is the one that matters:
 
@@ -14,7 +14,7 @@ and the second is the one that matters:
 world get to reach", and an author who may freeze a version may say where it
 runs.
 
-*It is deliberately not ``channels:manage``.* That permission governs the bot -
+*It is deliberately not `channels:manage`.* That permission governs the bot -
 its token, its webhook, its access policy - and binding an agent changes none of
 those. Demanding it would mean only an Admin could put an agent in Slack, while
 the Builders who publish agents could not, and the section would be read-only for
@@ -23,7 +23,6 @@ exactly the people it is for.
 
 from __future__ import annotations
 
-from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -34,7 +33,7 @@ from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundErr
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent_exposure import AgentExposure, ExposureSurface
 from app.db.models.channel_bot import ChannelBot
-from app.repositories import agent_exposure_repo, channel_bot_repo
+from app.repositories import agent_environment_repo, agent_exposure_repo, channel_bot_repo
 from app.schemas.agent_exposure import (
     ExposureCreate,
     ExposureRead,
@@ -68,26 +67,6 @@ def _surface_for(bot: ChannelBot) -> ExposureSurface:
         ) from exc
 
 
-def _budget_detail(data: ExposureCreate) -> dict[str, str | None]:
-    """A binding's caps as the audit trail records them.
-
-    Strings, because the trail is JSON and a ``Decimal`` does not survive the
-    round trip as itself - a cap silently reappearing as a float is the kind of
-    thing nobody notices until the numbers are being reconciled.
-    """
-    return {
-        "max_per_run_usd": None if data.max_per_run_usd is None else str(data.max_per_run_usd),
-        "monthly_usd": None if data.monthly_usd is None else str(data.monthly_usd),
-    }
-
-
-def _auditable(changes: dict[str, Any]) -> dict[str, Any]:
-    """The changed fields, with anything JSON cannot hold rendered as text."""
-    return {
-        key: str(value) if isinstance(value, Decimal) else value for key, value in changes.items()
-    }
-
-
 def _update_action(changes: dict[str, Any]) -> str:
     """What to call this edit in the trail.
 
@@ -111,7 +90,7 @@ class AgentExposureService:
     async def list_for_agent(self, ctx: AuthContext, agent_id: UUID) -> list[ExposureRead]:
         """Every place this agent is available, named the way a person reads it.
 
-        Requires only ``agents:view``: seeing where an agent answers is part of
+        Requires only `agents:view`: seeing where an agent answers is part of
         understanding what it is, and hiding it from someone who can already read
         the agent would only make the Builder lie by omission.
         """
@@ -130,9 +109,8 @@ class AgentExposureService:
                 # this is the window between the two queries rather than a state
                 # anyone can persist. Naming it beats rendering a blank row.
                 channel_bot_name=names.get(exposure.channel_bot_id, "(removed)"),
+                environment_id=exposure.environment_id,
                 is_active=exposure.is_active,
-                max_per_run_usd=exposure.max_per_run_usd,
-                monthly_usd=exposure.monthly_usd,
                 created_at=exposure.created_at,
             )
             for exposure in exposures
@@ -198,6 +176,9 @@ class AgentExposureService:
                 details={"exposure_id": str(existing.id), "is_active": existing.is_active},
             )
 
+        if data.environment_id is not None:
+            await self._environment_of(ctx, agent.id, data.environment_id)
+
         exposure = await agent_exposure_repo.create(
             self.db,
             organization_id=ctx.organization_id,
@@ -205,8 +186,7 @@ class AgentExposureService:
             surface=surface.value,
             channel_bot_id=bot.id,
             created_by_user_id=ctx.user_id,
-            max_per_run_usd=data.max_per_run_usd,
-            monthly_usd=data.monthly_usd,
+            environment_id=data.environment_id,
         )
         await record_audit(
             self.db,
@@ -219,7 +199,6 @@ class AgentExposureService:
                 "exposure_id": str(exposure.id),
                 "surface": surface.value,
                 "channel_bot_id": str(bot.id),
-                **_budget_detail(data),
             },
         )
         return exposure
@@ -227,15 +206,17 @@ class AgentExposureService:
     async def update(
         self, ctx: AuthContext, agent_id: UUID, exposure_id: UUID, data: ExposureUpdate
     ) -> AgentExposure:
-        """Change what a binding does, or what it may spend.
+        """Pause, resume, or rebind a binding to another environment.
 
         Only the fields the caller actually sent are applied. Pausing a binding
-        must not silently drop a budget somebody else set on it, and a schema
+        must not silently move it back to the default environment, and a schema
         default cannot tell "leave it alone" from "clear it" - so the distinction
-        is read off the request rather than inferred from ``None``.
+        is read off the request rather than inferred from `None`.
         """
         exposure = await self._owned(ctx, agent_id, exposure_id)
         changes = data.model_dump(exclude_unset=True)
+        if changes.get("environment_id") is not None:
+            await self._environment_of(ctx, agent_id, changes["environment_id"])
         updated = await agent_exposure_repo.update(self.db, exposure=exposure, update_data=changes)
         await record_audit(
             self.db,
@@ -244,9 +225,9 @@ class AgentExposureService:
             action=_update_action(changes),
             target_type="agent",
             target_id=str(agent_id),
-            # The values, not just the keys. "Somebody changed the budget" is not
+            # The values, not just the keys. "Somebody changed the binding" is not
             # an audit entry anyone can act on a month later.
-            details={"exposure_id": str(exposure.id), "changes": _auditable(changes)},
+            details={"exposure_id": str(exposure.id), "changes": changes},
         )
         return updated
 
@@ -263,6 +244,22 @@ class AgentExposureService:
             target_id=str(agent_id),
             details={"exposure_id": str(exposure_id), "surface": exposure.surface},
         )
+
+    async def _environment_of(self, ctx: AuthContext, agent_id: UUID, environment_id: UUID) -> None:
+        """Refuse an environment that is not this agent's.
+
+        Without this, an environment id from another agent - even the caller's
+        own - would bind a bot to a version of something else entirely, and the
+        runner would resolve it as "not found" only after the message arrived.
+        """
+        environment = await agent_environment_repo.get(
+            self.db, environment_id, organization_id=ctx.organization_id
+        )
+        if environment is None or environment.agent_id != agent_id:
+            raise NotFoundError(
+                message="Environment not found",
+                details={"environment_id": str(environment_id)},
+            )
 
     async def _owned(self, ctx: AuthContext, agent_id: UUID, exposure_id: UUID) -> AgentExposure:
         """The exposure, if it belongs to this agent and this caller may change it.

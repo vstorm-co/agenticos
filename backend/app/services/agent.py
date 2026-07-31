@@ -1,11 +1,10 @@
 """Shared agent service utilities.
 
 Houses framework-agnostic helpers used by every WebSocket agent route:
-  - ``AgentConnectionManager`` + ``send_event`` - WebSocket fan-out
-  - ``build_message_history`` - convert dicts to provider-native messages
-  - ``persist_user_turn`` / ``persist_assistant_turn`` - DB persistence
-  - ``resolve_kb_collections`` - Teams+RAG collection lookup
-  - ``normalize_tool_args`` / ``truncate_title`` - small utilities
+  - `AgentConnectionManager` + `send_event` - WebSocket fan-out
+  - `build_message_history` - convert dicts to provider-native messages
+  - `persist_user_turn` / `persist_assistant_turn` - DB persistence
+  - `normalize_tool_args` / `truncate_title` - small utilities
 
 Framework-specific concerns (multimodal input, streaming events) stay in the route.
 """
@@ -35,7 +34,6 @@ from app.schemas.conversation import (
     ToolCallComplete,
     ToolCallCreate,
 )
-from app.services.knowledge_base import KnowledgeBaseService
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +95,7 @@ def build_message_history(history: list[dict[str, str]]) -> list[ModelRequest | 
 
 
 def truncate_title(text: str, limit: int = 50) -> str:
-    """Return text truncated to ``limit`` characters."""
+    """Return text truncated to `limit` characters."""
     return text[:limit] if len(text) > limit else text
 
 
@@ -111,13 +109,13 @@ async def persist_user_turn(
 ) -> tuple[str | None, bool]:
     """Resolve the conversation, persist the user message, and link any uploaded files.
 
-    ``organization_id`` is the session's active organization; new conversations are
+    `organization_id` is the session's active organization; new conversations are
     created inside it, and resuming a conversation that belongs to a different org
     is refused. Ownership by user alone is not enough - a user can belong to several
     organizations, and a run must not read one org's knowledge while billed to another.
 
-    Returns ``(conversation_id, was_newly_created)``. When ``was_newly_created`` is
-    True the caller should emit a ``conversation_created`` WebSocket event.
+    Returns `(conversation_id, was_newly_created)`. When `was_newly_created` is
+    True the caller should emit a `conversation_created` WebSocket event.
 
     Raises:
         AuthorizationError: If the requested conversation belongs to another
@@ -174,7 +172,7 @@ async def persist_user_turn(
 
 
 def normalize_tool_args(args: Any) -> dict[str, Any]:
-    """Coerce a tool-call ``args`` payload to a dict (handles JSON strings + None)."""
+    """Coerce a tool-call `args` payload to a dict (handles JSON strings + None)."""
     if isinstance(args, str):
         return json.loads(args) if args.strip() else {}
     if args is None:
@@ -193,7 +191,7 @@ async def persist_assistant_turn(
 ) -> str | None:
     """Persist the assistant message and any tool calls. Returns the saved message id.
 
-    ``agent_id`` and ``agent_version_id`` are recorded per message rather than
+    `agent_id` and `agent_version_id` are recorded per message rather than
     per conversation because the agent can be changed mid-thread, and because
     an agent is rewritten between turns: attributing the whole conversation to
     the last one selected - or to the spec it has today - would rewrite who
@@ -239,36 +237,3 @@ async def persist_assistant_turn(
     except Exception as e:
         logger.warning("Failed to persist assistant response: %s", e)
         return None
-
-
-async def resolve_kb_collections(
-    conversation_id: str | None,
-    user_id: Any,
-    override_kb_ids: list[str] | None = None,
-    organization_id: str | None = None,
-) -> list[str]:
-    """Return active KB collection names for the conversation.
-
-    When ``override_kb_ids`` is provided (e.g. the client included a draft
-    selection in the WS payload before the conversation was saved), those IDs
-    are intersected with KBs the user can access and returned directly. Only
-    IDs come from the client - collection names are always resolved against
-    the user's accessible KBs server-side.
-    """
-    if override_kb_ids is not None:
-        async with get_db_context() as db:
-            kb_service = KnowledgeBaseService(db)
-            org_uuid = UUID(organization_id) if organization_id else None
-            return await kb_service.resolve_collection_names_for_ids(
-                kb_ids=[UUID(i) for i in override_kb_ids if i],
-                user_id=user_id,
-                organization_id=org_uuid,
-            )
-    if not conversation_id:
-        return []
-    async with get_db_context() as db:
-        kb_service = KnowledgeBaseService(db)
-        return await kb_service.resolve_active_collection_names(
-            UUID(conversation_id),
-            user_id,
-        )

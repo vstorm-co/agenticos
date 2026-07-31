@@ -20,8 +20,10 @@ from app.db.models.user_slash_command import UserSlashCommand
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.agent_embed import AgentEmbed
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
+from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.agent_exposure import AgentExposure, ExposureSurface
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, RunSurface, ToolApproval
+from app.db.models.ingestion_spend import IngestionSpend
 from app.db.models.credential import ModelProfile
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.skill import Skill, SkillResource
@@ -53,9 +55,11 @@ __all__ = [
     "Agent",
     "AgentStatus",
     "AgentVersion",
+    "AgentEnvironment",
     "AgentExposure",
     "ExposureSurface",
     "AgentRun",
+    "IngestionSpend",
     "ToolApproval",
     "RunStatus",
     "RunSurface",

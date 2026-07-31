@@ -383,17 +383,17 @@ class LiteParseParser(BaseDocumentParser):
     LibreOffice. Nothing leaves the machine and there is no API key, which is
     what makes it the useful middle between PyMuPDF and LlamaParse.
 
-    Configuration is passed to the **constructor**, not to ``parse()``, which
+    Configuration is passed to the **constructor**, not to `parse()`, which
     takes the file and nothing else. The previous version of this class passed
-    ``ocr_enabled``/``ocr_server_url``/``ocr_language``/``timeout`` as keyword
-    arguments to ``parse()`` and read ``page.pageNum`` (the Node binding's
-    spelling; Python exposes ``page_num``). Both are hard errors, so every
-    LiteParse ingestion raised ``TypeError`` on the first call - and since
-    ``TypeError`` was outside the ``except`` clauses below, it surfaced as an
+    `ocr_enabled`/`ocr_server_url`/`ocr_language`/`timeout` as keyword
+    arguments to `parse()` and read `page.pageNum` (the Node binding's
+    spelling; Python exposes `page_num`). Both are hard errors, so every
+    LiteParse ingestion raised `TypeError` on the first call - and since
+    `TypeError` was outside the `except` clauses below, it surfaced as an
     unhandled worker crash rather than a parse failure. The parser was
     selectable in the UI and had never once run.
 
-    Requires: ``pip install liteparse`` (ships its own native binary; there is
+    Requires: `pip install liteparse` (ships its own native binary; there is
     no Node.js CLI to pre-install). Office formats additionally need LibreOffice
     on PATH -- see :meth:`libreoffice_available`.
     """
@@ -582,7 +582,7 @@ class DocumentProcessor:
         Args:
             settings: RAG configuration settings.
             image_describer: The model that reads pictures found inside a
-                document, or ``None`` to index them as nothing. Injected rather
+                document, or `None` to index them as nothing. Injected rather
                 than built here: which model that is belongs to the collection
                 the document is being ingested into, and its credential is
                 sealed for that collection's organization - neither of which
@@ -670,10 +670,10 @@ class DocumentProcessor:
         elif suffix == ".docx":
             document = await self.docx_parser.parse(filepath)
         elif suffix in self.pdf_parser.allowed:
-            # Not only ``.pdf``: LlamaParse is routed the spreadsheets, decks and
+            # Not only `.pdf`: LlamaParse is routed the spreadsheets, decks and
             # images it accepts. Asking the parser what it takes, rather than
             # naming extensions here, is what keeps this branch in step with
-            # ``PARSER_FORMATS`` - the set the upload endpoint validated against
+            # `PARSER_FORMATS` - the set the upload endpoint validated against
             # before the file ever reached a worker.
             document = await self.pdf_parser.parse(filepath)
         else:

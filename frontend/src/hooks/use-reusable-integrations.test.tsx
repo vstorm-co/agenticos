@@ -56,6 +56,9 @@ const TARGET: KnowledgeBase = {
   embedding_dim: 3072,
   created_at: "2026-07-01T00:00:00Z",
   updated_at: null,
+  document_count: 0,
+  indexed_count: 0,
+  chunk_count: 0,
 };
 
 /** Answer each GET with the list it asked for; anything else is a mistake. */

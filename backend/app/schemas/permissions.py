@@ -34,7 +34,7 @@ class RoleCatalog(BaseSchema):
     """Every permission the platform defines, and how roles compose them.
 
     Drives the Users & Roles matrix. Roles can only ever recombine
-    ``all_permissions``; clients cannot invent new ones.
+    `all_permissions`; clients cannot invent new ones.
     """
 
     all_permissions: list[str]

@@ -4,8 +4,8 @@ Two sources, in this order:
 
 **Live.** Most providers publish a list endpoint, and it is the only source that
 knows about the model that shipped this morning. The shapes disagree - the array
-is at ``data``, ``models`` or the document root; the id is ``id``, ``name`` or
-``model``; Gemini prefixes it with ``models/`` - so each one is described by a
+is at `data`, `models` or the document root; the id is `id`, `name` or
+`model`; Gemini prefixes it with `models/` - so each one is described by a
 :class:`ListingSpec` rather than by a branch.
 
 **Curated.** A short, hand-kept list per provider, used when the provider

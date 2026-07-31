@@ -12,7 +12,6 @@ from app.agents.capabilities.charts._spec import (
     ChartStyle,
     parse_chart_spec,
 )
-from app.services.channels.chart_render import chart_to_markdown, render_chart_png
 
 # The toolset is stateless; one instance serves every case below.
 _charts = ChartsToolset()
@@ -92,36 +91,3 @@ class TestParseChartSpec:
 
     def test_invalid_json_returns_none(self):
         assert parse_chart_spec("not json at all") is None
-
-
-class TestChartRender:
-    """Server-side PNG rendering for messaging channels."""
-
-    @pytest.mark.parametrize("chart_type", ["line", "bar", "pie", "area", "scatter"])
-    def test_render_chart_png_returns_png_bytes(self, chart_type: str):
-        spec = parse_chart_spec(
-            _charts.create_chart(
-                chart_type=chart_type,
-                title="Render",
-                data=[{"x": "A", "y": 1}, {"x": "B", "y": 4}],
-                series=[ChartSeries(key="y")],
-            )
-        )
-        assert spec is not None
-        png = render_chart_png(spec)
-        assert isinstance(png, bytes)
-        assert png[:8] == b"\x89PNG\r\n\x1a\n"  # PNG magic header
-
-    def test_chart_to_markdown_fallback(self):
-        spec = parse_chart_spec(
-            _charts.create_chart(
-                chart_type="bar",
-                title="Fallback",
-                data=[{"x": "A", "y": 1}],
-                series=[ChartSeries(key="y")],
-            )
-        )
-        assert spec is not None
-        text = chart_to_markdown(spec)
-        assert "Fallback" in text
-        assert "A" in text

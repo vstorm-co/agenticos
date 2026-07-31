@@ -6,7 +6,7 @@ Create Date: 2026-07-26
 
 Channel bots were app-admin resources with no tenant. That made every
 conversation they opened org-less, which in turn blocked
-``conversations.organization_id`` from becoming NOT NULL (see 0027).
+`conversations.organization_id` from becoming NOT NULL (see 0027).
 
 Backfill assigns existing bots to the only organization in the database. With
 more than one organization there is no defensible automatic answer - which

@@ -110,7 +110,11 @@ describe("SkillWorkbench", () => {
   });
 
   it("puts the skill on a shelf, trimmed to what the listing will show", async () => {
+    // A shelf nobody suggested: the select's way out is "New category…", and
+    // what is typed there is as valid as anything picked.
     const { onSave } = renderWorkbench();
+    await userEvent.click(screen.getByLabelText("Category"));
+    await userEvent.click(screen.getByRole("option", { name: "New category…" }));
     await userEvent.type(screen.getByLabelText("Category"), " support ");
     await userEvent.click(save());
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ category: "support" }));
@@ -120,7 +124,8 @@ describe("SkillWorkbench", () => {
     // Null, not the empty string: "" is a category the backend refuses, and a
     // skill without one is uncategorized rather than categorized-as-nothing.
     const { onSave } = renderWorkbench({ skill: { ...SKILL, category: "support" } });
-    await userEvent.clear(screen.getByLabelText("Category"));
+    await userEvent.click(screen.getByLabelText("Category"));
+    await userEvent.click(screen.getByRole("option", { name: "No category" }));
     await userEvent.click(save());
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ category: null }));
   });

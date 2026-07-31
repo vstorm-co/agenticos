@@ -3,6 +3,7 @@
 Contains database operations for RAGDocument entities.
 """
 
+from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
@@ -11,6 +12,21 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.rag_document import RAGDocument
+
+
+@dataclass(frozen=True)
+class CollectionCounts:
+    """What one collection holds, as the listing reports it.
+
+    `documents` counts every tracked row; `indexed` counts only those that
+    finished. They differ while something is parsing and stay different when
+    something failed, which is exactly the state a listing should be able to
+    show - "12 documents" on a collection where four died reads as working.
+    """
+
+    documents: int
+    chunks: int
+    indexed: int
 
 
 async def get_by_id(db: AsyncSession, doc_id: UUID) -> RAGDocument | None:
@@ -25,11 +41,11 @@ async def get_all(
 ) -> list[RAGDocument]:
     """Documents tracked in the named collections, newest first.
 
-    Filtering on ``organization_id`` would be the obvious alternative and is not
+    Filtering on `organization_id` would be the obvious alternative and is not
     equivalent: the column is nullable and a document ingested by a sync task
     has no organization stamped on it, so an org filter silently hides those
     while a collection filter does not. The collection is what the
-    ``knowledge_bases`` row authorized, so the collection is what this asks for.
+    `knowledge_bases` row authorized, so the collection is what this asks for.
     """
     if not collections:
         return []
@@ -141,6 +157,44 @@ async def sum_filesize_for_org(db: AsyncSession, org_id: UUID) -> int:
         )
     )
     return int(result.scalar_one())
+
+
+async def counts_by_collection(
+    db: AsyncSession, *, collections: list[str]
+) -> dict[str, CollectionCounts]:
+    """How much each named collection actually holds, in one query.
+
+    One `GROUP BY` rather than a call per collection: this feeds a listing, and
+    the per-collection alternative (`GET /rag/collections/{name}/info`) asks the
+    vector store once per row - twenty collections, twenty round trips, to
+    render one page.
+
+    Counted from `rag_documents` rather than from the vectors, and the
+    difference is the point. This table is what the upload wrote, so a document
+    still parsing and a document that failed both appear here and neither has a
+    vector yet. A count taken from the vector store would show a collection
+    someone just uploaded to as empty, which is the one moment they are looking.
+
+    Collections with no rows are absent from the result rather than present as
+    zero, so callers read it with a default - a name that was never written to
+    has no row to group.
+    """
+    if not collections:
+        return {}
+    result = await db.execute(
+        select(
+            RAGDocument.collection_name,
+            func.count(),
+            func.coalesce(func.sum(RAGDocument.chunk_count), 0),
+            func.count().filter(RAGDocument.status == "completed"),
+        )
+        .where(RAGDocument.collection_name.in_(collections))
+        .group_by(RAGDocument.collection_name)
+    )
+    return {
+        name: CollectionCounts(documents=int(documents), chunks=int(chunks), indexed=int(indexed))
+        for name, documents, chunks, indexed in result.all()
+    }
 
 
 async def delete_by_collection(db: AsyncSession, collection_name: str) -> int:

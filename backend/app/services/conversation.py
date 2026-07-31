@@ -28,7 +28,6 @@ from app.schemas.conversation import (
     ConversationAgent,
     ConversationCreate,
     ConversationUpdate,
-    ConversationWithLatestMessage,
     MessageCreate,
     MessageRead,
     ToolCallComplete,
@@ -164,36 +163,6 @@ class ConversationService:
                 for agent in by_conversation.get(conversation.id, [])
             ]
 
-    async def list_conversations_admin(
-        self,
-        *,
-        skip: int = 0,
-        limit: int = 50,
-        include_archived: bool = False,
-        search: str | None = None,
-    ) -> tuple[list[ConversationWithLatestMessage], int]:
-        rows, total = await conversation_repo.get_all_conversations_with_count(
-            self.db,
-            skip=skip,
-            limit=limit,
-            include_archived=include_archived,
-            search=search,
-        )
-
-        items = [
-            ConversationWithLatestMessage(
-                id=conv.id,
-                user_id=conv.user_id,
-                title=conv.title,
-                is_archived=conv.is_archived,
-                created_at=conv.created_at,
-                updated_at=conv.updated_at,
-                message_count=msg_count,
-            )
-            for conv, msg_count in rows
-        ]
-        return items, total
-
     async def admin_list_with_users(
         self,
         *,
@@ -274,13 +243,6 @@ class ConversationService:
             user_id=user_id,
         )
         update_data = data.model_dump(exclude_unset=True)
-        if (
-            "active_knowledge_base_ids" in update_data
-            and update_data["active_knowledge_base_ids"] is not None
-        ):
-            update_data["active_knowledge_base_ids"] = [
-                str(kb_id) for kb_id in update_data["active_knowledge_base_ids"]
-            ]
         return await conversation_repo.update_conversation(
             self.db, db_conversation=conversation, update_data=update_data
         )
@@ -357,38 +319,6 @@ class ConversationService:
                 details={"conversation_id": str(conversation_id)},
             )
         return conversation
-
-    async def update_kb_settings(
-        self,
-        conversation_id: UUID,
-        active_knowledge_base_ids: list[str] | None,
-        *,
-        organization_id: UUID,
-        user_id: UUID | None = None,
-    ) -> Conversation:
-        """Which collections this conversation searches.
-
-        Three states, and the difference matters: None restores the agent's own
-        defaults, an empty list turns retrieval off for this thread, and a list
-        of ids is an explicit choice. A single "enabled" boolean cannot express
-        the middle one, which is the state somebody reaches for when the search
-        is getting in the way of one particular conversation.
-        """
-        conversation = await self.get_conversation(
-            conversation_id,
-            organization_id=organization_id,
-            user_id=user_id,
-        )
-        update_data: dict[str, Any] = {
-            "active_knowledge_base_ids": (
-                None
-                if active_knowledge_base_ids is None
-                else [str(kb_id) for kb_id in active_knowledge_base_ids]
-            )
-        }
-        return await conversation_repo.update_conversation(
-            self.db, db_conversation=conversation, update_data=update_data
-        )
 
     async def get_message(self, message_id: UUID) -> Message:
         message = await conversation_repo.get_message_by_id(self.db, message_id)

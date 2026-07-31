@@ -24,8 +24,8 @@ export type SkillSort = "name" | "updated";
 export interface SkillQuery {
   /** Matched against name and description, by the database. */
   search?: string;
-  /** An exact category to filter to; undefined means every shelf. */
-  category?: string;
+  /** Exact categories to filter to - any of them matches; empty means every shelf. */
+  categories?: string[];
   sort?: SkillSort;
   skip?: number;
   limit?: number;
@@ -44,7 +44,7 @@ export interface SkillQuery {
  */
 export function useSkills({
   search = "",
-  category,
+  categories,
   sort = "name",
   skip = 0,
   limit = PAGE_SIZE,
@@ -52,17 +52,19 @@ export function useSkills({
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
-    queryKey: qk.skills.list({ search, category: category ?? "", sort, skip, limit }),
-    queryFn: () =>
-      apiClient.get<SkillList>("/skills", {
-        params: {
-          ...(search ? { q: search } : {}),
-          ...(category ? { category } : {}),
-          sort,
-          skip: String(skip),
-          limit: String(limit),
-        },
-      }),
+    queryKey: qk.skills.list({ search, category: (categories ?? []).join(","), sort, skip, limit }),
+    // The query string is built by hand because `category` repeats - the
+    // server reads `?category=devops&category=data` as "either shelf" - and
+    // `apiClient`'s params take one value per name.
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (search) params.set("q", search);
+      for (const category of categories ?? []) params.append("category", category);
+      params.set("sort", sort);
+      params.set("skip", String(skip));
+      params.set("limit", String(limit));
+      return apiClient.get<SkillList>(`/skills?${params}`);
+    },
     placeholderData: (previous) => previous,
   });
 
@@ -107,6 +109,7 @@ export function useSkills({
     skills: data?.items ?? [],
     total: data?.total ?? 0,
     categories: data?.categories ?? [],
+    suggestedCategories: data?.suggested_categories ?? [],
     isLoading,
     create,
     update,

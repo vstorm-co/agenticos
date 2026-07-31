@@ -2,7 +2,7 @@
 
 import uuid
 
-from sqlalchemy import JSON, Boolean, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Boolean, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -42,13 +42,30 @@ class ChannelBot(Base, TimestampMixin):
     # particular server and cannot post anywhere without knowing which.
     api_base_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     webhook_secret: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    # A Slack bot's own app credentials, sealed like the token and at the same
+    # `secret_key_version`. Per bot rather than per deployment: one row is one
+    # Slack app, and a second workspace's app must not verify - or be verified
+    # by - the first's secret. NULL on other platforms, and on Slack bots
+    # registered before the credentials moved off the environment.
+    slack_signing_secret_encrypted: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    slack_app_token_encrypted: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+
     access_policy: Mapped[dict] = mapped_column(
         JSON,
         nullable=False,
         default=lambda: dict(DEFAULT_ACCESS_POLICY),
     )
-    ai_model_override: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    system_prompt_override: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    @property
+    def has_slack_signing_secret(self) -> bool:
+        """Whether inbound Slack events can be verified - never the secret itself."""
+        return self.slack_signing_secret_encrypted is not None
+
+    @property
+    def has_slack_app_token(self) -> bool:
+        """Whether Socket Mode (dev polling) can run - never the token itself."""
+        return self.slack_app_token_encrypted is not None
 
     def __repr__(self) -> str:
         return f"<ChannelBot(id={self.id}, platform={self.platform}, name={self.name})>"

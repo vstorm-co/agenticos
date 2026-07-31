@@ -8,7 +8,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Request, Response
 
 from app.api.deps import ChannelBotSvc
-from app.core.config import settings
+from app.services.channel_bot import unseal_slack_signing_secret
 from app.services.channels import get_adapter
 from app.worker.background.channel import process_channel_event
 
@@ -37,17 +37,28 @@ async def slack_events(
     adapter = get_adapter("slack")
     headers = dict(request.headers)
 
-    if not settings.SLACK_SIGNING_SECRET:
-        raise HTTPException(status_code=500, detail="SLACK_SIGNING_SECRET not configured")
-    if not adapter.verify_webhook_signature(headers, settings.SLACK_SIGNING_SECRET, body=raw_body):
+    # The bot is loaded before verification because the signing secret is the
+    # bot's own - each row is its own Slack app. An unknown or inactive bot
+    # answers 200 with nothing, exactly as it did after verification before:
+    # a prober learns only that the endpoint exists, which the URL already says.
+    bot = await bot_service.find_active(bot_id)
+    if bot is None:
+        return Response(status_code=200)
+
+    signing_secret = unseal_slack_signing_secret(bot)
+    if not signing_secret:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "This bot has no Slack signing secret - add it in the bot's "
+                "settings so inbound events can be verified"
+            ),
+        )
+    if not adapter.verify_webhook_signature(headers, signing_secret, body=raw_body):
         raise HTTPException(status_code=403, detail="Invalid Slack signature")
 
     if payload.get("type") == "url_verification":
         return {"challenge": payload.get("challenge", "")}
-
-    bot = await bot_service.find_active(bot_id)
-    if bot is None:
-        return Response(status_code=200)
 
     event = payload.get("event", {})
     if not event:

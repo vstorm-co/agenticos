@@ -25,7 +25,7 @@ async def get_all(
 ) -> list[SyncLog]:
     """Get sync logs, optionally filtered by collections or sync source.
 
-    ``collections`` is checked with ``is not None`` rather than for truthiness:
+    `collections` is checked with `is not None` rather than for truthiness:
     an empty list means "no collection is in scope", and must answer with
     nothing rather than with everything.
     """

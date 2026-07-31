@@ -5,7 +5,7 @@ than an ad-hoc dict:
 
 - the tool returns it as a JSON string, so every framework captures it as an
   ordinary tool result,
-- it is persisted verbatim in ``tool_calls.result`` - no schema, no migration,
+- it is persisted verbatim in `tool_calls.result` - no schema, no migration,
 - the web chat parses it and renders it interactively with Recharts,
 - the channel adapters render it server-side to a PNG for Slack and Telegram.
 

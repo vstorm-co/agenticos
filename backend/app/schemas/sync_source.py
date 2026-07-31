@@ -28,7 +28,7 @@ class ConnectorInfo(BaseSchema):
 class SyncSourceCreate(BaseSchema):
     """Schema for creating a new sync source.
 
-    ``collection_name`` is optional - a source without it is an org-level
+    `collection_name` is optional - a source without it is an org-level
     integration not yet assigned to a knowledge base.
     """
 

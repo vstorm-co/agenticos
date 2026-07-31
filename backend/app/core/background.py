@@ -1,6 +1,6 @@
 """Fire-and-forget background work that does not silently disappear.
 
-``asyncio.create_task`` returns a task the event loop holds only weakly. Drop
+`asyncio.create_task` returns a task the event loop holds only weakly. Drop
 the reference and the task can be garbage-collected mid-flight - the classic
 symptom is an ingestion that works under load and vanishes when the system is
 idle, with nothing in the logs. Worse, an exception inside a discarded task is
@@ -68,7 +68,7 @@ async def drain(timeout: float = 30.0) -> None:
 
     Called from the application lifespan. Without it, shutting down mid-flight
     cancels ingestion and sync work that was nearly done, which shows up later
-    as a document stuck in ``processing`` forever.
+    as a document stuck in `processing` forever.
     """
     if not _running:
         return

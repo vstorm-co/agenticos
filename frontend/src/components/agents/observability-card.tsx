@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import {
   Card,
   CardContent,
@@ -15,10 +17,15 @@ import {
   SelectValue,
 } from "@/components/ui";
 import { useSecrets } from "@/hooks";
+import { ROUTES } from "@/lib/constants";
 import type { ObservabilitySpec } from "@/types/agents";
 
-/** The one kind of secret a Logfire write token can be stored as. */
-const TOKEN_KIND = "api_key";
+/**
+ * The vault purpose a Logfire write token is stored under. Offering only these
+ * keeps every Tavily and provider key out of a picker where each would be a
+ * plausible-looking wrong answer.
+ */
+const TOKEN_PURPOSE = "logfire";
 
 /** Chosen in the picker to mean "back to the deployment's own project". */
 const NONE = "__none__";
@@ -50,7 +57,7 @@ export function ObservabilityCard({
   agentName,
 }: ObservabilityCardProps) {
   const { secrets } = useSecrets();
-  const tokens = secrets.filter((secret) => secret.kind === TOKEN_KIND);
+  const tokens = secrets.filter((secret) => secret.purpose === TOKEN_PURPOSE);
   const selected = value?.token_secret_id ?? null;
 
   // Clearing the token clears the block: a service name and environment with
@@ -66,9 +73,10 @@ export function ObservabilityCard({
       <CardHeader>
         <CardTitle>Tracing</CardTitle>
         <CardDescription>
-          Send this agent&apos;s runs to a Logfire project of its own - an agent built for a client
-          traces into the client&apos;s project rather than yours. Leave it empty and runs go where
-          the deployment already sends everything.
+          Every run is already traced into the Logfire project this deployment is configured with.
+          Pick a write token to send this agent&apos;s runs to a project of its own instead - an
+          agent built for a client traces into the client&apos;s project, with their retention and
+          their alerting.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4 sm:grid-cols-3">
@@ -93,9 +101,19 @@ export function ObservabilityCard({
               ))}
             </SelectContent>
           </Select>
-          <p className="text-muted-foreground text-xs">
-            Stored in the vault as an API key. The spec keeps the reference, never the token.
-          </p>
+          {tokens.length === 0 ? (
+            <p className="text-muted-foreground text-xs">
+              No Logfire tokens stored yet - add one in the{" "}
+              <Link href={ROUTES.VAULT} className="underline underline-offset-2">
+                Vault
+              </Link>{" "}
+              under Tracing.
+            </p>
+          ) : (
+            <p className="text-muted-foreground text-xs">
+              Stored in the vault under Tracing. The spec keeps the reference, never the token.
+            </p>
+          )}
         </div>
 
         <div className="space-y-2">

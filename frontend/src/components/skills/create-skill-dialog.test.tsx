@@ -31,20 +31,55 @@ const NAME_TAKEN = new ApiError(409, TAKEN, {
 
 const name = () => screen.getByLabelText("Name");
 const description = () => screen.getByLabelText("Description");
-const content = () => screen.getByLabelText("Content");
+// The body is SKILL.md in the file pane, as the workbench has it - editable
+// only once the pane is flipped to Source.
+const content = () => screen.getByLabelText("SKILL.md source");
 const create = () => screen.getByRole("button", { name: "Create" });
 
 async function fill() {
   await userEvent.type(name(), "refund-policy");
   await userEvent.type(description(), "How refunds work.");
+  await userEvent.click(screen.getByRole("button", { name: "Source" }));
   await userEvent.type(content(), "## Refunds");
 }
 
 describe("CreateSkillDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: [],
+      total: 0,
+      categories: ["ops-notes"],
+      suggested_categories: ["marketing", "devops"],
+    });
     render(<CreateSkillDialog open onOpenChange={vi.fn()} />, { wrapper });
+  });
+
+  it("lays the body out as SKILL.md, the way the editor will show it forever after", async () => {
+    // The create form used to be the only place a skill did not look like a
+    // folder. The second time anybody saw their skill it looked nothing like
+    // the first - same tree, same pane, from the start.
+    // Twice: once in the tree, once naming the open pane.
+    expect(screen.getAllByText("SKILL.md")).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "Preview" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Source" })).toBeInTheDocument();
+  });
+
+  it("offers the shelves in use and the predefined ones, without constraining the field", async () => {
+    // A select, so the list that already exists is visible before anybody
+    // types - that is what keeps twenty skills off nineteen spellings of one
+    // shelf. "New category…" is the way out: a category is the organization's
+    // word, and anything typed stays as valid as anything picked.
+    // Labels, not slugs: the stored value stays `ops-notes`, the reader sees
+    // "Ops notes".
+    await userEvent.click(screen.getByLabelText("Category"));
+    expect(await screen.findByRole("option", { name: "Ops notes" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Marketing" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Devops" })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("option", { name: "New category…" }));
+    await userEvent.type(screen.getByLabelText("Category"), "something-nobody-suggested");
+    expect(screen.getByLabelText("Category")).toHaveValue("something-nobody-suggested");
   });
 
   it("keeps the whole draft when the name is taken", async () => {
@@ -97,12 +132,18 @@ describe("CreateSkillDialog", () => {
   it("does not let an over-long name leave the browser", async () => {
     expect(name()).toHaveAttribute("maxLength", "64");
     expect(description()).toHaveAttribute("maxLength", "500");
+    // The category cap lives on the free-text field behind "New category…" -
+    // the select's own options are already-valid names.
+    await userEvent.click(screen.getByLabelText("Category"));
+    await userEvent.click(screen.getByRole("option", { name: "New category…" }));
     expect(screen.getByLabelText("Category")).toHaveAttribute("maxLength", "64");
   });
 
-  it("sends the category when one was typed", async () => {
+  it("sends the category when one was picked", async () => {
     vi.mocked(apiClient.post).mockResolvedValue({ id: "s1", name: "refund-policy" });
     await fill();
+    await userEvent.click(screen.getByLabelText("Category"));
+    await userEvent.click(screen.getByRole("option", { name: "New category…" }));
     await userEvent.type(screen.getByLabelText("Category"), "support");
     await userEvent.click(create());
 

@@ -1,8 +1,8 @@
 """Knowledge Base routes - CRUD + per-KB document upload + sync sources.
 
 Document upload and sync-source management are wired here (rather than under
-``/rag``) so non-admin owners can manage their own KB without needing the
-app-admin role required by the bulk ``/rag`` endpoints.
+`/rag`) so non-admin owners can manage their own KB without needing the
+app-admin role required by the bulk `/rag` endpoints.
 """
 
 from typing import Any
@@ -12,10 +12,8 @@ from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
 from fastapi.responses import FileResponse
 
 from app.api.deps import (
-    ActiveOrg,
     Auth,
     CollectionAccessSvc,
-    CurrentUser,
     DBSession,
     KnowledgeBaseSvc,
     RAGDocumentSvc,
@@ -25,7 +23,9 @@ from app.api.deps import (
 )
 from app.core.exceptions import NotFoundError
 from app.core.permissions import Perm
+from app.db.models.knowledge_base import KnowledgeBase
 from app.repositories import sync_log as sync_log_repo
+from app.repositories.rag_document import CollectionCounts
 from app.schemas.knowledge_base import (
     KnowledgeBaseCreate,
     KnowledgeBaseList,
@@ -57,15 +57,40 @@ router = APIRouter()
 )
 async def list_knowledge_bases(
     service: KnowledgeBaseSvc,
-    current_user: CurrentUser,
-    active_org: ActiveOrg,
+    ctx: Auth,
 ) -> Any:
-    """List all Knowledge Bases accessible to the current user in this org context."""
-    items = await service.list_accessible(
-        user_id=current_user.id,
-        organization_id=active_org.id,
+    """List the Knowledge Bases this caller may read in the active organization.
+
+    Carries each collection's document and chunk counts, which the single-row
+    responses do not. A picker choosing what an agent may search is choosing
+    between collections, and a name alone does not distinguish the one with four
+    hundred documents in it from the one somebody made and never filled.
+    """
+    items = await service.list_accessible(ctx)
+    counts = await service.counts_for(items)
+    return KnowledgeBaseList(
+        items=[_read_with_counts(kb, counts.get(kb.collection_name)) for kb in items],
+        total=len(items),
     )
-    return KnowledgeBaseList(items=items, total=len(items))
+
+
+def _read_with_counts(kb: KnowledgeBase, counts: CollectionCounts | None) -> KnowledgeBaseRead:
+    """A collection as the listing shows it, contents included.
+
+    `counts` is `None` for a collection nothing has been written to - the group
+    query has no row to return for it - and the zeros that stands for are the
+    schema's own defaults.
+    """
+    read = KnowledgeBaseRead.model_validate(kb)
+    if counts is None:
+        return read
+    return read.model_copy(
+        update={
+            "document_count": counts.documents,
+            "indexed_count": counts.indexed,
+            "chunk_count": counts.chunks,
+        }
+    )
 
 
 @router.post(
@@ -78,114 +103,78 @@ async def create_knowledge_base(
     data: KnowledgeBaseCreate,
     service: KnowledgeBaseSvc,
     ctx: Auth,
-    current_user: CurrentUser,
-    active_org: ActiveOrg,
 ) -> Any:
     """Create a new Knowledge Base.
 
-    - ``personal`` scope: visible only to you
-    - ``org`` scope: visible to all members of the active org (admin/owner only)
-    - ``app`` scope: visible to all users (app admin only)
+    - `personal` scope: visible only to you
+    - `org` scope: owned by you, private until shared or made org-visible
+    - `app` scope: visible to all users (app admin only)
 
-    ``ingestion_config`` decides how this collection's documents will be parsed,
+    `ingestion_config` decides how this collection's documents will be parsed,
     chunked and described; omit it for this deployment's defaults. The embedding
     model is recorded from the deployment and is not settable - a collection's
     vectors are only comparable with themselves.
     """
-    return await service.create(
-        data,
-        ctx=ctx,
-        user_id=current_user.id,
-        organization_id=active_org.id,
-        is_app_admin=current_user.is_app_admin,
-    )
+    return await service.create(data, ctx=ctx)
 
 
-@router.get(
-    "/{kb_id}",
-    response_model=KnowledgeBaseRead,
-    dependencies=[Depends(require(Perm.COLLECTIONS_VIEW))],
-)
+# Per-resource routes carry no `require()` gate on purpose: a role gate cannot
+# see the grants on a row, so it would refuse a Viewer holding an explicit
+# `edit` grant before the service's `resolve_access` ever widened their reach.
+# The service decides per row; the collection routes above keep the role gate.
+
+
+@router.get("/{kb_id}", response_model=KnowledgeBaseRead)
 async def get_knowledge_base(
     kb_id: UUID,
     service: KnowledgeBaseSvc,
-    current_user: CurrentUser,
-    active_org: ActiveOrg,
+    ctx: Auth,
 ) -> Any:
     """Get a Knowledge Base by ID."""
-    return await service.get(
-        kb_id,
-        user_id=current_user.id,
-        organization_id=active_org.id,
-    )
+    return await service.get(kb_id, ctx=ctx)
 
 
-@router.patch(
-    "/{kb_id}",
-    response_model=KnowledgeBaseRead,
-    dependencies=[Depends(require(Perm.COLLECTIONS_EDIT))],
-)
+@router.patch("/{kb_id}", response_model=KnowledgeBaseRead)
 async def update_knowledge_base(
     kb_id: UUID,
     data: KnowledgeBaseUpdate,
     service: KnowledgeBaseSvc,
     ctx: Auth,
-    current_user: CurrentUser,
-    active_org: ActiveOrg,
 ) -> Any:
     """Update the name, description or ingestion configuration of a Knowledge Base.
 
-    A new ``ingestion_config`` applies to documents ingested from now on.
+    A new `ingestion_config` applies to documents ingested from now on.
     Nothing already indexed is re-parsed, and the embedding model cannot be
     changed here at all.
     """
-    return await service.update(
-        kb_id,
-        data,
-        ctx=ctx,
-        user_id=current_user.id,
-        organization_id=active_org.id,
-        is_app_admin=current_user.is_app_admin,
-    )
+    return await service.update(kb_id, data, ctx=ctx)
 
 
 @router.delete(
     "/{kb_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     response_model=None,
-    dependencies=[Depends(require(Perm.COLLECTIONS_EDIT))],
 )
 async def delete_knowledge_base(
     kb_id: UUID,
     service: KnowledgeBaseSvc,
-    current_user: CurrentUser,
-    active_org: ActiveOrg,
+    ctx: Auth,
 ) -> None:
     """Delete a Knowledge Base. Default KBs cannot be deleted."""
-    await service.delete(
-        kb_id,
-        user_id=current_user.id,
-        organization_id=active_org.id,
-        is_app_admin=current_user.is_app_admin,
-    )
+    await service.delete(kb_id, ctx=ctx)
 
 
-@router.get(
-    "/{kb_id}/documents",
-    response_model=RAGTrackedDocumentList,
-    dependencies=[Depends(require(Perm.COLLECTIONS_VIEW))],
-)
+@router.get("/{kb_id}/documents", response_model=RAGTrackedDocumentList)
 async def list_kb_documents(
     kb_id: UUID,
     service: KnowledgeBaseSvc,
     rag_doc_service: RAGDocumentSvc,
-    current_user: CurrentUser,
-    active_org: ActiveOrg,
+    ctx: Auth,
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
     """List documents ingested into a Knowledge Base."""
-    await service.get(kb_id, user_id=current_user.id, organization_id=active_org.id)
+    await service.get(kb_id, ctx=ctx)
     return await rag_doc_service.list_for_kb(kb_id=kb_id, skip=skip, limit=limit)
 
 
@@ -200,7 +189,6 @@ async def upload_kb_document(
     rag_doc_service: RAGDocumentSvc,
     vector_store: VectorStoreSvc,
     ctx: Auth,
-    active_org: ActiveOrg,
     file: UploadFile = File(...),
     replace: bool = Query(False),
     ingestion: str | None = Form(
@@ -215,9 +203,9 @@ async def upload_kb_document(
     """Upload a file into the KB's underlying vector collection.
 
     Auth is per-KB rather than the app-admin role the bulk
-    ``/rag/{collection}/documents`` endpoint demands, so a workspace user can
+    `/rag/{collection}/documents` endpoint demands, so a workspace user can
     manage their own KB without elevation - but it is *write* access the
-    service resolves, not read: ``collections:edit`` reaching this base, or an
+    service resolves, not read: `collections:edit` reaching this base, or an
     explicit edit grant on it. Overriding how this one file is parsed needs no
     permission beyond that: it changes nothing outside the document being
     added.
@@ -232,7 +220,7 @@ async def upload_kb_document(
         replace=replace,
         vector_store=vector_store,
         override=parse_override(ingestion),
-        organization_id=active_org.id,
+        organization_id=ctx.organization_id,
         knowledge_base_id=kb.id,
     )
 
@@ -243,11 +231,10 @@ async def download_kb_document(
     doc_id: UUID,
     service: KnowledgeBaseSvc,
     rag_doc_svc: RAGDocumentSvc,
-    current_user: CurrentUser,
-    active_org: ActiveOrg,
+    ctx: Auth,
 ) -> FileResponse:
     """Download (or open inline) the original file for a KB document."""
-    kb = await service.get(kb_id, user_id=current_user.id, organization_id=active_org.id)
+    kb = await service.get(kb_id, ctx=ctx)
     doc = await rag_doc_svc.get_document(str(doc_id))
     if doc.collection_name != kb.collection_name:
         raise NotFoundError(
@@ -273,17 +260,16 @@ async def get_kb_document_parsed(
     service: KnowledgeBaseSvc,
     rag_doc_svc: RAGDocumentSvc,
     vector_store: VectorStoreSvc,
-    current_user: CurrentUser,
-    active_org: ActiveOrg,
+    ctx: Auth,
 ) -> Any:
     """How a KB document parsed: the indexed chunks, grouped back into pages.
 
-    The counterpart of ``download`` above - original bytes there, what the
+    The counterpart of `download` above - original bytes there, what the
     parser made of them here - so the two can be compared side by side. A
     document still processing, or one whose ingestion failed, is a 404: there
     is no parse to show yet.
     """
-    kb = await service.get(kb_id, user_id=current_user.id, organization_id=active_org.id)
+    kb = await service.get(kb_id, ctx=ctx)
     doc = await rag_doc_svc.get_document(str(doc_id))
     if doc.collection_name != kb.collection_name:
         raise NotFoundError(
@@ -323,7 +309,7 @@ async def delete_kb_document(
 
 # These mirror /rag/sync/sources but with per-KB auth (a personal KB owner
 # can wire up a Google Drive folder without admin role) and automatically
-# pin the source to ``kb.collection_name`` so the user can't accidentally
+# pin the source to `kb.collection_name` so the user can't accidentally
 # point a sync at a different collection.
 
 
@@ -332,13 +318,12 @@ async def list_kb_sync_sources(
     kb_id: UUID,
     service: KnowledgeBaseSvc,
     sync_source_svc: SyncSourceSvc,
-    current_user: CurrentUser,
-    active_org: ActiveOrg,
+    ctx: Auth,
 ) -> Any:
     """List sync sources feeding this KB's collection (org-scoped)."""
-    kb = await service.get(kb_id, user_id=current_user.id, organization_id=active_org.id)
+    kb = await service.get(kb_id, ctx=ctx)
     return await sync_source_svc.list_sources(
-        organization_id=active_org.id,
+        organization_id=ctx.organization_id,
         collection_name=kb.collection_name,
     )
 
@@ -348,16 +333,15 @@ async def list_org_integrations_for_kb(
     kb_id: UUID,
     service: KnowledgeBaseSvc,
     sync_source_svc: SyncSourceSvc,
-    current_user: CurrentUser,
-    active_org: ActiveOrg,
+    ctx: Auth,
 ) -> Any:
     """List org integrations that are NOT yet assigned to this KB.
 
     Used by the wizard's 'pick existing' step so the user can clone an
     existing integration's credentials into this knowledge base.
     """
-    kb = await service.get(kb_id, user_id=current_user.id, organization_id=active_org.id)
-    all_org = await sync_source_svc.list_sources(organization_id=active_org.id)
+    kb = await service.get(kb_id, ctx=ctx)
+    all_org = await sync_source_svc.list_sources(organization_id=ctx.organization_id)
     others = [s for s in all_org.items if s.collection_name != kb.collection_name]
     return SyncSourceList(items=others, total=len(others))
 
@@ -367,11 +351,10 @@ async def list_kb_connectors(
     kb_id: UUID,
     service: KnowledgeBaseSvc,
     sync_source_svc: SyncSourceSvc,
-    current_user: CurrentUser,
-    active_org: ActiveOrg,
+    ctx: Auth,
 ) -> Any:
     """List available connector types (Google Drive, S3, …) for this KB."""
-    await service.get(kb_id, user_id=current_user.id, organization_id=active_org.id)
+    await service.get(kb_id, ctx=ctx)
     return sync_source_svc.list_connectors()
 
 
@@ -386,16 +369,15 @@ async def create_kb_sync_source(
     service: KnowledgeBaseSvc,
     sync_source_svc: SyncSourceSvc,
     ctx: Auth,
-    active_org: ActiveOrg,
 ) -> Any:
     """Wire up a sync source (Google Drive, S3, …) feeding this KB.
 
-    The ``collection_name`` field on the request body is overridden with the
+    The `collection_name` field on the request body is overridden with the
     KB's own collection - clients should not need to know that detail.
     """
     kb = await service.get_for_write(kb_id, ctx=ctx)
     payload = data.model_copy(update={"collection_name": kb.collection_name})
-    return await sync_source_svc.create_source(payload, organization_id=active_org.id)
+    return await sync_source_svc.create_source(payload, organization_id=ctx.organization_id)
 
 
 @router.post(
@@ -411,7 +393,6 @@ async def clone_kb_sync_source(
     sync_source_svc: SyncSourceSvc,
     access: CollectionAccessSvc,
     ctx: Auth,
-    active_org: ActiveOrg,
 ) -> Any:
     """Clone an existing org integration into this KB.
 
@@ -427,7 +408,7 @@ async def clone_kb_sync_source(
     source = await access.sync_source(ctx, str(source_id))
     clone_data = data.model_copy(update={"collection_name": kb.collection_name})
     return await sync_source_svc.clone_source(
-        str(source.id), clone_data, organization_id=active_org.id
+        str(source.id), clone_data, organization_id=ctx.organization_id
     )
 
 
@@ -464,12 +445,11 @@ async def list_kb_sync_source_logs(
     source_id: UUID,
     service: KnowledgeBaseSvc,
     db: DBSession,
-    current_user: CurrentUser,
-    active_org: ActiveOrg,
+    ctx: Auth,
     limit: int = Query(20, ge=1, le=100),
 ) -> Any:
     """List sync run history for a specific KB sync source."""
-    kb = await service.get(kb_id, user_id=current_user.id, organization_id=active_org.id)
+    kb = await service.get(kb_id, ctx=ctx)
     logs = await sync_log_repo.get_all(db, sync_source_id=source_id, limit=limit)
     # Verify source belongs to this KB's collection (security: don't leak other KBs' logs).
     items = [

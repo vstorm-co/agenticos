@@ -26,9 +26,10 @@ from app.core.cache import setup_cache
 from app.clients.redis import RedisClient
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.vectorstore import PgVectorStore
+from app.services.embedding_resolution import embeddings_for_collection
 from app.services.rag.vectorstore import BaseVectorStore
 from app.repositories.channel_bot import get_active_polling_bots
-from app.services.channel_bot import unseal_bot_token
+from app.services.channel_bot import unseal_bot_token, unseal_slack_app_token
 from app.services.channels import register_adapter
 from app.services.channels.telegram import TelegramAdapter
 from app.services.channels import register_adapter as _slack_register
@@ -57,6 +58,14 @@ async def _start_channel_polling(adapter: Any, channel: str) -> None:
         remember = getattr(adapter, "remember_server", None)
         if remember is not None and _bot.api_base_url:
             remember(str(_bot.id), _bot.api_base_url)
+        # Slack's Socket Mode connects with the bot's own xapp- token - each
+        # bot is its own Slack app. Registered the same way as the server
+        # address above, and for the same reason.
+        remember_app = getattr(adapter, "remember_app_token", None)
+        if remember_app is not None:
+            _app_token = unseal_slack_app_token(_bot)
+            if _app_token:
+                remember_app(str(_bot.id), _app_token)
         await adapter.start_polling(str(_bot.id), unseal_bot_token(_bot))
     logger.info("%s: polling started for %d bot(s)", channel.capitalize(), len(_bots))
 
@@ -90,7 +99,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
         logger.error("Embedding service warmup failed: %s. RAG will not be available.", e)
     if embedder is not None:
         try:
-            vector_store = PgVectorStore(settings=settings.rag, embedding_service=embedder)
+            vector_store = PgVectorStore(
+                settings=settings.rag,
+                embedding_service=embedder,
+                resolver=embeddings_for_collection,
+            )
             state["vector_store"] = vector_store
         except Exception as e:
             logger.error("pgvector connection failed: %s. Vector store will not be available.", e)

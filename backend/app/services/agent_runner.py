@@ -9,22 +9,20 @@ The service owns the run lifecycle:
 
     resolve version -> resolve model -> build -> execute -> record cost
 
-The cost row is written in a ``finally`` block. A run that crashed still spent
+The cost row is written in a `finally` block. A run that crashed still spent
 money, and a budget that only counts successful runs is not a budget.
 
 The same reasoning is why the *limits* are resolved here too, not handed in.
-A run is under as many caps as apply to it - the agent's own, the
-organization's, and the exposure that admitted it - and every one of them is a
+A run is under exactly two caps - the agent's own monthly limit and the
+organization's - and each is a
 :class:`~app.agents.capabilities.budget.SpendLimit` carrying the lookup that
-meters *its* spend: ``agent.id`` for the agent, ``ctx.organization_id`` for the
-organization, the run's ``exposure_id`` for the exposure. None of them is
-collapsed into another, because the tighter of two numbers means nothing when
-the numbers count different things; whichever binds first stops the run and
-names itself. Adding a fourth is a lookup and an entry, not a new argument every
-surface has to remember.
+meters *its* spend: `agent.id` for the agent, `ctx.organization_id` for the
+organization. Neither is collapsed into the other, because the tighter of two
+numbers means nothing when the numbers count different things; whichever binds
+first stops the run and names itself.
 
 A run can also stop without an answer. When the approval gate parks a
-side-effecting tool call, the run is recorded as ``awaiting_approval`` with
+side-effecting tool call, the run is recorded as `awaiting_approval` with
 everything it needs to continue stored on the row, and :meth:`~AgentRunnerService.resume`
 picks it up once a person has decided - in another process, possibly the next
 day. Holding the coroutine open instead would cost a task and a connection per
@@ -52,17 +50,17 @@ from app.agents.capabilities.approval import (
     ApprovalRejected,
     ApprovalRequest,
 )
-from app.agents.capabilities.budget import BudgetExceeded, SpendEntry, SpendLimit
+from app.agents.capabilities.budget import BudgetExceeded, BudgetScope, SpendEntry, metered_by
 from app.agents.deps import AgentDeps
 from app.agents.factory import BuiltAgent, build_agent
-from app.agents.spec import AgentSpec
+from app.agents.spec import AgentSpec, ObservabilitySpec
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent
 from app.db.models.agent_exposure import AgentExposure
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, RunSurface
 from app.repositories import (
-    agent_exposure_repo,
+    agent_environment_repo,
     agent_repo,
     agent_run_repo,
     knowledge_base_repo,
@@ -75,19 +73,9 @@ from app.services.notifications import NotificationService
 from app.services.organization import OrganizationService
 from app.services.organization_secret import OrganizationSecretService
 from app.services.skills import SkillService
+from app.services.spend import month_start, organization_monthly_spend
 
 logger = logging.getLogger(__name__)
-
-
-def month_start(now: datetime | None = None) -> datetime:
-    """The start of the current calendar month, in UTC.
-
-    Monthly budgets reset on the first, not on a rolling 30 days: people reason
-    about "this month's spend" against an invoice, and a rolling window makes
-    the number impossible to reconcile.
-    """
-    moment = now or datetime.now(UTC)
-    return moment.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
 
 class PausedRunState(BaseModel):
@@ -111,7 +99,7 @@ class PausedRunState(BaseModel):
 class ApprovalChannel:
     """A run's connection to the approval queue.
 
-    Handed to the agent as ``AgentDeps.request_approval``: the gate asks, this
+    Handed to the agent as `AgentDeps.request_approval`: the gate asks, this
     answers. A first ask parks the call and returns pending; a resumed run is
     built with the recorded decisions already in hand.
 
@@ -226,6 +214,7 @@ class AgentRunnerService:
         extra_toolsets: list[Any] | None = None,
         exposure: AgentExposure | None = None,
         model_profile_id: UUID | None = None,
+        environment_id: UUID | None = None,
     ) -> PreparedRun:
         """Assemble everything a run needs and open its row.
 
@@ -240,12 +229,24 @@ class AgentRunnerService:
                 The run row records the model that actually ran, so a cheaper or
                 stronger model chosen for one conversation stays attributable
                 and stays inside the same budget.
+            environment_id: Run the version this environment pins instead of
+                the default. Falls back to the exposure's environment - a bot
+                bound to `dev` serves dev without every caller re-deriving it -
+                and then to the default environment's version.
 
         Raises:
             BadRequestError: If the agent is unpublished, archived, or its spec
                 no longer validates - surfaced before any tokens are spent.
         """
-        agent, spec = await self.registry.get_runnable_spec(ctx, agent_id)
+        effective_environment_id = environment_id or (
+            exposure.environment_id if exposure is not None else None
+        )
+        agent, spec, version_id = await self.registry.get_runnable_spec(
+            ctx, agent_id, environment_id=effective_environment_id
+        )
+        spec = await self._with_environment_observability(
+            ctx, spec, environment_id=effective_environment_id
+        )
         return await self._assemble(
             ctx,
             agent=agent,
@@ -258,67 +259,9 @@ class AgentRunnerService:
             extra_toolsets=extra_toolsets,
             exposure=exposure,
             decided={},
+            version_id=version_id,
+            environment_id=effective_environment_id,
         )
-
-    async def _exposure_for(self, run: AgentRun) -> AgentExposure | None:
-        """The binding a parked run arrived through, if it is still there.
-
-        A binding deleted while the run sat in the approvals queue leaves the
-        continuation uncapped by it, which is the honest outcome: the ceiling
-        belonged to a place that no longer exists. The run keeps its
-        ``exposure_id`` regardless - ``SET NULL`` on the column is what a
-        *deleted* binding does, and that is a different fact from this one.
-        """
-        if run.exposure_id is None:
-            return None
-        return await agent_exposure_repo.get(
-            self.db, run.exposure_id, organization_id=run.organization_id
-        )
-
-    def _exposure_limits(
-        self, exposure: AgentExposure | None, *, run_exposure_id: UUID | None
-    ) -> list[SpendLimit]:
-        """The caps the binding that admitted this run imposes.
-
-        Metered against that binding's own runs and nobody else's, which is the
-        whole point: an exposure's ceiling checked against the organization's
-        total would be exhausted by unrelated internal traffic while the
-        binding's own spend stayed invisible in it. ``run_exposure_id`` rather
-        than ``exposure.id`` is what a resumed run is metered on - the run
-        already carries the binding it arrived through, and re-deriving it from
-        an argument the resume path does not have would silently meter the
-        continuation against nothing.
-
-        Both caps are separate entries rather than one composed number: they
-        measure different quantities, so the tighter of the two is not a
-        meaningful thing to compute, and each names itself when it stops a run.
-        """
-        if exposure is None or run_exposure_id is None:
-            return []
-
-        limits: list[SpendLimit] = []
-        if exposure.max_per_run_usd is not None:
-            limits.append(
-                SpendLimit(scope="Exposure run", limit_usd=Decimal(exposure.max_per_run_usd))
-            )
-        if exposure.monthly_usd is not None:
-
-            async def exposure_spend() -> Decimal:
-                return await agent_run_repo.sum_cost_since(
-                    self.db,
-                    organization_id=exposure.organization_id,
-                    since=month_start(),
-                    exposure_id=run_exposure_id,
-                )
-
-            limits.append(
-                SpendLimit(
-                    scope="Exposure monthly",
-                    limit_usd=Decimal(exposure.monthly_usd),
-                    period_spend=exposure_spend,
-                )
-            )
-        return limits
 
     async def _assemble(
         self,
@@ -334,12 +277,19 @@ class AgentRunnerService:
         exposure: AgentExposure | None,
         decided: dict[str, ApprovalDecision],
         model_profile_id: UUID | None = None,
+        version_id: UUID | None = None,
+        environment_id: UUID | None = None,
     ) -> PreparedRun:
         """Build the agent for a run, opening its row unless one is being resumed.
 
         The single funnel a fresh run and a resumed one share. Splitting them
         would mean two places that decide what an agent may reach, and the
         second one would eventually forget something.
+
+        `version_id` is the version the spec was resolved from - stamped on a
+        fresh run so history records what actually answered, which an
+        environment can make different from `current_version_id`. A resumed
+        run keeps the version it was parked on.
         """
         # A caller's override wins over the spec's choice. Only the model is
         # replaced - instructions, tools, budgets and the approval gate are the
@@ -391,9 +341,10 @@ class AgentRunnerService:
                 self.db,
                 organization_id=ctx.organization_id,
                 agent_id=agent.id,
-                agent_version_id=agent.current_version_id,
+                agent_version_id=version_id or agent.current_version_id,
                 user_id=ctx.user_id,
                 conversation_id=conversation_id,
+                environment_id=environment_id,
                 exposure_id=exposure.id if exposure else None,
                 surface=surface.value,
                 model_label=model_spec.label,
@@ -404,7 +355,7 @@ class AgentRunnerService:
 
         # Two lookups, because the caps they feed meter two different things. The
         # agent's own cap used to read the organization-wide number below, which
-        # made ``AgentSpec.budget.monthly_usd`` a second organization cap wearing
+        # made `AgentSpec.budget.monthly_usd` a second organization cap wearing
         # an agent's name: an agent with a $10 limit was refused once its
         # *neighbours* had spent $10, and nothing ever isolated its own spend.
         async def agent_period_spend() -> Decimal:
@@ -434,7 +385,6 @@ class AgentRunnerService:
             # looks like an answer.
             user_id=None if ctx.user_id is None else str(ctx.user_id),
             user_name=user_name,
-            extra_limits=self._exposure_limits(exposure, run_exposure_id=run.exposure_id),
             granted_scopes=DEFAULT_GRANTED_SCOPES,
             resources=resources,
             secrets=secrets,
@@ -455,15 +405,22 @@ class AgentRunnerService:
         error: str | None = None,
         logfire_trace_id: str | None = None,
         paused_state: PausedRunState | None = None,
+        budget_scope: BudgetScope | None = None,
     ) -> AgentRun:
         """Record what the run consumed and how it ended.
 
-        Called from a ``finally`` block by every surface: a crashed run still
+        Called from a `finally` block by every surface: a crashed run still
         spent money, and a budget that ignores failures is not a budget.
 
-        ``paused_state`` is what a parked run is resumed from. Passing nothing
+        `paused_state` is what a parked run is resumed from. Passing nothing
         clears it, which is what makes a finished run un-resumable rather than
         replayable.
+
+        `budget_scope` names which cap bound, for a `BUDGET_EXCEEDED` status. It
+        is carried from the `except` clause that caught the refusal rather than
+        re-derived here, because the alternative is matching a prefix on the
+        error message - and it decides who gets mailed: an agent's cap is its
+        author's to raise, the organization's is not.
         """
         ledger = prepared.built.ledger
         finished = await agent_run_repo.finish_run(
@@ -484,13 +441,27 @@ class AgentRunnerService:
         # replace the failure itself, and the operator would debug the mail
         # server instead of the run.
         try:
-            await self._notify(finished, agent=prepared.agent, status=status, error=error)
+            await self._notify(
+                finished,
+                agent=prepared.agent,
+                spec=prepared.spec,
+                status=status,
+                error=error,
+                budget_scope=budget_scope,
+            )
         except Exception:
             logger.exception("run_notification_failed", extra={"run_id": str(finished.id)})
         return finished
 
     async def _notify(
-        self, run: AgentRun, *, agent: Agent, status: RunStatus, error: str | None
+        self,
+        run: AgentRun,
+        *,
+        agent: Agent,
+        spec: AgentSpec,
+        status: RunStatus,
+        error: str | None,
+        budget_scope: BudgetScope | None,
     ) -> None:
         """Tell somebody, when the run ended in a way nobody is watching for.
 
@@ -507,7 +478,16 @@ class AgentRunnerService:
         notifications = NotificationService(self.db)
         if status is RunStatus.BUDGET_EXCEEDED:
             await notifications.budget_exceeded(
-                run, agent=agent, reason=error or "A spending limit was reached."
+                run,
+                agent=agent,
+                spec=spec,
+                reason=error or "A spending limit was reached.",
+                # An agent's own cap unless the refusal said otherwise. A
+                # `BUDGET_EXCEEDED` row with no scope recorded predates this
+                # being carried, and the agent's audience is the narrower of the
+                # two - so an unknown scope tells fewer people rather than
+                # mailing the whole administration about somebody's draft.
+                scope=budget_scope or BudgetScope.AGENT,
             )
         elif status is RunStatus.AWAITING_APPROVAL:
             approvals = await agent_run_repo.list_approvals_for_run(
@@ -518,7 +498,7 @@ class AgentRunnerService:
                 for approval in approvals
                 if approval.status == ApprovalStatus.PENDING.value
             ]
-            await notifications.approval_requested(run, agent=agent, tools=pending)
+            await notifications.approval_requested(run, agent=agent, spec=spec, tools=pending)
 
     async def execute(
         self,
@@ -530,13 +510,17 @@ class AgentRunnerService:
         conversation_id: UUID | None = None,
         message_history: list[Any] | None = None,
         exposure: AgentExposure | None = None,
+        environment_id: UUID | None = None,
     ) -> tuple[str, AgentRun]:
         """Run an agent to completion and return its answer.
 
         The non-streaming path, used by the API and chat channels. Surfaces that
         stream call :meth:`prepare` and :meth:`finish` around their own loop.
 
-        An empty answer with the run in ``awaiting_approval`` means a tool call
+        `environment_id` runs the version that environment pins - the API's way
+        of exercising a dev environment before promoting it.
+
+        An empty answer with the run in `awaiting_approval` means a tool call
         is parked; the caller shows the queue rather than an answer.
         """
         prepared = await self.prepare(
@@ -545,6 +529,7 @@ class AgentRunnerService:
             surface=surface,
             conversation_id=conversation_id,
             exposure=exposure,
+            environment_id=environment_id,
         )
         return await self._run(
             prepared,
@@ -590,6 +575,11 @@ class AgentRunnerService:
         await agent_run_repo.mark_running(self.db, run=run)
 
         agent, spec = await self._parked_spec(ctx, run)
+        # The continuation traces where the original did: the environment that
+        # routed the run still owns its observability.
+        spec = await self._with_environment_observability(
+            ctx, spec, environment_id=run.environment_id
+        )
         prepared = await self._assemble(
             ctx,
             agent=agent,
@@ -599,11 +589,10 @@ class AgentRunnerService:
             conversation_id=run.conversation_id,
             user_name=None,
             extra_toolsets=None,
-            # Read back from the run rather than passed in: a resumed run is
-            # under the same caps the original was, and the row is the only
-            # place that still knows which binding admitted it. A continuation
-            # metered against nothing is how one approval reopens a spent budget.
-            exposure=await self._exposure_for(run),
+            # A resumed run reuses its row, and the binding that admitted it was
+            # stamped on that row when it was opened - there is nothing left for
+            # the exposure to contribute here.
+            exposure=None,
             decided=decided,
         )
         prepared.built.ledger.entries.append(_spend_already_booked(run))
@@ -656,6 +645,39 @@ class AgentRunnerService:
             deferred.approvals[tool_call_id] = ToolApproved(override_args=approval.tool_args)
         return decided, deferred
 
+    async def _with_environment_observability(
+        self, ctx: AuthContext, spec: AgentSpec, *, environment_id: UUID | None
+    ) -> AgentSpec:
+        """The spec, with the environment's tracing choices folded in.
+
+        An environment can point its runs at their own Logfire project - the
+        client's production traces in the client's project, dev noise in the
+        operator's. The token and service name fall through to the spec's own
+        block field by field; the Logfire environment tag is always the
+        environment's *name*, never configured separately, so the tag and the
+        environment cannot disagree. A run with no token from either source
+        stays untraced rather than tagged into nowhere.
+        """
+        if environment_id is None:
+            return spec
+        environment = await agent_environment_repo.get(
+            self.db, environment_id, organization_id=ctx.organization_id
+        )
+        if environment is None:
+            return spec
+        base = spec.observability
+        token_secret_id = environment.logfire_token_secret_id or (
+            base.token_secret_id if base else None
+        )
+        if token_secret_id is None:
+            return spec
+        merged = ObservabilitySpec(
+            token_secret_id=token_secret_id,
+            service_name=environment.service_name or (base.service_name if base else None),
+            environment=environment.name,
+        )
+        return spec.model_copy(update={"observability": merged})
+
     async def _parked_spec(self, ctx: AuthContext, run: AgentRun) -> tuple[Agent, AgentSpec]:
         """The agent and the exact spec version this run was executing.
 
@@ -695,14 +717,19 @@ class AgentRunnerService:
         error: str | None = None
         output = ""
         paused: PausedRunState | None = None
+        budget_scope: BudgetScope | None = None
         try:
-            result = await prepared.built.agent.run(
-                user_prompt,
-                deps=prepared.built.deps,
-                message_history=message_history,
-                deferred_tool_results=deferred_tool_results,
-                usage_limits=prepared.built.usage_limits,
-            )
+            # `metered_by` books what the request wrapper cannot see - the
+            # embedding calls a knowledge search makes - to this run's ledger,
+            # so they land in `cost_usd` next to the model requests.
+            with metered_by(prepared.built.ledger):
+                result = await prepared.built.agent.run(
+                    user_prompt,
+                    deps=prepared.built.deps,
+                    message_history=message_history,
+                    deferred_tool_results=deferred_tool_results,
+                    usage_limits=prepared.built.usage_limits,
+                )
             if isinstance(result.output, DeferredToolRequests):
                 paused = PausedRunState(
                     messages=ModelMessagesTypeAdapter.dump_python(
@@ -722,24 +749,39 @@ class AgentRunnerService:
             # an operator filtering for problems does not wade through it.
             status = RunStatus.BUDGET_EXCEEDED
             error = str(exc)
+            budget_scope = exc.scope
             logger.info("Run %s stopped by budget: %s", prepared.run.id, exc)
         except Exception as exc:
             error = str(exc)
             logger.exception("Agent run %s failed", prepared.run.id)
             raise
         finally:
-            await self.finish(prepared, status=status, error=error, paused_state=paused)
+            await self.finish(
+                prepared,
+                status=status,
+                error=error,
+                paused_state=paused,
+                budget_scope=budget_scope,
+            )
 
         return output, prepared.run
 
     async def monthly_spend(self, ctx: AuthContext, *, agent_id: UUID | None = None) -> Decimal:
-        """Spend so far this calendar month, for the org or one agent."""
-        return await agent_run_repo.sum_cost_since(
-            self.db,
-            organization_id=ctx.organization_id,
-            since=month_start(),
-            agent_id=agent_id,
-        )
+        """Spend so far this calendar month, for the org or one agent.
+
+        The organization's number includes what ingestion spent on embeddings,
+        because that is money too and the organization's cap is a cap on the
+        bill, not on one kind of line item. The agent's number does not:
+        indexing a shared knowledge base is nobody's agent's spend.
+        """
+        if agent_id is not None:
+            return await agent_run_repo.sum_cost_since(
+                self.db,
+                organization_id=ctx.organization_id,
+                since=month_start(),
+                agent_id=agent_id,
+            )
+        return await organization_monthly_spend(self.db, ctx.organization_id)
 
     async def spend_by_provider(
         self, ctx: AuthContext, *, days: int = 30

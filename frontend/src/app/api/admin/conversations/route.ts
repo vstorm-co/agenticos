@@ -8,9 +8,9 @@ export async function GET(request: NextRequest) {
     if ("error" in adminCheck) return adminCheck.error;
     const { accessToken } = adminCheck;
 
-    // Forward query params to backend admin endpoint. Use /api/v1/admin/conversations
-    // (admin_conversations router) - it returns AdminConversationList with user_email
-    // and supports user_id filtering, unlike the legacy /api/v1/conversations/admin-list.
+    // Forward query params to the backend's admin router, which answers
+    // AdminConversationList with user_email and filters on user_id. There used to
+    // be a second endpoint doing a worse version of this - it is gone.
     const searchParams = request.nextUrl.searchParams;
     const params = new URLSearchParams();
     const forward = ["skip", "limit", "search", "user_id", "status", "sort_by", "sort_dir"];

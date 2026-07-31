@@ -4,7 +4,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Query, Request, status
 
-from app.api.deps import CurrentAdmin, DBSession, UserSvc
+from app.api.deps import CurrentAppAdmin, DBSession, UserSvc
 from app.core.audit import record_audit
 from app.core.security import create_access_token
 from app.schemas.user import AdminUserList, ImpersonateResponse, UserRead, UserUpdate
@@ -14,7 +14,7 @@ router = APIRouter()
 
 @router.get("", response_model=AdminUserList)
 async def list_users(
-    _: CurrentAdmin,
+    _: CurrentAppAdmin,
     service: UserSvc,
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=500),
@@ -32,7 +32,7 @@ async def list_users(
 @router.get("/{user_id}", response_model=UserRead)
 async def get_user(
     user_id: UUID,
-    _: CurrentAdmin,
+    _: CurrentAppAdmin,
     service: UserSvc,
 ) -> Any:
     return await service.get_by_id(user_id)
@@ -43,7 +43,7 @@ async def update_user(
     user_id: UUID,
     user_in: UserUpdate,
     request: Request,
-    admin: CurrentAdmin,
+    admin: CurrentAppAdmin,
     db: DBSession,
     service: UserSvc,
 ) -> Any:
@@ -64,7 +64,7 @@ async def update_user(
 async def delete_user(
     user_id: UUID,
     request: Request,
-    admin: CurrentAdmin,
+    admin: CurrentAppAdmin,
     db: DBSession,
     service: UserSvc,
 ) -> None:
@@ -85,7 +85,7 @@ async def delete_user(
 async def impersonate_user(
     request: Request,
     user_id: UUID,
-    admin: CurrentAdmin,
+    admin: CurrentAppAdmin,
     db: DBSession,
     service: UserSvc,
 ) -> Any:

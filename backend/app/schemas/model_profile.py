@@ -1,12 +1,12 @@
 """Schemas for provider credentials and model profiles.
 
-No schema here can carry a secret outward: ``CredentialRead`` exposes only the
+No schema here can carry a secret outward: `CredentialRead` exposes only the
 four-character hint, and there is deliberately no endpoint that returns a key.
 
-``provider`` is a plain string rather than a ``Literal``. The platform ships
+`provider` is a plain string rather than a `Literal`. The platform ships
 twenty-odd providers and gains one whenever Pydantic AI does; a literal here
 would be a second list to keep in step with the catalog, and the two would
-disagree. ``GET /providers/catalog`` is the list, and the service refuses
+disagree. `GET /providers/catalog` is the list, and the service refuses
 anything not in it.
 """
 

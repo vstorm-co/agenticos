@@ -108,7 +108,7 @@ async def resolve_access(
     *,
     resource_type: ResourceType,
 ) -> bool:
-    """Whether ``ctx`` may exercise ``perm`` on this specific resource.
+    """Whether `ctx` may exercise `perm` on this specific resource.
 
     Checks the role scope first (no query in the common case), then falls back
     to an explicit grant. A grant can lift access the role does not give -
@@ -119,7 +119,7 @@ async def resolve_access(
     grant table is consulted. Both halves matter. Scopes and grants are answers
     to "what may *this person* do", and there is no person here - an anonymous
     visitor's access comes from the exposure that admitted them, not from this
-    function. And a lookup keyed on a ``NULL`` subject asks the database a
+    function. And a lookup keyed on a `NULL` subject asks the database a
     question whose answer depends on what rows happen to exist rather than on
     the invariant, so it is never asked.
     """
@@ -158,11 +158,11 @@ async def visible_resource_ids(
 ) -> list[UUID] | None:
     """Extra resource ids a listing must include beyond the scope predicate.
 
-    Returns ``None`` when the role already reaches everything, so the caller can
+    Returns `None` when the role already reaches everything, so the caller can
     skip the grant lookup entirely.
 
-    A context with no subject gets the empty list, never ``None``. The two are
-    opposites here - every caller reads ``None`` as "no filtering needed" - so
+    A context with no subject gets the empty list, never `None`. The two are
+    opposites here - every caller reads `None` as "no filtering needed" - so
     returning it for an anonymous visitor would widen a listing to the whole
     organization at the exact moment it should be narrowed to nothing.
     """

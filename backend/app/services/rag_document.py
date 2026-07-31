@@ -27,6 +27,7 @@ from app.schemas.rag import (
     RAGTrackedDocumentList,
 )
 from app.services.file_storage import get_file_storage
+from app.services.spend import assert_organization_within_budget
 from app.services.ingestion_config import (
     IngestionConfig,
     IngestionConfigService,
@@ -39,10 +40,10 @@ logger = logging.getLogger(__name__)
 def _tracked_item(doc: RAGDocument) -> RAGTrackedDocumentItem:
     """One tracked document, including what actually read it.
 
-    ``parser`` is projected out of the stored configuration rather than kept in
+    `parser` is projected out of the stored configuration rather than kept in
     a column of its own, so the headline answer and the full record cannot drift
     apart. A document ingested before any of this was recorded has an empty
-    configuration and reports ``None``, which is the truth: nobody wrote it down.
+    configuration and reports `None`, which is the truth: nobody wrote it down.
     """
     return RAGTrackedDocumentItem(
         id=str(doc.id),
@@ -160,26 +161,32 @@ class RAGDocumentService:
     ) -> RAGIngestResponse:
         """Validate, persist, and queue an uploaded file for ingestion.
 
-        Takes the ``knowledge_bases`` row rather than a collection name, because
+        Takes the `knowledge_bases` row rather than a collection name, because
         the row is what says how its documents are read. The caller has already
         resolved which collection it may write to; looking the name up again
         here would find whichever row the database returned first, and two
         organizations may share a collection name.
 
         Performs:
+          0. refusal if the organization's monthly budget is already spent -
+             ingesting is spending, and the check belongs before the file is
+             stored rather than in a worker an hour later;
           1. refusal if the collection's vectors and this deployment's embedding
              model no longer agree - nothing else is worth doing if they do not;
           2. file-extension and size validation, the former against the parser
              *this upload* resolved to rather than the deployment's;
           3. resolution of the image-description model, so a bad profile id in
              an override is refused here and not in a worker an hour later;
-          4. permanent storage via ``FileStorage``;
+          4. permanent storage via `FileStorage`;
           5. a RAGDocument recording the resolved configuration and the override
              that produced it;
           6. lazy creation of the target vector collection;
-          7. tmp-copy under ``MEDIA_DIR/_rag_tmp`` (shared with worker container);
+          7. tmp-copy under `MEDIA_DIR/_rag_tmp` (shared with worker container);
           8. dispatch of the ingestion task on the configured task backend.
         """
+        if organization_id is not None:
+            await assert_organization_within_budget(self.db, organization_id)
+
         collection_name = collection.collection_name
         ingestion = IngestionConfigService(self.db)
         ingestion.check_embedding_model(
@@ -349,7 +356,7 @@ class RAGDocumentService:
         of what the parser produced - so this reads them back in document order
         rather than re-running a parse that may involve OCR or a paid API.
 
-        ``has_text`` uses ``has_indexable_text``, not ``.strip()``: markdown
+        `has_text` uses `has_indexable_text`, not `.strip()`: markdown
         reconstruction wraps an unreadable scan in an empty fenced block, which
         is not whitespace and would otherwise pass for content.
 

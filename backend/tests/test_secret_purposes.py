@@ -68,6 +68,13 @@ class TestTheCatalog:
         ids = {entry.id for entry in secret_purposes.all_purposes()}
         assert ids >= KEYED_METHODS
 
+    def test_the_tracing_card_can_offer_a_logfire_token(self):
+        """The Builder's Tracing card filters the vault on this id; renaming
+        or dropping it silently empties that picker."""
+        entry = secret_purposes.get("logfire")
+        assert entry is not None
+        assert entry.kind is SecretKind.API_KEY
+
     def test_custom_is_last_and_is_not_a_model_provider(self):
         purposes = secret_purposes.all_purposes()
         assert purposes[-1].id == "custom"

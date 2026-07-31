@@ -135,7 +135,7 @@ class SyncSourceService:
         """Create a new sync source.
 
         Secret fields are Fernet-encrypted before persisting.
-        ``collection_name`` is optional - omit to create an org-level integration
+        `collection_name` is optional - omit to create an org-level integration
         not yet linked to a knowledge base.
 
         Raises:
@@ -175,7 +175,7 @@ class SyncSourceService:
         """Clone an existing integration into a different knowledge base.
 
         Decrypts credentials from the source, re-encrypts them, and creates
-        a new independent SyncSource record targeting ``data.collection_name``.
+        a new independent SyncSource record targeting `data.collection_name`.
         """
         existing = await self.get_source(source_id)
         raw = _raw_config(existing)

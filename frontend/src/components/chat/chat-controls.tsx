@@ -79,6 +79,9 @@ export function ChatControls({
         <button
           type="button"
           aria-label="Chat controls"
+          // The /settings slash command opens this popover by clicking the
+          // trigger through this attribute - see ChatContainer's slashContext.
+          data-chat-settings-trigger
           className={cn(
             "border-foreground/10 bg-card hover:border-foreground/25 hover:bg-foreground/[0.04] inline-flex items-center gap-1.5 rounded-full border py-1 pr-2 pl-2.5 font-mono text-[11px] tracking-wider uppercase transition-colors",
             hasOverrides ? "text-foreground" : "text-foreground/65",

@@ -1,11 +1,10 @@
-"""MCP server toolsets for the assistant agent.
+"""MCP server toolsets for published agents.
 
-Two kinds of servers end up here as uniform :class:`McpServerSpec` entries:
-  - deployment-managed servers from ``settings.MCP_SERVERS``, and
-  - per-user connections configured in Settings → Integrations
-    (built by :mod:`app.services.mcp_connection`).
+Servers arrive here as uniform :class:`McpServerSpec` entries, resolved from
+the connections an agent's spec names (see
+:func:`app.services.mcp_connection.build_toolsets_for_agent`).
 
-Each spec is probed with a short ``tools/list`` round-trip before the turn;
+Each spec is probed with a short `tools/list` round-trip before the turn;
 unreachable servers are skipped (with a warning) instead of failing the chat,
 because pydantic-ai enters every toolset when the run starts and a dead
 server would otherwise abort the whole turn.
@@ -24,19 +23,23 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.core.config import settings
 from app.core.sanitize import validate_webhook_url
 
 logger = logging.getLogger(__name__)
+
+# How long a server gets to answer a connect or a probe. A constant rather than
+# a setting: the right value is a property of the protocol round-trip, not of a
+# deployment, and no installation ever tuned it.
+CONNECT_TIMEOUT_SECS = 3.0
 
 
 class McpProbeError(Exception):
     """A failed liveness probe, with its root cause already unwrapped.
 
     The MCP client runs on anyio task groups, so a failure surfaces as a
-    (possibly ``BaseException``-carrying) group that ``except Exception``
+    (possibly `BaseException`-carrying) group that `except Exception`
     would miss. :func:`probe_mcp_server` collapses those into this type so
-    every caller can handle a dead server with a plain ``except Exception``.
+    every caller can handle a dead server with a plain `except Exception`.
     """
 
 
@@ -69,27 +72,14 @@ class McpServerSpec:
     allowed_tools: list[str] | None = None
 
 
-def static_server_specs() -> list[McpServerSpec]:
-    """Specs for the deployment-managed servers from ``MCP_SERVERS``."""
-    return [
-        McpServerSpec(
-            name=cfg.name,
-            url=cfg.url,
-            headers=cfg.headers,
-            allowed_tools=cfg.allowed_tools,
-        )
-        for cfg in settings.MCP_SERVERS
-    ]
-
-
 @asynccontextmanager
 async def _mcp_transport(
     url: str, headers: dict[str, str] | None
 ) -> AsyncIterator[tuple[Any, Any]]:
-    """Open the right client transport for *url*, yielding ``(read, write)``.
+    """Open the right client transport for *url*, yielding `(read, write)`.
 
     The transport is inferred from the URL exactly as the toolset layer does it
-    (FastMCP): a path segment ``/sse`` selects the SSE client (used by servers
+    (FastMCP): a path segment `/sse` selects the SSE client (used by servers
     like Atlassian/Jira), everything else uses streamable HTTP. The streamable
     client yields a third session-id callable we don't need here.
     """
@@ -115,7 +105,7 @@ async def probe_mcp_server(
     """Connect to an MCP server and list its tools.
 
     Any failure is raised as :class:`McpProbeError` with the root cause already
-    unwrapped, so callers can skip a dead server with ``except Exception``.
+    unwrapped, so callers can skip a dead server with `except Exception`.
     Cancellation always propagates.
 
     Used both as the pre-flight liveness check before a chat turn and as the
@@ -125,7 +115,7 @@ async def probe_mcp_server(
     from mcp import ClientSession
 
     try:
-        async with asyncio.timeout(timeout or settings.MCP_CONNECT_TIMEOUT_SECS):
+        async with asyncio.timeout(timeout or CONNECT_TIMEOUT_SECS):
             async with (
                 _mcp_transport(url, headers) as (read, write),
                 ClientSession(read, write) as session,
@@ -140,9 +130,9 @@ async def probe_mcp_server(
 
 
 def _carries_base_exception(exc: BaseException) -> bool:
-    """True when *exc* is (or wraps) something that isn't an ``Exception``.
+    """True when *exc* is (or wraps) something that isn't an `Exception`.
 
-    A group carrying a ``CancelledError`` means the turn was cancelled, not
+    A group carrying a `CancelledError` means the turn was cancelled, not
     that the server is down - swallowing it would keep the run alive.
     """
     if isinstance(exc, BaseExceptionGroup):
@@ -160,7 +150,7 @@ def probe_error_message(exc: BaseException) -> str:
     while isinstance(exc, BaseExceptionGroup) and exc.exceptions:
         exc = exc.exceptions[0]
     if isinstance(exc, TimeoutError):
-        return f"Connection timed out after {settings.MCP_CONNECT_TIMEOUT_SECS:g}s"
+        return f"Connection timed out after {CONNECT_TIMEOUT_SECS:g}s"
     return str(exc) or exc.__class__.__name__
 
 
@@ -183,7 +173,7 @@ def _make_toolset(spec: McpServerSpec) -> Any:
         spec.url,
         headers=spec.headers or None,
         id=f"mcp:{spec.name}",
-        init_timeout=settings.MCP_CONNECT_TIMEOUT_SECS,
+        init_timeout=CONNECT_TIMEOUT_SECS,
     )
     if spec.allowed_tools is not None:
         allowed = set(spec.allowed_tools)

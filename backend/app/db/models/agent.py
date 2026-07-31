@@ -1,8 +1,8 @@
 """Agent registry - configured agents and their published versions.
 
-Two tables, because an agent has two lifetimes. The ``agents`` row is the thing
+Two tables, because an agent has two lifetimes. The `agents` row is the thing
 people talk about: it has a name, an owner, a sharing state, and it persists
-across every edit. An ``agent_versions`` row is one frozen spec: what actually
+across every edit. An `agent_versions` row is one frozen spec: what actually
 ran, at a point in time, attributable and reproducible.
 
 Editing writes a draft on the agent; publishing snapshots it into a version and
@@ -27,8 +27,8 @@ from app.db.models.resource_grant import Visibility
 class AgentStatus(enum.StrEnum):
     """Whether an agent is runnable.
 
-    ``DRAFT`` has never been published and cannot be run - there is no frozen
-    spec to run. ``PUBLISHED`` has a current version. ``ARCHIVED`` keeps its
+    `DRAFT` has never been published and cannot be run - there is no frozen
+    spec to run. `PUBLISHED` has a current version. `ARCHIVED` keeps its
     history and its runs but is hidden and refuses new runs, which is what
     people actually want when they say "delete": stop it, keep the trail.
     """
@@ -109,7 +109,7 @@ class Agent(Base, TimestampMixin):
 
     @property
     def has_avatar(self) -> bool:
-        """What the API reports instead of the storage path. See ``AgentRead``."""
+        """What the API reports instead of the storage path. See `AgentRead`."""
         return self.avatar_url is not None
 
     def __repr__(self) -> str:

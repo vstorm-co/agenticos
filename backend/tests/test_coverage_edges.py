@@ -14,8 +14,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.agents.capabilities.budget import BudgetScope
 from app.agents.capabilities.web_research._search import SearchUnavailable, search
 from app.agents.observability import instrument_agent
+from app.agents.spec import AgentSpec
 from app.core.permissions import AuthContext, OrgRoleName
 from app.core.secret_kinds import SecretCondition
 from app.db.models.agent_run import ApprovalStatus, RunStatus
@@ -198,14 +200,17 @@ class TestRunNotifications:
             await AgentRunnerService(MagicMock())._notify(
                 MagicMock(),
                 agent=MagicMock(),
+                spec=AgentSpec(name="Support"),
                 status=RunStatus.BUDGET_EXCEEDED,
                 error="Monthly budget exhausted",
+                budget_scope=BudgetScope.ORGANIZATION,
             )
 
-        assert (
-            notifications.return_value.budget_exceeded.call_args.kwargs["reason"]
-            == "Monthly budget exhausted"
-        )
+        kwargs = notifications.return_value.budget_exceeded.call_args.kwargs
+        assert kwargs["reason"] == "Monthly budget exhausted"
+        # Carried through, not re-derived: it decides whether the agent's own
+        # audience is consulted or the organization's administrators are.
+        assert kwargs["scope"] is BudgetScope.ORGANIZATION
 
     @pytest.mark.anyio
     async def test_a_parked_run_tells_somebody_which_tools_are_waiting(self):
@@ -224,7 +229,12 @@ class TestRunNotifications:
         ):
             notifications.return_value.approval_requested = AsyncMock()
             await AgentRunnerService(MagicMock())._notify(
-                run, agent=MagicMock(), status=RunStatus.AWAITING_APPROVAL, error=None
+                run,
+                agent=MagicMock(),
+                spec=AgentSpec(name="Support"),
+                status=RunStatus.AWAITING_APPROVAL,
+                error=None,
+                budget_scope=None,
             )
 
         # Only what is still waiting: naming a decided call would send somebody
@@ -237,7 +247,12 @@ class TestRunNotifications:
     async def test_an_ordinary_ending_notifies_nobody(self):
         with patch("app.services.agent_runner.NotificationService") as notifications:
             await AgentRunnerService(MagicMock())._notify(
-                MagicMock(), agent=MagicMock(), status=RunStatus.COMPLETED, error=None
+                MagicMock(),
+                agent=MagicMock(),
+                spec=AgentSpec(name="Support"),
+                status=RunStatus.COMPLETED,
+                error=None,
+                budget_scope=None,
             )
 
         notifications.return_value.budget_exceeded.assert_not_called()

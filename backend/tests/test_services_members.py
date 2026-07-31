@@ -55,6 +55,30 @@ class TestMemberService:
             )
 
     @pytest.mark.anyio
+    async def test_change_role_is_gated_on_roles_manage_not_members_manage(
+        self, service, monkeypatch
+    ):
+        """Assigning a role is `roles:manage`; adding and removing people is not.
+
+        The built-in Owner and Admin hold both, so only a synthetic role can
+        say which one the check reads - and a custom role (Phase 2) must be
+        able to take one entitlement without the other.
+        """
+        from app.core.permissions import ROLE_PERMS, Perm, Scope
+
+        monkeypatch.setitem(ROLE_PERMS, "test:members-only", {Perm.MEMBERS_MANAGE: Scope.ALL})
+        requester = MagicMock()
+        requester.role = "test:members-only"
+
+        with (
+            patch("app.services.member.member_repo.get", new=AsyncMock(return_value=requester)),
+            pytest.raises(AuthorizationError),
+        ):
+            await service.change_role(
+                uuid.uuid4(), uuid.uuid4(), "viewer", requester_id=uuid.uuid4()
+            )
+
+    @pytest.mark.anyio
     async def test_change_role_raises_if_target_is_owner(self, service):
         mock_requester = MagicMock()
         mock_requester.role = "owner"

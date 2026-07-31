@@ -30,7 +30,7 @@ from app.agents.capabilities import (
 )
 from app.agents.capabilities.charts import Charts
 from app.agents.capabilities.clock import Clock
-from app.agents.capabilities.code_execution import CodeExecution
+from app.agents.capabilities.code_execution import CodeExecution, CodeExecutionConfig
 from app.agents.capabilities.knowledge import Knowledge, KnowledgeConfig
 from app.agents.capabilities.skills import SAFE_SKILL_TOOLS, Skills
 from app.agents.capabilities.web_research import WebResearch
@@ -50,7 +50,7 @@ def _run_context() -> RunContext[None]:
 class TestSelfLoading:
     """The registry must not depend on the caller having warmed it up.
 
-    It used to: ``load_builtins()`` ran in the FastAPI lifespan and nowhere
+    It used to: `load_builtins()` ran in the FastAPI lifespan and nowhere
     else, so the CLI, a worker or a script got an empty registry and every
     publish failed with "Unknown capability" - naming a capability that is in
     the repository, listed in the picker and documented. The gap only showed up
@@ -61,7 +61,7 @@ class TestSelfLoading:
     def _in_a_fresh_process(source: str) -> str:
         """Run a snippet in a new interpreter and return what it printed.
 
-        A subprocess is the only honest way to test this. Clearing ``REGISTRY``
+        A subprocess is the only honest way to test this. Clearing `REGISTRY`
         inside this one proves nothing: the capability modules are already
         imported, so re-importing them is a no-op and their decorators never run
         again. Only a process that has not imported them can show what a CLI
@@ -275,7 +275,19 @@ class TestConfigValidation:
         assert exc.value.details["errors"]
 
     def test_capabilities_without_a_schema_accept_nothing(self):
-        assert get("code_execution").validate_config({}) is None
+        assert get("charts").validate_config({}) is None
+
+    def test_sandbox_limits_are_validated_where_the_form_is(self):
+        """A limit outside the cap is refused at configuration time, not
+        discovered as an unkillable program at run time."""
+        config = get("code_execution").validate_config({"timeout_secs": 30, "max_memory_mb": 512})
+        assert isinstance(config, CodeExecutionConfig)
+        assert (config.timeout_secs, config.max_memory_mb) == (30, 512)
+
+        with pytest.raises(BadRequestError):
+            get("code_execution").validate_config({"timeout_secs": 0})
+        with pytest.raises(BadRequestError):
+            get("code_execution").validate_config({"max_memory_mb": 8})
 
     def test_config_schema_is_exposed_as_json_schema(self):
         """The configuration form is generated from this, never hand-written."""
@@ -284,7 +296,7 @@ class TestConfigValidation:
         assert "default_top_k" in schema["properties"]
 
     def test_capabilities_without_a_schema_expose_none(self):
-        assert get("code_execution").config_json_schema() is None
+        assert get("charts").config_json_schema() is None
 
 
 class TestBuilding:
@@ -325,6 +337,27 @@ class TestBuilding:
         assert isinstance(capability, Knowledge)
         assert capability.default_top_k == 9
         assert list(capability.get_toolset().tools) == ["search_documents"]
+
+    def test_sandbox_limits_reach_the_capability_and_default_when_absent(self):
+        """Both halves of the config contract: a stated limit is carried, and a
+        binding that says nothing gets the defaults rather than a crash."""
+        configured, bare = build(
+            [
+                CapabilityBinding(
+                    capability_id="code_execution",
+                    config={"timeout_secs": 30, "max_memory_mb": 512},
+                ),
+                CapabilityBinding(capability_id="code_execution"),
+            ],
+            granted_scopes=frozenset({"code:execute"}),
+        )
+        assert isinstance(configured, CodeExecution)
+        assert (configured.timeout_secs, configured.max_memory_mb) == (30, 512)
+        assert isinstance(bare, CodeExecution)
+        assert (bare.timeout_secs, bare.max_memory_mb) == (
+            CodeExecutionConfig().timeout_secs,
+            CodeExecutionConfig().max_memory_mb,
+        )
 
     def test_a_binding_that_overrides_nothing_is_left_unwrapped(self):
         """An override wrapper around a capability that changes nothing is noise.

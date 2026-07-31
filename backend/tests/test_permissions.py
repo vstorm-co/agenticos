@@ -73,9 +73,9 @@ class TestScopeOrdering:
         assert Scope.NONE < Scope.OWN < Scope.SHARED < Scope.TEAM < Scope.ALL
 
     def test_every_comparison_orders_by_reach_rather_than_alphabetically(self):
-        """``Scope`` is a ``str``, and each of the four operators has to override it.
+        """`Scope` is a `str`, and each of the four operators has to override it.
 
-        Left to string comparison these all invert - ``"all" < "none" < "own"`` -
+        Left to string comparison these all invert - `"all" < "none" < "own"` -
         so an operator that was forgotten reads as "narrower" for the widest
         scope there is. Each one is checked in the direction where the two
         orderings disagree.
@@ -89,7 +89,7 @@ class TestScopeOrdering:
     def test_no_comparison_falls_back_to_string_ordering(self):
         """A mixed comparison must raise rather than answer, in every direction.
 
-        ``Scope.OWN < "shared"`` is ``True`` as strings and ``TypeError`` here;
+        `Scope.OWN < "shared"` is `True` as strings and `TypeError` here;
         a silent wrong answer inside an authorization check is the failure this
         exists to prevent.
         """

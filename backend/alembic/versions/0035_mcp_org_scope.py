@@ -10,7 +10,7 @@ organization rather than to a member.
 
 Both scopes stay. A developer's personal token should not end up in everyone
 else's agents, and an org connection should not vanish when its creator leaves -
-which is exactly the distinction ``scope`` records.
+which is exactly the distinction `scope` records.
 """
 
 import sqlalchemy as sa

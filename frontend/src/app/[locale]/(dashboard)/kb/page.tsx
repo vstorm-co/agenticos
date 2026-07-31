@@ -18,10 +18,11 @@ import {
   CardTitle,
   Skeleton,
 } from "@/components/ui";
-import { useKnowledgeBases } from "@/hooks";
+import { useKnowledgeBases, usePermissions } from "@/hooks";
 import { cn } from "@/lib/utils";
 import { ROUTES } from "@/lib/constants";
 import type { KBScope, KnowledgeBase } from "@/types";
+import { Perm } from "@/types/permissions";
 
 const SCOPE_META: Record<KBScope, { label: string; icon: LucideIcon }> = {
   personal: { label: "Personal", icon: Lock },
@@ -60,6 +61,11 @@ function BasesCard({ count, children }: { count: number | null; children: ReactN
 export default function KBPage() {
   const { kbs, isLoading, fetchKBs, deleteKB } = useKnowledgeBases();
   const [createOpen, setCreateOpen] = useState(false);
+  // Presentation, never enforcement - the server refuses regardless. A Viewer
+  // holds `collections:view` only, and offering them a create button is
+  // telling them to try something that cannot work.
+  const { can } = usePermissions();
+  const mayEdit = can(Perm.collectionsEdit);
 
   useEffect(() => {
     fetchKBs();
@@ -79,10 +85,12 @@ export default function KBPage() {
         title="Knowledge bases"
         description="Group related documents into a base. Open one to upload files, then choose in chat which bases the agent should search."
         actions={
-          <Button size="sm" onClick={() => setCreateOpen(true)}>
-            <Plus className="h-4 w-4" />
-            New knowledge base
-          </Button>
+          mayEdit ? (
+            <Button size="sm" onClick={() => setCreateOpen(true)}>
+              <Plus className="h-4 w-4" />
+              New knowledge base
+            </Button>
+          ) : undefined
         }
       />
 
@@ -109,22 +117,26 @@ export default function KBPage() {
             </div>
             <p className="text-foreground mt-4 text-sm font-medium">No knowledge bases yet</p>
             <p className="text-muted-foreground mx-auto mt-1 max-w-sm text-sm">
-              Create one to give your assistant access to documents from your collections.
+              {mayEdit
+                ? "Create one to give your assistant access to documents from your collections."
+                : "Nothing has been shared with you yet."}
             </p>
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-5"
-              onClick={() => setCreateOpen(true)}
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Create knowledge base
-            </Button>
+            {mayEdit && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-5"
+                onClick={() => setCreateOpen(true)}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Create knowledge base
+              </Button>
+            )}
           </div>
         ) : (
           <div className="grid auto-rows-fr gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {sorted.map((kb) => (
-              <KBCard key={kb.id} kb={kb} onDelete={() => deleteKB(kb.id)} />
+              <KBCard key={kb.id} kb={kb} onDelete={mayEdit ? () => deleteKB(kb.id) : undefined} />
             ))}
           </div>
         )}
@@ -139,7 +151,7 @@ export default function KBPage() {
   );
 }
 
-function KBCard({ kb, onDelete }: { kb: KnowledgeBase; onDelete: () => void }) {
+function KBCard({ kb, onDelete }: { kb: KnowledgeBase; onDelete?: () => void }) {
   const meta = SCOPE_META[kb.scope];
 
   return (
@@ -186,7 +198,7 @@ function KBCard({ kb, onDelete }: { kb: KnowledgeBase; onDelete: () => void }) {
                 Default
               </Badge>
             )}
-            {!kb.is_default && (
+            {!kb.is_default && onDelete && (
               <button
                 type="button"
                 onClick={(e) => {

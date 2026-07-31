@@ -52,11 +52,11 @@ class Organization(Base, TimestampMixin):
         index=True,
     )
     # The ceiling on everything this organization's agents spend in a calendar
-    # month. ``None`` is no ceiling, which is what an organization that has never
+    # month. `None` is no ceiling, which is what an organization that has never
     # opened the setting has - the cap is opt-in, because a default number
     # nobody chose would stop somebody's agents on a date they did not pick.
     #
-    # Numeric to the same scale as ``agent_runs.cost_usd``: the cap is compared
+    # Numeric to the same scale as `agent_runs.cost_usd`: the cap is compared
     # against a sum of those, and a float would drift against the total the
     # Activity page shows.
     monthly_budget_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
@@ -75,7 +75,7 @@ class Organization(Base, TimestampMixin):
     __table_args__ = (
         # Zero is not a tighter cap, it is an organization whose agents can never
         # answer - and it is one keystroke away from the number somebody meant to
-        # type. The same constraint guards ``agent_exposures``.
+        # type. The same constraint guards `agent_exposures`.
         CheckConstraint(
             "monthly_budget_usd IS NULL OR monthly_budget_usd > 0",
             name="ck_organization_budget_positive",

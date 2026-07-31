@@ -8,7 +8,6 @@ import { Bot, Plus, Search } from "lucide-react";
 import { AgentCard } from "@/components/agents/agent-card";
 import { CreateAgentDialog } from "@/components/agents/create-agent-dialog";
 import { PageHeader } from "@/components/dashboard/page-header";
-import { SegmentedControl } from "@/components/dashboard/segmented-control";
 import {
   Button,
   Card,
@@ -18,6 +17,11 @@ import {
   CardTitle,
   ConfirmDialog,
   Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Skeleton,
 } from "@/components/ui";
 import { useAgents, usePermissions } from "@/hooks";
@@ -60,11 +64,7 @@ function AgentsCard({
         <div className="space-y-1">
           <CardTitle className="text-sm">Catalog</CardTitle>
           <CardDescription className="text-xs">
-            {visible === null ? (
-              <Skeleton className="h-3 w-24" />
-            ) : (
-              shownCount(visible, total)
-            )}
+            {visible === null ? <Skeleton className="h-3 w-24" /> : shownCount(visible, total)}
           </CardDescription>
         </div>
       </CardHeader>
@@ -123,12 +123,23 @@ export default function AgentsPage() {
         }
       />
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <SegmentedControl
-          value={filter}
-          onChange={(value) => setFilter(value as Filter)}
-          options={FILTERS.map((entry) => ({ label: entry.label, value: entry.value }))}
-        />
+      {/* Both controls narrow the same list, so they sit together on the right
+          rather than at opposite ends of the row. As a segmented control the
+          four statuses took the width of a heading on the left, which read as a
+          section title for the page rather than as a filter on the gallery. */}
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <Select value={filter} onValueChange={(value) => setFilter(value as Filter)}>
+          <SelectTrigger className="w-full sm:w-40" aria-label="Filter by status">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {FILTERS.map((entry) => (
+              <SelectItem key={entry.value} value={entry.value}>
+                {entry.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <div className="relative w-full sm:w-64">
           <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
           <Input

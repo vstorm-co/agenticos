@@ -49,7 +49,7 @@ class _EmailConfig(BaseModel):
 def ungranted_capability():
     """A capability whose scope this deployment does not grant.
 
-    Every built-in capability happens to sit inside ``DEFAULT_GRANTED_SCOPES``,
+    Every built-in capability happens to sit inside `DEFAULT_GRANTED_SCOPES`,
     so the scope check has nothing to refuse without one of these - and a check
     that never fires is a check nobody notices breaking.
     """
@@ -711,8 +711,11 @@ class TestPublish:
             patch(
                 f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock(return_value=agent)
             ) as update,
+            patch(f"{REGISTRY_PATH}.agent_environment_repo") as environments,
             patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()) as audit,
         ):
+            environments.get_default_for_agent = AsyncMock(return_value=None)
+            environments.create = AsyncMock()
             published = await AgentRegistryService(_db()).publish(ctx, agent.id, note="first cut")
 
         frozen = create_version.call_args.kwargs
@@ -725,6 +728,14 @@ class TestPublish:
         }
         assert audit.call_args.kwargs["details"] == {"version": 3, "note": "first cut"}
         assert published is version
+        # A first publish mints the default environment, pinned to the version
+        # that just went live - so every published agent has one.
+        created = environments.create.call_args.kwargs
+        assert (created["name"], created["is_default"], created["version_id"]) == (
+            "production",
+            True,
+            version.id,
+        )
 
     @pytest.mark.anyio
     async def test_a_draft_that_does_not_validate_freezes_nothing(self):
@@ -775,8 +786,12 @@ class TestRollback:
             patch(
                 f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock(return_value=agent)
             ) as update,
+            patch(f"{REGISTRY_PATH}.agent_environment_repo") as environments,
             patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()) as audit,
         ):
+            default = MagicMock()
+            environments.get_default_for_agent = AsyncMock(return_value=default)
+            environments.update = AsyncMock()
             restored = await AgentRegistryService(_db()).rollback(
                 ctx, agent.id, to_version_id=source.id
             )
@@ -792,6 +807,9 @@ class TestRollback:
         }
         assert audit.call_args.kwargs["details"] == {"from_version": 1, "new_version": 5}
         assert restored is fresh
+        # A rollback moves the default environment with the pointer - the new
+        # version is what the default audience now gets.
+        assert environments.update.call_args.kwargs["update_data"] == {"version_id": fresh.id}
 
     @pytest.mark.anyio
     async def test_a_version_belonging_to_another_agent_cannot_be_rolled_into_this_one(self):
@@ -1002,10 +1020,61 @@ class TestGetRunnableSpec:
             patch(f"{REGISTRY_PATH}.agent_repo.get", new=AsyncMock(return_value=agent)),
             patch(f"{REGISTRY_PATH}.agent_repo.get_version", new=AsyncMock(return_value=version)),
         ):
-            found, spec = await AgentRegistryService(_db()).get_runnable_spec(ctx, agent.id)
+            found, spec, version_id = await AgentRegistryService(_db()).get_runnable_spec(
+                ctx, agent.id
+            )
 
         assert found is agent
         assert spec.instructions == "Approved wording"
+        assert version_id == version.id
+
+    @pytest.mark.anyio
+    async def test_a_named_environment_resolves_its_own_pinned_version(self):
+        """The whole point of environments: a dev bot runs what dev pins,
+        not what publish last repointed."""
+        ctx = _ctx()
+        pinned = _version(uuid.uuid4(), number=2, spec=_spec("Support", instructions="Older"))
+        agent = _agent(ctx, status=AgentStatus.PUBLISHED.value, current_version_id=uuid.uuid4())
+        pinned.agent_id = agent.id
+        environment = MagicMock(agent_id=agent.id, version_id=pinned.id)
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get", new=AsyncMock(return_value=agent)),
+            patch(
+                f"{REGISTRY_PATH}.agent_environment_repo.get",
+                new=AsyncMock(return_value=environment),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.get_version", new=AsyncMock(return_value=pinned)
+            ) as versions,
+        ):
+            _, spec, version_id = await AgentRegistryService(_db()).get_runnable_spec(
+                ctx, agent.id, environment_id=environment.id
+            )
+
+        assert versions.call_args.args[1] == pinned.id
+        assert version_id == pinned.id
+        assert spec.instructions == "Older"
+
+    @pytest.mark.anyio
+    async def test_another_agents_environment_is_reported_as_missing(self):
+        """An environment id resolving across agents would run one agent under
+        another's pinned spec."""
+        ctx = _ctx()
+        agent = _agent(ctx, status=AgentStatus.PUBLISHED.value, current_version_id=uuid.uuid4())
+        foreign = MagicMock(agent_id=uuid.uuid4(), version_id=uuid.uuid4())
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get", new=AsyncMock(return_value=agent)),
+            patch(
+                f"{REGISTRY_PATH}.agent_environment_repo.get",
+                new=AsyncMock(return_value=foreign),
+            ),
+            pytest.raises(NotFoundError, match="Environment"),
+        ):
+            await AgentRegistryService(_db()).get_runnable_spec(
+                ctx, agent.id, environment_id=foreign.id
+            )
 
     @pytest.mark.anyio
     async def test_an_agent_that_was_never_published_cannot_be_run(self):

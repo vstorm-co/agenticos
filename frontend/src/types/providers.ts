@@ -121,4 +121,6 @@ export interface SkillList {
    * unaffected by the search and paging that shaped `items`.
    */
   categories: string[];
+  /** The deployment's predefined shelf names - picker suggestions, never a constraint. */
+  suggested_categories: string[];
 }

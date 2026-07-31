@@ -2,7 +2,7 @@
 
 Used when no distributed task queue (Celery/Taskiq/ARQ) is configured. Each handler
 performs a single ingestion or sync operation in the API process, updating the
-appropriate tracking record (``RAGDocument`` / ``SyncLog``) on completion.
+appropriate tracking record (`RAGDocument` / `SyncLog`) on completion.
 """
 
 import logging

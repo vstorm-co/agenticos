@@ -1,4 +1,7 @@
+"use client";
+
 import { BrandIcon, isBrandName } from "@/components/icons/brand-icon";
+import { CustomMark, useCustomIcons } from "@/components/icons/custom-icons";
 import { Monogram } from "@/components/icons/monogram";
 import { cn } from "@/lib/utils";
 
@@ -19,10 +22,12 @@ import { cn } from "@/lib/utils";
  * maintained set rather than from hand-authored path data, so GitHub's logo is
  * GitHub's logo.
  *
- * An icon set is finite and this catalog is not, so a name it does not draw -
- * and a server nobody curated - falls through to a monogram. That is the
- * deliberate case, not the failure one: one generic plug repeated down a column
- * removes the only reason to have icons in a list.
+ * An icon set is finite and this catalog is not, so a name it does not draw
+ * falls through to a custom mark the deployment ships under that name
+ * (`catalog/icons/`, drawn as a `currentColor` silhouette), and then to a
+ * monogram. The monogram is the deliberate floor, not the failure one: one
+ * generic plug repeated down a column removes the only reason to have icons in
+ * a list.
  */
 interface McpServerIconProps {
   /** The mark the catalog names, or null for a server nobody curated. */
@@ -35,12 +40,16 @@ interface McpServerIconProps {
   className?: string;
 }
 
-/** A catalog server's logo, or a monogram for one no icon set carries. */
+/** A catalog server's logo: compiled-in, deployment-supplied, or a monogram. */
 export function McpServerIcon({ icon, name, className }: McpServerIconProps) {
+  const custom = useCustomIcons();
   const size = cn("h-5 w-5 shrink-0", className);
 
   if (icon && isBrandName(icon)) {
     return <BrandIcon name={icon} aria-hidden className={size} />;
+  }
+  if (icon && custom.has(icon)) {
+    return <CustomMark name={icon} className={size} />;
   }
   return <Monogram label={name} className={size} />;
 }

@@ -65,7 +65,12 @@ class MemberService:
         requester = await member_repo.get(
             self.db, organization_id=organization_id, user_id=requester_id
         )
-        if not requester or not role_has(requester.role, Perm.MEMBERS_MANAGE):
+        # `roles:manage`, not `members:manage`: assigning a role is deciding
+        # what someone may do, which is a different entitlement from adding and
+        # removing people. The built-in roles hold both, so nothing changes for
+        # them - but a custom role (Phase 2) must be able to take one without
+        # the other.
+        if not requester or not role_has(requester.role, Perm.ROLES_MANAGE):
             raise AuthorizationError(message="You cannot change member roles")
 
         target = await member_repo.get(

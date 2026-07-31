@@ -1,13 +1,13 @@
 """The advertised file formats and the ones the pipeline can route must agree.
 
-Three lists used to disagree. ``PARSER_FORMATS`` told
-``GET /rag/supported-formats`` - and through it the upload UI - that LiteParse
-read ``.xlsx``/``.pptx``/images and that LlamaParse read thirty formats down to
-``.mp3``. ``RAGDocumentService.upload`` validated against that same list, so the
-upload was accepted: the file was stored, a ``RAGDocument`` row was committed and
+Three lists used to disagree. `PARSER_FORMATS` told
+`GET /rag/supported-formats` - and through it the upload UI - that LiteParse
+read `.xlsx`/`.pptx`/images and that LlamaParse read thirty formats down to
+`.mp3`. `RAGDocumentService.upload` validated against that same list, so the
+upload was accepted: the file was stored, a `RAGDocument` row was committed and
 the ingestion task was dispatched. Only then, in a worker, did
-``DocumentProcessor.process_file`` reach its ``else`` branch and raise
-``ValueError: Unsupported file type: .xlsx`` - for a document that by that point
+`DocumentProcessor.process_file` reach its `else` branch and raise
+`ValueError: Unsupported file type: .xlsx` - for a document that by that point
 existed, was listed, and had no way of saying why it never finished.
 
 A refusal at the door is fine. A promise the pipeline cannot keep is not, and the
@@ -15,7 +15,7 @@ gap is invisible in review because the three lists live in two modules. These
 tests are the seam: widen a format set without teaching a parser to read it, and
 this fails rather than somebody's upload.
 
-``app/services/rag/*`` is template-inherited and sits outside the coverage gate,
+`app/services/rag/*` is template-inherited and sits outside the coverage gate,
 so nothing else here would have caught it.
 """
 

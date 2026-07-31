@@ -103,7 +103,10 @@ export default function RolesPage({ params }: PageProps) {
             {myRole ? (
               <>
                 {" "}
-                Your role here is <Badge variant="secondary">{myRole}</Badge>
+                Your role here is{" "}
+                <Badge variant="secondary" className="capitalize">
+                  {myRole}
+                </Badge>
                 {isAppAdmin ? " (platform superadmin - everything is permitted)" : null}.
               </>
             ) : null}

@@ -46,6 +46,7 @@ export const DEFAULT_INGESTION_CONFIG: IngestionConfig = {
   pdf_parser: "pymupdf",
   ocr: false,
   llamaparse_tier: "agentic",
+  llamaparse_secret_id: null,
   auto_ocr: true,
   ocr_language: "eng",
   liteparse_output_format: "markdown",

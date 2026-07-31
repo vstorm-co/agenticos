@@ -4,11 +4,11 @@ Two behaviours carry this feature, and both are invisible in a passing run until
 they are not:
 
 *Unset stays unset.* A field nobody chose must reach the provider as an absent
-key, never as ``null`` and never as a default somebody invented on the way. A
-reasoning model rejects ``temperature`` however it is spelled, so the difference
+key, never as `null` and never as a default somebody invented on the way. A
+reasoning model rejects `temperature` however it is spelled, so the difference
 between "absent" and "null" is the difference between an agent and an error.
 
-*Withdrawn settings do not break a stored agent.* ``model_settings`` used to
+*Withdrawn settings do not break a stored agent.* `model_settings` used to
 accept any key. A published spec that used one must still load, and one that
 asked for thinking must still think.
 """
@@ -202,7 +202,7 @@ class TestSpecsPublishedBeforeThisExisted:
         assert AgentSpec.from_yaml(spec.to_yaml()) == spec
 
     def test_the_version_records_that_the_shape_changed(self):
-        assert AgentSpec(name="x").spec_version == SPEC_VERSION == 6
+        assert AgentSpec(name="x").spec_version == SPEC_VERSION == 7
 
     def test_a_spec_that_is_not_a_mapping_is_left_to_pydantic(self):
         """The migration must not swallow a malformed document."""

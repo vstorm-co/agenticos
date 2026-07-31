@@ -1,19 +1,11 @@
 """User schemas."""
 
 from datetime import datetime
-from enum import StrEnum
 from uuid import UUID
 
 from pydantic import EmailStr, Field, field_validator
 
 from app.schemas.base import BaseSchema, TimestampSchema
-
-
-class UserRole(StrEnum):
-    """User role enumeration for API schemas."""
-
-    ADMIN = "admin"
-    USER = "user"
 
 
 class UserBase(BaseSchema):
@@ -33,7 +25,6 @@ class UserCreate(UserBase):
     """Schema for creating a user."""
 
     password: str = Field(min_length=8, max_length=128)
-    role: UserRole = UserRole.USER
 
 
 class UserUpdate(BaseSchema):
@@ -43,7 +34,6 @@ class UserUpdate(BaseSchema):
     password: str | None = Field(default=None, min_length=8, max_length=128)
     full_name: str | None = Field(default=None, max_length=255)
     is_active: bool | None = None
-    role: UserRole | None = None
     onboarding_completed_at: datetime | None = Field(
         default=None,
         description="Set to a timestamp to mark onboarding complete; null to reset.",
@@ -71,7 +61,10 @@ class UserRead(UserBase, TimestampSchema):
     """Schema for reading a user."""
 
     id: UUID
-    role: UserRole = UserRole.USER
+    # The platform-superadmin flag. Exposed so the frontend can decide whether
+    # to show the /admin surface at all - the server re-checks it on every
+    # admin endpoint, so a client that lies to itself gains nothing.
+    is_app_admin: bool = False
     avatar_url: str | None = None
     onboarding_completed_at: datetime | None = None
     notify_budget_alerts: bool = True
@@ -91,7 +84,6 @@ class AdminUserRead(BaseSchema):
     id: UUID
     email: str
     full_name: str | None = None
-    role: str = "user"
     is_active: bool = True
     is_app_admin: bool = False
     conversation_count: int = 0

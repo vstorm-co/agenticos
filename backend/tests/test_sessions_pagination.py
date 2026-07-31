@@ -1,6 +1,6 @@
 """Paging a user's signed-in devices.
 
-The interesting part is not that a page comes back - it is that ``total`` counts
+The interesting part is not that a page comes back - it is that `total` counts
 the user's sessions rather than the page. Without that the client cannot tell a
 full page from the last one, and revoking the final row on page three leaves it
 sitting on a page that no longer exists.
@@ -38,10 +38,10 @@ def service() -> SessionService:
 
 
 async def test_a_page_reports_the_total_not_its_own_length(service: SessionService) -> None:
-    """The client pages on ``total``; the page's own size cannot tell it anything.
+    """The client pages on `total`; the page's own size cannot tell it anything.
 
     This was the bug in the unpaginated version: it returned every session and
-    set ``total`` to how many it happened to return, which is only right when
+    set `total` to how many it happened to return, which is only right when
     there is exactly one page.
     """
     user_id = uuid4()
@@ -87,7 +87,7 @@ class TestRepositoryQuery:
         return db.execute.await_args.args[0]
 
     async def test_the_order_is_total_so_a_row_cannot_land_on_two_pages(self) -> None:
-        """``last_used_at`` ties on two sign-ins in the same moment.
+        """`last_used_at` ties on two sign-ins in the same moment.
 
         Postgres is free to return tied rows in any order, and a page boundary
         falling inside a tie shows one session twice and another never.

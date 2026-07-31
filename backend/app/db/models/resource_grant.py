@@ -22,7 +22,7 @@ class Visibility(enum.StrEnum):
 class GrantLevel(enum.StrEnum):
     """What a grant lets the subject do with one resource.
 
-    Ordered ``READ < USE < EDIT``: *read* sees the configuration, *use* also
+    Ordered `READ < USE < EDIT`: *read* sees the configuration, *use* also
     runs or attaches it, *edit* also changes it.
     """
 
@@ -35,10 +35,10 @@ GrantLevelLiteral = Literal["read", "use", "edit"]
 """The stored levels, as a type the API schemas can also be written in.
 
 Declared here rather than in :mod:`app.schemas.resource_grant` because this is
-the module that makes it true: ``ck_resource_grant_level`` below is what stops a
+the module that makes it true: `ck_resource_grant_level` below is what stops a
 fourth value reaching the column, and a response model promising three of them
 should be typed from the same place. Without it the ORM column is a plain
-``str``, and handing one to a schema field that says ``Literal`` type-checks
+`str`, and handing one to a schema field that says `Literal` type-checks
 nowhere and raises at response time.
 """
 
@@ -53,7 +53,7 @@ GRANT_ORDER: dict[GrantLevel, int] = {
 class ResourceGrant(Base, TimestampMixin):
     """One share of one resource with one member.
 
-    Deliberately generic (``resource_type`` + ``resource_id``, no foreign key
+    Deliberately generic (`resource_type` + `resource_id`, no foreign key
     to the target): agents, collections and skills all share the same sharing
     UI and rules, and the alternative is a near-identical grant table per
     resource type. The trade-off is that the database cannot cascade-delete a

@@ -15,7 +15,7 @@ the routes that serve one. Adding them ahead of that would mean nullable columns
 no constraint could tie to a surface and no test could exercise, which is how a
 schema starts describing something the code does not do.
 
-What the binding replaces is the absence of one. ``@slug`` used to resolve
+What the binding replaces is the absence of one. `@slug` used to resolve
 against every published agent in the bot's organization, so one Slack app was a
 door onto all of them, and nobody chose that. An agent is now reachable through
 a bot when - and only when - a row here says so.
@@ -23,9 +23,8 @@ a bot when - and only when - a row here says so.
 
 import enum
 import uuid
-from decimal import Decimal
 
-from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Numeric, String, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, ForeignKey, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -78,22 +77,20 @@ class AgentExposure(Base, TimestampMixin):
         index=True,
     )
 
+    # Which named environment this binding serves. NULL is the default
+    # environment - what a binding that never chose one has always meant - and
+    # SET NULL on delete keeps the bot answering with what everyone else gets
+    # rather than going silent when a dev environment is removed.
+    environment_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("agent_environments.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
     # Turned off without being forgotten. Unbinding and rebinding loses who
     # bound it and when, which is the first question asked after an agent
     # answers somewhere nobody expected.
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-
-    # What this binding may spend, metered against its own runs and nobody
-    # else's. Two limits because they fail differently: a monthly cap stops a
-    # slow leak, and only a per-run cap stops one adversarial prompt driving a
-    # loop - a rate limiter cannot see cost.
-    #
-    # Both optional here and worth having on a channel binding already. They
-    # become mandatory for a surface open to anonymous visitors, where a budget
-    # is the only thing standing between a public URL and somebody's card; the
-    # constraint that says so arrives with that surface.
-    max_per_run_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
-    monthly_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
 
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
@@ -111,14 +108,6 @@ class AgentExposure(Base, TimestampMixin):
         UniqueConstraint("agent_id", "channel_bot_id", name="uq_exposure_agent_bot"),
         CheckConstraint(
             "surface IN ('slack', 'telegram', 'mattermost')", name="ck_exposure_surface"
-        ),
-        # A limit of zero or less is not a tighter limit, it is a binding that
-        # can never answer - which somebody would eventually reach by clearing
-        # a field rather than by deciding to.
-        CheckConstraint(
-            "(max_per_run_usd IS NULL OR max_per_run_usd > 0) "
-            "AND (monthly_usd IS NULL OR monthly_usd > 0)",
-            name="ck_exposure_budget_positive",
         ),
     )
 

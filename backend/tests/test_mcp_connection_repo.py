@@ -4,17 +4,17 @@ A repository's behaviour *is* the statement it builds, so these tests read the
 statement back rather than counting calls. Three of the predicates here are load
 bearing in a way no "the repository was called" assertion would notice:
 
-- ``get_org_scoped_by_id`` drops either of its two filters and a published agent
+- `get_org_scoped_by_id` drops either of its two filters and a published agent
   starts running on another tenant's row, or on a member's personal token.
-- ``get_by_id_for_update`` without ``FOR UPDATE`` lets two chat turns redeem the
+- `get_by_id_for_update` without `FOR UPDATE` lets two chat turns redeem the
   same OAuth refresh token, and with the model's eager join still attached
   Postgres refuses the lock outright.
-- ``list_for_user`` is the order those locks are taken in; reorder it and two
+- `list_for_user` is the order those locks are taken in; reorder it and two
   concurrent turns can deadlock on the same pair of rows.
 
 That the lock is really acceptable to Postgres - the eager-join half - can only
 be answered by a database, and is asserted in
-``tests/integration/test_platform_flows.py``.
+`tests/integration/test_platform_flows.py`.
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ pytestmark = pytest.mark.anyio
 
 
 class _RecordingSession:
-    """An ``AsyncSession`` stand-in that keeps the statements it was given."""
+    """An `AsyncSession` stand-in that keeps the statements it was given."""
 
     def __init__(self, *results: object) -> None:
         self._results = list(results)
@@ -66,14 +66,14 @@ class _RecordingSession:
 
 
 class _Scalars(list[McpConnection]):
-    """What ``.scalars()`` returns: iterable, and answers ``.all()``."""
+    """What `.scalars()` returns: iterable, and answers `.all()`."""
 
     def all(self) -> list[McpConnection]:
         return list(self)
 
 
 class _Result:
-    """What ``AsyncSession.execute`` hands back, for the three shapes used here."""
+    """What `AsyncSession.execute` hands back, for the three shapes used here."""
 
     def __init__(self, *, scalar: object = None, rows: list[McpConnection] | None = None) -> None:
         self._scalar = scalar
@@ -116,7 +116,7 @@ def _connection(**overrides: object) -> McpConnection:
 
 class TestGetById:
     async def test_an_unknown_id_is_none_rather_than_an_error(self):
-        """Every caller branches on ``None``; a raising lookup would turn a
+        """Every caller branches on `None`; a raising lookup would turn a
         deleted connection into a 500 instead of a 404."""
         session = _RecordingSession(_Result(scalar=None))
 
@@ -148,14 +148,14 @@ class TestGetByIdForUpdate:
         assert "FOR UPDATE" in _sql(await self._record())
 
     async def test_the_models_eager_join_is_dropped(self):
-        """``McpConnection.user`` is a joined eager load, which makes this a
-        LEFT OUTER JOIN - and Postgres refuses ``FOR UPDATE`` on the nullable
+        """`McpConnection.user` is a joined eager load, which makes this a
+        LEFT OUTER JOIN - and Postgres refuses `FOR UPDATE` on the nullable
         side of one, so the lock would fail rather than merely be slow."""
         assert "JOIN" not in _sql(await self._record())
 
     async def test_the_columns_are_re_read_rather_than_taken_from_the_identity_map(self):
         """The whole point of waiting for the lock is to see what the other
-        transaction committed. Without ``populate_existing`` the session hands
+        transaction committed. Without `populate_existing` the session hands
         back its cached copy - the stale token we were trying to replace."""
         session = await self._record()
 
@@ -179,7 +179,7 @@ class TestGetOrgScopedById:
 
 class TestGetByName:
     async def test_a_name_is_only_unique_within_one_users_connections(self):
-        """``uq_mcp_connections_user_name`` is per user, so a lookup that
+        """`uq_mcp_connections_user_name` is per user, so a lookup that
         forgot the user would report somebody else's "github" as a collision
         and refuse a name this user is entitled to.
 
@@ -199,8 +199,8 @@ class TestListOauthConnections:
     """What the scheduled sweep is handed, and what it must never be handed."""
 
     async def test_a_flow_the_user_never_finished_is_left_out(self):
-        """``oauth_start`` writes the row before the consent screen is shown, so
-        a NULL ``oauth_payload`` is a connection nobody has authorized yet.
+        """`oauth_start` writes the row before the consent screen is shown, so
+        a NULL `oauth_payload` is a connection nobody has authorized yet.
         Sweeping one would spend a query on a row with no token to renew and
         then write "Authorization expired" onto a plugin that never had one."""
         session = _RecordingSession(_Result(rows=[]))
@@ -252,7 +252,7 @@ class TestGetByOauthState:
 
 class TestListForUser:
     async def test_connections_come_back_oldest_first(self):
-        """This order is the lock order. ``_refresh_under_lock`` takes row locks
+        """This order is the lock order. `_refresh_under_lock` takes row locks
         as it walks this list, so two turns holding different subsets can only
         avoid deadlocking each other while every turn walks them the same way."""
         session = _RecordingSession(_Result(scalar=0), _Result(rows=[]))
@@ -271,7 +271,7 @@ class TestListForUser:
 
     async def test_an_organization_connection_is_never_in_a_persons_list(self):
         """Settings → Your connections is the one place a connection can be
-        edited without holding ``connections:manage``. An organization row
+        edited without holding `connections:manage`. An organization row
         appearing there would be a shared credential anyone who could reach the
         page could repoint."""
         session = _RecordingSession(_Result(scalar=0), _Result(rows=[]))
@@ -326,7 +326,7 @@ class TestListOrgScoped:
         assert set(_filters(session).values()) == {organization_id, "org"}
 
     async def test_connections_come_back_oldest_first(self):
-        """Same order as ``list_for_user``, and for the same reason: a run that
+        """Same order as `list_for_user`, and for the same reason: a run that
         locks several rows walks them in list order, and two lists that disagree
         are two ways for concurrent turns to deadlock."""
         session = _RecordingSession(_Result(scalar=0), _Result(rows=[]))
@@ -376,7 +376,7 @@ class TestGetOrgScopedByName:
 
 class TestCreateOrgScoped:
     async def test_the_row_belongs_to_the_organization_and_to_nobody(self):
-        """``user_id`` stays NULL and the author goes in ``created_by_user_id``.
+        """`user_id` stays NULL and the author goes in `created_by_user_id`.
         An organization server that carried an owner would be reachable through
         the personal routes, which ask for no organization permission at all -
         and would vanish the day that account was closed."""
@@ -426,7 +426,7 @@ class TestCreateOrgScoped:
 class TestCreate:
     async def test_every_field_the_caller_passed_reaches_the_row(self):
         """The OAuth columns arrive only through this call, and a dropped
-        ``oauth_state`` leaves a consent redirect with no row to come back to."""
+        `oauth_state` leaves a consent redirect with no row to come back to."""
         session = _RecordingSession()
         user_id = uuid.uuid4()
 
@@ -460,7 +460,7 @@ class TestCreate:
         assert (created.oauth_payload, created.oauth_pending_payload) == ("live", "pending")
 
     async def test_the_row_is_flushed_and_refreshed_but_never_committed(self):
-        """``get_db_session`` owns the transaction. A repository that commits
+        """`get_db_session` owns the transaction. A repository that commits
         would make the request's later failure unrollbackable - and the caller
         still needs the refresh to see the server-side id and timestamps."""
         session = _RecordingSession()

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { Bot, Check, ChevronDown } from "lucide-react";
+import { Bot, Check, ChevronDown, Star } from "lucide-react";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
@@ -27,7 +27,8 @@ export const isRunnable = (agent: Agent): boolean => agent.status === "published
  * talking to" is answered faster by a picture than by reading five names.
  *
  * Only the organization's published agents are offered - there is no general
- * assistant to fall back to. An empty or stale selection resolves to the first
+ * assistant to fall back to. An empty or stale selection resolves to the
+ * user's default agent - the one starred here - or, absent that, the first
  * published agent as soon as the list arrives, so the composer always
  * addresses someone real.
  *
@@ -42,6 +43,8 @@ export function AgentPicker() {
   const { agents, isLoading } = useAgents({ includeArchived: true });
   const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
   const selectAgent = useAgentSelectionStore((state) => state.select);
+  const defaultAgentId = useAgentSelectionStore((state) => state.defaultAgentId);
+  const setDefaultAgent = useAgentSelectionStore((state) => state.setDefault);
   const currentConversationId = useConversationStore((state) => state.currentConversationId);
 
   const runnable = agents.filter(isRunnable);
@@ -49,13 +52,14 @@ export function AgentPicker() {
     agents.find((agent) => agent.id === selectedAgentId && isRunnable(agent)) ?? null;
 
   // No selection, or one pointing at an agent that has since been unpublished,
-  // resolves to the first published agent. The store is read at send time, so
-  // this is also what keeps a frame from going out without an agent.
+  // resolves to the default agent, then the first published one. The store is
+  // read at send time, so this is also what keeps a frame from going out
+  // without an agent.
   useEffect(() => {
     if (isLoading || selected !== null) return;
-    const first = runnable[0];
-    if (first) selectAgent(first.id);
-  }, [isLoading, selected, runnable, selectAgent]);
+    const fallback = runnable.find((agent) => agent.id === defaultAgentId) ?? runnable[0];
+    if (fallback) selectAgent(fallback.id);
+  }, [isLoading, selected, runnable, defaultAgentId, selectAgent]);
 
   return (
     <Popover>
@@ -101,7 +105,9 @@ export function AgentPicker() {
               key={agent.id}
               agent={agent}
               selected={selectedAgentId === agent.id}
+              isDefault={defaultAgentId === agent.id}
               onSelect={() => selectAgent(agent.id)}
+              onToggleDefault={() => setDefaultAgent(defaultAgentId === agent.id ? null : agent.id)}
             />
           ))}
         </div>
@@ -123,35 +129,67 @@ export function AgentPicker() {
 function AgentOption({
   agent,
   selected,
+  isDefault,
   onSelect,
+  onToggleDefault,
 }: {
   agent: Agent;
   selected: boolean;
+  isDefault: boolean;
   onSelect: () => void;
+  onToggleDefault: () => void;
 }) {
+  // The star sits beside the radio rather than inside it: a button cannot
+  // contain a button, and starring an agent must not also select it.
   return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={selected}
-      onClick={onSelect}
-      className={cn(
-        "flex w-full items-start gap-2.5 rounded-xl border px-2.5 py-2 text-left transition-all",
-        selected
-          ? "border-foreground/30 bg-accent text-foreground"
-          : "border-border text-foreground/75 hover:border-foreground/25 hover:bg-accent/60 hover:text-foreground",
-      )}
-    >
-      <AgentAvatar agentId={agent.id} name={agent.name} hasAvatar={agent.has_avatar} size="md" />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-xs font-medium">{agent.name}</span>
-        {agent.description && (
-          <span className="text-foreground/55 mt-0.5 line-clamp-2 block text-[11px] leading-relaxed">
-            {agent.description}
-          </span>
+    <div className="flex items-center gap-1">
+      <button
+        type="button"
+        role="radio"
+        aria-checked={selected}
+        onClick={onSelect}
+        className={cn(
+          "flex min-w-0 flex-1 items-start gap-2.5 rounded-xl border px-2.5 py-2 text-left transition-all",
+          selected
+            ? "border-foreground/30 bg-accent text-foreground"
+            : "border-border text-foreground/75 hover:border-foreground/25 hover:bg-accent/60 hover:text-foreground",
         )}
-      </span>
-      {selected && <Check className="text-foreground mt-0.5 h-3.5 w-3.5 shrink-0" />}
-    </button>
+      >
+        <AgentAvatar agentId={agent.id} name={agent.name} hasAvatar={agent.has_avatar} size="md" />
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-1.5 text-xs font-medium">
+            <span className="truncate">{agent.name}</span>
+            {isDefault && (
+              <span className="text-foreground/55 shrink-0 font-mono text-[9px] tracking-wider uppercase">
+                Default
+              </span>
+            )}
+          </span>
+          {agent.description && (
+            <span className="text-foreground/55 mt-0.5 line-clamp-2 block text-[11px] leading-relaxed">
+              {agent.description}
+            </span>
+          )}
+        </span>
+        {selected && <Check className="text-foreground mt-0.5 h-3.5 w-3.5 shrink-0" />}
+      </button>
+      <button
+        type="button"
+        aria-pressed={isDefault}
+        aria-label={
+          isDefault ? `Unset ${agent.name} as default agent` : `Set ${agent.name} as default agent`
+        }
+        title={isDefault ? "Default agent for new chats" : "Set as default for new chats"}
+        onClick={onToggleDefault}
+        className={cn(
+          "shrink-0 rounded-lg p-1.5 transition-colors",
+          isDefault
+            ? "text-foreground"
+            : "text-foreground/30 hover:text-foreground/70 hover:bg-accent/60",
+        )}
+      >
+        <Star className={cn("h-3.5 w-3.5", isDefault && "fill-current")} />
+      </button>
+    </div>
   );
 }

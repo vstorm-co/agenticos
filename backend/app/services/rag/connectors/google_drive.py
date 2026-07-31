@@ -1,9 +1,9 @@
 """Google Drive sync connector for RAG ingestion.
 
 Fetches files from Google Drive using a Google service account.
-Credentials are supplied per-source via the ``service_account_json`` config
+Credentials are supplied per-source via the `service_account_json` config
 field (a copy of the JSON key file contents). A file-path fallback via
-``GOOGLE_DRIVE_CREDENTIALS_FILE`` is kept for backwards compatibility.
+`GOOGLE_DRIVE_CREDENTIALS_FILE` is kept for backwards compatibility.
 
 Setup:
 1. Create a service account in Google Cloud Console
@@ -47,8 +47,8 @@ GOOGLE_DOCS_EXPORT: dict[str, tuple[str, str]] = {
 class GoogleDriveConnector(BaseSyncConnector):
     """Google Drive connector using a service account.
 
-    Credentials are read from ``config["service_account_json"]`` (a JSON string).
-    Falls back to the file at ``settings.GOOGLE_DRIVE_CREDENTIALS_FILE`` when
+    Credentials are read from `config["service_account_json"]` (a JSON string).
+    Falls back to the file at `settings.GOOGLE_DRIVE_CREDENTIALS_FILE` when
     the config field is absent.
     """
 

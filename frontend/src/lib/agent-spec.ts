@@ -7,10 +7,28 @@
  * binding the server validates slightly differently.
  */
 
-import type { AgentSpec, CapabilityBindingSpec } from "@/types/agents";
+import type { AgentSpec, CapabilityBindingSpec, NotificationSpec } from "@/types/agents";
 
 /** The capability that turns bound skills into tools the model can call. */
 export const SKILLS_ID = "skills";
+
+/**
+ * The alert block an agent has when nothing has said otherwise.
+ *
+ * Mirrors the defaults in `backend/app/agents/spec.py`, and exists for the one
+ * case where the client has to know them: an agent created in this session has
+ * not been round-tripped through the API yet, so its spec carries no block at
+ * all. Rendering "nothing is set" for an agent that will in fact mail the admins
+ * would be the wrong answer to the only question this panel asks.
+ *
+ * The server is still the authority. This is never sent on its own - it is what
+ * the form starts from, and what it saves is whatever the form then holds.
+ */
+export const DEFAULT_NOTIFICATIONS: NotificationSpec = {
+  budget: { enabled: true, to: ["admins", "owner"], user_ids: [] },
+  approvals: { enabled: true, to: ["initiator", "admins"], user_ids: [] },
+  usage: { enabled: false, to: ["admins", "owner"], user_ids: [] },
+};
 
 /** The capability configured with the model settings - it contributes no tools. */
 export const THINKING_ID = "thinking";

@@ -378,21 +378,29 @@ export function FileViewer({ kbId, doc, open, onClose }: FileViewerProps) {
               </div>
             )}
 
-            {tab === "original" && !loading && !error && viewerKind === "markdown" && textContent !== null && (
-              <div className="h-full overflow-auto p-6">
-                <div className="prose prose-sm dark:prose-invert max-w-none">
-                  <MarkdownContent content={textContent} />
+            {tab === "original" &&
+              !loading &&
+              !error &&
+              viewerKind === "markdown" &&
+              textContent !== null && (
+                <div className="h-full overflow-auto p-6">
+                  <div className="prose prose-sm dark:prose-invert max-w-none">
+                    <MarkdownContent content={textContent} />
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {tab === "original" && !loading && !error && viewerKind === "text" && textContent !== null && (
-              <div className="h-full overflow-auto">
-                <pre className="text-foreground p-4 font-mono text-xs leading-relaxed break-words whitespace-pre-wrap">
-                  {textContent}
-                </pre>
-              </div>
-            )}
+            {tab === "original" &&
+              !loading &&
+              !error &&
+              viewerKind === "text" &&
+              textContent !== null && (
+                <div className="h-full overflow-auto">
+                  <pre className="text-foreground p-4 font-mono text-xs leading-relaxed break-words whitespace-pre-wrap">
+                    {textContent}
+                  </pre>
+                </div>
+              )}
 
             {tab === "original" && !loading && !error && viewerKind === "unknown" && blobUrl && (
               <div className="flex h-full flex-col items-center justify-center gap-4 px-8 text-center">

@@ -1,7 +1,7 @@
 """Tests for organization scoping of channel bots.
 
 A bot belongs to one organization, and every conversation it opens inherits that
-organization - which is what allows ``conversations.organization_id`` to be
+organization - which is what allows `conversations.organization_id` to be
 NOT NULL despite channel conversations having no user.
 """
 
@@ -12,7 +12,8 @@ import pytest
 
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.vault import VaultScope, unseal
-from app.schemas.channel_bot import AccessPolicy, ChannelBotCreate
+from app.db.models.channel_bot import ChannelBot
+from app.schemas.channel_bot import AccessPolicy, ChannelBotCreate, ChannelBotUpdate
 from app.services.channel_bot import ChannelBotService, unseal_bot_token
 
 
@@ -165,6 +166,85 @@ class TestChannelBotServiceScope:
         ):
             service = ChannelBotService(MagicMock())
             assert await service.find_active(uuid.uuid4()) is None
+
+
+class TestSlackAppCredentials:
+    """Each Slack bot is its own Slack app - the credentials live on the row.
+
+    Sealed like the token and never returned; what a response may carry is the
+    boolean pair, which `tests/api/test_no_secret_escapes.py` polices.
+    """
+
+    @pytest.mark.anyio
+    async def test_slack_credentials_are_sealed_not_stored_bare(self):
+        org_id = uuid.uuid4()
+        data = ChannelBotCreate(
+            platform="slack",
+            name="Acme Support",
+            token="xoxb-bot-token",
+            slack_signing_secret="shhh-signing",
+            slack_app_token="xapp-1-token",
+        )
+
+        with patch(
+            "app.services.channel_bot.channel_bot_repo.create",
+            new=AsyncMock(return_value=_bot(org_id)),
+        ) as repo_create:
+            await ChannelBotService(MagicMock(), organization_id=org_id).create(data)
+
+        stored = repo_create.call_args.kwargs
+        assert "shhh-signing" not in stored["slack_signing_secret_encrypted"]
+        assert "xapp-1-token" not in stored["slack_app_token_encrypted"]
+        scope = VaultScope.organization(org_id)
+        version = stored["secret_key_version"]
+        assert (
+            unseal(stored["slack_signing_secret_encrypted"], scope=scope, key_version=version)
+            == "shhh-signing"
+        )
+        assert (
+            unseal(stored["slack_app_token_encrypted"], scope=scope, key_version=version)
+            == "xapp-1-token"
+        )
+
+    @pytest.mark.anyio
+    async def test_slack_credentials_on_another_platform_are_refused(self):
+        """Accepting them would store secrets nothing will ever read."""
+        data = ChannelBotCreate(
+            platform="telegram",
+            name="TG",
+            token="123456:telegram-token",
+            slack_signing_secret="shhh-signing",
+        )
+
+        with pytest.raises(BadRequestError, match="Slack"):
+            await ChannelBotService(MagicMock(), organization_id=uuid.uuid4()).create(data)
+
+    @pytest.mark.anyio
+    async def test_an_explicit_null_clears_a_stored_credential(self):
+        """Omission leaves it, null removes it - two different requests."""
+        org_id = uuid.uuid4()
+        bot = _bot(org_id)
+        bot.platform = "slack"
+        bot.secret_key_version = 1
+        service = ChannelBotService(MagicMock(), organization_id=org_id)
+
+        with (
+            patch.object(service, "get", new=AsyncMock(return_value=bot)),
+            patch(
+                "app.services.channel_bot.channel_bot_repo.update",
+                new=AsyncMock(return_value=bot),
+            ) as repo_update,
+        ):
+            await service.update(bot.id, ChannelBotUpdate.model_validate({"slack_app_token": None}))
+
+        assert repo_update.call_args.kwargs["update_data"] == {"slack_app_token_encrypted": None}
+
+    def test_the_booleans_say_configured_and_never_the_value(self):
+        configured = ChannelBot(slack_signing_secret_encrypted="enc:x")
+        bare = ChannelBot()
+
+        assert configured.has_slack_signing_secret is True
+        assert (bare.has_slack_signing_secret, bare.has_slack_app_token) == (False, False)
 
 
 class TestChannelConversationOrg:

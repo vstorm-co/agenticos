@@ -136,6 +136,69 @@ async def list_emails_by_role(
     return [row[0] for row in result.all()]
 
 
+async def list_emails_for_members(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    user_ids: list[UUID],
+    preference: NotificationPreference | None = None,
+) -> list[str]:
+    """Addresses of named people, but only those who are members of this organization.
+
+    The membership join is the security property, not an optimisation. These ids
+    come from an agent's spec - `AlertSpec.user_ids`, written by whoever may edit
+    the agent - so without the join an author could name a user id from another
+    organization and have them mailed the agent's name, their organization's name
+    and what a run spent. `get_emails_for_users` above carries the same
+    restriction for the same reason.
+
+    Differs from that one by also filtering on `is_active` and on the opt-out
+    column, because the caller is notification: it must never hold an address it
+    is not allowed to mail. A user who left, was deactivated, or switched this
+    kind of mail off contributes nothing rather than raising - a spec naming one
+    person who is gone must not silence the rest of the audience.
+    """
+    if not user_ids:
+        return []
+    conditions = [
+        OrganizationMember.organization_id == organization_id,
+        OrganizationMember.user_id.in_(user_ids),
+        User.is_active.is_(True),
+    ]
+    if preference is not None:
+        conditions.append(getattr(User, preference).is_(True))
+    result = await db.execute(
+        select(User.email)
+        .join(OrganizationMember, OrganizationMember.user_id == User.id)
+        .where(*conditions)
+    )
+    return [row[0] for row in result.all()]
+
+
+async def list_app_admin_emails(
+    db: AsyncSession,
+    *,
+    preference: NotificationPreference | None = None,
+) -> list[str]:
+    """Addresses of the deployment's app admins, whatever organization they are in.
+
+    Deliberately not joined to `organization_members`. An app admin administers
+    the deployment and reaches every organization in it without holding a
+    membership row - `get_auth_context` admits them to an organization they are
+    not a member of - so a query scoped by membership would silently omit exactly
+    the person who is supposed to hear when something runs out of money.
+
+    In the same module as the role query rather than in `user`, because the two
+    answer one question between them - "who are the administrators here" - and a
+    caller that found one and not the other would mail half of them.
+    """
+    conditions = [User.is_app_admin.is_(True), User.is_active.is_(True)]
+    if preference is not None:
+        conditions.append(getattr(User, preference).is_(True))
+    result = await db.execute(select(User.email).where(*conditions))
+    return [row[0] for row in result.all()]
+
+
 async def count_for_org(db: AsyncSession, organization_id: UUID) -> int:
     result = await db.execute(
         select(func.count(OrganizationMember.id)).where(

@@ -5,7 +5,7 @@ import { NAV_GROUPS, SidebarNav, isActive } from "./app-sidebar";
 
 const can = vi.fn<(permission: string) => boolean>();
 const currentPath = vi.fn<() => string>(() => "/dashboard");
-const currentUser = vi.fn<() => { role?: string } | null>(() => ({}));
+const currentUser = vi.fn<() => { is_app_admin?: boolean } | null>(() => ({}));
 
 vi.mock("next/navigation", () => ({ usePathname: () => currentPath() }));
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
@@ -128,14 +128,17 @@ describe("SidebarNav", () => {
   });
 
   it("keeps the admin group for platform admins only", () => {
+    // The flag, and only the flag. There used to be a `role === "admin"`
+    // fallback in `isAppAdmin`; while it existed this group appeared for
+    // accounts whose every request behind it was refused.
     can.mockReturnValue(true);
-    currentUser.mockReturnValue({ role: "member" });
+    currentUser.mockReturnValue({ is_app_admin: false });
 
     const { unmount } = renderNav();
     expect(screen.queryByRole("link", { name: "adminOverview" })).not.toBeInTheDocument();
     unmount();
 
-    currentUser.mockReturnValue({ role: "admin" });
+    currentUser.mockReturnValue({ is_app_admin: true });
     renderNav();
     expect(screen.getByRole("link", { name: "adminOverview" })).toBeInTheDocument();
   });

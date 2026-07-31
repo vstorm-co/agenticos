@@ -144,14 +144,21 @@ class BaseVectorStore(ABC):
 
 
 import json
+from collections.abc import Awaitable, Callable
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.core.config import settings as app_settings
-from app.services.rag.config import RAGSettings
+from app.services.embedding_resolution import ResolvedEmbeddings
+from app.services.rag.config import EmbeddingsConfig, RAGSettings
 from app.services.rag.embeddings import EmbeddingService
+
+# How a store learns which model a collection embeds with. Async because the
+# answer lives in the database, injected so the template's store never imports
+# platform policy.
+EmbeddingResolver = Callable[[str], Awaitable[ResolvedEmbeddings | None]]
 
 # pgvector's HNSW builds over a `vector` column only up to this width; past it,
 # `CREATE INDEX` fails with "column cannot have more than 2000 dimensions for
@@ -187,10 +194,20 @@ class PgVectorStore(BaseVectorStore):
     to release pool connections.
     """
 
-    def __init__(self, settings: RAGSettings, embedding_service: EmbeddingService):
+    def __init__(
+        self,
+        settings: RAGSettings,
+        embedding_service: EmbeddingService,
+        resolver: "EmbeddingResolver | None" = None,
+    ):
         self.settings = settings
         self.embedder = embedding_service
         self.dim = settings.embeddings_config.dim
+        # Which model - and whose key - one collection embeds with. None keeps
+        # the deployment defaults for everything, which is the pre-resolver
+        # behaviour and still what a collection outside the KB table gets.
+        self._resolver = resolver
+        self._services: dict[tuple[str, str], EmbeddingService] = {}
         self.engine = create_async_engine(app_settings.DATABASE_URL, echo=False)
         self.async_session = sessionmaker(self.engine, class_=AsyncSession, expire_on_commit=False)
 
@@ -202,28 +219,51 @@ class PgVectorStore(BaseVectorStore):
         """Get validated table name for a collection."""
         return f"rag_{_validate_collection_name(name)}"
 
-    @property
-    def _distance(self) -> str:
+    async def _for_collection(self, name: str) -> tuple[EmbeddingService, int]:
+        """The embedder and vector width this one collection uses.
+
+        Cached per (model, key): an `EmbeddingService` holds an HTTP client,
+        and rebuilding one per chunk would open a connection pool per page of a
+        PDF. The recorded width wins over the catalog's - the table was created
+        at that number.
+        """
+        if self._resolver is None:
+            return self.embedder, self.dim
+        resolved = await self._resolver(name)
+        if resolved is None:
+            return self.embedder, self.dim
+        cache_key = (resolved.model, resolved.api_key)
+        service = self._services.get(cache_key)
+        if service is None:
+            service = EmbeddingService(
+                settings=RAGSettings(embeddings_config=EmbeddingsConfig(model=resolved.model)),
+                api_key=resolved.api_key,
+                expected_dim=resolved.dim,
+            )
+            self._services[cache_key] = service
+        return service, resolved.dim
+
+    @staticmethod
+    def _distance_expr(dim: int) -> str:
         """The expression the index is built on, and searches must match.
 
-        pgvector's HNSW takes at most 2000 dimensions on a ``vector`` column but
-        4000 on ``halfvec``, so anything wider is indexed and compared at half
+        pgvector's HNSW takes at most 2000 dimensions on a `vector` column but
+        4000 on `halfvec`, so anything wider is indexed and compared at half
         precision. That is pgvector's own answer for wide embeddings, and the
         alternative is not full precision - it is no index at all.
 
         Building the index on one expression and ordering by another silently
         costs the index, so both come from here.
         """
-        if self.dim > _HNSW_MAX_VECTOR_DIM:
-            return f"(embedding::halfvec({self.dim}))"
+        if dim > _HNSW_MAX_VECTOR_DIM:
+            return f"(embedding::halfvec({dim}))"
         return "embedding"
 
     async def _ensure_collection(self, name: str) -> None:
         """Create table for collection if not exists."""
         table = self._table(name)
-        operator_class = (
-            "halfvec_cosine_ops" if self.dim > _HNSW_MAX_VECTOR_DIM else "vector_cosine_ops"
-        )
+        _, dim = await self._for_collection(name)
+        operator_class = "halfvec_cosine_ops" if dim > _HNSW_MAX_VECTOR_DIM else "vector_cosine_ops"
         async with self.async_session() as session:
             await session.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
             await session.execute(
@@ -232,7 +272,7 @@ class PgVectorStore(BaseVectorStore):
                     id VARCHAR(100) PRIMARY KEY,
                     parent_doc_id VARCHAR(100),
                     content TEXT,
-                    embedding vector({self.dim}),
+                    embedding vector({dim}),
                     metadata JSONB DEFAULT '{{}}'::jsonb
                 )
             """)
@@ -240,7 +280,7 @@ class PgVectorStore(BaseVectorStore):
             await session.execute(
                 text(f"""
                 CREATE INDEX IF NOT EXISTS {table}_embedding_idx
-                ON {table} USING hnsw ({self._distance} {operator_class})
+                ON {table} USING hnsw ({self._distance_expr(dim)} {operator_class})
             """)
             )
             await session.commit()
@@ -263,7 +303,8 @@ class PgVectorStore(BaseVectorStore):
         await self._ensure_collection(collection_name)
         if not document.chunked_pages:
             raise ValueError("Document has no chunked pages.")
-        vectors = self.embedder.embed_document(document)
+        embedder, _ = await self._for_collection(collection_name)
+        vectors = embedder.embed_document(document)
         async with self.async_session() as session:
             for i, chunk in enumerate(document.chunked_pages):
                 meta = self._build_chunk_metadata(chunk, document)
@@ -287,7 +328,8 @@ class PgVectorStore(BaseVectorStore):
         self, collection_name: str, query: str, limit: int = 4, filter_expr: str = ""
     ) -> list[SearchResult]:
         table = self._table(collection_name)
-        query_vector = self.embedder.embed_query(query)
+        embedder, dim = await self._for_collection(collection_name)
+        query_vector = embedder.embed_query(query)
 
         # Parse the shared `parent_doc_id == "<value>"` filter format and apply
         # it as a parameterised WHERE clause to avoid returning results from
@@ -301,23 +343,20 @@ class PgVectorStore(BaseVectorStore):
         where_clause = "WHERE parent_doc_id = :doc_id" if doc_id_filter else ""
         # The query vector has to be cast the same way the column is, or Postgres
         # compares a halfvec against a vector and refuses the operator outright.
-        query_expr = (
-            f"(:query_vec)::halfvec({self.dim})"
-            if self.dim > _HNSW_MAX_VECTOR_DIM
-            else ":query_vec"
-        )
+        query_expr = f"(:query_vec)::halfvec({dim})" if dim > _HNSW_MAX_VECTOR_DIM else ":query_vec"
         params: dict[str, Any] = {"query_vec": str(query_vector), "limit": limit}
         if doc_id_filter:
             params["doc_id"] = doc_id_filter
 
+        distance = self._distance_expr(dim)
         async with self.async_session() as session:
             result = await session.execute(
                 text(f"""
                     SELECT content, parent_doc_id, metadata,
-                           1 - ({self._distance} <=> {query_expr}) AS score
+                           1 - ({distance} <=> {query_expr}) AS score
                     FROM {table}
                     {where_clause}
-                    ORDER BY {self._distance} <=> {query_expr}
+                    ORDER BY {distance} <=> {query_expr}
                     LIMIT :limit
                 """),
                 params,
@@ -339,19 +378,20 @@ class PgVectorStore(BaseVectorStore):
         A collection's table is created lazily by the first ingest, so "no table"
         and "nothing indexed yet" are the same state in this design - which is
         why this reports zero rather than raising. It used to run the COUNT
-        unconditionally and let asyncpg's ``UndefinedTableError`` become a 500,
+        unconditionally and let asyncpg's `UndefinedTableError` become a 500,
         so asking about a knowledge base nobody had uploaded to yet looked like
-        the server breaking. ``get_documents`` has always answered the same
+        the server breaking. `get_documents` has always answered the same
         question with an empty list; its comment claimed this method already did
         the same, and now it does.
         """
+        _, dim = await self._for_collection(collection_name)
         if not await self._collection_exists(collection_name):
-            return CollectionInfo(name=collection_name, total_vectors=0, dim=self.dim)
+            return CollectionInfo(name=collection_name, total_vectors=0, dim=dim)
         table = self._table(collection_name)
         async with self.async_session() as session:
             result = await session.execute(text(f"SELECT COUNT(*) FROM {table}"))
             count = result.scalar() or 0
-        return CollectionInfo(name=collection_name, total_vectors=count, dim=self.dim)
+        return CollectionInfo(name=collection_name, total_vectors=count, dim=dim)
 
     async def delete_collection(self, collection_name: str) -> None:
         table = self._table(collection_name)

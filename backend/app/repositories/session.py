@@ -35,7 +35,7 @@ async def get_user_sessions(
 ) -> list[Session]:
     """Get sessions for a user, most recently used first.
 
-    ``limit`` of None returns every session, which is what the callers that
+    `limit` of None returns every session, which is what the callers that
     revoke or validate one need. The listing route passes a page.
     """
     query = select(Session).where(Session.user_id == user_id)

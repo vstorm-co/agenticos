@@ -2,19 +2,18 @@
 
 A repository's behaviour *is* the statement it builds, so these read the
 statement back rather than counting calls. The predicate is the whole point
-here: a dropped ``organization_id`` filter is a cross-tenant read that no
+here: a dropped `organization_id` filter is a cross-tenant read that no
 assertion about "the repository was called" would notice, and a binding lookup
 that forgot the bot would restore the hole the table was added to close.
 
 What the schema guarantees on top of this - one binding per agent per bot, only
 the surfaces something serves, cascades from both sides - is asserted against a
-real database in ``tests/integration/test_schema_guarantees.py``.
+real database in `tests/integration/test_schema_guarantees.py`.
 """
 
 from __future__ import annotations
 
 import uuid
-from decimal import Decimal
 from unittest.mock import MagicMock
 
 import pytest
@@ -27,7 +26,7 @@ pytestmark = pytest.mark.anyio
 
 
 class _RecordingSession:
-    """An ``AsyncSession`` stand-in that keeps the statements it was given."""
+    """An `AsyncSession` stand-in that keeps the statements it was given."""
 
     def __init__(self, *results: object) -> None:
         self._results = list(results)
@@ -130,6 +129,26 @@ class TestReading:
         assert surfaces == {}
         assert session.statements == []
 
+    async def test_the_agents_a_bot_serves_come_back_with_their_bindings(self):
+        """The unaddressed path needs both halves in one read.
+
+        The binding is what bounds the run and the agent row is what names it
+        to the sender - and the is_active predicate must live in the statement,
+        or a paused binding would put a bot back to answering.
+        """
+        bot_id = uuid.uuid4()
+        exposure, agent = MagicMock(), MagicMock()
+        rows = MagicMock(all=MagicMock(return_value=[(exposure, agent)]))
+        session = _RecordingSession(rows)
+
+        pairs = await agent_exposure_repo.list_active_for_bot(session, channel_bot_id=bot_id)
+
+        assert pairs == [(exposure, agent)]
+        assert bot_id in _filters(session).values()
+        statement = str(session.statements[-1])
+        assert "is_active" in statement
+        assert "JOIN agents" in statement
+
     async def test_a_paused_binding_is_still_returned(self):
         """The duplicate check needs it, and it is the only caller that does.
 
@@ -193,16 +212,17 @@ class TestWriting:
         """A dict rather than named arguments, so "unsent" is expressible.
 
         With one keyword per field, pausing a binding would have to pass a value
-        for its budget too, and whatever the caller defaulted to would overwrite
-        what somebody else set.
+        for its environment too, and whatever the caller defaulted to would
+        overwrite what somebody else set.
         """
+        environment_id = uuid.uuid4()
         exposure = AgentExposure(
             id=uuid.uuid4(),
             organization_id=uuid.uuid4(),
             agent_id=uuid.uuid4(),
             surface="slack",
             channel_bot_id=uuid.uuid4(),
-            monthly_usd=Decimal("25"),
+            environment_id=environment_id,
         )
         session = _RecordingSession()
 
@@ -210,26 +230,7 @@ class TestWriting:
             session, exposure=exposure, update_data={"is_active": False}
         )
 
-        assert (updated.is_active, updated.monthly_usd) == (False, Decimal("25"))
-
-    async def test_a_binding_can_be_created_carrying_its_caps(self):
-        session = _RecordingSession()
-
-        exposure = await agent_exposure_repo.create(
-            session,
-            organization_id=uuid.uuid4(),
-            agent_id=uuid.uuid4(),
-            surface="slack",
-            channel_bot_id=uuid.uuid4(),
-            created_by_user_id=None,
-            max_per_run_usd=Decimal("0.5"),
-            monthly_usd=Decimal("25"),
-        )
-
-        assert (exposure.max_per_run_usd, exposure.monthly_usd) == (
-            Decimal("0.5"),
-            Decimal("25"),
-        )
+        assert (updated.is_active, updated.environment_id) == (False, environment_id)
 
     async def test_removing_a_binding_deletes_the_row(self):
         exposure = AgentExposure(

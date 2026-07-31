@@ -5,7 +5,7 @@ assistant. That left the Builder half-connected: you could publish an agent,
 bind collections, skills and a budget to it, and then the only place to talk to
 it was the Playground or the API.
 
-A frame carrying ``agent_id`` runs that agent instead. A frame without one keeps
+A frame carrying `agent_id` runs that agent instead. A frame without one keeps
 the general assistant, because the two are different products - "the company's
 chat" and "the agent Sales published". There is deliberately no per-organization
 default: the client names the agent, or it gets the assistant it always got.
@@ -16,7 +16,7 @@ run belongs to, and the accounting around it. It goes through
 :meth:`AgentRunnerService.prepare` and :meth:`AgentRunnerService.finish` exactly
 as the public API and the Slack bot do, so a chat run lands in run history with
 its cost, its budget check, its approval gate and its capabilities - stamped
-``RunSurface.WEB``. What it does not own is the event loop: the caller iterates
+`RunSurface.WEB`. What it does not own is the event loop: the caller iterates
 the run and forwards events, because only the caller knows what a frame is.
 """
 
@@ -34,7 +34,7 @@ from pydantic_ai.run import AgentRun, AgentRunResult
 from pydantic_ai.tools import DeferredToolRequests
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.capabilities.budget import BudgetExceeded
+from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
 from app.agents.deps import AgentDeps, AskUserCallback
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import AuthContext
@@ -69,7 +69,7 @@ _AWAITING_APPROVAL = (
 def requested_agent_id(frame: Mapping[str, Any]) -> UUID | None:
     """Which published agent a chat frame is addressed to, if any.
 
-    ``None`` means the general assistant, which is what a client that knows
+    `None` means the general assistant, which is what a client that knows
     nothing about published agents sends. An empty value means the same: the
     client had no agent selected.
 
@@ -92,7 +92,7 @@ def requested_agent_id(frame: Mapping[str, Any]) -> UUID | None:
 def requested_model_profile_id(frame: Mapping[str, Any]) -> UUID | None:
     """Which of the organization's models this turn should run on, if overridden.
 
-    ``None`` means the agent runs on the model its spec names, which is the
+    `None` means the agent runs on the model its spec names, which is the
     normal case and what a client that sends nothing gets.
 
     Raises:
@@ -108,6 +108,28 @@ def requested_model_profile_id(frame: Mapping[str, Any]) -> UUID | None:
     except ValueError as exc:
         raise BadRequestError(
             message="That is not a valid model id", details={"model_profile_id": str(raw)}
+        ) from exc
+
+
+def requested_environment_id(frame: Mapping[str, Any]) -> UUID | None:
+    """Which named environment this turn should run, if any.
+
+    `None` means the default environment - what every chat turn has always
+    gotten, and what a client that knows nothing about environments sends.
+
+    Raises:
+        BadRequestError: If the frame names something that is not an
+            environment id. Falling back to the default would run a version
+            the person did not pick and say nothing about it.
+    """
+    raw = frame.get("environment_id")
+    if raw is None or raw == "":
+        return None
+    try:
+        return UUID(str(raw))
+    except ValueError as exc:
+        raise BadRequestError(
+            message="That is not a valid environment id", details={"environment_id": str(raw)}
         ) from exc
 
 
@@ -170,6 +192,7 @@ class ChatAgentRunner:
         ask_user: AskUserCallback,
         stream: ChatStream,
         model_profile_id: UUID | None = None,
+        environment_id: UUID | None = None,
     ) -> ChatTurn:
         """Run the named agent for this turn and record what it consumed.
 
@@ -206,8 +229,11 @@ class ChatAgentRunner:
             conversation_id=conversation_id,
             user_name=user.full_name,
             model_profile_id=model_profile_id,
+            # The version this environment pins runs instead of the default -
+            # how a dev environment is exercised from the chat before promotion.
+            environment_id=environment_id,
         )
-        # The approval channel was wired by ``prepare``; this is the half only a
+        # The approval channel was wired by `prepare`; this is the half only a
         # live surface can provide. Without it, an agent whose instructions tell
         # it to ask first has no way to ask.
         prepared.deps.ask_user = ask_user
@@ -215,6 +241,7 @@ class ChatAgentRunner:
         status = RunStatus.FAILED
         error: str | None = None
         paused: PausedRunState | None = None
+        budget_scope: BudgetScope | None = None
         output = ""
         try:
             async with prepared.built.agent.iter(
@@ -249,6 +276,7 @@ class ChatAgentRunner:
             # there waiting, and they are owed the reason the answer stopped.
             status = RunStatus.BUDGET_EXCEEDED
             error = str(exc)
+            budget_scope = exc.scope
             logger.info("Chat run %s stopped by budget: %s", prepared.run.id, exc)
             raise
         except Exception as exc:
@@ -256,10 +284,16 @@ class ChatAgentRunner:
             logger.exception("Chat run %s failed", prepared.run.id)
             raise
         finally:
-            await self.runner.finish(prepared, status=status, error=error, paused_state=paused)
+            await self.runner.finish(
+                prepared,
+                status=status,
+                error=error,
+                paused_state=paused,
+                budget_scope=budget_scope,
+            )
             # Committed here rather than left to the session context: that exit
             # rolls back on any exception, and cancellation never reaches it at
-            # all, since ``CancelledError`` is not an ``Exception``. A run that
+            # all, since `CancelledError` is not an `Exception`. A run that
             # failed, was stopped or ran out of budget still spent money, and a
             # run missing from history is a run nobody is accountable for.
             await self.db.commit()

@@ -143,17 +143,19 @@ class TestEmbeddingCredential:
         assert provider.client is provider.client
 
     def test_a_collection_nobody_has_uploaded_to_reports_as_empty(self):
-        """The second half of the reported 500 on ``/rag/collections/{name}/info``.
+        """The second half of the reported 500 on `/rag/collections/{name}/info`.
 
         Fixing the credential got the request as far as the COUNT, which then
-        failed with ``UndefinedTableError``: a collection's table is created by
+        failed with `UndefinedTableError`: a collection's table is created by
         its first ingest, so a knowledge base nobody has uploaded to has no
         table. "Nothing indexed yet" is the answer, not a server fault - and
-        ``get_documents`` had been answering the same question that way all
+        `get_documents` had been answering the same question that way all
         along.
         """
         store = PgVectorStore.__new__(PgVectorStore)
         store.dim = 1536
+        store._resolver = None
+        store.embedder = MagicMock()
         store._collection_exists = AsyncMock(return_value=False)
         # A session that would raise if it were opened at all: reporting the
         # empty collection must not depend on the query succeeding.
@@ -164,10 +166,10 @@ class TestEmbeddingCredential:
         assert (info.name, info.total_vectors, info.dim) == ("never_ingested", 0, 1536)
 
     def test_the_service_builds_on_a_deployment_with_no_key(self, monkeypatch):
-        """``get_embedding_service`` is a FastAPI dependency of every RAG route.
+        """`get_embedding_service` is a FastAPI dependency of every RAG route.
 
         Raising here failed the request before any handler ran, which is why
-        ``GET /rag/collections/{name}/info`` - a COUNT(*) that embeds nothing -
+        `GET /rag/collections/{name}/info` - a COUNT(*) that embeds nothing -
         answered 500 with an OpenAI SDK traceback instead of its row count.
         """
         monkeypatch.setattr(app_settings, "OPENROUTER_API_KEY", "")
@@ -235,7 +237,7 @@ class TestFactoryHelpers:
     def test_a_float_budget_becomes_an_exact_decimal(self):
         """0.1 as a float drifts when accumulated; this is where that ends."""
         assert _as_decimal(0.1) == Decimal("0.1")
-        # Via the string, not the float: ``Decimal(0.1)`` carries the binary
+        # Via the string, not the float: `Decimal(0.1)` carries the binary
         # approximation across and the budget stops being reconcilable.
         assert str(_as_decimal(0.1)) == "0.1"
 
@@ -461,7 +463,7 @@ class TestServerCatalog:
     def test_a_key_that_is_not_in_the_catalog_resolves_to_nothing(self):
         """The catalog is a list of servers we vetted; an unknown key must not become one.
 
-        Callers branch on ``None`` to fall back to "custom server, supply your own
+        Callers branch on `None` to fall back to "custom server, supply your own
         URL". Anything else here would let a connect request name a server the
         platform never looked at and inherit a curated entry's auth settings.
         """
@@ -485,7 +487,7 @@ class TestFinalBranches:
         )
 
     def test_a_circular_result_falls_back_to_its_string_form(self):
-        """``default=str`` handles unknown types; only a cycle still raises."""
+        """`default=str` handles unknown types; only a cycle still raises."""
         circular: list[object] = []
         circular.append(circular)
         assert "result:" in _format_result("", circular)

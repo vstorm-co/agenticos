@@ -61,7 +61,7 @@ def _sanitize_filename(filename: str) -> str:
     """Strip path separators, NULL bytes, and unsafe chars from a filename.
 
     The result is always a single path component with no traversal segments.
-    Empty results fall back to ``"file"`` to preserve a non-empty name.
+    Empty results fall back to `"file"` to preserve a non-empty name.
     """
     base = Path(filename).name.replace("\x00", "")
     cleaned = _UNSAFE_FILENAME_CHARS.sub("_", base).strip("._")

@@ -60,9 +60,9 @@ describe("SkillCard", () => {
     expect(screen.queryByText("built-in")).not.toBeInTheDocument();
   });
 
-  it("names the shelf a categorized skill sits on", () => {
-    renderCard({ skill: { ...SKILL, category: "support" } });
-    expect(screen.getByText("support")).toBeInTheDocument();
+  it("names the shelf a categorized skill sits on, as a label rather than a slug", () => {
+    renderCard({ skill: { ...SKILL, category: "customer-support" } });
+    expect(screen.getByText("Customer support")).toBeInTheDocument();
   });
 
   it("opens the skill when its name is clicked", async () => {

@@ -21,7 +21,6 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
-    Index,
     Integer,
     Numeric,
     String,
@@ -37,9 +36,9 @@ from app.db.base import Base, TimestampMixin
 class RunStatus(enum.StrEnum):
     """Where a run ended up.
 
-    ``AWAITING_APPROVAL`` is a real terminal-ish state, not a transient one: the
-    run is parked until a human decides, which may be tomorrow. ``BUDGET_EXCEEDED``
-    is separated from ``FAILED`` because it is not a malfunction - it is the
+    `AWAITING_APPROVAL` is a real terminal-ish state, not a transient one: the
+    run is parked until a human decides, which may be tomorrow. `BUDGET_EXCEEDED`
+    is separated from `FAILED` because it is not a malfunction - it is the
     platform working - and an operator filtering for problems should not have to
     wade through it.
     """
@@ -104,18 +103,23 @@ class AgentRun(Base, TimestampMixin):
     )
     # Which binding admitted this run, when one did. Null for the dashboard, the
     # playground and the API, which are reached as a person rather than through
-    # a place the agent was published to.
-    #
-    # This is what makes an exposure's budget a budget. Without it, "what has
-    # this binding spent this month" has no answer and its cap would have to be
-    # measured against the organization's total - which unrelated internal runs
-    # would exhaust while the binding's own traffic stayed invisible.
+    # a place the agent was published to. Attribution: "where did this run come
+    # from" is the first question asked about a run nobody recognizes.
     #
     # SET NULL, not CASCADE: deleting a binding must not delete the record of
     # what it spent. The run still happened.
     exposure_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("agent_exposures.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    # Which named environment resolved the version this run answered with.
+    # NULL means the default - the run still records the version itself in
+    # `agent_version_id`, so a deleted environment loses only the label.
+    environment_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("agent_environments.id", ondelete="SET NULL"),
         nullable=True,
     )
 
@@ -154,7 +158,7 @@ class AgentRun(Base, TimestampMixin):
 
     # Everything the run needs to pick up where it stopped: the message history
     # as of the parked tool call, and which call each approval belongs to. Set
-    # only while the status is ``awaiting_approval`` and cleared when the run
+    # only while the status is `awaiting_approval` and cleared when the run
     # ends, because state left behind on a finished run is state somebody will
     # eventually replay.
     paused_state: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
@@ -162,11 +166,6 @@ class AgentRun(Base, TimestampMixin):
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-
-    # Declared here as well as in the migration: the integration tests build the
-    # schema from the models, so an index stated only in the migration would be
-    # absent from the tests written against the query that needs it.
-    __table_args__ = (Index("ix_agent_runs_exposure_started", "exposure_id", "started_at"),)
 
     def __repr__(self) -> str:
         return f"<AgentRun(agent={self.agent_id}, status={self.status}, cost=${self.cost_usd})>"

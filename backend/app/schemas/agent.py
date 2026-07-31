@@ -135,7 +135,7 @@ class AgentSpecImport(BaseSchema):
 class CapabilityToolContract(BaseSchema):
     """One tool as the *model* meets it, rather than as the catalog names it.
 
-    ``CapabilityToolInfo`` carries the summary line, which is what a list needs.
+    `CapabilityToolInfo` carries the summary line, which is what a list needs.
     This is the rest: the whole docstring the model reads before deciding to
     call, and the schema of the arguments it has to fill in. An author rewording
     a tool for their agent is rewriting against this text, and reading only its
@@ -229,6 +229,13 @@ class AgentRunRequest(BaseSchema):
     prompt: str = Field(min_length=1)
     conversation_id: UUID | None = Field(
         default=None, description="Continue an existing conversation"
+    )
+    environment_id: UUID | None = Field(
+        default=None,
+        description=(
+            "Run the version this named environment pins instead of the "
+            "default - how a dev environment is exercised before promotion"
+        ),
     )
 
 

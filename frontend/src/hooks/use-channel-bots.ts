@@ -25,8 +25,14 @@ export function useChannelBots(enabled: boolean) {
     enabled,
   });
 
+  // Exposure targets too: this panel renders beside the exposures picker, and
+  // a bot registered there must be offerable without a page reload.
   const invalidate = useCallback(
-    () => queryClient.invalidateQueries({ queryKey: qk.channelBots.list() }),
+    () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: qk.channelBots.list() }),
+        queryClient.invalidateQueries({ queryKey: qk.exposures.all() }),
+      ]),
     [queryClient],
   );
 

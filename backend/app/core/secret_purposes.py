@@ -27,7 +27,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
+from pydantic import TypeAdapter
+
 from app.agents.model_resolver import PROVIDERS
+from app.core import catalog
 from app.core.secret_kinds import SecretKind
 
 
@@ -36,6 +39,7 @@ class PurposeCategory(StrEnum):
 
     MODEL_PROVIDER = "model_provider"
     SEARCH = "search"
+    OBSERVABILITY = "observability"
     OTHER = "other"
 
 
@@ -57,35 +61,14 @@ class SecretPurpose:
 
 CUSTOM = "custom"
 
-# Services that are not model providers. Each is consumed by a capability that
-# names this id, so adding one here and forgetting the capability leaves a
-# purpose nothing reads - which the drift test in tests/test_secret_purposes.py
-# is there to catch.
-_SERVICES: tuple[SecretPurpose, ...] = (
-    SecretPurpose(
-        id="tavily",
-        label="Tavily",
-        category=PurposeCategory.SEARCH,
-        kind=SecretKind.API_KEY,
-        help_url="https://tavily.com",
-        description="Web search summarised for a model to read.",
-    ),
-    SecretPurpose(
-        id="brave",
-        label="Brave Search",
-        category=PurposeCategory.SEARCH,
-        kind=SecretKind.API_KEY,
-        help_url="https://brave.com/search/api/",
-        description="Web search over Brave's own index.",
-    ),
-    SecretPurpose(
-        id="exa",
-        label="Exa",
-        category=PurposeCategory.SEARCH,
-        kind=SecretKind.API_KEY,
-        help_url="https://exa.ai",
-        description="Web search by meaning rather than keywords.",
-    ),
+# Services that are not model providers, loaded from the deployment catalog
+# and validated against `SecretPurpose` at import. Each entry is consumed by
+# something that names its id - the search ids by the web-research capability,
+# `logfire` by an agent's observability spec - so adding one to the file and
+# forgetting the consumer leaves a purpose nothing reads, which the drift test
+# in tests/test_secret_purposes.py is there to catch.
+_SERVICES: tuple[SecretPurpose, ...] = catalog.load(
+    "services.json", TypeAdapter(tuple[SecretPurpose, ...])
 )
 
 _CUSTOM = SecretPurpose(

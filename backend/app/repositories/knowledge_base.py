@@ -1,5 +1,6 @@
 """Knowledge Base repository (PostgreSQL async)."""
 
+from collections.abc import Sequence
 from uuid import UUID
 
 from sqlalchemy import func, or_, select
@@ -7,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.rag_document import RAGDocument
+from app.db.models.resource_grant import Visibility
 
 
 async def get_by_id(db: AsyncSession, kb_id: UUID) -> KnowledgeBase | None:
@@ -18,17 +20,36 @@ async def get_accessible(
     *,
     user_id: UUID,
     organization_id: UUID | None = None,
+    see_all_org: bool,
+    shared_org_ids: Sequence[UUID],
 ) -> list[KnowledgeBase]:
-    """All KBs visible to this user: personal + org (if org given) + app."""
+    """All KBs visible to this user: personal + reachable org rows + app.
+
+    Args:
+        see_all_org: True when the caller's `collections:view` reaches the
+            whole organization; the ownership/visibility predicate on org rows
+            is then skipped entirely.
+        shared_org_ids: Org knowledge bases explicitly granted to this caller.
+
+    The predicate form of :func:`app.services.collection_access.readable_kb`;
+    the two must keep agreeing, or a listing hides a base its detail route
+    serves - or the reverse, which is worse.
+    """
     conditions = [
         (KnowledgeBase.scope == KBScope.PERSONAL.value) & (KnowledgeBase.owner_user_id == user_id),
         KnowledgeBase.scope == KBScope.APP.value,
     ]
     if organization_id is not None:
-        conditions.append(
-            (KnowledgeBase.scope == KBScope.ORG.value)
-            & (KnowledgeBase.organization_id == organization_id)
+        org_cond = (KnowledgeBase.scope == KBScope.ORG.value) & (
+            KnowledgeBase.organization_id == organization_id
         )
+        if not see_all_org:
+            org_cond = org_cond & or_(
+                KnowledgeBase.owner_user_id == user_id,
+                KnowledgeBase.visibility == Visibility.ORG.value,
+                KnowledgeBase.id.in_(shared_org_ids) if shared_org_ids else False,
+            )
+        conditions.append(org_cond)
     result = await db.execute(
         select(KnowledgeBase).where(or_(*conditions)).order_by(KnowledgeBase.created_at)
     )
@@ -66,10 +87,12 @@ async def create(
     owner_user_id: UUID | None = None,
     organization_id: UUID | None = None,
     is_default: bool = False,
+    embedding_secret_id: UUID | None = None,
+    visibility: str | None = None,
 ) -> KnowledgeBase:
     """Create a knowledge base.
 
-    ``embedding_model`` and ``embedding_dim`` take no default on purpose. They
+    `embedding_model` and `embedding_dim` take no default on purpose. They
     are what the collection's vector column was created at, there is no
     interpretable value for "unknown", and a caller that forgets to record them
     would produce a row nobody can later decide whether it is safe to index
@@ -86,6 +109,8 @@ async def create(
         ingestion_config=ingestion_config,
         embedding_model=embedding_model,
         embedding_dim=embedding_dim,
+        embedding_secret_id=embedding_secret_id,
+        **({"visibility": visibility} if visibility is not None else {}),
     )
     db.add(kb)
     await db.flush()
@@ -132,7 +157,7 @@ async def list_by_collection_name(db: AsyncSession, collection_name: str) -> lis
     """Every knowledge base claiming this collection name, oldest first.
 
     Plural because the column is not unique: two organizations can name a
-    collection the same thing, and ``get_by_collection_name`` then answers with
+    collection the same thing, and `get_by_collection_name` then answers with
     whichever row the database returns first. An authorization check built on
     that is right in every single-tenant test and wrong in production, so
     anything deciding access asks for all the candidates and picks its own.

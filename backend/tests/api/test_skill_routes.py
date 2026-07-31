@@ -1,7 +1,7 @@
 """The skills listing, through the app.
 
-``tests/api/test_platform_routes.py`` proves the route is gated on
-``skills:view`` and nothing else; ``tests/test_skills.py`` proves the service
+`tests/api/test_platform_routes.py` proves the route is gated on
+`skills:view` and nothing else; `tests/test_skills.py` proves the service
 filters and pages where the database is. What is left is the response itself:
 the listing is where a card learns how many files a skill has, which shelf it
 sits on, and whether it shipped with the deployment - none of which is a column
@@ -128,10 +128,13 @@ class TestListing:
     async def test_the_category_filter_and_sort_reach_the_service(
         self, client: OpenClient, service: MagicMock
     ):
-        await _listed(client, "?category=support&sort=updated")
+        """`category` repeats: two occurrences mean "either shelf", and both
+        must reach the service - an encoding that kept the last one would
+        silently narrow the filter."""
+        await _listed(client, "?category=support&category=devops&sort=updated")
 
         kwargs = service.list_skills.call_args.kwargs
-        assert kwargs["category"] == "support"
+        assert kwargs["categories"] == ["support", "devops"]
         assert kwargs["sort"] == "updated"
 
     async def test_a_sort_the_repository_does_not_know_is_refused(self, client: OpenClient):

@@ -5,9 +5,11 @@ organization has published. Without a way to say *which* one, the bot can only
 ever be a single assistant, and every new agent needs its own bot token, its own
 webhook and its own place in the workspace's app directory.
 
-``@support what is the refund window`` is that way. The handle is the agent's
+`@support what is the refund window` is that way. The handle is the agent's
 slug - the same one the Builder shows and the same one the API takes - so a
 person who can see an agent in the UI already knows how to reach it from Slack.
+A message that names no handle goes to the bot's only exposed agent, when there
+is exactly one; a bot is never anything more than the agents put behind it.
 
 Three rules make this safe to expose in a shared channel:
 
@@ -32,6 +34,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -73,6 +76,22 @@ _NOT_EXPOSED_HERE = (
     "this bot under 'Where this agent is available' in the Builder."
 )
 
+# Said when a message names no agent and the bot serves none. There is no
+# assistant behind a bot any more - a bot only ever relays to published agents -
+# so the fix is the same one _NOT_EXPOSED_HERE points at, phrased for the person
+# who can do it.
+_NOTHING_EXPOSED_HERE = (
+    "No agent is available on this bot yet. Publish an agent and add this bot "
+    "under 'Where this agent is available' in the Builder."
+)
+
+# Said when a message names no agent and the bot serves several, so answering
+# would mean guessing which one was meant. The handles are listed because the
+# sender's next message should be able to just start with one.
+_SAY_WHICH = (
+    "Several agents answer on this bot - start your message with the one you want: {handles}"
+)
+
 
 @dataclass(frozen=True)
 class Mention:
@@ -83,9 +102,9 @@ class Mention:
 
 
 def parse_mention(text: str) -> Mention | None:
-    """Split ``@handle rest of message`` into its parts, or ``None``.
+    """Split `@handle rest of message` into its parts, or `None`.
 
-    Returns ``None`` for a bare handle with nothing after it. ``@support`` alone
+    Returns `None` for a bare handle with nothing after it. `@support` alone
     is a greeting, and answering it would open a billed run to say hello.
     """
     match = _MENTION.match(text)
@@ -118,7 +137,7 @@ class ChannelAgentRouter:
         user_id: UUID | None,
         conversation_id: UUID | None = None,
     ) -> str:
-        """Run the agent named in ``text`` and return what it said.
+        """Run the agent named in `text` and return what it said.
 
         Args:
             text: The raw incoming message, handle included.
@@ -128,7 +147,7 @@ class ChannelAgentRouter:
             bot_id: The bot the message arrived on. An agent answers through it
                 only if an exposure says so - the organization is where the
                 handle is *looked up*, not what makes it reachable.
-            user_id: The platform user's linked account, or ``None`` if they
+            user_id: The platform user's linked account, or `None` if they
                 never linked one.
             conversation_id: The channel session's conversation, so a thread
                 keeps its history.
@@ -186,6 +205,62 @@ class ChannelAgentRouter:
             # the run is attributed to and bounded by. Resolving it here and
             # then not passing it on would leave a cap somebody set on this bot
             # enforcing nothing.
+            exposure=exposure,
+        )
+        return answer
+
+    async def answer_default(
+        self,
+        text: str,
+        *,
+        platform: str,
+        organization_id: UUID,
+        bot_id: UUID,
+        user_id: UUID | None,
+        conversation_id: UUID | None = None,
+        message_history: list[Any] | None = None,
+    ) -> str:
+        """Run the only agent this bot serves and return what it said.
+
+        The unaddressed half of :meth:`answer`: a message naming no handle goes
+        to the bot's single active exposure, because someone messaging a bot
+        that serves exactly one agent has already said which agent they want.
+        With several exposed there is no honest guess - the sender is asked to
+        name one - and with none there is nothing to run at all.
+
+        Args:
+            text: The whole incoming message; there is no handle to strip.
+            message_history: The channel thread so far, in Pydantic AI's format.
+                A direct-message bot is a conversation, not a sequence of
+                one-shot prompts, and the mention path's statelessness is about
+                shared channels, not about this one.
+
+        Raises:
+            BadRequestError: If the bot exposes no agent, or more than one.
+                Both messages say what to do next, because the person reading
+                them is standing in a chat that just refused to answer.
+            AuthorizationError: If the sender never linked an account.
+            NotFoundError: If the sender may not see the one exposed agent.
+        """
+        exposed = await agent_exposure_repo.list_active_for_bot(self.db, channel_bot_id=bot_id)
+        if not exposed:
+            raise BadRequestError(message=_NOTHING_EXPOSED_HERE, details={"bot_id": str(bot_id)})
+        if len(exposed) > 1:
+            handles = ", ".join(f"@{agent.slug}" for _, agent in exposed)
+            raise BadRequestError(
+                message=_SAY_WHICH.format(handles=handles),
+                details={"bot_id": str(bot_id), "handles": handles},
+            )
+
+        exposure, agent = exposed[0]
+        ctx = await self._context(organization_id, user_id, slug=agent.slug)
+        answer, _run = await self.runner.execute(
+            ctx,
+            agent.id,
+            text,
+            surface=_SURFACES.get(platform, RunSurface.API),
+            conversation_id=conversation_id,
+            message_history=message_history,
             exposure=exposure,
         )
         return answer

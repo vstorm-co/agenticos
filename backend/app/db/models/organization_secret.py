@@ -10,15 +10,15 @@ tenants share a deployment.
 So it is a row here, and everything about the design follows from one rule:
 **a secret is referenced, never handed around.**
 
-* A capability declares in ``register(...)`` that it needs a secret of a given
+* A capability declares in `register(...)` that it needs a secret of a given
   *kind*, the way it declares scopes.
 * A binding names *which* secret by id. Publish validation refuses a reference
   that does not exist, is the wrong kind, or belongs to another organization.
 * The factory unseals it and injects it into the capability instance at build
-  time. It never reaches ``AgentDeps``, never becomes a tool argument, never
+  time. It never reaches `AgentDeps`, never becomes a tool argument, never
   enters the model's context, and never appears in a log line or an audit entry.
 * There is no API that returns a plaintext secret. Reading is the runtime's
-  privilege; the UI gets ``hint``.
+  privilege; the UI gets `hint`.
 
 That is what separates this from a password manager. The model cannot see a
 secret and cannot choose which one is used - code defines, configuration

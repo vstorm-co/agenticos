@@ -1,6 +1,6 @@
 """Credential and ModelProfile repositories (PostgreSQL async).
 
-``organization_id`` is a required keyword on every function here - a provider
+`organization_id` is a required keyword on every function here - a provider
 key is the last thing that should leak across tenants, and a forgotten filter
 must not look like an ordinary call (see tests/test_org_scope_regression.py).
 """

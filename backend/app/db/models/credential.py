@@ -27,7 +27,7 @@ class ModelProfile(Base, TimestampMixin):
     """A selectable "model" in the UI: a provider, a model id and a key.
 
     This is the unit an agent spec references. Naming it ("Claude Sonnet (prod)")
-    rather than storing ``anthropic:claude-sonnet-4-6`` in every spec means the
+    rather than storing `anthropic:claude-sonnet-4-6` in every spec means the
     organization can repoint or rekey every agent at once, and that a spec
     exported to git carries no secret and no infrastructure detail.
     """

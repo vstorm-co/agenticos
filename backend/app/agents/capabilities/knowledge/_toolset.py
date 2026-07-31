@@ -13,7 +13,7 @@ def build_knowledge_toolset(*, default_top_k: int) -> FunctionToolset[AgentDeps]
     """A toolset with one search tool, under the name it is declared with.
 
     The same search is "Search orders" for one agent and "Look up policies" for
-    another - but that is said in the binding's ``tool_overrides``, applied for
+    another - but that is said in the binding's `tool_overrides`, applied for
     every capability at once, not here. A rename this toolset performed itself
     would be invisible to the approval gate.
     """

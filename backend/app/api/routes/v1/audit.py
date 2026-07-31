@@ -1,6 +1,6 @@
 """Audit routes - who did what in this organization.
 
-Gated by ``audit:read``, which owners and admins hold. The log is written by the
+Gated by `audit:read`, which owners and admins hold. The log is written by the
 services performing gated mutations, not by the route layer, so an action is
 recorded whether it arrives over HTTP, a channel or a background flow.
 """

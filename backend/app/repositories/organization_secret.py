@@ -1,6 +1,6 @@
 """Organization secret repository (PostgreSQL async).
 
-``organization_id`` is a required keyword on every function here. A secret is
+`organization_id` is a required keyword on every function here. A secret is
 the last thing that should leak across tenants, and a forgotten filter must not
 look like an ordinary call (see tests/test_org_scope_regression.py).
 """

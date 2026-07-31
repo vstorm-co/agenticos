@@ -23,7 +23,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from pydantic_ai.tools import DeferredToolRequests
 
-from app.agents.capabilities.budget import BudgetExceeded
+from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
 from app.agents.deps import AgentDeps
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import OrgRoleName
@@ -32,6 +32,7 @@ from app.services.agent_chat import (
     ChatAgentRunner,
     display_output,
     requested_agent_id,
+    requested_environment_id,
     requested_model_profile_id,
 )
 
@@ -39,7 +40,7 @@ pytestmark = pytest.mark.anyio
 
 
 class _Iteration:
-    """Stands in for ``agent.iter`` - an async context manager over one run."""
+    """Stands in for `agent.iter` - an async context manager over one run."""
 
     def __init__(self, agent_run: MagicMock) -> None:
         self.agent_run = agent_run
@@ -88,7 +89,7 @@ def _runner(
 ) -> Iterator[MagicMock]:
     """Patch out the row lookups and the runner, keeping this module's logic real.
 
-    ``membership=None`` is someone with no standing in the organization.
+    `membership=None` is someone with no standing in the organization.
     """
     with (
         patch("app.services.agent_chat.member_repo") as members,
@@ -138,6 +139,27 @@ class TestAddressingAnAgent:
         agent_id = uuid.uuid4()
 
         assert requested_agent_id({"agent_id": str(agent_id)}) == agent_id
+
+
+class TestAddressingAnEnvironment:
+    """Which named environment a frame asks for, if any."""
+
+    @pytest.mark.parametrize("frame", [{}, {"environment_id": None}, {"environment_id": ""}])
+    def test_a_frame_that_names_no_environment_gets_the_default(self, frame):
+        assert requested_environment_id(frame) is None
+
+    def test_a_named_environment_is_read_back_as_its_id(self):
+        environment_id = uuid.uuid4()
+
+        assert requested_environment_id({"environment_id": str(environment_id)}) == environment_id
+
+    def test_something_that_is_not_an_id_is_refused_rather_than_ignored(self):
+        """Falling back to the default would run a version the person did not
+        pick and say nothing about it."""
+        with pytest.raises(BadRequestError) as refused:
+            requested_environment_id({"environment_id": "not-a-uuid"})
+
+        assert refused.value.details == {"environment_id": "not-a-uuid"}
 
 
 class TestAddressingAModel:
@@ -261,7 +283,7 @@ class TestRecordingTheRun:
 
     async def test_a_budget_stop_is_recorded_as_a_budget_stop_not_a_failure(self):
         """An operator filtering run history for problems should not wade through it."""
-        stopped = BudgetExceeded(limit_usd=1, spent_usd=2, scope="run")
+        stopped = BudgetExceeded(limit_usd=1, spent_usd=2, scope=BudgetScope.AGENT)
 
         with _runner(_prepared()) as runner, pytest.raises(BudgetExceeded):
             await _run(_db(), stream=AsyncMock(side_effect=stopped))

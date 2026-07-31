@@ -5,6 +5,8 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
   ArrowUpRight,
+  Bot,
+  Building2,
   MessageSquare,
   MessagesSquare,
   RefreshCw,
@@ -16,16 +18,28 @@ import type { LucideIcon } from "lucide-react";
 
 import { StatCard } from "@/components/dashboard/stat-card";
 import { LoadingState } from "@/components/states";
-import { Button } from "@/components/ui";
+import { Badge, Button } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
-import { timeAgo } from "@/lib/utils";
+import { formatDate, timeAgo } from "@/lib/utils";
 
 interface AdminStats {
   total_users?: number;
   active_users_24h?: number;
+  total_organizations?: number;
+  total_agents?: number;
   total_conversations?: number;
   total_messages?: number;
+}
+
+interface AdminOrganization {
+  id: string;
+  name: string;
+  slug: string;
+  is_personal: boolean;
+  member_count: number;
+  agent_count: number;
+  created_at: string;
 }
 
 interface RecentEvent {
@@ -59,6 +73,16 @@ export default function AdminOverviewPage() {
     },
   });
 
+  const orgsQuery = useQuery({
+    queryKey: ["admin", "organizations"],
+    queryFn: async (): Promise<AdminOrganization[]> => {
+      const data = await apiClient
+        .get<{ items: AdminOrganization[] }>("/admin/organizations?limit=50")
+        .catch(() => null);
+      return data?.items ?? [];
+    },
+  });
+
   const eventsQuery = useQuery({
     queryKey: ["admin", "events"],
     queryFn: async (): Promise<RecentEvent[]> => {
@@ -83,7 +107,8 @@ export default function AdminOverviewPage() {
 
   const stats = statsQuery.data;
   const events = eventsQuery.data;
-  const refreshing = statsQuery.isFetching || eventsQuery.isFetching;
+  const orgs = orgsQuery.data;
+  const refreshing = statsQuery.isFetching || eventsQuery.isFetching || orgsQuery.isFetching;
 
   return (
     <div className="space-y-6">
@@ -94,6 +119,7 @@ export default function AdminOverviewPage() {
           onClick={() => {
             statsQuery.refetch();
             eventsQuery.refetch();
+            orgsQuery.refetch();
           }}
         >
           <RefreshCw className={refreshing ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />
@@ -102,9 +128,9 @@ export default function AdminOverviewPage() {
       </div>
 
       {statsQuery.isLoading ? (
-        <LoadingState variant="stats" rows={4} />
+        <LoadingState variant="stats" rows={6} />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <StatCard
             label="Total users"
             value={(stats?.total_users ?? 0).toLocaleString()}
@@ -115,6 +141,12 @@ export default function AdminOverviewPage() {
             value={(stats?.active_users_24h ?? 0).toLocaleString()}
             icon={Activity}
           />
+          <StatCard
+            label="Organizations"
+            value={(stats?.total_organizations ?? 0).toLocaleString()}
+            icon={Building2}
+          />
+          <StatCard label="Agents" value={(stats?.total_agents ?? 0).toLocaleString()} icon={Bot} />
           <StatCard
             label="Conversations"
             value={(stats?.total_conversations ?? 0).toLocaleString()}
@@ -153,6 +185,60 @@ export default function AdminOverviewPage() {
           title="Response ratings"
           description="Quality signals from users"
         />
+      </section>
+
+      <section className="border-border bg-card rounded-xl border">
+        <div className="border-border border-b px-5 py-4">
+          <h2 className="text-foreground text-sm font-semibold">Organizations</h2>
+          <p className="text-muted-foreground text-xs">
+            Every tenant in the deployment - only the platform admin sees this list.
+          </p>
+        </div>
+        {orgs === undefined ? (
+          <div className="p-5">
+            <LoadingState variant="skeleton-list" rows={4} />
+          </div>
+        ) : orgs.length === 0 ? (
+          <div className="text-muted-foreground px-5 py-12 text-center text-sm">
+            No organizations yet.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[36rem] text-sm">
+              <thead>
+                <tr className="border-border text-muted-foreground border-b text-left text-xs">
+                  <th className="px-5 py-2.5 font-medium">Name</th>
+                  <th className="px-3 py-2.5 font-medium">Slug</th>
+                  <th className="px-3 py-2.5 text-right font-medium">Members</th>
+                  <th className="px-3 py-2.5 text-right font-medium">Agents</th>
+                  <th className="px-5 py-2.5 text-right font-medium">Created</th>
+                </tr>
+              </thead>
+              <tbody className="divide-border divide-y">
+                {orgs.map((org) => (
+                  <tr key={org.id}>
+                    <td className="px-5 py-3">
+                      <span className="text-foreground font-medium">{org.name}</span>
+                      {org.is_personal && (
+                        <Badge variant="outline" className="ml-2 text-[10px]">
+                          Personal
+                        </Badge>
+                      )}
+                    </td>
+                    <td className="text-muted-foreground px-3 py-3 font-mono text-xs">
+                      {org.slug}
+                    </td>
+                    <td className="px-3 py-3 text-right tabular-nums">{org.member_count}</td>
+                    <td className="px-3 py-3 text-right tabular-nums">{org.agent_count}</td>
+                    <td className="text-muted-foreground px-5 py-3 text-right text-xs">
+                      {formatDate(org.created_at)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       <section className="border-border bg-card rounded-xl border">

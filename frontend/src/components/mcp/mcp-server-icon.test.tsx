@@ -1,9 +1,29 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { render } from "@testing-library/react";
 
 import { McpServerIcon } from "./mcp-server-icon";
 
+// The deployment in these tests ships one custom mark, `acme`. Only the hook
+// is replaced - `CustomMark` itself stays real, so what renders is what ships.
+vi.mock("@/components/icons/custom-icons", async () => {
+  const actual = await vi.importActual<typeof import("@/components/icons/custom-icons")>(
+    "@/components/icons/custom-icons",
+  );
+  return { ...actual, useCustomIcons: () => new Set(["acme"]) };
+});
+
 describe("McpServerIcon", () => {
+  it("draws a deployment-supplied mark for a name no compiled set carries", () => {
+    // The cascade's middle step: the operator dropped `acme.svg` beside the
+    // catalog, so an entry with `icon: "acme"` gets its mark rather than the
+    // monogram - as a currentColor mask, which keeps the register monochrome.
+    const { container } = render(<McpServerIcon icon="acme" name="Acme CRM" />);
+    const mark = container.firstElementChild as HTMLElement;
+
+    expect(mark.style.maskImage).toBe('url("/api/catalog/icons/acme")');
+    expect(container.textContent).toBe("");
+  });
+
   it("renders the brand mark the catalog names", () => {
     const { container } = render(<McpServerIcon icon="sentry" name="Sentry" />);
     expect(container.querySelector("svg")).not.toBeNull();

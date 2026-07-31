@@ -1,11 +1,11 @@
 """Fixtures for tests that need a real database.
 
-These tests exist because a mock cannot tell you whether a ``CHECK`` constraint
+These tests exist because a mock cannot tell you whether a `CHECK` constraint
 rejects a row, whether a cascade deletes what it should, or whether a partial
 unique index actually prevents a second default. Those are the guarantees the
 schema is supposed to provide, and the only way to know is to ask Postgres.
 
-The whole module is skipped when no database is reachable, so ``make test`` on a
+The whole module is skipped when no database is reachable, so `make test` on a
 laptop without Docker still runs everything else.
 """
 
@@ -70,7 +70,7 @@ async def engine():
     The schema is created from the models rather than by running migrations:
     these tests assert what the *code* believes the schema is. Whether the
     migrations arrive at the same place is a separate question, answered by
-    ``make test-migrations``.
+    `make test-migrations`.
 
     Function-scoped rather than session-scoped: anyio's backend fixture is
     per-function, and a session-scoped async fixture cannot depend on it.

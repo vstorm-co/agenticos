@@ -33,9 +33,8 @@ function exposure(overrides: Partial<Exposure> = {}): Exposure {
     surface: "slack",
     channel_bot_id: "b1",
     channel_bot_name: "Acme Support",
+    environment_id: null,
     is_active: true,
-    max_per_run_usd: null,
-    monthly_usd: null,
     created_at: null,
     ...overrides,
   };
@@ -89,6 +88,34 @@ describe("ExposuresPanel", () => {
 
     expect(
       await screen.findByText("Paused - the handle answers nothing here."),
+    ).toBeInTheDocument();
+  });
+
+  it("points at the register panel instead of a picker nothing can be picked from", async () => {
+    // A disabled select saying "no unbound bots" was a dead end: somebody who
+    // has never registered a bot learns here that one is needed, and that the
+    // panel below this one is where it happens.
+    serve([], []);
+    await mount();
+
+    expect(screen.queryByRole("combobox", { name: "Add a channel" })).not.toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        "This organization has no channel bots yet. Register one in the panel below, then bind it here.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("says when the agent is already on every registered bot", async () => {
+    // Same empty picker, opposite meaning: nothing is missing, everything is
+    // already bound - sending somebody off to register a bot would be wrong.
+    serve([exposure({ channel_bot_id: "b1" })], [target({ id: "b1" })]);
+    await mount();
+
+    expect(
+      await screen.findByText(
+        "This agent is already on every bot this organization has registered.",
+      ),
     ).toBeInTheDocument();
   });
 
@@ -150,68 +177,5 @@ describe("ExposuresPanel", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Remove from Acme Support" }));
 
     expect(apiClient.delete).toHaveBeenCalledWith(`/agents/${AGENT_ID}/exposures/e1`);
-  });
-});
-
-describe("ExposuresPanel spending limits", () => {
-  it("says out loud when a binding can spend without a ceiling", async () => {
-    // A blank cell reads as "nothing to see", and an uncapped binding is the one
-    // thing on this screen worth noticing.
-    serve([exposure()], []);
-    await mount();
-
-    expect(await screen.findByText("No spending limit")).toBeInTheDocument();
-  });
-
-  it("shows both caps when both are set", async () => {
-    serve([exposure({ max_per_run_usd: "0.50", monthly_usd: "25" })], []);
-    await mount();
-
-    expect(await screen.findByText("$0.50 per conversation · $25 per month")).toBeInTheDocument();
-  });
-
-  it("sends only the limits when they are saved", async () => {
-    // Not `is_active` too: the server writes exactly what it is sent, so
-    // including it here would let saving a cap resume a binding somebody paused.
-    serve([exposure()], []);
-    vi.mocked(apiClient.patch).mockResolvedValue(exposure({ monthly_usd: "25" }));
-    await mount();
-
-    await userEvent.click(
-      await screen.findByRole("button", { name: "Set spending limits for Acme Support" }),
-    );
-    await userEvent.type(screen.getByLabelText("Max per month (USD)"), "25");
-    await userEvent.click(screen.getByRole("button", { name: "Save" }));
-
-    expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/exposures/e1`, {
-      max_per_run_usd: null,
-      monthly_usd: "25",
-    });
-  });
-
-  it("clears a cap when the field is emptied", async () => {
-    serve([exposure({ monthly_usd: "25" })], []);
-    vi.mocked(apiClient.patch).mockResolvedValue(exposure());
-    await mount();
-
-    await userEvent.click(
-      await screen.findByRole("button", { name: "Set spending limits for Acme Support" }),
-    );
-    await userEvent.clear(screen.getByLabelText("Max per month (USD)"));
-    await userEvent.click(screen.getByRole("button", { name: "Save" }));
-
-    expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/exposures/e1`, {
-      max_per_run_usd: null,
-      monthly_usd: null,
-    });
-  });
-
-  it("does not offer the limits to somebody who cannot publish the agent", async () => {
-    serve([exposure()], []);
-    await mount({ canManage: false });
-
-    expect(
-      await screen.findByRole("button", { name: "Set spending limits for Acme Support" }),
-    ).toBeDisabled();
   });
 });

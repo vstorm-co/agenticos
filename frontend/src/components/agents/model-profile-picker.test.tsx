@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -51,10 +51,33 @@ describe("ModelProfilePicker", () => {
     expect(screen.queryByText(/rotate a key or repoint/)).toBeNull();
   });
 
-  it("offers it where an agent is configured", () => {
+  it("offers it where an agent is configured, without asking first", () => {
+    // The form is the panel, not a state of it. Choosing a model is choosing a
+    // provider, a model and a key; a list of profiles somebody else created is
+    // not where that decision starts, and on a fresh deployment the list is
+    // empty and the real control was a click away behind "Add a model".
     mount({ allowAdd: true });
 
-    expect(screen.getByRole("button", { name: "Add a model" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Provider")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add model" })).toBeInTheDocument();
+  });
+
+  it("keeps the saved models one disclosure down rather than dropping them", () => {
+    // A named profile is what lets an organization rotate a key or repoint every
+    // agent at once, so it does not go away - it just stops being the first
+    // thing anybody sees.
+    mount({ allowAdd: true });
+
+    expect(screen.getByText("Use a saved model (1)")).toBeInTheDocument();
+  });
+
+  it("states which model the agent is on above the form that would change it", () => {
+    // The form being the default view puts the one fact somebody opens this
+    // panel to check at risk of being the only thing behind a disclosure.
+    mount({ allowAdd: true, value: "p1" });
+
+    const current = screen.getByRole("group", { name: "Current model" });
+    expect(within(current).getByText("openai default")).toBeInTheDocument();
   });
 
   it("says a model has no key wherever it is shown", () => {

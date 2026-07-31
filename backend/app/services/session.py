@@ -109,7 +109,7 @@ class SessionService:
     ) -> SessionListResponse:
         """One page of the user's active sessions, most recently used first.
 
-        ``total`` is counted separately rather than taken from the page, because
+        `total` is counted separately rather than taken from the page, because
         the caller pages on it: revoking the last session on a page has to leave
         the client able to work out that the page is gone.
         """

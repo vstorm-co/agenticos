@@ -6,6 +6,7 @@ export { SectionHeading } from "./section-heading";
 export { Input } from "./input";
 export { Label } from "./label";
 export { Textarea } from "./textarea";
+export { MarkdownEditor } from "./markdown-editor";
 export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent } from "./card";
 export { Badge, badgeVariants } from "./badge";
 export { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "./sheet";

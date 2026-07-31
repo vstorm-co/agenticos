@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import String, func, select
+from sqlalchemy import func, select
 from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -99,7 +99,7 @@ async def get_conversations_by_user(
 ) -> list[Conversation]:
     """Get one organization's conversations, optionally narrowed to one user.
 
-    ``organization_id`` is a required keyword with no default: a call that omits
+    `organization_id` is a required keyword with no default: a call that omits
     the tenant would return every tenant's rows, and that mistake must not look
     like an ordinary call.
     """
@@ -115,58 +115,6 @@ async def get_conversations_by_user(
     )
     result = await db.execute(query)
     return list(result.scalars().all())
-
-
-async def get_all_conversations_with_count(
-    db: AsyncSession,
-    *,
-    skip: int = 0,
-    limit: int = 50,
-    include_archived: bool = False,
-    search: str | None = None,
-) -> tuple[list[tuple[Conversation, int]], int]:
-    """Get all conversations with message counts for admin (paginated).
-
-    Returns list of (conversation, message_count) tuples and total count.
-    """
-    message_count_subq = (
-        select(func.count(Message.id))
-        .where(Message.conversation_id == Conversation.id)
-        .correlate(Conversation)
-        .scalar_subquery()
-    )
-
-    query = select(Conversation, message_count_subq.label("message_count"))
-
-    if not include_archived:
-        query = query.where(Conversation.is_archived == False)  # noqa: E712
-    if search:
-        safe_search = search.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
-        query = query.where(
-            (Conversation.title.ilike(f"%{safe_search}%", escape="\\"))
-            | Conversation.id.cast(String).ilike(f"{safe_search}%", escape="\\")
-        )
-
-    query = (
-        query.order_by(func.coalesce(Conversation.updated_at, Conversation.created_at).desc())
-        .offset(skip)
-        .limit(limit)
-    )
-    result = await db.execute(query)
-    rows = result.all()
-
-    count_query = select(func.count(Conversation.id))
-    if not include_archived:
-        count_query = count_query.where(Conversation.is_archived == False)  # noqa: E712
-    if search:
-        safe_search = search.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
-        count_query = count_query.where(
-            (Conversation.title.ilike(f"%{safe_search}%", escape="\\"))
-            | Conversation.id.cast(String).ilike(f"{safe_search}%", escape="\\")
-        )
-    total: int = (await db.execute(count_query)).scalar() or 0
-
-    return [tuple(row) for row in rows], total
 
 
 async def admin_list_with_users(
@@ -273,9 +221,9 @@ async def create_conversation(
 ) -> Conversation:
     """Create a new conversation owned by an organization.
 
-    ``organization_id`` has no default on purpose: every conversation belongs to
+    `organization_id` has no default on purpose: every conversation belongs to
     a tenant, and a caller that cannot name one has a bug rather than a default.
-    ``user_id`` stays optional - channel conversations have no user.
+    `user_id` stays optional - channel conversations have no user.
     """
     conversation = Conversation(
         user_id=user_id,

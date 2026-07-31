@@ -62,7 +62,7 @@ async def get_active_polling_bots(db: AsyncSession, platform: str) -> list[Chann
 
     Deliberately unscoped: the poller is a background worker serving the whole
     deployment, not a request made by a member of one organization. Each bot it
-    returns still carries its own ``organization_id``.
+    returns still carries its own `organization_id`.
     """
     result = await db.execute(
         select(ChannelBot).where(
@@ -86,8 +86,8 @@ async def create(
     webhook_url: str | None = None,
     webhook_secret: str | None = None,
     access_policy: dict | None = None,
-    ai_model_override: str | None = None,
-    system_prompt_override: str | None = None,
+    slack_signing_secret_encrypted: str | None = None,
+    slack_app_token_encrypted: str | None = None,
 ) -> ChannelBot:
     """Create a new channel bot owned by an organization."""
     bot = ChannelBot(
@@ -100,8 +100,8 @@ async def create(
         webhook_url=webhook_url,
         webhook_secret=webhook_secret,
         access_policy=access_policy or dict(DEFAULT_ACCESS_POLICY),
-        ai_model_override=ai_model_override,
-        system_prompt_override=system_prompt_override,
+        slack_signing_secret_encrypted=slack_signing_secret_encrypted,
+        slack_app_token_encrypted=slack_app_token_encrypted,
     )
     db.add(bot)
     await db.flush()

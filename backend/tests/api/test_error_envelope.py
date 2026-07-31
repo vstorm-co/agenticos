@@ -1,8 +1,8 @@
 """Everything a client can be refused with leaves the API in one shape.
 
 There used to be two. Domain refusals came back as
-``{"error": {"code", "message", "details"}}``; schema validation came back as
-FastAPI's own ``{"detail": [...]}``. A client written against one shape does not
+`{"error": {"code", "message", "details"}}`; schema validation came back as
+FastAPI's own `{"detail": [...]}`. A client written against one shape does not
 fail loudly on the other - it silently reads nothing, which is how a duplicate
 name reached the browser as "Request failed" and a 422 reached it as the string
 form of a list of dicts.
@@ -13,11 +13,19 @@ value of a single shape is entirely in it being the only one.
 
 from __future__ import annotations
 
+from decimal import Decimal
+
 import pytest
 from fastapi.exceptions import RequestValidationError
 from httpx import AsyncClient
 
-from app.api.exception_handlers import _field_path, _summarize, validation_exception_handler
+from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
+from app.api.exception_handlers import (
+    _field_path,
+    _summarize,
+    budget_exceeded_handler,
+    validation_exception_handler,
+)
 from app.core.config import settings
 
 
@@ -106,6 +114,48 @@ class TestValidationEnvelope:
             json={"email": "nope", "password": "x"},
         )
         assert response.json()["error"]["message"] == "Some fields need fixing: email, password"
+
+    @pytest.mark.anyio
+    async def test_a_budget_refusal_is_a_4xx_in_the_same_envelope(self):
+        """`BudgetExceeded` reaching HTTP is the platform working - a document
+        upload against a spent cap - and a 500 would tell the operator
+        something crashed when the correct reading is "raise the limit or wait
+        for the first of the month"."""
+
+        class _Connection:
+            scope = {"type": "http"}
+            method = "POST"
+
+            class url:
+                path = "/api/v1/rag/documents"
+
+        response = await budget_exceeded_handler(
+            _Connection(),  # ty: ignore[invalid-argument-type]
+            BudgetExceeded(
+                limit_usd=Decimal("40"), spent_usd=Decimal("41.5"), scope=BudgetScope.ORGANIZATION
+            ),
+        )
+
+        assert response is not None
+        assert response.status_code == 402
+        body = response.body.decode()
+        assert '"BUDGET_EXCEEDED"' in body
+        assert "Organization monthly budget exhausted" in body
+
+    @pytest.mark.anyio
+    async def test_a_budget_refusal_on_a_websocket_scope_writes_no_body(self):
+        class _Connection:
+            scope = {"type": "websocket"}
+
+            class url:
+                path = "/ws"
+
+        refused = await budget_exceeded_handler(
+            _Connection(),  # ty: ignore[invalid-argument-type]
+            BudgetExceeded(limit_usd=Decimal("1"), spent_usd=Decimal("1"), scope=BudgetScope.AGENT),
+        )
+
+        assert refused is None
 
     @pytest.mark.anyio
     async def test_the_handler_answers_a_websocket_scope_with_nothing(self):

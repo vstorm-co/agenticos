@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { GitCompare, Undo2 } from "lucide-react";
+import { stringify } from "yaml";
 
 import {
   Badge,
@@ -16,7 +17,7 @@ import { LoadingState } from "@/components/states";
 import { useAgentVersion } from "@/hooks";
 import { collapseUnchanged, diffLines, diffStat } from "@/lib/diff";
 import { cn, formatDate } from "@/lib/utils";
-import type { AgentSpec, AgentVersion } from "@/types/agents";
+import type { AgentEnvironment, AgentSpec, AgentVersion } from "@/types/agents";
 
 interface VersionHistoryProps {
   agentId: string;
@@ -28,10 +29,55 @@ interface VersionHistoryProps {
   canRestore: boolean;
   onRestore: (versionId: string) => void;
   restoring?: boolean;
+  /** Named environments, so each row can say where it is serving. */
+  environments?: AgentEnvironment[];
+  /** Repoint one environment at this row's version - promotion. */
+  onPromote?: (environmentId: string, versionId: string) => void;
+  promoting?: boolean;
 }
 
 /** The draft is a comparison target with no version id of its own. */
 const DRAFT = "__draft__";
+
+/**
+ * "Promote to…" for one version row: pick an environment not already serving
+ * it. A select rather than one button because an agent can have several
+ * environments, and the row must say which one is being repointed.
+ */
+function PromoteMenu({
+  version,
+  environments,
+  onPromote,
+  promoting,
+}: {
+  version: AgentVersion;
+  environments: AgentEnvironment[];
+  onPromote: (environmentId: string, versionId: string) => void;
+  promoting?: boolean;
+}) {
+  const targets = environments.filter(
+    (environment) => environment.version_id !== version.id,
+  );
+  if (targets.length === 0) return null;
+  return (
+    <Select
+      value=""
+      disabled={promoting}
+      onValueChange={(environmentId) => onPromote(environmentId, version.id)}
+    >
+      <SelectTrigger className="w-36" aria-label={`Promote v${version.version} to…`}>
+        <SelectValue placeholder="Promote to…" />
+      </SelectTrigger>
+      <SelectContent>
+        {targets.map((environment) => (
+          <SelectItem key={environment.id} value={environment.id}>
+            {environment.name} (v{environment.version} → v{version.version})
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
 
 /**
  * What changed between two versions of an agent, and the way back to either.
@@ -52,6 +98,9 @@ export function VersionHistory({
   canRestore,
   onRestore,
   restoring,
+  environments = [],
+  onPromote,
+  promoting,
 }: VersionHistoryProps) {
   // Newest against the one before it: the comparison somebody opening a history
   // almost always wants, and the one that needs no explaining.
@@ -95,6 +144,15 @@ export function VersionHistory({
                 {version.created_at ? ` · ${formatDate(version.created_at)}` : ""}
               </p>
             </div>
+            {/* Which environments serve this exact version - the fact that
+                turns "is dev ahead of prod" from archaeology into a glance. */}
+            {environments
+              .filter((environment) => environment.version_id === version.id)
+              .map((environment) => (
+                <Badge key={environment.id} variant="secondary" className="font-mono">
+                  {environment.name}
+                </Badge>
+              ))}
             {version.id === currentVersionId && <Badge>live</Badge>}
             <Button
               size="sm"
@@ -107,6 +165,14 @@ export function VersionHistory({
               <GitCompare className="h-4 w-4" />
               Compare
             </Button>
+            {onPromote && canRestore && (
+              <PromoteMenu
+                version={version}
+                environments={environments}
+                onPromote={onPromote}
+                promoting={promoting}
+              />
+            )}
             {canRestore && version.id !== currentVersionId && (
               <Button
                 size="sm"
@@ -168,14 +234,17 @@ export function VersionHistory({
 }
 
 /**
- * Two specs, side by side as a unified diff.
+ * Two specs as a unified diff.
  *
- * Rendered from a stable JSON serialization rather than the YAML the export
- * endpoint produces: a diff has to be a statement about the configuration, and
- * key order that moves between two dumps would show as a change nobody made.
+ * Diffed over YAML rather than JSON, because the diff is read, not parsed:
+ * YAML drops the braces, quotes and commas, and it renders a multi-line
+ * instruction as its actual lines - so editing one paragraph shows as that
+ * paragraph, not as one endless string with `\n` in it. Keys are sorted at
+ * serialization, so key order that moves between two dumps cannot show as a
+ * change nobody made.
  */
 function SpecDiff({ before, after }: { before: AgentSpec; after: AgentSpec }) {
-  const lines = useMemo(() => diffLines(stableJson(before), stableJson(after)), [before, after]);
+  const lines = useMemo(() => diffLines(specText(before), specText(after)), [before, after]);
   const stat = diffStat(lines);
   const rows = useMemo(() => collapseUnchanged(lines), [lines]);
 
@@ -189,13 +258,15 @@ function SpecDiff({ before, after }: { before: AgentSpec; after: AgentSpec }) {
         <span className="text-emerald-600 dark:text-emerald-400">+{stat.added}</span>{" "}
         <span className="text-destructive">−{stat.removed}</span>
       </p>
+      {/* No line-number gutters: they numbered a serialization nobody has a
+          copy of, and two columns of them out-inked the diff itself. */}
       <div className="max-h-96 overflow-auto rounded-md border">
-        <table className="w-full border-collapse font-mono text-xs">
+        <table className="w-full border-collapse font-mono text-xs leading-5">
           <tbody>
             {rows.map((row, index) =>
               row.kind === "gap" ? (
                 <tr key={`gap-${index}`} className="bg-muted/40">
-                  <td colSpan={3} className="text-muted-foreground px-3 py-1 text-center">
+                  <td colSpan={2} className="text-muted-foreground px-3 py-1 text-center">
                     {row.hidden} unchanged {row.hidden === 1 ? "line" : "lines"}
                   </td>
                 </tr>
@@ -203,22 +274,15 @@ function SpecDiff({ before, after }: { before: AgentSpec; after: AgentSpec }) {
                 <tr
                   key={`${row.kind}-${row.before ?? ""}-${row.after ?? ""}-${index}`}
                   className={cn(
+                    row.kind === "same" && "text-muted-foreground",
                     row.kind === "added" && "bg-emerald-500/10",
                     row.kind === "removed" && "bg-destructive/10",
                   )}
                 >
-                  <td className="text-muted-foreground w-10 border-r px-2 py-0.5 text-right select-none">
-                    {row.before ?? ""}
+                  <td className="text-muted-foreground w-6 px-2 py-0.5 text-center select-none">
+                    {row.kind === "added" ? "+" : row.kind === "removed" ? "−" : ""}
                   </td>
-                  <td className="text-muted-foreground w-10 border-r px-2 py-0.5 text-right select-none">
-                    {row.after ?? ""}
-                  </td>
-                  <td className="w-full px-2 py-0.5 whitespace-pre-wrap">
-                    <span className="text-muted-foreground select-none">
-                      {row.kind === "added" ? "+" : row.kind === "removed" ? "−" : " "}
-                    </span>{" "}
-                    {row.text}
-                  </td>
+                  <td className="w-full py-0.5 pr-2 whitespace-pre-wrap">{row.text}</td>
                 </tr>
               ),
             )}
@@ -229,14 +293,11 @@ function SpecDiff({ before, after }: { before: AgentSpec; after: AgentSpec }) {
   );
 }
 
-/** JSON with its keys sorted, so a re-serialization is not a diff. */
-export function stableJson(value: unknown): string {
-  return JSON.stringify(value, (_key, node: unknown) => sortKeys(node), 2);
-}
-
-function sortKeys(node: unknown): unknown {
-  if (node === null || typeof node !== "object" || Array.isArray(node)) return node;
-  return Object.fromEntries(
-    Object.entries(node as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b)),
-  );
+/**
+ * A spec as diffable text: YAML with its keys sorted, so a re-serialization is
+ * not a diff, and with folding off, so a long line cannot reflow its neighbours
+ * into changes.
+ */
+export function specText(value: unknown): string {
+  return stringify(value, { sortMapEntries: true, lineWidth: 0 });
 }

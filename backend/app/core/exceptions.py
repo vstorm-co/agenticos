@@ -14,7 +14,7 @@ class AppException(Exception):
         message: Human-readable error message.
         code: Machine-readable error code for clients.
         status_code: HTTP status code to return.
-        details: Additional error details (e.g., field names, IDs). ``None`` when not provided.
+        details: Additional error details (e.g., field names, IDs). `None` when not provided.
     """
 
     message: str = "An error occurred"

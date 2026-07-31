@@ -120,20 +120,28 @@ class OrganizationService:
         data: OrganizationUpdate,
         requester_id: UUID,
     ) -> Organization:
-        """Update org metadata and settings. Requires ADMIN or OWNER role.
+        """Update org metadata and settings.
 
-        The monthly spending cap is one of those settings, gated by the same
-        ``org:settings`` permission as the rest - it is not a separate
-        entitlement, and giving it one would mean two answers to "who configures
-        this organization".
+        Two permissions decide this PATCH, each covering the fields it names:
+        `org:settings` for the metadata (name, avatar), `budgets:manage` for
+        the monthly spending cap. The built-in Owner and Admin hold both, so
+        nothing changes for them - but the catalog advertises `budgets:manage`
+        as its own entitlement, and a permission the matrix shows and no
+        endpoint consults is a row that means nothing.
         """
         org, membership = await self.get_for_user(org_id, requester_id)
-        if not role_has(membership.role, Perm.ORG_SETTINGS):
+        wants_budget = "monthly_budget_usd" in data.model_fields_set
+        wants_metadata = bool(data.model_fields_set - {"monthly_budget_usd"})
+        if wants_metadata and not role_has(membership.role, Perm.ORG_SETTINGS):
             raise AuthorizationError(message="Only Owner or Admin can update the organization")
+        if wants_budget and not role_has(membership.role, Perm.BUDGETS_MANAGE):
+            raise AuthorizationError(
+                message="Changing the spending limit requires 'budgets:manage'"
+            )
 
-        if "monthly_budget_usd" in data.model_fields_set:
+        if wants_budget:
             # Keyed on the field being named, not on its value: an explicit
-            # ``null`` lifts the ceiling, and every other PATCH must leave it
+            # `null` lifts the ceiling, and every other PATCH must leave it
             # exactly where it was.
             org = await organization_repo.set_monthly_budget(
                 self.db, org, limit_usd=data.monthly_budget_usd

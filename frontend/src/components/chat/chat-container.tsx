@@ -34,8 +34,8 @@ export function ChatContainer() {
   // An archived conversation is read-only: the backend refuses new messages on
   // it, so the composer says so instead of letting a send fail server-side.
   const isArchived =
-    conversations.find((conversation) => conversation.id === currentConversationId)
-      ?.is_archived ?? false;
+    conversations.find((conversation) => conversation.id === currentConversationId)?.is_archived ??
+    false;
 
   const handleConversationCreated = useCallback(() => {
     fetchConversations();

@@ -31,7 +31,7 @@ async def _run(email: str, revoke: bool) -> None:
             return
 
         if revoke:
-            if not getattr(user, "is_app_admin", False):
+            if not user.is_app_admin:
                 warning(f"{email} is not an app admin - nothing to revoke.")
                 return
             user.is_app_admin = False
@@ -39,7 +39,7 @@ async def _run(email: str, revoke: bool) -> None:
             await db.refresh(user)
             success(f"App-admin privileges revoked for {email}.")
         else:
-            if getattr(user, "is_app_admin", False):
+            if user.is_app_admin:
                 warning(f"{email} is already an app admin.")
                 return
             user.is_app_admin = True

@@ -31,5 +31,6 @@ export { useSkill, useSkillLibrary, useSkillResource, useSkills } from "./use-sk
 export { useSharing } from "./use-sharing";
 export { useEmbeds } from "./use-embeds";
 export { useChannelBots } from "./use-channel-bots";
+export { useAgentEnvironments } from "./use-agent-environments";
 export { useExposures } from "./use-exposures";
 export { usePollWhileIngesting, type IngestingDocument } from "./use-poll-while-ingesting";

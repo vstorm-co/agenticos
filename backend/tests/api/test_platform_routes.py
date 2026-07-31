@@ -1,7 +1,7 @@
 """Authorization at the route layer - the failure unit tests cannot see.
 
 A service can be perfectly guarded and the platform still wide open. The gate is
-one argument on a decorator, so a route that forgets ``require(...)`` or names
+one argument on a decorator, so a route that forgets `require(...)` or names
 the wrong permission breaks no unit test anywhere: the service it calls is still
 tested, still correct, and now reachable by anyone. Only a request through the
 real app says otherwise, which is what everything here does.
@@ -12,7 +12,7 @@ gate at all.
 
 Callers are built from synthetic roles rather than the real ones - a role
 holding exactly one permission, and a role holding every permission except one.
-Driving the tests from ``owner`` and ``viewer`` would only show that some role
+Driving the tests from `owner` and `viewer` would only show that some role
 is refused somewhere; isolating a single permission is what makes "this route is
 gated on *this* permission, and nothing else" an assertion rather than a hope.
 """
@@ -71,7 +71,7 @@ def all_but(permission: Perm) -> str:
 def synthetic_roles(monkeypatch: pytest.MonkeyPatch) -> None:
     """Install the two isolating roles for every permission in the catalog.
 
-    ``AuthContext`` reads its permissions out of ``ROLE_PERMS`` by name, so
+    `AuthContext` reads its permissions out of `ROLE_PERMS` by name, so
     adding entries there is enough to describe a caller the product does not
     ship - which is the point: a real role holds too much to tell which of its
     permissions a route is actually checking.
@@ -100,7 +100,12 @@ class _Absent:
         if name == "db":
             return self
 
-        async def absent(*args: Any, **kwargs: Any) -> Any:
+        def absent(*args: Any, **kwargs: Any) -> Any:
+            # Raising at call time rather than await time serves both shapes
+            # of call site: an `await service.method()` never reaches the
+            # await, and the one sync method in the surface
+            # (`list_connectors`) refuses instead of handing FastAPI a
+            # coroutine it cannot serialize.
             raise NotFoundError(message=f"nothing for {name}", details={})
 
         return absent
@@ -120,6 +125,10 @@ _SERVICE_DEPS = (
     deps.get_sharing_service,
     deps.get_mcp_connection_service,
     deps.get_secret_service,
+    deps.get_knowledge_base_service,
+    deps.get_collection_access_service,
+    deps.get_sync_source_service,
+    deps.get_rag_document_service,
 )
 
 Provider = Callable[[], object]
@@ -133,11 +142,11 @@ class ClientFactory(Protocol):
 
 @pytest.fixture
 def as_role(mock_redis: MagicMock) -> Iterator[ClientFactory]:
-    """Open a client whose caller holds exactly the permissions of ``role``.
+    """Open a client whose caller holds exactly the permissions of `role`.
 
-    Overriding ``get_auth_context`` replaces the token, the organization header
+    Overriding `get_auth_context` replaces the token, the organization header
     and the membership lookup in one move: none of its sub-dependencies run, so
-    the request exercises the gate and nothing else. ``overrides`` replaces
+    the request exercises the gate and nothing else. `overrides` replaces
     individual dependencies for the tests that need a service to actually do
     something.
     """
@@ -184,7 +193,7 @@ _SPEC: dict[str, Any] = {"name": "Support"}
 # specification the tests below check the app against - so it must not be
 # derived from the app, or a route wired to the wrong permission would simply
 # rewrite its own expectation.
-# Only routes that carry a role-level ``require()`` gate belong here.
+# Only routes that carry a role-level `require()` gate belong here.
 #
 # Deliberately absent: everything acting on a single agent or skill. Those
 # delegate to a service that reads the role scope *and* the grants on that row,
@@ -239,31 +248,51 @@ CALLS: tuple[Call, ...] = (
     # The organization's MCP servers, per-resource routes included. That is the
     # same rule the agent routes follow, not an exception to it: a role gate is
     # wrong where a resource grant could widen the answer, and a connection has
-    # no grants and nobody to share it with. ``connections:manage`` is the whole
-    # decision, exactly as it is for the provider keys above.
-    Call("GET", "/mcp-connections", Perm.CONNECTIONS_MANAGE),
+    # no grants and nobody to share it with. `mcp:manage` is the whole
+    # decision - the permission the catalog names for MCP servers, which used
+    # to be advertised in the matrix and checked nowhere.
+    Call("GET", "/mcp-connections", Perm.MCP_MANAGE),
     Call(
         # Declared above `/{connection_id}`, which would otherwise read the
         # literal segment as a malformed UUID and answer 422 before the gate.
         "POST",
         "/mcp-connections/oauth/start",
-        Perm.CONNECTIONS_MANAGE,
+        Perm.MCP_MANAGE,
         body={"name": "github", "url": "https://mcp.example.com/mcp"},
     ),
     Call(
         "POST",
         "/mcp-connections",
-        Perm.CONNECTIONS_MANAGE,
+        Perm.MCP_MANAGE,
         body={"name": "github", "url": "https://mcp.example.com/mcp"},
     ),
     Call(
         "PATCH",
         "/mcp-connections/{connection_id}",
-        Perm.CONNECTIONS_MANAGE,
+        Perm.MCP_MANAGE,
         body={"is_enabled": False},
     ),
-    Call("DELETE", "/mcp-connections/{connection_id}", Perm.CONNECTIONS_MANAGE),
-    Call("POST", "/mcp-connections/{connection_id}/test", Perm.CONNECTIONS_MANAGE),
+    Call("DELETE", "/mcp-connections/{connection_id}", Perm.MCP_MANAGE),
+    Call("POST", "/mcp-connections/{connection_id}/test", Perm.MCP_MANAGE),
+    # Knowledge bases: the collection routes carry the role gate; every
+    # per-resource route hands the decision to the service, which resolves the
+    # caller's scope and grants against the row - `readable_kb`/`writable_kb`.
+    Call("GET", "/kb", Perm.COLLECTIONS_VIEW),
+    Call("POST", "/kb", Perm.COLLECTIONS_EDIT, body={"name": "Docs", "scope": "org"}),
+    # Org-level sync integrations hold encrypted credentials, so the whole
+    # surface is `connections:manage` - the permission, not a role-name list,
+    # which is what this router used to check.
+    Call("GET", "/org/integrations", Perm.CONNECTIONS_MANAGE),
+    Call("GET", "/org/integrations/connectors", Perm.CONNECTIONS_MANAGE),
+    Call(
+        "POST",
+        "/org/integrations",
+        Perm.CONNECTIONS_MANAGE,
+        body={"name": "Drive", "connector_type": "gdrive", "config": {"folder_id": "abc"}},
+    ),
+    Call("DELETE", "/org/integrations/{source_id}", Perm.CONNECTIONS_MANAGE),
+    Call("POST", "/org/integrations/{source_id}/trigger", Perm.CONNECTIONS_MANAGE),
+    Call("GET", "/org/integrations/{source_id}/logs", Perm.CONNECTIONS_MANAGE),
     # The organization's secrets. Same permission as the provider keys, for the
     # A secret is a shared resource now: it has an owner, a visibility and
     # grants, so the *collection* routes carry a role gate and the per-row ones
@@ -390,23 +419,21 @@ _PLATFORM_PREFIXES = (
     "/skills",
     "/providers",
     "/audit",
-    # The organization's MCP servers. ``/me/mcp-connections`` is a different
+    # The organization's MCP servers. `/me/mcp-connections` is a different
     # surface with a different owner and does not match this prefix, which is
     # the distinction this file is here to keep honest.
     "/mcp-connections",
     "/secrets",
+    # Knowledge bases moved into the platform layer when their access rules
+    # did: the service resolves scope and grants per row, so this sweep is
+    # what notices the next /kb route that resolves neither.
+    "/kb",
+    "/org/integrations",
 )
 
 
 def _is_platform(tail: str) -> bool:
-    """Whether a path belongs to the platform layer rather than the template.
-
-    Prefix matching, with one exception. Collection sharing is mounted under
-    the template's own ``/kb`` prefix, because a resource should have one
-    address and not two - so under ``/kb`` only the sharing endpoints are ours.
-    """
-    if tail.startswith("/kb/"):
-        return "/sharing" in tail
+    """Whether a path belongs to the platform layer rather than the template."""
     return tail.startswith(_PLATFORM_PREFIXES)
 
 
@@ -435,7 +462,7 @@ def _cell_values(call: Any) -> Iterator[Any]:
 def _required_permissions(route: APIRoute) -> frozenset[Perm]:
     """The permissions this route's dependency tree actually demands.
 
-    Read out of the closure ``require()`` builds rather than off the source: a
+    Read out of the closure `require()` builds rather than off the source: a
     dependency that is declared but never wired in - the exact mistake this file
     exists to catch - is invisible to anything that reads the decorator.
     """
@@ -461,6 +488,10 @@ RESOURCE_AWARE_SERVICES = (
     # it before touching a binding - so where an agent is available is decided
     # by the same grants that decide whether it can be published at all.
     deps.get_agent_exposure_service,
+    # Environments follow the exposures' shape exactly: every route acts on one
+    # agent, and which version answers under which name is `agents:publish` on
+    # that agent, resolved against its grants.
+    deps.get_agent_environment_service,
     # A secret is a shared resource: who may edit or delete one is its grants'
     # answer, resolved inside the service exactly as it is for an agent.
     deps.get_secret_service,
@@ -470,6 +501,10 @@ RESOURCE_AWARE_SERVICES = (
     deps.get_agent_embed_service,
     deps.get_agent_runner_service,
     deps.get_skill_service,
+    # A knowledge base is a shared resource like the rest: reads resolve
+    # through `readable_kb`, writes through `get_for_write`, both of which end
+    # at `resolve_access` for org rows. Every per-KB route depends on it.
+    deps.get_knowledge_base_service,
 )
 
 
@@ -495,13 +530,13 @@ class TestEveryPlatformRouteIsGuarded:
         """Authorization happens at the gate, or inside the sharing service.
 
         Every route acting on a *single* resource is the deliberate second
-        case. A ``require()`` gate tests the *role*, so a viewer holding an
+        case. A `require()` gate tests the *role*, so a viewer holding an
         explicit edit grant on one agent would be refused before
-        ``resolve_access`` ever got to widen their access - contradicting the
+        `resolve_access` ever got to widen their access - contradicting the
         rule the access layer is built on. Those routes therefore carry no gate
         and let the service decide per row, which is proven by
-        ``TestSharingRoutesRefuseWithoutAGrant`` below and by the grant flows in
-        ``tests/integration/test_platform_flows.py``.
+        `TestSharingRoutesRefuseWithoutAGrant` below and by the grant flows in
+        `tests/integration/test_platform_flows.py`.
 
         Routes acting on the *collection* - listing, creating, catalogs - keep
         their gate, because there is no resource whose grants could change the
@@ -518,7 +553,7 @@ class TestEveryPlatformRouteIsGuarded:
         """A new gated route must state which permission it is gated on.
 
         Failing here is not a bug report about the route - it is a missing entry
-        in ``CALLS``, without which nothing checks that its gate is the right one.
+        in `CALLS`, without which nothing checks that its gate is the right one.
         """
         tested = {(call.method, f"{settings.API_V1_STR}{call.path}") for call in CALLS}
         untested = sorted(
@@ -586,9 +621,9 @@ def _sharing_calls() -> list[tuple[str, str, dict[str, Any] | None]]:
 
 
 class TestSharingRoutesRefuseWithoutAGrant:
-    """What the missing ``require()`` on those routes is replaced by.
+    """What the missing `require()` on those routes is replaced by.
 
-    The caller here is a Member - a role that *holds* ``collections:edit``, just
+    The caller here is a Member - a role that *holds* `collections:edit`, just
     not on this row. That is the case a role-level gate cannot express and the
     reason these routes delegate: the answer depends on the row, not the role.
     """
@@ -616,13 +651,13 @@ class TestSharingRoutesRefuseWithoutAGrant:
 
 # -- the inverse guard, for routes that are deliberately open -----------------
 
-# What ``/public`` will serve: an agent exposed to anonymous visitors. Nothing
+# What `/public` will serve: an agent exposed to anonymous visitors. Nothing
 # is mounted there yet - the surface arrives with the identity work that makes it
 # defensible - and this table is empty on purpose rather than absent, so the
 # first public route lands into a guard instead of beside one.
 #
-# Adding a route under ``/public`` means adding it here. That is the whole point:
-# ``TestEveryPlatformRouteIsGuarded`` proves a route demands *something*, which a
+# Adding a route under `/public` means adding it here. That is the whole point:
+# `TestEveryPlatformRouteIsGuarded` proves a route demands *something*, which a
 # route that demands nothing by design would pass by accident. This one proves
 # somebody wrote down that it is open, and where its refusals are tested.
 PUBLIC_ROUTES: frozenset[tuple[str, str]] = frozenset()
@@ -634,7 +669,7 @@ _AUTHENTICATED_CALLER_DEPS = (
     # The WebSocket pair. A browser cannot set headers on a handshake, so the
     # socket reads its token from a subprotocol and its organization from the
     # query string - a different mechanism, the same claim, and it has to count
-    # as authentication or the sweep below would report ``/ws/agent`` as open.
+    # as authentication or the sweep below would report `/ws/agent` as open.
     deps.get_current_user_ws,
     deps.get_active_organization_ws,
 )
@@ -663,10 +698,10 @@ def _depends_on_a_caller(route: APIRoute | APIWebSocketRoute) -> bool:
 
 
 class TestLiteralPathsOutrankTheirParameters:
-    """``/agents/capabilities`` must not be read as an agent named "capabilities".
+    """`/agents/capabilities` must not be read as an agent named "capabilities".
 
     Starlette matches in declaration order, so a literal segment that sits below
-    an ``{agent_id}`` route is answered by that route instead - as a 422 about a
+    an `{agent_id}` route is answered by that route instead - as a 422 about a
     malformed UUID, before any gate or handler runs. Nothing else in the suite
     would notice: the gate test only asks whether a request is refused, and a 422
     is not a 403.
@@ -691,10 +726,10 @@ V1 = settings.API_V1_STR
 # Every route in the application that anybody can call without a session, and
 # the reason it has to be one.
 #
-# ``TestEveryPlatformRouteIsGuarded`` asks whether a route decides *something*,
-# which a route deciding nothing by design passes without a sound. ``/public``
-# has the table above for exactly that reason - and ``/public`` was the wrong
-# boundary to draw it at: ``GET /rag/status/stream`` shipped with no
+# `TestEveryPlatformRouteIsGuarded` asks whether a route decides *something*,
+# which a route deciding nothing by design passes without a sound. `/public`
+# has the table above for exactly that reason - and `/public` was the wrong
+# boundary to draw it at: `GET /rag/status/stream` shipped with no
 # authentication and no tenant in its payload, nowhere near that prefix, and
 # nothing in this suite had an opinion. It answered 500 in production only
 # because its own dependency was constructed wrong.
@@ -704,6 +739,11 @@ V1 = settings.API_V1_STR
 # in the diff of this list is a route a reviewer will look at.
 UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
     {
+        # Custom brand icons. The consumer is a CSS mask URL in the browser,
+        # which cannot attach a bearer token; what they reveal - which marks
+        # this deployment ships - is what any signed-in page renders anyway.
+        ("GET", f"{V1}/catalog/icons"),
+        ("GET", f"{V1}/catalog/icons/{{name}}"),
         # Liveness and readiness. Called by the load balancer, which has no
         # session, and they report nothing but whether this process can reach
         # Postgres and Redis.
@@ -737,9 +777,11 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # uploaded to be seen.
         ("GET", f"{V1}/users/avatar/{{user_id}}"),
         # Deployment configuration rather than tenant data: which parsers this
-        # build has. The same answer for every caller, so there is nothing here
-        # to scope - and nothing to protect either.
+        # build has, and which embedding models it can index with. The same
+        # answer for every caller, so there is nothing here to scope - and
+        # nothing to protect either.
         ("GET", f"{V1}/rag/supported-formats"),
+        ("GET", f"{V1}/rag/embedding-models"),
         # Inbound webhooks. Slack and Telegram will not send our tokens; they
         # sign or secret their own requests, and each handler verifies that
         # itself against the bot named in the path. A session dependency here
@@ -826,7 +868,7 @@ class TestEveryUnauthenticatedRouteIsDeliberate:
     def test_the_sweep_can_tell_the_two_apart(self) -> None:
         """Without this the guard passes by answering "authenticated" to everything.
 
-        ``_depends_on_a_caller`` walks a dependency tree; if it stopped finding
+        `_depends_on_a_caller` walks a dependency tree; if it stopped finding
         anything, every route would look open and both tests above would fail
         loudly - but if it started finding something everywhere, they would both
         pass on an empty set. This is the direction that fails quietly.
@@ -868,7 +910,7 @@ class TestEveryPublicRouteIsDeliberate:
         """A public page that 401s for a visitor is not public, it is broken.
 
         Worth asserting rather than assuming: the dependency that authenticates a
-        caller is inherited through ``Auth``, so one wrong annotation on a schema
+        caller is inherited through `Auth`, so one wrong annotation on a schema
         or a service is enough to pull it in without the route ever mentioning it.
         """
         gated = sorted(

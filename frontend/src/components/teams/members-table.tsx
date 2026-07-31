@@ -116,7 +116,9 @@ export function MembersTable({
                     </SelectContent>
                   </Select>
                 ) : (
-                  <Badge variant={roleBadgeVariant[m.role]}>{m.role}</Badge>
+                  <Badge variant={roleBadgeVariant[m.role]} className="capitalize">
+                    {m.role}
+                  </Badge>
                 )}
               </TableCell>
               <TableCell className="text-muted-foreground text-sm">

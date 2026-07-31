@@ -24,6 +24,7 @@ async def create_run(
     model_label: str | None,
     started_at: datetime,
     exposure_id: UUID | None = None,
+    environment_id: UUID | None = None,
     provider: str | None = None,
     secret_id: UUID | None = None,
 ) -> AgentRun:
@@ -34,6 +35,7 @@ async def create_run(
         user_id=user_id,
         conversation_id=conversation_id,
         exposure_id=exposure_id,
+        environment_id=environment_id,
         surface=surface,
         model_label=model_label,
         provider=provider,
@@ -138,15 +140,13 @@ async def sum_cost_since(
     organization_id: UUID,
     since: datetime,
     agent_id: UUID | None = None,
-    exposure_id: UUID | None = None,
 ) -> Decimal:
-    """Total spend in a window - what a monthly budget is checked against.
+    """Total run spend in a window - what a monthly budget is checked against.
 
-    The narrowing arguments are what make several caps possible at once. Each
-    cap has to be measured against the spend it is a cap *on*: an exposure's
-    ceiling checked against the organization's total would be exhausted by
-    unrelated internal runs while the binding's own traffic stayed invisible in
-    it, which is not a ceiling on the binding at all.
+    `agent_id` narrows the sum to one agent's runs, because the agent's cap has
+    to be measured against the spend it is a cap *on*: checked against the
+    organization's total it would be exhausted by the neighbours' runs while
+    the agent's own spend stayed invisible in it.
     """
     query = select(func.coalesce(func.sum(AgentRun.cost_usd), 0)).where(
         AgentRun.organization_id == organization_id,
@@ -154,8 +154,6 @@ async def sum_cost_since(
     )
     if agent_id is not None:
         query = query.where(AgentRun.agent_id == agent_id)
-    if exposure_id is not None:
-        query = query.where(AgentRun.exposure_id == exposure_id)
     result = await db.scalar(query)
     return Decimal(result or 0)
 

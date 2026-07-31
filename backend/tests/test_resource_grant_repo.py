@@ -2,13 +2,13 @@
 
 A repository's behaviour *is* the statement it builds, so these tests read the
 statement back rather than counting calls. That matters most for the predicate:
-a dropped ``organization_id`` filter is a cross-tenant read that no assertion
+a dropped `organization_id` filter is a cross-tenant read that no assertion
 about "the repository was called" would ever notice, and a wrong level filter
 hands out edit rights to people who were granted read.
 
 What the schema guarantees on top of this - one grant per member per resource,
 only the three defined levels - is asserted against a real database in
-``tests/integration/test_schema_guarantees.py``.
+`tests/integration/test_schema_guarantees.py`.
 """
 
 import uuid
@@ -24,7 +24,7 @@ pytestmark = pytest.mark.anyio
 
 
 class _RecordingSession:
-    """An ``AsyncSession`` stand-in that keeps the statements it was given."""
+    """An `AsyncSession` stand-in that keeps the statements it was given."""
 
     def __init__(self, *results: object) -> None:
         self._results = list(results)
@@ -68,7 +68,7 @@ def _affected(count: int | None):
 
 class TestGetLevel:
     async def test_a_stored_level_comes_back_as_the_enum(self):
-        """Callers rank it through ``GRANT_ORDER``, which a bare string misses entirely."""
+        """Callers rank it through `GRANT_ORDER`, which a bare string misses entirely."""
         session = _RecordingSession(_scalar(GrantLevel.EDIT.value))
 
         level = await resource_grant_repo.get_level(
@@ -82,7 +82,7 @@ class TestGetLevel:
         assert level is GrantLevel.EDIT
 
     async def test_a_member_who_was_never_granted_anything_has_no_level(self):
-        """``None`` is what makes the access check fall through to the role scope."""
+        """`None` is what makes the access check fall through to the role scope."""
         session = _RecordingSession(_scalar(None))
 
         level = await resource_grant_repo.get_level(

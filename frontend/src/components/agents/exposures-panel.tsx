@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Pause, Play, Plus, Trash2, Wallet } from "lucide-react";
+import { Pause, Play, Plus, Trash2 } from "lucide-react";
 
 import { LoadingState } from "@/components/states";
 import {
@@ -11,7 +11,6 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  Input,
   Label,
   Select,
   SelectContent,
@@ -19,8 +18,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
-import { useExposures } from "@/hooks";
-import type { Exposure, ExposureSurface } from "@/types/exposures";
+import { useAgentEnvironments, useExposures } from "@/hooks";
+import type { ExposureSurface } from "@/types/exposures";
 
 interface ExposuresPanelProps {
   agentId: string;
@@ -40,26 +39,6 @@ const SURFACE_LABEL: Record<ExposureSurface, string> = {
 };
 
 /**
- * How a cap reads when there is one, and when there is not.
- *
- * "No limit" rather than a blank: an empty cell next to a live binding reads as
- * "nothing to see", and the one thing worth noticing about a binding that can
- * spend without a ceiling is exactly that.
- */
-function capLabel(exposure: Exposure): string {
-  const parts: string[] = [];
-  if (exposure.max_per_run_usd) parts.push(`$${exposure.max_per_run_usd} per conversation`);
-  if (exposure.monthly_usd) parts.push(`$${exposure.monthly_usd} per month`);
-  return parts.length ? parts.join(" · ") : "No spending limit";
-}
-
-/** An empty field clears the cap; anything else is sent as typed. */
-function toLimit(value: string): string | null {
-  const trimmed = value.trim();
-  return trimmed === "" ? null : trimmed;
-}
-
-/**
  * Where one agent is available.
  *
  * One section for every surface, not one per channel: an exposure is a single
@@ -71,29 +50,23 @@ function toLimit(value: string): string | null {
  * else, which is the default, and a bot that has stopped answering a handle it
  * used to answer is explained here rather than in a changelog.
  */
+/** Sentinel for "the default environment" - a Select item may not be empty. */
+const DEFAULT_ENV = "__default__";
+
 export function ExposuresPanel({ agentId, canManage }: ExposuresPanelProps) {
-  const { exposures, isLoading, available, expose, setActive, setBudget, revoke } =
+  const { exposures, isLoading, available, expose, setActive, setEnvironment, revoke } =
     useExposures(agentId);
+  const { environments } = useAgentEnvironments(agentId);
   const [selectedBotId, setSelectedBotId] = useState("");
-  const [editing, setEditing] = useState<string | null>(null);
+  // Only worth a control when there is a choice: with the default alone, every
+  // binding serves it and a picker would offer one option.
+  const namedEnvironments = environments.filter((environment) => !environment.is_default);
 
   if (isLoading) return <LoadingState variant="skeleton-panel" rows={2} />;
 
   function addExposure() {
     expose.mutate(selectedBotId);
     setSelectedBotId("");
-  }
-
-  function saveBudget(exposureId: string, form: HTMLFormElement) {
-    const data = new FormData(form);
-    setBudget.mutate({
-      exposureId,
-      budget: {
-        max_per_run_usd: toLimit(String(data.get("max_per_run_usd") ?? "")),
-        monthly_usd: toLimit(String(data.get("monthly_usd") ?? "")),
-      },
-    });
-    setEditing(null);
   }
 
   return (
@@ -118,22 +91,39 @@ export function ExposuresPanel({ agentId, canManage }: ExposuresPanelProps) {
                 <p className="truncate text-sm">
                   {SURFACE_LABEL[exposure.surface]} - {exposure.channel_bot_name}
                 </p>
-                <p className="text-muted-foreground text-xs">{capLabel(exposure)}</p>
                 {!exposure.is_active && (
                   <p className="text-muted-foreground text-xs">
                     Paused - the handle answers nothing here.
                   </p>
                 )}
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={!canManage}
-                aria-label={`Set spending limits for ${exposure.channel_bot_name}`}
-                onClick={() => setEditing(editing === exposure.id ? null : exposure.id)}
-              >
-                <Wallet className="h-4 w-4" />
-              </Button>
+              {namedEnvironments.length > 0 && (
+                <Select
+                  value={exposure.environment_id ?? DEFAULT_ENV}
+                  disabled={!canManage || setEnvironment.isPending}
+                  onValueChange={(next) =>
+                    setEnvironment.mutate({
+                      exposureId: exposure.id,
+                      environmentId: next === DEFAULT_ENV ? null : next,
+                    })
+                  }
+                >
+                  <SelectTrigger
+                    className="w-36"
+                    aria-label={`Environment on ${exposure.channel_bot_name}`}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={DEFAULT_ENV}>default</SelectItem>
+                    {namedEnvironments.map((environment) => (
+                      <SelectItem key={environment.id} value={environment.id}>
+                        {environment.name} (v{environment.version})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
               <Button
                 variant="ghost"
                 size="sm"
@@ -159,81 +149,43 @@ export function ExposuresPanel({ agentId, canManage }: ExposuresPanelProps) {
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>
-
-            {editing === exposure.id && (
-              <form
-                className="flex items-end gap-3 border-t pt-3"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  saveBudget(exposure.id, event.currentTarget);
-                }}
-              >
-                <div className="flex-1 space-y-1">
-                  <Label htmlFor={`per-run-${exposure.id}`}>Max per conversation (USD)</Label>
-                  <Input
-                    id={`per-run-${exposure.id}`}
-                    name="max_per_run_usd"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="No limit"
-                    defaultValue={exposure.max_per_run_usd ?? ""}
-                  />
-                </div>
-                <div className="flex-1 space-y-1">
-                  <Label htmlFor={`monthly-${exposure.id}`}>Max per month (USD)</Label>
-                  <Input
-                    id={`monthly-${exposure.id}`}
-                    name="monthly_usd"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="No limit"
-                    defaultValue={exposure.monthly_usd ?? ""}
-                  />
-                </div>
-                <Button type="submit" disabled={setBudget.isPending}>
-                  Save
-                </Button>
-              </form>
-            )}
           </div>
         ))}
 
-        {canManage && (
-          <div className="flex items-end gap-3 border-t pt-3">
-            <div className="flex-1 space-y-1">
-              <Label htmlFor="exposure-bot">Add a channel</Label>
-              <Select
-                value={selectedBotId}
-                disabled={available.length === 0}
-                onValueChange={setSelectedBotId}
-              >
-                <SelectTrigger id="exposure-bot">
-                  <SelectValue
-                    placeholder={
-                      available.length === 0
-                        ? "No unbound bots in this organization"
-                        : "Choose a bot"
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {available.map((target) => (
-                    <SelectItem key={target.id} value={target.id}>
-                      {SURFACE_LABEL[target.platform]} - {target.name}
-                      {!target.is_active && " (inactive)"}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+        {canManage &&
+          (available.length > 0 ? (
+            <div className="flex items-end gap-3 border-t pt-3">
+              <div className="flex-1 space-y-1">
+                <Label htmlFor="exposure-bot">Add a channel</Label>
+                <Select value={selectedBotId} onValueChange={setSelectedBotId}>
+                  <SelectTrigger id="exposure-bot">
+                    <SelectValue placeholder="Choose a bot" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {available.map((target) => (
+                      <SelectItem key={target.id} value={target.id}>
+                        {SURFACE_LABEL[target.platform]} - {target.name}
+                        {!target.is_active && " (inactive)"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button disabled={!selectedBotId || expose.isPending} onClick={addExposure}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add
+              </Button>
             </div>
-            <Button disabled={!selectedBotId || expose.isPending} onClick={addExposure}>
-              <Plus className="mr-2 h-4 w-4" />
-              Add
-            </Button>
-          </div>
-        )}
+          ) : (
+            // A disabled picker here was a dead end: it said no bot could be
+            // chosen without saying which of the two absences this is - no
+            // bots at all, or all of them already bound.
+            <p className="text-muted-foreground border-t pt-3 text-sm">
+              {exposures.length > 0
+                ? "This agent is already on every bot this organization has registered."
+                : "This organization has no channel bots yet. Register one in the panel below, then bind it here."}
+            </p>
+          ))}
       </CardContent>
     </Card>
   );

@@ -104,13 +104,29 @@ test("an agent goes from a provider key to a run with a cost", async ({ page }) 
     .getByPlaceholder(/^You are Support Copilot/)
     .fill(`You are an E2E fixture. Reply with exactly ${answerToken} and nothing else.`);
 
-  // The Model label has no `htmlFor` either; the select is the first combobox in
-  // the Build tab.
-  await build.getByRole("combobox").first().click();
-  await page.getByRole("option", { name: modelLabel }).click();
+  // The model section leads with the provider/model/key form, because that is
+  // how a model is normally chosen. This journey already created one in step 2
+  // and needs *that* profile specifically — the whole point is that the key
+  // stored in step 1 is the key this run bills against — so it goes through the
+  // saved-model disclosure instead.
+  await build.getByText(/^Use a saved model/).click();
+  await build.getByRole("radio", { name: modelLabel, exact: true }).click();
+  // Asserted on the summary rather than on the radio: the summary renders only
+  // for an id that resolved to one of the organization's profiles, which is the
+  // fact the rest of the journey depends on.
+  await expect(
+    page.getByRole("group", { name: "Current model" }).getByText(modelLabel),
+  ).toBeVisible();
 
-  // Capabilities are cards with a checkbox role, labelled by the capability name.
-  const capabilities = build.getByRole("checkbox");
+  // Capabilities live in Toolbox, not Build. This used to look for them in the
+  // Build panel and find none, so the step below skipped itself with "the
+  // capability catalog is empty" against a deployment whose catalog was fine -
+  // which is the failure mode a skip-with-a-reason is supposed to prevent.
+  await page.getByRole("tab", { name: "Toolbox" }).click();
+  const toolbox = page.getByRole("tabpanel");
+
+  // A switch, labelled "Give this agent <name>" in the list on the left.
+  const capabilities = toolbox.getByRole("switch", { name: /^Give this agent / });
   if ((await capabilities.count()) === 0) {
     test.skip(true, "the capability catalog is empty in this environment");
   }
@@ -122,9 +138,13 @@ test("an agent goes from a provider key to a run with a cost", async ({ page }) 
   // approval queue by default, which would leave the run below waiting on a
   // human forever — so this journey states, deliberately, that it may act
   // unattended. That choice is the configuration being exercised.
-  const approval = build.getByText("Human approval", { exact: true });
+  //
+  // The panel is rendered for a capability whether or not it is on, with its
+  // controls inert until it is - so this runs after the switch above, not
+  // before.
+  const approval = toolbox.getByLabel("Human approval");
   if (await approval.isVisible()) {
-    await build.getByRole("combobox").nth(1).click();
+    await approval.click();
     await page.getByRole("option", { name: "Never ask" }).click();
   }
 

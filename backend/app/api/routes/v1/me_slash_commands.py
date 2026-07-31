@@ -1,6 +1,6 @@
 """User-scoped slash command settings.
 
-Routes are nested under ``/me/slash-commands`` because they're always
+Routes are nested under `/me/slash-commands` because they're always
 operating on the current user - there's no cross-user view of these.
 """
 
@@ -69,7 +69,7 @@ async def update_slash_command(
     service: UserSlashCommandSvc,
     user: CurrentUser,
 ) -> Any:
-    """Patch a custom command. Built-in overrides accept only ``is_enabled``."""
+    """Patch a custom command. Built-in overrides accept only `is_enabled`."""
     db_cmd = await service.update(user_id=user.id, command_id=command_id, data=data)
     return UserSlashCommandRead.model_validate(db_cmd)
 

@@ -6,7 +6,6 @@ import logging
 import time
 from typing import Any
 
-from app.agents.capabilities.charts._spec import parse_chart_spec
 from app.core.exceptions import AppException, AuthorizationError, BadRequestError
 from app.repositories import (
     channel_bot_repo,
@@ -14,11 +13,10 @@ from app.repositories import (
     channel_session_repo,
     conversation_repo,
 )
-from app.services.agent_invocation import AgentInvocationService
+from app.services.agent import build_message_history
 from app.services.channel_bot import unseal_bot_token
 from app.services.channels import get_adapter
 from app.services.channels.base import IncomingMessage, OutgoingMessage
-from app.services.channels.chart_render import chart_to_markdown, render_chart_png
 from app.services.channels.mentions import ChannelAgentRouter, UnaddressedMessage
 
 logger = logging.getLogger(__name__)
@@ -66,8 +64,8 @@ class ChannelMessageRouter:
             4. Resolve or create ChannelIdentity.
             5. Resolve or create ChannelSession (+ Conversation).
             6. Rate-limit check.
-            7. Hand an ``@handle`` message to that agent and stop.
-            8. Otherwise invoke the bot's own assistant.
+            7. Hand an `@handle` message to that agent and stop.
+            8. Otherwise run the bot's only exposed agent.
             9. Send reply via adapter.
         """
         bot = await channel_bot_repo.get_for_inbound(db, incoming.bot_id)
@@ -103,52 +101,54 @@ class ChannelMessageRouter:
         if await self._answer_mention(incoming, bot, identity, session, db):
             return
 
-        tool_events = []
-        conv = await conversation_repo.get_conversation_by_id(db, session.conversation_id)
-        org_id = conv.organization_id if conv else None
+        # Loaded before the user message is persisted, so the turn being run is
+        # the prompt and everything before it is the history - persisting first
+        # would put the same message in both.
+        history = await self._load_history(db, session.conversation_id)
+        await conversation_repo.create_message(
+            db,
+            conversation_id=session.conversation_id,
+            role="user",
+            content=incoming.text,
+        )
         try:
-            svc = AgentInvocationService(db)
-            response_text, tool_events = await svc.invoke(
-                user_message=incoming.text,
-                conversation_id=session.conversation_id,
+            answer = await ChannelAgentRouter(db).answer_default(
+                incoming.text,
+                platform=incoming.platform,
+                organization_id=bot.organization_id,
+                bot_id=bot.id,
                 user_id=identity.user_id,
-                project_id=getattr(session, "project_id", None),
-                organization_id=org_id,
-                system_prompt_override=getattr(bot, "system_prompt_override", None),
-                model_override=getattr(bot, "ai_model_override", None),
+                conversation_id=session.conversation_id,
+                message_history=build_message_history(history),
             )
+        except AppException as exc:
+            # A refusal - no agent exposed, several to choose from, an unlinked
+            # sender - is the platform answering, not a crash. The message says
+            # what to do next.
+            await self._send_reply(bot, incoming, exc.message)
+            return
         except Exception:
-            logger.exception("Agent invocation failed for bot %s", incoming.bot_id)
-            response_text = "Sorry, something went wrong. Please try again."
+            logger.exception("Agent run failed for bot %s", incoming.bot_id)
+            await self._send_reply(bot, incoming, "Sorry, something went wrong. Please try again.")
+            return
 
-        for te in tool_events:
-            # Decided by what the tool returned, not by what it is called. The
-            # name used to be matched literally, which only ever worked for the
-            # one toolset that hardcodes it - an agent whose binding renames the
-            # chart tool would post the raw JSON into the channel instead. The
-            # payload is self-describing (`{"kind": "chart", ...}`) and anything
-            # else parses to None, so the name buys nothing.
-            spec = parse_chart_spec(te.result)
-            if spec is not None:
-                try:
-                    await self._send_chart(bot, incoming, spec)
-                except Exception:
-                    logger.debug("Failed to send chart for %s", te.tool_name)
-                continue
-            args_str = ", ".join(f"{k}={v!r}" for k, v in te.args.items()) if te.args else ""
-            result_preview = (te.result[:200] + "...") if len(te.result) > 200 else te.result
-            tool_msg = f"🔧 {te.tool_name}({args_str})\n→ {result_preview}"
-            try:
-                await self._send_reply(bot, incoming, tool_msg)
-            except Exception:
-                logger.debug("Failed to send tool event for %s", te.tool_name)
-
-        await self._send_reply(bot, incoming, response_text)
+        if answer:
+            await conversation_repo.create_message(
+                db,
+                conversation_id=session.conversation_id,
+                role="assistant",
+                content=answer,
+            )
+        await self._send_reply(
+            bot,
+            incoming,
+            answer or "That needs approval before it can run - check the approvals queue.",
+        )
 
     async def _answer_mention(
         self, incoming: IncomingMessage, bot: Any, identity: Any, session: Any, db: Any
     ) -> bool:
-        """Answer ``@handle …`` with that agent, and report whether we did.
+        """Answer `@handle …` with that agent, and report whether we did.
 
         Placed after the session is resolved so a mentioned agent shares the
         thread's conversation, and before the bot's own assistant so a named
@@ -374,7 +374,7 @@ class ChannelMessageRouter:
         """In-memory token-bucket rate limiter.
 
         Uses a module-level dict. Default: 10 req/minute from
-        ``bot.access_policy.rate_limit_rpm``.
+        `bot.access_policy.rate_limit_rpm`.
 
         Raises:
             BadRequestError: If the rate limit is exceeded.
@@ -418,23 +418,13 @@ class ChannelMessageRouter:
                 incoming.platform_chat_id,
             )
 
-    async def _send_chart(self, bot: Any, incoming: IncomingMessage, spec: Any) -> None:
-        """Render a chart spec to PNG and send it; fall back to a text table."""
-        try:
-            png = render_chart_png(spec)
-        except Exception:
-            logger.debug("Chart PNG render failed; sending text fallback")
-            await self._send_reply(bot, incoming, chart_to_markdown(spec))
-            return
-
-        adapter = get_adapter(incoming.platform)
-        decrypted_token = unseal_bot_token(bot)
-        out = OutgoingMessage(
-            platform_chat_id=incoming.platform_chat_id,
-            text=spec.title,
-            reply_to_message_id=incoming.message_id,
-            image_png=png,
-            image_filename="chart.png",
-            api_base_url=getattr(bot, "api_base_url", None),
+    @staticmethod
+    async def _load_history(db: Any, conversation_id: Any) -> list[dict[str, str]]:
+        """The channel thread so far, oldest first, as role/content dicts."""
+        messages = await conversation_repo.get_messages_by_conversation(
+            db,
+            conversation_id=conversation_id,
+            skip=0,
+            limit=200,
         )
-        await adapter.send_message(decrypted_token, out)
+        return [{"role": m.role, "content": m.content} for m in messages]

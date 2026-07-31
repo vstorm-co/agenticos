@@ -1,10 +1,11 @@
 """Skill repository (PostgreSQL async).
 
 Listing a skill is not a plain org filter: what a member sees depends on their
-role scope and on what was shared with them, so ``list_visible`` takes the
+role scope and on what was shared with them, so `list_visible` takes the
 predicate pieces the access layer resolved rather than re-deriving them here.
 """
 
+from collections.abc import Sequence
 from typing import Literal
 from uuid import UUID
 
@@ -52,7 +53,7 @@ async def list_visible(
     see_all: bool,
     shared_ids: list[UUID],
     search: str | None = None,
-    category: str | None = None,
+    categories: Sequence[str] | None = None,
     sort: SkillSort = "name",
     skip: int = 0,
     limit: int = 50,
@@ -99,8 +100,10 @@ async def list_visible(
                 Skill.description.ilike(f"%{safe}%", escape="\\"),
             )
         )
-    if category:
-        where.append(Skill.category == category)
+    if categories:
+        # Several shelves at once: the filter is a multi-select, and a row
+        # matches any of the picked categories.
+        where.append(Skill.category.in_(categories))
 
     order_by = (
         (func.coalesce(Skill.updated_at, Skill.created_at).desc(), Skill.name.asc())

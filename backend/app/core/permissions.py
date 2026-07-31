@@ -12,7 +12,7 @@ question a role cannot: not "may this role touch agents?" but "*which* agents?"
 A Member creates their own agents and sees only those plus what was shared with
 them; a Builder sees every agent in the org but may only edit the shared ones.
 
-Effective access to one resource is ``max(role scope, grant on that resource)``
+Effective access to one resource is `max(role scope, grant on that resource)`
 - see :func:`app.services.access.resolve_access`. A grant can widen what a role
 allows for a single row; it never narrows it.
 """
@@ -82,7 +82,7 @@ RESOURCE_PERMS: frozenset[Perm] = frozenset(
 class Scope(StrEnum):
     """How much of a resource type a permission reaches.
 
-    Ordered: ``NONE < OWN < SHARED < TEAM < ALL``. Comparison is what makes
+    Ordered: `NONE < OWN < SHARED < TEAM < ALL`. Comparison is what makes
     "effective access = max(role, grant)" expressible, so use the operators
     rather than comparing the string values.
     """
@@ -101,9 +101,9 @@ class Scope(StrEnum):
     def _other_rank(other: object) -> int:
         """Rank of the operand, refusing anything that is not a Scope.
 
-        Returning ``NotImplemented`` would be the usual convention, but ``Scope``
-        subclasses ``str``: Python would fall back to string comparison, which
-        orders the values alphabetically (``all < none < own``) - the opposite of
+        Returning `NotImplemented` would be the usual convention, but `Scope`
+        subclasses `str`: Python would fall back to string comparison, which
+        orders the values alphabetically (`all < none < own`) - the opposite of
         what they mean. A silent wrong answer in an authorization check is worse
         than a loud one, so mixed comparisons raise.
         """
@@ -134,7 +134,21 @@ _SCOPE_ORDER: dict[Scope, int] = {
 
 
 class OrgRoleName(StrEnum):
-    """Built-in roles. Seeded, not user-editable; custom roles are Phase 2."""
+    """The role names a membership row may hold.
+
+    Nothing seeds these and there is no roles table: a role is a string on
+    `organization_members`, and what it *means* is `ROLE_PERMS` below. Adding a
+    role is an edit here, not a migration - which is the point of composing
+    roles from permissions rather than storing them.
+
+    The column carries no CHECK constraint, unlike `resource_grants.level`.
+    What keeps an invented role out is a `field_validator` on the member and
+    invitation schemas; if one ever got through, `ROLE_PERMS.get` would answer
+    with no permissions rather than with somebody else's.
+
+    Not user-editable. Custom roles are Phase 2, and may only ever recombine
+    the permissions in :class:`Perm`.
+    """
 
     OWNER = "owner"
     ADMIN = "admin"
@@ -236,7 +250,7 @@ def role_has(role: str, permission: Perm) -> bool:
 
 
 # The role an anonymous context carries. Deliberately not a member of
-# :class:`OrgRoleName` and deliberately not a key of ``ROLE_PERMS``, so it
+# :class:`OrgRoleName` and deliberately not a key of `ROLE_PERMS`, so it
 # cannot pick up permissions from a later edit to either.
 _NO_ROLE = "anonymous"
 
@@ -248,7 +262,7 @@ class AuthContext:
     Built once per request by :func:`app.api.deps.get_auth_context` and passed
     to whatever needs to make a decision, so a route never re-derives it.
 
-    ``user_id`` is optional, and that is a statement rather than a convenience.
+    `user_id` is optional, and that is a statement rather than a convenience.
     Every run on this platform has a subject - budgets, resource grants, the
     audit trail and the approval gate all key on one, and
     :mod:`app.services.channels.mentions` refuses an unlinked chat identity for
@@ -294,8 +308,8 @@ class AuthContext:
 
         Raises:
             AuthorizationError: If there is no subject. Loudly, and here: the
-                audit actor column is ``NOT NULL``, so letting the absence
-                travel surfaces several layers down as an ``IntegrityError``
+                audit actor column is `NOT NULL`, so letting the absence
+                travel surfaces several layers down as an `IntegrityError`
                 naming a constraint, by which point the audit entry is lost and
                 the request has half happened.
         """
@@ -312,7 +326,7 @@ class AuthContext:
 
         A context with no subject holds nothing, whatever its role says. The
         check is on the subject rather than on the role string because a role is
-        just a string: a subject-less context built with ``"owner"`` would
+        just a string: a subject-less context built with `"owner"` would
         otherwise reach every row in the organization, and nothing structural
         would have stopped it.
 
@@ -327,7 +341,7 @@ class AuthContext:
         return dict(ROLE_PERMS.get(self.role, {}))
 
     def scope_for(self, perm: Perm) -> Scope:
-        """How far this permission reaches, or ``Scope.NONE`` if not held."""
+        """How far this permission reaches, or `Scope.NONE` if not held."""
         return self.permissions.get(perm, Scope.NONE)
 
     def has(self, perm: Perm) -> bool:

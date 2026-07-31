@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { Check, KeyRound, Plus, Trash2 } from "lucide-react";
+import { Check, ChevronRight, KeyRound, Trash2 } from "lucide-react";
 
 import { AddModel } from "@/components/agents/add-model";
 import { ProviderIcon } from "@/components/vault/provider-icon";
@@ -17,29 +16,39 @@ interface ModelProfilePickerProps {
   onChange: (profileId: string | null) => void;
 
   /**
-   * Offer to add a model from here.
+   * Whether this panel can create a model, which also decides its shape.
    *
-   * Off by default, and off in the chat on purpose. The chat popover answers
-   * one question - which model should *this conversation* run on - and adding a
+   * Off in the chat on purpose, and the reason is the same one that makes the
+   * two layouts different. The chat popover answers one question - which model
+   * should *this conversation* run on - so it is a list of what exists. Adding a
    * model is a different act: it creates something every agent in the
-   * organization can then be pointed at, from a panel somebody opened to change
-   * one reply. The Builder is where an agent is configured, so that is where
-   * this belongs.
+   * organization can be pointed at, which is a Builder decision, and in the
+   * Builder the form is the panel rather than a state of it.
    */
   allowAdd?: boolean;
   disabled?: boolean;
 }
 
 /**
- * Which of the organization's models to run on.
+ * Which model to run on: provider, model and key, with the saved ones behind a
+ * disclosure.
  *
- * The same vocabulary the vault uses for the same rows - provider mark, label,
- * `provider · model`, and the badges that say `default` and `no key`. It was a
- * bare list of labels, which meant the one fact that decides whether the agent
- * can run at all, that a profile has no credential behind it, was visible on
- * one page and invisible on the other. A profile is a *named* model precisely
- * so an organization can rotate a key or repoint every agent at once; a picker
- * that shows only the name hides what it is a name for.
+ * The list used to be the panel and the form was a state you had to reach. That
+ * put the wrong thing first. Choosing a model *is* choosing those three fields,
+ * and the named profile is the consequence - so a list of consequences somebody
+ * else created is not where the decision starts, especially on a fresh
+ * deployment where the list is empty and the real control was one click away
+ * behind "Add a model".
+ *
+ * The saved profiles stay, one disclosure down, because a named profile earns
+ * its place for a reason the form cannot serve: it is what lets an organization
+ * rotate a key or repoint every agent at once. What is gone is its claim on
+ * being the first thing anybody sees.
+ *
+ * Either way the rows keep the vault's vocabulary - provider mark, label,
+ * `provider · model`, and the `no key` badge. That badge decides whether the
+ * agent can run at all, and it was once visible on the vault page and invisible
+ * here.
  */
 export function ModelProfilePicker({
   profiles,
@@ -48,87 +57,106 @@ export function ModelProfilePicker({
   allowAdd = false,
   disabled,
 }: ModelProfilePickerProps) {
-  const [adding, setAdding] = useState(false);
   const { deleteProfile } = useModelProviders();
+  const selected = profiles.find((profile) => profile.id === value);
 
-  if (adding && allowAdd) {
-    return (
+  const list = (
+    <div role="radiogroup" aria-label="Model" className="space-y-1">
+      {profiles.map((profile) => (
+        <ProfileRow
+          key={profile.id}
+          selected={value === profile.id}
+          onSelect={() => onChange(profile.id)}
+          title={profile.label}
+          subtitle={`${profile.provider} · ${profile.model}`}
+          provider={profile.provider}
+          // The vault says this on the same row; a picker that omits it lets
+          // somebody publish an agent onto a model that cannot answer.
+          // Keyed from either store: a model added from the vault carries a
+          // `secret_id` and no credential, and reading only the old column
+          // marked every one of them "no key".
+          noKey={profile.credential_id === null && !profile.secret_id}
+          disabled={disabled}
+          onRemove={allowAdd ? () => deleteProfile.mutate(profile.id) : undefined}
+        />
+      ))}
+    </div>
+  );
+
+  // The chat popover chooses between what exists and adds nothing, so it is the
+  // list and only the list.
+  if (!allowAdd) {
+    if (profiles.length === 0) {
+      return (
+        <div className="border-border rounded-lg border border-dashed p-6 text-center">
+          <KeyRound className="text-muted-foreground mx-auto h-5 w-5" />
+          <p className="text-muted-foreground mt-2 text-sm">
+            This organization has no models yet. An agent cannot run without one.
+          </p>
+        </div>
+      );
+    }
+    return list;
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* What the agent runs on today, stated before the form that changes it.
+          The form is the default view now, and without this line the one fact
+          somebody opens this panel to check - which model is this agent on -
+          would be the one thing behind a disclosure. */}
+      {selected && (
+        <div
+          // Named, because the same label also appears in the saved-model list
+          // below: without it there are two identical strings on this panel and
+          // nothing distinguishes "what this agent runs on" from "one of the
+          // options".
+          role="group"
+          aria-label="Current model"
+          className="border-border bg-muted/20 flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2"
+        >
+          <ProviderIcon provider={selected.provider} />
+          <span className="min-w-0 flex-1 truncate text-sm">
+            <span className="font-medium">{selected.label}</span>
+            <span className="text-muted-foreground font-mono text-xs">
+              {" "}
+              {selected.provider} · {selected.model}
+            </span>
+          </span>
+          {selected.credential_id === null && !selected.secret_id && (
+            <Badge variant="destructive">no key</Badge>
+          )}
+        </div>
+      )}
+
+      {/* Provider, model and key, always. Choosing a model is picking those three
+          things; the named profile is a consequence of the choice rather than the
+          way it is made, and a list of previous consequences is not where anybody
+          starts. It stays reachable below, because rotating a key or repointing
+          every agent at once is exactly what a named profile is for. */}
       <AddModel
-        onCancel={() => setAdding(false)}
+        disabled={disabled}
         onCreated={(profile) => {
-          setAdding(false);
           // Selected, not merely added: somebody who came here to choose a
           // model has chosen one, and leaving the agent on the old value would
           // make the work look like it did not take.
           onChange(profile.id);
         }}
       />
-    );
-  }
 
-  if (profiles.length === 0) {
-    return (
-      <div className="border-border rounded-lg border border-dashed p-6 text-center">
-        <KeyRound className="text-muted-foreground mx-auto h-5 w-5" />
-        <p className="text-muted-foreground mt-2 text-sm">
-          This organization has no models yet. An agent cannot run without one.
-        </p>
-        {allowAdd && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="mt-3"
-            disabled={disabled}
-            onClick={() => setAdding(true)}
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Add a model
-          </Button>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-2">
-      <div role="radiogroup" aria-label="Model" className="space-y-1">
-        {profiles.map((profile) => (
-          <ProfileRow
-            key={profile.id}
-            selected={value === profile.id}
-            onSelect={() => onChange(profile.id)}
-            title={profile.label}
-            subtitle={`${profile.provider} · ${profile.model}`}
-            provider={profile.provider}
-            // The vault says this on the same row; a picker that omits it lets
-            // somebody publish an agent onto a model that cannot answer.
-            // Keyed from either store: a model added from the vault carries a
-            // `secret_id` and no credential, and reading only the old column
-            // marked every one of them "no key".
-            noKey={profile.credential_id === null && !profile.secret_id}
-            disabled={disabled}
-            onRemove={allowAdd ? () => deleteProfile.mutate(profile.id) : undefined}
-          />
-        ))}
-      </div>
-
-      {allowAdd && (
-        <div className="flex flex-wrap items-center gap-2 pt-1">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={disabled}
-            onClick={() => setAdding(true)}
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Add a model
-          </Button>
-          <p className="text-muted-foreground text-xs">
-            Named, so an organization can rotate a key or repoint every agent at once.
-          </p>
-        </div>
+      {profiles.length > 0 && (
+        <details className="group">
+          <summary className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-1.5 text-xs">
+            <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
+            Use a saved model ({profiles.length})
+          </summary>
+          <div className="mt-2 space-y-2">
+            {list}
+            <p className="text-muted-foreground text-xs">
+              Named, so an organization can rotate a key or repoint every agent at once.
+            </p>
+          </div>
+        </details>
       )}
     </div>
   );

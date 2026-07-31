@@ -51,6 +51,8 @@ export interface IngestionConfig {
   pdf_parser: PdfParser;
   ocr: boolean;
   llamaparse_tier: LlamaParseTier;
+  /** The org vault key LlamaParse is billed to; null = the deployment's key. */
+  llamaparse_secret_id?: string | null;
   /**
    * Whether LiteParse decides per document if OCR is worth running.
    *
@@ -108,6 +110,20 @@ export interface KnowledgeBase {
   embedding_dim: number;
   created_at: string;
   updated_at: string | null;
+  /**
+   * What the collection holds. Answered by the listing only.
+   *
+   * Derived per request from the tracked-documents table, so the single-row
+   * responses - create, read, update - leave all three at zero rather than
+   * counting to restate what the caller just did. Read them off the list.
+   *
+   * `document_count` includes documents still parsing and documents that failed;
+   * `indexed_count` is how many finished. The two disagreeing is the only place
+   * a half-broken collection shows up in a listing.
+   */
+  document_count: number;
+  indexed_count: number;
+  chunk_count: number;
 }
 
 export interface KnowledgeBaseList {
@@ -124,6 +140,13 @@ export interface CreateKnowledgeBaseInput {
    * want. Present, it is taken whole - there is no merging with the defaults.
    */
   ingestion_config?: IngestionConfig;
+  /**
+   * Frozen at creation: the vector column is created at this model's width.
+   * Omit for the deployment default.
+   */
+  embedding_model?: string;
+  /** The org vault key that pays for embeddings; omit for the deployment key. */
+  embedding_secret_id?: string;
 }
 
 /** A single document tracked in a KB's underlying vector collection. */

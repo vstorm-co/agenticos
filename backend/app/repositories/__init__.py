@@ -24,9 +24,11 @@ from app.repositories import channel_session as channel_session_repo
 
 from app.repositories import agent as agent_repo
 from app.repositories import agent_embed as agent_embed_repo
+from app.repositories import agent_environment as agent_environment_repo
 from app.repositories import agent_exposure as agent_exposure_repo
 from app.repositories import agent_run as agent_run_repo
 from app.repositories import audit_log as audit_log_repo
+from app.repositories import ingestion_spend as ingestion_spend_repo
 from app.repositories import credential as credential_repo
 from app.repositories import resource_grant as resource_grant_repo
 from app.repositories import skill as skill_repo
@@ -64,8 +66,10 @@ __all__ = [
     "audit_log_repo",
     "credential_repo",
     "agent_repo",
+    "agent_environment_repo",
     "agent_exposure_repo",
     "agent_embed_repo",
     "agent_run_repo",
+    "ingestion_spend_repo",
     "skill_repo",
 ]

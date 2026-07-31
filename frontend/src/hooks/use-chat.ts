@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { nanoid } from "nanoid";
 import { useWebSocket } from "./use-websocket";
 import { useChatStore, useAuthStore, useOrgStore } from "@/stores";
-import { useAgentSelectionStore, useKBSelectionStore } from "@/stores";
+import { useAgentSelectionStore } from "@/stores";
 import type {
   AskUserAnswer,
   AskUserQuestion,
@@ -420,19 +420,17 @@ export function useChat(options: UseChatOptions = {}) {
         conversation_id: conversationId || null,
       };
       if (fileIds?.length) payload.file_ids = fileIds;
-      // A model profile from the vault, which both the assistant and a
-      // published agent are run on. `model` was a bare model name that only
-      // ever reached the assistant, so overriding an agent's model did nothing.
+      // A model profile from the vault - the agent runs on it for this turn
+      // instead of the model its spec names, and the run records which.
       if (modelProfileRef.current) payload.model_profile_id = modelProfileRef.current;
       if (temperatureRef.current !== null) payload.temperature = temperatureRef.current;
       if (thinkingEffortRef.current !== null) payload.thinking_effort = thinkingEffortRef.current;
-      const activeKBIds = useKBSelectionStore.getState().activeKBIds;
-      if (activeKBIds.length) payload.active_knowledge_base_ids = activeKBIds;
       // Read at send time, not captured in the closure: the queue drainer calls
       // this up to a turn later, and the frame must name whatever is selected
       // when it actually leaves. The picker keeps a published agent selected
       // whenever the organization has one, so a frame without an `agent_id`
-      // only happens when nothing is published at all.
+      // only happens when nothing is published at all - and the backend
+      // refuses it with the message that says to publish one.
       const agentId = useAgentSelectionStore.getState().selectedAgentId;
       if (agentId) payload.agent_id = agentId;
       turnAgentIdRef.current = agentId;

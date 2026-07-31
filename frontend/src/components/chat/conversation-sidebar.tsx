@@ -97,9 +97,13 @@ function ConversationItem({
               undefined,
               { month: "short", day: "numeric" },
             )}
-            {/* Which agent this was with, when it was with one. A thread that
-                changed agents mid-way shows both rather than the latest. */}
-            <ConversationAgents agents={conversation.agents} showName={false} />
+            {/* Which agent this was with. One agent gets its face and its
+                name; a thread that changed agents mid-way shows every face
+                rather than naming only the latest. */}
+            <ConversationAgents
+              agents={conversation.agents}
+              showName={conversation.agents?.length === 1}
+            />
           </span>
         </div>
       )}

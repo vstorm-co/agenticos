@@ -77,7 +77,7 @@ def get_channel_bot_service(db: DBSession) -> ChannelBotService:
 
     An inbound request is made by a chat platform, not by a member, so there is
     no active organization to scope to; the bot row carries it. Management
-    endpoints must use ``OrgChannelBotSvc`` instead.
+    endpoints must use `OrgChannelBotSvc` instead.
     """
     return ChannelBotService(db)
 
@@ -169,7 +169,7 @@ MemberSvc = Annotated[MemberService, Depends(get_member_service)]
 InvitationSvc = Annotated[InvitationService, Depends(get_invitation_service)]
 from app.core.exceptions import AuthenticationError, AuthorizationError, NotFoundError
 from app.core.security import verify_token
-from app.db.models.user import User, UserRole
+from app.db.models.user import User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
 
@@ -205,60 +205,12 @@ async def get_current_user(
     return user
 
 
-class RoleChecker:
-    """Dependency class for role-based access control.
-
-    Usage:
-        # Require admin role
-        @router.get("/admin-only")
-        async def admin_endpoint(
-            user: Annotated[User, Depends(RoleChecker(UserRole.ADMIN))]
-        ):
-            ...
-
-        # Require any authenticated user
-        @router.get("/users")
-        async def users_endpoint(
-            user: Annotated[User, Depends(get_current_user)]
-        ):
-            ...
-    """
-
-    def __init__(self, required_role: UserRole) -> None:
-        self.required_role = required_role
-
-    async def __call__(
-        self,
-        user: Annotated[User, Depends(get_current_user)],
-    ) -> User:
-        """Check if user has the required role.
-
-        Raises:
-            AuthorizationError: If user doesn't have the required role.
-        """
-        if not user.has_role(self.required_role):
-            raise AuthorizationError(
-                message=f"Role '{self.required_role.value}' required for this action"
-            )
-        return user
-
-
-async def get_current_active_superuser(
-    current_user: Annotated[User, Depends(get_current_user)],
-) -> User:
-    """Get current user and verify they are a superuser.
-
-    Raises:
-        AuthorizationError: If user is not a superuser.
-    """
-    if not current_user.has_role(UserRole.ADMIN):
-        raise AuthorizationError(message="Admin privileges required")
-    return current_user
-
-
+# There is deliberately no role-based dependency here. Authorization inside an
+# organization is a permission from the catalog, checked with `require(...)` or
+# resolved per row by `resolve_access` - never a role name on a route. The one
+# global privilege is `CurrentAppAdmin` below, which gates the deployment's own
+# administration rather than a tenant's.
 CurrentUser = Annotated[User, Depends(get_current_user)]
-CurrentSuperuser = Annotated[User, Depends(get_current_active_superuser)]
-CurrentAdmin = Annotated[User, Depends(RoleChecker(UserRole.ADMIN))]
 from app.db.models.organization import Organization, OrgRole
 
 # Module-level alias so tests can patch via `app.api.deps._member_repo`.
@@ -274,7 +226,7 @@ async def get_active_organization(
 ) -> Organization:
     """Resolve the active Organization for the current request.
 
-    Reads ``X-Organization-Id`` header. Falls back to the user's Personal Org
+    Reads `X-Organization-Id` header. Falls back to the user's Personal Org
     when the header is absent. Raises 404 if the user is not a member.
     """
 
@@ -338,6 +290,16 @@ def get_agent_exposure_service(db: DBSession) -> AgentExposureService:
 
 AgentExposureSvc = Annotated[AgentExposureService, Depends(get_agent_exposure_service)]
 
+from app.services.agent_environment import AgentEnvironmentService
+
+
+def get_agent_environment_service(db: DBSession) -> AgentEnvironmentService:
+    """Create AgentEnvironmentService instance with database session."""
+    return AgentEnvironmentService(db)
+
+
+AgentEnvironmentSvc = Annotated[AgentEnvironmentService, Depends(get_agent_environment_service)]
+
 from app.services.agent_embed import AgentEmbedService
 
 
@@ -394,7 +356,7 @@ async def get_auth_context(user: CurrentUser, org: ActiveOrg, db: DBSession) -> 
     off the returned context instead of querying roles again.
     """
     membership = await _member_repo.get(db, organization_id=org.id, user_id=user.id)
-    if membership is None and not getattr(user, "is_app_admin", False):
+    if membership is None and not user.is_app_admin:
         raise NotFoundError(
             message="Organization not found or access denied",
             details={"org_id": str(org.id)},
@@ -403,7 +365,7 @@ async def get_auth_context(user: CurrentUser, org: ActiveOrg, db: DBSession) -> 
         user_id=user.id,
         organization_id=org.id,
         role=membership.role if membership else "",
-        is_app_admin=bool(getattr(user, "is_app_admin", False)),
+        is_app_admin=user.is_app_admin,
     )
 
 
@@ -414,7 +376,7 @@ def require(*perms: Perm) -> Callable[..., Awaitable[AuthContext]]:
     """Dependency asserting the caller holds every listed permission.
 
     Endpoints check permissions, never role names - so re-shaping a role is a
-    change to ``ROLE_PERMS`` alone. For a resource permission this guards the
+    change to `ROLE_PERMS` alone. For a resource permission this guards the
     *kind* of thing; which rows are reachable is
     :func:`app.services.access.resolve_access`.
 
@@ -473,7 +435,7 @@ RequireMemberPlus = Annotated[
 # even when teams are disabled, so the dep itself must not be gated.
 async def _require_app_admin(user: CurrentUser) -> User:
     """Raises 403 unless the user has the is_app_admin flag set."""
-    if not getattr(user, "is_app_admin", False):
+    if not user.is_app_admin:
         raise AuthorizationError(message="App admin privileges required")
     return user
 
@@ -488,8 +450,8 @@ def _extract_ws_auth(websocket: WebSocket) -> tuple[str | None, str | None]:
     """Parse Sec-WebSocket-Protocol header for an auth token + app subprotocol.
 
     Clients pass the token as a subprotocol of the form
-    ``access_token.<JWT>`` alongside an optional application subprotocol
-    (e.g. ``chat``). Returns (token, app_subprotocol) - either may be None.
+    `access_token.<JWT>` alongside an optional application subprotocol
+    (e.g. `chat`). Returns (token, app_subprotocol) - either may be None.
     """
     raw = websocket.headers.get("sec-websocket-protocol") or ""
     token: str | None = None
@@ -509,10 +471,10 @@ async def get_current_user_ws(
     """Authenticate a WebSocket connection.
 
     Token sources, checked in order:
-    1. ``Sec-WebSocket-Protocol`` header, in the form ``access_token.<JWT>``.
-       The chosen application subprotocol (e.g. ``chat``) is echoed back on
-       ``accept()`` via ``websocket.state.accept_subprotocol``.
-    2. Same-origin ``access_token`` cookie (fallback for same-origin clients).
+    1. `Sec-WebSocket-Protocol` header, in the form `access_token.<JWT>`.
+       The chosen application subprotocol (e.g. `chat`) is echoed back on
+       `accept()` via `websocket.state.accept_subprotocol`.
+    2. Same-origin `access_token` cookie (fallback for same-origin clients).
 
     Tokens in query strings are NOT accepted - they leak into logs and
     Referer headers.
@@ -571,7 +533,7 @@ async def get_active_organization_ws(
 
     The WebSocket counterpart of :func:`get_active_organization`. Browsers cannot
     set headers on a WebSocket handshake, so the org arrives as the
-    ``organization_id`` query parameter instead of ``X-Organization-Id``. Unlike a
+    `organization_id` query parameter instead of `X-Organization-Id`. Unlike a
     token, an org id is not a secret - membership is verified here, so an id the
     user does not belong to closes the socket rather than granting anything.
 
@@ -642,6 +604,7 @@ from fastapi import Request
 
 from app.core.config import settings
 from app.services.rag.embeddings import EmbeddingService
+from app.services.embedding_resolution import embeddings_for_collection
 from app.services.rag.ingestion import IngestionService
 from app.services.rag.documents import DocumentProcessor
 from app.services.rag.retrieval import RetrievalService
@@ -663,7 +626,9 @@ def get_vectorstore(request: Request, embedder: EmbeddingSvc) -> BaseVectorStore
     """Get vector store client from lifespan state or create new."""
     if hasattr(request.state, "vector_store"):
         return request.state.vector_store  # type: ignore[no-any-return]
-    return PgVectorStore(settings=settings.rag, embedding_service=embedder)
+    return PgVectorStore(
+        settings=settings.rag, embedding_service=embedder, resolver=embeddings_for_collection
+    )
 
 
 VectorStoreSvc = Annotated[BaseVectorStore, Depends(get_vectorstore)]

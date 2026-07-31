@@ -19,7 +19,6 @@ from httpx import ASGITransport, AsyncClient
 
 from app.api.deps import get_current_user, get_db_session, get_redis
 from app.core.config import settings
-from app.db.models.user import UserRole
 from app.main import app
 
 pytestmark = pytest.mark.anyio
@@ -54,12 +53,10 @@ class _User:
     def __init__(self, role: str) -> None:
         self.id = uuid4()
         self.email = f"{role}@example.com"
-        self.role = role
+        # /admin/* gates on the platform flag, which is now the only one.
+        self.is_app_admin = role == "admin"
         self.is_active = True
         self.created_at = datetime.now(UTC)
-
-    def has_role(self, role: UserRole | str) -> bool:
-        return self.role == getattr(role, "value", role)
 
 
 def _client(user: _User, mock_redis: Any) -> AsyncGenerator[AsyncClient, None]:

@@ -7,10 +7,10 @@ Create Date: 2026-07-27
 0041 recorded which agent answered. That is not enough to read an old
 conversation: an agent is rewritten, and the words in a transcript were produced
 by one frozen spec, not by whatever the agent has since become. Runs have
-recorded ``agent_version_id`` since they existed; messages had only the agent,
+recorded `agent_version_id` since they existed; messages had only the agent,
 so a transcript could name the speaker and never the thing that spoke.
 
-``SET NULL`` for the same reason as the agent column: deleting an agent takes
+`SET NULL` for the same reason as the agent column: deleting an agent takes
 its versions with it, and that must not take the conversation. The answer stays,
 its provenance does not - which is the truth, and better than a hole in
 somebody's history.

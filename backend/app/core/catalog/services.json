@@ -1,0 +1,42 @@
+[
+  {
+    "id": "tavily",
+    "label": "Tavily",
+    "category": "search",
+    "kind": "api_key",
+    "help_url": "https://tavily.com",
+    "description": "Web search summarised for a model to read."
+  },
+  {
+    "id": "brave",
+    "label": "Brave Search",
+    "category": "search",
+    "kind": "api_key",
+    "help_url": "https://brave.com/search/api/",
+    "description": "Web search over Brave's own index."
+  },
+  {
+    "id": "exa",
+    "label": "Exa",
+    "category": "search",
+    "kind": "api_key",
+    "help_url": "https://exa.ai",
+    "description": "Web search by meaning rather than keywords."
+  },
+  {
+    "id": "logfire",
+    "label": "Logfire",
+    "category": "observability",
+    "kind": "api_key",
+    "help_url": "https://logfire.pydantic.dev",
+    "description": "A write token that sends an agent's traces to a Logfire project of its own."
+  },
+  {
+    "id": "llamaparse",
+    "label": "LlamaParse",
+    "category": "other",
+    "kind": "api_key",
+    "help_url": "https://cloud.llamaindex.ai",
+    "description": "Parse PDFs with LlamaParse, billed to this organization's own key."
+  }
+]

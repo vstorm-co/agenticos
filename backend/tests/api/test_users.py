@@ -11,7 +11,7 @@ from uuid import uuid4
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from app.api.deps import get_current_active_superuser, get_current_user, get_user_service
+from app.api.deps import get_current_user, get_user_service
 from app.api.deps import get_db_session
 from app.api.deps import get_redis
 from app.core.config import settings
@@ -28,25 +28,19 @@ class MockUser:
         email="test@example.com",
         full_name="Test User",
         is_active=True,
-        role="user",
+        is_app_admin=False,
     ):
         self.id = id or uuid4()
         self.email = email
         self.full_name = full_name
         self.is_active = is_active
-        self.role = role
+        self.is_app_admin = is_app_admin
         self.hashed_password = "hashed"
         self.created_at = datetime.now(UTC)
         self.updated_at = datetime.now(UTC)
         self.notify_budget_alerts = True
         self.notify_approval_requests = True
         self.notify_usage_reports = True
-
-    def has_role(self, role) -> bool:
-        """Check if user has the specified role."""
-        if hasattr(role, "value"):
-            return self.role == role.value
-        return self.role == role
 
 
 @pytest.fixture
@@ -57,8 +51,8 @@ def mock_user() -> MockUser:
 
 @pytest.fixture
 def mock_superuser() -> MockUser:
-    """Create a mock superuser."""
-    return MockUser(role="admin", email="admin@example.com")
+    """Create a mock platform admin. One flag, and it is the only one there is."""
+    return MockUser(email="admin@example.com", is_app_admin=True)
 
 
 @pytest.fixture
@@ -101,9 +95,14 @@ async def superuser_client(
     mock_redis: MagicMock,
     mock_db_session,
 ) -> AsyncClient:
-    """Client with authenticated superuser."""
+    """Client with an authenticated app admin.
+
+    Only `get_current_user` is overridden. `_require_app_admin` reads the flag
+    off whatever that returns, so there is no separate superuser dependency to
+    stand in for - which is the point of there being one privilege rather than
+    two spellings of it.
+    """
     app.dependency_overrides[get_current_user] = lambda: mock_superuser
-    app.dependency_overrides[get_current_active_superuser] = lambda: mock_superuser
     app.dependency_overrides[get_user_service] = lambda: mock_user_service
     app.dependency_overrides[get_redis] = lambda: mock_redis
     app.dependency_overrides[get_db_session] = lambda: mock_db_session

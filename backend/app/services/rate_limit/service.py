@@ -148,7 +148,7 @@ def make_rate_limit_dep(category: str):
             request=request,
             user_id=str(user.id),
             org_id=str(active_org.id) if active_org else None,
-            is_admin=getattr(user, "is_app_admin", False),
+            is_admin=user.is_app_admin,
             plan_features=plan_features,
         )
 

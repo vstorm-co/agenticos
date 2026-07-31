@@ -1,6 +1,6 @@
 """The skills this platform ships with, read off disk.
 
-A skill is a folder: ``SKILL.md`` carries the name and description in YAML
+A skill is a folder: `SKILL.md` carries the name and description in YAML
 frontmatter and the body below it, and every other file beside it is a resource
 the model can load when it decides it needs the detail. That is the shape the
 skills capability already consumes - a body plus named files - so the library
@@ -30,7 +30,10 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
-LIBRARY_ROOT = Path(__file__).resolve().parent.parent / "skill_library"
+# Bundled skills live with the rest of the deployment's curated data
+# (app/core/catalog) - they are content shipped with the platform, not code,
+# and `app/` keeps no top-level packages beyond the framework's own.
+LIBRARY_ROOT = Path(__file__).resolve().parent.parent / "core" / "catalog" / "skills"
 
 # The file that makes a directory a skill. Named for the convention rather than
 # `index.md` so a folder is recognisable as a skill on disk.

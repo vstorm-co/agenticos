@@ -1,7 +1,7 @@
 """Agent registry repositories (PostgreSQL async).
 
 Listing an agent is not a plain org filter: what a member sees depends on their
-role scope and on what was shared with them, so ``list_visible`` takes the
+role scope and on what was shared with them, so `list_visible` takes the
 predicate pieces the access layer resolved rather than re-deriving them here.
 """
 
@@ -66,6 +66,26 @@ async def list_visible(
     items = list((await db.execute(query)).scalars().all())
     total = (await db.execute(count_query)).scalar() or 0
     return items, total
+
+
+async def list_all_published(db: AsyncSession) -> list[Agent]:
+    """Every published agent on the deployment, whoever owns it.
+
+    Deliberately unscoped, like :func:`app.repositories.organization.list_all`,
+    and for the same narrow reason: work that is *about* the deployment rather
+    than about a tenant. The only caller is the scheduled usage report, which has
+    no member to scope to and must reach every organization's agents to know
+    which of them asked for one. Grep for this function when auditing
+    cross-tenant reads.
+
+    Published only. A draft has no audience that agreed to hear from it - its
+    notification settings have not been published either - and archived agents
+    are not running.
+    """
+    result = await db.execute(
+        select(Agent).where(Agent.status == AgentStatus.PUBLISHED.value).order_by(Agent.created_at)
+    )
+    return list(result.scalars().all())
 
 
 async def create(

@@ -1,12 +1,12 @@
 """User-scoped slash command overrides + custom prompts.
 
 Each row is either:
-  - A user-defined custom command (``prompt`` is set) - fires as
-    ``send-as-message`` in chat, replacing ``/<name>`` with the stored prompt.
-  - An override entry for a built-in command (``prompt`` is NULL) - exists
-    only to record ``is_enabled=False`` for that built-in's name.
+  - A user-defined custom command (`prompt` is set) - fires as
+    `send-as-message` in chat, replacing `/<name>` with the stored prompt.
+  - An override entry for a built-in command (`prompt` is NULL) - exists
+    only to record `is_enabled=False` for that built-in's name.
 
-The unique ``(user_id, name)`` constraint prevents a user from shadowing a
+The unique `(user_id, name)` constraint prevents a user from shadowing a
 built-in's name with a custom command of the same name; that's deliberate -
 the merge logic in the frontend trusts the name as a stable identifier.
 """

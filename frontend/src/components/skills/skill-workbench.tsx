@@ -19,6 +19,7 @@ import {
   NewFileForm,
   UploadButton,
 } from "@/components/skills/skill-files";
+import { CategoryInput } from "@/components/skills/category-input";
 import { buildTree } from "@/lib/file-tree";
 import { cn } from "@/lib/utils";
 import { useSkill } from "@/hooks";
@@ -33,6 +34,8 @@ interface SkillWorkbenchProps {
   /** Without it the body is still readable - the write controls are the part that goes. */
   canEdit: boolean;
   isSaving: boolean;
+  /** What the category field suggests: shelves in use plus the deployment's predefined ones. */
+  categorySuggestions?: string[];
   onSave: (edit: SkillEdit) => void;
   onCancel: () => void;
 }
@@ -58,6 +61,7 @@ export function SkillWorkbench({
   skill,
   canEdit,
   isSaving,
+  categorySuggestions = [],
   onSave,
   onCancel,
 }: SkillWorkbenchProps) {
@@ -93,9 +97,12 @@ export function SkillWorkbench({
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       {/* Above the split rather than inside the body pane: the description and
           the switch are facts about the skill, not about the file being read,
-          and they have to stay reachable while somebody is in `checklist.md`. */}
-      <div className="flex flex-wrap items-end gap-4 rounded-md border p-3">
-        <div className="min-w-0 flex-1 space-y-1.5">
+          and they have to stay reachable while somebody is in `checklist.md`.
+          Every column is label / control / helper from the top, so the three
+          inputs share one line - bottom-aligning them by helper text put the
+          category box at whatever height its wrapped helper left it. */}
+      <div className="flex flex-wrap items-start gap-4 rounded-md border p-3">
+        <div className="min-w-0 flex-1 basis-72 space-y-1.5">
           <Label htmlFor="skill-description">Description</Label>
           <Input
             id="skill-description"
@@ -108,13 +115,13 @@ export function SkillWorkbench({
             when it applies, not what is inside it.
           </p>
         </div>
-        <div className="w-40 shrink-0 space-y-1.5">
+        <div className="w-56 shrink-0 space-y-1.5">
           <Label htmlFor="skill-category">Category</Label>
-          <Input
+          <CategoryInput
             id="skill-category"
             value={category}
-            onChange={(event) => setCategory(event.target.value)}
-            placeholder="e.g. marketing"
+            onChange={setCategory}
+            suggestions={categorySuggestions}
             maxLength={64}
             readOnly={!canEdit}
           />
@@ -122,14 +129,18 @@ export function SkillWorkbench({
             Groups the listing. Never reaches the model.
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-2 pb-6">
+        <div className="shrink-0 space-y-1.5">
           <Label htmlFor="skill-enabled">Enabled</Label>
-          <Switch
-            id="skill-enabled"
-            checked={enabled}
-            onCheckedChange={setEnabled}
-            disabled={!canEdit}
-          />
+          {/* Centered on the input row: the switch is shorter than an input,
+              and sitting on the row's top edge it reads as misplaced. */}
+          <div className="flex h-9 items-center">
+            <Switch
+              id="skill-enabled"
+              checked={enabled}
+              onCheckedChange={setEnabled}
+              disabled={!canEdit}
+            />
+          </div>
         </div>
       </div>
 

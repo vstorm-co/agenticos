@@ -291,6 +291,39 @@ class TestEndToEnd:
         db.commit.assert_awaited_once()
 
     @pytest.mark.anyio
+    async def test_the_owner_is_made_platform_admin(self):
+        """Bootstrap's owner administers the deployment, not just their org.
+
+        /admin, bulk /rag and user management all gate on `is_app_admin`; a
+        fresh install whose only user cannot reach them has no way to grant
+        the flag except the separate CLI command nobody is told about.
+        """
+        from app.commands.bootstrap import _bootstrap
+
+        db = MagicMock()
+        db.commit = AsyncMock()
+        db.flush = AsyncMock()
+        user = MagicMock(id=uuid.uuid4())
+        user.is_app_admin = False
+
+        with (
+            patch("app.commands.bootstrap.get_db_context", self._db_context(db)),
+            patch(
+                "app.commands.bootstrap.UserService.get_by_email",
+                new=AsyncMock(return_value=user),
+            ),
+            patch(
+                "app.commands.bootstrap._resolve_organization",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch("app.commands.bootstrap._resolve_model", new=AsyncMock(return_value=None)),
+            patch("app.commands.bootstrap._resolve_demo_agent", new=AsyncMock()),
+        ):
+            await _bootstrap("admin@example.com", "password123", "Acme", "openai", None, None)
+
+        assert user.is_app_admin is True
+
+    @pytest.mark.anyio
     async def test_an_existing_owner_is_not_registered_again(self):
         from app.commands.bootstrap import _bootstrap
 

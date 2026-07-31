@@ -16,7 +16,6 @@ import logging
 import time
 from typing import Any
 
-from app.core.config import settings
 from app.db.session import get_db_context
 from app.services.channels.base import ChannelAdapter, IncomingMessage, OutgoingMessage
 from app.services.channels.router import ChannelMessageRouter
@@ -31,6 +30,14 @@ class SlackAdapter(ChannelAdapter):
 
     def __init__(self) -> None:
         self._socket_tasks: dict[str, asyncio.Task[None]] = {}
+        # Each bot is its own Slack app, so Socket Mode connects with that
+        # bot's xapp- token. Registered before polling starts, the same way
+        # Mattermost's per-bot server address is.
+        self._app_tokens: dict[str, str] = {}
+
+    def remember_app_token(self, bot_id: str, app_token: str) -> None:
+        """Register the app-level token Socket Mode will connect with."""
+        self._app_tokens[bot_id] = app_token
 
     async def send_message(self, bot_token: str, msg: OutgoingMessage) -> None:
         """Send a reply back to Slack via the Web API."""
@@ -107,8 +114,17 @@ class SlackAdapter(ChannelAdapter):
             )
             return
 
+        app_token = self._app_tokens.get(bot_id)
+        if not app_token:
+            logger.warning(
+                "Slack bot %s has no app-level token - Socket Mode not started. "
+                "Add the xapp- token in the bot's settings.",
+                bot_id,
+            )
+            return
+
         client = SocketModeClient(
-            app_token=settings.SLACK_APP_TOKEN,
+            app_token=app_token,
             web_client=__import__(
                 "slack_sdk.web.async_client", fromlist=["AsyncWebClient"]
             ).AsyncWebClient(token=bot_token),
@@ -141,7 +157,7 @@ class SlackAdapter(ChannelAdapter):
         """Verify Slack request signature (HMAC-SHA256).
 
         Slack signs requests with: v0=HMAC-SHA256(signing_secret, "v0:{timestamp}:{body}")
-        The raw request body must be passed via the ``body`` parameter.
+        The raw request body must be passed via the `body` parameter.
         """
         timestamp = headers.get("x-slack-request-timestamp", "")
         signature = headers.get("x-slack-signature", "")
@@ -169,7 +185,7 @@ class SlackAdapter(ChannelAdapter):
     def parse_incoming(self, raw_payload: dict[str, Any], bot_id: str) -> IncomingMessage | None:
         """Parse a Slack event payload into IncomingMessage.
 
-        Handles ``message`` events (direct messages and channel messages).
+        Handles `message` events (direct messages and channel messages).
         Ignores bot messages, message_changed, and other subtypes.
         Thread replies get thread_ts folded into platform_chat_id.
         """

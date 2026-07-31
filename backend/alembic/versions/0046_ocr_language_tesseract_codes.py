@@ -4,31 +4,31 @@ Revision ID: 0046_ocr_tesseract
 Revises: 0045_ingestion_config
 Create Date: 2026-07-27
 
-``IngestionConfig.ocr_language`` is handed to LiteParse, which passes it to
-Tesseract, which wants ISO 639-2/T: ``eng``, ``pol``, ``deu``. The field was
-seeded from ``LITEPARSE_OCR_LANGUAGE``, whose default was ``en`` - an ISO 639-1
+`IngestionConfig.ocr_language` is handed to LiteParse, which passes it to
+Tesseract, which wants ISO 639-2/T: `eng`, `pol`, `deu`. The field was
+seeded from `LITEPARSE_OCR_LANGUAGE`, whose default was `en` - an ISO 639-1
 code, the kind this product uses everywhere else for a UI locale, and one
 Tesseract has no language pack under. It is the worst shape of wrong value:
 plausible on screen, and silent at run time, because a parse with an unknown
 language does not fail, it returns nothing.
 
-The field now carries ``^[a-z]{3}(\\+[a-z]{3})*$``, which is why this migration
+The field now carries `^[a-z]{3}(\\+[a-z]{3})*$`, which is why this migration
 has to exist rather than the constraint standing on its own. Every row written
-before it holds ``en``, so without a rewrite the model refuses to *read* them:
+before it holds `en`, so without a rewrite the model refuses to *read* them:
 `GET /kb` answers 500 for the whole listing because one field of one row will
 not validate, and no amount of editing in the UI can fix a collection whose page
 cannot load.
 
-Rows are rewritten rather than cleared. ``en`` maps to ``eng`` because that is
+Rows are rewritten rather than cleared. `en` maps to `eng` because that is
 unambiguously what it meant; anything else that does not match the pattern
-becomes ``eng`` too, since a code Tesseract cannot resolve was never doing
+becomes `eng` too, since a code Tesseract cannot resolve was never doing
 anything except reading nothing, and the alternative is a row that stays
 unreadable. The two-letter codes mapped explicitly are the ones a deployment
 could plausibly have set by hand.
 
-Down-migration restores ``en`` for ``eng`` only. It cannot do better: the
+Down-migration restores `en` for `eng` only. It cannot do better: the
 mapping is many-to-one in the direction that matters, and inventing a
-two-letter code for ``pol+eng`` would be a guess.
+two-letter code for `pol+eng` would be a guess.
 """
 
 from collections.abc import Sequence

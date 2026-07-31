@@ -4,22 +4,22 @@ Revision ID: 0037_mcp_owner
 Revises: 0036_paused
 Create Date: 2026-07-27
 
-0035 gave a connection a ``scope`` but left ``user_id`` NOT NULL with an
-``ON DELETE CASCADE``, which quietly contradicted the thing that migration set
+0035 gave a connection a `scope` but left `user_id` NOT NULL with an
+`ON DELETE CASCADE`, which quietly contradicted the thing that migration set
 out to make true: an organization connection that belongs to whoever created it
 disappears when they leave, and - worse - is reachable through the personal
-``/me/mcp-connections`` routes, which authorize on ``user_id`` alone and demand
-no ``connections:manage``. A member could repoint a shared agent's server at
+`/me/mcp-connections` routes, which authorize on `user_id` alone and demand
+no `connections:manage`. A member could repoint a shared agent's server at
 their own host without holding a single organization permission.
 
-So ownership moves. An organization row has no owner (``user_id IS NULL``) and
-records its author in ``created_by_user_id``, which nulls rather than cascades.
+So ownership moves. An organization row has no owner (`user_id IS NULL`) and
+records its author in `created_by_user_id`, which nulls rather than cascades.
 The two check constraints make the personal routes structurally unable to see an
 organization row, rather than relying on every future query remembering a filter.
 
-``secret_key_version`` records which vault master key sealed ``auth_token``.
-Personal tokens are Fernet-encrypted with ``SECRET_KEY`` and ignore it;
-organization tokens go through ``app.core.vault``, which is bound to the
+`secret_key_version` records which vault master key sealed `auth_token`.
+Personal tokens are Fernet-encrypted with `SECRET_KEY` and ignore it;
+organization tokens go through `app.core.vault`, which is bound to the
 organization id and needs the version to survive a key rotation.
 """
 

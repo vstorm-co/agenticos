@@ -7,15 +7,11 @@ from app.api.deps import (
     ActiveOrg,
     ConversationShareSvc,
     ConversationSvc,
-    CurrentAdmin,
     CurrentUser,
     MessageRatingSvc,
 )
-from app.db.models.user import UserRole
 from app.schemas.conversation import (
-    ConversationAdminList,
     ConversationCreate,
-    ConversationKBSettings,
     ConversationList,
     ConversationRead,
     ConversationReadWithMessages,
@@ -35,25 +31,6 @@ from app.schemas.message_rating import (
 )
 
 router = APIRouter()
-
-
-@router.get("/admin-list", response_model=ConversationAdminList)
-async def list_conversations_admin(
-    conversation_service: ConversationSvc,
-    _: CurrentAdmin,
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=100),
-    include_archived: bool = Query(True, description="Include archived conversations"),
-    search: str | None = Query(None, max_length=100, description="Search by title or ID prefix"),
-) -> Any:
-    """List all conversations with message counts (admin only)."""
-    items, total = await conversation_service.list_conversations_admin(
-        skip=skip,
-        limit=limit,
-        include_archived=include_archived,
-        search=search,
-    )
-    return ConversationAdminList(items=items, total=total)
 
 
 @router.get("/shared-with-me", response_model=ConversationList)
@@ -119,13 +96,20 @@ async def get_conversation(
     current_user: CurrentUser,
     active_org: ActiveOrg,
 ) -> Any:
-    """Get a conversation with all its messages."""
-    uid = None if current_user.has_role(UserRole.ADMIN) else current_user.id
+    """Get a conversation with all its messages.
+
+    Always scoped to the caller. This used to pass `user_id=None` - "do not
+    filter by owner" - for anybody whose `users.role` column said `admin`, which
+    made a conversation somebody else had with an agent readable on the strength
+    of a column no other check on the platform respected. Reading another
+    person's conversations is a deployment-administration act and lives on
+    `/admin/conversations`, gated on `is_app_admin`.
+    """
     return await conversation_service.get_conversation(
         conversation_id,
         organization_id=active_org.id,
         include_messages=True,
-        user_id=uid,
+        user_id=current_user.id,
     )
 
 
@@ -141,26 +125,6 @@ async def update_conversation(
     return await conversation_service.update_conversation(
         conversation_id,
         data,
-        organization_id=active_org.id,
-        user_id=current_user.id,
-    )
-
-
-@router.patch("/{conversation_id}/kb-settings", response_model=ConversationRead)
-async def update_kb_settings(
-    conversation_id: UUID,
-    data: ConversationKBSettings,
-    conversation_service: ConversationSvc,
-    current_user: CurrentUser,
-    active_org: ActiveOrg,
-) -> Any:
-    """Update which Knowledge Bases are active for this conversation.
-
-    Send null to restore defaults, [] to disable RAG, or [id,...] for explicit selection.
-    """
-    return await conversation_service.update_kb_settings(
-        conversation_id,
-        data.active_knowledge_base_ids,
         organization_id=active_org.id,
         user_id=current_user.id,
     )
@@ -210,14 +174,17 @@ async def list_messages(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
 ) -> Any:
-    """List messages in a conversation."""
-    uid = None if current_user.has_role(UserRole.ADMIN) else current_user.id
+    """List messages in a conversation, always scoped to the caller.
+
+    Same reasoning as `get_conversation` above: cross-user reads belong to
+    `/admin/conversations`, not to a column on the user row.
+    """
     items, total = await conversation_service.list_messages(
         conversation_id,
         skip=skip,
         limit=limit,
         include_tool_calls=True,
-        user_id=uid,
+        user_id=current_user.id,
     )
     return MessageList(items=items, total=total)  # ty: ignore[invalid-argument-type]
 
@@ -296,6 +263,7 @@ async def share_conversation(
         conversation_id,
         shared_by=current_user.id,
         shared_with=data.shared_with,
+        shared_with_email=data.shared_with_email,
         generate_link=data.generate_link,
         permission=data.permission,
     )

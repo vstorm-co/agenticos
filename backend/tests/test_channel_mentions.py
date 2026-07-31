@@ -8,7 +8,7 @@ or an account the sender is not entitled to.
 
 Every test that gets as far as running an agent has to bind one now. A handle
 used to resolve against every published agent in the bot's organization, so one
-Slack app was a door onto all of them; ``_bound`` is what that door being closed
+Slack app was a door onto all of them; `_bound` is what that door being closed
 by default looks like from a test.
 """
 
@@ -79,7 +79,8 @@ class TestParseMention:
 
 class TestAnswer:
     async def test_an_unaddressed_message_is_handed_back_to_the_caller(self):
-        """The bot's own assistant still owns everything not addressed to an agent."""
+        """The caller decides what no handle means - for a channel bot, the
+        default-agent path in :meth:`answer_default`."""
         with pytest.raises(UnaddressedMessage):
             await ChannelAgentRouter(MagicMock()).answer(
                 "hello there",
@@ -355,4 +356,120 @@ class TestAnswer:
 
         assert execute.call_args.args[2] == "what is the refund window"
         assert execute.call_args.kwargs["conversation_id"] == conversation_id
+        assert answer == "42 days"
+
+
+def _serving(*slugs: str) -> AsyncMock:
+    """An exposure listing that says these agents actively answer on the bot."""
+    return AsyncMock(
+        return_value=[(MagicMock(), MagicMock(id=uuid.uuid4(), slug=slug)) for slug in slugs]
+    )
+
+
+class TestAnswerDefault:
+    """A message naming no handle goes to the bot's only exposed agent.
+
+    There is no assistant behind a bot: with no agent exposed there is nothing
+    to run, and with several there is no honest guess. Only the single-exposure
+    bot answers - and it answers as the *sender*, exactly like a mention.
+    """
+
+    async def test_a_bot_serving_no_agent_refuses_with_the_fix(self):
+        with (
+            patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
+            patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
+        ):
+            exposures.list_active_for_bot = _serving()
+            runner_cls.return_value.execute = AsyncMock()
+
+            with pytest.raises(BadRequestError) as refused:
+                await ChannelAgentRouter(MagicMock()).answer_default(
+                    "hello there",
+                    platform="slack",
+                    organization_id=uuid.uuid4(),
+                    bot_id=_BOT_ID,
+                    user_id=uuid.uuid4(),
+                )
+
+        assert "No agent is available on this bot" in refused.value.message
+        assert "Where this agent is available" in refused.value.message
+        runner_cls.return_value.execute.assert_not_called()
+
+    async def test_a_bot_serving_several_agents_asks_the_sender_to_name_one(self):
+        """Guessing would mean a user asking one thing and something else answering."""
+        with (
+            patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
+            patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
+        ):
+            exposures.list_active_for_bot = _serving("billing", "support")
+            runner_cls.return_value.execute = AsyncMock()
+
+            with pytest.raises(BadRequestError) as refused:
+                await ChannelAgentRouter(MagicMock()).answer_default(
+                    "hello there",
+                    platform="slack",
+                    organization_id=uuid.uuid4(),
+                    bot_id=_BOT_ID,
+                    user_id=uuid.uuid4(),
+                )
+
+        assert "@billing" in refused.value.message
+        assert "@support" in refused.value.message
+        runner_cls.return_value.execute.assert_not_called()
+
+    async def test_an_unlinked_sender_is_refused_before_anything_runs(self):
+        """The default path takes a subject exactly as a mention does."""
+        with (
+            patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
+            patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
+        ):
+            exposures.list_active_for_bot = _serving("support")
+            runner_cls.return_value.execute = AsyncMock()
+
+            with pytest.raises(AuthorizationError) as refused:
+                await ChannelAgentRouter(MagicMock()).answer_default(
+                    "hello there",
+                    platform="slack",
+                    organization_id=uuid.uuid4(),
+                    bot_id=_BOT_ID,
+                    user_id=None,
+                )
+
+        assert "/link" in refused.value.message
+        runner_cls.return_value.execute.assert_not_called()
+
+    async def test_the_only_exposed_agent_runs_the_whole_message_with_its_thread(self):
+        """No handle to strip, so the prompt is the message; the history and the
+        binding both travel with the run, or a cap set on the bot bounds nothing."""
+        conversation_id = uuid.uuid4()
+        history = [MagicMock()]
+        exposure = MagicMock()
+        agent = MagicMock(id=uuid.uuid4(), slug="support")
+
+        with (
+            patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
+            patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
+        ):
+            members.get = AsyncMock(return_value=MagicMock(role=OrgRoleName.MEMBER))
+            exposures.list_active_for_bot = AsyncMock(return_value=[(exposure, agent)])
+            execute = AsyncMock(return_value=("42 days", MagicMock()))
+            runner_cls.return_value.execute = execute
+
+            answer = await ChannelAgentRouter(MagicMock()).answer_default(
+                "what is the refund window",
+                platform="telegram",
+                organization_id=uuid.uuid4(),
+                bot_id=_BOT_ID,
+                user_id=uuid.uuid4(),
+                conversation_id=conversation_id,
+                message_history=history,
+            )
+
+        assert execute.call_args.args[1] == agent.id
+        assert execute.call_args.args[2] == "what is the refund window"
+        assert execute.call_args.kwargs["surface"] is RunSurface.TELEGRAM
+        assert execute.call_args.kwargs["conversation_id"] == conversation_id
+        assert execute.call_args.kwargs["message_history"] is history
+        assert execute.call_args.kwargs["exposure"] is exposure
         assert answer == "42 days"

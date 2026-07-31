@@ -1,15 +1,16 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
+import { requireAdmin } from "@/lib/admin-auth";
 import { BackendApiError, backendFetch } from "@/lib/server-api";
 
 export async function GET(request: NextRequest) {
-  const accessToken = request.cookies.get("access_token")?.value;
-  if (!accessToken) {
-    return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });
-  }
   try {
-    const data = await backendFetch<{ items: unknown[]; total: number }>(
-      "/api/v1/me/mcp-connections/workspace",
+    const adminCheck = await requireAdmin(request);
+    if ("error" in adminCheck) return adminCheck.error;
+    const { accessToken } = adminCheck;
+
+    const data = await backendFetch<unknown>(
+      `/api/v1/admin/organizations${request.nextUrl.search}`,
       { headers: { Authorization: `Bearer ${accessToken}` } },
     );
     return NextResponse.json(data);

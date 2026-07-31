@@ -257,7 +257,7 @@ class InvitationService:
 
         An invitation belonging to another organization is reported as missing
         rather than forbidden, so ids stay unprobeable. The role is checked
-        before the status, so a member without ``members:manage`` is refused
+        before the status, so a member without `members:manage` is refused
         rather than told what state somebody else's invitation is in.
         """
         invite = await invitation_repo.get_by_id(self.db, invitation_id)

@@ -1,6 +1,6 @@
 """The tenant boundary under /rag, one predicate and one resolver at a time.
 
-``tests/integration/test_platform_flows.py`` proves the boundary holds through
+`tests/integration/test_platform_flows.py` proves the boundary holds through
 the real routes against a real database - that is the test which would have
 caught the bug, and it asserts refusals. This file covers the same module from
 underneath: the rows a request in that suite never produces (an app-scoped
@@ -8,8 +8,8 @@ collection, an id that is not a UUID) and the success paths a refusal test
 cannot reach.
 
 The repositories are replaced with an in-memory set of rows that filters the way
-the real query does, so ``list_by_collection_name`` returning two candidates for
-one name - the case that makes ``get_by_collection_name`` unsafe - is expressible
+the real query does, so `list_by_collection_name` returning two candidates for
+one name - the case that makes `get_by_collection_name` unsafe - is expressible
 here rather than only against Postgres.
 """
 
@@ -25,9 +25,10 @@ from app.core.exceptions import AlreadyExistsError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.rag_document import RAGDocument
+from app.db.models.resource_grant import GrantLevel, Visibility
 from app.db.models.sync_log import SyncLog
 from app.db.models.sync_source import SyncSource
-from app.services.collection_access import CollectionAccessService, can_read, can_write
+from app.services.collection_access import CollectionAccessService, readable_kb, writable_kb
 
 pytestmark = pytest.mark.anyio
 
@@ -38,12 +39,16 @@ STRANGER = uuid.uuid4()
 
 
 def _ctx(
-    *, organization_id: uuid.UUID = HOME_ORG, user_id: uuid.UUID = CALLER, app_admin: bool = False
+    *,
+    organization_id: uuid.UUID = HOME_ORG,
+    user_id: uuid.UUID = CALLER,
+    role: str = OrgRoleName.OWNER.value,
+    app_admin: bool = False,
 ) -> AuthContext:
     return AuthContext(
         user_id=user_id,
         organization_id=organization_id,
-        role=OrgRoleName.OWNER.value,
+        role=role,
         is_app_admin=app_admin,
     )
 
@@ -54,6 +59,7 @@ def _kb(
     scope: KBScope = KBScope.ORG,
     organization_id: uuid.UUID | None = HOME_ORG,
     owner_user_id: uuid.UUID | None = None,
+    visibility: str = Visibility.PRIVATE.value,
 ) -> KnowledgeBase:
     return KnowledgeBase(
         id=uuid.uuid4(),
@@ -62,6 +68,7 @@ def _kb(
         scope=scope.value,
         organization_id=organization_id,
         owner_user_id=owner_user_id,
+        visibility=visibility,
         ingestion_config={},
         embedding_model="text-embedding-3-large",
         embedding_dim=3072,
@@ -77,11 +84,48 @@ class Rows:
     documents: list[RAGDocument] = field(default_factory=list)
     sources: list[SyncSource] = field(default_factory=list)
     logs: list[SyncLog] = field(default_factory=list)
+    # (user_id, resource_id) -> grant level, read by the resolve_access fallback.
+    grants: dict[tuple[uuid.UUID, uuid.UUID], GrantLevel] = field(default_factory=dict)
 
 
 @pytest.fixture
 def rows() -> Rows:
     return Rows()
+
+
+@pytest.fixture(autouse=True)
+def _grant_repo(rows: Rows, monkeypatch: pytest.MonkeyPatch) -> None:
+    """`resolve_access` falls back to the grant table; give it these rows'.
+
+    Autouse because the predicate functions consult it without going through
+    the service fixture - a bare `readable_kb` call on an org row already can.
+    """
+    from app.repositories import resource_grant_repo
+
+    async def get_level(
+        _db: object,
+        *,
+        organization_id: uuid.UUID,
+        subject_user_id: uuid.UUID,
+        resource_type: str,
+        resource_id: uuid.UUID,
+    ) -> GrantLevel | None:
+        del organization_id, resource_type
+        return rows.grants.get((subject_user_id, resource_id))
+
+    async def list_shared_ids(
+        _db: object,
+        *,
+        organization_id: uuid.UUID,
+        subject_user_id: uuid.UUID,
+        resource_type: str,
+        minimum_level: GrantLevel,
+    ) -> list[uuid.UUID]:
+        del organization_id, resource_type, minimum_level
+        return [rid for (uid, rid) in rows.grants if uid == subject_user_id]
+
+    monkeypatch.setattr(resource_grant_repo, "get_level", get_level)
+    monkeypatch.setattr(resource_grant_repo, "list_shared_ids", list_shared_ids)
 
 
 @pytest.fixture
@@ -102,10 +146,10 @@ def service(rows: Rows, monkeypatch: pytest.MonkeyPatch) -> CollectionAccessServ
     def by_id[T: RAGDocument | SyncSource | SyncLog](
         table: str,
     ) -> Callable[[object, uuid.UUID], Awaitable[T | None]]:
-        """A ``get_by_id`` that reads the list at call time.
+        """A `get_by_id` that reads the list at call time.
 
-        Closing over ``getattr(rows, table)`` instead of the list itself: a test
-        that assigns ``rows.documents = [...]`` rebinds the attribute, and a
+        Closing over `getattr(rows, table)` instead of the list itself: a test
+        that assigns `rows.documents = [...]` rebinds the attribute, and a
         closure over the original list would never see the row.
         """
 
@@ -123,45 +167,97 @@ def service(rows: Rows, monkeypatch: pytest.MonkeyPatch) -> CollectionAccessServ
 
 
 class TestWhoMayReadACollection:
-    """``can_read``: the rule ``/rag`` and ``/kb`` now share."""
+    """`readable_kb`: the rule `/rag` and `/kb` share, scope and grants included."""
 
-    def test_an_organizations_collection_is_readable_by_its_members(self) -> None:
-        assert can_read(_kb("handbook"), user_id=CALLER, organization_id=HOME_ORG)
+    async def test_an_org_collection_is_readable_by_a_role_that_sees_the_whole_org(self) -> None:
+        assert await readable_kb(None, _ctx(), _kb("handbook"))
 
-    def test_an_organizations_collection_is_not_readable_from_another_organization(self) -> None:
+    async def test_a_private_org_collection_is_hidden_from_a_member_who_does_not_own_it(
+        self,
+    ) -> None:
+        """The matrix says Member holds `collections:view: shared` - a private
+        row someone else owns is exactly what that scope does not reach. This
+        was the hole: any member could read any org collection.
+        """
+        kb = _kb("handbook", owner_user_id=STRANGER)
+
+        assert not await readable_kb(None, _ctx(role=OrgRoleName.MEMBER.value), kb)
+
+    async def test_a_member_reads_their_own_and_the_org_visible_collections(self) -> None:
+        member = _ctx(role=OrgRoleName.MEMBER.value)
+
+        assert await readable_kb(None, member, _kb("mine", owner_user_id=CALLER))
+        assert await readable_kb(
+            None, member, _kb("shared", owner_user_id=STRANGER, visibility=Visibility.ORG.value)
+        )
+
+    async def test_a_grant_lifts_one_collection_into_reach_without_a_promotion(
+        self, rows: Rows
+    ) -> None:
+        kb = _kb("handbook", owner_user_id=STRANGER)
+        viewer = _ctx(role=OrgRoleName.VIEWER.value)
+
+        assert not await readable_kb(None, viewer, kb)
+        rows.grants[(CALLER, kb.id)] = GrantLevel.READ
+        assert await readable_kb(None, viewer, kb)
+
+    async def test_an_organizations_collection_is_not_readable_from_another_organization(
+        self,
+    ) -> None:
         """Even by the user who owns the row - the organization is checked, not the owner."""
         kb = _kb("handbook", organization_id=OTHER_ORG, owner_user_id=CALLER)
 
-        assert not can_read(kb, user_id=CALLER, organization_id=HOME_ORG)
+        assert not await readable_kb(None, _ctx(), kb)
 
-    def test_an_organizations_collection_is_not_readable_without_an_organization(self) -> None:
-        assert not can_read(_kb("handbook"), user_id=CALLER, organization_id=None)
+    async def test_an_org_collection_with_no_organization_matches_no_caller(self) -> None:
+        assert not await readable_kb(None, _ctx(), _kb("orphan", organization_id=None))
 
-    def test_a_personal_collection_is_readable_only_by_its_owner(self) -> None:
+    async def test_a_personal_collection_is_readable_only_by_its_owner(self) -> None:
         kb = _kb("notes", scope=KBScope.PERSONAL, owner_user_id=CALLER)
 
-        assert can_read(kb, user_id=CALLER, organization_id=HOME_ORG)
-        assert not can_read(kb, user_id=STRANGER, organization_id=HOME_ORG)
+        assert await readable_kb(None, _ctx(), kb)
+        assert not await readable_kb(None, _ctx(user_id=STRANGER), kb)
 
-    def test_an_app_collection_is_readable_by_everyone(self) -> None:
+    async def test_an_app_collection_is_readable_by_everyone(self) -> None:
         """Deployment-wide by design: created only by a platform admin, for everyone."""
         kb = _kb("templates", scope=KBScope.APP, organization_id=None)
 
-        assert can_read(kb, user_id=STRANGER, organization_id=OTHER_ORG)
+        assert await readable_kb(None, _ctx(user_id=STRANGER, organization_id=OTHER_ORG), kb)
 
 
 class TestWhoMayWriteToACollection:
-    def test_writing_follows_reading_for_a_tenants_own_collection(self) -> None:
-        kb = _kb("handbook")
+    async def test_an_owner_role_writes_any_org_collection(self) -> None:
+        assert await writable_kb(None, _ctx(), _kb("handbook"))
 
-        assert can_write(kb, user_id=CALLER, organization_id=HOME_ORG, is_app_admin=False)
+    async def test_a_member_writes_their_own_collection_and_not_a_strangers(self) -> None:
+        """`collections:edit: own` - and org-wide visibility only shares *reading*."""
+        member = _ctx(role=OrgRoleName.MEMBER.value)
 
-    def test_an_app_collection_is_writable_only_by_a_platform_admin(self) -> None:
+        assert await writable_kb(None, member, _kb("mine", owner_user_id=CALLER))
+        assert not await writable_kb(
+            None, member, _kb("shared", owner_user_id=STRANGER, visibility=Visibility.ORG.value)
+        )
+
+    async def test_an_edit_grant_admits_a_caller_whose_role_does_not(self, rows: Rows) -> None:
+        kb = _kb("handbook", owner_user_id=STRANGER)
+        member = _ctx(role=OrgRoleName.MEMBER.value)
+
+        assert not await writable_kb(None, member, kb)
+        rows.grants[(CALLER, kb.id)] = GrantLevel.EDIT
+        assert await writable_kb(None, member, kb)
+
+    async def test_a_read_grant_does_not_admit_a_write(self, rows: Rows) -> None:
+        kb = _kb("handbook", owner_user_id=STRANGER)
+        rows.grants[(CALLER, kb.id)] = GrantLevel.READ
+
+        assert not await writable_kb(None, _ctx(role=OrgRoleName.MEMBER.value), kb)
+
+    async def test_an_app_collection_is_writable_only_by_a_platform_admin(self) -> None:
         """Everyone reads it, so a single tenant editing it would edit everyone's."""
         kb = _kb("templates", scope=KBScope.APP, organization_id=None)
 
-        assert not can_write(kb, user_id=CALLER, organization_id=HOME_ORG, is_app_admin=False)
-        assert can_write(kb, user_id=CALLER, organization_id=HOME_ORG, is_app_admin=True)
+        assert not await writable_kb(None, _ctx(), kb)
+        assert await writable_kb(None, _ctx(app_admin=True), kb)
 
 
 class TestResolvingACollectionName:
@@ -170,8 +266,8 @@ class TestResolvingACollectionName:
     ) -> None:
         """The reason this scans candidates instead of taking the first row.
 
-        ``collection_name`` is not unique. Order the other tenant's row first,
-        which is exactly what ``get_by_collection_name`` would have returned.
+        `collection_name` is not unique. Order the other tenant's row first,
+        which is exactly what `get_by_collection_name` would have returned.
         """
         theirs = _kb("handbook", organization_id=OTHER_ORG)
         mine = _kb("handbook")
@@ -301,7 +397,7 @@ class TestResolvingADocument:
     async def test_an_id_that_is_not_a_uuid_is_a_missing_document_not_a_crash(
         self, service: CollectionAccessService
     ) -> None:
-        """``UUID("../etc/passwd")`` used to raise ValueError and answer 500."""
+        """`UUID("../etc/passwd")` used to raise ValueError and answer 500."""
         with pytest.raises(NotFoundError):
             await service.readable_document(_ctx(), "not-an-id")
 

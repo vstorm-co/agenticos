@@ -3,6 +3,7 @@
 import { FileText, Tag, Trash2 } from "lucide-react";
 
 import { Badge, Button, Card, CardContent } from "@/components/ui";
+import { categoryLabel } from "@/components/skills/category-input";
 import type { SkillSummary } from "@/types/providers";
 
 interface SkillCardProps {
@@ -50,7 +51,7 @@ export function SkillCard({ skill, canEdit, onOpen, onDelete }: SkillCardProps) 
             {skill.category !== null && (
               <span className="flex min-w-0 items-center gap-1">
                 <Tag className="h-3.5 w-3.5 shrink-0" />
-                <span className="truncate">{skill.category}</span>
+                <span className="truncate">{categoryLabel(skill.category)}</span>
               </span>
             )}
           </span>

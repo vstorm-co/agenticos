@@ -7,7 +7,7 @@ runner, which injects it into the capability instance that declared it.
 
 A secret is now a *shared resource* like an agent or a skill: it has an owner, a
 visibility and grants. So the collection routes carry a role gate on
-``secrets:view`` / ``secrets:edit``, and everything acting on one row hands the
+`secrets:view` / `secrets:edit`, and everything acting on one row hands the
 decision to the service, which resolves it against that row - a role gate there
 would refuse a member holding an explicit grant before `resolve_access` could
 widen their access.

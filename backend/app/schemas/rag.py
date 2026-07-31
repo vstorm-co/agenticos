@@ -207,3 +207,13 @@ class RAGSyncResponse(BaseSchema):
 class SupportedFormatsResponse(BaseSchema):
     parser: str
     formats: list[str]
+
+
+class EmbeddingModelEntry(BaseSchema):
+    model: str
+    dim: int
+
+
+class EmbeddingModelsResponse(BaseSchema):
+    default: str
+    models: list[EmbeddingModelEntry]

@@ -14,7 +14,7 @@ export async function requireAdmin(
   }
 
   try {
-    const user = await backendFetch<{ role: string }>("/api/v1/auth/me", {
+    const user = await backendFetch<{ is_app_admin?: boolean }>("/api/v1/auth/me", {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
 

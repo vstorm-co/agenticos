@@ -60,7 +60,9 @@ export function useConversationShares() {
     async (
       conversationId: string,
       data: {
+        /** A user id, for callers that hold one. The dialog sends the email. */
         shared_with?: string;
+        shared_with_email?: string;
         permission?: "view" | "edit";
         generate_link?: boolean;
       },

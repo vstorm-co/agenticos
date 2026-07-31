@@ -2,7 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useChat } from "./use-chat";
-import { useAgentSelectionStore, useChatStore, useKBSelectionStore } from "@/stores";
+import { useAgentSelectionStore, useChatStore } from "@/stores";
 
 // The socket itself is not under test: what matters is the frame the hook hands
 // it, because that frame is the whole contract with the backend. The mock also
@@ -40,7 +40,6 @@ function receive(type: string, data: Record<string, unknown>): void {
 beforeEach(() => {
   vi.clearAllMocks();
   useAgentSelectionStore.setState({ selectedAgentId: null });
-  useKBSelectionStore.setState({ activeKBIds: [] });
   useChatStore.getState().clearMessages();
 });
 
@@ -54,10 +53,10 @@ describe("useChat - which agent a turn is addressed to", () => {
     expect(lastFrame().agent_id).toBe("agent-1");
   });
 
-  it("sends no agent_id for the general assistant", () => {
-    // Not `agent_id: null`, not an empty string: the assistant is reached by the
-    // frame that never mentions an agent, which is exactly what a client knowing
-    // nothing about published agents sends.
+  it("omits agent_id entirely when nothing is selected", () => {
+    // Not `agent_id: null`, not an empty string: the backend refuses a frame
+    // that names no agent, and it should refuse an honest frame - one that
+    // omits the field - rather than parse a placeholder.
     const { result } = renderHook(() => useChat());
     act(() => result.current.sendMessage("hello"));
 
@@ -76,11 +75,8 @@ describe("useChat - which agent a turn is addressed to", () => {
 
   it("adds the agent to the frame without disturbing the rest of it", () => {
     // `agent_id` is one more field, not a different frame. The model override
-    // now names a vault profile rather than a bare model name, and it applies
-    // to a published agent as well as to the assistant - overriding an agent's
-    // model used to be silently ignored.
+    // names a vault profile, and the run records which one answered.
     useAgentSelectionStore.getState().select("agent-1");
-    useKBSelectionStore.getState().setActiveKBIds(["kb-1"]);
 
     const { result } = renderHook(() => useChat());
     act(() => {
@@ -91,7 +87,6 @@ describe("useChat - which agent a turn is addressed to", () => {
     expect(lastFrame()).toMatchObject({
       message: "hello",
       agent_id: "agent-1",
-      active_knowledge_base_ids: ["kb-1"],
       model_profile_id: "profile-1",
     });
   });

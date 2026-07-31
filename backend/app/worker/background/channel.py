@@ -1,6 +1,6 @@
 """In-process handler for channel-bot webhook events (Telegram, Slack).
 
-Dispatched via FastAPI ``BackgroundTasks`` from the webhook routes so the platform
+Dispatched via FastAPI `BackgroundTasks` from the webhook routes so the platform
 gets a fast 200 OK while routing/AI happens in the background.
 """
 

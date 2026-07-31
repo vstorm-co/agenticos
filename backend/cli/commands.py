@@ -11,8 +11,7 @@ from tabulate import tabulate
 
 from app.commands import register_commands
 from app.main import app
-from app.core.exceptions import AlreadyExistsError, NotFoundError
-from app.db.models.user import UserRole
+from app.core.exceptions import AlreadyExistsError
 from app.db.session import async_session_maker
 from app.schemas.user import UserCreate
 from app.services.user import UserService
@@ -120,22 +119,29 @@ def user_cli():
 @click.option(
     "--password", prompt=True, hide_input=True, confirmation_prompt=True, help="User password"
 )
-@click.option("--role", type=click.Choice(["user", "admin"]), default="user", help="User role")
-@click.option("--superuser", is_flag=True, default=False, help="Create as superuser")
-def user_create(email: str, password: str, role: str, superuser: bool):
-    """Create a new user."""
+@click.option(
+    "--superuser",
+    is_flag=True,
+    default=False,
+    help="Also grant app-admin, which administers the whole deployment",
+)
+def user_create(email: str, password: str, superuser: bool):
+    """Create a new user.
+
+    There is no `--role`. A user's authority inside an organization is a
+    membership row plus the permission catalog, granted from Users & Roles or
+    `orgs`; the only privilege this command can hand out is the global one, and
+    `--superuser` is it.
+    """
 
     async def _create():
         async with async_session_maker() as session:
             user_service = UserService(session)
             try:
-                user_in = UserCreate(email=email, password=password, role=UserRole(role))
-                user = await user_service.register(user_in)
-
+                user = await user_service.register(UserCreate(email=email, password=password))
                 if superuser:
-                    user.role = UserRole.ADMIN.value
+                    user.is_app_admin = True
                     session.add(user)
-
                 await session.commit()
                 return user
             except AlreadyExistsError:
@@ -144,7 +150,8 @@ def user_create(email: str, password: str, role: str, superuser: bool):
 
     user = asyncio.run(_create())
     if user:
-        click.secho(f"User created: {user.email} (role: {user.role})", fg="green")
+        suffix = " (app admin)" if user.is_app_admin else ""
+        click.secho(f"User created: {user.email}{suffix}", fg="green")
 
 
 @user_cli.command("create-admin")
@@ -153,21 +160,20 @@ def user_create(email: str, password: str, role: str, superuser: bool):
     "--password", prompt=True, hide_input=True, confirmation_prompt=True, help="Admin password"
 )
 def user_create_admin(email: str, password: str):
-    """Create an admin user.
+    """Create a user who administers the deployment.
 
-    This is a shortcut for creating a user with admin role and superuser privileges.
-    Use this to create the initial admin account after setting up the database.
+    A shortcut for `user create --superuser`. Use it for the first account after
+    setting up the database - though `agenticos cmd bootstrap` does this and
+    rather more.
     """
 
     async def _create():
         async with async_session_maker() as session:
             user_service = UserService(session)
             try:
-                user_in = UserCreate(email=email, password=password, role=UserRole.ADMIN)
-                user = await user_service.register(user_in)
-
+                user = await user_service.register(UserCreate(email=email, password=password))
+                user.is_app_admin = True
                 session.add(user)
-
                 await session.commit()
                 return user
             except AlreadyExistsError:
@@ -176,32 +182,8 @@ def user_create_admin(email: str, password: str):
 
     user = asyncio.run(_create())
     if user:
-        click.secho(f"Admin user created: {user.email}", fg="green")
-        click.echo("This user has admin role and superuser privileges.")
-
-
-@user_cli.command("set-role")
-@click.argument("email")
-@click.option("--role", type=click.Choice(["user", "admin"]), required=True, help="New role")
-def user_set_role(email: str, role: str):
-    """Change a user's role."""
-
-    async def _update():
-        async with async_session_maker() as session:
-            user_service = UserService(session)
-            try:
-                user = await user_service.get_by_email(email)
-                user.role = UserRole(role).value
-                session.add(user)
-                await session.commit()
-                return user
-            except NotFoundError:
-                click.secho(f"User not found: {email}", fg="red")
-                return None
-
-    user = asyncio.run(_update())
-    if user:
-        click.secho(f"User {email} role updated to: {role}", fg="green")
+        click.secho(f"App admin created: {user.email}", fg="green")
+        click.echo("This user administers the deployment and reaches every organization.")
 
 
 @user_cli.command("list")
@@ -219,8 +201,8 @@ def user_list():
         click.echo("No users found.")
         return
 
-    table = [[u.id, u.email, u.role, u.is_active] for u in users]
-    click.echo(tabulate(table, headers=["ID", "Email", "Role", "Active", "Superuser"]))
+    table = [[u.id, u.email, u.is_active, u.is_app_admin] for u in users]
+    click.echo(tabulate(table, headers=["ID", "Email", "Active", "App admin"]))
 
 
 @cli.group("cmd")

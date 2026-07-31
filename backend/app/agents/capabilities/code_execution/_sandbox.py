@@ -6,11 +6,14 @@ from typing import Any
 
 from pydantic_monty import AsyncMonty, CollectString, MontyError, ResourceLimits
 
-from app.core.config import settings
-
 logger = logging.getLogger(__name__)
 
 MAX_OUTPUT_CHARS = 8000
+
+# What one call may cost when the binding does not say. The agent's own
+# capability config is the place to raise them - see `CodeExecutionConfig`.
+DEFAULT_TIMEOUT_SECS = 10.0
+DEFAULT_MAX_MEMORY_MB = 256
 
 
 def _clip(text: str) -> str:
@@ -33,21 +36,28 @@ def _format_result(stdout: str, output: Any) -> str:
     return _clip(text)
 
 
-async def run_python(code: str) -> str:
+async def run_python(
+    code: str,
+    *,
+    timeout_secs: float = DEFAULT_TIMEOUT_SECS,
+    max_memory_mb: int = DEFAULT_MAX_MEMORY_MB,
+) -> str:
     """Execute model-written Python in the Monty sandbox and return its output.
 
     Args:
-        code: The Python source to run. A restricted stdlib subset (``math``,
-            ``asyncio``, ``json``, ``datetime``, ``re``) works, but modules like
-            ``statistics``/``random``/``itertools`` are unavailable.
+        code: The Python source to run. A restricted stdlib subset (`math`,
+            `asyncio`, `json`, `datetime`, `re`) works, but modules like
+            `statistics`/`random`/`itertools` are unavailable.
+        timeout_secs: Wall-clock budget for this one call.
+        max_memory_mb: Memory cap for this one call.
 
     Returns:
         The captured stdout plus the value of the final expression, or an error
         message the model can read and recover from.
     """
     limits: ResourceLimits = {
-        "max_duration_secs": settings.CODE_EXECUTION_TIMEOUT_SECS,
-        "max_memory": settings.CODE_EXECUTION_MAX_MEMORY_MB * 1024 * 1024,
+        "max_duration_secs": timeout_secs,
+        "max_memory": max_memory_mb * 1024 * 1024,
     }
     collector = CollectString()
     try:

@@ -45,9 +45,9 @@ async def download_file(
 ) -> Any:
     """Serve a file. Only the owner can access their files.
 
-    By default the response is ``Content-Disposition: inline`` so PDFs, images
-    and audio/video render directly inside an ``<iframe>`` / media tag (used
-    by the chat file-preview panel). Pass ``?disposition=attachment`` to force
+    By default the response is `Content-Disposition: inline` so PDFs, images
+    and audio/video render directly inside an `<iframe>` / media tag (used
+    by the chat file-preview panel). Pass `?disposition=attachment` to force
     the browser's download dialog (used by the explicit "Download" button).
     """
     try:
@@ -61,14 +61,14 @@ async def download_file(
     if not file_path:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found on disk")
 
-    # FastAPI's ``FileResponse(filename=...)`` always uses ``attachment`` -
-    # build the header manually so we can switch to ``inline`` for previews.
+    # FastAPI's `FileResponse(filename=...)` always uses `attachment` -
+    # build the header manually so we can switch to `inline` for previews.
     mode = "attachment" if disposition == "attachment" else "inline"
     safe_name = chat_file.filename.replace('"', "")
     # The chat file-preview panel embeds this URL in an iframe (PDFs, HTML,
-    # etc). Default ``X-Frame-Options: DENY`` from SecurityHeadersMiddleware
+    # etc). Default `X-Frame-Options: DENY` from SecurityHeadersMiddleware
     # would break that, so opt this endpoint down to SAMEORIGIN. The CSP
-    # ``frame-ancestors 'self'`` is the modern equivalent - browsers honor
+    # `frame-ancestors 'self'` is the modern equivalent - browsers honor
     # whichever they recognize.
     headers = {
         "Content-Disposition": f'{mode}; filename="{safe_name}"',

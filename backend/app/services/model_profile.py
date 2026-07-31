@@ -6,7 +6,6 @@ profile ids; everything below deals in ciphertext.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from urllib.parse import urlparse
 from uuid import UUID
@@ -21,10 +20,8 @@ from app.agents.model_resolver import (
     get_provider,
 )
 from app.core.audit import record_audit
-from app.core.config import settings
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
-from app.core.sanitize import SSRFBlockedError, validate_webhook_url
 from app.core.secret_kinds import (
     SecretKind,
     unseal_secret,
@@ -45,8 +42,8 @@ _ALLOWED_ENDPOINT_SCHEMES = frozenset({"http", "https"})
 def _validate_model_id(provider: str, model: str) -> None:
     """Reject model ids a provider cannot parse, at configuration time.
 
-    OpenRouter namespaces every model (``openai/gpt-4.1``) and fails on a bare
-    id with ``ValueError: not enough values to unpack`` - deep inside a run,
+    OpenRouter namespaces every model (`openai/gpt-4.1`) and fails on a bare
+    id with `ValueError: not enough values to unpack` - deep inside a run,
     with nothing pointing at the profile that caused it. Catching it here costs
     one comparison and turns a baffling run-time crash into a form error.
     """
@@ -58,28 +55,23 @@ def _validate_model_id(provider: str, model: str) -> None:
 
 
 async def validate_endpoint_url(url: str) -> str:
-    """Check a provider ``base_url`` before the platform will store it.
+    """Check a provider `base_url` before the platform will store it.
 
     Everywhere else - webhooks, MCP servers - an internal address is an SSRF
     attempt and is refused. Here it is frequently the entire point: Ollama on
-    ``localhost:11434``, a vLLM server on the deployment's own network, a
-    LiteLLM proxy beside the API. Refusing those would remove the feature; not
-    checking at all would let any member with ``connections:manage`` turn the
-    backend into a probe for the internal network.
+    `localhost:11434`, a vLLM server on the deployment's own network, a
+    LiteLLM proxy beside the API. Local models are a first-class provider, so
+    private, loopback and link-local addresses are allowed for model profiles -
+    and for model profiles only; the platform's other URL checks are unchanged.
 
-    So it is a deployment decision, stated explicitly:
-    ``ALLOW_INTERNAL_MODEL_ENDPOINTS`` opens private, loopback and link-local
-    addresses to model profiles and nothing else. It defaults to off, so a
-    hosted deployment is safe without anyone thinking about it, and a
-    self-hosted one turns it on once.
-
-    The scheme and userinfo checks apply either way - ``file://`` is never a
-    model endpoint, and credentials in a URL are an ambiguity we do not need.
+    The scheme and userinfo checks still apply - `file://` is never a model
+    endpoint, and credentials in a URL are an ambiguity we do not need. What
+    remains of the SSRF posture here is the permission gate: only members who
+    may manage connections can store an endpoint at all.
 
     Raises:
-        BadRequestError: If the URL is malformed, uses another scheme, carries
-            credentials, or points inside the network on a deployment that has
-            not allowed that.
+        BadRequestError: If the URL is malformed, uses another scheme, or
+            carries credentials.
     """
     parsed = urlparse(url)
     if parsed.scheme not in _ALLOWED_ENDPOINT_SCHEMES:
@@ -99,20 +91,7 @@ async def validate_endpoint_url(url: str) -> str:
             ),
             details={"base_url": url},
         )
-    if settings.ALLOW_INTERNAL_MODEL_ENDPOINTS:
-        return url
-    try:
-        # Resolves DNS, so it runs in a thread - same as the MCP URL check.
-        return await asyncio.to_thread(validate_webhook_url, url)
-    except SSRFBlockedError as exc:
-        raise BadRequestError(
-            message=(
-                "This endpoint is on an internal network. A self-hosted deployment can "
-                "allow that with ALLOW_INTERNAL_MODEL_ENDPOINTS=true; a shared one should "
-                "not, because any member who can add a key could then reach its network."
-            ),
-            details={"base_url": url},
-        ) from exc
+    return url
 
 
 def provider_catalog() -> list[ProviderSpec]:

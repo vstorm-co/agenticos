@@ -72,7 +72,6 @@ dependencies = [
     "tabulate>=0.9.0",
     "tqdm>=4.66.0",
     "tavily-python>=0.5.0",
-    "matplotlib>=3.9.0",
     "pydantic-monty>=0.0.19",
     "pydantic-ai-skills>=0.11.0",
     "cryptography>=44.0.0",
@@ -93,6 +92,14 @@ dev = [
     "ruff>=0.15.0",
     "ty>=0.0.29",
     "pre-commit>=4.0.0",
+]
+# The documentation site. Its own group rather than part of `dev`, because the
+# reference pages import the application to read its docstrings - so this group
+# needs the runtime installed, and CI's lint job does not need mkdocs.
+docs = [
+    "mkdocs>=1.6.0",
+    "mkdocs-material>=9.5.0",
+    "mkdocstrings[python]>=0.27.0",
 ]
 
 [project.scripts]
@@ -314,16 +321,19 @@ include = [
     "app/agents/**",
     "app/commands/bootstrap.py",
     "app/core/permissions.py",
+    "app/core/catalog/**",
     "app/core/secret_kinds.py",
     "app/core/vault.py",
     "app/core/background.py",
     "app/services/access.py",
     "app/services/agent_chat.py",
+    "app/services/agent_environment.py",
     "app/services/agent_exposure.py",
     "app/services/agent_registry.py",
     "app/services/agent_runner.py",
     "app/services/channels/mentions.py",
     "app/services/collection_access.py",
+    "app/services/embedding_resolution.py",
     "app/services/approvals.py",
     "app/services/health.py",
     "app/services/email/templates.py",
@@ -339,21 +349,22 @@ include = [
     "app/services/organization_secret.py",
     "app/services/sharing.py",
     "app/services/skills.py",
+    "app/services/spend.py",
+    "app/repositories/agent_environment.py",
     "app/repositories/agent_exposure.py",
+    "app/repositories/ingestion_spend.py",
     "app/repositories/mcp_connection.py",
     "app/repositories/organization_secret.py",
     "app/repositories/resource_grant.py",
     "app/api/routes/v1/_sharing_routes.py",
     "app/api/routes/v1/secrets.py",
+    "app/api/routes/v1/agent_environments.py",
     "app/api/routes/v1/agent_exposures.py",
     "app/api/routes/v1/sharing.py",
 ]
-# The template's `app/agents/assistant.py`, `mcp.py` and `mcp_oauth.py` are
-# omitted from the coverage gate for the same reason they are not held here:
-# they are the legacy chat path, slated for replacement by the agent factory.
+# Mirrors `[tool.coverage.run] omit` - one definition of "ours", asserted equal
+# by tests/test_coverage_gate.py.
 exclude = [
-    "app/agents/assistant.py",
-    "app/agents/mcp.py",
     "app/agents/mcp_oauth.py",
 ]
 
@@ -383,22 +394,6 @@ unused-ignore-comment = "error"
 # typo or a dependency somebody dropped, and both should stop the build.
 unresolved-import = "error"
 
-# The framework agent wrappers (langchain/langgraph/deepagents/pydantic-deep)
-# are thin adapters over heavily-untyped third-party libraries — LangGraph's
-# Pregel.ainvoke/astream, create_agent/create_deep_agent overloads, RunnableConfig
-# TypedDicts, Agent[...] generic variance. ty can't reconcile their stubs, but the
-# calls are correct at runtime; silence those rule families in the adapters only
-# (name-resolution rules stay on, so real typos are still caught).
-[[tool.ty.overrides]]
-include = ["app/agents/*_assistant.py"]
-
-[tool.ty.overrides.rules]
-invalid-argument-type = "ignore"
-no-matching-overload = "ignore"
-invalid-return-type = "ignore"
-invalid-assignment = "ignore"
-unknown-argument = "ignore"
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
@@ -424,16 +419,19 @@ include = [
     "app/agents/**",
     "app/commands/bootstrap.py",
     "app/core/permissions.py",
+    "app/core/catalog/**",
     "app/core/secret_kinds.py",
     "app/core/vault.py",
     "app/core/background.py",
     "app/services/access.py",
     "app/services/agent_chat.py",
+    "app/services/agent_environment.py",
     "app/services/agent_exposure.py",
     "app/services/agent_registry.py",
     "app/services/agent_runner.py",
     "app/services/channels/mentions.py",
     "app/services/collection_access.py",
+    "app/services/embedding_resolution.py",
     "app/services/approvals.py",
     # The health probes are ours: the template's version reported a hardcoded
     # "unknown" for the vector store and read environment variables for a
@@ -463,24 +461,27 @@ include = [
     "app/services/organization_secret.py",
     "app/services/sharing.py",
     "app/services/skills.py",
+    "app/services/spend.py",
+    "app/repositories/agent_environment.py",
     "app/repositories/agent_exposure.py",
+    "app/repositories/ingestion_spend.py",
     "app/repositories/mcp_connection.py",
     "app/repositories/organization_secret.py",
     "app/repositories/resource_grant.py",
     "app/api/routes/v1/_sharing_routes.py",
     "app/api/routes/v1/secrets.py",
+    "app/api/routes/v1/agent_environments.py",
     "app/api/routes/v1/agent_exposures.py",
     "app/api/routes/v1/sharing.py",
 ]
 branch = true
 omit = [
-    # Template-inherited and slated for replacement by the agent path:
-    # `assistant.py` is the legacy generic chat, `mcp*.py` the per-user MCP
-    # client, `ask_user_tool` its interactive prompt. They move into the gate
-    # when the WebSocket chat is rebuilt on the factory; testing them now would
-    # mean investing in code with a known end date.
-    "app/agents/assistant.py",
-    "app/agents/mcp.py",
+    # The template's OAuth client for MCP servers: discovery, dynamic client
+    # registration, token exchange and refresh. Protocol plumbing we inherited
+    # rather than designed - holding it to 100% would mean mock-heavy tests of
+    # OAuth internals. It joins the gate when we take ownership of it; its
+    # observable contract (tokens applied, refreshed, refused) is pinned in
+    # tests/test_mcp_connections.py.
     "app/agents/mcp_oauth.py",
 ]
 

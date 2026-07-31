@@ -33,7 +33,7 @@ class Knowledge(AbstractCapability[AgentDepsT]):
     reach by asking for a different collection.
 
     What the tool is *called* is not configured here either, any more: a binding
-    says that through ``tool_overrides``, which every capability has and which
+    says that through `tool_overrides`, which every capability has and which
     the approval gate can see through. See `README.md`.
 
     ```python

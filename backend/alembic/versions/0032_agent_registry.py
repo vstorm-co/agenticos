@@ -4,8 +4,8 @@ Revision ID: 0032_agents
 Revises: 0031_credentials
 Create Date: 2026-07-26
 
-An agent is data, not code. ``agents`` holds the thing people name, own and
-share; ``agent_versions`` holds the frozen specs that actually ran.
+An agent is data, not code. `agents` holds the thing people name, own and
+share; `agent_versions` holds the frozen specs that actually ran.
 
 Splitting them is what makes run history honest: a run records the version, so
 "why did it answer that last Tuesday" stays answerable after the agent has been

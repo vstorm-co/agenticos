@@ -14,7 +14,7 @@ from app.db.base import Base, TimestampMixin
 class SyncSource(TimestampMixin, Base):
     """Configurable connector source for RAG document synchronization.
 
-    Belongs to an organization. ``collection_name`` is nullable - a source
+    Belongs to an organization. `collection_name` is nullable - a source
     without a collection is an org-level "integration template" not yet
     assigned to a specific knowledge base.
     """

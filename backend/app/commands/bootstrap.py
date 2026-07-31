@@ -102,6 +102,14 @@ async def _bootstrap(
         else:
             info(f"Owner {email} already exists")
 
+        # The bootstrap owner administers the deployment, not just their
+        # organization - /admin, bulk /rag and user management all gate on
+        # this flag. Idempotent, like everything else here.
+        if not user.is_app_admin:
+            user.is_app_admin = True
+            await db.flush()
+            success(f"Granted platform admin to {email}")
+
         org = await _resolve_organization(db, user.id, org_name)
         ctx = AuthContext(user_id=user.id, organization_id=org.id, role=OrgRoleName.OWNER)
 

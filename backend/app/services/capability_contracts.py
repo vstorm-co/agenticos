@@ -2,14 +2,14 @@
 
 The catalog declares a tool's id and a one-line description, which is what the
 Builder needs to offer approval and to name it. It is not what the *model*
-reads. A model reads the whole docstring - for ``create_chart`` that is nine
+reads. A model reads the whole docstring - for `create_chart` that is nine
 hundred characters explaining scatter series and telling it not to narrate the
 returned JSON - plus a JSON Schema of the arguments. An author deciding whether
 to reword a tool for their agent is deciding about that text, and until now the
 Builder showed them the first sentence of it.
 
 None of it is restated here. It is read off the built toolset, the same way
-``tests/test_capability_registry.py`` reads it to prove the declarations are
+`tests/test_capability_registry.py` reads it to prove the declarations are
 honest: the code is the source of truth, and a second copy in a decorator is a
 copy that goes stale on the first edit nobody mirrors.
 

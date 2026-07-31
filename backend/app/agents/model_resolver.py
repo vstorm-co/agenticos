@@ -19,20 +19,20 @@ region, Vertex a service account. A form that pretended otherwise would collect
 a credential that only fails at the first run.
 
 :data:`PROVIDERS` is therefore a catalog rather than a registry of builders: id,
-label, the secret kind it wants, and whether it accepts a custom ``base_url``.
+label, the secret kind it wants, and whether it accepts a custom `base_url`.
 The Builder's dropdown is generated from it, and
-``tests/test_model_profiles.py`` constructs every entry, so a provider can never
+`tests/test_model_profiles.py` constructs every entry, so a provider can never
 be selectable in the UI without being constructible at run time.
 
-Four provider names Pydantic AI knows are deliberately absent. ``bedrock-mantle``,
-``sentence-transformers`` and ``voyageai`` are not chat providers a profile can
-point at - the last two are embedding models - and ``gateway`` does not resolve
+Four provider names Pydantic AI knows are deliberately absent. `bedrock-mantle`,
+`sentence-transformers` and `voyageai` are not chat providers a profile can
+point at - the last two are embedding models - and `gateway` does not resolve
 to a provider class at all: it is a routing prefix over the others.
 
-Everything else Pydantic AI ships is here. Three of them (``xai``, ``cohere``,
-``huggingface``) need an SDK of their own, so they are in this repository's
-``pydantic-ai-slim`` extras: a provider selectable in the Builder that raises
-``ImportError`` when a run reaches it would be worse than one nobody can pick.
+Everything else Pydantic AI ships is here. Three of them (`xai`, `cohere`,
+`huggingface`) need an SDK of their own, so they are in this repository's
+`pydantic-ai-slim` extras: a provider selectable in the Builder that raises
+`ImportError` when a run reaches it would be worse than one nobody can pick.
 """
 
 from __future__ import annotations
@@ -60,24 +60,17 @@ from app.core.secret_kinds import (
 class ProviderSpec:
     """One selectable provider and what it takes to reach it.
 
-    ``model_prefix`` is what goes in front of the model id for
-    :func:`infer_model`, and is only different from ``id`` where the two
-    disagree about which wrapper we want: ``openai`` infers the Responses API,
+    `model_prefix` is what goes in front of the model id for
+    :func:`infer_model`, and is only different from `id` where the two
+    disagree about which wrapper we want: `openai` infers the Responses API,
     which OpenAI-compatible servers (vLLM, LM Studio, a LiteLLM proxy) do not
-    implement, so an ``openai`` profile is built as ``openai-chat``.
+    implement, so an `openai` profile is built as `openai-chat`.
     """
 
     id: str
     name: str
     secret_kind: SecretKind
-    # The constructor keyword for a custom endpoint, when the provider has one.
-    # ``None`` means the provider talks to exactly one host and a base URL on
-    # the credential would be silently ignored - worth refusing instead.
     base_url_param: str | None = None
-    # Whether this provider can run with no credential at all. True only where a
-    # self-hosted endpoint is the normal case; a keyless credential still has to
-    # carry a base URL, or it is pointed at the vendor's public API with nothing
-    # to authenticate it.
     keyless: bool = False
     model_prefix: str = ""
 
@@ -190,7 +183,7 @@ class ResolvedCredential:
 
     Deliberately not the ORM row: the plaintext must not be attached to
     something a later query might refresh, log or serialize by accident. Every
-    secret-bearing field of ``secret`` is a ``SecretStr``, so this whole
+    secret-bearing field of `secret` is a `SecretStr`, so this whole
     dataclass masks itself in a repr.
     """
 
@@ -204,12 +197,12 @@ def _build_provider(spec: ProviderSpec, credential: ResolvedCredential) -> Provi
 
     The only place that knows a credential's shape. Each branch spreads the
     fields the SDK actually names, which is what makes an AWS key pair reach
-    Bedrock as a key pair instead of as a string in an ``api_key`` argument.
+    Bedrock as a key pair instead of as a string in an `api_key` argument.
 
     The three non-API-key branches name their provider class instead of taking
     it from :func:`infer_provider_class`, and that is what makes those keywords
-    checked: the inferred type is ``type[Provider[Any]]``, an abstract base that
-    declares no ``__init__``, so nothing verifies the eight keyword names below
+    checked: the inferred type is `type[Provider[Any]]`, an abstract base that
+    declares no `__init__`, so nothing verifies the eight keyword names below
     against the SDK that has to accept them. Each of the three secret kinds maps
     to exactly one entry in :data:`PROVIDERS`, so naming the class costs no
     generality. The imports stay local for the reason the inference does them

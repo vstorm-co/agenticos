@@ -51,7 +51,7 @@ class TestSealUnseal:
         """A credential that genuinely has no value is stored as no envelope at all.
 
         Sealing an empty string would produce a secret that says nothing and
-        fails much later at the provider; the ``none`` kind is what "there is no
+        fails much later at the provider; the `none` kind is what "there is no
         credential" looks like.
         """
         with pytest.raises(BadRequestError):

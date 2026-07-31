@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import logging
 from collections import Counter
+from enum import StrEnum
 from typing import Any, Literal
 from uuid import UUID
 
@@ -42,76 +43,26 @@ from app.agents.capabilities import CapabilityBinding, ToolOverride
 
 logger = logging.getLogger(__name__)
 
-# Bumped only when the shape changes incompatibly. Stored with every version so
-# an old row can be read by the loader that understands it.
-#
-# 3 added `tool_approval`. A version-2 spec has no such key and gets an empty
-# one, which resolves to exactly the behaviour it had: whatever `approval` (or
-# the capability's `side_effecting` flag) said, for every tool at once.
-#
-# 4 added `tool_overrides` and took the knowledge capability's own `tool_name` /
-# `tool_description` config keys away. A version-3 spec that used them is folded
-# into the general field on load, so what its model sees does not change.
-#
-# 5 added `secret_id` on a capability binding. A version-4 spec has no such key
-# and gets `None`, which is exactly right: no capability it could have bound
-# declared a secret requirement, so there was nothing to reference.
-#
-# 6 turned `model_settings` from an unvalidated blob into `ModelSettingsSpec`,
-# which names the settings an agent author may set and refuses everything else.
-# A version-5 spec keeps the keys that survived; `thinking` becomes a binding on
-# the capability that now owns it, and the rest are dropped on load - see
-# `_MODEL_SETTINGS_WITHDRAWN` for why each one went.
-SPEC_VERSION = 6
+SPEC_VERSION = 7
 
 ApprovalMode = Literal["default", "required", "never"]
 
-# The one capability that invented per-agent renaming for itself, and the tool
-# it renamed. Ids are permanent, which is what makes naming them in a migration
-# safe.
 _LEGACY_RENAME_CAPABILITY = "knowledge"
 _LEGACY_RENAME_TOOL = "search_documents"
-
-# The capability that now owns reasoning, and the model setting it replaced.
 _THINKING_CAPABILITY = "thinking"
 _THINKING_SETTING = "thinking"
-
-# Portable `ModelSettings` keys a version-5 spec could carry that this version
-# deliberately does not expose. Named one by one rather than dropped as "whatever
-# we no longer recognise", because `extra="forbid"` on the settings model is what
-# catches a typo, and a blanket rule would swallow the typo with them.
 _MODEL_SETTINGS_WITHDRAWN = frozenset(
     {
-        # Escape hatches for someone debugging a provider, not agent
-        # configuration. Pasted into a Builder they break a published agent in a
-        # way no validation here could see coming.
         "extra_body",
         "extra_headers",
         "logit_bias",
-        # Repetition dials and top-k sampling: real knobs, but each is missing
-        # from a provider an organization is likely to be on, so an agent
-        # carrying one silently means something different after a model swap.
         "frequency_penalty",
         "presence_penalty",
         "top_k",
-        # Best-effort at every provider that accepts it at all. A published
-        # agent pinned to a seed is not more reproducible, only harder to reason
-        # about; determinism belongs to an eval harness.
         "seed",
-        # Truncates the answer mid-sentence when it fires unexpectedly, which
-        # reads as a broken agent rather than a configured one - and in a tool
-        # loop it can cut a call in half.
         "stop_sequences",
-        # A commercial decision about the credential, not about the agent. It
-        # belongs to the model profile, where the organization's relationship
-        # with the provider already lives.
         "service_tier",
-        # Setting `'required'` or a tool list statically raises `UserError`
-        # before the first request, and `'none'` contradicts the capability
-        # picker one tab away.
         "tool_choice",
-        # Owned by the `thinking` capability. Folded into a binding rather than
-        # dropped, so an agent that reasoned before an upgrade still reasons.
         _THINKING_SETTING,
     }
 )
@@ -125,9 +76,9 @@ class CapabilityBindingSpec(BaseModel):
 
     Two things are decided finer than that, and both key on a tool's stable id.
     A capability that reads and writes is two decisions wearing one name, so
-    ``tool_approval`` overrides ``approval`` for one tool - approve the write,
+    `tool_approval` overrides `approval` for one tool - approve the write,
     leave the read alone. And what the model *reads* about a tool is the
-    strongest prompt in the product, so ``tool_overrides`` reworks its name and
+    strongest prompt in the product, so `tool_overrides` reworks its name and
     description for this agent without forking the capability.
     """
 
@@ -177,7 +128,7 @@ class CapabilityBindingSpec(BaseModel):
     def _fold_the_knowledge_capabilitys_own_rename(cls, data: Any) -> Any:
         """Move a version-3 knowledge rename into the general field.
 
-        ``knowledge`` used to carry ``tool_name`` and ``tool_description`` in
+        `knowledge` used to carry `tool_name` and `tool_description` in
         its own config - a mechanism one capability invented for itself, which
         approval could not see through. Its schema no longer has those keys, and
         a Pydantic model ignores what it does not declare: without this, every
@@ -222,16 +173,139 @@ class CapabilityBindingSpec(BaseModel):
 
 
 class BudgetSpec(BaseModel):
-    """Spending limits for this agent.
+    """Spending limit for this agent.
 
-    Both limits exist because they fail differently: a per-run cap stops one
-    runaway conversation, a monthly cap stops a slow leak nobody is watching.
+    One monthly cap, metered against this agent's own runs. The platform has
+    exactly two budget levels - the agent's and the organization's - and this
+    is the agent's half.
     """
 
     model_config = ConfigDict(extra="forbid")
 
-    max_per_run_usd: float | None = Field(default=None, gt=0)
     monthly_usd: float | None = Field(default=None, gt=0)
+
+
+class AlertAudience(StrEnum):
+    """Who an agent's alert reaches.
+
+    A list of these rather than one value, because the real answers are unions:
+    "the person who asked, and the admins" is the sensible default for an
+    approval and cannot be said with a single choice.
+
+    Deliberately roles rather than addresses, with `CHOSEN` as the one escape
+    hatch. An audience of user ids goes stale the moment somebody leaves, and a
+    spec is exported to a client's repository - `ADMINS` still means the right
+    people after a reorganisation, and it means them in whichever organization
+    the spec is imported into.
+    """
+
+    ADMINS = "admins"
+    """The organization's owners and admins, plus the deployment's app admins."""
+
+    OWNER = "owner"
+    """Whoever owns the agent - the person who would fix its configuration."""
+
+    INITIATOR = "initiator"
+    """Whoever started the run. Nobody, for a run no person began."""
+
+    CHOSEN = "chosen"
+    """Exactly the members named in `user_ids`."""
+
+
+class AlertSpec(BaseModel):
+    """Whether one kind of alert is sent for this agent, and to whom.
+
+    Every audience is resolved and the addresses are merged, so naming the same
+    person twice mails them once. Each recipient's own
+    `/settings/notifications` switch is applied last and can only ever remove
+    them: an agent cannot conscript somebody into an inbox they opted out of.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = True
+    to: list[AlertAudience] = Field(default_factory=lambda: [AlertAudience.ADMINS])
+    user_ids: list[UUID] = Field(
+        default_factory=list,
+        description="Members to mail when `to` includes `chosen`; ignored otherwise",
+    )
+
+    @model_validator(mode="after")
+    def _audience_and_list_must_agree(self) -> AlertSpec:
+        """Refuse the two shapes that silently mail nobody, or nobody extra.
+
+        Both are configurations somebody would write believing they had set up
+        an alert. `chosen` with an empty list is an audience of nobody; ids
+        without `chosen` are ids nothing reads. Neither is worth a warning in a
+        log that no author of a spec will ever see.
+        """
+        if AlertAudience.CHOSEN in self.to and not self.user_ids:
+            raise ValueError("`chosen` needs at least one member in `user_ids`")
+        if self.user_ids and AlertAudience.CHOSEN not in self.to:
+            raise ValueError("`user_ids` is only read when `to` includes `chosen`")
+        if self.enabled and not self.to:
+            raise ValueError("An enabled alert needs at least one audience in `to`")
+        return self
+
+
+def _initiator_and_admins() -> list[AlertAudience]:
+    """The approval default.
+
+    The initiator because they are waiting on it, and the admins because a run
+    a schedule or a channel started has no initiator - and an approval queue
+    nobody is told about is a run that sits parked until somebody notices.
+    """
+    return [AlertAudience.INITIATOR, AlertAudience.ADMINS]
+
+
+def _admins_and_owner() -> list[AlertAudience]:
+    """The budget default: the people who pay, and the person who can fix it."""
+    return [AlertAudience.ADMINS, AlertAudience.OWNER]
+
+
+class NotificationSpec(BaseModel):
+    """Which of this agent's alerts are sent, and who hears each one.
+
+    Per agent because the alerts are about an agent. A deployment-wide switch
+    made the noisy agent and the one nobody may miss the same setting, so the
+    only way to quieten the first was to go deaf to the second.
+
+    What is *not* here: the organization's own monthly cap. That limit is not
+    this agent's to describe - it stops every agent in the organization, its
+    ceiling is set in the organization's settings, and an agent's author cannot
+    raise it. Its alert goes to the organization's admins and is not
+    configurable from a spec.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    budget: AlertSpec = Field(
+        default_factory=lambda: AlertSpec(to=_admins_and_owner()),
+        description="This agent's own monthly cap stopped a run",
+    )
+    approvals: AlertSpec = Field(
+        default_factory=lambda: AlertSpec(to=_initiator_and_admins()),
+        description="A tool call parked, and the run is waiting on a person",
+    )
+    usage: AlertSpec = Field(
+        default_factory=lambda: AlertSpec(enabled=False, to=_admins_and_owner()),
+        description="A periodic report of what this agent alone has spent",
+    )
+
+    @model_validator(mode="after")
+    def _usage_has_no_initiator(self) -> NotificationSpec:
+        """A weekly report is nobody's run.
+
+        `INITIATOR` resolves to whoever started the run being reported on, and a
+        scheduled summary of five thousand of them has no such person. Accepting
+        it would mean an audience that silently contributes nothing.
+        """
+        if AlertAudience.INITIATOR in self.usage.to:
+            raise ValueError(
+                "A usage report has no initiator - it covers a period, not a run. "
+                "Use `admins`, `owner` or `chosen`."
+            )
+        return self
 
 
 class ObservabilitySpec(BaseModel):
@@ -269,27 +343,27 @@ class ObservabilitySpec(BaseModel):
 class ModelSettingsSpec(BaseModel):
     """How this agent asks its model to behave.
 
-    A deliberately small window onto Pydantic AI's ``ModelSettings``. The full
+    A deliberately small window onto Pydantic AI's `ModelSettings`. The full
     set includes escape hatches for someone debugging a provider - raw bodies,
     raw headers, token biases - which in a Builder are an invitation to paste
     something that breaks a published agent, and knobs that only some providers
     implement, which quietly mean something else after a model swap.
-    ``_MODEL_SETTINGS_WITHDRAWN`` says why each excluded key went. What is left
+    `_MODEL_SETTINGS_WITHDRAWN` says why each excluded key went. What is left
     is what an agent author reaches for: how varied the answer is, how long it
     may be, how long it may take, and whether tools may run at once.
 
-    Reasoning is not here. It is the ``thinking`` capability, and a second
+    Reasoning is not here. It is the `thinking` capability, and a second
     control writing the same provider parameter would disagree with it silently.
 
     **Every field is optional and unset means unset**, which is the one property
-    the rest of this model is arranged around. ``None`` is not "send the
+    the rest of this model is arranged around. `None` is not "send the
     provider's default" - it is "do not send this parameter", and the difference
-    is a run that fails: reasoning models reject ``temperature`` outright, so an
-    agent that never chose one must produce a request with no ``temperature`` key
+    is a run that fails: reasoning models reject `temperature` outright, so an
+    agent that never chose one must produce a request with no `temperature` key
     at all. Hence the serializer: an unset field is *absent* from the stored
-    spec rather than stored as ``null``, so nothing downstream - the merge in
-    ``app/agents/factory.py``, a YAML export, the Builder deciding whether to
-    show a field as touched - has to know that a ``null`` here means "no".
+    spec rather than stored as `null`, so nothing downstream - the merge in
+    `app/agents/factory.py`, a YAML export, the Builder deciding whether to
+    show a field as touched - has to know that a `null` here means "no".
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -316,8 +390,6 @@ class ModelSettingsSpec(BaseModel):
     max_tokens: int | None = Field(
         default=None,
         ge=1,
-        # High enough for the longest output any current model will produce, low
-        # enough that a mistyped one is refused here rather than by the provider.
         le=200_000,
         description="The longest answer the model may generate, in tokens",
     )
@@ -344,11 +416,11 @@ class ModelSettingsSpec(BaseModel):
     def _only_what_was_set(self) -> dict[str, float | int | bool]:
         """Serialise the settings this agent actually chose, and no others.
 
-        The same fix ``ToolOverride`` needed, for a sharper reason: a ``null``
+        The same fix `ToolOverride` needed, for a sharper reason: a `null`
         that survives to :func:`app.agents.factory.build_agent` is merged over
         the model profile's own value and then handed to the provider, so one
         unset field would both discard the profile's temperature and send
-        ``temperature: null`` to a model that refuses the parameter.
+        `temperature: null` to a model that refuses the parameter.
         """
         return {
             name: value
@@ -363,12 +435,12 @@ def _binding_id(binding: Any) -> Any:
 
 
 def _with_thinking_binding(data: Any, effort: Any) -> Any:
-    """Express a version-5 ``thinking`` setting as a binding on the capability.
+    """Express a version-5 `thinking` setting as a binding on the capability.
 
-    ``False`` and a missing key both mean "do not think", and the way to say
+    `False` and a missing key both mean "do not think", and the way to say
     that now is not to bind the capability - which is also what the picker
-    means by leaving it off. Anything else is a level, and ``True`` is the
-    provider's own default effort, which is what an unset ``effort`` asks for.
+    means by leaving it off. Anything else is a level, and `True` is the
+    provider's own default effort, which is what an unset `effort` asks for.
     """
     if not effort:
         return data
@@ -440,6 +512,16 @@ class AgentSpec(BaseModel):
 
     budget: BudgetSpec | None = None
 
+    notifications: NotificationSpec = Field(
+        default_factory=NotificationSpec,
+        description=(
+            "Which of this agent's alerts are sent and who hears each one. "
+            "Defaulted, so an agent published before this existed keeps the "
+            "behaviour it had: budget breaches to the admins and the owner, "
+            "approvals to whoever asked plus the admins, no usage report."
+        ),
+    )
+
     observability: ObservabilitySpec | None = Field(
         default=None,
         description="Send this agent's traces to a Logfire project of its own",
@@ -450,13 +532,13 @@ class AgentSpec(BaseModel):
     def _migrate_version_5_model_settings(cls, data: Any) -> Any:
         """Let a spec written against the old settings blob load unchanged.
 
-        ``model_settings`` was ``dict[str, Any]``, so a hand-written or imported
-        spec may name any portable ``ModelSettings`` key. Refusing those now
+        `model_settings` was `dict[str, Any]`, so a hand-written or imported
+        spec may name any portable `ModelSettings` key. Refusing those now
         would mean a published agent that no longer parses - a 500 on every run
         of something nobody touched - so the keys this version withdrew are
         dropped here instead, loudly enough to find in a log.
 
-        ``thinking`` is the exception: it is folded into a binding on the
+        `thinking` is the exception: it is folded into a binding on the
         capability that now owns it, because dropping it would quietly stop an
         agent reasoning. An explicit binding wins, so a spec this already
         migrated is unchanged by a second read.
@@ -519,8 +601,5 @@ class AgentSpec(BaseModel):
         """
         loaded = yaml.safe_load(text)
         if not isinstance(loaded, dict):
-            # ValueError, not TypeError: this is a validation failure on
-            # user-supplied YAML, and ValueError is what Pydantic validators
-            # raise and what every caller of this function catches.
             raise ValueError("An agent spec must be a YAML mapping")  # noqa: TRY004
         return cls.model_validate(loaded)

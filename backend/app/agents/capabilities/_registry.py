@@ -17,7 +17,7 @@ that are not tools at all - a budget guard, a compaction strategy, a guardrail -
 so one concept covers everything an agent is assembled from instead of two that
 overlap awkwardly.
 
-Approval is the exception, and the reason a capability declares its ``tools``:
+Approval is the exception, and the reason a capability declares its `tools`:
 "may this agent write files" and "may it read them" are two decisions even
 though one capability answers both. Enabling stays per capability; approving
 happens per tool.
@@ -32,11 +32,11 @@ silent.
 
 Three consequences worth stating:
 
-*Ids are permanent.* A spec in a client's git repository names ``knowledge``.
+*Ids are permanent.* A spec in a client's git repository names `knowledge`.
 Renaming the Python class is free; changing the id breaks every stored spec.
 
 *Metadata serves two readers.* The description is what a person reads in the
-Builder; ``config_schema`` is both validation and the source of the form.
+Builder; `config_schema` is both validation and the source of the form.
 
 *Validation happens at publish, not at run time.* An unknown id or an ungranted
 scope is rejected while someone is looking at a form, not mid-conversation.
@@ -78,17 +78,17 @@ class ToolOverride(BaseModel):
 
     Both fields are prompt surface. The description is what the model reads
     before deciding whether to call the tool; the name is read alongside it and
-    steers just as hard - ``search_refund_policy`` is not ``search_documents``.
+    steers just as hard - `search_refund_policy` is not `search_documents`.
     An agent that needs different behaviour from the same tool usually needs
     these reworded, not a second tool written.
 
-    Neither field can reach the tool's identity: ``id`` stays what code declared
+    Neither field can reach the tool's identity: `id` stays what code declared
     it, which is what keeps an approval decision attached to a renamed tool.
 
     A field nobody set is *absent* from the serialised spec rather than stored
-    as ``null``. "Explicitly no name" is not a state this can be in, and a
-    stored ``null`` reads as one: the Builder marks a field as overridden when
-    the binding has a value for it, and a ``null`` arriving back from a save
+    as `null`. "Explicitly no name" is not a state this can be in, and a
+    stored `null` reads as one: the Builder marks a field as overridden when
+    the binding has a value for it, and a `null` arriving back from a save
     made a reverted field look permanently overridden.
     """
 
@@ -118,12 +118,12 @@ class ToolOverride(BaseModel):
 class CapabilityBinding:
     """One capability as an agent uses it: which, configured how, named how.
 
-    ``config`` is what the capability's own schema accepts. ``tool_overrides``
+    `config` is what the capability's own schema accepts. `tool_overrides`
     is the general mechanism for presentation, keyed by each tool's stable id,
     and applies to every capability rather than the ones whose author thought
     of it.
 
-    ``secret_id`` names which of the organization's secrets satisfies the
+    `secret_id` names which of the organization's secrets satisfies the
     capability's requirement - an id, never a value. A spec is exported to a
     client's git repository, so the only thing it may carry is a reference.
     """
@@ -142,16 +142,16 @@ CapabilityBuilder = Callable[["CapabilityBuildContext"], AbstractCapability[Any]
 class CapabilityBuildContext:
     """What a builder receives when an agent is assembled.
 
-    ``config`` is already validated against the capability's schema, so a
-    builder reads its fields without re-checking. ``resources`` carries things
+    `config` is already validated against the capability's schema, so a
+    builder reads its fields without re-checking. `resources` carries things
     resolved from the database for this run - collection names, skills - which
     a capability may need but must never fetch itself.
 
-    ``secret`` is the unsealed credential the capability declared it needs, and
+    `secret` is the unsealed credential the capability declared it needs, and
     is present exactly when it declared one. It is a field of its own rather
-    than an entry in ``resources`` because the two have different rules: a
+    than an entry in `resources` because the two have different rules: a
     resource may be logged, and a secret may not. Every secret-bearing field is
-    a ``SecretStr``, so this dataclass masks itself in a repr - which is the way
+    a `SecretStr`, so this dataclass masks itself in a repr - which is the way
     a plaintext key usually escapes.
     """
 
@@ -168,14 +168,14 @@ class CapabilityToolInfo(BaseModel):
     of the capability catalog: the Builder needs the tool names to offer
     per-tool approval, and it cannot offer what the registry never described.
 
-    ``name`` and ``description`` are the deployment's defaults, exactly as code
+    `name` and `description` are the deployment's defaults, exactly as code
     declared them - the catalog answers "what tools exist and what do they say",
     which is a question about the deployment and not about one agent. A binding's
     overrides are resolved where the binding is in hand, by
     :meth:`CapabilityDef.effective_tools`, which returns this same shape with them
     applied.
 
-    ``description`` is the tool's own docstring summary - the same sentence the
+    `description` is the tool's own docstring summary - the same sentence the
     model reads before deciding to call it. The person choosing what needs
     approval and the model choosing when to act should be looking at the same
     text, not at two paraphrases that drift apart.
@@ -186,14 +186,14 @@ class CapabilityToolInfo(BaseModel):
     id: str
     """Stable identity, defined in code and never configurable.
 
-    Separate from ``name`` because a binding keys its approval decision on
+    Separate from `name` because a binding keys its approval decision on
     this. A tool the model sees under a different name must still be the tool
     an operator gated - otherwise renaming one silently removes its gate, and
     a side-effecting call goes unattended with nothing reporting it.
     """
 
     name: str = ""
-    """What the model sees. Defaults to ``id``; only a rename makes them differ."""
+    """What the model sees. Defaults to `id`; only a rename makes them differ."""
 
     description: str
 
@@ -253,7 +253,7 @@ class CapabilityDef:
 
         The single answer to "what will the model see", so nothing has to derive
         it twice and get two answers. The approval gate matches on the name the
-        model called, which is this one - reading ``tools`` there instead would
+        model called, which is this one - reading `tools` there instead would
         gate a tool nobody can call and leave the renamed one running
         unattended.
         """
@@ -314,31 +314,31 @@ def register(
     """Register a capability builder.
 
     The decorated function receives a :class:`CapabilityBuildContext` and returns
-    the capability instance to attach to the agent, or ``None`` when its config
+    the capability instance to attach to the agent, or `None` when its config
     means it contributes nothing to this particular agent.
 
-    ``secret`` declares that this capability cannot work without a credential of
-    a given kind, in the same way ``scopes`` declares what the organization must
+    `secret` declares that this capability cannot work without a credential of
+    a given kind, in the same way `scopes` declares what the organization must
     have allowed. Which secret satisfies it is a binding's decision, checked at
     publish and injected here at build time; the capability never learns where
     it came from and the model never sees it at all.
 
-    ``SecretRequirement.required_when`` narrows that to the configurations which
+    `SecretRequirement.required_when` narrows that to the configurations which
     actually authenticate. Without it, a capability offering both a keyless
     provider and a paid one has to choose which of the two to break. It is data
     rather than a predicate because the Builder has to ask for a key at exactly
     the moments this server will demand one, and only a value can cross the wire.
 
-    ``tools`` has no default on purpose. It is what the Builder offers per-tool
+    `tools` has no default on purpose. It is what the Builder offers per-tool
     approval for and what the approval gate matches on, so a capability that
     declares nothing is a capability whose tools cannot be gated - and the
     dangerous half of that failure is silent: an author adds a second,
     side-effecting tool, forgets to declare it, and it runs unattended forever.
     Requiring the argument makes forgetting a `TypeError`; keeping it honest
     afterwards is the job of the drift test in
-    ``tests/test_capability_registry.py``, which builds every registered
+    `tests/test_capability_registry.py`, which builds every registered
     capability and compares this list against the tools the model is actually
-    offered. A capability with no tools says so with ``tools=()``.
+    offered. A capability with no tools says so with `tools=()`.
     """
 
     def decorator(builder: CapabilityBuilder) -> CapabilityBuilder:
@@ -402,7 +402,7 @@ def build(
 
     Args:
         bindings: The spec's capability list, in order.
-        granted_scopes: What the organization allows. ``None`` skips the check
+        granted_scopes: What the organization allows. `None` skips the check
             and is for internal runs and tests only.
         resources: Values resolved from the database for this run.
         secrets: The unsealed secrets this run's bindings reference, keyed by id
@@ -499,7 +499,7 @@ def _as_bound(
     """The capability as this binding presents it.
 
     Wrapping only when something is actually overridden keeps the common agent
-    exactly what it was - and keeps ``BuiltAgent.capabilities`` readable, since
+    exactly what it was - and keeps `BuiltAgent.capabilities` readable, since
     a surface introspecting it should not have to see through a wrapper that
     changes nothing.
     """

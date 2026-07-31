@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import EmailStr, Field
 
 from app.schemas.base import BaseSchema
 from app.schemas.conversation import ConversationAgent
@@ -26,6 +26,12 @@ class ConversationShareCreate(BaseSchema):
 
     shared_with: UUID | None = Field(
         default=None, description="User ID to share with (omit for link sharing)"
+    )
+    # What the share dialog actually collects. People know each other by email,
+    # not by UUID; the server resolves it, so the client never has to hold a
+    # user id it has no other reason to know.
+    shared_with_email: EmailStr | None = Field(
+        default=None, description="Email of the user to share with, resolved server-side"
     )
     permission: Literal["view", "edit"] = Field(default="view", description="Access level")
     generate_link: bool = Field(default=False, description="Generate a public share link")

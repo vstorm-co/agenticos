@@ -57,6 +57,9 @@ function kb(id: string, name: string, collection: string): KnowledgeBase {
     embedding_dim: 3072,
     created_at: "2026-07-01T00:00:00Z",
     updated_at: null,
+    document_count: 0,
+    indexed_count: 0,
+    chunk_count: 0,
   };
 }
 
@@ -65,7 +68,17 @@ const TARGETS = [kb("kb-1", "Handbook", "handbook_a1"), kb("kb-2", "Runbooks", "
 function serve(role: OrgRole, sources: SyncSourceRead[]) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
     if (path === "/me/permissions")
-      return { organization_id: ORG_ID, role, is_app_admin: false, permissions: [] };
+      return {
+        organization_id: ORG_ID,
+        role,
+        is_app_admin: false,
+        // The section keys on the permission the endpoints gate on, so the
+        // fake answers the way the server would for each role.
+        permissions:
+          role === "owner" || role === "admin" || role === "builder"
+            ? [{ permission: "connections:manage", scope: "all" }]
+            : [],
+      };
     if (path === `/orgs/${ORG_ID}/integrations`) return { items: sources, total: sources.length };
     if (path === `/orgs/${ORG_ID}/integrations/connectors`)
       return {

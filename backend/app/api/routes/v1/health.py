@@ -71,7 +71,7 @@ async def readiness_probe(
     check, with the reason for a failure in the log rather than the body. The
     deployment's own configuration (the vector store, whether any organization
     can reach a model) is an operator's question, not a load balancer's, and it
-    is answered by ``GET /admin/system`` behind an admin session.
+    is answered by `GET /admin/system` behind an admin session.
 
     Returns:
         The per-check statuses, and 503 when either check is not healthy.

@@ -2,7 +2,6 @@
 
 import uuid
 from datetime import datetime
-from enum import StrEnum
 from typing import TYPE_CHECKING, Literal
 
 from sqlalchemy import Boolean, DateTime, String, text
@@ -24,18 +23,6 @@ NotificationPreference = Literal[
 ]
 
 
-class UserRole(StrEnum):
-    """User role enumeration.
-
-    Roles hierarchy (higher includes lower permissions):
-    - ADMIN: Full system access, can manage users and settings
-    - USER: Standard user access
-    """
-
-    ADMIN = "admin"
-    USER = "user"
-
-
 class User(Base, TimestampMixin):
     """User model."""
 
@@ -46,7 +33,10 @@ class User(Base, TimestampMixin):
     hashed_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
     full_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    role: Mapped[str] = mapped_column(String(50), default=UserRole.USER.value, nullable=False)
+    # The one global privilege. Authorization inside an organization is a
+    # membership row plus the permission catalog, never a column on the user -
+    # see `app/core/permissions.py`. This flag is deliberately outside that: it
+    # administers the *deployment*, so it is not scoped to a tenant.
     is_app_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     onboarding_completed_at: Mapped[datetime | None] = mapped_column(
@@ -74,19 +64,5 @@ class User(Base, TimestampMixin):
         "Session", back_populates="user", cascade="all, delete-orphan"
     )
 
-    @property
-    def user_role(self) -> UserRole:
-        """Get role as enum."""
-        return UserRole(self.role)
-
-    def has_role(self, required_role: UserRole) -> bool:
-        """Check if user has the required role or higher.
-
-        Admin role has access to everything.
-        """
-        if self.role == UserRole.ADMIN.value:
-            return True
-        return self.role == required_role.value
-
     def __repr__(self) -> str:
-        return f"<User(id={self.id}, email={self.email}, role={self.role})>"
+        return f"<User(id={self.id}, email={self.email})>"

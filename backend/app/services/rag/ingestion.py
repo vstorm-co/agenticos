@@ -5,6 +5,7 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 
 from app.core.config import settings
+from app.services.embedding_resolution import embeddings_for_collection
 from app.services.rag.documents import DocumentProcessor
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.models import Document, IngestionResult, IngestionStatus
@@ -34,7 +35,11 @@ class IngestionService:
     ) -> IngestionService:
         rag_settings = settings.rag
         embed_service = EmbeddingService(settings=rag_settings)
-        vector_store = VectorStore(settings=rag_settings, embedding_service=embed_service)
+        vector_store = VectorStore(
+            settings=rag_settings,
+            embedding_service=embed_service,
+            resolver=embeddings_for_collection,
+        )
         processor = DocumentProcessor(settings=rag_settings)
         return cls(processor=processor, vector_store=vector_store, on_event=on_event)
 

@@ -42,12 +42,14 @@ PLATFORM_MODULES = (
     "app/core/background.py",
     "app/services/access.py",
     "app/services/agent_chat.py",
+    "app/services/agent_environment.py",
     "app/services/agent_exposure.py",
     "app/services/agent_registry.py",
     "app/services/agent_runner.py",
     "app/services/approvals.py",
     "app/services/channels/mentions.py",
     "app/services/collection_access.py",
+    "app/services/embedding_resolution.py",
     "app/services/health.py",
     "app/services/ingestion_config.py",
     "app/services/mcp_catalog.py",
@@ -57,12 +59,14 @@ PLATFORM_MODULES = (
     "app/services/organization_secret.py",
     "app/services/sharing.py",
     "app/services/skills.py",
+    "app/repositories/agent_environment.py",
     "app/repositories/agent_exposure.py",
     "app/repositories/mcp_connection.py",
     "app/repositories/organization_secret.py",
     "app/repositories/resource_grant.py",
     "app/api/routes/v1/_sharing_routes.py",
     "app/api/routes/v1/secrets.py",
+    "app/api/routes/v1/agent_environments.py",
     "app/api/routes/v1/agent_exposures.py",
     "app/api/routes/v1/sharing.py",
 )
@@ -113,7 +117,7 @@ class TestGateSelection:
 
     def test_every_omission_matches_something(self, coverage_config: dict) -> None:
         """An omission for a file that no longer exists is dead configuration."""
-        for pattern in coverage_config["run"]["omit"]:
+        for pattern in coverage_config["run"].get("omit", []):
             assert list(BACKEND_ROOT.glob(pattern)), f"omit pattern matches nothing: {pattern}"
 
     def test_the_bar_is_still_one_hundred(self, coverage_config: dict) -> None:
@@ -126,7 +130,7 @@ class TestPlatformLayerIsFullyListed:
     @staticmethod
     def _covered(coverage_config: dict, path: str) -> bool:
         include = coverage_config["run"]["include"]
-        omit = coverage_config["run"]["omit"]
+        omit = coverage_config["run"].get("omit", [])
         matched = any(Path(path).full_match(pattern) for pattern in include)
         excluded = any(Path(path).full_match(pattern) for pattern in omit)
         return matched and not excluded
@@ -157,14 +161,10 @@ class TestPlatformLayerIsFullyListed:
                 if not self._covered(coverage_config, relative):
                     ungated.append(relative)
 
-        # The template-inherited files inside app/agents are deliberately
-        # omitted and documented in pyproject.toml. Anything else is an
-        # accident.
-        expected_exclusions = {
-            "app/agents/assistant.py",
-            "app/agents/mcp.py",
-            "app/agents/mcp_oauth.py",
-        }
+        # The chat was rebuilt on the factory and the general assistant is
+        # gone; the one deliberate omission left is the template's OAuth
+        # client, documented in pyproject.toml. Anything else is an accident.
+        expected_exclusions = {"app/agents/mcp_oauth.py"}
         unexpected = [path for path in ungated if path not in expected_exclusions]
         assert not unexpected, f"new platform files outside the gate: {unexpected}"
 
@@ -184,7 +184,7 @@ class TestTypeGateMatchesCoverageGate:
     ) -> None:
         """One definition of "ours", read twice - so a new module joins both gates."""
         assert platform_type_override["include"] == coverage_config["run"]["include"]
-        assert platform_type_override["exclude"] == coverage_config["run"]["omit"]
+        assert platform_type_override.get("exclude", []) == coverage_config["run"].get("omit", [])
 
     def test_every_globally_downgraded_rule_is_an_error_over_our_code(
         self, pyproject: dict, platform_type_override: dict

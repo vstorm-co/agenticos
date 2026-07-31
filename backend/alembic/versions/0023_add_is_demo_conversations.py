@@ -4,7 +4,7 @@ Revision ID: 0023
 Revises: 0022
 Create Date: 2026-06-22
 
-Adds ``is_demo`` boolean column to conversations so admins can flag curated
+Adds `is_demo` boolean column to conversations so admins can flag curated
 agent runs for the public demo replay gallery (served without authentication).
 """
 

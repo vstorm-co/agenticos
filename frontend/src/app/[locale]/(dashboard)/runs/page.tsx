@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Activity, CheckCircle2, XCircle } from "lucide-react";
 
 import { RunStatusBadge } from "@/components/agents/status-badge";
@@ -19,11 +21,18 @@ import {
   TabsTrigger,
 } from "@/components/ui";
 import { useApprovals, usePermissions, useRuns, useSpend } from "@/hooks";
+import { ROUTES } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
 
 export default function RunsPage() {
-  const { runs, isLoading } = useRuns();
+  // `?agent=` is how the Builder hands over. Its Recent runs panel answers the
+  // summary question and links here for the detail, and arriving at the whole
+  // organization's history after clicking through from one agent would make the
+  // link a dead end dressed as a filter.
+  const searchParams = useSearchParams();
+  const agentId = searchParams.get("agent");
+  const { runs, isLoading } = useRuns(agentId ?? undefined);
   const { approvals, decide } = useApprovals();
   const { spend } = useSpend(30);
   const { can } = usePermissions();
@@ -166,6 +175,17 @@ export default function RunsPage() {
                 Every run records the agent <em>version</em> it executed, so what happened last week
                 stays answerable after the agent has been rewritten.
               </CardDescription>
+              {/* Said out loud, with the way out beside it. A filtered table that
+                  does not mention the filter is a table somebody reads as the
+                  whole history, and then wonders where the rest of the runs went. */}
+              {agentId !== null && (
+                <p className="text-muted-foreground text-xs">
+                  Narrowed to one agent.{" "}
+                  <Link href={ROUTES.RUNS} className="underline underline-offset-4">
+                    Show every agent
+                  </Link>
+                </p>
+              )}
             </CardHeader>
             <CardContent>
               {runs.length === 0 ? (

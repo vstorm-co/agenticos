@@ -83,7 +83,7 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
     setIsSharing(true);
     try {
       await shareConversation(conversationId, {
-        shared_with: email.trim(),
+        shared_with_email: email.trim(),
         permission,
       });
       setEmail("");

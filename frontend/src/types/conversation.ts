@@ -20,7 +20,6 @@ export interface Conversation {
   created_at: string;
   updated_at: string;
   is_archived: boolean;
-  active_knowledge_base_ids?: string[];
   /** In the order they first answered. Empty means the general assistant. */
   agents?: ConversationAgent[];
 }
@@ -137,7 +136,6 @@ export interface AdminUser {
   id: string;
   email: string;
   full_name?: string;
-  role?: string;
   is_active: boolean;
   is_app_admin?: boolean;
   conversation_count: number;

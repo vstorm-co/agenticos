@@ -19,7 +19,7 @@ from app.api.routes.v1 import channels
 from app.api.routes.v1 import audit
 from app.api.routes.v1 import sharing
 from app.api.routes.v1 import agent_embeds
-from app.api.routes.v1 import agent_exposures
+from app.api.routes.v1 import agent_environments, agent_exposures
 from app.api.routes.v1 import agents as agent_registry
 from app.api.routes.v1 import model_providers
 from app.api.routes.v1 import secrets
@@ -38,6 +38,7 @@ from app.api.routes.v1.invitations import (
 from app.api.routes.v1 import knowledge_bases
 from app.api.routes.v1 import me_slash_commands
 from app.api.routes.v1 import admin_stats
+from app.api.routes.v1 import catalog_icons
 from app.api.routes.v1 import org_integrations
 
 v1_router = APIRouter()
@@ -49,8 +50,10 @@ v1_router.include_router(users.router, prefix="/users", tags=["users"])
 v1_router.include_router(permissions.router, tags=["permissions"])
 v1_router.include_router(audit.router, tags=["audit"])
 v1_router.include_router(model_providers.router, prefix="/providers", tags=["providers"])
+v1_router.include_router(catalog_icons.router, prefix="/catalog", tags=["catalog"])
 v1_router.include_router(secrets.router, prefix="/secrets", tags=["secrets"])
 v1_router.include_router(agent_registry.router, prefix="/agents", tags=["agents"])
+v1_router.include_router(agent_environments.router, prefix="/agents", tags=["agents:environments"])
 v1_router.include_router(agent_exposures.router, prefix="/agents", tags=["agents:exposures"])
 v1_router.include_router(agent_embeds.router, prefix="/agents", tags=["agents:embeds"])
 v1_router.include_router(embed_widget.router, prefix="/embed", tags=["embed"])

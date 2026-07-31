@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Check, KeyRound, Plus } from "lucide-react";
 
+import { ModelCombobox } from "@/components/agents/model-combobox";
 import { InlineSecret } from "@/components/vault/inline-secret";
 import { ProviderIcon } from "@/components/vault/provider-icon";
 import {
@@ -22,7 +23,15 @@ import type { ModelProfile } from "@/types/providers";
 interface AddModelProps {
   /** Called with the new model once it exists, so the picker can select it. */
   onCreated: (profile: ModelProfile) => void;
-  onCancel: () => void;
+  /**
+   * The way out, where there is one.
+   *
+   * Omitted when this form is the panel rather than a state of it - the Builder
+   * shows it unconditionally now, and a Cancel button that dismisses nothing is
+   * a button whose only effect is to make somebody wonder what they cancelled.
+   */
+  onCancel?: () => void;
+  disabled?: boolean;
 }
 
 /**
@@ -69,7 +78,7 @@ export function modelIdIsWellFormed(providerId: string, model: string): boolean 
   return providerId !== "openrouter" || model.includes("/");
 }
 
-export function AddModel({ onCreated, onCancel }: AddModelProps) {
+export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
   const { createProfile } = useModelProviders();
   const { purposes } = useSecretPurposes();
   const { secrets } = useSecrets();
@@ -89,7 +98,11 @@ export function AddModel({ onCreated, onCancel }: AddModelProps) {
   const chosenKey = secretId || keys[0]?.id || "";
   // What the provider publishes, where it publishes anything. Cached hard: a
   // catalog changes when a provider ships a model, not while a form is open.
-  const { models: suggestions } = useProviderModels(providerId);
+  const {
+    models: suggestions,
+    source,
+    isLoading: loadingModels,
+  } = useProviderModels(providerId);
   const derivedLabel =
     provider && model.trim()
       ? `${provider.label} · ${model.trim()}`
@@ -159,33 +172,27 @@ export function AddModel({ onCreated, onCancel }: AddModelProps) {
         <div className="space-y-1.5">
           <Label htmlFor="add-model-id">Model</Label>
           {/*
-            A list where the provider publishes one, and a plain field where it
-            does not - but the same control either way, because the list is
-            never authoritative. Providers ship models faster than any catalog
-            here is refreshed, and a select that cannot express "the one that
-            came out this morning" is a select somebody has to work around.
+            The provider's catalog, searchable, and still able to carry an id
+            that is not in it. The list is never authoritative - providers ship
+            models faster than any catalog here is refreshed - so "the one that
+            came out this morning" stays expressible. What it is no longer is
+            invisible: this was a text field with a `datalist`, which browsers
+            surface only after a matching prefix is typed, so six hundred known
+            models looked like none.
           */}
-          <Input
+          <ModelCombobox
             id="add-model-id"
-            list={suggestions.length > 0 ? "add-model-suggestions" : undefined}
             value={model}
-            onChange={(event) => {
-              setModel(event.target.value);
+            onChange={(next) => {
+              setModel(next);
               setFailure(null);
             }}
+            options={suggestions}
+            source={source}
+            loading={loadingModels}
             disabled={provider === undefined}
             placeholder={modelPlaceholder(provider?.id)}
-            className="font-mono"
           />
-          {suggestions.length > 0 && (
-            <datalist id="add-model-suggestions">
-              {suggestions.map((entry) => (
-                <option key={entry.id} value={entry.id}>
-                  {entry.name}
-                </option>
-              ))}
-            </datalist>
-          )}
           {failure !== null && <p className="text-destructive text-xs">{failure}</p>}
         </div>
       </div>
@@ -267,15 +274,17 @@ export function AddModel({ onCreated, onCancel }: AddModelProps) {
         <Button
           type="button"
           size="sm"
-          disabled={!canSubmit || createProfile.isPending}
+          disabled={disabled || !canSubmit || createProfile.isPending}
           onClick={submit}
         >
           <Plus className="h-4 w-4" />
           Add model
         </Button>
-        <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
-          Cancel
-        </Button>
+        {onCancel && (
+          <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
+            Cancel
+          </Button>
+        )}
       </div>
     </div>
   );

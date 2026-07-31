@@ -1,8 +1,8 @@
 """S3/MinIO sync connector for RAG ingestion.
 
-Credentials are supplied per-source via ``access_key_id`` and
-``secret_access_key`` config fields. ``endpoint_url`` and ``region`` are
-optional. Falls back to the ``S3_RAG_*`` settings for backwards compatibility.
+Credentials are supplied per-source via `access_key_id` and
+`secret_access_key` config fields. `endpoint_url` and `region` are
+optional. Falls back to the `S3_RAG_*` settings for backwards compatibility.
 """
 
 import asyncio
@@ -24,8 +24,8 @@ class S3Connector(BaseSyncConnector):
     """S3-compatible sync connector.
 
     Works with AWS S3, MinIO, and any S3-compatible storage.
-    Credentials are read from the per-source ``config`` dict; falls back to
-    ``S3_RAG_*`` environment settings when a config key is absent.
+    Credentials are read from the per-source `config` dict; falls back to
+    `S3_RAG_*` environment settings when a config key is absent.
     """
 
     CONNECTOR_TYPE: ClassVar[str] = "s3"

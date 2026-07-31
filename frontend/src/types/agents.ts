@@ -72,9 +72,46 @@ export interface ObservabilitySpec {
   environment?: string | null;
 }
 
+/** The agent's half of the two budget levels; the organization's cap is the other. */
 export interface BudgetSpec {
-  max_per_run_usd?: number | null;
   monthly_usd?: number | null;
+}
+
+/**
+ * Who one of an agent's alerts reaches.
+ *
+ * Roles rather than addresses, with `chosen` as the one escape hatch: an
+ * audience of user ids goes stale the moment somebody leaves, and a spec is
+ * exported to a client's repository - `admins` still means the right people
+ * after a reorganisation.
+ */
+export type AlertAudience = "admins" | "owner" | "initiator" | "chosen";
+
+/**
+ * Whether one kind of alert is sent for this agent, and to whom.
+ *
+ * `user_ids` is read only when `to` includes `chosen`, and the backend refuses
+ * the two configurations that silently mail nobody: `chosen` with an empty list,
+ * and ids without `chosen`.
+ */
+export interface AlertSpec {
+  enabled: boolean;
+  to: AlertAudience[];
+  user_ids: string[];
+}
+
+/**
+ * Which of this agent's alerts are sent, and who hears each one.
+ *
+ * The organization's own monthly cap is deliberately absent. It stops every
+ * agent in the organization, its ceiling is set in the organization's settings,
+ * and an agent's author cannot raise it - so its alert goes to the
+ * administrators and no spec can redirect it.
+ */
+export interface NotificationSpec {
+  budget: AlertSpec;
+  approvals: AlertSpec;
+  usage: AlertSpec;
 }
 
 /**
@@ -127,6 +164,15 @@ export interface AgentSpec {
   /** Model requests one run may make; null uses the platform default of 100. */
   max_steps?: number | null;
   budget?: BudgetSpec | null;
+  /**
+   * Optional here, required on the wire.
+   *
+   * The API always answers with a full block - the field is defaulted server
+   * side, so an agent published before it existed reads back with the shipped
+   * defaults rather than with nothing. It is optional in this type because
+   * `create` does not send one, exactly like `spec_version`.
+   */
+  notifications?: NotificationSpec;
   observability?: ObservabilitySpec | null;
 }
 
@@ -155,6 +201,26 @@ export interface AgentDetail extends Agent {
 
 export interface AgentList {
   items: Agent[];
+  total: number;
+}
+
+/** One named environment of an agent, pinned to one published version. */
+export interface AgentEnvironment {
+  id: string;
+  agent_id: string;
+  name: string;
+  version_id: string;
+  /** The pinned version's number, as the history names it. */
+  version: number;
+  is_default: boolean;
+  /** Which vault key this environment's traces are written with; null = the spec's. */
+  logfire_token_secret_id: string | null;
+  service_name: string | null;
+  created_at: string;
+}
+
+export interface AgentEnvironmentList {
+  items: AgentEnvironment[];
   total: number;
 }
 

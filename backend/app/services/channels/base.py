@@ -45,8 +45,8 @@ class IncomingMessage:
 class OutgoingMessage:
     """Reply to send back to the platform.
 
-    When ``image_png`` is set, adapters send it as a photo/file with
-    ``text`` used as the caption; otherwise a plain text message is sent.
+    When `image_png` is set, adapters send it as a photo/file with
+    `text` used as the caption; otherwise a plain text message is sent.
     """
 
     platform_chat_id: str

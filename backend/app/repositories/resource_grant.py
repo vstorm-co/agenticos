@@ -12,9 +12,9 @@ async def _delete_rows(db: AsyncSession, statement: Delete) -> int:
     """Run a DELETE and report how many rows it removed.
 
     Both callers want that number and neither can read it off the declared type:
-    ``AsyncSession.execute`` is typed to return ``Result``, which has no
-    ``rowcount``, while a DML statement actually returns SQLAlchemy's
-    ``CursorResult``, which does. There is no overload to narrow on, so the one
+    `AsyncSession.execute` is typed to return `Result`, which has no
+    `rowcount`, while a DML statement actually returns SQLAlchemy's
+    `CursorResult`, which does. There is no overload to narrow on, so the one
     suppression that costs lives here rather than at each call site.
     """
     result = await db.execute(statement)
@@ -51,7 +51,7 @@ async def list_shared_ids(
     resource_type: str,
     minimum_level: GrantLevel = GrantLevel.READ,
 ) -> list[UUID]:
-    """Ids of one resource type shared with this member at ``minimum_level`` or above.
+    """Ids of one resource type shared with this member at `minimum_level` or above.
 
     Used to widen a listing query: a member sees their own rows plus these.
     """

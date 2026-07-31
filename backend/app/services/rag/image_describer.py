@@ -7,6 +7,8 @@ from abc import ABC, abstractmethod
 from pydantic_ai.models import Model
 from pydantic_ai.settings import ModelSettings
 
+from app.agents.capabilities.budget import record_ambient_usage
+
 logger = logging.getLogger(__name__)
 
 IMAGE_DESCRIPTION_PROMPT = (
@@ -64,6 +66,11 @@ class PydanticAIImageDescriber(BaseImageDescriber):
                     self.prompt,
                 ]
             )
+            # Vision tokens are spend like any other: booked to the ingestion
+            # job that is metering. This agent carries no BudgetGuard - it is
+            # not a run - so its usage is reported here or nowhere, and a
+            # scanned deck of a hundred slides is not a rounding error.
+            record_ambient_usage(self.model.model_name, result.usage, provider=self.model.system)
             return result.output if hasattr(result, "output") else str(result.data)
         except Exception as e:
             # One unreadable image must not fail a three-hundred-page document,

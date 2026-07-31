@@ -2,7 +2,7 @@
 
 These run inside the API worker process. When no distributed queue is
 configured (Celery/Taskiq/ARQ), services dispatch work here via
-``fire_and_forget()`` so request handlers return immediately - matching the
+`fire_and_forget()` so request handlers return immediately - matching the
 non-blocking semantics of a real queue.
 
 Caveats vs. a distributed queue:
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 def fire_and_forget(coro: Coroutine[Any, Any, Any], *, label: str) -> None:
-    """Run ``coro`` as a non-awaited asyncio task with structured error logging.
+    """Run `coro` as a non-awaited asyncio task with structured error logging.
 
     Use this from request handlers when there is no distributed queue: the
     request returns as soon as the task is scheduled, and exceptions are

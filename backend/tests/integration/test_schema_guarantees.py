@@ -1,6 +1,6 @@
 """Integration tests for guarantees only the database can make.
 
-Everything here asserts something a mock cannot: that a ``CHECK`` rejects a row,
+Everything here asserts something a mock cannot: that a `CHECK` rejects a row,
 that a partial unique index prevents a second default, that a cascade removes
 what it should. These are the promises the schema makes to the code above it,
 and code that trusts an unenforced promise fails in production rather than here.
@@ -21,13 +21,15 @@ from app.db.models.agent_exposure import AgentExposure, ExposureSurface
 from app.db.models.agent_run import AgentRun, RunStatus, ToolApproval
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.credential import ModelProfile
+from app.db.models.ingestion_spend import IngestionSpend
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_secret import OrganizationSecret
+from app.db.models.rag_document import RAGDocument
 from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
 from app.db.models.skill import Skill
 from app.db.models.user import User
-from app.repositories import agent_run_repo
+from app.repositories import ingestion_spend_repo
 
 pytestmark = pytest.mark.anyio
 
@@ -121,8 +123,8 @@ class TestMcpConnectionOwnership:
     """Who owns a connection, enforced where it cannot be forgotten.
 
     The two scopes share a table, and the personal routes authorize on
-    ``user_id`` alone while asking for no organization permission at all. So an
-    organization row that carried a ``user_id`` would be editable and deletable
+    `user_id` alone while asking for no organization permission at all. So an
+    organization row that carried a `user_id` would be editable and deletable
     by whoever created it - they could repoint a published agent's server at a
     host of their own. A query filter would close that; a check constraint
     closes it for every query anybody writes next.
@@ -759,7 +761,7 @@ class TestOrganizationBudgetConstraint:
             await db.flush()
 
     async def test_a_ceiling_survives_at_the_scale_costs_are_recorded_in(self, db):
-        """The cap is compared against a sum of ``agent_runs.cost_usd``.
+        """The cap is compared against a sum of `agent_runs.cost_usd`.
 
         Stored at a coarser scale it would round differently from the total it
         is measured against, and the two numbers would disagree in the one place
@@ -773,104 +775,74 @@ class TestOrganizationBudgetConstraint:
         assert org.monthly_budget_usd == Decimal("12.345678")
 
 
-class TestExposureBudgets:
-    """The ceilings a binding runs under, and what the database refuses."""
+class TestIngestionSpend:
+    """The half of the monthly bill that no run carries."""
 
-    @pytest.mark.parametrize("column", ["max_per_run_usd", "monthly_usd"])
-    @pytest.mark.parametrize("amount", [Decimal("0"), Decimal("-1")])
-    async def test_a_cap_of_zero_or_less_is_rejected(self, db, column, amount):
-        """Not a tighter limit - a binding that can never answer.
-
-        Somebody arrives at it by clearing a field rather than by deciding to,
-        which is exactly the kind of value a constraint should catch rather than
-        a form.
-        """
-        org = await _org(db)
-        agent, bot = await _agent(db, org), await _bot(db, org)
-        exposure = _exposure(agent, bot)
-        setattr(exposure, column, amount)
-        db.add(exposure)
-        with pytest.raises(IntegrityError):
-            await db.flush()
-
-    async def test_a_binding_may_carry_no_cap_at_all(self, db):
-        """Binding an agent to a bot is not the same act as budgeting it."""
-        org = await _org(db)
-        agent, bot = await _agent(db, org), await _bot(db, org)
-        db.add(_exposure(agent, bot))
-        await db.flush()
-
-    async def test_spend_is_summed_for_one_binding_and_not_the_organization(self, db):
-        """The property that makes an exposure's cap a cap.
-
-        Measured against the organization's total it would be exhausted by
-        unrelated internal traffic, while this binding's own spend stayed
-        invisible in it.
-        """
-        org = await _org(db)
-        agent, bot = await _agent(db, org), await _bot(db, org)
-        exposure = _exposure(agent, bot)
-        db.add(exposure)
-        await db.flush()
-
-        started = datetime.now(UTC)
-        for cost, exposure_id in (
-            (Decimal("1.50"), exposure.id),
-            (Decimal("0.25"), exposure.id),
-            (Decimal("99.00"), None),
+    async def test_the_sum_is_one_organizations_and_one_windows(self, db):
+        """The number the organization's cap is checked against: another
+        tenant's ingestion and last month's must both stay out of it."""
+        mine, theirs = await _org(db), await _org(db)
+        now = datetime.now(UTC)
+        for organization_id, cost, created_at in (
+            (mine.id, Decimal("1.50"), now),
+            (mine.id, Decimal("0.25"), now),
+            (mine.id, Decimal("99.00"), now - timedelta(days=60)),
+            (theirs.id, Decimal("50.00"), now),
         ):
             db.add(
-                AgentRun(
+                IngestionSpend(
                     id=uuid.uuid4(),
-                    organization_id=org.id,
-                    agent_id=agent.id,
-                    exposure_id=exposure_id,
-                    status=RunStatus.COMPLETED.value,
+                    organization_id=organization_id,
+                    rag_document_id=None,
+                    model="text-embedding-3-large",
+                    input_tokens=1000,
                     cost_usd=cost,
-                    started_at=started,
+                    cost_is_partial=False,
+                    created_at=created_at,
                 )
             )
         await db.flush()
 
-        total = await agent_run_repo.sum_cost_since(
-            db,
-            organization_id=org.id,
-            since=started - timedelta(minutes=1),
-            exposure_id=exposure.id,
+        total = await ingestion_spend_repo.sum_cost_since(
+            db, organization_id=mine.id, since=now - timedelta(minutes=1)
         )
 
         assert total == Decimal("1.75")
 
-    async def test_one_organizations_binding_cannot_meter_anothers_runs(self, db):
-        """Both filters, not either: the tenant boundary holds even given an id."""
-        mine, theirs = await _org(db), await _org(db)
-        my_agent, my_bot = await _agent(db, mine), await _bot(db, mine)
-        exposure = _exposure(my_agent, my_bot)
-        db.add(exposure)
-        await db.flush()
-
-        started = datetime.now(UTC)
-        their_agent = await _agent(db, theirs)
-        db.add(
-            AgentRun(
-                id=uuid.uuid4(),
-                organization_id=theirs.id,
-                agent_id=their_agent.id,
-                status=RunStatus.COMPLETED.value,
-                cost_usd=Decimal("50.00"),
-                started_at=started,
-            )
+    async def test_deleting_a_document_keeps_the_record_of_what_indexing_it_cost(self, db):
+        """SET NULL, not CASCADE: the spend still happened, and the month's
+        total must not move because somebody tidied a collection."""
+        org = await _org(db)
+        document = RAGDocument(
+            id=uuid.uuid4(),
+            collection_name="docs",
+            filename="handbook.pdf",
+            filetype="pdf",
+            organization_id=org.id,
         )
+        db.add(document)
         await db.flush()
 
-        total = await agent_run_repo.sum_cost_since(
+        spend = await ingestion_spend_repo.record(
             db,
-            organization_id=theirs.id,
-            since=started - timedelta(minutes=1),
-            exposure_id=exposure.id,
+            organization_id=org.id,
+            rag_document_id=document.id,
+            model="text-embedding-3-large",
+            input_tokens=1000,
+            output_tokens=0,
+            cost_usd=Decimal("0.13"),
+            cost_is_partial=False,
         )
 
-        assert total == Decimal("0")
+        await db.delete(document)
+        await db.flush()
+        await db.refresh(spend)
+
+        assert (spend.rag_document_id, spend.cost_usd) == (None, Decimal("0.13"))
+
+
+class TestExposureAttribution:
+    """The run keeps the record of where it came from."""
 
     async def test_deleting_a_binding_keeps_the_record_of_what_it_spent(self, db):
         """A run that happened still happened, and still cost money.

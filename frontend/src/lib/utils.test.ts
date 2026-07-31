@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { cn } from "./utils";
+import { cn, isAppAdmin } from "./utils";
 
 describe("cn utility function", () => {
   it("should merge class names", () => {
@@ -35,5 +35,37 @@ describe("cn utility function", () => {
     const result = cn(["class1", "class2"]);
     expect(result).toContain("class1");
     expect(result).toContain("class2");
+  });
+});
+
+describe("isAppAdmin", () => {
+  // The `/admin` surface is hidden on this, and every request behind it is
+  // re-checked server-side against the same flag. There used to be a
+  // `role === "admin"` fallback here for template deployments that never set it;
+  // while it existed the client offered an admin surface whose every request was
+  // refused, which reads as a broken product rather than as a missing privilege.
+  it("admits the holder of the flag", () => {
+    expect(isAppAdmin({ is_app_admin: true })).toBe(true);
+  });
+
+  it("refuses somebody without it", () => {
+    expect(isAppAdmin({ is_app_admin: false })).toBe(false);
+  });
+
+  it("treats an absent flag as not an admin", () => {
+    // A persisted auth store can predate the field, so `undefined` has to mean
+    // no rather than `undefined === true`.
+    expect(isAppAdmin({})).toBe(false);
+  });
+
+  it("refuses nobody at all", () => {
+    expect(isAppAdmin(null)).toBe(false);
+    expect(isAppAdmin(undefined)).toBe(false);
+  });
+
+  it("no longer admits anyone on the strength of a role string", () => {
+    // `users.role` was dropped in migration 0066. Anything still sending it is
+    // sending a field the backend does not have, and it must not decide this.
+    expect(isAppAdmin({ role: "admin" } as { is_app_admin?: boolean })).toBe(false);
   });
 });

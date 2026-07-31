@@ -7,14 +7,16 @@ import type { Agent, AgentStatus } from "@/types/agents";
 
 const listed = vi.fn<() => Agent[]>(() => []);
 const selectedId = vi.fn<() => string | null>(() => null);
+const defaultId = vi.fn<() => string | null>(() => null);
 const select = vi.fn();
+const setDefault = vi.fn();
 
 vi.mock("@/hooks", () => ({
   useAgents: () => ({ agents: listed(), isLoading: loading }),
 }));
 vi.mock("@/stores", () => ({
   useAgentSelectionStore: (pick: (state: unknown) => unknown) =>
-    pick({ selectedAgentId: selectedId(), select }),
+    pick({ selectedAgentId: selectedId(), defaultAgentId: defaultId(), select, setDefault }),
   useConversationStore: (pick: (state: unknown) => unknown) =>
     pick({ currentConversationId: "c1" }),
 }));
@@ -52,6 +54,9 @@ async function open(agents: Agent[] = PUBLISHED, selected: string | null = "a1")
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // clearAllMocks does not undo mockReturnValue - reset the default star
+  // explicitly so one test's default does not leak into the next.
+  defaultId.mockReturnValue(null);
   loading = false;
 });
 
@@ -102,6 +107,55 @@ describe("the chat's agent picker", () => {
     render(<AgentPicker />);
 
     expect(select).toHaveBeenCalledWith("a1");
+  });
+
+  it("resolves an empty selection to the starred default, not the first agent", async () => {
+    // The default exists precisely so a fresh browser or a new chat does not
+    // land on whoever happens to be first in the list.
+    listed.mockReturnValue(PUBLISHED);
+    selectedId.mockReturnValue(null);
+    defaultId.mockReturnValue("a2");
+
+    render(<AgentPicker />);
+
+    expect(select).toHaveBeenCalledWith("a2");
+  });
+
+  it("ignores a starred default that is no longer published", async () => {
+    // An unpublished default cannot answer; falling back to the first
+    // published agent keeps the composer addressed to someone real.
+    listed.mockReturnValue([agent("d1", "Half-built", "draft"), ...PUBLISHED]);
+    selectedId.mockReturnValue(null);
+    defaultId.mockReturnValue("d1");
+
+    render(<AgentPicker />);
+
+    expect(select).toHaveBeenCalledWith("a1");
+  });
+
+  it("stars an agent as default without selecting it", async () => {
+    await open(PUBLISHED, "a1");
+
+    await userEvent.click(screen.getByRole("button", { name: "Set Sales as default agent" }));
+
+    expect(setDefault).toHaveBeenCalledWith("a2");
+    expect(select).not.toHaveBeenCalled();
+  });
+
+  it("unstars the current default", async () => {
+    defaultId.mockReturnValue("a2");
+    await open(PUBLISHED, "a1");
+
+    await userEvent.click(screen.getByRole("button", { name: "Unset Sales as default agent" }));
+
+    expect(setDefault).toHaveBeenCalledWith(null);
+  });
+
+  it("labels the default agent in the list", async () => {
+    defaultId.mockReturnValue("a2");
+    await open(PUBLISHED, "a1");
+
+    expect(screen.getByText("Default")).toBeInTheDocument();
   });
 
   it("does not auto-select while the list is still loading", async () => {

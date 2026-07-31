@@ -4,7 +4,7 @@ Revision ID: 0039_exposures
 Revises: 0038_vault
 Create Date: 2026-07-27
 
-``@slug`` in a Slack or Telegram channel resolved against every published agent
+`@slug` in a Slack or Telegram channel resolved against every published agent
 in the bot's organization. One bot was therefore a door onto all of them, and
 nobody decided that - it fell out of resolving a handle against the org instead
 of against the bot. This table is the decision: an agent answers through a bot

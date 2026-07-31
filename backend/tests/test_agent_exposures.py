@@ -10,7 +10,6 @@ from another agent in the same organization.
 from __future__ import annotations
 
 import uuid
-from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -32,10 +31,10 @@ def _ctx(role: str = OrgRoleName.OWNER) -> AuthContext:
 
 
 def _named(**attributes: object) -> MagicMock:
-    """A stand-in with a real ``.name``.
+    """A stand-in with a real `.name`.
 
-    ``MagicMock(name=...)`` names the *mock* rather than setting an attribute, so
-    ``.name`` comes back as another mock - which a schema then rejects several
+    `MagicMock(name=...)` names the *mock* rather than setting an attribute, so
+    `.name` comes back as another mock - which a schema then rejects several
     layers away from the mistake.
     """
     mock = MagicMock(**{key: value for key, value in attributes.items() if key != "name"})
@@ -55,8 +54,8 @@ def _service(agent: MagicMock | None = None) -> AgentExposureService:
     """A service whose agent lookup succeeds, so the tests can be about bindings.
 
     The registry's own refusals - a missing agent, one the caller may not
-    publish, another tenant's - are proven in ``tests/test_agent_registry.py``
-    against the real ``resolve_access``. Re-proving them through a second
+    publish, another tenant's - are proven in `tests/test_agent_registry.py`
+    against the real `resolve_access`. Re-proving them through a second
     service would test the mock.
     """
     service = AgentExposureService(MagicMock())
@@ -123,6 +122,56 @@ class TestCreate:
             await service.create(_ctx(), uuid.uuid4(), ExposureCreate(channel_bot_id=bot.id))
 
         assert exposures.create.call_args.kwargs["surface"] == ExposureSurface.TELEGRAM.value
+
+    async def test_a_binding_can_name_the_environment_it_serves(self):
+        """A dev bot bound to dev - the environment travels into the row."""
+        agent = _agent()
+        service = _service(agent)
+        bot = _bot()
+        environment = MagicMock(agent_id=agent.id)
+        environment.id = uuid.uuid4()
+
+        with (
+            patch("app.services.agent_exposure.channel_bot_repo") as bots,
+            patch("app.services.agent_exposure.agent_exposure_repo") as exposures,
+            patch("app.services.agent_exposure.agent_environment_repo") as environments,
+            patch("app.services.agent_exposure.record_audit", new=AsyncMock()),
+        ):
+            bots.get_for_org = AsyncMock(return_value=bot)
+            exposures.get_for_bot = AsyncMock(return_value=None)
+            exposures.create = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
+            environments.get = AsyncMock(return_value=environment)
+
+            await service.create(
+                _ctx(),
+                agent.id,
+                ExposureCreate(channel_bot_id=bot.id, environment_id=environment.id),
+            )
+
+        assert exposures.create.call_args.kwargs["environment_id"] == environment.id
+
+    async def test_another_agents_environment_cannot_be_bound(self):
+        """An environment id is data; binding a bot to a version of something
+        else entirely must fail at the form, not at message time."""
+        agent = _agent()
+        service = _service(agent)
+        bot = _bot()
+
+        with (
+            patch("app.services.agent_exposure.channel_bot_repo") as bots,
+            patch("app.services.agent_exposure.agent_exposure_repo") as exposures,
+            patch("app.services.agent_exposure.agent_environment_repo") as environments,
+        ):
+            bots.get_for_org = AsyncMock(return_value=bot)
+            exposures.get_for_bot = AsyncMock(return_value=None)
+            environments.get = AsyncMock(return_value=MagicMock(agent_id=uuid.uuid4()))
+
+            with pytest.raises(NotFoundError, match="Environment"):
+                await service.create(
+                    _ctx(),
+                    agent.id,
+                    ExposureCreate(channel_bot_id=bot.id, environment_id=uuid.uuid4()),
+                )
 
     @pytest.mark.parametrize("is_active", [True, False])
     async def test_a_second_binding_to_the_same_bot_is_refused(self, is_active):
@@ -196,9 +245,8 @@ class TestReading:
             agent_id=agent.id,
             surface="slack",
             channel_bot_id=bot.id,
+            environment_id=None,
             is_active=True,
-            max_per_run_usd=None,
-            monthly_usd=None,
             created_at=None,
         )
         with (
@@ -223,9 +271,8 @@ class TestReading:
             agent_id=agent.id,
             surface="slack",
             channel_bot_id=uuid.uuid4(),
+            environment_id=None,
             is_active=True,
-            max_per_run_usd=None,
-            monthly_usd=None,
             created_at=None,
         )
         with (
@@ -268,7 +315,7 @@ class TestReading:
     async def test_the_picker_needs_only_permission_to_see_the_agent(self):
         """Choosing where an agent goes must not require running the bots.
 
-        ``channels:manage`` governs a bot's token, webhook and access policy.
+        `channels:manage` governs a bot's token, webhook and access policy.
         Demanding it here would leave the Builders who publish agents unable to
         put one in Slack, and the section read-only for the people it is for.
         """
@@ -310,6 +357,44 @@ class TestChangingABinding:
 
         assert exposures.get.call_args.kwargs["organization_id"] == _ORG
 
+    async def test_rebinding_to_an_environment_verifies_it_is_this_agents(self):
+        """The update path takes the same shortcut-proof check the create does."""
+        agent = _agent()
+        service = _service(agent)
+        exposure = MagicMock(id=uuid.uuid4(), agent_id=agent.id)
+
+        with (
+            patch("app.services.agent_exposure.agent_exposure_repo") as exposures,
+            patch("app.services.agent_exposure.agent_environment_repo") as environments,
+        ):
+            exposures.get = AsyncMock(return_value=exposure)
+            environments.get = AsyncMock(return_value=MagicMock(agent_id=uuid.uuid4()))
+
+            with pytest.raises(NotFoundError, match="Environment"):
+                await service.update(
+                    _ctx(), agent.id, exposure.id, ExposureUpdate(environment_id=uuid.uuid4())
+                )
+
+    async def test_an_explicit_null_returns_the_binding_to_the_default(self):
+        """`environment_id: null` is a statement, not an omission - the bot
+        goes back to serving what everyone else gets, with nothing looked up."""
+        agent = _agent()
+        service = _service(agent)
+        exposure = MagicMock(id=uuid.uuid4(), agent_id=agent.id)
+
+        with (
+            patch("app.services.agent_exposure.agent_exposure_repo") as exposures,
+            patch("app.services.agent_exposure.agent_environment_repo") as environments,
+            patch("app.services.agent_exposure.record_audit", new=AsyncMock()),
+        ):
+            exposures.get = AsyncMock(return_value=exposure)
+            exposures.update = AsyncMock(return_value=exposure)
+
+            await service.update(_ctx(), agent.id, exposure.id, ExposureUpdate(environment_id=None))
+
+        assert exposures.update.call_args.kwargs["update_data"] == {"environment_id": None}
+        environments.get.assert_not_called()
+
     @pytest.mark.parametrize(
         ("is_active", "action"),
         [(False, "agent.exposure_paused"), (True, "agent.exposure_resumed")],
@@ -331,79 +416,6 @@ class TestChangingABinding:
 
         assert exposures.update.call_args.kwargs["update_data"] == {"is_active": is_active}
         assert audit.call_args.kwargs["action"] == action
-
-    async def test_changing_only_the_budget_leaves_the_binding_running(self):
-        """A field nobody sent must not be written.
-
-        ``is_active`` has no meaningful default here: sending one would pause a
-        live binding every time somebody adjusted its ceiling, and resuming it
-        would be a second request nobody knew to make.
-        """
-        agent = _agent()
-        service = _service(agent)
-        exposure = MagicMock(id=uuid.uuid4(), agent_id=agent.id)
-        with (
-            patch("app.services.agent_exposure.agent_exposure_repo") as exposures,
-            patch("app.services.agent_exposure.record_audit", new=AsyncMock()),
-        ):
-            exposures.get = AsyncMock(return_value=exposure)
-            exposures.update = AsyncMock(return_value=exposure)
-
-            await service.update(
-                _ctx(), agent.id, exposure.id, ExposureUpdate(monthly_usd=Decimal("25"))
-            )
-
-        assert exposures.update.call_args.kwargs["update_data"] == {"monthly_usd": Decimal("25")}
-
-    async def test_a_budget_change_is_recorded_with_the_numbers(self):
-        """ "Somebody changed the budget" is not an entry anyone can act on later."""
-        agent = _agent()
-        service = _service(agent)
-        audit = AsyncMock()
-        exposure = MagicMock(id=uuid.uuid4(), agent_id=agent.id)
-        with (
-            patch("app.services.agent_exposure.agent_exposure_repo") as exposures,
-            patch("app.services.agent_exposure.record_audit", new=audit),
-        ):
-            exposures.get = AsyncMock(return_value=exposure)
-            exposures.update = AsyncMock(return_value=exposure)
-
-            await service.update(
-                _ctx(), agent.id, exposure.id, ExposureUpdate(max_per_run_usd=Decimal("0.5"))
-            )
-
-        assert audit.call_args.kwargs["action"] == "agent.exposure_updated"
-        # A string, because the trail is JSON and a Decimal does not survive the
-        # round trip as itself.
-        assert audit.call_args.kwargs["details"]["changes"] == {"max_per_run_usd": "0.5"}
-
-    async def test_a_binding_can_be_created_with_the_caps_it_will_run_under(self):
-        service = _service()
-        bot = _bot()
-        with (
-            patch("app.services.agent_exposure.channel_bot_repo") as bots,
-            patch("app.services.agent_exposure.agent_exposure_repo") as exposures,
-            patch("app.services.agent_exposure.record_audit", new=AsyncMock()),
-        ):
-            bots.get_for_org = AsyncMock(return_value=bot)
-            exposures.get_for_bot = AsyncMock(return_value=None)
-            exposures.create = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
-
-            await service.create(
-                _ctx(),
-                uuid.uuid4(),
-                ExposureCreate(
-                    channel_bot_id=bot.id,
-                    max_per_run_usd=Decimal("0.5"),
-                    monthly_usd=Decimal("25"),
-                ),
-            )
-
-        written = exposures.create.call_args.kwargs
-        assert (written["max_per_run_usd"], written["monthly_usd"]) == (
-            Decimal("0.5"),
-            Decimal("25"),
-        )
 
     async def test_removing_a_binding_is_recorded_with_the_surface_it_removed(self):
         """After the fact, the row is gone; the trail is the only record of it."""

@@ -39,7 +39,7 @@ class Clock(AbstractCapability[AgentDepsT]):
     """
 
     timezone: str = "UTC"
-    """IANA zone the agent should think in, for example ``Europe/Warsaw``."""
+    """IANA zone the agent should think in, for example `Europe/Warsaw`."""
 
     _zone: ZoneInfo = field(init=False, repr=False, compare=False)
 

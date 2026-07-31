@@ -7,12 +7,12 @@ Create Date: 2026-07-26T18:01:04.489757+00:00
 User-configured MCP server connections (Settings → Integrations). Each row
 is one remote MCP server attached to the user's assistant.
 
-``auth_token`` is Fernet-encrypted (static-bearer connections); ``allowed_tools``
+`auth_token` is Fernet-encrypted (static-bearer connections); `allowed_tools`
 is NULL when every tool the server offers is exposed. OAuth 2.1 connections
-(``auth_type = "oauth"``) instead keep the discovered endpoints, registered
+(`auth_type = "oauth"`) instead keep the discovered endpoints, registered
 client credentials and access/refresh tokens Fernet-encrypted in
-``oauth_payload``. An authorization redirect that is still in flight is staged
-in ``oauth_pending_payload`` and keyed by the CSRF token in ``oauth_state``, so
+`oauth_payload`. An authorization redirect that is still in flight is staged
+in `oauth_pending_payload` and keyed by the CSRF token in `oauth_state`, so
 re-authorizing never overwrites credentials that still work.
 """
 

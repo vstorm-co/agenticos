@@ -1,7 +1,7 @@
 """OAuth 2.1 authorization-code flow for MCP servers (web redirect variant).
 
 Most business MCP servers (Notion, Linear, Atlassian, …) are OAuth-gated:
-an unauthenticated request returns ``401`` with a ``WWW-Authenticate`` header
+an unauthenticated request returns `401` with a `WWW-Authenticate` header
 pointing at RFC 9728 protected-resource metadata. This module drives the full
 flow for a *web* app, where the authorization redirect and its callback are
 two separate HTTP requests rather than a blocking CLI prompt:
@@ -14,7 +14,7 @@ two separate HTTP requests rather than a blocking CLI prompt:
     4. :func:`exchange_code` - swap the returned code for tokens (callback).
     5. :func:`refresh_tokens` - refresh an expired access token.
 
-We lean on the MCP SDK's ``mcp.client.auth.oauth2`` helpers for discovery
+We lean on the MCP SDK's `mcp.client.auth.oauth2` helpers for discovery
 URL ordering, request building and response parsing so our behaviour matches
 the SDK's own client; the token grant/refresh POSTs are issued here so the
 flow can be split across requests and persisted between them.
@@ -46,26 +46,15 @@ from mcp.client.auth.oauth2 import (
 from mcp.shared.auth import OAuthClientMetadata, OAuthMetadata, OAuthToken
 from pydantic import AnyUrl, BaseModel
 
-from app.agents.mcp import validate_mcp_url
+from app.agents.mcp import CONNECT_TIMEOUT_SECS, validate_mcp_url
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-# How long an access token must still be valid to be reused without refreshing.
 TOKEN_EXPIRY_SKEW_SECS = 60.0
-
-# How long a consent redirect stays redeemable. The ``state`` token is the only
-# thing authenticating the callback, and it travels through the provider and the
-# browser's history - so a flow the user never finished must stop working rather
-# than sit in the database indefinitely.
 FLOW_TTL_SECS = 600.0
-
-# Redirects are followed by hand (see _send) so every hop is SSRF-checked.
 _MAX_REDIRECTS = 5
-
-_HTTP_TIMEOUT = httpx.Timeout(
-    settings.MCP_CONNECT_TIMEOUT_SECS, connect=settings.MCP_CONNECT_TIMEOUT_SECS
-)
+_HTTP_TIMEOUT = httpx.Timeout(CONNECT_TIMEOUT_SECS, connect=CONNECT_TIMEOUT_SECS)
 
 
 class OAuthError(Exception):
@@ -78,7 +67,7 @@ async def _send(client: httpx.AsyncClient, request: httpx.Request) -> httpx.Resp
     Discovery and token endpoints are chosen by the remote server, so the URL
     the user typed is not the URL we end up talking to. The client has
     redirects turned off and we follow them here, one validated hop at a time -
-    otherwise a server could answer with ``302 http://169.254.169.254/`` and we
+    otherwise a server could answer with `302 http://169.254.169.254/` and we
     would fetch it from inside the network.
     """
     for _ in range(_MAX_REDIRECTS + 1):
@@ -97,17 +86,13 @@ async def _send(client: httpx.AsyncClient, request: httpx.Request) -> httpx.Resp
 class McpOAuthPayload(BaseModel):
     """Everything an OAuth connection needs, stored Fernet-encrypted as JSON.
 
-    ``code_verifier`` is present only while a consent redirect is in flight;
-    once tokens arrive it is dropped and ``access_token``/``refresh_token`` are
-    filled in. ``expires_at`` is epoch seconds (or None if the token doesn't
+    `code_verifier` is present only while a consent redirect is in flight;
+    once tokens arrive it is dropped and `access_token`/`refresh_token` are
+    filled in. `expires_at` is epoch seconds (or None if the token doesn't
     expire).
     """
 
-    # The MCP server this flow authorizes against. Applied to the connection
-    # only once tokens arrive, so a re-authorization that points at a new URL
-    # cannot move the connection while the old tokens are still stored.
     server_url: str
-    # Epoch seconds when the consent redirect was issued - see FLOW_TTL_SECS.
     started_at: float
     authorization_endpoint: str
     token_endpoint: str
@@ -151,7 +136,7 @@ async def discover(server_url: str) -> DiscoveredServer:
     """Resolve the authorization server and its metadata for *server_url*.
 
     Follows the SEP-985 / RFC 9728 discovery chain: read the protected-resource
-    metadata (from the ``WWW-Authenticate`` header if present, else well-known
+    metadata (from the `WWW-Authenticate` header if present, else well-known
     URIs), then the authorization-server metadata (RFC 8414, OIDC fallbacks).
     """
     async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT, follow_redirects=False) as client:
@@ -245,9 +230,9 @@ async def discover(server_url: str) -> DiscoveredServer:
 
 
 async def register_client(server: DiscoveredServer, redirect_uri: str) -> tuple[str, str | None]:
-    """Dynamically register this app; return ``(client_id, client_secret)``.
+    """Dynamically register this app; return `(client_id, client_secret)`.
 
-    Public clients (no registration or no secret returned) get ``None`` for the
+    Public clients (no registration or no secret returned) get `None` for the
     secret and use PKCE alone.
     """
     metadata = client_metadata(redirect_uri, server.scope)

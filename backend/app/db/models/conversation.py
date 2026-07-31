@@ -43,7 +43,6 @@ class Conversation(Base, TimestampMixin):
     )
     title: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_archived: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    active_knowledge_base_ids: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
 
     messages: Mapped[list["Message"]] = relationship(
         "Message",

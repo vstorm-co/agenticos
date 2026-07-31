@@ -3,7 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Query
 
-from app.api.deps import ConversationSvc, CurrentAdmin
+from app.api.deps import ConversationSvc, CurrentAppAdmin
 from app.schemas.conversation import (
     ConversationReadWithMessages,
 )
@@ -15,7 +15,7 @@ router = APIRouter()
 @router.get("", response_model=AdminConversationList)
 async def admin_list_conversations(
     service: ConversationSvc,
-    _: CurrentAdmin,
+    _: CurrentAppAdmin,
     skip: int = Query(0, ge=0, description="Items to skip"),
     limit: int = Query(50, ge=1, le=100, description="Max items to return"),
     search: str | None = Query(default=None, description="Search by title"),
@@ -47,7 +47,7 @@ async def admin_list_conversations(
 async def admin_get_conversation(
     conversation_id: UUID,
     service: ConversationSvc,
-    _: CurrentAdmin,
+    _: CurrentAppAdmin,
 ) -> Any:
     """Get any conversation with messages (admin read-only access)."""
     return await service.get_conversation_with_messages(conversation_id)

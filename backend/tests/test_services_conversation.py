@@ -31,7 +31,6 @@ class MockConversation:
         self.is_archived = is_archived
         # A row always has these; a stand-in without them passes tests that the
         # real object would fail the moment anything serializes it.
-        self.active_knowledge_base_ids = None
         self.created_at = datetime(2026, 7, 27, tzinfo=UTC)
         self.updated_at = None
 

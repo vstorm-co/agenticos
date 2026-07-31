@@ -10,7 +10,9 @@ import { CommandPalette, SECTION_LABEL_KEYS } from "./command-palette";
 import { apiClient } from "@/lib/api-client";
 
 const can = vi.fn<(permission: string) => boolean>();
-const currentUser = vi.fn<() => { role?: string } | null>(() => ({ role: "member" }));
+const currentUser = vi.fn<() => { is_app_admin?: boolean } | null>(() => ({
+  is_app_admin: false,
+}));
 const push = vi.fn();
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
@@ -40,7 +42,7 @@ async function openPalette() {
 beforeEach(() => {
   vi.clearAllMocks();
   can.mockReturnValue(true);
-  currentUser.mockReturnValue({ role: "member" });
+  currentUser.mockReturnValue({ is_app_admin: false });
   vi.mocked(apiClient.get).mockImplementation((endpoint: string) =>
     endpoint in ANSWERS
       ? Promise.resolve(ANSWERS[endpoint])
@@ -61,7 +63,7 @@ describe("the palette's destinations", () => {
   it("offers every destination the sidebar offers", async () => {
     // An admin holding everything, so the assertion covers the whole table
     // rather than the part today's default caller happens to be shown.
-    currentUser.mockReturnValue({ role: "admin" });
+    currentUser.mockReturnValue({ is_app_admin: true });
 
     await openPalette();
 
@@ -85,7 +87,7 @@ describe("the palette's destinations", () => {
     await openPalette();
     expect(screen.queryByRole("option", { name: "adminOverview" })).not.toBeInTheDocument();
 
-    currentUser.mockReturnValue({ role: "admin" });
+    currentUser.mockReturnValue({ is_app_admin: true });
     await openPalette();
     expect(await screen.findByRole("option", { name: "adminOverview" })).toBeInTheDocument();
   });
@@ -94,7 +96,7 @@ describe("the palette's destinations", () => {
     // `/admin` is both a primary destination and the admin section's own index.
     // Listed from both tables it appears twice, and the second one is dead
     // weight the reader has to tell apart from the first.
-    currentUser.mockReturnValue({ role: "admin" });
+    currentUser.mockReturnValue({ is_app_admin: true });
 
     await openPalette();
 

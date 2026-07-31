@@ -5,12 +5,12 @@ Revises: 0017_create_api_keys_table
 Create Date: 2026-05-10T00:00:00+00:00
 
 Stores per-user slash command settings for the chat palette:
-  - Custom commands (``prompt`` is set) - quick prompt shortcuts.
-  - Built-in overrides (``prompt`` is NULL) - record only ``is_enabled`` for
+  - Custom commands (`prompt` is set) - quick prompt shortcuts.
+  - Built-in overrides (`prompt` is NULL) - record only `is_enabled` for
     one of the frontend's BUILTIN_COMMANDS, so users can hide ones they don't
     use.
 
-The unique ``(user_id, name)`` constraint prevents both classes of row from
+The unique `(user_id, name)` constraint prevents both classes of row from
 co-existing for the same name on a single user.
 """
 

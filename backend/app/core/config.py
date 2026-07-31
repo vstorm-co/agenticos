@@ -6,24 +6,6 @@ from typing import Literal
 
 from pydantic import computed_field, field_validator, ValidationInfo
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import BaseModel, Field
-
-
-# Same slug rule as a user connection (app/schemas/mcp_connection.py). The name
-# becomes the server's tool prefix in the agent, so an unconstrained name could
-# collapse two servers onto one prefix - and the second would then be dropped
-# from every chat turn. Reject it at startup instead.
-MCP_SERVER_NAME_PATTERN = r"^[a-z0-9][a-z0-9-]{0,31}$"
-
-
-class McpServerConfig(BaseModel):
-    """One deployment-managed MCP server (see MCP_SERVERS below)."""
-
-    name: str = Field(pattern=MCP_SERVER_NAME_PATTERN)
-    url: str
-    headers: dict[str, str] = {}
-    # None = expose every tool the server offers.
-    allowed_tools: list[str] | None = None
 
 
 def find_env_file() -> Path | None:
@@ -56,7 +38,6 @@ class Settings(BaseSettings):
     MODELS_CACHE_DIR: Path = Path("./models_cache")
     MEDIA_DIR: Path = Path("./media")
     MAX_UPLOAD_SIZE_MB: int = 50  # Max file upload size in MB
-    # Soft per-org storage cap surfaced on /billing - not enforced yet (5 GB).
     STORAGE_SOFT_LIMIT_BYTES: int = 5 * 1024 * 1024 * 1024
 
     LOGFIRE_TOKEN: str | None = None
@@ -110,37 +91,14 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30  # 30 minutes
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
     ALGORITHM: str = "HS256"
-
-    # Public URL of the frontend; used to build OAuth redirect targets and
-    # Stripe checkout/portal return URLs. Always declared (not gated) because
-    # the billing model_validator references it unconditionally.
     FRONTEND_URL: str = "http://localhost:3000"
-
-    # Where this API answers from, as the public internet reaches it. Used to
-    # build the one-line embed snippet a customer pastes into their site, which
-    # is why it cannot be derived from the request: the dashboard is served from
-    # the frontend's host, and a snippet carrying that host would point at a
-    # server with no widget on it. Defaults to the frontend URL so a local
-    # install works without another variable to set.
     PUBLIC_BASE_URL: str = "http://localhost:8000"
 
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""
     GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/v1/oauth/google/callback"
 
-    # Master key for the secret vault (app.core.vault) - provider credentials,
-    # channel bot tokens, MCP credentials and organization secrets all seal
-    # against it. Empty falls back to SECRET_KEY so a fresh checkout runs; set
-    # it explicitly in production so secrets survive a SECRET_KEY rotation.
     VAULT_MASTER_KEY: str = ""
-
-    # Whether a model profile may point at a private, loopback or link-local
-    # address. Off by default: on a shared deployment any member who can add a
-    # provider key could otherwise turn the backend into a probe for its
-    # internal network. Turn it on for a self-hosted install, which is what
-    # makes Ollama on localhost, a vLLM server or a LiteLLM proxy usable.
-    # Scoped to model endpoints - webhooks and MCP servers are unaffected.
-    ALLOW_INTERNAL_MODEL_ENDPOINTS: bool = False
 
     API_KEY: str = "change-me-in-production"
     API_KEY_HEADER: str = "X-API-Key"
@@ -173,80 +131,23 @@ class Settings(BaseSettings):
     RATE_LIMIT_REQUESTS: int = 100
     RATE_LIMIT_PERIOD: int = 60  # seconds
 
-    # Prefect API - set to http://prefect-server:4200/api for self-hosted,
-    # or the Prefect Cloud workspace URL for cloud mode.
     PREFECT_API_URL: str = "http://localhost:4200/api"
-    # Only required when PREFECT_CLOUD=true (your workspace API key)
     PREFECT_API_KEY: str | None = None
+
+    # The embeddings credential. Every collection in the deployment is embedded
+    # on this key (via OpenRouter); model *profiles* in the vault cover chat
+    # models only. Moving this to per-organization credentials is a feature,
+    # not a rename - the vector column width is bound to EMBEDDING_MODEL below.
     OPENROUTER_API_KEY: str = ""
-    AI_MODEL: str = "anthropic/claude-opus-4-7"
-    AI_TEMPERATURE: float = 0.7
-    AI_THINKING_ENABLED: bool = False
-    AI_THINKING_EFFORT: str = "medium"  # "low", "medium", "high"
-    AI_AVAILABLE_MODELS: list[str] = [
-        "anthropic/claude-opus-4-7",
-        "anthropic/claude-sonnet-4-6",
-        "openai/gpt-5.5",
-        "google/gemini-2.5-flash",
-        "deepseek/deepseek-r1",
-    ]
-    AI_FRAMEWORK: str = "pydantic_ai"
-    LLM_PROVIDER: str = "openrouter"
-
-    CODE_EXECUTION_TIMEOUT_SECS: float = 10.0
-    CODE_EXECUTION_MAX_MEMORY_MB: int = 256
-
-    # Deployment-managed MCP servers, always attached to the agent (on top of
-    # the per-user connections configured in Settings → Integrations).
-    # Set as a JSON list whose objects carry: name, url, optional headers for
-    # authentication, and an optional allowed_tools allowlist.
-    MCP_SERVERS: list[McpServerConfig] = []
-    # Per-server budget for the pre-flight tools/list ping; unreachable servers
-    # are skipped for the turn instead of failing the chat.
-    MCP_CONNECT_TIMEOUT_SECS: float = 3.0
-
-    @field_validator("MCP_SERVERS")
-    @classmethod
-    def validate_mcp_server_names(cls, v: list[McpServerConfig]) -> list[McpServerConfig]:
-        """Reject duplicate names: they share a tool prefix, and the agent can
-        only attach one server per prefix - the rest would vanish silently."""
-        names = [server.name for server in v]
-        duplicates = sorted({name for name in names if names.count(name) > 1})
-        if duplicates:
-            raise ValueError(f"MCP_SERVERS has duplicate server names: {', '.join(duplicates)}")
-        return v
-
-    # Telegram: webhook base URL (e.g. https://api.yourdomain.com) - leave empty to use polling
-    TELEGRAM_WEBHOOK_BASE_URL: str = ""
-    # Slack: signing secret for verifying webhook requests (from Slack app settings)
-    SLACK_SIGNING_SECRET: str = ""
-    # Slack: bot token (xoxb-...) - used for sending messages via Web API
-    SLACK_BOT_TOKEN: str = ""
-    # Slack: app-level token (xapp-...) - used for Socket Mode (dev/polling)
-    SLACK_APP_TOKEN: str = ""
-    # Vector Database (pgvector) - uses existing PostgreSQL
+    # Deployment-level on purpose: pgvector columns are created at this model's
+    # width, so changing it mid-life invalidates every existing collection.
+    # ingestion_config guards both directions of that mistake.
     EMBEDDING_MODEL: str = "text-embedding-3-large"
 
-    # How documents are parsed and chunked is NOT here. It is a per-collection
-    # choice stored on `knowledge_bases.ingestion_config` (see
-    # app.services.ingestion_config), because an installation-wide parser or
-    # chunk size makes the same form produce different collections on two
-    # deployments, with nowhere in the product to see or change it. The removed
-    # settings were PDF_PARSER, CHAT_PDF_PARSER, LLAMAPARSE_TIER,
-    # LITEPARSE_OCR_LANGUAGE, LITEPARSE_TIMEOUT_SECONDS, RAG_ENABLE_OCR,
-    # RAG_CHUNK_SIZE, RAG_CHUNK_OVERLAP and RAG_CHUNKING_STRATEGY.
-    RAG_DEFAULT_COLLECTION: str = "documents"
-    RAG_TOP_K: int = 10
-    RAG_HYBRID_SEARCH: bool = False  # Enable BM25 + vector hybrid search
-    # Credentials and network addresses stay deployment-level on purpose: a key
-    # is billed to the operator, and letting a tenant name an internal OCR
-    # address is the request forgery this platform refuses everywhere else.
+    # Cloud-parser credential and OCR sidecar. Which parser a collection uses
+    # is per-collection configuration; these say only how to reach the tools.
     LLAMAPARSE_API_KEY: str = ""
-    # Empty url uses the bundled Tesseract; point at e.g. http://easyocr:8000
-    # or http://paddleocr:8000 for HTTP OCR.
     LITEPARSE_OCR_SERVER_URL: str = ""
-    RAG_ENABLE_IMAGE_DESCRIPTION: bool = True  # set to false to disable LLM image description
-    RAG_IMAGE_DESCRIPTION_MODEL: str = ""  # empty = use AI_MODEL
     GOOGLE_DRIVE_CREDENTIALS_FILE: str = "credentials/google-drive-sa.json"
     S3_RAG_ENDPOINT: str | None = None
     S3_RAG_ACCESS_KEY: str = ""
@@ -289,23 +190,20 @@ class Settings(BaseSettings):
     def rag(self) -> "RAGSettings":
         """The deployment-level half of the RAG settings.
 
-        Only what genuinely belongs to the installation: where vectors live, how
-        they are searched, and the credentials to reach a parser. Everything
-        about *how a document is read* is per collection and arrives via
-        :func:`app.services.ingestion_config.rag_settings_for`, which builds this
-        same object from the collection's stored configuration.
+        Only what genuinely belongs to the installation: the embedding model
+        the vector columns were built for, and the credentials to reach a
+        parser. Everything about *how a document is read* is per collection and
+        arrives via :func:`app.services.ingestion_config.rag_settings_for`,
+        which builds this same object from the collection's stored
+        configuration; everything else falls to :class:`RAGSettings` defaults.
         """
         return RAGSettings(
-            collection_name=self.RAG_DEFAULT_COLLECTION,
-            enable_hybrid_search=self.RAG_HYBRID_SEARCH,
             embeddings_config=EmbeddingsConfig(model=self.EMBEDDING_MODEL),
             document_parser=DocumentParser(),
             pdf_parser=PdfParser(
                 api_key=self.LLAMAPARSE_API_KEY,
                 liteparse_ocr_server_url=self.LITEPARSE_OCR_SERVER_URL or None,
             ),
-            enable_image_description=self.RAG_ENABLE_IMAGE_DESCRIPTION,
-            image_description_model=self.RAG_IMAGE_DESCRIPTION_MODEL,
         )
 
 

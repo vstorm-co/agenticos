@@ -1,12 +1,12 @@
 """Where an agent is available - the Builder's "Where this agent is available".
 
-Every route here acts on *one* agent, so none of them carries a ``require(...)``
+Every route here acts on *one* agent, so none of them carries a `require(...)`
 gate. That is the rule the access layer is built on rather than an oversight: a
 role gate cannot see the grants on a row, so a Viewer holding an explicit edit
-grant on a single agent would be refused before ``resolve_access`` ever widened
-their access. The decision is handed to ``AgentExposureService``, which reads the
+grant on a single agent would be refused before `resolve_access` ever widened
+their access. The decision is handed to `AgentExposureService`, which reads the
 role scope *and* the grant, and reports a refusal as "not found" so agent ids
-stay unprobeable. ``tests/api/test_platform_routes.py`` enforces both halves.
+stay unprobeable. `tests/api/test_platform_routes.py` enforces both halves.
 
 One surface concept covers every place an agent can be reached, so the Builder
 gets one section rather than one per channel.
@@ -40,7 +40,7 @@ async def list_exposures(agent_id: UUID, ctx: Auth, service: AgentExposureSvc) -
 async def list_exposure_targets(agent_id: UUID, ctx: Auth, service: AgentExposureSvc) -> Any:
     """The bots this agent could be made available on.
 
-    Declared before the ``{exposure_id}`` routes so ``targets`` is not parsed as
+    Declared before the `{exposure_id}` routes so `targets` is not parsed as
     an id. FastAPI matches in declaration order, and the two would otherwise
     collide on a path that has no valid UUID to offer.
     """
@@ -73,7 +73,7 @@ async def update_exposure(
     ctx: Auth,
     service: AgentExposureSvc,
 ) -> Any:
-    """Pause, resume, or change what this binding may spend."""
+    """Pause, resume, or rebind this binding to another environment."""
     updated = await service.update(ctx, agent_id, exposure_id, data)
     exposures = await service.list_for_agent(ctx, agent_id)
     return next(exposure for exposure in exposures if exposure.id == updated.id)

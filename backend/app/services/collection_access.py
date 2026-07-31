@@ -2,21 +2,21 @@
 
 A collection has two names in this system. One is the vector table the chunks
 live in - a string any caller can type into a URL. The other is the
-``knowledge_bases`` row that owns it, and it is the only one of the two that
-knows an organization. The row is therefore the authority: every ``/rag`` route
+`knowledge_bases` row that owns it, and it is the only one of the two that
+knows an organization. The row is therefore the authority: every `/rag` route
 resolves the name through it before touching a vector, a document or a sync
 source.
 
 Refusals are reported as "not found", with the same message and details an
 absent collection produces. Anything else turns the API into an oracle, and
 these names are worth guessing: they are derived from what people call their
-knowledge bases, so confirming that ``acme_handbook_d1fac1`` exists somewhere is
+knowledge bases, so confirming that `acme_handbook_d1fac1` exists somewhere is
 already information.
 
 The read rule lives here rather than in :mod:`app.services.knowledge_base` on
 purpose. Both surfaces answer the same question about the same rows, and it was
-two copies of that question - ``/rag/collections`` filtering by organization
-while ``/rag/collections/{name}/info`` did not - that let one tenant read
+two copies of that question - `/rag/collections` filtering by organization
+while `/rag/collections/{name}/info` did not - that let one tenant read
 another's collection while the listing looked perfectly scoped.
 """
 
@@ -27,7 +27,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AlreadyExistsError, NotFoundError
-from app.core.permissions import AuthContext
+from app.core.permissions import AuthContext, Perm
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.rag_document import RAGDocument
 from app.db.models.sync_log import SyncLog
@@ -38,45 +38,49 @@ from app.repositories import (
     sync_log_repo,
     sync_source_repo,
 )
+from app.services.access import COLLECTION, resolve_access, visible_resource_ids
 
 
-def can_read(kb: KnowledgeBase, *, user_id: UUID, organization_id: UUID | None) -> bool:
+async def readable_kb(db: AsyncSession, ctx: AuthContext, kb: KnowledgeBase) -> bool:
     """Whether this caller may read the collection behind a knowledge base.
 
     Three ways in, and no fourth: an app-scoped base is deployment-wide by
-    design, a personal one belongs to its owner, an org one to the members of
-    that organization. The query form of this predicate is
-    :func:`app.repositories.knowledge_base.get_accessible`; the two must keep
-    agreeing, because a name a listing shows and a per-resource route refuses
-    is as much a bug as the reverse.
+    design, a personal one belongs to its owner, and an org one is decided the
+    way every other shareable resource is - the caller's `collections:view`
+    scope against the row's owner and visibility, widened by any explicit
+    grant (:func:`app.services.access.resolve_access`). The query form of this
+    predicate is :func:`app.repositories.knowledge_base.get_accessible`; the
+    two must keep agreeing, because a name a listing shows and a per-resource
+    route refuses is as much a bug as the reverse.
     """
     if kb.scope == KBScope.APP.value:
         return True
     if kb.scope == KBScope.PERSONAL.value:
-        return str(kb.owner_user_id) == str(user_id)
-    return bool(organization_id) and str(kb.organization_id) == str(organization_id)
+        return ctx.user_id is not None and kb.owner_user_id == ctx.user_id
+    return await resolve_access(db, ctx, kb, Perm.COLLECTIONS_VIEW, resource_type=COLLECTION)
 
 
-def can_write(
-    kb: KnowledgeBase, *, user_id: UUID, organization_id: UUID | None, is_app_admin: bool
-) -> bool:
+async def writable_kb(db: AsyncSession, ctx: AuthContext, kb: KnowledgeBase) -> bool:
     """Whether this caller may ingest into, or destroy, that collection.
 
-    Reading it is the baseline; the one addition is that an app-scoped base is
-    shared by every tenant in the deployment, so only a platform admin may write
-    to one. Which *roles* may write at all is decided a layer up, by the
-    ``collections:edit`` gate on the route - this answers "which rows".
+    An app-scoped base is shared by every tenant in the deployment, so only a
+    platform admin may write to one; a personal base belongs to its owner. An
+    org base takes `collections:edit` reaching the row - the role's scope, or
+    an explicit `edit` grant lifting a single base into reach without a
+    promotion.
     """
     if kb.scope == KBScope.APP.value:
-        return is_app_admin
-    return can_read(kb, user_id=user_id, organization_id=organization_id)
+        return ctx.is_app_admin
+    if kb.scope == KBScope.PERSONAL.value:
+        return ctx.user_id is not None and kb.owner_user_id == ctx.user_id
+    return await resolve_access(db, ctx, kb, Perm.COLLECTIONS_EDIT, resource_type=COLLECTION)
 
 
 def _as_uuid(value: str) -> UUID | None:
-    """The id, or ``None`` when the caller sent something that cannot be one.
+    """The id, or `None` when the caller sent something that cannot be one.
 
     A malformed id is not a bad request, it is an id that matches nothing - and
-    saying so keeps the 500 that ``UUID(value)`` used to raise out of the
+    saying so keeps the 500 that `UUID(value)` used to raise out of the
     refusal path.
     """
     try:
@@ -96,7 +100,7 @@ def _no_document(doc_id: str) -> NotFoundError:
 class CollectionAccessService:
     """Resolves what a caller named into a row they are allowed to have.
 
-    Every method either returns the row or raises ``NotFoundError``. Nothing
+    Every method either returns the row or raises `NotFoundError`. Nothing
     here returns a boolean to a route, so a route cannot forget to check one.
     """
 
@@ -108,24 +112,19 @@ class CollectionAccessService:
     async def _first_readable(self, ctx: AuthContext, name: str) -> KnowledgeBase | None:
         """The first knowledge base claiming this name that the caller may read.
 
-        Plural candidates because ``collection_name`` is not unique: two
+        Plural candidates because `collection_name` is not unique: two
         organizations can pick the same name, and they then share one vector
         table. Scanning the candidates means the caller's own row decides,
         rather than whichever row the database happened to return first.
         """
         for kb in await knowledge_base_repo.list_by_collection_name(self.db, name):
-            if can_read(kb, user_id=ctx.subject_id, organization_id=ctx.organization_id):
+            if await readable_kb(self.db, ctx, kb):
                 return kb
         return None
 
     async def _first_writable(self, ctx: AuthContext, name: str) -> KnowledgeBase | None:
         for kb in await knowledge_base_repo.list_by_collection_name(self.db, name):
-            if can_write(
-                kb,
-                user_id=ctx.subject_id,
-                organization_id=ctx.organization_id,
-                is_app_admin=ctx.is_app_admin,
-            ):
+            if await writable_kb(self.db, ctx, kb):
                 return kb
         return None
 
@@ -159,16 +158,23 @@ class CollectionAccessService:
         Deduplicated because several knowledge bases may point at one
         collection, and a listing should name it once.
         """
+        shared = await visible_resource_ids(
+            self.db, ctx, resource_type=COLLECTION, perm=Perm.COLLECTIONS_VIEW
+        )
         accessible = await knowledge_base_repo.get_accessible(
-            self.db, user_id=ctx.subject_id, organization_id=ctx.organization_id
+            self.db,
+            user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            see_all_org=shared is None,
+            shared_org_ids=shared or [],
         )
         return list(dict.fromkeys(kb.collection_name for kb in accessible))
 
     async def readable_names_for(self, ctx: AuthContext, name: str | None) -> list[str]:
         """What a listing may include: the collection asked for, or all of theirs.
 
-        The unfiltered case is the one that leaked - ``GET /rag/documents`` with
-        no ``collection_name`` used to answer with every document in the
+        The unfiltered case is the one that leaked - `GET /rag/documents` with
+        no `collection_name` used to answer with every document in the
         deployment - so "no filter" now means "mine", never "everything".
         """
         if name is None:
@@ -191,12 +197,7 @@ class CollectionAccessService:
                 already owns the name.
         """
         for kb in await knowledge_base_repo.list_by_collection_name(self.db, name):
-            if not can_write(
-                kb,
-                user_id=ctx.subject_id,
-                organization_id=ctx.organization_id,
-                is_app_admin=ctx.is_app_admin,
-            ):
+            if not await writable_kb(self.db, ctx, kb):
                 raise AlreadyExistsError(
                     message=f"A collection named '{name}' already exists",
                     details={"collection": name},

@@ -101,21 +101,6 @@ class MessageRead(MessageBase, TimestampSchema):
     )
 
 
-class MessageReadSimple(MessageBase, TimestampSchema):
-    """Simplified message schema without tool calls."""
-
-    id: UUID
-    conversation_id: UUID
-    model_name: str | None = None
-    tokens_used: int | None = None
-    agent_id: UUID | None = None
-    agent_version_id: UUID | None = None
-    agent_version: int | None = Field(
-        default=None,
-        description="The version number behind agent_version_id - a UUID names nothing to a reader",
-    )
-
-
 class ConversationBase(BaseSchema):
     """Base conversation schema."""
 
@@ -136,24 +121,6 @@ class ConversationUpdate(BaseSchema):
 
     title: str | None = Field(default=None, max_length=255)
     is_archived: bool | None = None
-    active_knowledge_base_ids: list[UUID] | None = Field(
-        default=None,
-        description="null=no change, []=RAG disabled, [id,...]=explicit KB selection",
-    )
-
-
-class ConversationKBSettings(BaseSchema):
-    """Schema for updating KB selection on a conversation.
-
-    null  = use defaults (personal+org KBs on, app KBs off)
-    []    = RAG disabled for this conversation
-    [id1] = explicit KB selection
-    """
-
-    active_knowledge_base_ids: list[str] | None = Field(
-        default=None,
-        description="null=use defaults, []=RAG disabled, [id,...]=explicit KB selection",
-    )
 
 
 class ConversationAgent(BaseSchema):
@@ -172,13 +139,12 @@ class ConversationRead(ConversationBase, TimestampSchema):
     user_id: UUID | None = None
     organization_id: UUID | None = None
     is_archived: bool = False
-    active_knowledge_base_ids: list[str] | None = None
     agents: list[ConversationAgent] = Field(
         default_factory=list,
         description=(
             "Every agent that answered in this conversation, in the order they first "
             "did. A list rather than one agent because the picker can be changed "
-            "mid-thread; empty means the general assistant answered throughout."
+            "mid-thread."
         ),
     )
 
@@ -200,18 +166,4 @@ class MessageList(BaseSchema):
     """Schema for listing messages."""
 
     items: list[MessageRead]
-    total: int
-
-
-class ConversationWithLatestMessage(ConversationRead):
-    """Conversation with its latest message for list views."""
-
-    latest_message: MessageReadSimple | None = None
-    message_count: int = 0
-
-
-class ConversationAdminList(BaseSchema):
-    """Schema for admin conversation list with message counts."""
-
-    items: list[ConversationWithLatestMessage]
     total: int

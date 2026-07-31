@@ -49,6 +49,15 @@ class KnowledgeBase(TimestampMixin, Base):
     # and changing it broke every existing collection silently.
     embedding_model: Mapped[str] = mapped_column(String(128), nullable=False)
     embedding_dim: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    # The organization vault key this collection embeds on; NULL is the
+    # deployment's key. SET NULL on delete: losing a key must degrade billing,
+    # never take document search down.
+    embedding_secret_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("organization_secrets.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     # How widely the collection is exposed inside its org; combines with the
     # member's role scope and any explicit grant (app.services.access).
     visibility: Mapped[str] = mapped_column(

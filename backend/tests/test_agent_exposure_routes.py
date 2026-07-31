@@ -7,7 +7,7 @@ that it answers with the *right* one when an agent is available in several
 places.
 
 That the routes are authorized at all, and by the right mechanism, is asserted
-through the real app in ``tests/api/test_platform_routes.py``.
+through the real app in `tests/api/test_platform_routes.py`.
 """
 
 from __future__ import annotations
@@ -51,7 +51,7 @@ def _read(*, exposure_id: uuid.UUID, bot_id: uuid.UUID, name: str = "Acme") -> E
 
 class TestRouteShape:
     def test_targets_is_declared_before_the_exposure_id_routes(self):
-        """Otherwise ``targets`` is parsed as an id and never reaches its handler.
+        """Otherwise `targets` is parsed as an id and never reaches its handler.
 
         FastAPI matches in declaration order, so this is decided by where the
         decorator sits in the module - which nothing else would catch.

@@ -10,26 +10,15 @@
 /** A place an agent can be made available. Mirrors the backend's ExposureSurface. */
 export type ExposureSurface = "slack" | "telegram" | "mattermost";
 
-/**
- * What one binding may spend, metered against its own runs and nobody else's.
- *
- * Two limits because they fail differently: a monthly cap stops a slow leak,
- * and only a per-run cap stops one adversarial prompt driving a loop - nothing
- * that counts requests can see cost. Strings, not numbers: these are money, and
- * a float is how a cap of 0.1 becomes 0.10000000000000001 on its way back.
- */
-export interface ExposureBudget {
-  max_per_run_usd: string | null;
-  monthly_usd: string | null;
-}
-
-export interface Exposure extends ExposureBudget {
+export interface Exposure {
   id: string;
   agent_id: string;
   surface: ExposureSurface;
   channel_bot_id: string;
   /** Resolved server-side, so the section can name a place without reading bots. */
   channel_bot_name: string;
+  /** Which named environment answers here; null = the default. */
+  environment_id: string | null;
   is_active: boolean;
   created_at: string | null;
 }

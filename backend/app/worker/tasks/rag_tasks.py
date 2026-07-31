@@ -1,4 +1,3 @@
-# ruff: noqa: I001 - Imports structured for Jinja2 template conditionals
 """RAG ingestion & sync tasks - processes documents asynchronously."""
 
 import asyncio
@@ -6,6 +5,7 @@ import hashlib
 import json
 import logging
 import tempfile
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -13,9 +13,10 @@ from uuid import UUID
 from prefect import flow
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.budget import BudgetExceeded, SpendLedger, metered_by
 from app.core.config import settings
 from app.db.session import get_worker_db_context
-from app.repositories import knowledge_base_repo
+from app.repositories import ingestion_spend_repo, knowledge_base_repo
 from app.repositories import sync_source as sync_source_repo
 from app.services.ingestion_config import (
     IngestionConfig,
@@ -27,8 +28,9 @@ from app.services.rag.connectors import CONNECTOR_REGISTRY
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.ingestion import IngestionService
 from app.services.rag.models import IngestionStatus
-from app.services.sync_source import SyncSourceService
 from app.services.rag.vectorstore import PgVectorStore as VectorStore
+from app.services.spend import assert_organization_within_budget
+from app.services.sync_source import SyncSourceService
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +55,35 @@ async def _ingestion_service_for(
     return IngestionService(processor=processor, vector_store=vector_store)
 
 
+async def _record_embedding_spend(
+    ledger: SpendLedger, *, organization_id: UUID | None, rag_document_id: UUID | None
+) -> None:
+    """Persist what a metering window spent, if it spent anything.
+
+    One row per model per window - a document upload, a whole sync - rather
+    than per API call: the unit anyone reconciles against a bill is "what did
+    indexing this cost with which model", and a window can spend in two models
+    at once - the embedder and the image describer. Written even when the
+    window failed, because a document that died half-embedded still spent the
+    tokens it got through, and a budget that ignores failures is not a budget.
+    """
+    if not ledger.entries:
+        return
+    async with get_worker_db_context() as db:
+        for model_name in dict.fromkeys(entry.model_name for entry in ledger.entries):
+            entries = [entry for entry in ledger.entries if entry.model_name == model_name]
+            await ingestion_spend_repo.record(
+                db,
+                organization_id=organization_id,
+                rag_document_id=rag_document_id,
+                model=model_name,
+                input_tokens=sum(entry.input_tokens for entry in entries),
+                output_tokens=sum(entry.output_tokens for entry in entries),
+                cost_usd=sum((entry.cost_usd for entry in entries), Decimal(0)),
+                cost_is_partial=any(not entry.priced for entry in entries),
+            )
+
+
 async def _config_for_collection(
     db: AsyncSession, collection_name: str | None, organization_id: UUID | None
 ) -> IngestionConfig:
@@ -61,7 +92,7 @@ async def _config_for_collection(
     A sync writes into a collection the same way an upload does, so it has to
     read documents the same way too - a collection set to LiteParse that gets
     PyMuPDF whenever the file arrives from Google Drive is configured in name
-    only. The organization narrows the candidates because ``collection_name`` is
+    only. The organization narrows the candidates because `collection_name` is
     not unique across tenants.
 
     Falls back to the deployment defaults when no knowledge base claims the
@@ -135,7 +166,7 @@ async def _run_ingestion(
 ) -> dict[str, Any]:
     """Parse and index one uploaded document, exactly as its record says to.
 
-    The configuration comes off the ``rag_documents`` row rather than out of the
+    The configuration comes off the `rag_documents` row rather than out of the
     environment, and it is the *resolved* one - the collection's, with whatever
     that upload overrode already folded in. Reading the collection again here
     would quietly re-parse with settings that changed while the file waited in
@@ -145,22 +176,35 @@ async def _run_ingestion(
 
     async with get_worker_db_context() as db:
         record = await RAGDocumentService(db).get_document(rag_document_id)
+        organization_id = record.organization_id
+        # Checked again here, not only at upload: the budget can be reached by
+        # runs that finished while this file waited in the queue. Raising lets
+        # the flow's handler put the refusal on the document row, where the
+        # uploader will look for it.
+        if organization_id is not None:
+            await assert_organization_within_budget(db, organization_id)
         config = IngestionConfig.model_validate(record.ingestion_config)
         ingestion_service = await _ingestion_service_for(
-            db, config=config, organization_id=record.organization_id
+            db, config=config, organization_id=organization_id
         )
 
+    ledger = SpendLedger(organization_id=organization_id)
     file_path = Path(filepath)
     try:
-        result = await ingestion_service.ingest_file(
-            filepath=file_path,
-            collection_name=collection_name,
-            replace=replace,
-            source_path=source_path,
-        )
+        with metered_by(ledger):
+            result = await ingestion_service.ingest_file(
+                filepath=file_path,
+                collection_name=collection_name,
+                replace=replace,
+                source_path=source_path,
+            )
     except Exception as e:
         await _update_status(rag_document_id, "error", error_message=str(e))
         raise
+    finally:
+        await _record_embedding_spend(
+            ledger, organization_id=organization_id, rag_document_id=UUID(rag_document_id)
+        )
 
     # Checked outside the `try` because `ingest_file` *returns* a failure rather
     # than raising one - which is why this used to fall straight through to
@@ -215,11 +259,18 @@ async def _run_sync(
     files = [f for f in files if f.suffix.lower() in allowed]
     ingested = updated = skipped = failed = 0
 
+    # No tenant: a local-directory sync names a path on the server, not a
+    # collection somebody's organization owns. The spend is still recorded -
+    # with no organization to bill - because a total that quietly under-reports
+    # is worse than one holding rows nobody claims.
+    ledger = SpendLedger()
+
     for filepath in files:
         async with get_worker_db_context() as db:
             sync_log_check = await RAGSyncService(db).get_sync_log(sync_log_id)
             if sync_log_check.status == "cancelled":
                 logger.info("Sync %s cancelled by user", sync_log_id)
+                await _record_embedding_spend(ledger, organization_id=None, rag_document_id=None)
                 return {
                     "status": "cancelled",
                     "ingested": ingested,
@@ -256,9 +307,10 @@ async def _run_sync(
                     skipped += 1
                     continue
         try:
-            result = await ingestion_service.ingest_file(
-                filepath=filepath, collection_name=collection_name, replace=True
-            )
+            with metered_by(ledger):
+                result = await ingestion_service.ingest_file(
+                    filepath=filepath, collection_name=collection_name, replace=True
+                )
             if result.status.value == "done":
                 if result.message and "replaced" in result.message:
                     updated += 1
@@ -279,6 +331,8 @@ async def _run_sync(
         except Exception as e:
             logger.warning("Sync file error %s: %s", filepath.name, e)
             failed += 1
+
+    await _record_embedding_spend(ledger, organization_id=None, rag_document_id=None)
 
     async with get_worker_db_context() as db:
         await RAGSyncService(db).complete_sync(
@@ -364,6 +418,19 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
             log = await source_svc.trigger_sync(source_id)
             log_id = str(log.id)
 
+        # Before a single file is downloaded: a scheduled sync answers to the
+        # same ceiling a run does, and the refusal has to land on the sync log
+        # rather than leave it running forever.
+        if organization_id is not None:
+            try:
+                await assert_organization_within_budget(db, organization_id)
+            except BudgetExceeded as exc:
+                await RAGSyncService(db).complete_sync(
+                    log_id, status="error", error_message=str(exc)
+                )
+                await source_svc.update_after_sync(source_id, status="error", error=str(exc))
+                return {"status": "error", "message": str(exc)}
+
         ingestion_svc = await _ingestion_service_for(
             db,
             config=await _config_for_collection(db, collection_name, organization_id),
@@ -373,6 +440,7 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
     connector = connector_cls()
 
     ingested = skipped = failed = total = 0
+    ledger = SpendLedger(organization_id=organization_id)
 
     try:
         files = await connector.list_files(config)
@@ -384,12 +452,13 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
                     local_path = await connector.download_file(
                         remote_file, Path(tmp_dir), config=config
                     )
-                    await ingestion_svc.ingest_file(
-                        filepath=local_path,
-                        collection_name=collection_name,
-                        replace=(sync_mode == "full"),
-                        source_path=remote_file.source_path,
-                    )
+                    with metered_by(ledger):
+                        await ingestion_svc.ingest_file(
+                            filepath=local_path,
+                            collection_name=collection_name,
+                            replace=(sync_mode == "full"),
+                            source_path=remote_file.source_path,
+                        )
                     ingested += 1
                 except Exception as e:
                     logger.warning("Failed to sync %s: %s", remote_file.name, e)
@@ -397,6 +466,8 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
     except Exception as e:
         logger.error("Source sync failed for %s: %s", source_id, e)
         failed = max(failed, 1)
+
+    await _record_embedding_spend(ledger, organization_id=organization_id, rag_document_id=None)
 
     async with get_worker_db_context() as db:
         sync_svc = RAGSyncService(db)

@@ -107,8 +107,10 @@ describe("the share dialog", () => {
     await userEvent.type(screen.getByLabelText("memberEmail"), "nina@example.com");
     await userEvent.click(screen.getByRole("button", { name: "Share conversation" }));
 
+    // As `shared_with_email`, not `shared_with`: the latter is a UUID field,
+    // and an email sent there is a 422 before the service ever runs.
     expect(shareConversation).toHaveBeenCalledWith("c1", {
-      shared_with: "nina@example.com",
+      shared_with_email: "nina@example.com",
       permission: "view",
     });
   });

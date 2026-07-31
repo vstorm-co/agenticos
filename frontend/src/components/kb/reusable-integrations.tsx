@@ -35,9 +35,7 @@ import { usePermissions, useReusableIntegrations } from "@/hooks";
 import { useOrgStore } from "@/stores";
 import type { SyncSourceCreate, SyncSourceRead } from "@/lib/rag-api";
 import type { KnowledgeBase } from "@/types";
-
-/** Roles the `/orgs/{id}/integrations` endpoints admit. Anyone else sees nothing. */
-const ADMIN_PLUS: readonly string[] = ["owner", "admin"];
+import { Perm } from "@/types/permissions";
 
 interface ReusableIntegrationsProps {
   /** Collections an integration can be cloned into - the page's own list. */
@@ -55,23 +53,25 @@ interface ReusableIntegrationsProps {
  * here is only what that moment cannot do: making one, seeing the ones nobody
  * has used yet, and throwing one away.
  *
- * Hidden entirely below owner/admin. The endpoints behind it are role-gated, so
- * a member would see a section that could only fail; the collections they may
- * feed are on their own pages regardless.
+ * Hidden without `connections:manage` - the permission the endpoints behind it
+ * gate on, so this mirrors the server instead of hardcoding a role list that
+ * would go stale the moment a role is reshaped. A caller without it would see
+ * a section that could only fail; the collections they may feed are on their
+ * own pages regardless.
  */
 export function ReusableIntegrations({ targets }: ReusableIntegrationsProps) {
-  const { role } = usePermissions();
+  const { can } = usePermissions();
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
-  const isAdminPlus = ADMIN_PLUS.includes(role);
+  const mayManage = can(Perm.connectionsManage);
 
   const { integrations, connectors, isLoading, error, create, remove, cloneInto } =
-    useReusableIntegrations(isAdminPlus ? activeOrgId : null);
+    useReusableIntegrations(mayManage ? activeOrgId : null);
 
   const [wizardOpen, setWizardOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [cloning, setCloning] = useState<SyncSourceRead | null>(null);
 
-  if (!isAdminPlus) return null;
+  if (!mayManage) return null;
 
   const handleCreate = async (data: SyncSourceCreate) => {
     setSubmitting(true);

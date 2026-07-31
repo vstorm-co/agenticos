@@ -13,7 +13,7 @@ rewrite *narrow* - only the wrapped capability's tools change, so an MCP server
 that happens to expose a tool of the same name is left alone, exactly as the
 approval gate leaves it alone.
 
-The identity a rename must not touch is the tool's ``id``. Approval is keyed on
+The identity a rename must not touch is the tool's `id`. Approval is keyed on
 it, and `CapabilityDef.effective_tools` is what turns that id back into the name
 the gate has to match.
 """
