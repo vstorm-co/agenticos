@@ -6,8 +6,21 @@ description: Change the PostgreSQL schema with Alembic — add or alter a table,
 # Migrations
 
 Async SQLAlchemy 2.0 + Alembic on PostgreSQL. `backend/alembic/versions/`, numbered
-`0001_…` upward — currently past `0066`. `.claude/rules/schemas-models.md` has the model
-shapes.
+`0001_…` upward. `.claude/rules/schemas-models.md` has the model shapes.
+
+**The chain starts at `0001_baseline`,** which is 65 earlier revisions collapsed into
+one on 2026-07-31. Read its docstring before your first migration: it records the
+model/migration drift that squash resolved, and why three indexes had to be moved
+onto the models first. Revisions the docs cite by number (`0038` for the vault,
+`0066` for `users.role`, `0046` for the Tesseract codes) resolve in git history
+before that commit, not in this directory.
+
+**The models are the source of truth now, and that is newly true.** Before the
+squash they were not: composite indexes and a CHECK existed only in migrations, so
+autogenerate emitted four hundred lines of drift on every run and a real change hid
+in it. If autogenerate is noisy again, that is the signal something was added to a
+migration by hand and never declared on the model — fix the model, do not accept
+the noise.
 
 ## Workflow
 

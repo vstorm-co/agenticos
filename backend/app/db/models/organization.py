@@ -187,6 +187,18 @@ class Invitation(Base):
             unique=True,
             postgresql_where=text("status = 'pending'"),
         ),
+        # A link invitation (no email) admits `max_uses` people, and zero admits
+        # nobody - a link that looks issued and refuses everyone who opens it. Null
+        # stays unlimited. Only links are constrained: an email invitation is for
+        # one person and carries no cap at all.
+        #
+        # This lived only in the migration chain until the chain was collapsed, so
+        # a schema built from the models would have dropped it - which is what the
+        # schema diff in `0001_baseline` was for.
+        CheckConstraint(
+            "email IS NOT NULL OR max_uses IS NULL OR max_uses > 0",
+            name="ck_invitation_max_uses_positive",
+        ),
     )
 
     def __repr__(self) -> str:

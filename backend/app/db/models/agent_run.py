@@ -21,6 +21,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
@@ -167,6 +168,20 @@ class AgentRun(Base, TimestampMixin):
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    __table_args__ = (
+        # Monthly spend, per organization. Read before *every* model request to
+        # check the budget, so it is the most frequently served query here.
+        Index("ix_agent_runs_org_started", "organization_id", "started_at"),
+        # The same window broken down by provider - "what did we spend at OpenAI"
+        # is the question a bill arrives with.
+        Index(
+            "ix_agent_runs_org_started_provider",
+            "organization_id",
+            "started_at",
+            "provider",
+        ),
+    )
+
     def __repr__(self) -> str:
         return f"<AgentRun(agent={self.agent_id}, status={self.status}, cost=${self.cost_usd})>"
 
@@ -228,6 +243,10 @@ class ToolApproval(Base, TimestampMixin):
             "status IN ('pending', 'approved', 'rejected', 'expired')",
             name="ck_tool_approval_status",
         ),
+        # The approvals queue: one organization's pending decisions. The single
+        # `status` index the column declares cannot serve it - every row in the
+        # deployment shares four status values.
+        Index("ix_tool_approvals_org_status", "organization_id", "status"),
     )
 
     def __repr__(self) -> str:
