@@ -263,10 +263,75 @@ explicit.
 
 ## Git
 
-- **Never commit on `main`.** Branch first (`feat/…`, `fix/…`).
-- **Commit only when asked**, then keep the message scoped and in the imperative.
+- **Never commit on `main`.** Branch first (`feat/…`, `fix/…`). `dev` is the working
+  branch; a pre-commit hook refuses `main` outright.
+- **Commit only when asked.**
 - **No AI attribution** — no `Co-Authored-By: Claude`, no "Generated with" trailer.
   Write commits and PR descriptions as Kacper authored them.
 - **`make check` before opening a PR.** It is what CI runs; a red PR costs a review
   cycle.
 - No secrets in commits. Never stage `.env`, a key, or a credential.
+
+### The subject line
+
+`type(scope): summary` — Conventional Commits. Imperative, lower case after the
+colon, no trailing period, **72 characters or fewer**. A `commit-msg` hook enforces
+the shape.
+
+```
+fix(vault): stop passing a role column that no longer exists
+test(mcp): assert the fixture exists rather than that it is on screen
+ci(e2e): give bootstrap a key so the seed publishes an agent
+feat(capabilities): add a clock so the agent stops assuming the date
+```
+
+| Type | For |
+|---|---|
+| `feat` | New behaviour somebody can use |
+| `fix` | A defect. Ships with a regression test |
+| `refactor` | Same behaviour, different shape |
+| `perf` | Faster, same behaviour |
+| `test` | Tests only |
+| `docs` | `docs/`, `README`, `CLAUDE.md`, `.claude/` |
+| `ci` | `.github/`, pre-commit, the Makefile's check targets |
+| `build` | Dependencies, lockfiles, Dockerfiles, compose files |
+| `chore` | Anything left, and a release commit |
+
+**Scope is the subsystem, not the path.** Prefer the vocabulary the docs use:
+`agents`, `capabilities`, `spec`, `permissions`, `vault`, `mcp`, `models`, `rag`,
+`skills`, `channels`, `api`, `budgets`, `approvals`, `builder`, `chat`, `e2e`,
+`docs`, `deps`, `compose`. Omit it when a change is genuinely repo-wide
+(`chore: cut 0.0.1`). One scope — if two are honest, that is usually two commits.
+
+A breaking change takes `!` (`feat(spec)!: …`) and a `BREAKING CHANGE:` footer
+saying what a stored spec or a client's YAML has to do about it.
+
+### The body
+
+The subject says what; the body says **why, and what it cost**. This is the part
+that survives — a decision explained only in review is a decision nobody finds.
+Worth writing down:
+
+- the failure the change prevents, concretely ("every path that created a user
+  raised `TypeError`"), not "improve reliability";
+- how it was verified, and how far that verification actually reaches — an upgrade
+  that passes because a fixture short-circuited is worth saying so;
+- what was found and deliberately *not* fixed, so the next reader knows it was seen.
+
+Wrap at 72. Bullets are fine. Correct an earlier commit's claim plainly if it turned
+out wrong; a wrong message is worse than a missing one.
+
+### Issues and pull requests
+
+Reference in the **footer**, never the subject — the subject has to read on its own
+in `git log --oneline`.
+
+```
+Closes #142            the issue is done
+Refs #142              related, still open
+Part-of #142           one commit of several on one issue
+Reverts 0f94fa4        with the reason it was reverted in the body
+```
+
+`Closes` only when the change genuinely finishes it. A PR body opens with what
+changed and why, then how it was verified — and says plainly what is still red.

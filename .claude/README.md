@@ -72,6 +72,16 @@ stale claim is worse than no skill — it is confidently wrong. Two rules:
    `CHANNEL_ENCRYPTION_KEY`, `UserRole` and `search_knowledge_base` all survived in this
    directory long after they left the code.
 
+## Commit messages
+
+`type(scope): summary`, Conventional Commits, enforced by a `commit-msg` hook. The
+types, the scope vocabulary, what belongs in a body, and how to reference an issue
+are in `CLAUDE.md` under *Git*. Only the shape is enforced — the scope list is a
+suggestion, because a hook that argues about vocabulary is a hook people bypass.
+
+`make install` wires both hook types. Plain `pre-commit install` wires only
+`pre-commit`, and the subject check would silently never run.
+
 ## The docs-drift hook
 
 `settings.json` registers a **Stop** hook running `scripts/docs_drift.py`. When a turn

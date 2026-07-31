@@ -1,7 +1,11 @@
 # Pre-commit hooks for the whole repository.
 #
-# Setup:  make install                        # uv sync + pre-commit install
-# Run on everything once:  uv run --directory backend pre-commit run --all-files
+# Setup:  make install
+#   which is `pre-commit install --hook-type pre-commit --hook-type commit-msg`.
+#   Both types matter: plain `pre-commit install` wires only the first, and the
+#   Conventional Commits check below would then never run.
+#
+# Run on everything once:  uv run --project backend pre-commit run --all-files
 #
 # `pre-commit>=4.0.0` has been a dev dependency and `make install` has run
 # `pre-commit install` for a while, but there was no config file - so the hook
@@ -44,6 +48,16 @@ repos:
         args: [--maxkb=1024]
       # A vault is not much use if a key reaches the repository beside it.
       - id: detect-private-key
+
+  # `type(scope): summary`, checked on the message rather than trusted to
+  # habit. Only the shape is enforced, not the scope vocabulary: a list of
+  # allowed scopes goes stale and then people argue with the hook instead of
+  # writing the subject. The vocabulary CLAUDE.md suggests is a suggestion.
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v4.2.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
 
   - repo: https://github.com/codespell-project/codespell
     rev: v2.4.1
