@@ -137,6 +137,18 @@ describe("the tracing card", () => {
     );
   });
 
+  it("stores an emptied service name as null too", async () => {
+    // Two fields, one rule. `""` here would be sent to Logfire as the service
+    // name and every trace would arrive under a blank.
+    const { onChange } = mount({ token_secret_id: "s-logfire", service_name: "support" });
+
+    await userEvent.clear(screen.getByLabelText("Service name"));
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ token_secret_id: "s-logfire", service_name: null }),
+    );
+  });
+
   it("suggests the agent's own name for the service", () => {
     mount({ token_secret_id: "s-logfire" });
 

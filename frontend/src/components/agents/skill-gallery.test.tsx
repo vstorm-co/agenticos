@@ -62,4 +62,89 @@ describe("SkillGallery", () => {
 
     expect(screen.queryByText(/no longer has/)).toBeNull();
   });
+
+  it("sends somebody to write one when the organization has no skills", () => {
+    render(<SkillGallery skills={[]} total={0} selectedIds={[]} onToggle={vi.fn()} />);
+
+    expect(screen.getByText("This organization has written no skills yet.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Write one/ })).toBeInTheDocument();
+  });
+
+  it("says which skills are attached", () => {
+    render(
+      <SkillGallery
+        skills={[skill(), skill({ id: "s2", name: "escalation" })]}
+        total={2}
+        selectedIds={["s2"]}
+        onToggle={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("checkbox", { name: "escalation" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "refund-policy" })).not.toBeChecked();
+  });
+
+  it("attaches the skill that was pressed", async () => {
+    const onToggle = vi.fn();
+    render(<SkillGallery skills={[skill()]} total={1} selectedIds={[]} onToggle={onToggle} />);
+
+    await userEvent.click(screen.getByRole("checkbox", { name: "refund-policy" }));
+
+    expect(onToggle).toHaveBeenCalledWith("s1");
+  });
+
+  it("attaches nothing for somebody who may not edit the spec", async () => {
+    const onToggle = vi.fn();
+    render(
+      <SkillGallery skills={[skill()]} total={1} selectedIds={[]} onToggle={onToggle} disabled />,
+    );
+
+    await userEvent.click(screen.getByRole("checkbox", { name: "refund-policy" }));
+
+    expect(onToggle).not.toHaveBeenCalled();
+  });
+
+  it("marks a skill that is switched off, because attaching it changes nothing", () => {
+    render(
+      <SkillGallery
+        skills={[skill({ enabled: false })]}
+        total={1}
+        selectedIds={[]}
+        onToggle={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("disabled")).toBeInTheDocument();
+  });
+
+  it("shows the description, which is what the decision is made on", () => {
+    render(<SkillGallery skills={[skill()]} total={1} selectedIds={[]} onToggle={vi.fn()} />);
+
+    expect(screen.getByText("How refunds are handled.")).toBeInTheDocument();
+  });
+
+  it("counts more than one missing skill in the plural", () => {
+    render(
+      <SkillGallery
+        skills={[skill()]}
+        total={1}
+        selectedIds={["gone-1", "gone-2"]}
+        onToggle={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(/2 skills this organization no longer has/)).toBeInTheDocument();
+  });
+
+  it("uses the singular for a single missing skill", () => {
+    render(<SkillGallery skills={[skill()]} total={1} selectedIds={["gone"]} onToggle={vi.fn()} />);
+
+    expect(screen.getByText(/1 skill this organization no longer has/)).toBeInTheDocument();
+  });
+
+  it("offers no search for a list short enough to read", () => {
+    render(<SkillGallery skills={[skill()]} total={1} selectedIds={[]} onToggle={vi.fn()} />);
+
+    expect(screen.queryByLabelText("Search skills…")).toBeNull();
+  });
 });

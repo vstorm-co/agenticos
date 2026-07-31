@@ -1,0 +1,162 @@
+# Are we still compatible with the newest FastAPI, Pydantic AI, Logfire and
+# genai-prices?
+#
+# This platform tracks those four rather than pinning them: the subject matter
+# moves at their pace, and genai-prices is the price snapshot budgets are computed
+# from. Uncapping them in `pyproject.toml` is only half the job - the lockfile
+# still pins exact versions, so without something that tries the newest release we
+# would find out from a Dependabot PR nobody had time to read.
+#
+# So: upgrade just those packages, run the whole suite, and open an issue when it
+# breaks. Nothing is committed - the lockfile change is thrown away with the
+# runner. Dependabot still opens the PR; this exists to make sure the PR is not
+# the first anyone hears of a breaking change.
+#
+# It has caught one already: FastAPI 0.141 stopped flattening included routers
+# into `app.routes`, which silently reduced every route sweep in
+# `tests/api/test_platform_routes.py` to zero routes.
+name: Framework freshness
+
+on:
+  schedule:
+    # Monday morning, before the Dependabot PRs land.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  newest:
+    name: newest FastAPI / Pydantic AI / Logfire / genai-prices
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      issues: write
+    services:
+      postgres:
+        # pgvector, not stock postgres: the RAG store issues
+        # `CREATE EXTENSION IF NOT EXISTS vector` on first write.
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: test_db
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Upgrade the four to their newest releases
+        id: upgrade
+        run: |
+          uv lock --upgrade-package fastapi \
+                  --upgrade-package pydantic-ai-slim \
+                  --upgrade-package pydantic-ai-skills \
+                  --upgrade-package logfire \
+                  --upgrade-package genai-prices
+          uv sync --dev
+          {
+            echo 'versions<<EOF'
+            uv pip list | grep -Ei '^(fastapi|pydantic-ai-slim|pydantic-ai-skills|pydantic-graph|logfire|genai-prices) '
+            echo EOF
+          } >> "$GITHUB_OUTPUT"
+        working-directory: backend
+
+      - name: What it resolved to
+        run: echo "${{ steps.upgrade.outputs.versions }}"
+
+      - name: Type-check against the newest
+        # Listed separately from the tests: an API that moved usually shows up
+        # here first, and with a clearer message than a test failure.
+        run: uv run ty check
+        working-directory: backend
+
+      - name: Apply migrations
+        run: uv run alembic upgrade head
+        working-directory: backend
+
+      - name: Run the whole suite
+        run: uv run pytest tests/ -q
+        working-directory: backend
+
+      - name: Open an issue when the newest release breaks us
+        if: failure()
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        with:
+          script: |
+            const versions = `${{ steps.upgrade.outputs.versions }}`.trim();
+            const run = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const title = 'Framework freshness: the newest release breaks the suite';
+
+            const open = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'framework-freshness',
+            });
+            const body = [
+              'The scheduled upgrade of FastAPI, Pydantic AI, Logfire and genai-prices',
+              'to their newest releases failed.',
+              '',
+              '```',
+              versions || '(resolution failed before the versions could be listed)',
+              '```',
+              '',
+              `Run: ${run}`,
+              '',
+              'The lockfile in the repository is untouched — this job throws its',
+              'upgrade away. Reproduce locally with `make deps-upgrade`.',
+            ].join('\n');
+
+            if (open.data.length > 0) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: open.data[0].number,
+                body,
+              });
+              return;
+            }
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body,
+              labels: ['framework-freshness', 'dependencies'],
+            });

@@ -56,7 +56,6 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-
   db:
     # pgvector, not stock postgres: the RAG store runs
     # `CREATE EXTENSION IF NOT EXISTS vector` when a collection is first

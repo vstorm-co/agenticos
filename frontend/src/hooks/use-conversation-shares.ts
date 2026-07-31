@@ -56,6 +56,11 @@ export function useConversationShares() {
   const sharedWithMeTotal = sharedWithMeQuery.data?.total ?? 0;
   const isLoading = sharesQuery.isFetching || sharedWithMeQuery.isFetching;
 
+  // A read that was refused has to say so too. `invalidateQueries` resolves even
+  // when the refetch behind it fails, so wrapping the fetchers in a try/catch
+  // reported nothing - the dialog sat empty with no explanation.
+  const readFailure = sharesQuery.error ?? sharedWithMeQuery.error;
+
   const shareConversation = useCallback(
     async (
       conversationId: string,
@@ -95,14 +100,9 @@ export function useConversationShares() {
     async (conversationId: string) => {
       setError(null);
       setConversationId(conversationId);
-      try {
-        await queryClient.invalidateQueries({
-          queryKey: qk.conversationShares.list(conversationId),
-        });
-      } catch (err: unknown) {
-        const message = getErrorMessage(err, "Failed to load shares");
-        setError(message);
-      }
+      await queryClient.invalidateQueries({
+        queryKey: qk.conversationShares.list(conversationId),
+      });
     },
     [queryClient],
   );
@@ -132,14 +132,9 @@ export function useConversationShares() {
     async (skip = 0, limit = 50) => {
       setError(null);
       setSharedWithMeParams({ skip, limit });
-      try {
-        await queryClient.invalidateQueries({
-          queryKey: qk.conversationShares.sharedWithMe(skip, limit),
-        });
-      } catch (err: unknown) {
-        const message = getErrorMessage(err, "Failed to load shared");
-        setError(message);
-      }
+      await queryClient.invalidateQueries({
+        queryKey: qk.conversationShares.sharedWithMe(skip, limit),
+      });
     },
     [queryClient],
   );
@@ -149,7 +144,8 @@ export function useConversationShares() {
     sharedWithMe,
     sharedWithMeTotal,
     isLoading,
-    error,
+    /** A refused write, or failing that a refused read. */
+    error: error ?? (readFailure ? getErrorMessage(readFailure, "Failed to load shares") : null),
     shareConversation,
     fetchShares,
     revokeShare,

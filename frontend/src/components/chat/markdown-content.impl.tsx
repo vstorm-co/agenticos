@@ -20,12 +20,46 @@ function languageLabel(className: string | undefined): string | null {
  * with a special `#cite-N` href. The `a` component override below detects this
  * and renders an interactive CitationBadge instead of a regular link.
  *
- * Only replaces [N] that is NOT followed by `(` (already a link) or `:` (link
- * reference definition). Code spans/blocks are left as-is because the regex
- * doesn't enter them - in practice agent responses never cite inside code.
+ * Three shapes are left alone, because in Markdown they already mean something
+ * and rewriting them corrupts the answer:
+ *
+ *   - `[N](url)` is a link somebody wrote - the lookahead for `(`.
+ *   - `[N]: url` is a link reference definition - the lookahead for `:`.
+ *   - `[text][N]` is a *use* of one, and this is the one that was broken:
+ *     rewriting its label turned `See [the docs][1].` into `See [the docs][`
+ *     followed by a stray link. The first alternative matches that whole form
+ *     and hands it back untouched.
+ *
+ * The label check is `(?!\d{1,3}\])` so that consecutive citations - `[1][2]`,
+ * which an agent writes when two sources agree - are still both marked.
+ *
+ * Code spans and blocks are left as-is because the regex does not enter them; in
+ * practice agent responses never cite inside code.
  */
+const CITATION = /(\[(?!\d{1,3}\])[^\]]*\]\[\d{1,3}\])|\[(\d{1,3})\](?![\(:])/g;
+
 function preprocessCitations(content: string): string {
-  return content.replace(/\[(\d{1,3})\](?![\(:])/g, (_, n) => `[[${n}]](#cite-${n})`);
+  return content.replace(CITATION, (_, referenceLink: string | undefined, n: string) =>
+    referenceLink === undefined ? `[[${n}]](#cite-${n})` : referenceLink,
+  );
+}
+
+/**
+ * The text of a fenced block, whatever shape the highlighter left it in.
+ *
+ * `rehype-highlight` replaces the code's single text child with a tree of
+ * `<span>` tokens, so reading `children` as a string found one only for a block
+ * whose language nothing recognised - which is why the copy button, the single
+ * most-used control on a code block, was missing from every highlighted one.
+ */
+function textOf(node: React.ReactNode): string {
+  if (typeof node === "string") return node;
+  if (typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(textOf).join("");
+  if (node && typeof node === "object" && "props" in node) {
+    return textOf((node as React.ReactElement<{ children?: React.ReactNode }>).props.children);
+  }
+  return "";
 }
 
 export function MarkdownContent({ content, onCiteClick }: MarkdownContentProps) {
@@ -37,11 +71,10 @@ export function MarkdownContent({ content, onCiteClick }: MarkdownContentProps) 
       components={{
         pre({ children, ...props }) {
           const codeElement = children as React.ReactElement<{
-            children?: string;
+            children?: React.ReactNode;
             className?: string;
           }>;
-          const codeContent =
-            typeof codeElement?.props?.children === "string" ? codeElement.props.children : "";
+          const codeContent = textOf(codeElement?.props?.children);
           const lang = languageLabel(codeElement?.props?.className);
 
           return (

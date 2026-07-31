@@ -22,6 +22,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
+from fastapi.routing import APIRoute, iter_route_contexts
 from httpx import ASGITransport, AsyncClient
 
 from app.api import deps
@@ -97,11 +98,17 @@ class TestARefusedOrganizationHeader:
         resource into a signal that reassigns somebody's organization, which is
         the one outcome the recovery must never produce.
         """
-        route = next(
-            route
-            for route in app.routes
-            if getattr(route, "path", None) == f"{settings.API_V1_STR}/me/permissions"
+        # `iter_route_contexts`, not `app.routes`: FastAPI 0.141 stopped
+        # flattening included routers, so scanning `app.routes` for a path finds
+        # only the four top-level Starlette routes and this raised
+        # `StopIteration` rather than asserting anything.
+        context = next(
+            context
+            for context in iter_route_contexts(app.routes)
+            if context.path == f"{settings.API_V1_STR}/me/permissions"
         )
+        route = context.original_route
+        assert isinstance(route, APIRoute)
 
         assert route.dependant.path_params == []
         assert route.dependant.query_params == []

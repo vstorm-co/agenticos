@@ -117,7 +117,9 @@ def fix(path: Path) -> int:
 
     for number in offenders:
         index = number - 1
-        original[index] = PAIR.sub(lambda match: f"`{match.group('body')}`", original[index])
+        original[index] = PAIR.sub(
+            lambda match: f"`{match.group('body')}`", original[index]
+        )
 
     path.write_text("".join(original), encoding="utf-8")
     return len(offenders)
@@ -140,7 +142,9 @@ def walk(roots: list[Path]) -> Iterator[Path]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("paths", nargs="*", type=Path, default=[Path()])
-    parser.add_argument("--fix", action="store_true", help="rewrite them to single backticks")
+    parser.add_argument(
+        "--fix", action="store_true", help="rewrite them to single backticks"
+    )
     args = parser.parse_args()
 
     found = 0
@@ -162,7 +166,9 @@ def main() -> int:
         print(f"\nRewrote {found} line(s).")
         return 0
 
-    print(f"\n{found} line(s) use ``double backticks``, which render literally. Run with --fix.")
+    print(
+        f"\n{found} line(s) use ``double backticks``, which render literally. Run with --fix."
+    )
     return 1
 
 

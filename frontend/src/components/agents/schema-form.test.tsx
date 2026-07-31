@@ -117,6 +117,17 @@ describe("SchemaForm", () => {
     expect(onChange).toHaveBeenLastCalledWith({ default_top_k: undefined });
   });
 
+  it("types into a text field one character at a time, keeping what is there", async () => {
+    // The form is controlled by its caller and this one holds a spy rather than
+    // state, so the assertion is about the first keystroke: a string field sends
+    // the string, never a number and never `undefined`.
+    const onChange = renderForm({ tool_name: "search" });
+
+    await userEvent.type(screen.getByLabelText(/Tool name/), "!");
+
+    expect(onChange).toHaveBeenLastCalledWith({ tool_name: "search!" });
+  });
+
   it("clearing a text field unsets it too", async () => {
     const onChange = vi.fn();
     render(
@@ -173,6 +184,52 @@ describe("SchemaForm", () => {
     // this field that choice is what turns thinking on.
     renderForm();
     expect(screen.getByRole("combobox", { name: /Effort/ })).toHaveTextContent("Not set");
+  });
+
+  it("records the choice that was picked from a closed set", async () => {
+    const onChange = renderForm();
+
+    await userEvent.click(screen.getByRole("combobox", { name: /Effort/ }));
+    await userEvent.click(screen.getByRole("option", { name: "high" }));
+
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ effort: "high" }));
+  });
+
+  it("unsets an enum by dropping the key, not by storing the word", async () => {
+    // The same rule the rest of this form follows: an unanswered field defers to
+    // the capability's own default, and "Not set" is not a value the backend
+    // accepts.
+    const onChange = renderForm({ effort: "high" });
+
+    await userEvent.click(screen.getByRole("combobox", { name: /Effort/ }));
+    await userEvent.click(screen.getByRole("option", { name: "Not set" }));
+
+    expect(onChange).toHaveBeenLastCalledWith({});
+  });
+
+  it("leaves a field with no default without a placeholder to misread", async () => {
+    // A placeholder is the schema's default. Inventing one for a field that has
+    // none would read as a value the capability would use.
+    render(
+      <SchemaForm
+        schema={{
+          type: "object",
+          properties: {
+            retries: { type: "integer" },
+            base_url: { type: "string", default: "https://api.acme.com" },
+          },
+        }}
+        value={{}}
+        onChange={vi.fn()}
+        idPrefix="x"
+      />,
+    );
+
+    expect(screen.getByLabelText(/Retries/)).toHaveAttribute("placeholder", "");
+    expect(screen.getByLabelText(/Base url/)).toHaveAttribute(
+      "placeholder",
+      "https://api.acme.com",
+    );
   });
 
   it("does not accept edits when the viewer cannot edit", async () => {

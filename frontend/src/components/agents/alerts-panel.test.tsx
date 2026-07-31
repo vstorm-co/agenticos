@@ -2,20 +2,20 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AlertsPanel } from "./alerts-panel";
 import { DEFAULT_NOTIFICATIONS } from "@/lib/agent-spec";
 import type { NotificationSpec } from "@/types/agents";
 
-vi.mock("@/hooks", () => ({
-  useMembers: () => ({
-    members: [
-      { user_id: "u-1", full_name: "Ada Lovelace", email: "ada@acme.test" },
-      { user_id: "u-2", full_name: null, email: "bob@acme.test" },
-    ],
-  }),
+const org = vi.hoisted(() => ({
+  members: [
+    { user_id: "u-1", full_name: "Ada Lovelace", email: "ada@acme.test" },
+    { user_id: "u-2", full_name: null, email: "bob@acme.test" },
+  ] as { user_id: string; full_name: string | null; email: string }[],
 }));
+
+vi.mock("@/hooks", () => ({ useMembers: () => ({ members: org.members }) }));
 
 vi.mock("@/stores", () => ({ useOrgStore: () => "org-1" }));
 
@@ -24,15 +24,30 @@ function wrapper({ children }: { children: ReactNode }) {
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 
-function mount(value: NotificationSpec | undefined = DEFAULT_NOTIFICATIONS) {
+function mount(value: NotificationSpec | undefined = DEFAULT_NOTIFICATIONS, disabled = false) {
   const onChange = vi.fn();
-  render(<AlertsPanel value={value} onChange={onChange} />, { wrapper });
+  render(<AlertsPanel value={value} onChange={onChange} disabled={disabled} />, { wrapper });
   return { onChange };
 }
+
+beforeEach(() => {
+  org.members = [
+    { user_id: "u-1", full_name: "Ada Lovelace", email: "ada@acme.test" },
+    { user_id: "u-2", full_name: null, email: "bob@acme.test" },
+  ];
+});
 
 /** The spec the panel would save after one interaction. */
 function saved(onChange: ReturnType<typeof vi.fn>): NotificationSpec {
   return onChange.mock.calls.at(-1)?.[0] as NotificationSpec;
+}
+
+/** An alert set to mail named people, which is the only state members appear in. */
+function withChosen(userIds: string[]): NotificationSpec {
+  return {
+    ...DEFAULT_NOTIFICATIONS,
+    approvals: { enabled: true, to: ["chosen"], user_ids: userIds },
+  };
 }
 
 describe("the alerts panel", () => {
@@ -87,11 +102,7 @@ describe("the alerts panel", () => {
   it("dropping the chosen audience drops the people named under it", async () => {
     // Ids without `chosen` in `to` are refused by the backend, so leaving them
     // behind would make the next save fail on a field nobody can see.
-    const withList: NotificationSpec = {
-      ...DEFAULT_NOTIFICATIONS,
-      approvals: { enabled: true, to: ["chosen"], user_ids: ["u-1"] },
-    };
-    const { onChange } = mount(withList);
+    const { onChange } = mount(withChosen(["u-1"]));
 
     await userEvent.click(
       screen.getByRole("checkbox", { name: "Approval requests: Specific people" }),
@@ -101,12 +112,8 @@ describe("the alerts panel", () => {
     expect(saved(onChange).approvals.user_ids).toEqual([]);
   });
 
-  it("names members by their name, falling back to the address", async () => {
-    const withChosen: NotificationSpec = {
-      ...DEFAULT_NOTIFICATIONS,
-      approvals: { enabled: true, to: ["chosen"], user_ids: ["u-1"] },
-    };
-    mount(withChosen);
+  it("names members by their name, falling back to the address", () => {
+    mount(withChosen(["u-1"]));
 
     expect(screen.getByRole("checkbox", { name: "Approval requests: Ada Lovelace" })).toBeChecked();
     expect(
@@ -143,5 +150,58 @@ describe("the alerts panel", () => {
     mount();
 
     expect(screen.getByText(/organization's own monthly cap is not here/)).toBeInTheDocument();
+  });
+
+  it("names a person to hear the alert", async () => {
+    const { onChange } = mount(withChosen(["u-1"]));
+
+    await userEvent.click(
+      screen.getByRole("checkbox", { name: "Approval requests: bob@acme.test" }),
+    );
+
+    expect(saved(onChange).approvals.user_ids).toEqual(["u-1", "u-2"]);
+  });
+
+  it("takes a person back off the list", async () => {
+    const { onChange } = mount(withChosen(["u-1", "u-2"]));
+
+    await userEvent.click(
+      screen.getByRole("checkbox", { name: "Approval requests: Ada Lovelace" }),
+    );
+
+    expect(saved(onChange).approvals.user_ids).toEqual(["u-2"]);
+  });
+
+  it("says an organization of one has nobody to choose from", () => {
+    // Otherwise the panel shows an empty row and the warning below it reads as a
+    // bug rather than as the truth: there is nobody else here.
+    org.members = [];
+    mount(withChosen([]));
+
+    expect(
+      screen.getByText("No members to choose from - this organization is just you."),
+    ).toBeInTheDocument();
+  });
+
+  it("accepts nothing from somebody who cannot edit the spec", async () => {
+    const { onChange } = mount(withChosen(["u-1"]), true);
+
+    await userEvent.click(screen.getByRole("switch", { name: "Approval requests" }));
+    await userEvent.click(
+      screen.getByRole("checkbox", { name: "Approval requests: Specific people" }),
+    );
+    await userEvent.click(
+      screen.getByRole("checkbox", { name: "Approval requests: Ada Lovelace" }),
+    );
+
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("adds an audience to one already set", async () => {
+    const { onChange } = mount();
+
+    await userEvent.click(screen.getByRole("checkbox", { name: "Budget alerts: Specific people" }));
+
+    expect(saved(onChange).budget.to).toEqual(["admins", "owner", "chosen"]);
   });
 });

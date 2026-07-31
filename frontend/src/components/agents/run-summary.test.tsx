@@ -96,6 +96,14 @@ describe("the run summary", () => {
     expect(screen.queryByText("Runs")).toBeNull();
   });
 
+  it("leaves a dash where the run recorded no model", () => {
+    // A run refused before a model request has no label, and a blank cell there
+    // reads as a rendering fault rather than as "it never got that far".
+    render(<RunSummary agentId="agent-1" runs={[run({ model_label: null })]} />);
+
+    expect(screen.getByText("-")).toBeInTheDocument();
+  });
+
   it("survives a run that never started", () => {
     // `started_at` is nullable, and a run that was refused before it began is
     // exactly the kind this panel exists to surface.

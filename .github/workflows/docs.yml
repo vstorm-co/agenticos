@@ -22,10 +22,11 @@ on:
       - ".github/workflows/docs.yml"
   workflow_dispatch:
 
+# Read-only by default. `pages: write` and `id-token: write` belong to the deploy
+# job alone: granting them at the workflow level hands them to the build job too,
+# which only needs to read the checkout and produce an artifact.
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 # A queued deploy replaces a running one rather than racing it; the site only
 # ever needs the newest build.
@@ -37,10 +38,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4
         with:
           version: "latest"
 
@@ -56,18 +59,22 @@ jobs:
       - name: Build the documentation
         run: uv run --directory backend --group docs mkdocs build -f ../mkdocs.yml --strict
 
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         with:
           path: site
 
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    # The only job that needs to write anything.
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

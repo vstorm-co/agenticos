@@ -197,11 +197,42 @@ describe("CapabilitySettings", () => {
     expect(screen.getByText(/Held for approval/)).toBeInTheDocument();
   });
 
+  it("records the approval mode that was chosen", async () => {
+    const onChange = vi.fn();
+    render(
+      <CapabilitySettings
+        catalog={[KNOWLEDGE]}
+        selected={[binding("knowledge")]}
+        onChange={onChange}
+      />,
+    );
+
+    await userEvent.click(screen.getByLabelText("Human approval"));
+    await userEvent.click(screen.getByRole("option", { name: "Always ask" }));
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "knowledge", approval: "required" }),
+    );
+  });
+
+  it("says a read-only capability set to never ask changes nothing", () => {
+    // The hint has to be about this capability: "never ask" on something that
+    // only reads is the state it was already in, and saying "acts unattended"
+    // there would be a warning about nothing.
+    render(
+      <CapabilitySettings
+        catalog={[KNOWLEDGE]}
+        selected={[binding("knowledge", { approval: "never" })]}
+        onChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(/what this capability would do anyway/)).toBeInTheDocument();
+  });
+
   it("shows the mode the spec actually stored", () => {
     // The direction that matters here: opening a published agent must show what
-    // it will do, not the default. Driving the select the other way needs a
-    // real browser - Radix listens for pointer events jsdom does not dispatch -
-    // so that half is asserted in the E2E suite, not faked here.
+    // it will do, not the default.
     render(
       <CapabilitySettings
         catalog={[KNOWLEDGE]}
@@ -421,6 +452,42 @@ describe("CapabilitySettings tools", () => {
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({ id: "email", tool_approval: {}, tool_overrides: {} }),
     );
+  });
+
+  it("gates one tool without gating the capability", async () => {
+    // The case per-tool approval exists for: `send_email` acts, `draft_email`
+    // does not, and gating the whole capability would put every draft in the
+    // approval queue.
+    const onChange = vi.fn();
+    render(
+      <CapabilitySettings catalog={[EMAIL]} selected={[binding("email")]} onChange={onChange} />,
+    );
+
+    await userEvent.click(toolField("send_email", "Approval"));
+    await userEvent.click(screen.getByRole("option", { name: "Always ask" }));
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ tool_approval: { send_email: "required" } }),
+    );
+  });
+
+  it("puts a tool back on the capability's setting by dropping the key, not by storing 'default'", async () => {
+    // Following the capability is the absence of a key. Storing the word would
+    // freeze the tool at whatever the capability said today, and the badge would
+    // mark an exception nobody made.
+    const onChange = vi.fn();
+    render(
+      <CapabilitySettings
+        catalog={[EMAIL]}
+        selected={[binding("email", { tool_approval: { send_email: "required" } })]}
+        onChange={onChange}
+      />,
+    );
+
+    await userEvent.click(toolField("send_email", "Approval"));
+    await userEvent.click(screen.getByRole("option", { name: /^Follow the capability/ }));
+
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ tool_approval: {} }));
   });
 
   it("offers nothing to clear when no tool was changed", () => {

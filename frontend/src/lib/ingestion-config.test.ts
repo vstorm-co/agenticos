@@ -7,6 +7,7 @@ import {
   ingestionProblems,
   overrideSize,
   sameIngestion,
+  summarizeEmbedding,
   summarizeIngestion,
   toNumber,
 } from "./ingestion-config";
@@ -120,6 +121,22 @@ describe("ingestionOverride", () => {
     expect(override).toEqual({ image_description: { temperature: 0.2 } });
   });
 
+  it("carries a different describing model, which is the whole point of the override", () => {
+    // An upload of scanned invoices may want a vision model the collection does
+    // not use by default.
+    const override = ingestionOverride(
+      DEFAULT_INGESTION_CONFIG,
+      config({
+        image_description: {
+          ...DEFAULT_INGESTION_CONFIG.image_description,
+          model_profile_id: "p-vision",
+        },
+      }),
+    );
+
+    expect(override).toEqual({ image_description: { model_profile_id: "p-vision" } });
+  });
+
   it("carries a temperature put back to unset, because null is a value here", () => {
     // The collection asks for 0.5; this upload asks for the parameter not to be
     // sent at all. Omitting the key would inherit 0.5 and mean the opposite.
@@ -190,5 +207,37 @@ describe("summarizeIngestion", () => {
     expect(summarizeIngestion(config({ ocr: true, describe_images: true }))).toBe(
       "PyMuPDF · OCR · 512/50 recursive · images described",
     );
+  });
+});
+
+describe("summarizeIngestion, for the parser that has its own options", () => {
+  it("names LitParse's output format, which decides what a table becomes", () => {
+    expect(
+      summarizeIngestion(config({ pdf_parser: "liteparse", liteparse_output_format: "markdown" })),
+    ).toContain("markdown");
+  });
+
+  it("distinguishes OCR on every page from OCR where it is needed", () => {
+    // The difference between a slow parse and a fast one, so a summary that said
+    // only "OCR" would hide the setting somebody is looking for.
+    expect(
+      summarizeIngestion(config({ pdf_parser: "liteparse", ocr: true, auto_ocr: true })),
+    ).toContain("OCR when needed");
+    expect(
+      summarizeIngestion(config({ pdf_parser: "liteparse", ocr: true, auto_ocr: false })),
+    ).toContain("· OCR ·");
+  });
+});
+
+describe("summarizeEmbedding", () => {
+  it("states what a collection was indexed with, not what it is set to", () => {
+    // Frozen at creation: two collections on different models are not peers, and
+    // this is the line that says which one this is.
+    expect(
+      summarizeEmbedding({
+        embedding_model: "text-embedding-3-large",
+        embedding_dim: 3072,
+      } as Parameters<typeof summarizeEmbedding>[0]),
+    ).toBe("text-embedding-3-large · 3,072 dimensions");
   });
 });

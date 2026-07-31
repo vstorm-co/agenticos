@@ -118,4 +118,29 @@ describe("useSharing", () => {
     ).rejects.toThrow("You cannot change sharing");
     expect(toast.error).toHaveBeenCalledWith("You cannot change sharing");
   });
+
+  it("surfaces a refused revoke and a refused visibility change too", async () => {
+    // All three mutations are the same permission on the server, and a panel that
+    // silently did nothing would read as a share that worked.
+    const { toast } = await import("sonner");
+    const refused = new Error("You cannot change sharing");
+    vi.mocked(apiClient.delete).mockRejectedValue(refused);
+    vi.mocked(apiClient.patch).mockRejectedValue(refused);
+    const { result } = renderHook(() => useSharing("agent", "a1"), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await expect(result.current.revoke.mutateAsync("u-sam")).rejects.toThrow(refused);
+    await expect(result.current.setVisibility.mutateAsync("org")).rejects.toThrow(refused);
+
+    expect(toast.error).toHaveBeenCalledTimes(2);
+  });
+
+  it("addresses a collection at the plural of its own noun", async () => {
+    // Four routes exist per type and the paths are not derivable from the type
+    // name; a wrong stem shares a resource that does not exist.
+    const { result } = renderHook(() => useSharing("collection", "c1"), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(apiClient.get).toHaveBeenCalledWith("/kb/c1/sharing");
+  });
 });

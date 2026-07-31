@@ -283,6 +283,16 @@ describe("the diff", () => {
     expect(screen.getByText(/Be terse\./)).toBeInTheDocument();
   });
 
+  it("changes the left-hand side from the picker as well as from a row", async () => {
+    mount({ versions: [version(3), version(2), version(1)], currentVersionId: "v3-id" });
+    specs.set("v3-id", spec({ instructions: "Be exhaustive." }));
+
+    await userEvent.click(screen.getByLabelText("Compare from"));
+    await userEvent.click(screen.getByRole("option", { name: "v1" }));
+
+    expect(screen.getByLabelText("Compare from")).toHaveTextContent("v1");
+  });
+
   it("changes the left-hand side from a row's Compare button", async () => {
     mount();
 
@@ -308,6 +318,21 @@ describe("the diff", () => {
     mount({ draftSpec: spec() });
 
     expect(screen.getByText("Pick two versions to compare.")).toBeInTheDocument();
+  });
+
+  it("counts a single collapsed line in the singular", () => {
+    // Two edits seven lines apart: three lines of context either side leave
+    // exactly one line hidden between them, which is the smallest gap the diff
+    // can produce and the only one that reads wrong in the plural.
+    const middle = Array.from({ length: 7 }, (_, index) => `line ${index}`).join("\n");
+    specs.set("v1-id", spec({ instructions: `first\n${middle}\nlast` }));
+    mount({
+      versions: [version(1)],
+      currentVersionId: "v1-id",
+      draftSpec: spec({ instructions: `FIRST\n${middle}\nLAST` }),
+    });
+
+    expect(screen.getByText("1 unchanged line")).toBeInTheDocument();
   });
 
   it("collapses long runs of unchanged lines", () => {

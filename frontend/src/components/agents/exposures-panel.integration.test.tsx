@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ExposuresPanel } from "./exposures-panel";
 import { apiClient } from "@/lib/api-client";
+import type { AgentEnvironment } from "@/types/agents";
 import type { Exposure, ExposureTarget } from "@/types/exposures";
 
 vi.mock("@/lib/api-client", async () => {
@@ -44,13 +45,35 @@ function target(overrides: Partial<ExposureTarget> = {}): ExposureTarget {
   return { id: "b1", platform: "slack", name: "Acme Support", is_active: true, ...overrides };
 }
 
-function serve(exposures: Exposure[], targets: ExposureTarget[]) {
+function environment(overrides: Partial<AgentEnvironment> = {}): AgentEnvironment {
+  return {
+    id: "env-prod",
+    agent_id: AGENT_ID,
+    name: "production",
+    version_id: "v2-id",
+    version: 2,
+    is_default: true,
+    logfire_token_secret_id: null,
+    service_name: null,
+    created_at: "2026-07-01T00:00:00Z",
+    ...overrides,
+  };
+}
+
+function serve(
+  exposures: Exposure[],
+  targets: ExposureTarget[],
+  environments: AgentEnvironment[] = [],
+) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
     if (path === `/agents/${AGENT_ID}/exposures`) {
       return { items: exposures, total: exposures.length };
     }
     if (path === `/agents/${AGENT_ID}/exposures/targets`) {
       return { items: targets, total: targets.length };
+    }
+    if (path === `/agents/${AGENT_ID}/environments`) {
+      return { items: environments, total: environments.length };
     }
     throw new Error(`unexpected GET ${path}`);
   });
@@ -177,5 +200,88 @@ describe("ExposuresPanel", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Remove from Acme Support" }));
 
     expect(apiClient.delete).toHaveBeenCalledWith(`/agents/${AGENT_ID}/exposures/e1`);
+  });
+
+  it("resumes a paused binding", async () => {
+    serve([exposure({ is_active: false })], []);
+    vi.mocked(apiClient.patch).mockResolvedValue(exposure({ is_active: true }));
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Resume on Acme Support" }));
+
+    expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/exposures/e1`, {
+      is_active: true,
+    });
+  });
+
+  it("offers no environment picker when the default is the only environment", async () => {
+    // A picker with one option is a control that cannot be used.
+    serve([exposure()], [], [environment()]);
+    await mount();
+
+    await screen.findByText("Slack - Acme Support");
+    expect(screen.queryByRole("combobox", { name: /Environment on/ })).not.toBeInTheDocument();
+  });
+
+  it("says which environment a bot is served from, and lets it be moved", async () => {
+    // The reason this control exists: a Slack workspace pointed at staging while
+    // production serves everyone else is invisible anywhere else in the product.
+    serve(
+      [exposure()],
+      [],
+      [environment(), environment({ id: "env-staging", name: "staging", is_default: false })],
+    );
+    vi.mocked(apiClient.patch).mockResolvedValue(exposure({ environment_id: "env-staging" }));
+    await mount();
+
+    const picker = await screen.findByRole("combobox", { name: "Environment on Acme Support" });
+    expect(picker).toHaveTextContent("default");
+    await userEvent.click(picker);
+    await userEvent.click(await screen.findByRole("option", { name: "staging (v2)" }));
+
+    expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/exposures/e1`, {
+      environment_id: "env-staging",
+    });
+  });
+
+  it("returns a binding to the default environment as an explicit null", async () => {
+    // The sentinel exists because a Select item may not be empty; the server
+    // reads "back to default" off the null and would ignore an absent field.
+    serve(
+      [exposure({ environment_id: "env-staging" })],
+      [],
+      [environment(), environment({ id: "env-staging", name: "staging", is_default: false })],
+    );
+    vi.mocked(apiClient.patch).mockResolvedValue(exposure());
+    await mount();
+
+    await userEvent.click(
+      await screen.findByRole("combobox", { name: "Environment on Acme Support" }),
+    );
+    await userEvent.click(await screen.findByRole("option", { name: "default" }));
+
+    expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/exposures/e1`, {
+      environment_id: null,
+    });
+  });
+
+  it("marks a bot that is registered but switched off", async () => {
+    // Binding to it is legal and answers nothing; the picker is the only place
+    // that says so before somebody wonders why the handle is silent.
+    serve([], [target({ id: "b2", name: "Ops bot", is_active: false })]);
+    await mount();
+
+    await userEvent.click(await screen.findByRole("combobox", { name: "Add a channel" }));
+
+    expect(
+      await screen.findByRole("option", { name: "Slack - Ops bot (inactive)" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows a placeholder while the bindings are being fetched", () => {
+    serve([], []);
+    render(<ExposuresPanel agentId={AGENT_ID} canManage />, { wrapper });
+
+    expect(screen.getByRole("status")).toBeInTheDocument();
   });
 });

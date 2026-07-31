@@ -3,15 +3,25 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useSkill, useSkills } from "./use-skills";
+import { useSkill, useSkillLibrary, useSkillResource, useSkills } from "./use-skills";
 import { apiClient } from "@/lib/api-client";
 
 vi.mock("@/lib/api-client", () => ({
-  apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
+  apiClient: {
+    get: vi.fn(),
+    post: vi.fn(),
+    patch: vi.fn(),
+    delete: vi.fn(),
+    uploadMany: vi.fn(),
+  },
 }));
 const toastSuccess = vi.fn();
+const toastError = vi.fn();
 vi.mock("sonner", () => ({
-  toast: { success: (...args: unknown[]) => toastSuccess(...args), error: vi.fn() },
+  toast: {
+    success: (...args: unknown[]) => toastSuccess(...args),
+    error: (...args: unknown[]) => toastError(...args),
+  },
 }));
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -168,5 +178,254 @@ describe("useSkill", () => {
       category: null,
     });
     expect(toastSuccess.mock.calls.at(-1)?.[0]).toMatch(/every agent/i);
+  });
+});
+
+/**
+ * The rest of the mutation callbacks, and the one deliberate asymmetry.
+ *
+ * `useSkills.create` has no `onError`, unlike every neighbour: the ways it fails
+ * - the name is taken, the description is too long - are things the reader can fix
+ * in the dialog still on screen, so the dialog decides where to say it. A toast
+ * would put the message somewhere it cannot be acted on and then remove it.
+ */
+describe("useSkills failures", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+  });
+
+  it("leaves a failed creation to the dialog", async () => {
+    vi.mocked(apiClient.post).mockRejectedValue(new Error("name taken"));
+    const { result } = renderHook(() => useSkills(), { wrapper });
+
+    await expect(
+      result.current.create.mutateAsync({ name: "refunds", description: "", content: "" }),
+    ).rejects.toThrow();
+
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
+  it("reports a failed edit", async () => {
+    vi.mocked(apiClient.patch).mockRejectedValue(new Error("conflict"));
+    const { result } = renderHook(() => useSkills(), { wrapper });
+
+    await expect(result.current.update.mutateAsync({ id: "s1" })).rejects.toThrow();
+
+    expect(toastError).toHaveBeenCalledWith("conflict");
+  });
+
+  it("reports a failed delete", async () => {
+    vi.mocked(apiClient.delete).mockRejectedValue(new Error("in use by an agent"));
+    const { result } = renderHook(() => useSkills(), { wrapper });
+
+    await expect(result.current.remove.mutateAsync("s1")).rejects.toThrow();
+
+    expect(toastError).toHaveBeenCalledWith("in use by an agent");
+  });
+});
+
+describe("useSkill files", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(apiClient.get).mockResolvedValue(BODY);
+  });
+
+  it("adds a file", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "r1" });
+    const { result } = renderHook(() => useSkill("s1"), { wrapper });
+    await waitFor(() => expect(result.current.skill).toEqual(BODY));
+
+    await result.current.addResource.mutateAsync({
+      name: "references/a.md",
+      description: null,
+      content: "body",
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith("/skills/s1/resources", {
+      name: "references/a.md",
+      description: null,
+      content: "body",
+    });
+    expect(toastSuccess).toHaveBeenCalledWith("File added");
+  });
+
+  it("reports a rejected file", async () => {
+    // Path traversal and non-UTF-8 bodies are both refused server-side.
+    vi.mocked(apiClient.post).mockRejectedValue(new Error("bad path"));
+    const { result } = renderHook(() => useSkill("s1"), { wrapper });
+    await waitFor(() => expect(result.current.skill).toEqual(BODY));
+
+    await expect(
+      result.current.addResource.mutateAsync({ name: "../x", description: null, content: "" }),
+    ).rejects.toThrow();
+
+    expect(toastError).toHaveBeenCalledWith("bad path");
+  });
+
+  it("saves one file", async () => {
+    vi.mocked(apiClient.patch).mockResolvedValue({ id: "r1" });
+    const { result } = renderHook(() => useSkill("s1"), { wrapper });
+    await waitFor(() => expect(result.current.skill).toEqual(BODY));
+
+    await result.current.saveResource.mutateAsync({ id: "r1", content: "new" });
+
+    expect(apiClient.patch).toHaveBeenCalledWith("/skills/s1/resources/r1", { content: "new" });
+    expect(toastSuccess).toHaveBeenCalledWith("File saved");
+  });
+
+  it("reports a failed file save", async () => {
+    vi.mocked(apiClient.patch).mockRejectedValue(new Error("too large"));
+    const { result } = renderHook(() => useSkill("s1"), { wrapper });
+    await waitFor(() => expect(result.current.skill).toEqual(BODY));
+
+    await expect(result.current.saveResource.mutateAsync({ id: "r1" })).rejects.toThrow();
+
+    expect(toastError).toHaveBeenCalledWith("too large");
+  });
+
+  it("removes a file", async () => {
+    vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+    const { result } = renderHook(() => useSkill("s1"), { wrapper });
+    await waitFor(() => expect(result.current.skill).toEqual(BODY));
+
+    await result.current.removeResource.mutateAsync("r1");
+
+    expect(apiClient.delete).toHaveBeenCalledWith("/skills/s1/resources/r1");
+    expect(toastSuccess).toHaveBeenCalledWith("File removed");
+  });
+
+  it("reports a failed file removal", async () => {
+    vi.mocked(apiClient.delete).mockRejectedValue(new Error("gone"));
+    const { result } = renderHook(() => useSkill("s1"), { wrapper });
+    await waitFor(() => expect(result.current.skill).toEqual(BODY));
+
+    await expect(result.current.removeResource.mutateAsync("r1")).rejects.toThrow();
+
+    expect(toastError).toHaveBeenCalledWith("gone");
+  });
+
+  it("uploads a folder under the paths the browser reported", async () => {
+    // `webkitRelativePath` is what makes a dropped folder arrive as a folder,
+    // with nothing to reconstruct server-side.
+    vi.mocked(apiClient.uploadMany).mockResolvedValue({ items: [{}, {}] });
+    const { result } = renderHook(() => useSkill("s1"), { wrapper });
+    await waitFor(() => expect(result.current.skill).toEqual(BODY));
+
+    const plain = new File(["x"], "a.md");
+    const nested = new File(["y"], "b.md");
+    Object.defineProperty(nested, "webkitRelativePath", { value: "refs/b.md" });
+
+    await result.current.uploadResources.mutateAsync([plain, nested]);
+
+    const [, , naming] = vi.mocked(apiClient.uploadMany).mock.calls.at(-1)!;
+    expect(naming(plain)).toBe("a.md");
+    expect(naming(nested)).toBe("refs/b.md");
+  });
+
+  it("counts what was uploaded, in the plural only when it should be", async () => {
+    vi.mocked(apiClient.uploadMany).mockResolvedValue({ items: [{}] });
+    const { result } = renderHook(() => useSkill("s1"), { wrapper });
+    await waitFor(() => expect(result.current.skill).toEqual(BODY));
+
+    await result.current.uploadResources.mutateAsync([new File(["x"], "a.md")]);
+
+    expect(toastSuccess).toHaveBeenCalledWith("1 file uploaded");
+
+    vi.mocked(apiClient.uploadMany).mockResolvedValue({ items: [{}, {}, {}] });
+    await result.current.uploadResources.mutateAsync([new File(["x"], "a.md")]);
+
+    expect(toastSuccess).toHaveBeenCalledWith("3 files uploaded");
+  });
+
+  it("reports a failed upload", async () => {
+    vi.mocked(apiClient.uploadMany).mockRejectedValue(new Error("disk full"));
+    const { result } = renderHook(() => useSkill("s1"), { wrapper });
+    await waitFor(() => expect(result.current.skill).toEqual(BODY));
+
+    await expect(
+      result.current.uploadResources.mutateAsync([new File(["x"], "a.md")]),
+    ).rejects.toThrow();
+
+    expect(toastError).toHaveBeenCalledWith("disk full");
+  });
+
+  it("reports a failed body save", async () => {
+    vi.mocked(apiClient.patch).mockRejectedValue(new Error("stale"));
+    const { result } = renderHook(() => useSkill("s1"), { wrapper });
+    await waitFor(() => expect(result.current.skill).toEqual(BODY));
+
+    // The whole editable set, because that is what `SkillEdit` is - a partial
+    // would silently reset whatever it omitted.
+    await expect(
+      result.current.save.mutateAsync({
+        description: "d",
+        content: "x",
+        enabled: true,
+        category: null,
+      }),
+    ).rejects.toThrow();
+
+    expect(toastError).toHaveBeenCalledWith("stale");
+  });
+});
+
+describe("useSkillResource", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("fetches one file's body", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ id: "r1", content: "hello" });
+    const { result } = renderHook(() => useSkillResource("s1", "r1"), { wrapper });
+
+    await waitFor(() => expect(result.current.resource).toBeDefined());
+
+    expect(apiClient.get).toHaveBeenCalledWith("/skills/s1/resources/r1");
+  });
+
+  it("asks for nothing until a file is opened", () => {
+    renderHook(() => useSkillResource("s1", null), { wrapper });
+
+    expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
+  it("asks for nothing when no skill is open either", () => {
+    renderHook(() => useSkillResource(null, "r1"), { wrapper });
+
+    expect(apiClient.get).not.toHaveBeenCalled();
+  });
+});
+
+describe("useSkillLibrary", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("reads the shelf this deployment ships", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [{ key: "code-review" }] });
+    const { result } = renderHook(() => useSkillLibrary(), { wrapper });
+
+    await waitFor(() => expect(result.current.library).toHaveLength(1));
+
+    expect(apiClient.get).toHaveBeenCalledWith("/skills/library");
+  });
+
+  it("says an installed skill is now the organization's to edit", async () => {
+    // A copy, not a link - which is the whole point of installing one.
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [] });
+    vi.mocked(apiClient.post).mockResolvedValue({ name: "code-review" });
+    const { result } = renderHook(() => useSkillLibrary(), { wrapper });
+
+    await result.current.install.mutateAsync("code-review");
+
+    expect(apiClient.post).toHaveBeenCalledWith("/skills/library/code-review/install", {});
+    expect(toastSuccess).toHaveBeenCalledWith("code-review installed - it is yours to edit now");
+  });
+
+  it("reports a failed install", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [] });
+    vi.mocked(apiClient.post).mockRejectedValue(new Error("already installed"));
+    const { result } = renderHook(() => useSkillLibrary(), { wrapper });
+
+    await expect(result.current.install.mutateAsync("code-review")).rejects.toThrow();
+
+    expect(toastError).toHaveBeenCalledWith("already installed");
   });
 });

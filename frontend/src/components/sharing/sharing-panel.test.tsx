@@ -2,7 +2,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { SharingPanel } from "./sharing-panel";
+import { SharingPanel, toLevel } from "./sharing-panel";
 import type { OrganizationMember } from "@/types";
 import type { ResourceGrant, ResourceSharing } from "@/types/sharing";
 
@@ -216,5 +216,43 @@ describe("SharingPanel", () => {
       expect(label.htmlFor, `"${label.textContent}" names no control`).not.toBe("");
       expect(document.getElementById(label.htmlFor)).not.toBeNull();
     }
+  });
+
+  it("says what sharing a key does not control, where the key is shared", () => {
+    // The trap this note exists for: once an agent binds this key it runs with it
+    // for everyone who can run that agent, including people who cannot see the
+    // key here. Sharing is about who may bind and rotate it, not who benefits.
+    render(<SharingPanel resourceType="secret" resourceId="s1" canManage />);
+
+    expect(
+      screen.getByText(/it runs with it for everyone who can run that agent/),
+    ).toBeInTheDocument();
+  });
+
+  it("says the same about a collection an agent searches", () => {
+    render(<SharingPanel resourceType="collection" resourceId="c1" canManage />);
+
+    expect(screen.getByText(/searches it for everyone who can run that agent/)).toBeInTheDocument();
+  });
+
+  it("adds no such note to an agent, where running it is the point", () => {
+    renderPanel();
+
+    expect(screen.queryByText(/everyone who can run that agent/)).toBeNull();
+  });
+});
+
+describe("toLevel", () => {
+  it("reads back each level the catalog offers", () => {
+    expect(toLevel("read")).toBe("read");
+    expect(toLevel("use")).toBe("use");
+    expect(toLevel("edit")).toBe("edit");
+  });
+
+  it("refuses a level this product has no concept of", () => {
+    // Radix hands back a plain string. Defaulting an unknown one to "read" would
+    // silently grant something nobody chose; throwing says a level was added to
+    // the backend and not to this list.
+    expect(() => toLevel("admin")).toThrow("Unknown grant level: admin");
   });
 });

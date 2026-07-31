@@ -1,0 +1,9 @@
+# Keep yamlfmt from rewriting what the YAML in this repo relies on.
+#
+# `retain_line_breaks_single` matters most: the compose files and workflows use
+# blank lines to separate services and steps, and collapsing them turns a
+# readable file into a wall.
+formatter:
+  type: basic
+  retain_line_breaks_single: true
+  scan_folded_as_literal: true

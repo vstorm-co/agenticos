@@ -192,7 +192,13 @@ export interface Agent {
   /** Surfaces with an active binding ("slack", "telegram", ...). Listing only. */
   channels?: string[];
   created_at?: string;
-  updated_at?: string;
+  /**
+   * `null` until the row is first updated - `TimestampSchema.updated_at` is
+   * `datetime | None`, so the API sends the key with a null rather than omitting
+   * it. Typed `string | undefined` before, which made the honest test for "never
+   * edited" a type error.
+   */
+  updated_at?: string | null;
 }
 
 export interface AgentDetail extends Agent {

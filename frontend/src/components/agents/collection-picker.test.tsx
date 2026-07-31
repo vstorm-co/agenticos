@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { CollectionPicker } from "./collection-picker";
@@ -27,10 +28,15 @@ function collection(overrides: Partial<KnowledgeBase> = {}): KnowledgeBase {
   };
 }
 
-function mount(collections: KnowledgeBase[], selectedIds: string[] = []) {
+function mount(collections: KnowledgeBase[], selectedIds: string[] = [], disabled = false) {
   const onToggle = vi.fn();
   render(
-    <CollectionPicker collections={collections} selectedIds={selectedIds} onToggle={onToggle} />,
+    <CollectionPicker
+      collections={collections}
+      selectedIds={selectedIds}
+      onToggle={onToggle}
+      disabled={disabled}
+    />,
   );
   return { onToggle };
 }
@@ -80,5 +86,110 @@ describe("the collection picker", () => {
     mount([collection()]);
 
     expect(screen.getByText("text-embedding-3-large")).toBeInTheDocument();
+  });
+
+  it("uses the singular for one document", () => {
+    mount([collection({ document_count: 1, indexed_count: 1, chunk_count: 8 })]);
+
+    expect(screen.getByText("1 document")).toBeInTheDocument();
+  });
+
+  it("counts more than one missing collection in the plural", () => {
+    mount([collection()], ["kb-gone", "kb-also-gone"]);
+
+    expect(screen.getByText(/2 collections this organization no longer has/)).toBeInTheDocument();
+  });
+
+  it("uses the singular for one missing collection", () => {
+    mount([collection()], ["kb-gone"]);
+
+    expect(screen.getByText(/1 collection this organization no longer has/)).toBeInTheDocument();
+  });
+
+  it("marks the default collection", () => {
+    mount([collection({ is_default: true })]);
+
+    expect(screen.getByText("default")).toBeInTheDocument();
+  });
+
+  it("shows a description when the collection has one", () => {
+    mount([collection({ description: "Everything HR publishes." })]);
+
+    expect(screen.getByText("Everything HR publishes.")).toBeInTheDocument();
+  });
+
+  it("says which collections are attached", () => {
+    mount([collection(), collection({ id: "kb-2", name: "Contracts" })], ["kb-1"]);
+
+    expect(screen.getByRole("checkbox", { name: "Handbook" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Contracts" })).not.toBeChecked();
+  });
+
+  it("toggles the collection that was pressed", async () => {
+    const { onToggle } = mount([collection()]);
+
+    await userEvent.click(screen.getByRole("checkbox", { name: "Handbook" }));
+
+    expect(onToggle).toHaveBeenCalledWith("kb-1");
+  });
+
+  it("attaches nothing for a reader who may not edit the spec", async () => {
+    const { onToggle } = mount([collection()], [], true);
+
+    await userEvent.click(screen.getByRole("checkbox", { name: "Handbook" }));
+
+    expect(onToggle).not.toHaveBeenCalled();
+  });
+
+  it("sends somebody to create a collection when the organization has none", () => {
+    // The empty state is the finding: an agent with no collections searches
+    // nothing, and the Knowledge page is where that is fixed.
+    mount([]);
+
+    expect(screen.getByText(/searches nothing/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Create one/ })).toBeInTheDocument();
+  });
+
+  it("offers a search only once the list is long enough to need one", async () => {
+    const many = Array.from({ length: 9 }, (_, index) =>
+      collection({ id: `kb-${index}`, name: index === 8 ? "Contracts" : `Handbook ${index}` }),
+    );
+    mount(many);
+
+    await userEvent.type(screen.getByLabelText("Search collections…"), "contr");
+
+    expect(screen.getByRole("checkbox", { name: "Contracts" })).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: "Handbook 0" })).toBeNull();
+  });
+
+  it("searches the description too, which is where the useful words are", async () => {
+    const many = Array.from({ length: 9 }, (_, index) =>
+      collection({
+        id: `kb-${index}`,
+        name: `Collection ${index}`,
+        description: index === 3 ? "Signed customer contracts" : null,
+      }),
+    );
+    mount(many);
+
+    await userEvent.type(screen.getByLabelText("Search collections…"), "signed");
+
+    expect(screen.getByRole("checkbox", { name: "Collection 3" })).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: "Collection 0" })).toBeNull();
+  });
+
+  it("distinguishes an upload in flight from one that died, by icon", () => {
+    // Nothing indexed yet is a spinner; some indexed and some not is a warning.
+    // The counts alone cannot tell those apart, which is why the icon differs.
+    const { container } = render(
+      <CollectionPicker
+        collections={[collection({ document_count: 3, indexed_count: 0 })]}
+        selectedIds={[]}
+        onToggle={vi.fn()}
+      />,
+    );
+
+    expect(container.querySelector(".animate-spin, .lucide-loader-circle")).not.toBeNull();
+    expect(screen.getByText("3 not indexed")).toBeInTheDocument();
   });
 });

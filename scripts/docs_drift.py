@@ -119,7 +119,10 @@ def changed_paths(root: Path) -> list[str]:
 
 def documented(paths: list[str]) -> bool:
     """Whether any change counts as documentation moving with the code."""
-    return any(path.startswith(DOC_ROOTS) and not path.startswith(DOC_EXCLUDED) for path in paths)
+    return any(
+        path.startswith(DOC_ROOTS) and not path.startswith(DOC_EXCLUDED)
+        for path in paths
+    )
 
 
 def pages_owed(paths: list[str]) -> dict[str, list[str]]:
@@ -169,7 +172,9 @@ def main() -> int:
     paths = changed_paths(root)
     if not paths or documented(paths):
         if not args.json:
-            print("No documentation drift: either nothing changed, or a page changed with it.")
+            print(
+                "No documentation drift: either nothing changed, or a page changed with it."
+            )
         return 0
 
     owed = pages_owed(paths)

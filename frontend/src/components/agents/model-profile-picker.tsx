@@ -169,7 +169,6 @@ function ProfileRow({
   subtitle,
   provider,
   noKey,
-  warn,
   disabled,
   onRemove,
 }: {
@@ -177,9 +176,8 @@ function ProfileRow({
   onSelect: () => void;
   title: string;
   subtitle: string;
-  provider?: string;
+  provider: string;
   noKey?: boolean;
-  warn?: boolean;
   disabled?: boolean;
   /** Offered only where models are managed. */
   onRemove?: () => void;
@@ -201,22 +199,13 @@ function ProfileRow({
           disabled && "cursor-not-allowed opacity-60",
         )}
       >
-        {provider ? (
-          <ProviderIcon provider={provider} />
-        ) : (
-          <span className="bg-muted h-6 w-6 shrink-0 rounded" aria-hidden />
-        )}
+        <ProviderIcon provider={provider} />
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-1.5">
             <span className="truncate text-sm font-medium">{title}</span>
             {noKey && <Badge variant="destructive">no key</Badge>}
           </span>
-          <span
-            className={cn(
-              "mt-0.5 block truncate font-mono text-xs",
-              warn ? "text-destructive" : "text-muted-foreground",
-            )}
-          >
+          <span className="text-muted-foreground mt-0.5 block truncate font-mono text-xs">
             {subtitle}
           </span>
         </span>

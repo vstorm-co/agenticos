@@ -104,7 +104,7 @@ const LEVEL_OPTIONS: { value: GrantLevel; label: string }[] = [
 ];
 
 /** Radix hands back a plain string; a level the catalog does not know is a bug, not a default. */
-function toLevel(value: string): GrantLevel {
+export function toLevel(value: string): GrantLevel {
   const option = LEVEL_OPTIONS.find((candidate) => candidate.value === value);
   if (!option) throw new Error(`Unknown grant level: ${value}`);
   return option.value;

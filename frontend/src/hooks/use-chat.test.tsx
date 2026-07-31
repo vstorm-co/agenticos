@@ -2,23 +2,45 @@ import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useChat } from "./use-chat";
-import { useAgentSelectionStore, useChatStore } from "@/stores";
+import {
+  useAgentSelectionStore,
+  useAuthStore,
+  useChatStore,
+  useConversationStore,
+  useOrgStore,
+} from "@/stores";
 
 // The socket itself is not under test: what matters is the frame the hook hands
 // it, because that frame is the whole contract with the backend. The mock also
 // keeps hold of the inbound handler so a server event can be replayed.
-const { sent, socket } = vi.hoisted(() => ({
+const { sent, socket, connect, disconnect } = vi.hoisted(() => ({
   sent: vi.fn(),
-  socket: { onMessage: null as ((event: MessageEvent) => void) | null },
+  connect: vi.fn(),
+  disconnect: vi.fn(),
+  socket: {
+    onMessage: null as ((event: MessageEvent) => void) | null,
+    onClose: null as (() => void) | null,
+    url: "",
+    protocols: undefined as string[] | undefined,
+    isConnected: true,
+  },
 }));
 
 vi.mock("./use-websocket", () => ({
-  useWebSocket: (options: { onMessage?: (event: MessageEvent) => void }) => {
+  useWebSocket: (options: {
+    url: string;
+    protocols?: string[];
+    onMessage?: (event: MessageEvent) => void;
+    onClose?: () => void;
+  }) => {
     socket.onMessage = options.onMessage ?? null;
+    socket.onClose = options.onClose ?? null;
+    socket.url = options.url;
+    socket.protocols = options.protocols;
     return {
-      isConnected: true,
-      connect: vi.fn(),
-      disconnect: vi.fn(),
+      isConnected: socket.isConnected,
+      connect,
+      disconnect,
       sendMessage: sent,
     };
   },
@@ -37,10 +59,25 @@ function receive(type: string, data: Record<string, unknown>): void {
   );
 }
 
+/** The last frame `sendMessage` produced, whichever number it was. */
+function frame(nth = 0): Record<string, unknown> {
+  return sent.mock.calls[nth]![0] as Record<string, unknown>;
+}
+
+/** The assistant message being streamed. */
+function streaming() {
+  return useChatStore.getState().messages.find((message) => message.role === "assistant");
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
+  socket.isConnected = true;
   useAgentSelectionStore.setState({ selectedAgentId: null });
+  useAuthStore.setState({ accessToken: "t-1" });
+  useOrgStore.setState({ activeOrgId: null });
+  useConversationStore.getState().reset();
   useChatStore.getState().clearMessages();
+  window.history.replaceState({}, "", "/chat");
 });
 
 describe("useChat - which agent a turn is addressed to", () => {
@@ -114,5 +151,605 @@ describe("useChat - attributing the answer", () => {
 
     const assistant = useChatStore.getState().messages.find((m) => m.role === "assistant");
     expect(assistant?.agentId).toBeUndefined();
+  });
+});
+
+/**
+ * The stream a turn arrives as.
+ *
+ * The backend sends one frame per thing that happened, and this is what turns
+ * them into a message. Two ids are held in refs rather than state because the
+ * handler reads them synchronously - a `model_request_start` and a `text_delta`
+ * can land in the same server flush, and the delta has to see the id the start
+ * just created rather than waiting for React to re-render.
+ */
+describe("useChat - the streamed answer", () => {
+  it("opens an empty message when the model starts, and fills it as text arrives", () => {
+    renderHook(() => useChat());
+
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "Refunds " });
+    receive("text_delta", { index: 1, content: "run to thirty days." });
+
+    expect(streaming()).toMatchObject({
+      content: "Refunds run to thirty days.",
+      isStreaming: true,
+    });
+  });
+
+  it("ignores a delta that arrives before any message was opened", () => {
+    // A frame from a turn that was already finished and cleared.
+    renderHook(() => useChat());
+
+    receive("text_delta", { index: 0, content: "orphan" });
+
+    expect(useChatStore.getState().messages).toEqual([]);
+  });
+
+  it("opens a message for reasoning that arrives first", () => {
+    // A thinking model publishes its trace before any text, and there is nothing
+    // to attach it to yet.
+    renderHook(() => useChat());
+
+    receive("thinking_delta", { index: 0, content: "Checking the policy." });
+
+    expect(streaming()?.thinking).toBe("Checking the policy.");
+  });
+
+  it("keeps reasoning on the message already open", () => {
+    renderHook(() => useChat());
+
+    receive("model_request_start", {});
+    receive("thinking_delta", { index: 0, content: "Checking." });
+
+    expect(useChatStore.getState().messages).toHaveLength(1);
+    expect(streaming()?.thinking).toBe("Checking.");
+  });
+
+  it("closes the previous message when a second one opens", () => {
+    // One turn can produce several messages; the first must stop rendering as
+    // still streaming.
+    renderHook(() => useChat());
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "first" });
+
+    receive("model_request_start", {});
+
+    const messages = useChatStore.getState().messages;
+    expect(messages).toHaveLength(2);
+    expect(messages[0]?.isStreaming).toBe(false);
+  });
+
+  it("shows a tool call and then its result, in the timeline", () => {
+    renderHook(() => useChat());
+    receive("model_request_start", {});
+
+    receive("tool_call", { tool_call_id: "tc-1", tool_name: "search_documents", args: { q: "x" } });
+    expect(streaming()?.toolCalls?.[0]).toMatchObject({ id: "tc-1", status: "running" });
+
+    receive("tool_result", { tool_call_id: "tc-1", content: "3 passages" });
+    expect(streaming()?.toolCalls?.[0]).toMatchObject({
+      status: "completed",
+      result: "3 passages",
+    });
+  });
+
+  it("ignores a tool frame with no message open", () => {
+    renderHook(() => useChat());
+
+    receive("tool_call", { tool_call_id: "tc-1", tool_name: "x", args: {} });
+    receive("tool_result", { tool_call_id: "tc-1", content: "y" });
+
+    expect(useChatStore.getState().messages).toEqual([]);
+  });
+
+  it("takes the answer from the final frame when nothing was streamed", () => {
+    // A model that answers in one piece sends no deltas at all.
+    renderHook(() => useChat());
+    receive("model_request_start", {});
+
+    receive("final_result", { output: "Thirty days." });
+
+    expect(streaming()).toMatchObject({ content: "Thirty days.", isStreaming: false });
+  });
+
+  it("does not repeat the answer that was already streamed", () => {
+    renderHook(() => useChat());
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "Thirty days." });
+
+    receive("final_result", { output: "Thirty days." });
+
+    expect(streaming()?.content).toBe("Thirty days.");
+  });
+
+  it("stops processing on the final frame even with nothing open", () => {
+    const { result } = renderHook(() => useChat());
+
+    receive("final_result", { output: "" });
+
+    expect(result.current.isProcessing).toBe(false);
+  });
+
+  it("ignores the model lifecycle frames", () => {
+    // They exist for future status UI; today they must not open a message.
+    renderHook(() => useChat());
+
+    receive("llm_started", {});
+    receive("llm_completed", {});
+
+    expect(useChatStore.getState().messages).toEqual([]);
+  });
+});
+
+describe("useChat - failures and interruptions", () => {
+  it("writes the error into the message being streamed", () => {
+    renderHook(() => useChat());
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "Let me check." });
+
+    receive("error", { message: "Budget exceeded" });
+
+    expect(streaming()).toMatchObject({ isStreaming: false });
+    expect(streaming()?.content).toContain("❌ Error: Budget exceeded");
+  });
+
+  it("says an error happened even when the server named no reason", () => {
+    renderHook(() => useChat());
+    receive("model_request_start", {});
+
+    receive("error", { message: "" });
+
+    expect(streaming()?.content).toContain("Unknown error");
+  });
+
+  it("stops processing on an error with nothing open", () => {
+    const { result } = renderHook(() => useChat());
+
+    receive("error", { message: "Budget exceeded" });
+
+    expect(result.current.isProcessing).toBe(false);
+    expect(useChatStore.getState().messages).toEqual([]);
+  });
+
+  it("stops a turn on request and clears everything waiting on it", () => {
+    const { result } = renderHook(() => useChat());
+    receive("model_request_start", {});
+    receive("tool_approval_required", {
+      action_requests: [{ id: "ar-1", tool_name: "send_email", args: {} }],
+      review_configs: [],
+    });
+
+    act(() => result.current.stopGeneration());
+
+    expect(frame(0)).toEqual({ type: "stop" });
+    expect(streaming()?.isStreaming).toBe(false);
+    expect(result.current.isProcessing).toBe(false);
+    expect(result.current.pendingApproval).toBeNull();
+    expect(result.current.pendingQuestions).toBeNull();
+  });
+
+  it("stops cleanly with no turn in flight", () => {
+    const { result } = renderHook(() => useChat());
+
+    act(() => result.current.stopGeneration());
+
+    expect(frame(0)).toEqual({ type: "stop" });
+  });
+});
+
+describe("useChat - the conversation a turn belongs to", () => {
+  it("adopts the conversation the backend created, and puts it in the address bar", () => {
+    // So a refresh mid-turn lands back on the same thread.
+    const onConversationCreated = vi.fn();
+    renderHook(() => useChat({ onConversationCreated }));
+    receive("model_request_start", {});
+
+    receive("conversation_created", { conversation_id: "c-new" });
+
+    expect(useConversationStore.getState().currentConversationId).toBe("c-new");
+    expect(window.location.search).toBe("?id=c-new");
+    expect(onConversationCreated).toHaveBeenCalledWith("c-new");
+    expect(streaming()?.conversationId).toBe("c-new");
+  });
+
+  it("stamps a new message with the conversation already open", () => {
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    renderHook(() => useChat());
+
+    receive("model_request_start", {});
+
+    expect(streaming()?.conversationId).toBe("c-1");
+  });
+
+  it("falls back to the conversation the caller passed", () => {
+    renderHook(() => useChat({ conversationId: "c-prop" }));
+
+    receive("model_request_start", {});
+
+    expect(streaming()?.conversationId).toBe("c-prop");
+  });
+
+  it("swaps the temporary id for the one the database gave it", () => {
+    // Every later action - a rating, a share - addresses the message by id.
+    renderHook(() => useChat());
+    receive("model_request_start", {});
+
+    receive("message_saved", { message_id: "m-real" });
+
+    expect(streaming()).toMatchObject({ id: "m-real", isTemporaryId: false });
+  });
+
+  it("finds the message to rename when the turn has already completed", () => {
+    // `complete` clears the id, and `message_saved` can arrive after it.
+    renderHook(() => useChat());
+    receive("model_request_start", {});
+    receive("complete", {});
+
+    receive("message_saved", { message_id: "m-real" });
+
+    expect(useChatStore.getState().messages[0]).toMatchObject({
+      id: "m-real",
+      isTemporaryId: false,
+    });
+  });
+
+  it("renames nothing when there is no temporary message to rename", () => {
+    renderHook(() => useChat());
+    receive("complete", {});
+
+    receive("message_saved", { message_id: "m-real" });
+
+    expect(useChatStore.getState().messages).toEqual([]);
+  });
+
+  it("nudges the billing view when a turn completes, because it just spent money", () => {
+    const listener = vi.fn();
+    window.addEventListener("billing:refresh", listener);
+    const { result } = renderHook(() => useChat());
+
+    receive("complete", {});
+
+    expect(listener).toHaveBeenCalled();
+    expect(result.current.isProcessing).toBe(false);
+    window.removeEventListener("billing:refresh", listener);
+  });
+});
+
+describe("useChat - approvals and questions", () => {
+  it("surfaces the tools waiting on a person, and says so in the message", () => {
+    const { result } = renderHook(() => useChat());
+    receive("model_request_start", {});
+
+    receive("tool_approval_required", {
+      action_requests: [{ id: "ar-1", tool_name: "send_email", args: { to: "a@b.c" } }],
+      review_configs: [{ tool_name: "send_email", allow_edit: true }],
+    });
+
+    expect(result.current.pendingApproval).toMatchObject({
+      actionRequests: [{ id: "ar-1", tool_name: "send_email" }],
+      reviewConfigs: [{ tool_name: "send_email", allow_edit: true }],
+    });
+    expect(streaming()?.content).toContain("⏸️ Waiting for approval: send_email");
+  });
+
+  it("still surfaces an approval with no message open", () => {
+    const { result } = renderHook(() => useChat());
+
+    receive("tool_approval_required", {
+      action_requests: [{ id: "ar-1", tool_name: "send_email", args: {} }],
+      review_configs: [],
+    });
+
+    expect(result.current.pendingApproval).not.toBeNull();
+    expect(useChatStore.getState().messages).toEqual([]);
+  });
+
+  it("sends each decision, and replaces the waiting line with what was decided", () => {
+    const { result } = renderHook(() => useChat());
+    receive("model_request_start", {});
+    receive("tool_approval_required", {
+      action_requests: [
+        { id: "ar-1", tool_name: "send_email", args: {} },
+        { id: "ar-2", tool_name: "delete_row", args: {} },
+        { id: "ar-3", tool_name: "post_invoice", args: {} },
+      ],
+      review_configs: [],
+    });
+
+    act(() =>
+      result.current.sendResumeDecisions([
+        { type: "approve" },
+        { type: "reject" },
+        {
+          type: "edit",
+          editedAction: { id: "ar-3", tool_name: "post_invoice", args: { amount: 1 } },
+        },
+      ]),
+    );
+
+    expect(result.current.pendingApproval).toBeNull();
+    expect(frame(0)).toEqual({
+      type: "resume",
+      decisions: [
+        { type: "approve" },
+        { type: "reject" },
+        {
+          type: "edit",
+          edited_action: { id: "ar-3", tool_name: "post_invoice", args: { amount: 1 } },
+        },
+      ],
+    });
+    expect(streaming()?.content).toContain("✅ Decisions: 1 approved, 1 edited, 1 rejected");
+  });
+
+  it("sends an edit with no edited action as a plain edit", () => {
+    // Which is what the dialog produces when somebody opens the editor and
+    // changes nothing.
+    const { result } = renderHook(() => useChat());
+
+    act(() => result.current.sendResumeDecisions([{ type: "edit" }]));
+
+    expect(frame(0)).toMatchObject({ decisions: [{ type: "edit" }] });
+  });
+
+  it("surfaces the questions an agent asked, filling in what it left out", () => {
+    const { result } = renderHook(() => useChat());
+
+    receive("ask_user", {
+      questions: [{ question: "Which invoice?", allow_custom: true }],
+    });
+
+    expect(result.current.pendingQuestions).toEqual([
+      { question: "Which invoice?", options: [], allowCustom: true },
+    ]);
+  });
+
+  it("surfaces an empty list rather than nothing when the frame carries none", () => {
+    const { result } = renderHook(() => useChat());
+
+    receive("ask_user", {});
+
+    expect(result.current.pendingQuestions).toEqual([]);
+  });
+
+  it("sends the answers and closes the prompt", () => {
+    const { result } = renderHook(() => useChat());
+    receive("ask_user", {
+      questions: [{ question: "Which?", options: ["a"], allow_custom: false }],
+    });
+
+    act(() => result.current.sendAskUserResponses([{ answer: "a", skipped: false }]));
+
+    expect(result.current.pendingQuestions).toBeNull();
+    expect(frame(0)).toEqual({
+      type: "ask_user_response",
+      answers: [{ answer: "a", skipped: false }],
+    });
+  });
+
+  it("keeps the questions on screen when the socket is offline", () => {
+    // Clearing them would lose the question with no way to answer it.
+    socket.isConnected = false;
+    const { result } = renderHook(() => useChat());
+    receive("ask_user", { questions: [{ question: "Which?", options: [], allow_custom: true }] });
+
+    act(() => result.current.sendAskUserResponses([{ answer: "a", skipped: false }]));
+
+    expect(result.current.pendingQuestions).not.toBeNull();
+    expect(sent).not.toHaveBeenCalled();
+  });
+});
+
+describe("useChat - what goes out with a turn", () => {
+  it("adds the person's own message and marks the turn in flight", () => {
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }));
+
+    act(() => result.current.sendMessage("How long?", ["f-1"], [{ id: "f-1" } as never]));
+
+    expect(useChatStore.getState().messages[0]).toMatchObject({
+      role: "user",
+      content: "How long?",
+      conversationId: "c-1",
+      fileIds: ["f-1"],
+    });
+    expect(result.current.isProcessing).toBe(true);
+    expect(frame(0)).toMatchObject({
+      message: "How long?",
+      conversation_id: "c-1",
+      file_ids: ["f-1"],
+    });
+  });
+
+  it("sends a null conversation id for the first turn of a new thread", () => {
+    const { result } = renderHook(() => useChat());
+
+    act(() => result.current.sendMessage("hello"));
+
+    expect(frame(0)).toMatchObject({ conversation_id: null });
+    expect(frame(0)).not.toHaveProperty("file_ids");
+  });
+
+  it("carries the per-turn model overrides, and only when they are set", () => {
+    const { result } = renderHook(() => useChat());
+
+    act(() => result.current.sendMessage("first"));
+    expect(frame(0)).not.toHaveProperty("model_profile_id");
+
+    act(() => {
+      result.current.setModelProfile("p-1");
+      result.current.setTemperature(0.2);
+      result.current.setThinkingEffort("high");
+    });
+    receive("complete", {});
+    act(() => result.current.sendMessage("second"));
+
+    expect(frame(1)).toMatchObject({
+      model_profile_id: "p-1",
+      temperature: 0.2,
+      thinking_effort: "high",
+    });
+  });
+
+  it("keeps a temperature of zero, which is a deliberate setting", () => {
+    const { result } = renderHook(() => useChat());
+    act(() => result.current.setTemperature(0));
+
+    act(() => result.current.sendMessage("hello"));
+
+    expect(frame(0)).toMatchObject({ temperature: 0 });
+  });
+});
+
+describe("useChat - the outbound queue", () => {
+  it("queues what is typed while the agent is busy, and drains it when it is idle", async () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useChat());
+    act(() => result.current.sendMessage("first"));
+    expect(result.current.isProcessing).toBe(true);
+
+    act(() => result.current.sendMessage("second"));
+    expect(result.current.queuedMessages.map((entry) => entry.content)).toEqual(["second"]);
+    expect(sent).toHaveBeenCalledTimes(1);
+
+    receive("complete", {});
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+
+    expect(result.current.queuedMessages).toEqual([]);
+    expect(frame(1)).toMatchObject({ message: "second" });
+    vi.useRealTimers();
+  });
+
+  it("queues what is typed while the socket is offline", () => {
+    socket.isConnected = false;
+    const { result } = renderHook(() => useChat());
+
+    act(() => result.current.sendMessage("offline"));
+
+    expect(result.current.queuedMessages).toHaveLength(1);
+    expect(sent).not.toHaveBeenCalled();
+  });
+
+  it("cancels one queued message and keeps the rest", () => {
+    socket.isConnected = false;
+    const { result } = renderHook(() => useChat());
+    act(() => result.current.sendMessage("one"));
+    act(() => result.current.sendMessage("two"));
+
+    act(() => result.current.cancelQueued(result.current.queuedMessages[0]!.id));
+
+    expect(result.current.queuedMessages.map((entry) => entry.content)).toEqual(["two"]);
+  });
+
+  it("clears the whole queue", () => {
+    socket.isConnected = false;
+    const { result } = renderHook(() => useChat());
+    act(() => result.current.sendMessage("one"));
+    act(() => result.current.sendMessage("two"));
+
+    act(() => result.current.clearQueued());
+
+    expect(result.current.queuedMessages).toEqual([]);
+  });
+});
+
+describe("useChat - the socket it opens", () => {
+  it("authenticates through the subprotocol rather than the URL", () => {
+    // A token in the query string ends up in access logs and Referer headers.
+    renderHook(() => useChat());
+
+    expect(socket.protocols).toEqual(["access_token.t-1", "chat"]);
+    expect(socket.url).not.toContain("t-1");
+  });
+
+  it("opens no socket at all before the token is in memory", () => {
+    // A token-less socket is refused by the server, which used to produce a
+    // reconnect storm on every page load.
+    useAuthStore.setState({ accessToken: null });
+
+    renderHook(() => useChat());
+
+    expect(socket.protocols).toBeUndefined();
+    expect(connect).not.toHaveBeenCalled();
+  });
+
+  it("carries the active organization in the URL, because a handshake takes no headers", () => {
+    useOrgStore.setState({ activeOrgId: "org 7" });
+
+    renderHook(() => useChat());
+
+    expect(socket.url).toContain("organization_id=org%207");
+  });
+
+  it("refreshes the token when the socket drops, once", async () => {
+    // A dropped socket is usually a stale token; one in-flight `/auth/me` is
+    // enough, and one per backoff attempt would stampede it.
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: () => Promise.resolve({ access_token: "t-2" }) });
+    vi.stubGlobal("fetch", fetchMock);
+    renderHook(() => useChat());
+
+    await act(async () => {
+      socket.onClose?.();
+      socket.onClose?.();
+      await Promise.resolve();
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(useAuthStore.getState().accessToken).toBe("t-2");
+    vi.unstubAllGlobals();
+  });
+
+  it("keeps the token it has when the refresh is refused", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 401 }));
+    renderHook(() => useChat());
+
+    await act(async () => {
+      socket.onClose?.();
+      await Promise.resolve();
+    });
+
+    expect(useAuthStore.getState().accessToken).toBe("t-1");
+    vi.unstubAllGlobals();
+  });
+
+  it("keeps the token when the refresh answers without one", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({}) }),
+    );
+    renderHook(() => useChat());
+
+    await act(async () => {
+      socket.onClose?.();
+      await Promise.resolve();
+    });
+
+    expect(useAuthStore.getState().accessToken).toBe("t-1");
+    vi.unstubAllGlobals();
+  });
+
+  it("survives a refresh that could not be made at all", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+    renderHook(() => useChat());
+
+    await act(async () => {
+      socket.onClose?.();
+      await Promise.resolve();
+    });
+
+    expect(useAuthStore.getState().accessToken).toBe("t-1");
+    vi.unstubAllGlobals();
+  });
+
+  it("closes the socket when the chat goes away", () => {
+    const { unmount } = renderHook(() => useChat());
+
+    unmount();
+
+    expect(disconnect).toHaveBeenCalled();
   });
 });

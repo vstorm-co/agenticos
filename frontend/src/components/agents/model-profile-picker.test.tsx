@@ -1,7 +1,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ModelProfilePicker } from "./model-profile-picker";
 import type { ModelProfile } from "@/types/providers";
@@ -14,10 +15,26 @@ vi.mock("@/lib/api-client", async () => {
   };
 });
 
+const deleteProfile = vi.hoisted(() => ({ mutate: vi.fn() }));
+vi.mock("@/hooks", () => ({ useModelProviders: () => ({ deleteProfile }) }));
+
+// The real form is a provider, a model id and a key from the vault, tested in
+// `add-model.integration.test.tsx`. What this panel owes it is the callback: a
+// model created here is also the model the agent moves onto.
+vi.mock("@/components/agents/add-model", () => ({
+  AddModel: ({ onCreated }: { onCreated: (profile: { id: string }) => void }) => (
+    <button type="button" onClick={() => onCreated({ id: "p-new" })}>
+      Add model
+    </button>
+  ),
+}));
+
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
+
+beforeEach(() => vi.clearAllMocks());
 
 function profile(overrides: Partial<ModelProfile> = {}): ModelProfile {
   return {
@@ -58,8 +75,8 @@ describe("ModelProfilePicker", () => {
     // empty and the real control was a click away behind "Add a model".
     mount({ allowAdd: true });
 
-    expect(screen.getByLabelText("Provider")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add model" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add a model" })).toBeNull();
   });
 
   it("keeps the saved models one disclosure down rather than dropping them", () => {
@@ -99,5 +116,70 @@ describe("ModelProfilePicker", () => {
 
     expect(screen.getByText(/no models yet/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Add a model" })).toBeNull();
+  });
+
+  it("moves the agent onto the model that was just created", async () => {
+    // Selected, not merely added: somebody who came here to choose a model has
+    // chosen one, and leaving the agent on the old value makes the work look
+    // like it did not take.
+    const onChange = vi.fn();
+    mount({ allowAdd: true, onChange });
+
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+
+    expect(onChange).toHaveBeenCalledWith("p-new");
+  });
+
+  it("moves the agent onto a saved model that was picked", async () => {
+    const onChange = vi.fn();
+    mount({ onChange });
+
+    await userEvent.click(screen.getByRole("radio", { name: "openai default" }));
+
+    expect(onChange).toHaveBeenCalledWith("p1");
+  });
+
+  it("marks which saved model the agent is on", () => {
+    mount({ value: "p1" });
+
+    expect(screen.getByRole("radio", { name: "openai default" })).toBeChecked();
+  });
+
+  it("deletes a saved model only where models are managed", async () => {
+    mount({ allowAdd: true });
+
+    await userEvent.click(screen.getByRole("button", { name: "Remove openai default" }));
+
+    expect(deleteProfile.mutate).toHaveBeenCalledWith("p1");
+  });
+
+  it("offers the chat no way to delete a model every agent may be pointed at", () => {
+    mount();
+
+    expect(screen.queryByRole("button", { name: /^Remove/ })).toBeNull();
+  });
+
+  it("accepts nothing from somebody who cannot edit the spec", async () => {
+    const onChange = vi.fn();
+    mount({ onChange, disabled: true });
+
+    await userEvent.click(screen.getByRole("radio", { name: "openai default" }));
+
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("counts a model keyed from the vault as keyed", () => {
+    // A model added from the vault carries a `secret_id` and no credential;
+    // reading only the old column marked every one of them "no key".
+    mount({ profiles: [profile({ secret_id: "s-1" })] });
+
+    expect(screen.queryByText("no key")).toBeNull();
+  });
+
+  it("says the current model has no key, where the agent's own line is", () => {
+    mount({ allowAdd: true, value: "p1" });
+
+    const current = screen.getByRole("group", { name: "Current model" });
+    expect(within(current).getByText("no key")).toBeInTheDocument();
   });
 });

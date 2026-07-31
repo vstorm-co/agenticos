@@ -94,4 +94,102 @@ describe("useInvitations", () => {
 
     expect(result.current.invitations.map((i) => i.id)).toEqual(["inv-1"]);
   });
+
+  it("does not fetch until an organization is named", () => {
+    // Some callers mount with "" only to accept an invitation, and a request for
+    // `/orgs//invitations` answers 404 in their network log.
+    renderHook(() => useInvitations(""), { wrapper });
+
+    expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
+  it("refreshes the list on demand, and does nothing without an organization", async () => {
+    const hook = await loaded();
+
+    await act(async () => {
+      hook.result.current.fetchInvitations();
+    });
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(2));
+
+    const { result } = renderHook(() => useInvitations(""), { wrapper });
+    result.current.fetchInvitations();
+    expect(apiClient.get).toHaveBeenCalledTimes(2);
+  });
+
+  it("reports a refused invitation rather than raising it", async () => {
+    const { toast } = await import("sonner");
+    vi.mocked(apiClient.post).mockRejectedValue(new Error("Already a member"));
+    const hook = await loaded();
+
+    let sent: Invitation | null | undefined;
+    await act(async () => {
+      sent = await hook.result.current.invite({ email: "x@example.com", role: "member" });
+    });
+
+    expect(sent).toBeNull();
+    expect(toast.error).toHaveBeenCalledWith("Failed to send invitation");
+  });
+
+  it("accepts an invitation on the route that is the accept", async () => {
+    // `POST /invitations/<token>/accept` hit no route at all and came back as the
+    // 404 page, which the swallowed failure then announced as success.
+    const { toast } = await import("sonner");
+    vi.mocked(apiClient.post).mockResolvedValue({});
+    const hook = await loaded();
+
+    await act(async () => {
+      await hook.result.current.acceptInvitation(TOKEN);
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith(`/invitations/${TOKEN}`);
+    expect(toast.success).toHaveBeenCalledWith("Joined organization!");
+  });
+
+  it("raises a refused accept, so the screen can say nobody joined", async () => {
+    const { toast } = await import("sonner");
+    vi.mocked(apiClient.post).mockRejectedValue(new Error("This link has expired"));
+    const hook = await loaded();
+
+    await expect(hook.result.current.acceptInvitation(TOKEN)).rejects.toThrow(
+      "This link has expired",
+    );
+    expect(toast.error).toHaveBeenCalledWith("Failed to accept invitation");
+  });
+
+  it("hands a shareable link back once, and keeps its token out of the cache", async () => {
+    // A link nobody can copy is a link that does nothing - but the listing this
+    // cache backs still carries no tokens.
+    vi.mocked(apiClient.post).mockResolvedValue({
+      ...invitation({ id: "inv-link" }),
+      invitation_token: TOKEN,
+    } as InvitationCreated);
+    const hook = await loaded();
+
+    let url: string | null | undefined;
+    await act(async () => {
+      url = await hook.result.current.createLink({ role: "member" });
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith(`/orgs/${ORG_ID}/invitations/link`, {
+      role: "member",
+    });
+    expect(url).toBe(`${window.location.origin}/invitations/${TOKEN}`);
+    await waitFor(() =>
+      expect(hook.result.current.invitations[0]).not.toHaveProperty("invitation_token"),
+    );
+  });
+
+  it("reports a refused link rather than handing back a broken one", async () => {
+    const { toast } = await import("sonner");
+    vi.mocked(apiClient.post).mockRejectedValue(new Error("nope"));
+    const hook = await loaded();
+
+    let url: string | null | undefined;
+    await act(async () => {
+      url = await hook.result.current.createLink({ role: "member" });
+    });
+
+    expect(url).toBeNull();
+    expect(toast.error).toHaveBeenCalledWith("Failed to create the link");
+  });
 });

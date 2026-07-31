@@ -97,13 +97,12 @@ export function RatingButtons({
     [conversationId, messageId, currentRating, calculateNewCounts, onRatingChange, t],
   );
 
+  // No guard against a missing conversation id here: both buttons are
+  // `disabled` while there is none, which is what stops the click *and* says
+  // why in the tooltip. A second check inside the handler was unreachable, and
+  // an unreachable guard is a guard nobody maintains.
   const handleRate = useCallback(
     async (rating: RatingValue) => {
-      if (!conversationId || conversationId === "") {
-        toast.error(t("saveConversationToRate"));
-        return;
-      }
-
       if (currentRating === rating) {
         setIsLoading(true);
         try {
@@ -137,7 +136,7 @@ export function RatingButtons({
         }
       }
     },
-    [conversationId, messageId, currentRating, calculateNewCounts, onRatingChange, submitRating, t],
+    [conversationId, messageId, currentRating, calculateNewCounts, onRatingChange, submitRating],
   );
 
   const handleCloseDialog = useCallback(() => {

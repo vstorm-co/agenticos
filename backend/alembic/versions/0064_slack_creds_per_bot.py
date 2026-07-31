@@ -22,7 +22,6 @@ job back to no longer exist, which is the point of the change.
 import os
 
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
 
 from alembic import op
 

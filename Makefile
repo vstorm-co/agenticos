@@ -1,4 +1,4 @@
-.PHONY: install format lint test run clean help db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build
+.PHONY: install format lint test run clean help deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build
 
 # === Environments ===========================================================
 # Three, one compose file each, with a matching frontend file beside it:
@@ -159,7 +159,7 @@ quickstart: dev
 install:
 	uv sync --directory backend --dev
 	@if git rev-parse --git-dir > /dev/null 2>&1; then \
-		uv run --directory backend pre-commit install; \
+		uv run --project backend pre-commit install; \
 	else \
 		echo "⚠️  Not a git repository - skipping pre-commit install"; \
 		echo "   Run 'git init && make install' to set up pre-commit hooks"; \
@@ -192,6 +192,27 @@ upgrade upgrade-dry-run upgrade-new-features upgrade-finalize:
 	@echo "   This project has diverged from the generator; cherry-pick from"
 	@echo "   github.com/vstorm-co/full-stack-ai-agent-template by hand."
 	@exit 1
+
+# === Dependencies ===
+# FastAPI, Pydantic AI, Logfire and genai-prices are uncapped and meant to track
+# their newest release. This is the local half of that: bump them, then run the
+# suite, because the upgrade is only done when it still passes. The
+# `framework-freshness` workflow does the same on a schedule and opens an issue.
+FRAMEWORKS := fastapi pydantic-ai-slim pydantic-ai-skills logfire genai-prices
+
+deps-upgrade:
+	uv lock --directory backend $(foreach p,$(FRAMEWORKS),--upgrade-package $(p))
+	uv sync --directory backend --dev
+	@uv run --directory backend python -c "import fastapi, logfire, genai_prices, pydantic_ai; \
+		print(f'fastapi {fastapi.__version__} | logfire {logfire.__version__} | pydantic-ai {pydantic_ai.__version__}')"
+	@echo "▶ Now run 'make test' — an upgrade that breaks the suite is not done."
+
+# Everything, not just the four. Use before a release; expect more fallout.
+deps-upgrade-all:
+	uv lock --directory backend --upgrade
+	uv sync --directory backend --dev
+	cd frontend && bun update
+	@echo "▶ Now run 'make check'."
 
 # === Code Quality ===
 format:

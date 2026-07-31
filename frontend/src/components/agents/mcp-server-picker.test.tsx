@@ -108,6 +108,21 @@ describe("McpServerPicker", () => {
     expect(screen.getByText("Needs authorization")).toBeInTheDocument();
   });
 
+  it("marks a server that answered with an error, louder than one merely idle", async () => {
+    // Unreachable is the state that explains a run that half-worked; it must not
+    // read like "not connected yet".
+    render(
+      <McpServerPicker
+        connections={[connection({ last_status: "error" })]}
+        catalog={CATALOG}
+        selectedIds={[]}
+        onToggle={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Unreachable")).toBeInTheDocument();
+  });
+
   it("reports the connection id that was clicked", async () => {
     const onToggle = vi.fn();
     render(
@@ -171,6 +186,19 @@ describe("McpServerPicker", () => {
     );
     expect(screen.getByText(/1 server this organization does not offer/)).toBeInTheDocument();
     expect(screen.getByText("00000000-0000-0000-0000-0000000000ff")).toBeInTheDocument();
+  });
+
+  it("counts more than one unresolved reference in the plural", () => {
+    render(
+      <McpServerPicker
+        connections={[connection()]}
+        catalog={CATALOG}
+        selectedIds={["gone-1", "gone-2"]}
+        onToggle={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(/2 servers this organization does not offer/)).toBeInTheDocument();
   });
 
   it("shows the whole catalog, not only what already has credentials", () => {

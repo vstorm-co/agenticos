@@ -1,21 +1,32 @@
-import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { SkillWorkbench } from "./skill-workbench";
 import type { Skill } from "@/types/providers";
 
-// The workbench reaches for the file mutations it offers beside the body. None
-// of them is exercised here - what these tests are about is the skill itself.
-vi.mock("@/hooks", () => ({
-  useSkill: () => ({
-    addResource: { isPending: false, mutateAsync: vi.fn() },
-    saveResource: { isPending: false, mutate: vi.fn() },
-    removeResource: { mutateAsync: vi.fn() },
-    uploadResources: { mutateAsync: vi.fn() },
-  }),
-  useSkillResource: () => ({ resource: undefined, isLoading: false }),
+// The file mutations the workbench offers beside the body, held where a test can
+// both drive them and read what they were asked to do.
+const skillHooks = vi.hoisted(() => ({
+  addResource: { isPending: false, mutateAsync: vi.fn(async () => undefined) },
+  saveResource: { isPending: false, mutate: vi.fn() },
+  removeResource: { mutateAsync: vi.fn(async () => undefined) },
+  uploadResources: { mutateAsync: vi.fn(async () => undefined) },
+  loaded: { resource: undefined as { content: string } | undefined, isLoading: false },
 }));
+
+vi.mock("@/hooks", () => ({
+  useSkill: () => skillHooks,
+  useSkillResource: () => skillHooks.loaded,
+}));
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  skillHooks.addResource.isPending = false;
+  skillHooks.saveResource.isPending = false;
+  skillHooks.loaded.resource = undefined;
+  skillHooks.loaded.isLoading = false;
+});
 
 const SKILL: Skill = {
   id: "skill-1",
@@ -162,11 +173,188 @@ describe("SkillWorkbench", () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 
+  it("shows a viewer the shelf's name, humanised, rather than the stored slug", async () => {
+    renderWorkbench({ skill: { ...SKILL, category: "devops" }, canEdit: false });
+
+    expect(screen.getByLabelText("Category")).toHaveValue("Devops");
+  });
+
+  it("leaves the new-category field on Escape without taking what was typed", async () => {
+    // The way out of a field that only exists because "New category…" was
+    // clicked. Blur does it too; a keyboard user has no blur to give.
+    renderWorkbench();
+    await userEvent.click(screen.getByLabelText("Category"));
+    await userEvent.click(screen.getByRole("option", { name: "New category…" }));
+
+    await userEvent.type(screen.getByLabelText("Category"), "support{Escape}");
+
+    // Back to the select, which is a combobox rather than a text box.
+    expect(screen.getByRole("combobox", { name: "Category" })).toBeInTheDocument();
+  });
+
   it("abandons the edit when cancelled", async () => {
     const { onSave, onCancel } = renderWorkbench();
     await userEvent.type(description(), " changed");
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(onCancel).toHaveBeenCalled();
     expect(onSave).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The files beside the body.
+ *
+ * A skill is a folder, so `SKILL.md` sits in the tree with everything else and
+ * the pane shows whichever one is open. The rules that are easy to break: the
+ * body is what an unselected tree shows (not a blank pane), opening a file
+ * leaves the unsaved body alone, and deleting the open file has to return the
+ * pane to the body rather than to a resource that is gone.
+ */
+describe("the skill's files", () => {
+  const FILE = {
+    id: "r-1",
+    name: "references/workflows.md",
+    description: "The escalation ladder.",
+    size_bytes: 2048,
+  };
+
+  const withFile = { ...SKILL, resources: [FILE] };
+
+  it("shows the body when nothing in the tree is selected", () => {
+    renderWorkbench({ skill: withFile });
+
+    expect(screen.getByRole("button", { name: /SKILL\.md/ })).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+  });
+
+  it("opens a file from the tree into the pane", async () => {
+    skillHooks.loaded.resource = { content: "1. Ask. 2. Escalate." };
+    renderWorkbench({ skill: withFile });
+
+    await userEvent.click(screen.getByRole("button", { name: "workflows.md" }));
+
+    expect(screen.getByRole("treeitem", { selected: true })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Source" }));
+    expect(screen.getByLabelText("references/workflows.md source")).toHaveValue(
+      "1. Ask. 2. Escalate.",
+    );
+  });
+
+  it("keeps an unsaved body while somebody reads a file", async () => {
+    // The body's state is seeded once. Losing it on a tree click would discard
+    // typing with no undo and no warning.
+    skillHooks.loaded.resource = { content: "anything" };
+    renderWorkbench({ skill: withFile });
+    await userEvent.type(await content(), "\n\nExcept gift cards.");
+
+    await userEvent.click(screen.getByRole("button", { name: "workflows.md" }));
+    await userEvent.click(screen.getByRole("button", { name: /SKILL\.md/ }));
+
+    expect(await content()).toHaveValue(`${SKILL.content}\n\nExcept gift cards.`);
+  });
+
+  it("saves a file's edit against that file's id", async () => {
+    skillHooks.loaded.resource = { content: "old" };
+    renderWorkbench({ skill: withFile });
+    await userEvent.click(screen.getByRole("button", { name: "workflows.md" }));
+    await userEvent.click(screen.getByRole("button", { name: "Source" }));
+
+    await userEvent.type(screen.getByLabelText("references/workflows.md source"), "!");
+    await userEvent.click(screen.getByRole("button", { name: "Save file" }));
+
+    expect(skillHooks.saveResource.mutate).toHaveBeenCalledWith({ id: "r-1", content: "old!" });
+  });
+
+  it("returns to the body after the open file is deleted", async () => {
+    // Otherwise the pane keeps rendering a resource the skill no longer has.
+    skillHooks.loaded.resource = { content: "old" };
+    renderWorkbench({ skill: withFile });
+    await userEvent.click(screen.getByRole("button", { name: "workflows.md" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Remove references/workflows.md" }));
+
+    expect(skillHooks.removeResource.mutateAsync).toHaveBeenCalledWith("r-1");
+    expect(screen.getByRole("button", { name: /SKILL\.md/ })).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+  });
+
+  it("adds a file, and closes the form once it is added", async () => {
+    renderWorkbench({ skill: withFile });
+
+    await userEvent.click(screen.getByRole("button", { name: "New" }));
+    await userEvent.type(screen.getByLabelText("Path"), "references/refunds.md");
+    await userEvent.type(screen.getByLabelText("File contents"), "Within 30 days.");
+    await userEvent.click(screen.getByRole("button", { name: "Add file" }));
+
+    expect(skillHooks.addResource.mutateAsync).toHaveBeenCalledWith({
+      name: "references/refunds.md",
+      description: null,
+      content: "Within 30 days.",
+    });
+    expect(screen.queryByLabelText("Path")).toBeNull();
+  });
+
+  it("abandons a new file when the form is cancelled", async () => {
+    renderWorkbench({ skill: withFile });
+    await userEvent.click(screen.getByRole("button", { name: "New" }));
+
+    // The form's own Cancel, not the dialog footer's.
+    const form = screen.getByLabelText("Path").closest("form")!;
+    await userEvent.click(within(form).getByRole("button", { name: "Cancel" }));
+
+    expect(skillHooks.addResource.mutateAsync).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText("Path")).toBeNull();
+  });
+
+  it("closes the new-file form when the body is selected instead", async () => {
+    renderWorkbench({ skill: withFile });
+    await userEvent.click(screen.getByRole("button", { name: "New" }));
+
+    await userEvent.click(screen.getByRole("button", { name: /SKILL\.md/ }));
+
+    expect(screen.queryByLabelText("Path")).toBeNull();
+  });
+
+  it("closes the new-file form when a file is opened instead", async () => {
+    skillHooks.loaded.resource = { content: "old" };
+    renderWorkbench({ skill: withFile });
+    await userEvent.click(screen.getByRole("button", { name: "New" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "workflows.md" }));
+
+    expect(screen.queryByLabelText("Path")).toBeNull();
+  });
+
+  it("uploads the files that were picked", async () => {
+    renderWorkbench({ skill: withFile });
+    const picked = new File(["a"], "checklist.md", { type: "text/markdown" });
+
+    await userEvent.upload(screen.getByLabelText("Files"), picked);
+
+    expect(skillHooks.uploadResources.mutateAsync).toHaveBeenCalledWith([picked]);
+  });
+
+  it("asks for nothing when a picker is dismissed with no files", () => {
+    renderWorkbench({ skill: withFile });
+
+    // What a cancelled picker looks like: the change fires with an empty list.
+    fireEvent.change(screen.getByLabelText("Folder"), { target: { files: [] } });
+
+    expect(skillHooks.uploadResources.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("offers a viewer no way to add, upload or delete a file", async () => {
+    skillHooks.loaded.resource = { content: "old" };
+    renderWorkbench({ skill: withFile, canEdit: false });
+
+    expect(screen.queryByRole("button", { name: "New" })).toBeNull();
+    expect(screen.queryByLabelText("Files")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "workflows.md" }));
+    expect(screen.queryByRole("button", { name: /^Remove/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Save file" })).toBeNull();
   });
 });

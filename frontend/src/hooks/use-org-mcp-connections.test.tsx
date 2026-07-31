@@ -121,4 +121,43 @@ describe("useOrgMcpConnections", () => {
     expect(result.current.error).toBe("Insufficient permissions");
     expect(result.current.connections).toEqual([]);
   });
+
+  it("patches an edited server in place", async () => {
+    // The list is the page; a refetch would blank the row somebody is editing.
+    vi.mocked(apiClient.patch).mockResolvedValue(record({ is_enabled: false }));
+    const { result } = await loaded();
+
+    await act(async () => {
+      await result.current.update("c1", { is_enabled: false });
+    });
+
+    expect(apiClient.patch).toHaveBeenCalledWith("/mcp-connections/c1", { is_enabled: false });
+    await waitFor(() => expect(result.current.connections[0]?.is_enabled).toBe(false));
+  });
+
+  it("refreshes on demand", async () => {
+    const { result } = await loaded();
+
+    await act(async () => {
+      await result.current.refresh();
+    });
+
+    expect(apiClient.get).toHaveBeenCalledTimes(2);
+  });
+
+  it("falls back to its own sentence when the refusal carries none", async () => {
+    vi.mocked(apiClient.get).mockRejectedValue("boom");
+
+    const { result } = renderHook(() => useOrgMcpConnections(), { wrapper });
+
+    await waitFor(() =>
+      expect(result.current.error).toBe("Failed to load the organization's MCP servers"),
+    );
+  });
+
+  it("says nothing went wrong when nothing did", async () => {
+    const { result } = await loaded();
+
+    expect(result.current.error).toBeNull();
+  });
 });

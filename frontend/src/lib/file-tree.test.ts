@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildTree, folderPaths, previewKind, type TreeFolder } from "./file-tree";
+import { buildTree, folderPaths, languageOf, previewKind, type TreeFolder } from "./file-tree";
 
 const entry = (name: string, id = name) => ({ id, name, size_bytes: 10 });
 
@@ -82,5 +82,19 @@ describe("previewKind", () => {
   it("falls back to plain text rather than guessing", () => {
     expect(previewKind("LICENSE.txt")).toBe("text");
     expect(previewKind("NOTICE")).toBe("text");
+  });
+});
+
+/** The language a fenced block is introduced by, so the renderer highlights it. */
+describe("languageOf", () => {
+  it("names the language from the extension", () => {
+    expect(languageOf("references/setup.py")).toBe("py");
+    expect(languageOf("Config.YAML")).toBe("yaml");
+  });
+
+  it("has nothing better than the whole name for a file with no extension", () => {
+    // Which the highlighter does not know, and renders unhighlighted - the same
+    // outcome as `text`, without a special case to keep in step.
+    expect(languageOf("Makefile")).toBe("makefile");
   });
 });

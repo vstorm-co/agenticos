@@ -32,6 +32,24 @@ describe("useRuns", () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(apiClient.get).toHaveBeenCalledWith("/runs", { params: { agent_id: "a1" } });
   });
+
+  it("fetches nothing for a caller that is not ready to ask", () => {
+    // The Activity tab mounts before the organization is resolved; a request sent
+    // then reads another organization's runs or none at all.
+    renderHook(() => useRuns("a1", { enabled: false }), { wrapper });
+
+    expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
+  it("hands back the failure rather than an empty history", async () => {
+    // An empty list and a refused read look identical on the page, and only one
+    // of them is worth showing an error for.
+    vi.mocked(apiClient.get).mockRejectedValue(new Error("Missing required permission"));
+    const { result } = renderHook(() => useRuns(), { wrapper });
+
+    await waitFor(() => expect(result.current.error).toBeTruthy());
+    expect(result.current.runs).toEqual([]);
+  });
 });
 
 describe("useApprovals", () => {
@@ -64,6 +82,34 @@ describe("useApprovals", () => {
       approved: false,
       note: "wrong customer",
     });
+  });
+
+  it("says which way a decision went", async () => {
+    const { toast } = await import("sonner");
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(apiClient.post).mockResolvedValue({ status: "approved" });
+    const { result } = renderHook(() => useApprovals(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await result.current.decide.mutateAsync({ id: "ap1", approved: true });
+
+    expect(toast.success).toHaveBeenCalledWith("Approved");
+  });
+
+  it("surfaces a refused second decision instead of leaving the queue silent", async () => {
+    // The server refuses a decision on an approval somebody else already decided,
+    // which is exactly what two people opening the queue at once produces.
+    const { toast } = await import("sonner");
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(apiClient.post).mockRejectedValue(new Error("Already decided"));
+    const { result } = renderHook(() => useApprovals(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await expect(result.current.decide.mutateAsync({ id: "ap1", approved: true })).rejects.toThrow(
+      "Already decided",
+    );
+
+    expect(toast.error).toHaveBeenCalledWith("Already decided");
   });
 });
 

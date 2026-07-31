@@ -41,6 +41,23 @@ describe("parseErrorMessage", () => {
     ).toBe("name: Field required");
   });
 
+  it("reads a plain `message` body, which some upstreams answer with", () => {
+    expect(parseErrorMessage({ message: "Upstream provider timed out" }, "fallback")).toBe(
+      "Upstream provider timed out",
+    );
+  });
+
+  it("takes an envelope whose code is not a string as an unknown code", () => {
+    // The envelope is still read - its message and details are what a form shows.
+    // Refusing the whole thing over a malformed code would lose them.
+    const error = new ApiError(400, "Refused", {
+      error: { code: 7, message: "Refused", details: { slug: "support" } },
+    });
+
+    expect(error.code).toBe("UNKNOWN");
+    expect(error.details).toEqual({ slug: "support" });
+  });
+
   it("falls back rather than stringifying something it does not recognise", () => {
     // `{"detail": [...]}` passed straight to `Error` used to render as
     // "[object Object]" - a message that says nothing and looks like a crash.
@@ -75,6 +92,15 @@ describe("problemList", () => {
     expect(problemList(error)).toEqual(["Unknown capability: typo", "No model selected"]);
   });
 
+  it("is null when the problems list holds nothing readable", () => {
+    // An empty list would render as a "cannot be published" banner with no
+    // reasons under it.
+    const error = new ApiError(400, "…", {
+      error: { code: "BAD_REQUEST", message: "…", details: { problems: [7, null] } },
+    });
+    expect(problemList(error)).toBeNull();
+  });
+
   it("is null for a failure that is not a verdict on the spec", () => {
     // A 403 rendered in the "cannot be published yet" banner would blame the
     // agent for something no edit to the agent can fix.
@@ -97,6 +123,15 @@ describe("fieldProblems", () => {
     expect(fieldProblems(error)).toEqual([
       { field: "password", message: "String should have at least 8 characters" },
     ]);
+  });
+
+  it("names no field for a failure that never reached the server", () => {
+    expect(fieldProblems(new Error("offline"))).toEqual([]);
+  });
+
+  it("names no field for a raw body whose entries say nothing", () => {
+    const error = new ApiError(422, "…", { detail: [{ loc: ["body"] }] });
+    expect(fieldProblems(error)).toEqual([]);
   });
 
   it("skips entries that are not problems, rather than rendering junk beside a field", () => {

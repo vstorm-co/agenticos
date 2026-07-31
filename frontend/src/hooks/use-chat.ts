@@ -250,13 +250,10 @@ export function useChat(options: UseChatOptions = {}) {
           if (currentMessageIdRef.current) {
             const id = currentMessageIdRef.current;
             const { message } = wsEvent.data as { message: string };
-            const errText = `\n\n❌ Error: ${message || "Unknown error"}`;
-            const cur = useChatStore.getState().messages.find((m) => m.id === id);
-            if (cur?.parts) {
-              appendTextDelta(id, errText);
-            } else {
-              updateMessage(id, (msg) => ({ ...msg, content: msg.content + errText }));
-            }
+            // Into the timeline rather than onto `content` directly: the store's
+            // append keeps the two in step, and it starts a parts list for a
+            // message that has none - which is what a replayed turn looks like.
+            appendTextDelta(id, `\n\n❌ Error: ${message || "Unknown error"}`);
             updateMessage(id, (msg) => ({ ...msg, isStreaming: false }));
           }
           setIsProcessing(false);
@@ -285,13 +282,7 @@ export function useChat(options: UseChatOptions = {}) {
           if (currentMessageIdRef.current) {
             const id = currentMessageIdRef.current;
             const toolNames = action_requests.map((ar) => ar.tool_name).join(", ");
-            const waitText = `\n\n⏸️ Waiting for approval: ${toolNames}`;
-            const cur = useChatStore.getState().messages.find((m) => m.id === id);
-            if (cur?.parts) {
-              appendTextDelta(id, waitText);
-            } else {
-              updateMessage(id, (msg) => ({ ...msg, content: msg.content + waitText }));
-            }
+            appendTextDelta(id, `\n\n⏸️ Waiting for approval: ${toolNames}`);
           }
           break;
         }

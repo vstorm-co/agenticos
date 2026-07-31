@@ -32,8 +32,9 @@ const HANDLE_TAKEN = new ApiError(409, "An agent with the handle 'support' alrea
 });
 
 function open(onCreated = vi.fn()) {
-  render(<CreateAgentDialog open onOpenChange={vi.fn()} onCreated={onCreated} />, { wrapper });
-  return { onCreated };
+  const onOpenChange = vi.fn();
+  render(<CreateAgentDialog open onOpenChange={onOpenChange} onCreated={onCreated} />, { wrapper });
+  return { onCreated, onOpenChange };
 }
 
 const name = () => screen.getByLabelText("Name");
@@ -141,5 +142,15 @@ describe("CreateAgentDialog", () => {
 
     await waitFor(() => expect(onCreated).toHaveBeenCalledWith({ id: "a1", name: "Support" }));
     expect(name()).toHaveValue("");
+  });
+
+  it("closes without creating when cancelled", async () => {
+    const { onOpenChange } = open();
+
+    await userEvent.type(name(), "Support");
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(apiClient.post).not.toHaveBeenCalled();
   });
 });

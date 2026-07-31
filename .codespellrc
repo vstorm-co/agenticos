@@ -1,0 +1,20 @@
+[codespell]
+# Every entry here was a false positive, and each is a word this repository
+# genuinely uses:
+#
+#   dependant  FastAPI's own attribute name (`route.dependant`). Spelling it
+#              "dependent" would be a typo.
+#   nam, adres, ue, oraz, jest, informacji
+#              Polish. The legal pages (cookies, terms, privacy) ship localized
+#              copy inline, and codespell reads it as misspelled English.
+#   couldn     A contraction split by a line wrap.
+#   re-use, re-declaring
+#              Style preferences, not misspellings.
+#   selectin   SQLAlchemy's `lazy="selectin"` strategy.
+#   ans        A local variable holding an answer.
+ignore-words-list = dependant,nam,adres,ue,couldn,re-use,re-declaring,selectin,ans,oraz,jest,informacji
+
+# Lockfiles, generated code, uploaded media and the Polish message catalog are
+# not English prose. `messages/pl.json` in particular is a translation file:
+# every entry in it reads as a misspelling.
+skip = *.lock,*.min.js,*.svg,./site,./backend/media,./frontend/node_modules,./backend/.venv,./frontend/src/lib/mcp-logos.generated.ts,./frontend/messages/pl.json

@@ -28,7 +28,7 @@ from unittest.mock import MagicMock
 from uuid import UUID, uuid4
 
 import pytest
-from fastapi.routing import APIRoute, APIWebSocketRoute
+from fastapi.routing import APIRoute, APIWebSocketRoute, RouteContext, iter_route_contexts
 from httpx import ASGITransport, AsyncClient
 
 from app.api import deps
@@ -437,12 +437,31 @@ def _is_platform(tail: str) -> bool:
     return tail.startswith(_PLATFORM_PREFIXES)
 
 
-def _platform_routes() -> list[tuple[str, APIRoute]]:
+def _api_routes() -> Iterator[RouteContext]:
+    """Every route the app serves, each with its fully-prefixed path.
+
+    **Not** `for route in app.routes if isinstance(route, APIRoute)`. FastAPI
+    0.141 stopped flattening included routers into `app.routes`: what sits there
+    now is one `_IncludedRouter` wrapper per `include_router` call, so that
+    isinstance check matched *nothing* and every sweep in this file passed over
+    zero routes while reporting success. The failure was loud only because
+    `test_the_permission_table_has_no_stale_entries` compares in the other
+    direction and said all 38 gated routes had vanished.
+
+    `iter_route_contexts` is the public replacement. A `RouteContext` carries the
+    final `path` (prefixes applied, which is what these tests compare against)
+    and `original_route`, which is the `APIRoute` whose dependency tree the
+    permission sweeps read.
+    """
+    for context in iter_route_contexts(app.routes):
+        if isinstance(context.original_route, APIRoute):
+            yield context
+
+
+def _platform_routes() -> list[tuple[str, RouteContext]]:
     """Every (method, route) pair the platform layer serves."""
     found = []
-    for route in app.routes:
-        if not isinstance(route, APIRoute):
-            continue
+    for route in _api_routes():
         tail = route.path.removeprefix(settings.API_V1_STR)
         if not _is_platform(tail):
             continue
@@ -459,7 +478,7 @@ def _cell_values(call: Any) -> Iterator[Any]:
             continue
 
 
-def _required_permissions(route: APIRoute) -> frozenset[Perm]:
+def _required_permissions(route: RouteContext) -> frozenset[Perm]:
     """The permissions this route's dependency tree actually demands.
 
     Read out of the closure `require()` builds rather than off the source: a
@@ -467,7 +486,7 @@ def _required_permissions(route: APIRoute) -> frozenset[Perm]:
     exists to catch - is invisible to anything that reads the decorator.
     """
     required: set[Perm] = set()
-    pending = list(route.dependant.dependencies)
+    pending = list(route.original_route.dependant.dependencies)
     while pending:
         dependant = pending.pop()
         pending.extend(dependant.dependencies)
@@ -508,9 +527,9 @@ RESOURCE_AWARE_SERVICES = (
 )
 
 
-def _delegates_to_a_resource_service(route: APIRoute) -> bool:
+def _delegates_to_a_resource_service(route: RouteContext) -> bool:
     """Whether the route hands the decision to a service that can see the grants."""
-    pending = list(route.dependant.dependencies)
+    pending = list(route.original_route.dependant.dependencies)
     while pending:
         dependant = pending.pop()
         pending.extend(dependant.dependencies)
@@ -675,11 +694,9 @@ _AUTHENTICATED_CALLER_DEPS = (
 )
 
 
-def _public_routes() -> list[tuple[str, APIRoute]]:
+def _public_routes() -> list[tuple[str, RouteContext]]:
     found = []
-    for route in app.routes:
-        if not isinstance(route, APIRoute):
-            continue
+    for route in _api_routes():
         if not route.path.removeprefix(settings.API_V1_STR).startswith("/public"):
             continue
         for method in sorted(route.methods - {"HEAD", "OPTIONS"}):
@@ -687,8 +704,9 @@ def _public_routes() -> list[tuple[str, APIRoute]]:
     return found
 
 
-def _depends_on_a_caller(route: APIRoute | APIWebSocketRoute) -> bool:
-    pending = list(route.dependant.dependencies)
+def _depends_on_a_caller(route: RouteContext | APIWebSocketRoute) -> bool:
+    original = getattr(route, "original_route", route)
+    pending = list(original.dependant.dependencies)
     while pending:
         dependant = pending.pop()
         pending.extend(dependant.dependencies)
@@ -709,11 +727,12 @@ class TestLiteralPathsOutrankTheirParameters:
 
     @pytest.mark.parametrize("literal", ["capabilities", "mcp-catalog"])
     def test_the_catalogs_are_matched_before_the_agent_detail_route(self, literal: str) -> None:
+        # Declaration order is what matters here, and `iter_route_contexts`
+        # preserves it - which is the order Starlette matches in.
         paths = [
             route.path
-            for route in app.routes
-            if isinstance(route, APIRoute)
-            and route.path.startswith(f"{settings.API_V1_STR}/agents")
+            for route in _api_routes()
+            if route.path.startswith(f"{settings.API_V1_STR}/agents")
         ]
 
         assert paths.index(f"{settings.API_V1_STR}/agents/{literal}") < paths.index(
@@ -814,21 +833,42 @@ def _routes_with_dependencies() -> list[tuple[str, str]]:
     decorator.
     """
     found = []
-    for route in app.routes:
+    for context in iter_route_contexts(app.routes):
+        route = context.original_route
         if isinstance(route, APIRoute):
-            methods = sorted(route.methods - {"HEAD", "OPTIONS"})
+            methods = sorted(context.methods - {"HEAD", "OPTIONS"})
+            path = context.path
         elif isinstance(route, APIWebSocketRoute):
             methods = ["WEBSOCKET"]
+            # FastAPI 0.141 leaves `RouteContext.path` empty for a websocket, and
+            # `route.path` is the one the router was declared with - no include
+            # prefix. `url_path_for` is the public way to the served path; the
+            # placeholders go back in because these are compared as templates.
+            path = _websocket_path(route)
         else:  # openapi.json, /docs, /redoc - served by Starlette, not us
             continue
-        found.extend((method, route.path) for method in methods)
+        found.extend((method, path) for method in methods)
     return found
 
 
-def _unauthenticated_routes() -> list[tuple[str, str]]:
-    by_path = {
-        route.path: route for route in app.routes if isinstance(route, APIRoute | APIWebSocketRoute)
+def _websocket_path(route: APIWebSocketRoute) -> str:
+    """The full path a websocket route is served at, placeholders intact."""
+    # `_PATH_PARAM` matches include their braces, so the placeholder is the match
+    # itself and the keyword is that match without them.
+    params = {
+        placeholder.strip("{}"): placeholder for placeholder in _PATH_PARAM.findall(route.path)
     }
+    return str(app.url_path_for(route.name, **params))
+
+
+def _unauthenticated_routes() -> list[tuple[str, str]]:
+    by_path: dict[str, Any] = {}
+    for context in iter_route_contexts(app.routes):
+        route = context.original_route
+        if isinstance(route, APIRoute):
+            by_path[context.path] = context
+        elif isinstance(route, APIWebSocketRoute):
+            by_path[_websocket_path(route)] = route
     return [
         (method, path)
         for method, path in _routes_with_dependencies()

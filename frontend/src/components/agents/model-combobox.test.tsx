@@ -88,4 +88,48 @@ describe("the model combobox", () => {
 
     expect(screen.getByText("1M ctx")).toBeInTheDocument();
   });
+
+  it("reads a small context window in thousands, and a fractional one to one place", async () => {
+    // `1048576` is not a number anybody reads, and neither is `1.048576M`.
+    mount({ options: [{ id: "m", name: "M", context_length: 8_192 }], value: "m" });
+    expect(screen.getByText("8K ctx")).toBeInTheDocument();
+  });
+
+  it("reads a context window smaller than a thousand as itself", () => {
+    mount({ options: [{ id: "m", name: "M", context_length: 512 }], value: "m" });
+    expect(screen.getByText("512 ctx")).toBeInTheDocument();
+  });
+
+  it("says nothing about a context window the provider did not publish", () => {
+    // Zero and null both mean "unknown" here; printing "0 ctx" would read as a
+    // model that can hold nothing.
+    mount({ options: [{ id: "m", name: "M", context_length: 0 }], value: "m" });
+    expect(screen.queryByText(/ctx/)).toBeNull();
+  });
+
+  it("says a provider publishes no list rather than showing an empty dropdown", async () => {
+    mount({ options: [], source: "live" });
+
+    await userEvent.click(screen.getByRole("combobox"));
+
+    expect(screen.getByText(/publishes no list here/)).toBeInTheDocument();
+  });
+
+  it("says the catalog is still being read", async () => {
+    mount({ options: [], loading: true });
+
+    await userEvent.click(screen.getByRole("combobox"));
+
+    expect(screen.getByText("Reading the catalog…")).toBeInTheDocument();
+  });
+
+  it("hands back the id of the model that was picked", async () => {
+    // The name is what somebody searched on; the id is what the spec stores.
+    const { onChange } = mount();
+
+    await userEvent.click(screen.getByRole("combobox"));
+    await userEvent.click(screen.getByText("Claude Opus 5"));
+
+    expect(onChange).toHaveBeenCalledWith("anthropic/claude-opus-5");
+  });
 });

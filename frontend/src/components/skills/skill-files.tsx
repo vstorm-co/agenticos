@@ -228,7 +228,8 @@ export function FileViewer({
   content: string;
   loading?: boolean;
   canEdit: boolean;
-  onChange: (next: string) => void;
+  /** Absent for a read-only viewer - there is nothing for it to be called with. */
+  onChange?: (next: string) => void;
   onDelete?: () => void;
   footer?: React.ReactNode;
   /** Anything the owner wants above the content - the body's own fields. */
@@ -271,7 +272,7 @@ export function FileViewer({
           // tall panel leaves the text in a letterbox with dead space under it.
           <Textarea
             value={content}
-            onChange={(event) => onChange(event.target.value)}
+            onChange={(event) => onChange?.(event.target.value)}
             readOnly={!canEdit}
             className="h-full min-h-[16rem] resize-none font-mono text-xs"
             aria-label={`${name} source`}
@@ -354,7 +355,8 @@ export function UploadButton({
   icon?: typeof Upload;
   label: string;
   directory?: boolean;
-  onPick: (files: FileList | null) => void;
+  /** Always a list, never a `FileList | null` - the conversion happens once, here. */
+  onPick: (files: File[]) => void;
 }) {
   return (
     // Shaped like the Button beside it rather than approximately like it: a
@@ -370,7 +372,7 @@ export function UploadButton({
         {...(directory ? ({ webkitdirectory: "" } as Record<string, string>) : {})}
         className="hidden"
         onChange={(event) => {
-          onPick(event.target.files);
+          onPick(Array.from(event.target.files ?? []));
           event.target.value = "";
         }}
       />

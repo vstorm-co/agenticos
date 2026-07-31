@@ -9,14 +9,22 @@ on:
   pull_request:
     branches: [main, master, dev]
 
+# Least privilege for every job. Nothing in this workflow writes anything back:
+# the docker job builds with `push: false`, and Codecov uses its own token. A
+# job that later needs more should declare it on itself, not here.
+permissions:
+  contents: read
+
 jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4
         with:
           version: "latest"
 
@@ -40,16 +48,16 @@ jobs:
       - name: Check for double backticks
         run: python3 scripts/check_backticks.py
 
-      # The step that used to sit here ran the entire test suite - with no
-      # database, in the lint job - to grep its output for `module-not-imported`.
-      # That warning belongs to `[tool.coverage.run] source`, and this config
-      # selects with `include`, which never emits it: the check could not fail,
-      # and it cost a full suite run to prove nothing.
-      #
-      # `tests/test_coverage_gate.py` asserts what it was reaching for, properly:
-      # every include pattern matches a real file, every platform module is
-      # gated, and the `[[tool.ty.overrides]]` list has not drifted from it. It
-      # runs in the `test` job, where a database exists.
+    # The step that used to sit here ran the entire test suite - with no
+    # database, in the lint job - to grep its output for `module-not-imported`.
+    # That warning belongs to `[tool.coverage.run] source`, and this config
+    # selects with `include`, which never emits it: the check could not fail,
+    # and it cost a full suite run to prove nothing.
+    #
+    # `tests/test_coverage_gate.py` asserts what it was reaching for, properly:
+    # every include pattern matches a real file, every platform module is
+    # gated, and the `[[tool.ty.overrides]]` list has not drifted from it. It
+    # runs in the `test` job, where a database exists.
 
   test:
     runs-on: ubuntu-latest
@@ -83,10 +91,12 @@ jobs:
           --health-retries 5
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4
         with:
           version: "latest"
 
@@ -154,7 +164,7 @@ jobs:
           REDIS_PORT: 6379
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@b9fd7d16f6d7d1b5d2bec1a2887e65ceed900238 # v4
         with:
           files: ./backend/coverage.xml
           fail_ci_if_error: false
@@ -162,10 +172,12 @@ jobs:
   test-frontend:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -245,10 +257,12 @@ jobs:
       NEXT_PUBLIC_WS_URL: ws://localhost:8000
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4
         with:
           version: "latest"
 
@@ -296,7 +310,7 @@ jobs:
           exit 1
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
 
       - name: Install frontend dependencies
         run: bun install --frozen-lockfile
@@ -323,11 +337,16 @@ jobs:
           CI: true
           # The full journey needs a real provider key to be worth running; it
           # skips itself without one rather than asserting against a fake.
-          E2E_PROVIDER_API_KEY: ${{ secrets.E2E_PROVIDER_API_KEY }}
+          #
+          # A dedicated GitHub Environment would gate this behind an approval, and
+          # the point of the key is that CI uses it unattended. The workflow never
+          # runs on `pull_request_target`, so a fork PR cannot reach this step with
+          # the secret in scope.
+          E2E_PROVIDER_API_KEY: ${{ secrets.E2E_PROVIDER_API_KEY }} # zizmor: ignore[secrets-outside-env]
 
       - name: Upload the Playwright report when a journey fails
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: playwright-report
           path: frontend/playwright-report/
@@ -342,10 +361,12 @@ jobs:
     name: Security Scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4
         with:
           version: "latest"
 
@@ -378,10 +399,12 @@ jobs:
   docs:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4
         with:
           version: "latest"
 
@@ -405,13 +428,15 @@ jobs:
     needs: [lint, test]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
       - name: Build Docker image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: ./backend
           push: false
@@ -421,7 +446,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: agenticos:latest
           format: table

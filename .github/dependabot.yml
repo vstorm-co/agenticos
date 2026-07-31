@@ -1,0 +1,86 @@
+# Dependency updates.
+#
+# The four frameworks this platform is built out of - FastAPI, Pydantic AI,
+# Logfire and genai-prices - are grouped and scheduled weekly on their own, apart
+# from everything else. They move fast, this codebase is meant to track them, and
+# genai-prices *is* the model price snapshot: an old one means budgets computed
+# from stale prices, which is a correctness bug rather than a maintenance chore.
+#
+# Everything else batches monthly. A PR per patch bump to a transitive
+# dependency is a PR nobody reads.
+#
+# `framework-freshness.yml` runs the same upgrade on a schedule and reports what
+# breaks, so a red Dependabot PR is rarely the first anyone hears of it.
+
+version: 2
+
+updates:
+  # No cooldown here, deliberately. A cooldown is per-ecosystem rather than
+  # per-group, so any delay on `uv` also delays the four frameworks it groups - and
+  # a stale `genai-prices` means budgets computed from stale prices, which is a
+  # correctness bug rather than a maintenance chore. The freshness workflow is
+  # what covers the risk a cooldown would: it runs the same upgrade on a
+  # schedule and reports what breaks.
+  - package-ecosystem: uv # zizmor: ignore[dependabot-cooldown]
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: [dependencies, backend]
+    groups:
+      agent-frameworks:
+        applies-to: version-updates
+        patterns:
+          - fastapi
+          - pydantic-ai-slim
+          - pydantic-ai-skills
+          - pydantic-graph
+          - logfire
+          - genai-prices
+      backend-everything-else:
+        applies-to: version-updates
+        patterns: ["*"]
+        exclude-patterns:
+          - fastapi
+          - pydantic-ai-slim
+          - pydantic-ai-skills
+          - pydantic-graph
+          - logfire
+          - genai-prices
+        update-types: [minor, patch]
+
+  # A week before a release is offered. Nothing here is read the day it lands, so
+  # the delay costs nothing and skips the versions that get yanked within hours.
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    labels: [dependencies, frontend]
+    groups:
+      next:
+        applies-to: version-updates
+        patterns: [next, react, react-dom, "@types/react", "@types/react-dom"]
+      frontend-everything-else:
+        applies-to: version-updates
+        patterns: ["*"]
+        exclude-patterns: [next, react, react-dom, "@types/react", "@types/react-dom"]
+        update-types: [minor, patch]
+    cooldown:
+      default-days: 7
+
+  # The workflows pin every action to a commit SHA, which is what makes this
+  # entry necessary rather than optional: a SHA never floats to a security fix on
+  # its own. Dependabot rewrites the SHA and keeps the `# vN` comment in step.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    labels: [dependencies, ci]
+    groups:
+      actions:
+        applies-to: version-updates
+        patterns: ["*"]
+    cooldown:
+      default-days: 7

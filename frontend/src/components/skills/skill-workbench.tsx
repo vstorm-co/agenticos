@@ -88,9 +88,9 @@ export function SkillWorkbench({
     enabled !== skill.enabled ||
     editedCategory !== skill.category;
 
-  const upload = async (list: FileList | null) => {
-    if (!list || list.length === 0) return;
-    await uploadResources.mutateAsync(Array.from(list)).catch(() => null);
+  const upload = async (picked: File[]) => {
+    if (picked.length === 0) return;
+    await uploadResources.mutateAsync(picked).catch(() => null);
   };
 
   return (

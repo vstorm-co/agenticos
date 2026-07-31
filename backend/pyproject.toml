@@ -9,7 +9,14 @@ authors = [
 ]
 
 dependencies = [
-    "fastapi>=0.135.3,<0.137",
+    # Uncapped on purpose. FastAPI, Pydantic AI, Logfire and genai-prices track
+    # the newest release: this platform's whole subject matter moves at their
+    # pace, and genai-prices in particular *is* the model price snapshot, so an
+    # old one means budgets computed from stale prices. `make deps-upgrade`
+    # bumps them, the `framework-freshness` workflow tries the latest on a
+    # schedule, and Dependabot opens the PR. A cap here (it was `<0.137`) turns
+    # all three into no-ops.
+    "fastapi>=0.135.3",
     "uvicorn[standard]>=0.43.0",
     "pydantic[email]>=2.12.0",
     "pydantic-settings>=2.14.2",

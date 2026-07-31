@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -194,6 +194,19 @@ describe("an existing widget", () => {
     expect(within(dialog).getByText(/cannot be reissued/)).toBeInTheDocument();
   });
 
+  it("keeps the widget when the warning is dismissed", async () => {
+    // The key cannot be reissued, so the way out of this dialog has to be a way
+    // out - not a confirm with a different label.
+    state.embeds = [embed()];
+    render(<EmbedsPanel agentId="a-1" canManage />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Remove Website widget" }));
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(state.remove.mutateAsync).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
   it("removes the widget once the warning is accepted", async () => {
     state.embeds = [embed()];
     render(<EmbedsPanel agentId="a-1" canManage />);
@@ -331,6 +344,22 @@ describe("publishing a new widget", () => {
 
     const [payload] = state.create.mutate.mock.calls.at(-1)!;
     expect(payload.theme.accent).toBe("#ff0000");
+  });
+
+  it("takes the accent from the swatch as well as from the field", async () => {
+    // Two controls, one value: a colour picked from the swatch and a hex typed
+    // into the field have to reach the same place, or the widget publishes with
+    // whichever one the form happened to read.
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await openTheForm();
+
+    const swatch = document.getElementById("embed-accent") as HTMLInputElement;
+    fireEvent.change(swatch, { target: { value: "#00ff00" } });
+    await userEvent.type(screen.getByLabelText("Allowed sites"), "https://acme.com");
+    await userEvent.click(screen.getByRole("button", { name: "Publish widget" }));
+
+    const [payload] = state.create.mutate.mock.calls.at(-1)!;
+    expect(payload.theme.accent).toBe("#00ff00");
   });
 
   it("abandons the form on cancel", async () => {

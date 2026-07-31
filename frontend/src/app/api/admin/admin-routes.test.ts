@@ -1,0 +1,346 @@
+/**
+ * @vitest-environment node
+ *
+ * These are server routes. The suite's default environment is jsdom, where
+ * `request.formData()` never resolves - the multipart parser wants a real
+ * stream - and running route handlers in a browser-shaped global is a lie about
+ * where they execute anyway.
+ */
+import { NextRequest } from "next/server";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { GET as conversationDetail } from "./conversations/[id]/route";
+import { GET as conversations } from "./conversations/route";
+import { GET as conversationUsers } from "./conversations/users/route";
+import { GET as organizations } from "./organizations/route";
+import { GET as ratingsExport } from "./ratings/export/route";
+import { GET as ratings } from "./ratings/route";
+import { GET as ratingsSummary } from "./ratings/summary/route";
+import { GET as stats } from "./stats/route";
+import { GET as system } from "./system/route";
+import { GET as getUser, PATCH as patchUser, DELETE as deleteUser } from "./users/[userId]/route";
+import { POST as impersonate } from "./users/[userId]/impersonate/route";
+import { GET as users } from "./users/route";
+import { requireAdmin } from "@/lib/admin-auth";
+import { BackendApiError, backendFetch } from "@/lib/server-api";
+
+vi.mock("@/lib/admin-auth", () => ({ requireAdmin: vi.fn() }));
+vi.mock("@/lib/server-api", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/server-api")>("@/lib/server-api");
+  return { ...actual, backendFetch: vi.fn() };
+});
+
+function request(url = "http://localhost:3000/api/admin/users", body?: unknown): NextRequest {
+  return new NextRequest(url, {
+    ...(body === undefined ? {} : { method: "PATCH", body: JSON.stringify(body) }),
+  });
+}
+
+/** The path the route forwarded to. */
+function forwarded(nth = 0): string {
+  return vi.mocked(backendFetch).mock.calls[nth]![0] as string;
+}
+
+/**
+ * Every route on this list, with a call that should reach the backend.
+ *
+ * The gate is what is being asserted, not the payload: each of these is behind
+ * `is_app_admin`, and a route that forgot to ask would expose the whole
+ * deployment's users, conversations and ratings to any signed-in member.
+ */
+const GUARDED: [string, () => Promise<Response>][] = [
+  ["conversations", () => conversations(request())],
+  [
+    "one conversation",
+    () => conversationDetail(request(), { params: Promise.resolve({ id: "c-1" }) }),
+  ],
+  ["conversation owners", () => conversationUsers(request())],
+  ["organizations", () => organizations(request())],
+  ["ratings", () => ratings(request())],
+  ["a ratings export", () => ratingsExport(request())],
+  ["a ratings summary", () => ratingsSummary(request())],
+  ["stats", () => stats(request())],
+  ["system", () => system(request())],
+  ["users", () => users(request())],
+  [
+    "reading one user",
+    () =>
+      getUser(request("http://localhost:3000/api/admin/users/u-1"), {
+        params: Promise.resolve({ userId: "u-1" }),
+      }),
+  ],
+  [
+    "a user edit",
+    () =>
+      patchUser(request("http://localhost:3000/api/admin/users/u-1", { is_active: false }), {
+        params: Promise.resolve({ userId: "u-1" }),
+      }),
+  ],
+  [
+    "a user deletion",
+    () =>
+      deleteUser(request("http://localhost:3000/api/admin/users/u-1"), {
+        params: Promise.resolve({ userId: "u-1" }),
+      }),
+  ],
+  [
+    "an impersonation",
+    () =>
+      impersonate(request("http://localhost:3000/api/admin/users/u-1/impersonate"), {
+        params: Promise.resolve({ userId: "u-1" }),
+      }),
+  ],
+];
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.mocked(requireAdmin).mockResolvedValue({ accessToken: "at" });
+  vi.mocked(backendFetch).mockResolvedValue({ items: [], total: 0 });
+});
+
+/**
+ * The deployment-admin routes.
+ *
+ * There is one rule here and it is the only one that matters: every route asks
+ * `requireAdmin` first, and answers with whatever that refuses with. The check
+ * is a round trip to the backend's own `/auth/me` rather than anything read off
+ * the request, because the cookie is the only thing the browser controls.
+ *
+ * The rest is forwarding. What is worth pinning about the forwarding is the
+ * query string: these screens are paged and filtered, and a dropped parameter
+ * shows the whole table under a heading that says it is filtered.
+ */
+describe("the admin gate", () => {
+  it.each(GUARDED)("guards %s", async (_name, call) => {
+    const refusal = new Response(JSON.stringify({ detail: "Forbidden" }), { status: 403 });
+    vi.mocked(requireAdmin).mockResolvedValue({
+      error: refusal as unknown as Awaited<ReturnType<typeof requireAdmin>> extends {
+        error: infer E;
+      }
+        ? E
+        : never,
+    } as Awaited<ReturnType<typeof requireAdmin>>);
+
+    const response = await call();
+
+    expect(response.status).toBe(403);
+    expect(backendFetch).not.toHaveBeenCalled();
+  });
+
+  it.each(GUARDED)("forwards %s with the admin's own token", async (_name, call) => {
+    await call();
+
+    expect(backendFetch).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(backendFetch).mock.calls[0]![1]).toMatchObject({
+      headers: expect.objectContaining({ Authorization: "Bearer at" }),
+    });
+  });
+
+  it.each(GUARDED)("answers 500 when %s could not be forwarded", async (_name, call) => {
+    vi.mocked(backendFetch).mockRejectedValue(new Error("ECONNREFUSED"));
+
+    const response = await call();
+
+    expect(response.status).toBe(500);
+  });
+
+  it.each(GUARDED)("passes the backend's own refusal of %s through", async (_name, call) => {
+    vi.mocked(backendFetch).mockRejectedValue(new BackendApiError(409, "Conflict", null));
+
+    const response = await call();
+
+    expect(response.status).toBe(409);
+  });
+});
+
+describe("what the admin screens filter on", () => {
+  it("carries every conversation filter, and drops the ones nobody set", async () => {
+    await conversations(
+      request(
+        "http://localhost:3000/api/admin/conversations?skip=20&limit=10&search=refund&user_id=u-1&agent_id=a-1&status=archived&sort_by=updated_at&sort_dir=asc",
+      ),
+    );
+
+    const path = forwarded();
+    for (const expected of [
+      "skip=20",
+      "limit=10",
+      "search=refund",
+      "user_id=u-1",
+      "agent_id=a-1",
+      "status=archived",
+      "sort_by=updated_at",
+      "sort_dir=asc",
+    ]) {
+      expect(path).toContain(expected);
+    }
+  });
+
+  it("forwards nothing at all when nothing was filtered", async () => {
+    await conversations(request("http://localhost:3000/api/admin/conversations"));
+
+    expect(forwarded()).toBe("/api/v1/admin/conversations");
+  });
+
+  it("carries the conversation-owner filters", async () => {
+    await conversationUsers(
+      request("http://localhost:3000/api/admin/conversations/users?search=kacper&limit=5"),
+    );
+
+    expect(forwarded()).toContain("search=kacper");
+    expect(forwarded()).toContain("limit=5");
+  });
+
+  it("addresses one conversation by id", async () => {
+    await conversationDetail(request(), { params: Promise.resolve({ id: "c-9" }) });
+
+    expect(forwarded()).toBe("/api/v1/admin/conversations/c-9");
+  });
+
+  it("carries the user-list filters", async () => {
+    await users(
+      request("http://localhost:3000/api/admin/users?skip=50&limit=25&search=a&sort_by=email"),
+    );
+
+    expect(forwarded()).toContain("skip=50");
+    expect(forwarded()).toContain("search=a");
+  });
+
+  it("pages the ratings list, with defaults when the screen sent none", async () => {
+    await ratings(request("http://localhost:3000/api/admin/ratings"));
+
+    expect(forwarded()).toContain("skip=0");
+    expect(forwarded()).toContain("limit=50");
+  });
+
+  it("carries the ratings filters, including the comments-only flag", async () => {
+    await ratings(
+      request(
+        "http://localhost:3000/api/admin/ratings?skip=10&limit=5&rating_filter=down&with_comments_only=true",
+      ),
+    );
+
+    expect(forwarded()).toContain("rating_filter=down");
+    expect(forwarded()).toContain("with_comments_only=true");
+  });
+
+  it("defaults the summary window rather than asking for all of history", async () => {
+    await ratingsSummary(request("http://localhost:3000/api/admin/ratings/summary"));
+    expect(forwarded()).toBe("/api/v1/admin/ratings/summary?days=30");
+
+    vi.mocked(backendFetch).mockClear();
+    await ratingsSummary(request("http://localhost:3000/api/admin/ratings/summary?days=7"));
+    expect(forwarded()).toBe("/api/v1/admin/ratings/summary?days=7");
+  });
+
+  it("passes the organization search through as it stands", async () => {
+    await organizations(request("http://localhost:3000/api/admin/organizations?search=acme"));
+
+    expect(forwarded()).toBe("/api/v1/admin/organizations?search=acme");
+  });
+});
+
+describe("acting on one user", () => {
+  it("reads that user by id", async () => {
+    vi.mocked(backendFetch).mockResolvedValue({ id: "u-1", email: "kacper@example.com" });
+
+    const response = await getUser(request("http://localhost:3000/api/admin/users/u-1"), {
+      params: Promise.resolve({ userId: "u-1" }),
+    });
+
+    expect(forwarded()).toBe("/api/v1/admin/users/u-1");
+    await expect(response.json()).resolves.toMatchObject({ id: "u-1" });
+  });
+
+  it("sends the edit to that user's endpoint", async () => {
+    vi.mocked(backendFetch).mockResolvedValue({ id: "u-1", is_active: false });
+
+    const response = await patchUser(
+      request("http://localhost:3000/api/admin/users/u-1", { is_active: false }),
+      { params: Promise.resolve({ userId: "u-1" }) },
+    );
+
+    expect(forwarded()).toBe("/api/v1/admin/users/u-1");
+    expect(vi.mocked(backendFetch).mock.calls[0]![1]).toMatchObject({
+      method: "PATCH",
+      body: JSON.stringify({ is_active: false }),
+    });
+    expect(response.status).toBe(200);
+  });
+
+  it("deletes that user and answers with no content", async () => {
+    vi.mocked(backendFetch).mockResolvedValue(null);
+
+    const response = await deleteUser(request("http://localhost:3000/api/admin/users/u-1"), {
+      params: Promise.resolve({ userId: "u-1" }),
+    });
+
+    expect(vi.mocked(backendFetch).mock.calls[0]![1]).toMatchObject({ method: "DELETE" });
+    expect(response.status).toBe(204);
+  });
+
+  it("mints an impersonation token on that user's own endpoint", async () => {
+    // The most privileged action in the product: it hands back a token that acts
+    // as somebody else.
+    vi.mocked(backendFetch).mockResolvedValue({ access_token: "imp" });
+
+    const response = await impersonate(
+      request("http://localhost:3000/api/admin/users/u-1/impersonate"),
+      { params: Promise.resolve({ userId: "u-1" }) },
+    );
+
+    expect(forwarded()).toBe("/api/v1/admin/users/u-1/impersonate");
+    await expect(response.json()).resolves.toMatchObject({ access_token: "imp" });
+  });
+});
+
+describe("exporting the ratings", () => {
+  it("asks for a CSV as raw text, and answers with it as a download", async () => {
+    // Re-serializing a CSV through `NextResponse.json` is not a CSV, so the
+    // format decides both how the body is read and how it is sent back.
+    vi.mocked(backendFetch).mockResolvedValue("rating,comment\nup,good");
+
+    const response = await ratingsExport(
+      request("http://localhost:3000/api/admin/ratings/export?export_format=csv"),
+    );
+
+    expect(vi.mocked(backendFetch).mock.calls[0]![1]).toMatchObject({ raw: true });
+    expect(response.headers.get("content-type")).toBe("text/csv");
+    expect(response.headers.get("content-disposition")).toMatch(
+      /attachment; filename="ratings_export_\d{4}-\d{2}-\d{2}\.csv"/,
+    );
+    await expect(response.text()).resolves.toContain("rating,comment");
+  });
+
+  it("answers JSON as JSON, still as a download", async () => {
+    vi.mocked(backendFetch).mockResolvedValue({ items: [] });
+
+    const response = await ratingsExport(request("http://localhost:3000/api/admin/ratings/export"));
+
+    expect(vi.mocked(backendFetch).mock.calls[0]![1]).toMatchObject({ raw: false });
+    expect(response.headers.get("content-disposition")).toContain(".json");
+  });
+
+  it("takes only the two formats it can produce", async () => {
+    // A format nobody implemented would be forwarded verbatim and answered with
+    // whatever the backend did with it.
+    await ratingsExport(
+      request("http://localhost:3000/api/admin/ratings/export?export_format=xlsx"),
+    );
+
+    expect(forwarded()).toContain("export_format=json");
+  });
+
+  it("carries the same filters as the list it exports", async () => {
+    // An export that ignored the filters would quietly hand somebody the whole
+    // table under a filtered heading.
+    await ratingsExport(
+      request(
+        "http://localhost:3000/api/admin/ratings/export?export_format=csv&rating_filter=down&with_comments_only=true",
+      ),
+    );
+
+    expect(forwarded()).toContain("rating_filter=down");
+    expect(forwarded()).toContain("with_comments_only=true");
+  });
+});

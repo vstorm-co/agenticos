@@ -185,26 +185,19 @@ function IconAction({
   icon: Icon,
   label,
   href,
-  onClick,
 }: {
   icon: LucideIcon;
   label: string;
-  href?: string;
-  onClick?: () => void;
+  href: string;
 }) {
-  const className =
-    "text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors outline-none focus-visible:ring-2";
-
-  if (href) {
-    return (
-      <Link href={href} aria-label={label} title={label} className={className}>
-        <Icon className="h-4 w-4" />
-      </Link>
-    );
-  }
   return (
-    <button type="button" aria-label={label} title={label} onClick={onClick} className={className}>
+    <Link
+      href={href}
+      aria-label={label}
+      title={label}
+      className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors outline-none focus-visible:ring-2"
+    >
       <Icon className="h-4 w-4" />
-    </button>
+    </Link>
   );
 }

@@ -7,18 +7,26 @@ import type { OrganizationMember } from "@/types";
 
 const shareConversation = vi.fn();
 const fetchShares = vi.fn();
+const revokeShare = vi.fn();
 const listedMembers = vi.fn<() => OrganizationMember[]>(() => []);
+const listedShares = vi.fn<() => Record<string, unknown>[]>(() => []);
 
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/hooks", () => ({
   useConversationShares: () => ({
-    shares: [],
+    shares: listedShares(),
     isLoading: false,
     shareConversation,
     fetchShares,
-    revokeShare: vi.fn(),
+    revokeShare,
   }),
   useMembers: () => ({ members: listedMembers() }),
+}));
+// Imported by its own path rather than through the barrel, so it is mocked by
+// that path too.
+vi.mock("@/hooks/use-copy-to-clipboard", () => ({
+  useCopyToClipboard: () => ({ copy: copySpy, copied: false }),
 }));
 vi.mock("@/stores", () => ({
   useOrgStore: (pick: (state: unknown) => unknown) => pick({ activeOrgId: "org-1" }),
@@ -41,6 +49,8 @@ const MEMBERS: OrganizationMember[] = [
   member("u2", "nina@example.com", "Nina Vale"),
 ];
 
+const copySpy = vi.fn(async () => true);
+
 function renderDialog() {
   render(<ShareDialog conversationId="c1" open onOpenChange={vi.fn()} />);
 }
@@ -48,6 +58,9 @@ function renderDialog() {
 beforeEach(() => {
   vi.clearAllMocks();
   listedMembers.mockReturnValue(MEMBERS);
+  listedShares.mockReturnValue([]);
+  shareConversation.mockResolvedValue({ id: "s-1" });
+  revokeShare.mockResolvedValue(undefined);
 });
 
 describe("matchingMembers", () => {
@@ -113,5 +126,206 @@ describe("the share dialog", () => {
       shared_with_email: "nina@example.com",
       permission: "view",
     });
+  });
+});
+
+describe("sharing a conversation", () => {
+  it("reads who it is already shared with, when it opens", () => {
+    // The dialog is the only place a share can be revoked, so it has to know
+    // about the ones that exist.
+    renderDialog();
+
+    expect(fetchShares).toHaveBeenCalledWith("c1");
+  });
+
+  it("reads nothing for a conversation the server has not saved yet", () => {
+    render(<ShareDialog conversationId="" open onOpenChange={vi.fn()} />);
+
+    expect(fetchShares).not.toHaveBeenCalled();
+  });
+
+  it("reads nothing while it is closed", () => {
+    render(<ShareDialog conversationId="c1" open={false} onOpenChange={vi.fn()} />);
+
+    expect(fetchShares).not.toHaveBeenCalled();
+  });
+
+  it("shares at the access level that was chosen", async () => {
+    // View and edit are different grants; defaulting to edit would hand somebody
+    // more than was asked for.
+    renderDialog();
+    await userEvent.type(screen.getByLabelText("memberEmail"), "sam@example.com");
+    await userEvent.click(screen.getByRole("combobox"));
+    await userEvent.click(screen.getByRole("option", { name: "Edit" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Share conversation" }));
+
+    expect(shareConversation).toHaveBeenCalledWith("c1", {
+      shared_with_email: "sam@example.com",
+      permission: "edit",
+    });
+  });
+
+  it("shares with view access unless told otherwise", async () => {
+    renderDialog();
+    await userEvent.type(screen.getByLabelText("memberEmail"), "sam@example.com");
+
+    await userEvent.click(screen.getByRole("button", { name: "Share conversation" }));
+
+    expect(shareConversation).toHaveBeenCalledWith("c1", {
+      shared_with_email: "sam@example.com",
+      permission: "view",
+    });
+  });
+
+  it("empties the field on success, so the next share starts clean", async () => {
+    const { toast } = await import("sonner");
+    renderDialog();
+    await userEvent.type(screen.getByLabelText("memberEmail"), "sam@example.com");
+
+    await userEvent.click(screen.getByRole("button", { name: "Share conversation" }));
+
+    expect(screen.getByLabelText("memberEmail")).toHaveValue("");
+    expect(toast.success).toHaveBeenCalledWith("conversationShared");
+  });
+
+  it("keeps what was typed when the share is refused, and says why", async () => {
+    // "That person is not in this organization" is worth reading beside the
+    // address that produced it.
+    const { toast } = await import("sonner");
+    shareConversation.mockRejectedValue(new Error("Not in this organization"));
+    renderDialog();
+    await userEvent.type(screen.getByLabelText("memberEmail"), "outsider@example.com");
+
+    await userEvent.click(screen.getByRole("button", { name: "Share conversation" }));
+
+    expect(toast.error).toHaveBeenCalledWith("Not in this organization");
+    expect(screen.getByLabelText("memberEmail")).toHaveValue("outsider@example.com");
+  });
+
+  it("shares with nobody when the field is empty", async () => {
+    renderDialog();
+
+    await userEvent.click(screen.getByRole("button", { name: "Share conversation" }));
+
+    expect(shareConversation).not.toHaveBeenCalled();
+  });
+});
+
+describe("sharing by link", () => {
+  it("builds the link from the token the server minted", async () => {
+    // Only the server can mint one, and only this response carries it.
+    const { toast } = await import("sonner");
+    shareConversation.mockResolvedValue({ id: "s-1", share_token: "tok-123" });
+    renderDialog();
+
+    await userEvent.click(screen.getByRole("button", { name: /generateShareLink/ }));
+
+    expect(shareConversation).toHaveBeenCalledWith("c1", {
+      generate_link: true,
+      permission: "view",
+    });
+    expect(screen.getByText(`${window.location.origin}/shared/tok-123`)).toBeInTheDocument();
+    expect(toast.success).toHaveBeenCalledWith("linkGenerated");
+  });
+
+  it("offers a copy only once there is a link to copy", async () => {
+    shareConversation.mockResolvedValue({ id: "s-1", share_token: "tok-123" });
+    renderDialog();
+    expect(screen.queryByRole("button", { name: "Copy share link" })).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: /generateShareLink/ }));
+    const copyButton = await screen.findByRole("button", { name: "Copy share link" });
+    await userEvent.click(copyButton);
+
+    expect(copySpy).toHaveBeenCalledWith(`${window.location.origin}/shared/tok-123`);
+  });
+
+  it("shows nothing when the server answered without a token", async () => {
+    // A response with no token is not a link; showing the origin alone would be a
+    // link to the app's front page.
+    shareConversation.mockResolvedValue({ id: "s-1" });
+    renderDialog();
+
+    await userEvent.click(screen.getByRole("button", { name: /generateShareLink/ }));
+
+    expect(screen.queryByRole("button", { name: "Copy share link" })).toBeNull();
+  });
+
+  it("says why a link could not be minted", async () => {
+    const { toast } = await import("sonner");
+    shareConversation.mockRejectedValue(new Error("Link sharing is off for this organization"));
+    renderDialog();
+
+    await userEvent.click(screen.getByRole("button", { name: /generateShareLink/ }));
+
+    expect(toast.error).toHaveBeenCalledWith("Link sharing is off for this organization");
+  });
+
+  it("carries the chosen access level into the link", async () => {
+    shareConversation.mockResolvedValue({ id: "s-1", share_token: "tok" });
+    renderDialog();
+    await userEvent.click(screen.getByRole("combobox"));
+    await userEvent.click(screen.getByRole("option", { name: "Edit" }));
+
+    await userEvent.click(screen.getByRole("button", { name: /generateShareLink/ }));
+
+    expect(shareConversation).toHaveBeenCalledWith("c1", {
+      generate_link: true,
+      permission: "edit",
+    });
+  });
+});
+
+describe("who it is shared with", () => {
+  it("lists each share by name, level, and whether it is a link", () => {
+    listedShares.mockReturnValue([
+      { id: "s-1", shared_with_email: "sam@example.com", permission: "view" },
+      { id: "s-2", share_token: "tok", permission: "edit" },
+      { id: "s-3", shared_with: "u-9", permission: "view" },
+    ]);
+    renderDialog();
+
+    expect(screen.getByText("sam@example.com")).toBeInTheDocument();
+    // A link share has no address, so it is named "Link" *and* badged as one.
+    expect(screen.getAllByText("Link")).toHaveLength(2);
+    // A share the server could only resolve to a user id is shown by that id
+    // rather than dropped.
+    expect(screen.getByText("u-9")).toBeInTheDocument();
+    expect(screen.getByText("edit")).toBeInTheDocument();
+  });
+
+  it("says nothing at all when it is shared with nobody", () => {
+    renderDialog();
+
+    expect(screen.queryByText("sharedWith")).toBeNull();
+  });
+
+  it("revokes the share whose button was pressed", async () => {
+    const { toast } = await import("sonner");
+    listedShares.mockReturnValue([
+      { id: "s-1", shared_with_email: "sam@example.com", permission: "view" },
+      { id: "s-2", shared_with_email: "nina@example.com", permission: "view" },
+    ]);
+    renderDialog();
+
+    const [, second] = screen.getAllByRole("button", { name: "revokeAccess" });
+    await userEvent.click(second!);
+
+    expect(revokeShare).toHaveBeenCalledWith("c1", "s-2");
+    expect(toast.success).toHaveBeenCalledWith("accessRevoked");
+  });
+
+  it("says why a revoke was refused", async () => {
+    const { toast } = await import("sonner");
+    revokeShare.mockRejectedValue(new Error("Not yours to revoke"));
+    listedShares.mockReturnValue([
+      { id: "s-1", shared_with_email: "sam@example.com", permission: "view" },
+    ]);
+    renderDialog();
+
+    await userEvent.click(screen.getByRole("button", { name: "revokeAccess" }));
+
+    expect(toast.error).toHaveBeenCalledWith("Not yours to revoke");
   });
 });

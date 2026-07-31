@@ -240,20 +240,11 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
                   <FilePlus className="h-3.5 w-3.5" />
                   New
                 </Button>
-                <UploadButton
-                  icon={Upload}
-                  label="Files"
-                  onPick={(list) => addFiles(Array.from(list ?? []))}
-                />
+                <UploadButton icon={Upload} label="Files" onPick={addFiles} />
                 {/* A directory picker sends every file with its relative path,
                     which is exactly the name a resource takes - so a dropped
                     folder arrives as a folder with nothing to reconstruct. */}
-                <UploadButton
-                  icon={Upload}
-                  label="Folder"
-                  directory
-                  onPick={(list) => addFiles(Array.from(list ?? []))}
-                />
+                <UploadButton icon={Upload} label="Folder" directory onPick={addFiles} />
               </div>
 
               <div className="min-h-0 flex-1 overflow-auto rounded-md border p-1">
@@ -409,7 +400,6 @@ function PendingFilePane({ file, onRemove }: { file: File; onRemove: () => void 
       content={text ?? ""}
       loading={text === null}
       canEdit={false}
-      onChange={() => undefined}
       footer={footer}
     />
   );

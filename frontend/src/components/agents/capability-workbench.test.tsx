@@ -195,6 +195,59 @@ describe("the capability workbench", () => {
 });
 
 describe("jsonSchemaType", () => {
+  it("searches the tools too, because that is what somebody is looking for", async () => {
+    // Nobody knows which capability owns `create_chart`, and the search box only
+    // appears once the list is long enough that scrolling it is worse.
+    const filler = Array.from({ length: 8 }, (_, index) => ({
+      ...SKILLS,
+      id: `filler-${index}`,
+      name: `Filler ${index}`,
+      category: "other",
+      tools: [],
+    }));
+    renderWorkbench({ catalog: [CHARTS, ...filler] });
+
+    await userEvent.type(screen.getByLabelText("Search capabilities…"), "create_chart");
+
+    expect(screen.getByRole("button", { name: /^Charts/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Filler 0/ })).toBeNull();
+  });
+
+  it("says nothing matched rather than showing an empty column", async () => {
+    const filler = Array.from({ length: 8 }, (_, index) => ({
+      ...SKILLS,
+      id: `filler-${index}`,
+      name: `Filler ${index}`,
+    }));
+    renderWorkbench({ catalog: [CHARTS, ...filler] });
+
+    await userEvent.type(screen.getByLabelText("Search capabilities…"), "zzz");
+
+    expect(screen.getByText(/No capability or tool matches/)).toBeInTheDocument();
+  });
+
+  it("says a capability with no tools changes how the agent runs", async () => {
+    // A blank line under the name would read as a capability that does nothing.
+    renderWorkbench({ catalog: [{ ...CHARTS, tools: [], contracts: [] }] });
+
+    expect(await screen.findByText("no tools - changes how it runs")).toBeInTheDocument();
+  });
+
+  it("marks a capability that acts on the world", async () => {
+    // The one fact that decides whether it needs an approval policy.
+    renderWorkbench({ catalog: [{ ...CHARTS, side_effecting: true }] });
+
+    expect(await screen.findByLabelText("acts on the world")).toBeInTheDocument();
+  });
+
+  it("renders nothing at all when the deployment has no capabilities", () => {
+    // Which happens while the catalog is still being fetched; an empty two-column
+    // grid with a search box reads as a broken panel.
+    const { container } = renderWorkbench({ catalog: [] });
+
+    expect(container).toBeEmptyDOMElement();
+  });
+
   it("reads a plain type", () => {
     expect(jsonSchemaType({ type: "string" })).toBe("string");
   });
@@ -211,6 +264,14 @@ describe("jsonSchemaType", () => {
 
   it("names a referenced model by its own name", () => {
     expect(jsonSchemaType({ $ref: "#/$defs/ChartSeries" })).toBe("ChartSeries");
+  });
+
+  it("lists what an enum accepts, because that is the whole type", () => {
+    expect(jsonSchemaType({ enum: ["bar", "line", "scatter"] })).toBe("bar | line | scatter");
+  });
+
+  it("calls an unlabelled object an object", () => {
+    expect(jsonSchemaType({})).toBe("object");
   });
 
   it("says so rather than guessing when there is nothing to read", () => {

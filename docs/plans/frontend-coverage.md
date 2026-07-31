@@ -9,73 +9,100 @@ Two gates, and only one of them is in `make check`:
 |---|---|---|
 | Backend platform layer | `make test` / `make check` | **100%**, enforced |
 | Backend whole app | `make coverage-all` (informational) | **66%** - 4,538 of 14,814 statements uncovered |
-| Frontend | `bun run test:coverage` - **CI only** | **76.28%** statements, 89.64% branches |
+| Frontend, measured set | `bun run test:coverage` - **CI only** | **100%** statements, lines and functions; 98.7% branches, enforced |
+| Frontend, whole of `src` | informational | see the table below |
 
 `make check` runs `test:run`, not `test:coverage`. That is why the frontend gate
-sat red without anyone noticing; the thresholds are now a ratchet at the standing
-number, so a change that covers less than it removes fails the build.
+sat red without anyone noticing; the thresholds are now **100/98/100/100** and the
+`include` list is what has *finished*, widened one layer at a time.
+
+Branches are gated at 98 rather than 100 for one reason: TypeScript-required
+guards whose other half no caller can reach - `event.target.files ?? []`,
+`pop() ?? "text"`, a `?? ""` on a value an early return already proved, a
+`typeof window === "undefined"` in a client module. Each is a narrowing, not a
+behaviour. Faking one would mean testing the type checker.
 
 ## Frontend
 
-### Done this pass
+### At 100%, and gated
 
-Five components that had **no tests at all**, 59 tests, 71.06% → 76.28%:
-
-| Component | Lines | Tests |
+| Layer | Files | What it holds |
 |---|---|---|
-| `observability-card.tsx` | 147 | 13 |
-| `environments-panel.tsx` | 88 | 14 |
-| `skill-library-gallery.tsx` | 112 | 12 |
-| `thinking-setting.tsx` | 64 | 11 |
-| `conversation-agents.tsx` | 65 | 9 |
-
-Plus, earlier in the session: `markdown-editor` (9), `run-summary` (8),
-`agents-filter` (6), `runs/agent-filter` (4), `isAppAdmin` (5).
+| `src/lib/**` | 26 | The API client and its 401 recovery, the error envelope readers, the query-key factory, the RAG and MCP wrappers, SEO metadata, the ingestion config, the file tree, the diff |
+| `src/stores/**` | 11 | The streaming message timeline, the session, the active organization and its refusals, the UI panels |
+| `src/components/agents/**` | 26 | The Builder: the spec forms, the capability workbench, version history, exposures, embeds, alerts, the agent map |
+| `src/components/skills/**` | 6 | The skill workbench and its files, the create dialog, the gallery |
+| `src/components/sharing/**` | 1 | Grants and visibility |
+| `src/hooks/**` | 30 | All of them. The chat's socket and its stream reader, the session, the conversation list, knowledge bases and their uploads, the admin screens, every data hook |
+| `src/app/api/**` | 69 | Every proxy route. The session cookies, the admin gate, the byte-moving routes, the OAuth callback, and all 18 mounts of the shared forwarder |
+| `src/components/chat/tool-results/**` | 8 | Every renderer a tool call can get, and the generic fallback that catches the rest |
+| `src/components/chat/` (20 of 24) | 20 | The Markdown renderer and its citations, the tool-call card, the transcript item, the per-conversation controls, the share dialog, the slash-command registry and palette, the citations panel, the approval dialog, ratings, the file preview and its viewers, the transcript list, the queue, the empty state, copy |
 
 ### Left, in the order worth doing it
 
-**No tests at all** - the bulk of the remaining gap:
+Measured against the whole of `src` (33,270 statements, 12,196 covered at the last
+informational run - the numbers below are what each group has *uncovered*):
 
-| Component | Lines | Notes |
+| Group | Uncovered | Notes |
 |---|---|---|
-| `embeds-panel.tsx` | 351 | Public embed keys and their rotation. Security-relevant: an embed key is a bearer credential |
-| `version-history.tsx` | 292 | At 3.2%. Restore publishes a *new* version; promote moves an environment. Both are rules worth pinning |
-| `channel-bots-panel.tsx` | 209 | Bot registration and token handling |
+| `src/app/[locale]/**` | 8,060 | The pages. Last on purpose - composition, and the E2E suite is where a broken page actually fails |
+| `src/components/chat/` (4 files) | ~1,150 | `conversation-sidebar` (480), `chart-message.impl` (420), `chat-input` (405), `chat-container` (402) |
+| `src/components/legal`, `auth` | 1,285 | Static copy and the four auth forms |
+| `src/components/kb`, `rag` | 1,204 | Ingestion settings, the upload flow, sync sources |
+| `src/components/ui/**` | 536 | Primitives. Cheap, and several already have tests |
+| `src/components/{settings,admin,dashboard,vault,layout,mcp,teams,theme,states}` | ~1,100 | Panels and tables |
+| `src/i18n.ts`, `src/middleware.ts` | 33 | The locale negotiation and the auth redirect |
 
-**Partial** - cheaper per point, and several are one branch short:
+Order: **the rest of the chat → the smaller component directories → pages.**
+What is left in the chat is the big composed pieces - the composer, the
+transcript item, the sidebar, the file preview - and the two heavy renderers
+behind `next/dynamic`.
 
-| File | Now | What is missing |
-|---|---|---|
-| `skill-files.tsx` | 36.1% | The file tree, preview kinds, the sandboxed HTML iframe |
-| `add-model.tsx` | 51.2% | The key-picking branches and the inline-secret path |
-| `create-skill-dialog.tsx` | 66.5% | Validation and the resource editor |
-| `use-skills.ts` | 71.5% | Mutation callbacks |
-| `use-agents.ts` | 74.0% | Mutation callbacks |
-| `agent-map.tsx` | 80.3% | Zoom and the empty-node branches |
-| `collection-picker.tsx` | 80.3% | The `pending > 0` and loading branches |
-| `skill-workbench.tsx` | 80.5% | |
-| `exposures-panel.tsx` | 81.2% | |
-| `skill-gallery.tsx` | 86.7% | The orphan warning |
-| `capability-workbench.tsx` | 88.9% | The search-empty branch |
-| `agent-card.tsx` | 93.8% | |
-| `use-exposures.ts` | 93.0% | |
-| `capability-settings.tsx` | 95.7% | |
-| `model-combobox.tsx` | 95.9% | The `contextLabel` sub-1000 branch |
-| `alerts-panel.tsx` | 96.2% | The disabled-member branches |
-| `model-profile-picker.tsx` | 97.7% | |
-| `sharing-panel.tsx` | 98.5% | |
-| `model-settings-form.tsx` | 99.0% | One line |
+The route tests declare `@vitest-environment node`, because that is where a route
+handler runs - and because `request.formData()` never resolves under jsdom, so
+every upload route would have hung. `vitest.setup.ts` guards its `window` work on
+that.
 
-**Then the exclusions to argue about.** The coverage `include` is a curated list -
-six hooks, three component directories and one lib file. Pages, stores, the
-remaining hooks and most of `lib/` are not measured at all. Reaching a *true* 100%
-means widening that list, which will drop the headline number sharply before it
-climbs. Worth doing deliberately, one directory at a time, rather than in one go.
+### Found while covering the chat renderer
 
-`functions` deserves its own note: it trails statements because React Query's
-`onSuccess`/`onError` callbacks are one-line toasts. They are reachable - mount a
-query client, fire the mutation, assert the toast - so they are not an argument for
-an exclusion, only for doing the hooks as a batch.
+Two defects in `markdown-content.impl.tsx`, both fixed, both with a test that fails
+against the old code:
+
+- **The copy button was missing from every highlighted code block.** The block's
+  text was read as `children` assuming a string, but `rehype-highlight` replaces
+  that single text node with a tree of `<span>` tokens - so the button rendered
+  only for a block whose language nothing recognised. It now reads the text out of
+  the token tree. The most-used control on a code block had quietly gone.
+
+- **A reference-style link was corrupted whenever citations were on.** The citation
+  pass rewrote the `[1]` in `See [the docs][1].` into a link of its own, leaving a
+  stray bracket and a dangling anchor in the answer. The pass now matches the whole
+  `[text][N]` form and hands it back untouched - while still marking `[1][2]`,
+  which is what an agent writes when two sources agree.
+
+### Found while covering the proxy routes
+
+**The admin conversations screen could not filter by agent.** The proxy forwards an
+allowlist of query parameters, and `agent_id` was not on it - so the filter the
+screen offers sent a value that never left the proxy, and the table answered with
+every thread. The backend accepts the parameter and the hook sends it; only the hop
+between them dropped it. Fixed, and `admin-routes.test.ts` now pins each parameter
+the screen can send.
+
+
+Thirty-eight of the generated routes under `src/app/api` answer a refusal with
+`detail: error.message`. That is `BackendApiError`'s own string - `"Backend API
+error: 400 Bad Request"` - not the backend's `detail`, which is sitting right
+there in `error.data`. The routes written by hand for this platform
+(`login`, `register`, `oauth-callback`) read the envelope properly; the
+template's do not.
+
+The symptom is a user-visible one: an expired magic link, a stale password-reset
+token and a duplicate invitation all report a status code instead of the sentence
+that says what to do. The fix is one helper and thirty-eight call sites, so it
+wants its own change rather than riding along with the tests -
+`session-routes.test.ts` asserts the current behaviour with a comment naming it,
+because a test claiming the better sentence would be a test of nothing.
 
 ## Backend
 

@@ -3,7 +3,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { kindInfo, useSecrets } from "./use-secrets";
+import { kindInfo, useSecretPurposes, useSecrets } from "./use-secrets";
 import { apiClient } from "@/lib/api-client";
 import type { SecretKindInfo } from "@/types/secrets";
 
@@ -116,5 +116,59 @@ describe("kindInfo", () => {
     // Rendering an empty form would let somebody store a secret with no value
     // in it. Nothing is the honest answer while the catalog is still loading.
     expect(kindInfo([API_KEY], "azure_openai")).toBeNull();
+  });
+});
+
+describe("deleting a secret", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("says why a deletion was refused, unlike the writing mutations", async () => {
+    // Create and rotate leave their refusals to the dialog, which has a field to
+    // put "that name is taken" beside. A deletion has no form and no field, so a
+    // silent failure would read as a row that refused to disappear.
+    const { toast } = await import("sonner");
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(apiClient.delete).mockRejectedValue(new Error("A published agent uses it"));
+    const { result } = renderHook(() => useSecrets(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await expect(result.current.remove.mutateAsync("sec-1")).rejects.toThrow();
+
+    expect(toast.error).toHaveBeenCalledWith("A published agent uses it");
+  });
+});
+
+/**
+ * What a secret can be for.
+ *
+ * Fetched rather than listed in code: the model providers are generated from the
+ * same table the runtime builds clients out of, so a copy here would drift the
+ * moment somebody adds one - and the symptom is a provider nobody can key.
+ */
+describe("useSecretPurposes", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("reads the deployment's own list", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: [{ id: "openai", label: "OpenAI", category: "model_provider" }],
+      total: 1,
+    });
+
+    const { result } = renderHook(() => useSecretPurposes(), { wrapper });
+
+    await waitFor(() => expect(result.current.purposes).toHaveLength(1));
+    expect(apiClient.get).toHaveBeenCalledWith("/secrets/purposes");
+  });
+
+  it("offers nothing rather than undefined while the catalog is unread", async () => {
+    // The field renders before the answer arrives, and `.map` on undefined is a
+    // blank page.
+    vi.mocked(apiClient.get).mockRejectedValue(new Error("403"));
+
+    const { result } = renderHook(() => useSecretPurposes(), { wrapper });
+
+    expect(result.current.purposes).toEqual([]);
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.purposes).toEqual([]);
   });
 });

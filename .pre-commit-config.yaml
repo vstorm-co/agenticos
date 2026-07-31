@@ -1,0 +1,116 @@
+# Pre-commit hooks for the whole repository.
+#
+# Setup:  make install                        # uv sync + pre-commit install
+# Run on everything once:  uv run --directory backend pre-commit run --all-files
+#
+# `pre-commit>=4.0.0` has been a dev dependency and `make install` has run
+# `pre-commit install` for a while, but there was no config file - so the hook
+# git installed did nothing.
+#
+# What is deliberately NOT here: the test suites. `make check` runs those, and a
+# commit hook slow enough to be bypassed with `--no-verify` protects nothing.
+
+# Lockfiles and generated files are not source. Keep the whitespace and
+# end-of-file hooks from rewriting them, and the large-file hook from tripping.
+exclude: |
+  (?x)^(
+    .*\.lock|
+    frontend/src/lib/mcp-logos\.generated\.ts|
+    site/.*|
+    backend/media/.*
+  )$
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      # `main` receives changes by pull request. `dev` does not: it is the
+      # working branch, and blocking it would only teach everyone --no-verify.
+      - id: no-commit-to-branch
+        args: [--branch, main, --branch, master]
+      # `--unsafe` parses without resolving tags. `mkdocs.yml` needs
+      # `!!python/name:material.extensions.emoji.twemoji` to render icons at all,
+      # and the safe loader refuses a tag it has no constructor for. This still
+      # catches the thing worth catching: a file that is not valid YAML.
+      - id: check-yaml
+        args: [--unsafe]
+      - id: check-toml
+      - id: check-json
+        exclude: ^(\.vscode/|.*tsconfig.*\.json$)
+      - id: check-merge-conflict
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+      # A vault is not much use if a key reaches the repository beside it.
+      - id: detect-private-key
+
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.4.1
+    hooks:
+      - id: codespell
+        additional_dependencies: [tomli]
+        # `skip` in .codespellrc governs codespell's own directory walk; it does
+        # not apply to paths pre-commit hands it explicitly. The Polish message
+        # catalog has to be excluded here or every entry reads as a misspelling.
+        exclude: ^frontend/messages/pl\.json$
+
+  - repo: https://github.com/google/yamlfmt
+    rev: v0.21.0
+    hooks:
+      - id: yamlfmt
+
+  # Static analysis for the workflows themselves - unpinned actions, a fork PR
+  # trigger with write permissions, cache poisoning. CI is the one place where a
+  # mistake hands somebody else's code our token.
+  - repo: https://github.com/zizmorcore/zizmor-pre-commit
+    rev: v1.23.1
+    hooks:
+      - id: zizmor
+
+  - repo: local
+    hooks:
+      - id: ruff-format
+        name: ruff format
+        entry: uv run --no-sync --directory backend ruff format app tests cli
+        language: system
+        types: [python]
+        pass_filenames: false
+      - id: ruff-check
+        name: ruff check
+        entry: uv run --no-sync --directory backend ruff check app tests cli --fix
+        language: system
+        types: [python]
+        pass_filenames: false
+      - id: ty
+        name: ty
+        entry: uv run --no-sync --directory backend ty check
+        language: system
+        types: [python]
+        pass_filenames: false
+      # Double backticks are reStructuredText; Markdown renders them literally,
+      # and so do editor hovers over a docstring.
+      - id: check-backticks
+        name: no double backticks
+        entry: python3 scripts/check_backticks.py
+        language: system
+        types_or: [markdown, python, ts, tsx]
+        pass_filenames: false
+      - id: prettier
+        name: prettier
+        entry: bash -c 'cd frontend && bunx prettier --write "src/**/*.{ts,tsx}" "e2e/**/*.ts"'
+        language: system
+        files: ^frontend/(src|e2e)/.*\.(ts|tsx)$
+        pass_filenames: false
+      - id: eslint
+        name: eslint
+        entry: bash -c 'cd frontend && bun run lint'
+        language: system
+        files: ^frontend/(src|e2e)/.*\.(ts|tsx)$
+        pass_filenames: false
+      - id: tsc
+        name: type-check (tsc)
+        entry: bash -c 'cd frontend && bun run type-check'
+        language: system
+        files: ^frontend/.*\.(ts|tsx)$
+        pass_filenames: false

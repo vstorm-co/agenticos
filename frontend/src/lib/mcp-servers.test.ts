@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { McpConnectionRecord } from "./mcp-connections-api";
 import type { OrgMcpConnectionRecord } from "./org-mcp-connections-api";
-import { CUSTOM_CATEGORY, mergeServers } from "./mcp-servers";
+import { CUSTOM_CATEGORY, connectionState, mergeServers } from "./mcp-servers";
 import type { McpCatalogEntry } from "@/types/mcp";
 
 const GITHUB: McpCatalogEntry = {
@@ -122,6 +122,23 @@ describe("mergeServers", () => {
     expect(rows.map((row) => row.key)).toEqual(["github", "postgres", "p9"]);
   });
 
+  it("says who added a custom server, because that decides who can bind it", () => {
+    // An organization's own server is agent-bindable; somebody's personal one is
+    // not, and the row is the only place that distinction is written.
+    const rows = mergeServers(
+      [],
+      [organization({ id: "o9", name: "internal", url: "https://internal/mcp" })],
+      [personal({ id: "p9", name: "crm", url: "https://crm/mcp" })],
+    );
+
+    expect(rows.map((row) => row.description)).toEqual([
+      "Added by this organization, not from the catalog.",
+      "Added by you, not from the catalog.",
+    ]);
+    expect(rows[0]?.organization?.id).toBe("o9");
+    expect(rows[0]?.personal).toBeNull();
+  });
+
   it("reads a custom server's auth kind off the connection, since no entry declares one", () => {
     const rows = mergeServers(
       [],
@@ -134,5 +151,39 @@ describe("mergeServers", () => {
     );
 
     expect(rows.map((row) => row.auth)).toEqual(["none", "token", "oauth"]);
+  });
+});
+
+/**
+ * What a connection's state is, in one word.
+ *
+ * The order of the checks is the whole function: an OAuth server nobody
+ * authorized answers nothing however enabled it is, and a disabled one answers
+ * nothing however healthy its last check was. Reporting the wrong one sends
+ * somebody to fix a credential that is fine.
+ */
+describe("connectionState", () => {
+  it("says a server nobody connected is not connected", () => {
+    expect(connectionState(null)).toBe("not-connected");
+  });
+
+  it("says an unauthorized OAuth server needs authorization, before anything else", () => {
+    expect(
+      connectionState(personal({ auth_type: "oauth", oauth_authorized: false, is_enabled: false })),
+    ).toBe("needs-authorization");
+  });
+
+  it("says a switched-off server is disabled, whatever its last check said", () => {
+    expect(connectionState(personal({ is_enabled: false, last_status: "error" }))).toBe("disabled");
+  });
+
+  it("says a server whose last check failed is unreachable", () => {
+    expect(connectionState(personal({ last_status: "error" }))).toBe("error");
+  });
+
+  it("says an authorized, enabled, healthy server is connected", () => {
+    expect(connectionState(personal({ auth_type: "oauth", oauth_authorized: true }))).toBe(
+      "connected",
+    );
   });
 });

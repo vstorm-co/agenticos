@@ -13,21 +13,38 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html"],
-      // Scoped to the layers that hold logic worth asserting: data hooks, pure
-      // helpers, stores and the components that encode a rule. Pages are
-      // composition — they are covered by the E2E suite, where a broken page
-      // actually fails, rather than by mounting them to move a number.
+      // Widened one layer at a time, and everything listed is at 100%. The list
+      // is what is *finished*, not what is worth testing: the chat components are
+      // next, then the smaller component directories —
+      // `docs/plans/frontend-coverage.md` tracks the rest.
+      //
+      // Pages are last on purpose. They are composition, and mounting one to
+      // move a number tests nothing the E2E suite does not already fail on.
       include: [
-        "src/lib/api-error.ts",
-        "src/hooks/use-active-organization.ts",
-        "src/hooks/use-agents.ts",
-        "src/hooks/use-model-providers.ts",
-        "src/hooks/use-permissions.ts",
-        "src/hooks/use-runs.ts",
-        "src/hooks/use-sharing.ts",
-        "src/hooks/use-exposures.ts",
-        "src/hooks/use-skills.ts",
+        "src/app/api/**",
+        "src/lib/**",
+        "src/stores/**",
+        "src/hooks/**",
         "src/components/agents/**/*.tsx",
+        "src/components/chat/tool-results/**/*.tsx",
+        "src/components/chat/chart-message.tsx",
+        "src/components/chat/chat-controls.tsx",
+        "src/components/chat/chat-empty-state.tsx",
+        "src/components/chat/copy-button.tsx",
+        "src/components/chat/file-preview-card.tsx",
+        "src/components/chat/file-preview-panel.tsx",
+        "src/components/chat/markdown-content.impl.tsx",
+        "src/components/chat/markdown-content.tsx",
+        "src/components/chat/message-item.tsx",
+        "src/components/chat/message-list.tsx",
+        "src/components/chat/pending-messages.tsx",
+        "src/components/chat/rating-buttons.tsx",
+        "src/components/chat/slash-command-palette.tsx",
+        "src/components/chat/share-dialog.tsx",
+        "src/components/chat/slash-commands.ts",
+        "src/components/chat/sources-panel.tsx",
+        "src/components/chat/tool-call-card.tsx",
+        "src/components/chat/tool-approval-dialog.tsx",
         "src/components/sharing/**/*.tsx",
         "src/components/skills/**/*.tsx",
       ],
@@ -40,21 +57,22 @@ export default defineConfig({
         "**/*.test.*",
         "vitest.setup.ts",
       ],
-      // A ratchet, not a target. 100% is where this is going - the numbers below
-      // are wherever the suite currently stands, rounded down, so a change that
-      // covers less than it removes fails the build even while the goal is still
-      // some way off. Raise them as ground is gained; never lower them to make a
-      // red build green.
+      // A ratchet, not a target. Every statement, line and function in the set
+      // above is covered, and the gate says so: an uncovered line is a build
+      // failure, not a number that drifts. Never lower these to make a red build
+      // green - either the line is worth a test or it is worth deleting.
       //
-      // Standing at: 76% statements and lines, 89% branches, 67% functions. The
-      // gap is `embeds-panel`, `version-history` and `channel-bots-panel`, which
-      // have no tests at all, plus the partials listed in
-      // `docs/plans/frontend-coverage.md`.
+      // Branches sit below 100 for one reason: TypeScript-required guards whose
+      // other half no caller can reach (`event.target.files ?? []`,
+      // `pop() ?? "…"`, a `?? ""` on a value the early return already proved).
+      // Each is a narrowing, not a behaviour, and faking one would mean testing
+      // the type checker. What is *left* to widen is the `include` list, not
+      // these numbers - see `docs/plans/frontend-coverage.md`.
       thresholds: {
-        statements: 76,
-        branches: 89,
-        functions: 67,
-        lines: 76,
+        statements: 100,
+        branches: 98,
+        functions: 100,
+        lines: 100,
       },
     },
   },

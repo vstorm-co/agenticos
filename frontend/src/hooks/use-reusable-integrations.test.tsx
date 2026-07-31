@@ -173,4 +173,63 @@ describe("useReusableIntegrations", () => {
     await waitFor(() => expect(result.current.error).toBe("Insufficient permissions"));
     expect(result.current.integrations).toEqual([]);
   });
+
+  it("falls back to its own sentence when the refusal carries none", async () => {
+    vi.mocked(apiClient.get).mockRejectedValue("boom");
+    const { result } = renderHook(() => useReusableIntegrations(ORG_ID), { wrapper });
+
+    await waitFor(() => expect(result.current.error).toBe("Failed to load reusable integrations"));
+  });
+
+  it("says nothing went wrong when nothing did", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [source()], total: 1 });
+    const { result } = renderHook(() => useReusableIntegrations(ORG_ID), { wrapper });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.error).toBeNull();
+  });
+
+  it("reports a refused removal without raising it", async () => {
+    // The row stays on screen either way; there is no form waiting on a throw.
+    const { toast } = await import("sonner");
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [source()], total: 1 });
+    vi.mocked(apiClient.delete).mockRejectedValue(new Error("A collection still uses it"));
+    const { result } = renderHook(() => useReusableIntegrations(ORG_ID), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      await result.current.remove("s1");
+    });
+
+    expect(toast.error).toHaveBeenCalledWith("A collection still uses it");
+    expect(result.current.integrations).toHaveLength(1);
+  });
+
+  it("falls back to its own sentences when a write fails without one", async () => {
+    const { toast } = await import("sonner");
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [source()], total: 1 });
+    vi.mocked(apiClient.post).mockRejectedValue("boom");
+    vi.mocked(apiClient.delete).mockRejectedValue("boom");
+    const { result } = renderHook(() => useReusableIntegrations(ORG_ID), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await expect(
+      result.current.create({ name: "x", connector_type: "gdrive", config: {} }),
+    ).rejects.toBeTruthy();
+    expect(toast.error).toHaveBeenCalledWith("Failed to save integration");
+
+    await act(async () => {
+      await result.current.remove("s1");
+    });
+    expect(toast.error).toHaveBeenCalledWith("Failed to remove integration");
+
+    await expect(
+      result.current.cloneInto(
+        "s1",
+        { id: "kb-1", name: "Handbook", collection_name: "handbook" } as KnowledgeBase,
+        "Handbook drive",
+      ),
+    ).rejects.toBeTruthy();
+    expect(toast.error).toHaveBeenCalledWith("Failed to use this integration");
+  });
 });

@@ -111,6 +111,54 @@ describe("ModelSettingsForm", () => {
     expect(screen.getByRole("combobox", { name: "Tool calls" })).toHaveTextContent("One at a time");
   });
 
+  it("records each of the four settings under its own key", async () => {
+    // One `set` per field, and a field that wrote to the wrong key would be
+    // invisible here until an agent ran on a timeout somebody meant as a top-p.
+    const onChange = renderForm();
+
+    fireRange(screen.getByLabelText("Top P"), "0.9");
+    expect(onChange).toHaveBeenLastCalledWith({ top_p: 0.9 });
+
+    await userEvent.type(screen.getByLabelText("Timeout (seconds)"), "9");
+    expect(onChange).toHaveBeenLastCalledWith({ timeout: 9 });
+  });
+
+  it("gives back any of the four, one at a time", async () => {
+    const onChange = renderForm({ temperature: 0.2, top_p: 0.9, max_tokens: 512, timeout: 60 });
+    const resets = screen.getAllByRole("button", { name: "Use provider default" });
+
+    // Four fields are set, so there are four ways back and each drops its own
+    // key: the last one clicked is the only one missing from the call.
+    expect(resets).toHaveLength(4);
+
+    await userEvent.click(resets[2]!);
+    expect(onChange).toHaveBeenLastCalledWith({ temperature: 0.2, top_p: 0.9, timeout: 60 });
+
+    await userEvent.click(resets[3]!);
+    expect(onChange).toHaveBeenLastCalledWith({ temperature: 0.2, top_p: 0.9, max_tokens: 512 });
+  });
+
+  it("records a tool-call decision as the boolean the spec holds", async () => {
+    const onChange = renderForm();
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Tool calls" }));
+    await userEvent.click(screen.getByRole("option", { name: "One at a time" }));
+
+    expect(onChange).toHaveBeenLastCalledWith({ parallel_tool_calls: false });
+  });
+
+  it("gives the tool-call decision back to the provider rather than storing a false", async () => {
+    // The same rule as every other field here: unset is a third state, and the
+    // key has to leave the spec for a reasoning model to be publishable.
+    const onChange = renderForm({ parallel_tool_calls: true, max_tokens: 512 });
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Tool calls" }));
+    await userEvent.click(screen.getByRole("option", { name: PROVIDER_DEFAULT }));
+
+    expect(onChange).toHaveBeenLastCalledWith({ max_tokens: 512 });
+    expect(onChange.mock.lastCall?.[0]).not.toHaveProperty("parallel_tool_calls");
+  });
+
   it("accepts nothing from a viewer who cannot edit", async () => {
     const onChange = renderForm({ temperature: 0.25 }, vi.fn(), true);
     await userEvent.click(resetTemperature());

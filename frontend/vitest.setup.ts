@@ -2,8 +2,19 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
 
+/**
+ * Whether this file runs in a browser-shaped environment.
+ *
+ * Most of the suite does. The route handlers under `src/app/api` declare
+ * `@vitest-environment node`, because that is where they actually execute - and
+ * everything below that touches `window` has to be skipped for them rather than
+ * throwing during setup.
+ */
+const inBrowser = typeof window !== "undefined";
+
 // Cleanup after each test
 afterEach(() => {
+  if (!inBrowser) return;
   cleanup();
   localStorage.clear();
 });
@@ -50,26 +61,28 @@ Object.defineProperty(globalThis, "localStorage", {
   writable: true,
   value: new LocalStorageMock(),
 });
-Object.defineProperty(window, "localStorage", {
-  configurable: true,
-  writable: true,
-  value: globalThis.localStorage,
-});
+if (inBrowser) {
+  Object.defineProperty(window, "localStorage", {
+    configurable: true,
+    writable: true,
+    value: globalThis.localStorage,
+  });
 
-// Mock matchMedia for responsive components
-Object.defineProperty(window, "matchMedia", {
-  writable: true,
-  value: vi.fn().mockImplementation((query: string) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn(),
-  })),
-});
+  // Mock matchMedia for responsive components
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  });
+}
 
 // Mock ResizeObserver
 global.ResizeObserver = vi.fn().mockImplementation(() => ({
@@ -89,11 +102,11 @@ global.IntersectionObserver = vi.fn().mockImplementation(() => ({
 // implement. Without these it throws on the first click, so every test of a
 // component containing a Select fails for a reason that has nothing to do with
 // the component.
-if (!Element.prototype.hasPointerCapture) {
+if (inBrowser && !Element.prototype.hasPointerCapture) {
   Element.prototype.hasPointerCapture = () => false;
   Element.prototype.setPointerCapture = () => {};
   Element.prototype.releasePointerCapture = () => {};
 }
-if (!Element.prototype.scrollIntoView) {
+if (inBrowser && !Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = () => {};
 }

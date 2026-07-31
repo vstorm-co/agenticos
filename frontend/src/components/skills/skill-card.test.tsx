@@ -45,6 +45,11 @@ describe("SkillCard", () => {
     expect(screen.getByText("2 files")).toBeInTheDocument();
   });
 
+  it("uses the singular for one file", () => {
+    renderCard({ skill: { ...SKILL, file_count: 1 } });
+    expect(screen.getByText("1 file")).toBeInTheDocument();
+  });
+
   it("says in words that a skill has no files, rather than showing a bare zero", () => {
     renderCard({ skill: { ...SKILL, file_count: 0 } });
     expect(screen.getByText("No files")).toBeInTheDocument();

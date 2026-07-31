@@ -136,11 +136,10 @@ beforeEach(() => {
 /**
  * The secret picker, against a mocked vault.
  *
- * Everything here is one direction only: a spec arrives, the control shows what
- * it says. Driving the control the other way needs a real browser - Radix
- * listens for pointer events jsdom does not dispatch, and its options are not in
- * the DOM until it opens - so what a *choice* does to the spec is asserted in
- * the E2E suite instead of faked here.
+ * Mostly one direction: a spec arrives and the control shows what it says. The
+ * two places where a choice writes back into the spec - picking a stored secret,
+ * and storing one inline - are asserted here as well, because both are how a
+ * capability that cannot run without a credential gets one.
  */
 describe("CapabilitySettings secret picker", () => {
   it("shows the secret the spec stored, by name and by hint", async () => {
@@ -189,6 +188,39 @@ describe("CapabilitySettings secret picker", () => {
     expect(await screen.findByText("No api_key secret in the vault")).toBeInTheDocument();
     expect(picker()).toBeDisabled();
     expect(screen.getByRole("button", { name: "Add a key" })).toBeInTheDocument();
+  });
+
+  it("binds the secret that was chosen, by id", async () => {
+    // The spec records which secret to use and never the secret, so the id is the
+    // whole of what this control writes.
+    serve([API_KEY_SECRET]);
+    const onChange = vi.fn();
+    mount(binding(), { onChange });
+
+    await userEvent.click(await screen.findByLabelText("Secret"));
+    await userEvent.click(screen.getByRole("option", { name: /Weather API key/ }));
+
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ secret_id: "sec-1" }));
+  });
+
+  it("sends somebody to the vault for a secret that is more than one field", async () => {
+    // An inline form takes an API key and nothing else. A shape with several
+    // fields is filled in where it belongs, and the value stays there either
+    // way - an agent records which secret to use, never the secret.
+    serve([]);
+    mount(binding(), {
+      definition: {
+        ...WEATHER,
+        requires_secret: {
+          kind: "aws_credentials",
+          description: "The role this capability assumes.",
+          required_when: null,
+        },
+      },
+    });
+
+    expect(await screen.findByRole("link", { name: "Store one in the vault" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add a key" })).toBeNull();
   });
 
   it("stores a new key in place and selects it, without leaving the page", async () => {
