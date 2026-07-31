@@ -112,7 +112,17 @@ export default defineConfig({
    * is reused instead of fighting over the port.
    */
   webServer: {
-    command: process.env.CI ? "bun run start" : "bun run dev",
+    // `bun run start` is `next start`, and Next refuses to serve an
+    // `output: "standalone"` build that way - it prints
+    // `"next start" does not work with "output: standalone" configuration`
+    // and serves an app whose data layer is broken. Twenty-one specs failed on
+    // that in CI while the same suite passed locally against the dev server, so
+    // the difference looked like flakiness rather than the server being wrong.
+    //
+    // `start:standalone` runs `.next/standalone/server.js` after copying
+    // `public/` and `.next/static` beside it, which is exactly what
+    // `frontend/Dockerfile` does. CI now exercises the server that ships.
+    command: process.env.CI ? "bun run start:standalone" : "bun run dev",
     // Deliberately the app's own door and not `/api/health`: that endpoint
     // proxies to the backend, so a broken data layer would look like a frontend
     // that never started, and Playwright would report nothing at all instead of

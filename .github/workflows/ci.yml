@@ -278,9 +278,25 @@ jobs:
       - name: Seed an organization, a model and a published agent
         # Idempotent, and the fixture the whole suite asserts against: an owner
         # to sign in as, an organization to be scoped to, and the published
-        # agent @getting-started. Without this the suite has nothing real to
-        # assert on and quietly falls back to asserting on page furniture.
+        # agent @getting-started.
+        #
+        # `BOOTSTRAP_API_KEY` is what makes that last part true, and this step ran
+        # without it - so bootstrap stopped at "No openai key given", created no
+        # `openai default` model profile, and left @getting-started a *draft*.
+        # Thirty-seven specs assert against that profile or against a published
+        # agent, so the job could not pass however good the specs were.
+        #
+        # A placeholder is enough: the fixture the suite needs is a model profile
+        # that exists and an agent that published, not a key that answers. The
+        # real secret is used where a real answer is the point - the full journey
+        # spec, which skips itself without one.
         run: uv run --directory backend agenticos cmd bootstrap
+        env:
+          # Same reasoning as the E2E step below: a dedicated GitHub Environment
+          # would gate this behind an approval, and the point is that CI seeds
+          # itself unattended. The workflow never runs on `pull_request_target`,
+          # so a fork PR cannot reach this step with the secret in scope.
+          BOOTSTRAP_API_KEY: ${{ secrets.E2E_PROVIDER_API_KEY || 'sk-e2e-fixture-not-a-real-key' }} # zizmor: ignore[secrets-outside-env]
 
       - name: Start the backend
         # `--ws websockets-sansio` because uvicorn's `auto` picks the legacy
