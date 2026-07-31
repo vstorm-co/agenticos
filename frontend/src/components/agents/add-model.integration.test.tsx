@@ -472,4 +472,42 @@ describe("pointing a model somewhere other than the provider's own API", () => {
 
     expect(screen.getByRole("button", { name: "Add model" })).toBeDisabled();
   });
+
+  it("says the key still authenticates, for a provider that needs one", async () => {
+    // The other half of the endpoint field, and the more common one: Anthropic,
+    // Google, xAI and four others accept a gateway URL and still require a key.
+    // Both earlier cases here are keyless, so this branch went untested - the
+    // coverage gate is what noticed.
+    state.purposes = [...state.purposes, purpose("anthropic", "Anthropic")];
+    state.catalog = [
+      ...state.catalog,
+      capabilities("anthropic", "Anthropic", { supports_base_url: true, keyless: false }),
+    ];
+    mount();
+    await pickProvider("Anthropic");
+
+    expect(screen.getByLabelText("Endpoint")).toHaveAttribute(
+      "placeholder",
+      expect.stringContaining("provider's own API"),
+    );
+    expect(screen.getByText(/key is still what authenticates/)).toBeInTheDocument();
+  });
+
+  it("keeps the key required for such a provider, endpoint or not", async () => {
+    // `keyless` is what makes a key optional, not `supports_base_url`. Anthropic
+    // behind a gateway still authenticates with a key, and the service refuses a
+    // profile without one - so the form must not offer the submit.
+    state.purposes = [...state.purposes, purpose("anthropic", "Anthropic")];
+    state.catalog = [
+      ...state.catalog,
+      capabilities("anthropic", "Anthropic", { supports_base_url: true, keyless: false }),
+    ];
+    mount();
+    await pickProvider("Anthropic");
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.type(screen.getByLabelText("Endpoint"), "https://gateway.acme/v1");
+
+    expect(screen.getByRole("button", { name: "Add model" })).toBeDisabled();
+  });
 });
