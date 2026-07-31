@@ -7,7 +7,7 @@ import {
   SEEDED_AGENT_HANDLE,
   SEEDED_AGENT_NAME,
   SEEDED_KB_NAME,
-  SEEDED_MODEL_LABEL,
+  FAKE_KEY_LABEL,
   SEEDED_SKILL_NAME,
   agentCard,
   gotoRoleMatrix,
@@ -66,7 +66,10 @@ const DASHBOARD_PAGES: {
   {
     path: "/vault",
     heading: "Vault",
-    proof: (page) => page.getByRole("main").getByText(SEEDED_MODEL_LABEL).first(),
+    // A stored key, not a model profile. The Vault is secrets now - model
+    // profiles moved to the Builder and the chat's model picker - so
+    // `SEEDED_MODEL_LABEL` was proof of something this page no longer shows.
+    proof: (page) => page.getByRole("main").getByText(FAKE_KEY_LABEL).first(),
   },
 ];
 

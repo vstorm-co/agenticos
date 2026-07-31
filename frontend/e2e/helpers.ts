@@ -217,10 +217,15 @@ export async function gotoRoleMatrix(page: Page): Promise<void> {
   await page.goto("/orgs");
   await expect(pageHeading(page, "Organizations")).toBeVisible();
 
-  const manage = page.getByRole("button", { name: "Manage" }).first();
-  await expect(manage, "the seeded owner has no organization; was bootstrap run?").toBeVisible();
+  // The whole card is the link now, labelled "Open <name>", and it lands on the
+  // members page directly - there is no intermediate "Manage" button. The
+  // "Switch" / "Current" button beside it changes the active organization rather
+  // than navigating, which is why the link carries its own accessible name.
+  const open = page.getByRole("link", { name: /^Open / }).first();
+  await expect(open, "the seeded owner has no organization; was bootstrap run?").toBeVisible();
 
-  await manage.click();
+  await open.click();
+  // The card lands on the organization, whose own nav carries Roles.
   await page.getByRole("link", { name: "Roles" }).click();
   await expect(pageHeading(page, "Users & Roles")).toBeVisible();
 }

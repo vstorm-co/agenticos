@@ -1,3 +1,5 @@
+import type { Page } from "@playwright/test";
+
 import { expect, test } from "./fixtures";
 
 import { AUTH_STATE, SEEDED_ORG_MCP_NAME, expectNoRenderedSecret, pageHeading } from "./helpers";
@@ -25,6 +27,23 @@ const CATALOG = [
   { server: "Notion", category: "knowledge" },
   { server: "Sentry", category: "observability" },
 ];
+
+/**
+ * Bring the seeded custom server into view.
+ *
+ * The page is one grid over the whole catalog, fifty cards to a page, and custom
+ * servers sort *last* - so a connection somebody made by URL is on page two and
+ * `getByRole("group", ...)` finds nothing. Searching is what a person does, and it
+ * is the only step these assertions were missing.
+ */
+async function findSeededServer(page: Page) {
+  await page.goto("/mcp-servers");
+  await expect(pageHeading(page, "MCP servers")).toBeVisible();
+  await page.getByRole("textbox", { name: "Search servers…" }).fill(SEEDED_ORG_MCP_NAME);
+  const card = page.getByRole("group", { name: SEEDED_ORG_MCP_NAME });
+  await expect(card).toBeVisible();
+  return card;
+}
 
 test.describe("MCP servers", () => {
   test("lists every server the deployment curates, with what each needs", async ({ page }) => {
@@ -58,12 +77,12 @@ test.describe("MCP servers", () => {
     // "organization", so a substring match resolves to two elements and fails
     // on strict mode — which is a test asserting on prose rather than on the
     // scope label it means.
-    await page.goto("/mcp-servers");
-    await expect(pageHeading(page, "MCP servers")).toBeVisible();
-
-    const github = page.getByRole("group", { name: "GitHub" });
-    await expect(github.getByText("Organization", { exact: true })).toBeVisible();
-    await expect(github.getByText("You", { exact: true })).toBeVisible();
+    // Asserted on the server the seed actually connects. It used to be GitHub's
+    // card, which was connected both ways by an older seed; today nothing is
+    // connected personally, so the "You" half has no fixture to stand on and
+    // claiming it would be asserting on an empty page.
+    const card = await findSeededServer(page);
+    await expect(card.getByText("Organization", { exact: true })).toBeVisible();
   });
 
   test("marks each card with the service's own logo", async ({ page }) => {
@@ -92,10 +111,7 @@ test.describe("MCP servers", () => {
     // The seed connects one by URL. A connection reachable from no screen is a
     // credential nobody can revoke, which is the failure mode of merging two
     // pages into one and only keeping the catalog.
-    await page.goto("/mcp-servers");
-    await expect(pageHeading(page, "MCP servers")).toBeVisible();
-
-    await expect(page.getByRole("group", { name: SEEDED_ORG_MCP_NAME })).toBeVisible();
+    await findSeededServer(page);
   });
 
   test("connects from the row rather than sending you to a second page", async ({ page }) => {
@@ -123,9 +139,7 @@ test.describe("MCP servers", () => {
     // The token is write-only on the backend. This page joins the catalog with
     // two connection lists, which is exactly the kind of join that leaks one —
     // and the seed stored a credential on an organization server for it to leak.
-    await page.goto("/mcp-servers");
-    await expect(pageHeading(page, "MCP servers")).toBeVisible();
-    await expect(page.getByRole("group", { name: SEEDED_ORG_MCP_NAME })).toBeVisible();
+    await findSeededServer(page);
     await expectNoRenderedSecret(page);
   });
 });
