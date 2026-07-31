@@ -38,6 +38,10 @@ updates:
           - pydantic-graph
           - logfire
           - genai-prices
+      # No `update-types` filter: majors included. Holding one back does not avoid
+      # the upgrade, it only delays it until the jump is several versions wide and
+      # nobody remembers what changed. CI runs the whole suite on the PR, which is
+      # where a breaking major should be discovered.
       backend-everything-else:
         applies-to: version-updates
         patterns: ["*"]
@@ -48,7 +52,6 @@ updates:
           - pydantic-graph
           - logfire
           - genai-prices
-        update-types: [minor, patch]
 
   # A week before a release is offered. Nothing here is read the day it lands, so
   # the delay costs nothing and skips the versions that get yanked within hours.
@@ -62,11 +65,11 @@ updates:
       next:
         applies-to: version-updates
         patterns: [next, react, react-dom, "@types/react", "@types/react-dom"]
+      # Majors included here too, for the same reason as the backend group.
       frontend-everything-else:
         applies-to: version-updates
         patterns: ["*"]
         exclude-patterns: [next, react, react-dom, "@types/react", "@types/react-dom"]
-        update-types: [minor, patch]
     cooldown:
       default-days: 7
 

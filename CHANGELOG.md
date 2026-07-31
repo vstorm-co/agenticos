@@ -70,6 +70,20 @@ widgets, all behind one runner.
 **Multi-tenancy** — organization isolation enforced by database constraints rather
 than by service code alone.
 
+**Dependency freshness as a policy.** FastAPI, Pydantic AI, Logfire and
+genai-prices are uncapped and meant to track their newest release — genai-prices
+especially, since it *is* the price snapshot budgets are computed from.
+`make deps-upgrade` bumps them, a scheduled `framework-freshness` workflow tries
+the newest on a Monday and opens an issue when it breaks, and Dependabot opens the
+PR. Majors are not held back: delaying one does not avoid the upgrade, it only
+makes the eventual jump wider.
+
+**Pre-commit**, covering both halves of the repo: the standard hygiene hooks,
+`codespell`, `yamlfmt`, `zizmor` over the workflows, and ruff / ty / prettier /
+eslint / tsc. `pre-commit` had been a dependency and `make install` had been
+running `pre-commit install` for a while, but there was no config file, so the
+installed hook did nothing.
+
 ### Fixed
 
 - **Every path that created a user was broken.** The user repository still passed
@@ -98,6 +112,18 @@ than by service code alone.
   that.
 - **Icons and diagrams in the documentation rendered as their own source**, for
   want of `pymdownx.emoji` and a mermaid custom fence.
+- **FastAPI 0.141 stopped flattening included routers into `app.routes`**, so
+  every route sweep in `tests/api/test_platform_routes.py` silently ran over zero
+  routes. Rewritten on the public `iter_route_contexts`. Found by upgrading rather
+  than by a Dependabot PR, which is the argument for the freshness workflow.
+- **`Agent.updated_at` was typed `string | undefined`** while the API sends
+  `null`, which made the honest test for "never edited" a type error.
+- **The workflows ran with a broader token than they need** and left the checkout
+  credential on disk. Every action is now pinned to a commit SHA,
+  `persist-credentials: false` everywhere, `contents: read` by default, and Pages
+  write scoped to the one job that deploys.
+- **`backend/.pre-commit-config.yaml`** shadowed the repository root and carried a
+  `ty` hook that failed on an argument the pinned `ty` does not accept.
 
 ### Changed
 
