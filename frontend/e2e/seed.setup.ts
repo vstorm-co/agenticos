@@ -56,7 +56,12 @@ setup("a skill exists", async ({ page }) => {
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Name").fill(SEEDED_SKILL_NAME);
   await dialog.getByLabel("Description").fill(SEEDED_SKILL_DESCRIPTION);
-  await dialog.getByLabel("Content").fill(SEEDED_SKILL_CONTENT);
+  // The body is `SKILL.md` in a file tree now, not a "Content" textarea - the
+  // create dialog was rebuilt to look like the editor a skill becomes. It opens
+  // in Preview, where there is no input at all, so switch to Source first; the
+  // textarea then takes its accessible name from the file it is showing.
+  await dialog.getByRole("button", { name: "Source" }).click();
+  await dialog.getByLabel(/SKILL\.md source/).fill(SEEDED_SKILL_CONTENT);
   await dialog.getByRole("button", { name: "Create" }).click();
 
   await expect(skillCard(page, SEEDED_SKILL_NAME)).toBeVisible();
@@ -91,45 +96,71 @@ setup("a draft agent exists", async ({ page }) => {
   await expect(pageHeading(page, new RegExp(DRAFT_AGENT_NAME))).toBeVisible();
 });
 
-setup("a provider key is stored", async ({ page }) => {
-  if (await alreadyThere(page.request, "/api/providers/credentials", "label", FAKE_KEY_LABEL)) {
-    return;
-  }
-
+/**
+ * Store one secret through the Vault's dialog.
+ *
+ * There is one dialog and one button for every kind of key now. A provider
+ * credential is not a separate resource with its own endpoint - it is a secret
+ * whose *purpose* says which service it is for, which is why both callers below
+ * differ only in the group they pick and the name they give it.
+ *
+ * `/api/providers/credentials` is what the idempotency check used to poll. That
+ * route never existed after provider keys moved into the vault, so the check
+ * asserted on a 404 and this step failed before touching the UI.
+ */
+async function storeSecret(
+  page: Page,
+  { group, service, name, value }: { group: string; service?: string; name: string; value: string },
+) {
   await page.goto("/vault");
   await expect(pageHeading(page, "Vault")).toBeVisible();
 
-  await page.getByRole("button", { name: "Add credential" }).click();
+  await page.getByRole("button", { name: "Add key" }).first().click();
   const dialog = page.getByRole("dialog");
+  await expect(dialog.getByText("Add a secret")).toBeVisible();
 
-  // Named rather than left to a default, because the form has none: the provider
-  // decides which fields exist below it. The specs assert this credential is
-  // OpenAI's, so this is the one place that has to say so.
-  await dialog.getByRole("combobox").first().click();
-  await page.getByRole("option", { name: "OpenAI", exact: true }).click();
+  // Two steps rather than one list of thirty-one: the family first, which rules
+  // out most of the second question.
+  await dialog.getByRole("button", { name: new RegExp(`^${group}`) }).click();
+  if (service) {
+    await dialog.getByLabel(/^(Which one|Service)$/).click();
+    await page.getByRole("option", { name: service, exact: true }).click();
+  }
 
-  await dialog.getByLabel("Label").fill(FAKE_KEY_LABEL);
-  // The value field is generated from the provider's own secret schema, so it is
-  // named by the schema (`api_key`) rather than by this form.
-  await dialog.getByLabel(/Api Key/).fill(FAKE_KEY_SECRET);
-  await dialog.getByRole("button", { name: "Store credential" }).click();
+  await dialog.getByLabel("Name").fill(name);
+  // Generated from the chosen service's own secret schema, so it is named by the
+  // schema rather than by this form - "API key", and marked required, so the
+  // match has to be loose at both ends. Scoped to the textbox because the
+  // reveal button beside it is named "Show API key" and matches too.
+  await dialog.getByRole("textbox", { name: /API key/i }).fill(value);
+  await dialog.getByRole("button", { name: "Store secret" }).click();
 
-  await expect(page.getByRole("main").getByText(FAKE_KEY_LABEL)).toBeVisible();
+  await expect(page.getByRole("main").getByText(name)).toBeVisible();
+}
+
+setup("a provider key is stored", async ({ page }) => {
+  if (await alreadyThere(page.request, "/api/secrets", "name", FAKE_KEY_LABEL)) return;
+
+  // OpenAI specifically: the specs assert this key is a model provider's, and
+  // which provider decides what `add-model` offers.
+  await storeSecret(page, {
+    group: "Model provider",
+    service: "OpenAI",
+    name: FAKE_KEY_LABEL,
+    value: FAKE_KEY_SECRET,
+  });
 });
 
 setup("a secret is stored", async ({ page }) => {
   if (await alreadyThere(page.request, "/api/secrets", "name", SEEDED_SECRET_NAME)) return;
 
-  await page.goto("/vault");
-  await expect(pageHeading(page, "Vault")).toBeVisible();
-
-  await page.getByRole("button", { name: "Add secret" }).click();
-  const dialog = page.getByRole("dialog");
-  await dialog.getByLabel("Name").fill(SEEDED_SECRET_NAME);
-  await dialog.getByLabel(/Api Key/).fill(SEEDED_SECRET_VALUE);
-  await dialog.getByRole("button", { name: "Store secret" }).click();
-
-  await expect(page.getByRole("main").getByText(SEEDED_SECRET_NAME)).toBeVisible();
+  // "Something else" is the generic shape - a bare API key for a service the
+  // catalog does not name, which is what a capability binding needs to exist.
+  await storeSecret(page, {
+    group: "Something else",
+    name: SEEDED_SECRET_NAME,
+    value: SEEDED_SECRET_VALUE,
+  });
 });
 
 setup("the organization has connected an MCP server", async ({ page }) => {
@@ -146,7 +177,7 @@ setup("the organization has connected an MCP server", async ({ page }) => {
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Name").fill(SEEDED_ORG_MCP_NAME);
   await dialog.getByLabel("Server URL").fill(SEEDED_ORG_MCP_URL);
-  await dialog.getByLabel("Access token (optional)").fill(SEEDED_ORG_MCP_SECRET);
+  await dialog.getByLabel("Access token").fill(SEEDED_ORG_MCP_SECRET);
   await dialog.getByRole("button", { name: "Connect & check" }).click();
 
   // The row appears before the check finishes — the probe dials a host that
