@@ -1,0 +1,146 @@
+# AgenticOS documentation.
+#
+# `docs/` is both the site and the repository's own engineering notes, and that
+# is deliberate: a second copy of "how a capability works" written for outsiders
+# is a copy that disagrees with the one contributors read. The nav below decides
+# what an outside reader meets first; nothing is duplicated for them.
+site_name: AgenticOS
+site_description: The operating system for your company's AI agents. Self-hosted, open source, and yours.
+site_url: https://vstorm-co.github.io/agenticos/
+repo_url: https://github.com/vstorm-co/agenticos
+repo_name: vstorm-co/agenticos
+edit_uri: edit/main/docs/
+
+docs_dir: docs
+
+theme:
+  name: material
+  language: en
+  palette:
+    # A theme per system preference, with a manual override - the same bargain
+    # the app itself makes.
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: black
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.instant
+    - navigation.tracking
+    - navigation.indexes
+    - toc.follow
+    - search.highlight
+    - search.suggest
+    - content.code.copy
+    - content.code.annotate
+    - content.action.edit
+  icon:
+    repo: fontawesome/brands/github
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  # Without these two, `:material-download:{ .lg .middle }` reaches the page as
+  # that literal string - the grid cards on the home page were rendering their
+  # own source.
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  # The custom fence is what turns a ```mermaid block into a diagram. Without it
+  # superfences hands the block to the syntax highlighter and the reader gets the
+  # graph's source in a code box, which is how `concepts.md` shipped.
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+
+plugins:
+  - search
+  # The API reference is generated from the docstrings rather than written twice.
+  # This codebase puts its reasoning in docstrings - why a scope comparison
+  # raises, why an audience resolves the way it does - so a hand-written
+  # reference would be a worse copy of something already there.
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [backend]
+          options:
+            docstring_style: google
+            show_source: false
+            show_root_heading: true
+            show_symbol_type_heading: true
+            members_order: source
+            separate_signature: true
+            signature_crossrefs: true
+            filters: ["!^_"]
+
+nav:
+  - Home:
+      - index.md
+      - install.md
+      - first-agent.md
+      - deploy.md
+  - Concepts:
+      - concepts.md
+      - permissions.md
+      - governance.md
+      - models.md
+      - mcp.md
+      - skills.md
+      - secrets.md
+      - channels.md
+      - file-processing.md
+  - Guides:
+      - howto/add-capability.md
+      - howto/add-mcp-server.md
+      - howto/add-api-endpoint.md
+      - howto/add-background-task.md
+      - howto/customize-agent-prompt.md
+      - howto/add-rag-source.md
+      - howto/add-sync-connector.md
+      - howto/configure-sync-sources.md
+      - howto/use-ratings.md
+  - Reference:
+      - configuration.md
+      - commands.md
+      - reference/capabilities.md
+      - reference/spec.md
+      - reference/permissions.md
+  - Contributing:
+      - architecture.md
+      - patterns.md
+      - adding_features.md
+      - testing.md
+      - ROADMAP.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/vstorm-co/agenticos

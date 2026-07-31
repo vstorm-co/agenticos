@@ -1,4 +1,4 @@
-.PHONY: install format lint test run clean help db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean stage stage-down prod prod-down upgrade upgrade-dry-run upgrade-new-features upgrade-finalize
+.PHONY: install format lint test run clean help db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean stage stage-down prod prod-down upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build
 
 # === Environments ===========================================================
 # `make dev`   — local development (docker-compose.dev.yml + bind-mounted source)
@@ -212,6 +212,23 @@ test-e2e:
 # What CI runs. Run this before opening a pull request.
 check: lint test test-frontend
 	@echo "All checks passed."
+
+# === Documentation ===
+
+# The docs site, live-reloading on <http://localhost:8001>. Port 8001 because
+# 8000 is the API and serving docs there would shadow it. Override with
+# `make docs DOCS_PORT=8002` when something else already holds the port -
+# mkdocs answers a taken port with a bare OSError traceback.
+DOCS_PORT ?= 8001
+
+docs:
+	uv run --directory backend --group docs mkdocs serve -f ../mkdocs.yml -a localhost:$(DOCS_PORT)
+
+# Build the site, and fail on anything mkdocs only warns about - a dead internal
+# link or a page missing from the nav. Both are things a reader finds and a build
+# would otherwise ship.
+docs-build:
+	uv run --directory backend --group docs mkdocs build -f ../mkdocs.yml --strict
 
 # Migrations against a real database, forwards and back. The only way to know a
 # backfill or a check constraint actually works.

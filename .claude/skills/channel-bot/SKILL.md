@@ -1,45 +1,88 @@
 ---
 name: channel-bot
-description: Work with messaging-channel bots (Telegram / Slack) — register a bot, route inbound messages through the AI agent, handle webhooks vs polling, or add a new channel adapter. Use when wiring chat into a messaging platform or debugging bot delivery.
+description: Work with messaging-channel bots — Telegram, Slack or Mattermost. Register a bot, route inbound messages through an agent, choose webhook vs polling, handle an @slug mention, or add a new channel adapter. Use when wiring chat into a messaging platform or debugging bot delivery, identity linking or "the bot answered as itself".
 ---
 
-# Messaging Channels (Telegram / Slack)
+# Channels — Telegram, Slack, Mattermost
 
-Channels are a **thick service** at `backend/app/services/channels/`: per-platform adapters plus a router that funnels inbound messages into the **same agent pipeline** as the web chat.
-
-## Layout
+**Read `docs/channels.md`.** Code: `app/services/channels/` — a thick service with
+per-platform adapters plus a router that funnels inbound messages into the **same**
+agent pipeline as the web chat.
 
 | File | Responsibility |
-|------|---------------|
-| `base.py` | Shared channel adapter interface |
-| `telegram.py` | Telegram adapter (aiogram v3) |
-| `slack.py` | Slack adapter (Events API + Socket Mode) |
-| `router.py` | Maps an inbound platform message → conversation/session → agent run → reply |
-| `chart_render.py` | Renders chart tool output as PNG for channels |
+|---|---|
+| `base.py` | Shared adapter interface |
+| `telegram.py` | Telegram (aiogram v3) |
+| `slack.py` | Slack (Events API + Socket Mode) |
+| `mattermost.py` | Mattermost |
+| `router.py` | Inbound platform message → conversation/session → agent run → reply |
+| `mentions.py` | `@slug` resolution, and the identity rules below |
 
-Bots are stored in the DB (`channel_bot`), with per-user identity (`channel_identity`) and per-thread session (`channel_session`) tables. Bot tokens are encrypted at rest with `CHANNEL_ENCRYPTION_KEY` (Fernet).
+Bots live in the DB (`channel_bots`), with per-user identity (`channel_identity`) and
+per-thread session (`channel_session`).
 
-## Register / manage a bot
+## Tokens go through the vault
+
+Bot tokens are sealed with `app/core/vault.py`, bound to the organization.
+**`CHANNEL_ENCRYPTION_KEY` and the deployment-wide Fernet key are gone** — migration
+`0038`. `channel_bots.secret_key_version` exists because the token is now an envelope
+and a staged master-key rotation has to know which key sealed it. See the
+`vault-secrets` skill.
+
+## The mention invariants
+
+These are the ones worth testing and the ones easiest to break:
+
+- **`@slug` resolves only inside the bot's organization.** A slug from another org is
+  not found, not borrowed.
+- **A mention runs as the *sender*, never as the bot.** The bot's own identity would
+  carry whatever permissions it was registered with, which is how a channel becomes a
+  privilege-escalation path.
+- **An unlinked identity is refused, not run with no role.** "No role" is not a safe
+  default; it is an unauthenticated run.
+
+`tests/test_channel_mentions.py` and `tests/test_channel_bot_org_scope.py` pin these.
+
+## CLI
 
 ```bash
-uv run agenticos cmd channel ...   # see `cmd channel --help`
+uv run agenticos cmd channel-add-bot \
+    --platform telegram --name "Support" --token <token> --mode jwt_linked
+uv run agenticos cmd channel-list-bots [--platform telegram]
+uv run agenticos cmd channel-test-message --bot-id <uuid> --chat-id <chat> --text ping
+uv run agenticos cmd channel-webhook-register --bot-id <uuid>
+uv run agenticos cmd channel-webhook-delete --bot-id <uuid>   # back to polling
 ```
+
+There is no `cmd channel` group — the commands are flat, hyphenated names.
+
+Access modes: `open`, `whitelist`, `jwt_linked`, `group_only`.
 
 ## Webhook vs polling
 
-- **Polling (dev):** the adapter long-polls the platform — no public URL needed.
-- **Webhook (prod):** the platform POSTs to `POST /api/v1/telegram/{bot_id}/webhook` / the Slack events endpoint. Verify the signature/secret (HMAC for Telegram, signing secret for Slack) before processing.
+- **Polling (dev)** — the adapter long-polls; no public URL needed.
+- **Webhook (prod)** — the platform POSTs to a route under `api/routes/v1/`.
+  **Verify the signature or secret before processing anything** (HMAC for Telegram,
+  signing secret for Slack).
 
-## Add a new channel adapter
+## Adding an adapter
 
-1. Implement an adapter in `services/channels/<platform>.py` against the `base.py` interface (parse inbound → normalized message; send outbound).
-2. Wire it into `router.py` so inbound messages reach the agent and replies stream back.
-3. Add a webhook route under `api/routes/v1/` (signature-verified) and/or a polling entrypoint.
-4. Reuse the existing conversation/session model — don't fork the agent pipeline.
+1. Implement `services/channels/<platform>.py` against `base.py`: parse inbound into
+   the normalized message, send outbound.
+2. Wire it into `router.py` so inbound reaches the agent and replies stream back.
+   **Do not fork the agent pipeline** — one runner behind every surface is the whole
+   design.
+3. Add a signature-verified webhook route and/or a polling entrypoint.
+4. Reuse the existing conversation/session model.
+5. Respect the per-group/per-thread concurrency controls already in the adapters.
 
-## Rules
+## Where charts come from
 
-- Inbound messages flow through `router.py` into the **same** agent/session pipeline as web chat — don't duplicate agent logic per platform.
-- Always verify webhook signatures before acting on a payload.
-- Store tokens encrypted (`CHANNEL_ENCRYPTION_KEY`); never log or echo them.
-- Respect per-group/per-thread concurrency controls already in the adapters.
+Rendering a chart for a channel is the `charts` capability's job
+(`app/agents/capabilities/charts/`), not a channel module. There is no
+`chart_render.py` in `services/channels/` any more.
+
+## Coverage
+
+`app/services/channels/mentions.py` is in the gated platform layer at 100%. The
+adapters are template-inherited and are not. See the `backend-tests` skill.

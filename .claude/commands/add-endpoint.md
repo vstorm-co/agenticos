@@ -2,39 +2,61 @@
 description: Scaffold a new API endpoint with full layering
 ---
 
-Create a new API endpoint: $ARGUMENTS
+Add an API endpoint: $ARGUMENTS
 
-Follow the project's layered architecture. Create files in this order:
+Read `.claude/rules/architecture.md`, `api-conventions.md` and `schemas-models.md`
+first. If the resource is org-scoped or gated, also use the `permissions-rbac` skill —
+the gate is the part that breaks silently.
 
-1. **Schema** (`backend/app/schemas/<entity>.py`):
-   - Inherit `BaseSchema` (and `TimestampSchema` for Read)
-   - Create `*Create`, `*Update`, `*Read`, `*List` models
-   - Use `Field()` with constraints, `EmailStr` where applicable
+Create in this order:
 
-2. **DB Model** (`backend/app/db/models/<entity>.py`):
-   - Inherit `Base, TimestampMixin`
-   - Use `Mapped[type]` + `mapped_column()`
-   - Add `__repr__`, relationships with `cascade="all, delete-orphan"`
+1. **Schema** (`backend/app/schemas/<entity>.py`) — `BaseSchema` (plus
+   `TimestampSchema` for Read); `*Create`, `*Update` (all optional), `*Read`, `*List`;
+   `Field()` constraints.
 
-3. **Repository** (`backend/app/repositories/<entity>_repo.py`):
-   - Stateless async functions: `get_by_id`, `get_multi`, `create`, `update`, `delete`
-   - Use `db.flush()` + `db.refresh()`, keyword-only args after `db`
+2. **DB model** (`backend/app/db/models/<entity>.py`) — `Base, TimestampMixin`,
+   `Mapped[...]` + `mapped_column()`, `__repr__`, `ondelete="CASCADE"`.
+   **Org-scoped means `NOT NULL organization_id`** and tenant-scoped unique constraints,
+   so a missed `WHERE` is a constraint violation rather than a data leak. Import it in
+   `app/db/models/__init__.py`.
 
-4. **Service** (`backend/app/services/<entity>.py`):
-   - Class with `__init__(self, db: AsyncSession)`
-   - Raise `NotFoundError`, `AlreadyExistsError` as appropriate
+3. **Repository** (`backend/app/repositories/<entity>.py`) — stateless async functions,
+   keyword-only after `db`, `db.flush()` + `db.refresh()`, **never** `db.commit()`.
+   Return the entity, never an id or a dict.
 
-5. **DI** (`backend/app/api/deps.py`):
-   - Add factory function and `Annotated` alias: `EntitySvc = Annotated[EntityService, Depends(get_entity_service)]`
+4. **Service** (`backend/app/services/<entity>.py`) — a class taking `db`. Raise
+   `NotFoundError` / `AlreadyExistsError` / `AuthorizationError`, never return error
+   codes. Thick domain (own clients, adapters, parsers) → a subpackage with a facade;
+   see `architecture.md`.
 
-6. **Route** (`backend/app/api/routes/v1/<entity>.py`):
-   - CRUD: GET list, GET by id, POST (201), PATCH, DELETE (204)
-   - Use DI aliases, `response_model`, `-> Any` return type
+5. **DI** (`backend/app/api/deps.py`) — a factory plus an `Annotated` alias:
+   `EntitySvc = Annotated[EntityService, Depends(get_entity_service)]`.
 
-7. **Register** router in `backend/app/api/routes/v1/__init__.py`
+6. **Route** (`backend/app/api/routes/v1/<entity>.py`) — `response_model`, `-> Any`,
+   201 on POST, 204 + `response_model=None` on DELETE, `skip`/`limit` on lists.
 
-8. **Migration**: `cd backend && uv run alembic revision --autogenerate -m "Add <entity> table"`
+   **The gate:**
+   - Collection routes (`GET ""`, `POST ""`) carry
+     `dependencies=[Depends(require(Perm.X))]`.
+   - Per-resource routes (`/{id}`, and any action on one row) carry **no** role gate.
+     The service calls `resolve_access(...)`. A role gate cannot see a row's grants and
+     would refuse a Viewer who holds an explicit grant.
+   - Listings need `visible_resource_ids(...)`, or shared rows vanish.
+   - Use `Auth` (`AuthContext`) for anything org-scoped. `CurrentUser` /
+     `CurrentAppAdmin` are the only user aliases; there is no `CurrentAdmin` or
+     `RoleChecker`.
 
-9. **Test** (`backend/tests/`): mirror source structure
+7. **Register** the router in `backend/app/api/routes/v1/__init__.py`.
 
-10. Lint: `cd backend && uv run ruff check . --fix && uv run ruff format .`
+8. **Migration** — `make db-migrate`, then **review the generated file** and round-trip
+   it. Use the `alembic-migration` skill.
+
+9. **Tests** — a unit test per service branch, an API test that the gate refuses the
+   wrong caller, and an integration test for any new constraint. Test the refusal and
+   test it cross-tenant. Use the `backend-tests` skill; if the module belongs to the
+   platform layer, add it to **both** lists in `pyproject.toml`.
+
+10. **Docs** — if this changes behaviour a page describes, update it. See the table in
+    `CLAUDE.md`.
+
+11. `make lint && make test-fast`, then `make check` before opening a PR.

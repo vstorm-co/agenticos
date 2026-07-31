@@ -140,7 +140,7 @@ socket.send(JSON.stringify({ type: "message", text: "hello" }));
    the bot token.
 3. Either point Slack's Events API at
    `https://your-api.example.com/api/v1/slack/BOT_ID/events`, or run Socket Mode
-   (set `SLACK_APP_TOKEN`) and expose nothing.
+   (add the bot's `xapp-` token in its settings) and expose nothing.
 4. Bind the agent: Builder → the agent → **Available in** → the bot.
 
 Works in channels and in DMs. A thread gets its own conversation, so two people

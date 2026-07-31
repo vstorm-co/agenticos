@@ -2,30 +2,64 @@
 description: Review code changes against project conventions
 ---
 
-Review all staged and unstaged changes in the current branch.
+Review the staged and unstaged changes on this branch.
 
-For each changed file, verify:
+Read the change in the context of the system, not as a diff. For each file, check:
 
-**Architecture:**
-- Routes only call services, never repositories
-- Services raise domain exceptions (NotFoundError, AlreadyExistsError, etc.), not HTTP exceptions
-- Repositories use `db.flush()` + `db.refresh()`, never `db.commit()`
-- DI uses Annotated aliases from `deps.py` (CurrentUser, *Svc), not raw `Depends()` in signatures
+**Authorization** — the half that breaks silently
+- `require(...)` on collection routes only. A per-resource route with a role gate
+  refuses a Viewer holding an explicit grant, before `resolve_access` can widen it
+- Per-resource decisions in the service, via `resolve_access(...)`
+- Listings call `visible_resource_ids(...)` — `None` means "reaches everything", `[]`
+  means "nothing extra"; confusing them leaks or hides rows
+- No `UserRole`, `has_role`, `RoleChecker`, `CurrentAdmin`, `CurrentSuperuser`, no
+  `--role` flag. Those were removed in migration `0066`
+- Org-scoped rows: is the tenant actually constrained, in the schema and not only in a
+  `WHERE`?
 
-**Schemas & Types:**
-- Separate Create/Update/Read/List Pydantic models
-- Type hints on all function signatures (params + return)
-- Modern syntax: `str | None` not `Optional[str]`
-- Route return type is `-> Any`
+**Architecture**
+- Routes call services, never repositories
+- Services raise domain exceptions, never HTTPException
+- Repositories: `db.flush()` + `db.refresh()`, **never** `db.commit()`
+- `Annotated` aliases from `deps.py`, not raw `Depends()` in signatures
+- Route return type `-> Any`, `response_model` does the serialization
 
-**Code Quality:**
-- No debug code (print, commented-out code, TODO without issue reference)
-- No security issues (SQL injection, exposed secrets, missing auth)
-- Consistent naming (snake_case functions, PascalCase classes)
-- Imports ordered: stdlib → third-party → local
+**Secrets**
+- Everything at rest goes through `app/core/vault.py`. A second encryption mechanism is
+  the defect migration `0038` removed
+- No plaintext in a response, a log line, an audit entry or a spec. `SecretStr` on every
+  secret-bearing field
+- A capability declares a secret *kind*; a binding names the instance
 
-**Validation:**
-1. Run `cd backend && uv run ruff check .`
-2. Run `cd backend && uv run pytest` (if test files changed)
+**Agent changes**
+- A new tool declared in `@register(tools=...)`, or it cannot be gated or renamed
+- The capability module in `load_builtins()`
+- A capability `id` unchanged
+- A spec field change: does an **old stored document** still load? Narrowing a rule on a
+  JSON-stored field needs a data migration in the same change
 
-Provide findings with specific file:line references and suggest fixes.
+**Types and style**
+- Full hints; no `Any` escape hatch, no `# type: ignore` / `ty: ignore` without a
+  comment saying what holds it true
+- `str | None`, not `Optional[str]`; `datetime.now(UTC)`; `secrets.compare_digest`
+- Imports ordered stdlib → third-party → local
+- No debug code, commented-out code, or a TODO with no issue
+
+**Tests**
+- Does a new behaviour have a test that would fail without it?
+- Is the **refusal** covered, and cross-tenant?
+- Right layer: a constraint needs `tests/integration/`, a route gate needs `tests/api/`
+- Platform-layer module added to **both** lists in `pyproject.toml`
+- No test that passes with the implementation deleted
+
+**Docs** — behaviour changed means the page changed. See the table in `CLAUDE.md`.
+
+Then run:
+
+```bash
+make lint
+make test-fast     # or make test if the platform layer changed
+```
+
+Report findings with `file:line` references, most severe first, each with the concrete
+failure it causes. Say plainly if you found nothing worth changing.

@@ -47,15 +47,23 @@ async def list_items(
 ## Authentication
 
 - `CurrentUser` — JWT Bearer token (any authenticated user)
-- `CurrentAdmin` — JWT + admin role check via `RoleChecker`
+- `CurrentAppAdmin` — JWT + the `is_app_admin` flag (deployment administration)
 - `ValidAPIKey` — API key from header (service-to-service)
+- `require(Perm.X)` — a permission from the catalog, on a collection route
+
+There is no `CurrentAdmin` / `RoleChecker`; authority inside an organization is
+a permission, not a role name on a route.
 
 ```python
 # Protected endpoint
 async def get_profile(user: CurrentUser) -> Any: ...
 
-# Admin-only endpoint
-async def delete_user(user: CurrentAdmin) -> Any: ...
+# Deployment administration
+async def delete_user(user: CurrentAppAdmin) -> Any: ...
+
+# Gated on a permission, which is how anything org-scoped is done
+@router.post("", dependencies=[Depends(require(Perm.AGENTS_EDIT))])
+async def create_agent(ctx: Auth) -> Any: ...
 
 # API key endpoint
 async def webhook_callback(api_key: ValidAPIKey) -> Any: ...

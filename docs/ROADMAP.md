@@ -165,7 +165,9 @@ compatibility promise.
 
 ## Testing
 
-The bar and the layers are documented in [`CLAUDE.md`](../CLAUDE.md#testing).
+The bar and the layers are documented in [Testing](testing.md), and in
+[`CLAUDE.md`](https://github.com/vstorm-co/agenticos/blob/main/CLAUDE.md#testing)
+for anyone working in the repository.
 Short version: the platform layer is at 100% and CI enforces it;
 template-inherited subsystems are reported but do not gate the build, because
 mock-heavy tests over code we did not design buy a number rather than

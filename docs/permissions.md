@@ -1,216 +1,220 @@
+# Permissions
 
-# Permissions & Access Control
+The rule the whole codebase follows: **permissions are defined in code, roles are
+composed from them.** Call sites check permissions, never role names, so adding
+or re-shaping a role never means editing an endpoint.
 
-## Roles
+The catalog is [`app/core/permissions.py`](reference/permissions.md). It is the
+single source of truth; this page explains it.
 
-Two roles are defined in `app/db/models/user.py`:
+!!! warning "There are three layers, and they are independent"
 
-- **admin** -- Full access to all features. Can manage users, RAG collections,
-  sync sources, webhooks, and export data.
-- **user** -- Standard access. Can chat with the AI agent, manage their own
-  profile, view their own conversations, upload files to chat, and search
-  the knowledge base.
+    They do not form a hierarchy and none implies another. Most confusion about
+    access on this platform comes from assuming otherwise.
 
-Admins implicitly have all user permissions. The `User.has_role()` method
-returns `True` for any role if the user is an admin.
+    There used to be a fourth - a `users.role` column of `admin` | `user`,
+    inherited from the project template, with `User.has_role()`, `RoleChecker`
+    and a `CurrentAdmin` alias behind it. It was removed in migration `0066`. It
+    was a third answer to a question the two below already answered, and it
+    agreed with neither: an account called `admin@example.com` sat at
+    `role = 'user'`, which reads as a broken installation and sent people to fix
+    the wrong layer.
 
-## Dependency Aliases
+    It was not quite inert, which is why removing it was a behaviour change:
+    `GET /conversations/{id}` and its `/messages` sibling dropped the ownership
+    filter for anybody whose `role` said `admin`. Cross-user conversation reads
+    now live only on `/admin/conversations`, gated on `is_app_admin`.
 
-These are defined in `app/api/deps.py` and used throughout the route layer:
+## Layer 1: `users.is_app_admin` - the deployment superadmin
 
-| Alias | Resolves To | Access Level |
-|-------|------------|--------------|
-| `CurrentUser` | `Depends(get_current_user)` | Any authenticated user |
-| `CurrentAdmin` | `Depends(RoleChecker(UserRole.ADMIN))` | Admin role required |
-| `CurrentSuperuser` | `Depends(get_current_active_superuser)` | Admin role required (legacy alias) |
+A boolean on the user, entirely outside organizations. Two effects:
 
-## Endpoint Access Matrix
+1. **A gate on deployment routes.** `CurrentAppAdmin` guards `/admin/users`,
+   `/admin/stats`, `/admin/conversations`, `/admin/ratings` and the bulk `/rag`
+   endpoints.
+2. **A bypass in `AuthContext.permissions`**, which returns every permission at
+   `Scope.ALL` - in every organization, including ones where they hold no
+   membership.
 
-### Authentication
-
-| Endpoint | Method | Admin | User | Unauthenticated | Notes |
-|----------|--------|-------|------|-----------------|-------|
-| `/auth/login` | POST | Y | Y | Y | Returns JWT tokens |
-| `/auth/register` | POST | Y | Y | Y | Creates new user account |
-| `/auth/refresh` | POST | Y | Y | -- | Requires valid refresh token |
-
-### Users
-
-| Endpoint | Method | Admin | User | Notes |
-|----------|--------|-------|------|-------|
-| `/users/me` | GET | Y | Y | Own profile |
-| `/users/me` | PATCH | Y | Y | Own profile; non-admins cannot change role |
-| `/users/me/avatar` | POST | Y | Y | Upload own avatar image |
-| `/users/avatar/{user_id}` | GET | Y | Y | Public avatar access |
-| `/users` | GET | Y | -- | List all users (admin only) |
-| `/users/{id}` | GET | Y | -- | View any user (admin only) |
-| `/users/{id}` | PATCH | Y | -- | Update any user including role (admin only) |
-| `/users/{id}` | DELETE | Y | -- | Delete any user (admin only) |
-
-### AI Agent
-
-| Endpoint | Method | Admin | User | Notes |
-|----------|--------|-------|------|-------|
-| `/agent/ws/agent` | WS | Y | Y | WebSocket chat with AI agent |
-
-### Conversations
-
-| Endpoint | Method | Admin | User | Notes |
-|----------|--------|-------|------|-------|
-| `/conversations` | GET | Y | Y | Own conversations only (filtered by user_id) |
-| `/conversations` | POST | Y | Y | Create new conversation |
-| `/conversations/{id}` | GET | Y | Y | Own conversations only (IDOR protection) |
-| `/conversations/{id}` | PATCH | Y | Y | Update title / archived status |
-| `/conversations/{id}` | DELETE | Y | Y | Delete own conversation |
-| `/conversations/{id}/archive` | POST | Y | Y | Archive own conversation |
-| `/conversations/{id}/messages` | GET | Y | Y | List messages in own conversation |
-| `/conversations/{id}/messages` | POST | Y | Y | Add message to own conversation |
-| `/conversations/export` | GET | Y | -- | Export all conversations (admin only) |
-
-### Message Ratings
-
-| Endpoint | Method | Admin | User | Notes |
-|----------|--------|-------|------|-------|
-| `/conversations/{id}/messages/{msg_id}/rate` | POST | Y | Y | Rate/update a message (like/dislike) |
-| `/conversations/{id}/messages/{msg_id}/rate` | DELETE | Y | Y | Remove own rating |
-| `/admin/ratings` | GET | Y | -- | List all ratings with filters (admin only) |
-| `/admin/ratings/summary` | GET | Y | -- | Aggregated statistics (admin only) |
-| `/admin/ratings/export` | GET | Y | -- | Export ratings JSON/CSV (admin only) |
-| `/admin/conversations` | GET | Y | -- | List all conversations (admin only) |
-
-### Files
-
-| Endpoint | Method | Admin | User | Notes |
-|----------|--------|-------|------|-------|
-| `/files/upload` | POST | Y | Y | Upload file for chat |
-| `/files/{id}` | GET | Y | Y | Download own files only (ownership check) |
-| `/files/{id}/info` | GET | Y | Y | File metadata for own files only |
-
-### RAG (Knowledge Base)
-
-| Endpoint | Method | Admin | User | Notes |
-|----------|--------|-------|------|-------|
-| `/rag/supported-formats` | GET | Y | Y | List supported file formats |
-| `/rag/search` | POST | Y | Y | Search knowledge base (all users) |
-| `/rag/collections` | GET | Y | -- | List collections (admin only) |
-| `/rag/collections/{name}` | POST | Y | -- | Create collection (admin only) |
-| `/rag/collections/{name}` | DELETE | Y | -- | Drop collection (admin only) |
-| `/rag/collections/{name}/info` | GET | Y | -- | Collection stats (admin only) |
-| `/rag/collections/{name}/documents` | GET | Y | -- | List documents in collection (admin only) |
-| `/rag/collections/{name}/documents/{id}` | DELETE | Y | -- | Delete document (admin only) |
-| `/rag/collections/{name}/ingest` | POST | Y | -- | Upload and ingest file (admin only) |
-| `/rag/documents` | GET | Y | -- | List tracked RAG documents (admin only) |
-| `/rag/documents/{id}/download` | GET | Y | -- | Download original file (admin only) |
-| `/rag/documents/{id}` | DELETE | Y | -- | Delete tracked document (admin only) |
-| `/rag/documents/{id}/retry` | POST | Y | -- | Retry failed ingestion (admin only) |
-| `/rag/sync/logs` | GET | Y | -- | List sync logs (admin only) |
-| `/rag/sync/local` | POST | Y | -- | Trigger local directory sync (admin only) |
-| `/rag/sync/{id}` | DELETE | Y | -- | Cancel sync operation (admin only) |
-| `/rag/sync/sources` | GET | Y | -- | List sync sources (admin only) |
-| `/rag/sync/sources` | POST | Y | -- | Create sync source (admin only) |
-| `/rag/sync/sources/{id}` | PATCH | Y | -- | Update sync source (admin only) |
-| `/rag/sync/sources/{id}` | DELETE | Y | -- | Delete sync source (admin only) |
-| `/rag/sync/sources/{id}/trigger` | POST | Y | -- | Trigger manual sync (admin only) |
-| `/rag/sync/connectors` | GET | Y | -- | List available connector types (admin only) |
-
-### Health
-
-| Endpoint | Method | Admin | User | Unauthenticated | Notes |
-|----------|--------|-------|------|-----------------|-------|
-| `/health` | GET | Y | Y | Y | No auth required |
-
-## How It Works
-
-### JWT Flow
-
-1. User sends credentials to `POST /auth/login`.
-2. Server validates credentials, returns `access_token` + `refresh_token`.
-3. Client includes `Authorization: Bearer <access_token>` on subsequent requests.
-4. `get_current_user` dependency extracts the JWT, verifies it, loads the user.
-5. If the token is expired, the client uses `POST /auth/refresh` to get a new one.
-
-### Role Checking
-
-`RoleChecker` is a callable class that wraps `get_current_user`:
-
-```python
-class RoleChecker:
-    def __init__(self, required_role: UserRole):
-        self.required_role = required_role
-
-    async def __call__(self, user = Depends(get_current_user)) -> User:
-        if not user.has_role(self.required_role):
-            raise AuthorizationError(...)
-        return user
-```
-
-`User.has_role()` returns `True` if:
-- The user's role matches the required role, OR
-- The user is an admin (admin has all permissions).
-
-### IDOR Protection
-
-Resources owned by users (conversations, files) are protected at the service
-layer. The service receives the current user's ID from the route and uses it
-to filter queries:
-
-```python
-# In conversation route
-items, total = await service.list_conversations(user_id=current_user.id, ...)
-
-# In file route
-chat_file = await file_upload_svc.get_user_file(file_id, current_user.id)
-# Raises NotFoundError if user_id doesn't match
-```
-
-### RAG Access Model
-
-RAG operates on a **global** access model:
-
-- **Search** is available to all authenticated users (`CurrentUser`). All users
-  search the same collections and see the same results.
-- **Management** (create/delete collections, upload documents, configure sync
-  sources) requires admin access (`CurrentAdmin`).
-- There is no per-user document isolation. If you need per-user collections,
-  you would need to extend the service layer to scope collections by user.
-
-### API Key Authentication
-
-For programmatic access, clients can authenticate via API key:
-
-```
-X-API-Key: your-api-key-here
-```
-
-The `verify_api_key` dependency validates the key using constant-time comparison.
-API key auth grants full access (no role distinction). Use it for trusted
-server-to-server communication.
-
-## Creating Users
-
-### Via CLI
+The bypass is deliberate and the docstring says why: such a person administers
+the deployment and already has database access, so pretending otherwise would be
+security theatre. What holds them to it is the audit log.
 
 ```bash
-# Create a regular user
-uv run agenticos user create --email user@example.com --password secret
-
-# Create an admin user
-uv run agenticos user create-admin --email admin@example.com --password secret
-
-# Change user role
-uv run agenticos user set-role user@example.com --role admin
+# Grant, or revoke with --revoke.
+agenticos cmd create-app-admin someone@example.com
 ```
 
-### Via Make
+`agenticos cmd bootstrap` also grants it to the owner it creates, idempotently.
 
-```bash
-make create-admin    # Interactive admin creation
-make user-create     # Interactive user creation
-make user-list       # List all users
+!!! note "A fresh clone, an old database"
+
+    If `/admin` is refused for the account bootstrap created, the database was
+    almost certainly bootstrapped before that grant existed. The column defaults
+    to `false` and nothing backfills it. Run `create-app-admin` above.
+
+## Layer 2: the organization role
+
+A row in `organization_members` - one per organization per user - carrying a value
+from `OrgRoleName`. This is where the great majority of decisions are made.
+
+Two kinds of permission, and they behave differently.
+
+**Global** permissions are binary and org-wide: `members:manage`, `roles:manage`,
+`org:settings`, `org:delete`, `budgets:manage`, `approvals:decide`,
+`connections:manage`, `mcp:manage`, `channels:manage`, `runs:view`,
+`audit:read`.
+
+**Resource** permissions carry a `Scope`, because they answer the second question
+a role cannot: not "may this role touch agents?" but *which* agents.
+
+### Scope
+
+Ordered `NONE < OWN < SHARED < TEAM < ALL`.
+
+| Scope | Reaches |
+|---|---|
+| `NONE` | nothing |
+| `OWN` | rows this person owns |
+| `SHARED` | their own, plus anything org-visible |
+| `TEAM` | their own, plus team-visible and org-visible |
+| `ALL` | every row in the organization |
+
+!!! info "Why the comparison operators are overloaded"
+
+    `Scope` subclasses `str`, so without them Python would compare the values
+    alphabetically - `all < none < own`, the opposite of what they mean. Mixed
+    comparisons raise `TypeError` rather than returning a silently wrong answer,
+    because a wrong answer in an authorization check is worse than a loud one.
+
+`TEAM` is not used by any built-in role today; it exists for custom roles.
+
+### The built-in roles
+
+| Role | Idea | Agents | Secrets | Global |
+|---|---|---|---|---|
+| `owner` | owns the organization | all `ALL` | `ALL` | everything, including `org:delete` |
+| `admin` | runs it day to day | all `ALL` | `ALL` | everything **except** `org:delete` |
+| `builder` | builds, and learns from the whole org | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp`, `connections`, `runs:view` |
+| `operator` | keeps the running system healthy | `view`/`run` `ALL`, no edit | `view` `SHARED` | `approvals:decide`, `runs:view` |
+| `member` | the everyday user | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | none |
+| `viewer` | reads | `view` `SHARED` | none | none |
+
+The `builder` / `admin` distinction is the interesting one: a builder sees the
+whole organization in order to learn from it, but edits only what is theirs or was
+shared with them - so one builder cannot rewrite another's agent.
+
+Roles are not user-editable, and nothing seeds them: there is no roles table. A
+role is a string on the membership row, and what it means is `ROLE_PERMS` in
+code - so adding a role is an edit there rather than a migration, which is the
+point of composing roles from permissions.
+
+The column carries no CHECK constraint, unlike `resource_grants.level`. What
+keeps an invented role out is a validator on the member and invitation schemas,
+and if one ever got through, an unknown role resolves to no permissions rather
+than to somebody else's.
+
+Custom roles are Phase 2 and may only ever recombine the permissions above;
+clients cannot invent new ones.
+
+## Layer 3: visibility and grants
+
+Every shareable resource carries an `owner_user_id` and a `visibility`
+(`private` | `team` | `org`). On top of that, `resource_grants` holds one row per
+share: one resource, one person, one level.
+
+| Level | Allows |
+|---|---|
+| `read` | see the configuration |
+| `use` | also run or attach it |
+| `edit` | also change it |
+
+The table is deliberately generic - `resource_type` + `resource_id`, with no
+foreign key to the target - because agents, collections, skills and stored keys
+all share the same rules. The trade-off is that the database cannot cascade-delete
+a grant when its target goes away, so services delete grants alongside the
+resource.
+
+## How the layers combine
+
+One formula, in `app/services/access.py`:
+
+```
+effective access to one row = max(role scope, grant on that row)
 ```
 
-### Via Quickstart
+**A grant widens what a role allows; it never narrows it.** Sharing one agent
+with a Viewer works without promoting them, and a Builder's org-wide view is not
+taken away by the absence of a grant.
 
-```bash
-make quickstart      # Creates admin@example.com / admin123 automatically
-```
+`resolve_access` in order:
+
+1. No subject in the context → refused. Always, whatever the role says.
+2. `resource.organization_id != ctx.organization_id` → refused. **Tenancy is
+   checked before anything else.**
+3. Does the role's scope alone reach this row? If yes, done - no query.
+4. Only now is `resource_grants` consulted, and the level compared against the
+   minimum the permission requires.
+
+### Listings
+
+`visible_resource_ids` answers the same question for a list, and has one trap
+worth knowing: it returns `None` when the role already reaches everything ("no
+filtering needed") and an **empty list** for a context with no subject. Those are
+opposites, so confusing them would widen a listing to the whole organization at
+exactly the moment it should be narrowed to nothing.
+
+## Where the gates go
+
+!!! danger "`require(...)` belongs on collection routes, not per-resource ones"
+
+    Listing, creating and reading a catalog carry a role gate. Anything acting on
+    *one* agent, skill or collection must not.
+
+    A role gate cannot see the grants on a row, so it would refuse a Viewer
+    holding an explicit `edit` grant before `resolve_access` ever widened their
+    access - which contradicts "a grant widens what a role allows". Per-resource
+    routes hand the decision to a service that calls `resolve_access`.
+
+    `tests/api/test_platform_routes.py` enforces both halves.
+
+## Contexts with no subject
+
+`AuthContext.user_id` is optional, and that is a statement rather than a
+convenience. Every run on this platform has a subject: budgets, grants, the audit
+trail and the approval gate all key on one.
+
+- `AuthContext.anonymous()` is the only constructor for such a context, so "where
+  can a subject-less context come from" is a `grep` rather than an audit.
+- Its role is the string `"anonymous"`, deliberately not a member of
+  `OrgRoleName` and not a key of `ROLE_PERMS`, so it can never pick up
+  permissions from a later edit to either.
+- `.permissions` returns `{}` when there is no subject - checked on the subject
+  rather than on the role string, because a subject-less context built with
+  `"owner"` would otherwise reach every row in the organization.
+- `.subject_id` raises `AuthorizationError` rather than returning `None`, because
+  the audit actor column is `NOT NULL` and letting the absence travel surfaces
+  several layers down as an `IntegrityError` - by which point the audit entry is
+  lost and the request has half happened.
+
+What such a run is allowed to do comes from the **exposure** that admitted it,
+created by somebody who did have a role.
+
+## What the frontend reads
+
+| Endpoint | Answers |
+|---|---|
+| `GET /me/permissions` | the caller's role, `is_app_admin`, and every permission with its scope |
+| `GET /roles/catalog` | the whole catalog and what each role bundles |
+
+Both are **a convenience for the UI and nothing more**. The server re-checks every
+permission on the endpoint that performs the action, so a client that ignores
+these APIs gains nothing.
+
+## Reference
+
+::: app.core.permissions.Perm
+
+::: app.core.permissions.Scope
+
+::: app.core.permissions.AuthContext

@@ -134,20 +134,26 @@ uv run agenticos user create
 # Create user non-interactively
 uv run agenticos user create --email user@example.com --password secret
 
-# Create user with specific role
-uv run agenticos user create --email admin@example.com --password secret --role admin
-
-# Create user with superuser flag
+# Also grant app-admin, which administers the whole deployment
 uv run agenticos user create --email admin@example.com --password secret --superuser
 
-# Create admin (shortcut)
+# The same thing, as a shortcut
 uv run agenticos user create-admin --email admin@example.com --password secret
-
-# Change user role
-uv run agenticos user set-role user@example.com --role admin
 
 # List all users
 uv run agenticos user list
+```
+
+**There is no `--role` and no `set-role`.** A user's authority inside an
+organization is a membership row plus the [permission
+catalog](reference/permissions.md), granted from Users & Roles in the UI — the
+`users.role` column was dropped in migration `0066`. The only privilege this group
+can hand out is the global one, and `--superuser` is it. To grant or revoke it
+later:
+
+```bash
+uv run agenticos cmd create-app-admin user@example.com
+uv run agenticos cmd create-app-admin user@example.com --revoke
 ```
 
 ### Custom Commands
@@ -157,6 +163,58 @@ Custom commands are auto-discovered from `app/commands/`. Run them via:
 ```bash
 uv run agenticos cmd <command-name> [options]
 ```
+
+`uv run agenticos cmd --help` lists everything the running deployment has.
+
+### Setup and Diagnostics
+
+```bash
+# An organization, an owner, a model profile and a published agent. Idempotent.
+uv run agenticos cmd bootstrap \
+    --email owner@example.com --password secret \
+    --org "Acme" --provider anthropic --api-key sk-ant-...
+
+# Without a key the agent is created but cannot run
+uv run agenticos cmd bootstrap --org "Acme"
+
+# Can this deployment actually run an agent? Database, vault, a usable model.
+uv run agenticos cmd doctor
+
+# Install the bundled skills (refund-policy, code-review, incident-report)
+uv run agenticos cmd seed-skills
+uv run agenticos cmd seed-skills --org <org-id> --dry-run
+
+# Sample data for development
+uv run agenticos cmd seed --count 10 --clear
+```
+
+`make platform-bootstrap BOOTSTRAP_API_KEY=sk-...` wraps `bootstrap` with the
+migrations it needs. Run `doctor` first when something works locally and not on a
+fresh environment — it is faster than reading logs.
+
+### Channel Bots
+
+See [Channels](channels.md) for what each platform supports.
+
+```bash
+# Register a bot
+uv run agenticos cmd channel-add-bot \
+    --platform telegram --name "Support" --token <token> --mode jwt_linked
+
+uv run agenticos cmd channel-list-bots
+uv run agenticos cmd channel-list-bots --platform telegram
+
+# Send a test message through it
+uv run agenticos cmd channel-test-message --bot-id <uuid> --chat-id <chat> --text "ping"
+
+# Webhook delivery, or delete the webhook to fall back to polling
+uv run agenticos cmd channel-webhook-register --bot-id <uuid>
+uv run agenticos cmd channel-webhook-delete --bot-id <uuid>
+```
+
+Access modes are `open`, `whitelist`, `jwt_linked` and `group_only`. A mention runs
+as the *sender*, never as the bot, and an unlinked identity is refused rather than
+run with no role — see [Channels](channels.md#what-every-channel-shares).
 
 ### RAG Commands
 

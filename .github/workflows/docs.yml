@@ -1,0 +1,73 @@
+# Publish the documentation to GitHub Pages.
+#
+# Separate from `ci.yml` on purpose: CI *builds* the docs with `--strict` on every
+# branch, because a dead link should fail a pull request. This deploys, and only
+# from `main` - a site that republished from every branch would show whatever was
+# most recently pushed rather than what is released.
+#
+# `workflow_dispatch` is there so the site can be published before `main` has the
+# code, which is the state a new repository is in.
+#
+# One-time setup: Settings -> Pages -> Source -> "GitHub Actions". Without it the
+# deploy step fails with a 404 on the Pages API.
+name: Docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+      - "backend/app/**"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# A queued deploy replaces a running one rather than racing it; the site only
+# ever needs the newest build.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      # The runtime too, not just mkdocs: the reference pages are generated from
+      # the application's own docstrings, so a build without it would either fail
+      # to collect them or quietly render empty pages.
+      - name: Install dependencies
+        run: uv sync --directory backend --group docs
+
+      - name: Build the documentation
+        run: uv run --directory backend --group docs mkdocs build -f ../mkdocs.yml --strict
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,39 +1,73 @@
 ---
 name: background-task
-description: Add or modify work that runs outside the request/response cycle — emails, document ingestion, webhooks, cleanups, scheduled jobs. Use when something is slow or fire-and-forget, or when adding a periodic/cron task. This project's queue is prefect.
+description: Add or change work that runs outside the request/response cycle — document ingestion, MCP refresh, reports, cleanups, scheduled jobs — or debug a task that vanished with nothing in the logs. Use when something is slow or fire-and-forget, when adding a periodic job, and before reaching for asyncio.create_task (which drops work silently in this codebase's exact failure mode).
 ---
 
-# Background Tasks (prefect)
+# Background work — Prefect, and one in-process handoff
 
-Tasks live in `backend/app/worker/tasks/` (e.g. `email_tasks.py`, `rag_tasks.py`, `cleanup_tasks.py`). The app uses **prefect**. An in-process fallback (`worker/background/`) exists for trivial cases.
+**Read `docs/howto/add-background-task.md`.** Flows live in
+`backend/app/worker/tasks/` (`rag_tasks.py`, `mcp_tasks.py`, `report_tasks.py`);
+deployments are registered in `app/worker/prefect_app.py`.
 
-## When to use a task vs. inline
+## Pick the right one
 
-- **Task:** anything slow, retryable, or fire-and-forget — sending email, ingesting/embedding documents, calling slow external APIs, periodic cleanups, materialized-view refreshes.
-- **Inline:** fast, transactional work that the response depends on.
+| | Use for | Survives a restart |
+|---|---|---|
+| **Prefect flow** | Ingestion, syncs, reports, anything scheduled or retryable | Yes |
+| **`spawn()`** from `app/core/background.py` | The in-process handoff between "the request is answered" and "the slow part finishes" | **No** |
+| Inline | Fast, transactional work the response depends on | n/a |
 
-## Add a task
+```python
+from app.core.background import spawn
 
-1. **Define it** in `backend/app/worker/tasks/<area>.py`:
-   ```python
-   from prefect import flow
+spawn(send_the_slow_thing(user_id), name="notify-owner")
+```
 
-   @flow(name="send-welcome-email", log_prints=True)
-   async def send_welcome_email_flow(user_id: str) -> dict: ...
-   ```
-   Fire-and-forget from a service: `asyncio.create_task(send_welcome_email_flow(user_id))`.
+`drain(timeout=30.0)` is the shutdown counterpart — in-flight tasks get a chance to
+finish rather than being cut off mid-write.
 
-2. **Call it from a service** (not from the route directly) — keep business logic in `services/`, enqueue at the end of the unit of work.
+**Never bare `asyncio.create_task`.** The event loop holds it only weakly: drop the
+reference and the task can be garbage-collected mid-flight — the classic symptom is an
+ingestion that works under load and vanishes when the system is idle, with nothing in
+the logs. Worse, an exception inside a discarded task is never retrieved, so a flow
+that raises fails completely silently.
 
-3. **Schedule it (optional):**
-   register a deployment with a `CronSchedule`/`IntervalSchedule` in `app/worker/prefect_app.py`.
+`app/core/background.py` fixes both once: it holds a strong reference until the task
+finishes and attaches a done-callback that surfaces whatever went wrong. It is in the
+gated platform layer at 100%. Use it, or use Prefect.
 
-4. **Run / verify:**
-   the `prefect-server` + `prefect-runner` start with `make dev`; watch runs at <http://localhost:4200>.
+`app/worker/background/` (channel, rag) is the older FastAPI-BackgroundTasks fallback,
+dispatched with its own `fire_and_forget(coro, *, label=...)`: in-process, no retry, no
+persistence, and CPU-bound work there starves the event loop. Prefer `spawn` for new
+code and Prefect for anything that must survive a restart.
+
+## Add a flow
+
+```python
+from prefect import flow
+
+@flow(name="ingest-document", log_prints=True)
+async def ingest_document_flow(document_id: str) -> dict[str, Any]: ...
+```
+
+1. Define it in `app/worker/tasks/<area>.py`.
+2. **Dispatch from a service, not a route.** Business logic stays in `services/`;
+   enqueue at the end of the unit of work.
+3. Schedule it, if periodic, with a `CronSchedule`/`IntervalSchedule` deployment in
+   `app/worker/prefect_app.py`.
+4. Verify: `prefect-server` and `prefect-runner` start with `make dev`; runs are at
+   <http://localhost:4200>. `PREFECT_API_URL` points at the self-hosted server, or a
+   Cloud workspace plus `PREFECT_API_KEY`.
 
 ## Rules
 
-- Tasks take **serializable args** (ids, primitives) — not ORM objects or sessions. Re-fetch inside the task with a fresh session.
-- Make tasks **idempotent** where possible (safe to retry).
-- Keep heavy imports inside the task function to keep the API import-light.
-- See `docs/howto/add-background-task.md` for the full walkthrough.
+- **Serializable args only** — ids and primitives, never ORM objects or a session.
+  Re-fetch inside the flow with a fresh session.
+- **Idempotent** where possible. A retry must not double-charge, double-index or
+  double-send.
+- **Heavy imports inside the function**, to keep the API import-light.
+- **Record what was spent even when the flow fails.** Embedding spend goes to
+  `ingestion_spend` (which carries `cost_is_partial` for models the price snapshot does
+  not know). A cost that only lands on success is a budget with a hole in it.
+- A flow that touches an org-scoped resource still needs the organization id — there is
+  no ambient tenant in a worker.

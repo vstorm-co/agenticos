@@ -1,47 +1,90 @@
 ---
 name: frontend-feature
-description: Build a new page, view, or data-driven feature in the Next.js frontend. Use when adding a route under the dashboard/marketing area, wiring UI to a backend endpoint, adding client state, or creating a localized page. Covers App Router, data fetching, Zustand stores, and i18n.
+description: Build or change a page, view or data-driven feature in the Next.js frontend — a route under the dashboard, wiring UI to a backend endpoint, a Zustand store, a permission that must hide a control, or localized copy. Use for any work in frontend/src, including "the page renders but shows an empty state" and "this button should not be visible to a Viewer".
 ---
 
-# Frontend Feature (Next.js 15 + React 19)
+# Frontend — Next.js 15, React 19
 
-The frontend lives in `frontend/src/` — App Router, TypeScript, Tailwind, `next-intl`, and Zustand. Routes are **locale-prefixed**: `app/[locale]/…`.
+`.claude/rules/frontend.md` has the conventions. `docs/architecture.md` has the
+request path. This is the working layout and the traps.
 
 ## Layout
 
-| Path | Purpose |
-|------|---------|
-| `src/app/[locale]/…` | Pages (route groups: `(dashboard)`, `(marketing)`, `(auth)`) |
-| `src/app/api/…` | Next.js route handlers that proxy to the backend |
-| `src/lib/` | API clients (`api-client.ts`, `*-api.ts`), `query-keys.ts`, helpers |
-| `src/components/` | UI by domain (`chat/`, `kb/`, `dashboard/`, `ui/`, …) |
-| `src/stores/` | Zustand stores (one per concern, re-exported from `index.ts`) |
-| `src/hooks/` | `useChat`, `useWebSocket`, etc. |
+| Path | |
+|---|---|
+| `src/app/[locale]/(dashboard)/…` | The product: `agents`, `chat`, `kb`, `skills`, `vault`, `mcp-servers`, `runs`, `orgs`, `settings`, `admin`, `rag`, `invitations`, `profile` |
+| `src/app/[locale]/(auth)/…`, `auth/`, `onboarding/`, `legal/`, `shared/` | Everything else |
+| `src/app/api/…` | Route handlers that proxy to the backend (same-origin auth cookies) |
+| `src/lib/` | Typed API clients on `api-client.ts`, `server-api.ts`, `query-keys.ts` |
+| `src/hooks/` | One per resource: `use-agents`, `use-skills`, `use-permissions`, … |
+| `src/stores/` | Zustand, one per concern, re-exported from `index.ts` |
+| `src/components/<domain>/` | UI by domain; primitives in `components/ui/`, empty/error in `components/states/` |
+
+Routes are **locale-prefixed**. There is no `(marketing)` group.
 
 ## Steps
 
-1. **Page** — add `src/app/[locale]/(dashboard)/<feature>/page.tsx`. Default to a **Server Component**; add `"use client"` only where you need interactivity. Read params via the async App Router APIs.
-
-2. **Data access** — add a typed client in `src/lib/<feature>-api.ts` built on `api-client.ts`. Don't scatter `fetch` calls in components. For server-side fetching use `server-api.ts`. If the backend needs a same-origin proxy (auth cookies), add a handler under `src/app/api/…`.
-
-3. **Caching keys** — register query keys in `src/lib/query-keys.ts` so cache invalidation stays consistent.
-
-4. **Client state** — if the feature needs shared client state, add a store in `src/stores/<feature>-store.ts` and export it from `stores/index.ts`. Keep server data in the data layer; use stores for UI/ephemeral state.
-
-5. **Components** — put reusable pieces in `src/components/<domain>/`; compose primitives from `src/components/ui/`. Keep components under ~100 lines — extract when they grow.
-
-6. **i18n** — user-facing copy goes through `next-intl` messages, not hardcoded strings. Add keys to the message catalog and read them with `useTranslations` / `getTranslations`.
-
-7. **Verify:**
+1. **Page** — `src/app/[locale]/(dashboard)/<feature>/page.tsx`. Server Component by
+   default; `"use client"` only for state, effects or handlers.
+2. **Client** — a typed module in `src/lib/<feature>-api.ts` built on `api-client.ts`.
+   Never scatter `fetch` in components. Server-side reads go through `server-api.ts`.
+3. **Query keys** — register in `src/lib/query-keys.ts` so invalidation stays
+   consistent.
+4. **Hook** — `src/hooks/use-<feature>.ts` wrapping the client, exported from
+   `hooks/index.ts`. Components consume hooks, not clients.
+5. **Store** — only for UI/ephemeral state. Server data belongs in the query layer.
+6. **Components** — under `src/components/<domain>/`, composed from `components/ui/`.
+   Under ~100 lines; extract when they grow.
+7. **i18n** — every user-facing string through `next-intl`. Never hardcode copy.
+8. **Verify:**
    ```bash
-   cd frontend
-   bun run type-check && bun run lint
-   bun dev            # check the page renders against a running backend (make dev)
+   cd frontend && bun run type-check && bun run lint && bun run test
    ```
 
-## Rules
+## Permissions hide controls, and that needs a test
 
-- Server Components by default; `"use client"` only when needed (state, effects, event handlers).
-- All API calls go through `src/lib/` clients; components consume hooks/clients, not raw `fetch`.
-- Localized strings via `next-intl` — never hardcode user-facing copy.
-- Match the existing folder-by-domain structure; reuse `components/ui/` primitives.
+`use-permissions.ts` reads the effective permission set for the active organization.
+A control the caller may not use should not be rendered — not rendered-and-then-403.
+
+**Write the integration test.** `*.integration.test.tsx` runs Testing Library against a
+mocked API and is the cheap, precise place to assert that a permission actually hides a
+button and that a form submits what it claims to. See
+`components/agents/capability-settings.integration.test.tsx`,
+`components/teams/members-table.integration.test.tsx`,
+`components/mcp/mcp-server-list.integration.test.tsx`.
+
+This is *not* E2E work. Reserve Playwright for journeys crossing the whole stack — see
+the `e2e-tests` skill.
+
+## The empty-state trap
+
+Every dashboard page fans out to several queries and **renders its empty state when a
+query fails**. "No skills yet" and "the skills request answered 502" are the same
+pixels. So:
+
+- When a page looks empty, check the network tab before the component.
+- A test that asserts a heading and a button passes against a backend that was never
+  started. Assert on data.
+
+## Tests
+
+```bash
+bun run test          # vitest watch
+bun run test:run      # once
+bun run test:coverage
+bun run test:e2e      # playwright — see the e2e-tests skill
+```
+
+Unit tests sit beside the source (`agent-spec.test.ts`, `auth-store.test.ts`);
+integration tests are `*.integration.test.tsx`.
+
+## Generated files
+
+`src/lib/mcp-logos.generated.ts` is written by `bun run gen:mcp-logos`, which fetches
+each catalog server's favicon and bakes it in as a base64 data URI so the demo MCP badge
+renders in a self-contained HTML export with no network. Do not hand-edit it —
+regenerate after changing `mcp_servers.json`.
+
+That is separate from the backend icon contract (`app/core/catalog/icons/<name>.svg`,
+served as a `currentColor` silhouette) — see the `project-docs` and `mcp-connections`
+skills.

@@ -1,11 +1,13 @@
 
 name: CI
 
+# `dev` is where work lands before it reaches `main`, so it has to run the same
+# checks - a branch CI ignores is a branch whose status badge means nothing.
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, dev]
   pull_request:
-    branches: [main, master]
+    branches: [main, master, dev]
 
 jobs:
   lint:
@@ -354,6 +356,31 @@ jobs:
       - name: Run pip-audit
         run: uv run pip-audit --require-hashes=false --progress-spinner=off
         working-directory: backend
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      # The runtime too, not just mkdocs: the reference pages are generated from
+      # the application's own docstrings, so a build without it would either fail
+      # to collect them or - worse - quietly render empty pages.
+      - name: Install dependencies
+        run: uv sync --directory backend --group docs
+
+      - name: Build the documentation
+        # `--strict` turns a dead internal link or a page missing from the nav
+        # into a failure. Both are things a reader finds and a lenient build
+        # ships.
+        run: uv run --directory backend --group docs mkdocs build -f ../mkdocs.yml --strict
 
   docker:
     runs-on: ubuntu-latest

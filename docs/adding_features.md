@@ -193,17 +193,23 @@ def my_command(name: str):
 
 Run with: `uv run agenticos cmd my-command --name test`
 
-## Adding an AI Agent Tool (PydanticAI)
+## Adding a tool the agent can call
 
-```python
-# app/agents/assistant.py
-@agent.tool
-async def my_tool(ctx: RunContext[Deps], param: str) -> dict:
-    """Tool description for LLM - be specific about what it does."""
-    # Access dependencies via ctx.deps
-    result = await some_operation(param)
-    return {"result": result}
-```
+There is no single agent module to hang a `@agent.tool` on. Agents here are data,
+assembled per run from the capabilities their spec names, so a new tool arrives as
+part of a **capability**:
+
+- A new one → [Add a capability](howto/add-capability.md).
+- One more tool on a capability that already exists →
+  [Adding a tool to an existing capability](howto/add-capability.md#adding-a-tool-to-an-existing-capability).
+- A third-party API that already publishes an MCP server → no code at all, see
+  [MCP](mcp.md).
+
+The declared list in `@register(tools=...)` is what per-tool approval and per-agent
+renaming key on. A tool the registry does not know about still runs; it just cannot
+be gated or renamed, which is the failure worth avoiding.
+
+What ships today is in the [capability catalog](reference/capabilities.md).
 
 ## Adding a Database Migration
 

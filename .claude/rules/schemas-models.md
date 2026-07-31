@@ -36,7 +36,6 @@ class UserRead(BaseSchema, TimestampSchema):
     id: UUID
     email: EmailStr
     full_name: str | None = None
-    role: UserRole = UserRole.USER
     avatar_url: str | None = None
 
 class UserList(BaseSchema):

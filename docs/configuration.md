@@ -9,7 +9,7 @@ Settings are defined in `app/core/config.py` and accessed via the global
 ```python
 from app.core.config import settings
 
-print(settings.AI_MODEL)
+print(settings.EMBEDDING_MODEL)
 print(settings.DEBUG)
 ```
 
@@ -64,7 +64,6 @@ ciphertext is therefore useless outside the tenant it was sealed for.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `VAULT_MASTER_KEY` | (empty, falls back to `SECRET_KEY`) | Master key for the secret vault. Set it explicitly in production so stored secrets survive a `SECRET_KEY` rotation. Generate with: `openssl rand -hex 32` |
-| `ALLOW_INTERNAL_MODEL_ENDPOINTS` | `false` | Whether a model profile may point at a private, loopback or link-local address. Turn it on for a self-hosted install running Ollama, vLLM or a LiteLLM proxy; leave it off on a shared deployment, where any member who can add a provider key could otherwise reach the internal network. Applies to model endpoints only — webhooks and MCP servers are unaffected. |
 
 ### API Key
 
@@ -112,24 +111,17 @@ Computed properties:
 | `REDIS_PASSWORD` | (none) | Redis password (optional) |
 | `REDIS_DB` | `0` | Redis database number |
 
-## AI Agent
+## AI Models — configured in the app, not here
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `OPENROUTER_API_KEY` | (empty) | OpenRouter API key |
-| `AI_MODEL` | `anthropic/claude-opus-4-7` | Default LLM model for chat |
-| `AI_TEMPERATURE` | `0.7` | LLM temperature (0.0 = deterministic, 1.0 = creative) |
-| `AI_AVAILABLE_MODELS` | (auto-configured) | JSON list of models shown in the UI model selector |
-| `AI_FRAMEWORK` | `pydantic_ai` | AI framework (informational) |
-| `LLM_PROVIDER` | `openrouter` | LLM provider (informational) |
+Chat models are not environment variables. Each organization stores its own
+provider keys in the vault (Settings → Models), and every agent's spec names
+the model profile it runs on. `AI_MODEL`, `AI_TEMPERATURE`,
+`AI_THINKING_ENABLED`, `AI_THINKING_EFFORT`, `AI_AVAILABLE_MODELS`,
+`AI_FRAMEWORK` and `LLM_PROVIDER` were removed along with the template's
+general assistant; setting them now does nothing.
 
-### Customizing Available Models
-
-Override `AI_AVAILABLE_MODELS` in `.env` to customize the model selector:
-
-```bash
-AI_AVAILABLE_MODELS=["gpt-5.5","gpt-5.4","claude-opus-4-7"]
-```
+The one model credential that stays in the environment is the embeddings key —
+see RAG below.
 
 ## Observability (Logfire)
 
@@ -155,15 +147,8 @@ is needed.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `EMBEDDING_MODEL` | `text-embedding-3-small` | OpenAI embedding model |
-
-### Retrieval
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `RAG_DEFAULT_COLLECTION` | `documents` | Default collection for search (used by agent tool) |
-| `RAG_TOP_K` | `10` | Default number of results to return |
-| `RAG_HYBRID_SEARCH` | `false` | Enable BM25 + vector hybrid search |
+| `OPENROUTER_API_KEY` | (empty) | The embeddings credential — every collection embeds on it |
+| `EMBEDDING_MODEL` | `text-embedding-3-large` | Deployment-level on purpose: pgvector columns are created at this model's width, so changing it mid-life invalidates existing collections |
 
 ### Document Parsing — configured per collection, not here
 
@@ -184,7 +169,7 @@ What stays here is what a tenant must not choose:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `LLAMAPARSE_API_KEY` | (empty) | LlamaParse API key — billed to the operator |
+| `LLAMAPARSE_API_KEY` | (empty) | Fallback LlamaParse key for collections that chose no vault key of their own |
 | `LITEPARSE_OCR_SERVER_URL` | (empty) | HTTP OCR server; an address on the deployment's own network |
 
 Chat attachments are read with PyMuPDF and are not configurable: an attachment
@@ -210,10 +195,17 @@ belongs to no collection, so there is no stored configuration to read.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `TELEGRAM_WEBHOOK_BASE_URL` | (empty) | Base URL for Telegram webhook (e.g. `https://yourdomain.com`). Required only in webhook mode |
-| `SLACK_SIGNING_SECRET` | (empty) | Slack app signing secret for Events API signature verification |
-| `SLACK_BOT_TOKEN` | (empty) | Slack bot OAuth token (`xoxb-...`) for sending messages via Web API |
-| `SLACK_APP_TOKEN` | (empty) | Slack app-level token (`xapp-...`) for Socket Mode (development only) |
+
+Bot credentials are not configured here: each bot is registered in the app
+with its token sealed in the vault, and a Slack bot additionally carries its
+own app's signing secret and `xapp-` token (`SLACK_BOT_TOKEN`,
+`SLACK_SIGNING_SECRET` and `SLACK_APP_TOKEN` were removed - each bot is its
+own Slack app now). Telegram webhook
+URLs are built from `PUBLIC_BASE_URL` (`TELEGRAM_WEBHOOK_BASE_URL` was
+removed), model profiles may point at local endpoints such as Ollama without
+any flag (`ALLOW_INTERNAL_MODEL_ENDPOINTS` was removed), and the `run_python`
+sandbox limits are per-agent capability configuration
+(`CODE_EXECUTION_TIMEOUT_SECS` / `CODE_EXECUTION_MAX_MEMORY_MB` were removed).
 
 ## CORS
 

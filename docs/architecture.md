@@ -120,49 +120,42 @@ The project supports two authentication methods, both always available:
    - A single shared key set via the `API_KEY` environment variable.
    - Uses constant-time comparison (`secrets.compare_digest`) to prevent timing attacks.
 
-### Roles
+### Authorization
 
-Two roles are defined in `UserRole` (see `app/db/models/user.py`):
+There is no role column on the user and no role-based route dependency. What a
+member may do inside an organization is a permission from the catalog in
+`app/core/permissions.py`, and which rows they may touch is resolved per row -
+see [Permissions](permissions.md) for the whole model.
 
-| Role | Value | Description |
-|------|-------|-------------|
-| **ADMIN** | `"admin"` | Full system access, can manage users, RAG, webhooks, exports |
-| **USER** | `"user"` | Standard access: chat, profile, search |
+Two dependencies, and only two:
 
-Role hierarchy: `ADMIN` has access to everything. The `has_role()` method on the
-User model returns `True` for any role if the user is an admin.
+| Alias | Means |
+|---|---|
+| `CurrentUser` | any authenticated user |
+| `CurrentAppAdmin` | the deployment's superadmin (`users.is_app_admin`), for `/admin/*` and the bulk `/rag` routes |
 
-### How RoleChecker Works
-
-`RoleChecker` is a callable FastAPI dependency class in `app/api/deps.py`:
-
-```python
-class RoleChecker:
-    def __init__(self, required_role: UserRole) -> None:
-        self.required_role = required_role
-
-    async def __call__(self, user: User = Depends(get_current_user)) -> User:
-        if not user.has_role(self.required_role):
-            raise AuthorizationError(...)
-        return user
-```
-
-Use it in routes:
+Everything else goes through one of:
 
 ```python
-# Any authenticated user
-@router.get("/profile")
-async def profile(current_user: CurrentUser): ...
+# A permission, on a collection route.
+@router.post("/agents", dependencies=[Depends(require(Perm.AGENTS_EDIT))])
+async def create_agent(...): ...
 
-# Admin only
-@router.get("/all-users")
-async def list_users(current_user: CurrentAdmin): ...
+# A permission on one row, resolved in the service.
+if not await resolve_access(db, ctx, agent, Perm.AGENTS_EDIT, resource_type=AGENT):
+    raise AuthorizationError(...)
 ```
 
-The type aliases are:
-- `CurrentUser` = `Annotated[User, Depends(get_current_user)]` -- any authenticated user
-- `CurrentAdmin` = `Annotated[User, Depends(RoleChecker(UserRole.ADMIN))]` -- admin role required
-- `CurrentSuperuser` = `Annotated[User, Depends(get_current_active_superuser)]` -- legacy alias for admin
+!!! note "`require(...)` does not belong on a per-resource route"
+
+    A role gate cannot see the grants on a row, so it would refuse a Viewer
+    holding an explicit `edit` grant before `resolve_access` ever widened their
+    access. `tests/api/test_platform_routes.py` enforces both halves.
+
+`UserRole`, `User.has_role()`, `RoleChecker`, `CurrentAdmin` and
+`CurrentSuperuser` were the template's model and are gone, along with the
+`users.role` column (migration `0066`). They were a third answer to a question
+that already had two.
 
 ### IDOR Protection
 

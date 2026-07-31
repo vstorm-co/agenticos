@@ -111,7 +111,8 @@ Use `Annotated` type aliases — never raw `Depends()` in route signatures:
 DBSession = Annotated[AsyncSession, Depends(get_db_session)]
 UserSvc = Annotated[UserService, Depends(get_user_service)]
 CurrentUser = Annotated[User, Depends(get_current_user)]
-CurrentAdmin = Annotated[User, Depends(RoleChecker(UserRole.ADMIN))]
+CurrentAppAdmin = Annotated[User, Depends(_require_app_admin)]
+Auth = Annotated[AuthContext, Depends(get_auth_context)]
 ```
 
 Service factories take `DBSession` and return service instances:

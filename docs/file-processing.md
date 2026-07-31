@@ -222,6 +222,7 @@ history via `GET /rag/sync/logs`.
 ### Image Description
 
 When processing documents that contain images, the system can optionally
-describe images using LLM vision capabilities. Set `RAG_IMAGE_DESCRIPTION_MODEL`
-to a vision-capable model (defaults to `AI_MODEL` if empty). The generated
+describe images using LLM vision capabilities. Image description is a
+per-collection setting: turn it on in the knowledge base's ingestion
+configuration and pick a vision-capable model profile there. The generated
 descriptions are included in the document text for better semantic search.

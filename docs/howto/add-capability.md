@@ -102,7 +102,11 @@ see `~/.claude/standards/prompting.md`.
 
 from pydantic import BaseModel, Field
 
-from app.agents.capabilities._registry import CapabilityBuildContext, register
+from app.agents.capabilities._registry import (
+    CapabilityBuildContext,
+    CapabilityToolInfo,
+    register,
+)
 from app.agents.capabilities.weather._capability import Weather
 
 __all__ = ["Weather"]
@@ -117,6 +121,12 @@ class WeatherConfig(BaseModel):
     name="Weather",
     category="data",
     description="Read current conditions for a place instead of assuming them.",
+    tools=(
+        CapabilityToolInfo(
+            id="current_weather",
+            description="Get the current weather for a city.",
+        ),
+    ),
     config_schema=WeatherConfig,
     scopes=("weather:read",),
 )
@@ -128,6 +138,16 @@ def _build(ctx: CapabilityBuildContext) -> Weather | None:
 
 - **`id`** goes into every published spec and is the one thing that must never
   change. Rename freely; re-id never.
+- **`tools`** has no default, on purpose. It is what the Builder offers per-tool
+  approval for and what the approval gate matches on, so a capability that declares
+  nothing is a capability whose tools cannot be gated — and the dangerous half of
+  that failure is silent: an author adds a second, side-effecting tool, forgets to
+  declare it, and it runs unattended forever. Omitting the argument is a
+  `TypeError`; a capability with genuinely no tools says `tools=()`. Each entry's
+  `id` is what a spec's `tool_approval` and `tool_overrides` key on, and its
+  `description` should be the tool's own docstring summary — the person choosing
+  what needs approval and the model choosing when to act should read the same text,
+  not two paraphrases that drift.
 - **`config_schema`** generates the Builder's form and is validated at publish,
   so a bad value fails while somebody is looking at a form rather than mid-run.
 - **`scopes`** are refused at build time when the organization has not granted
@@ -184,3 +204,35 @@ Nothing else needs changing. `GET /api/v1/agents/capabilities` serves the
 registry, the Builder's picker renders from it, and `schema-form.tsx` generates
 the configuration form from `config_json_schema()`. A capability added here is
 in the product on the next restart.
+
+## Adding a tool to an existing capability
+
+Usually the right move when the new behaviour belongs to a decision somebody has
+already made — a second way to read the knowledge base is still "knowledge search".
+Three steps, and the second is the one that gets forgotten:
+
+1. **Write the function** in `_toolset.py` and add it to the toolset. Its docstring
+   is the prompt; say *when to reach for this*, not what the function does.
+2. **Declare it** in the `tools=` tuple in `__init__.py`. A tool the registry does
+   not know about cannot be approved, cannot be renamed per agent, and does not
+   appear in the Builder — it simply runs.
+3. **Check the drift test.** `tests/test_capability_registry.py` builds every
+   registered capability and compares the declared list against the tools the model
+   is actually offered. It is what catches step 2 being skipped, and what reports
+   the day an upstream package renames one of the tools we re-export — the `skills`
+   capability's three come from `pydantic-ai-skills`, so their names are somebody
+   else's to change.
+
+If the new tool has side effects and the existing ones do not, that is a signal the
+capability is now two decisions wearing one name. Prefer a second capability;
+`side_effecting` is per capability, and per-tool `approval` in a spec is a way for
+an *agent author* to be stricter than the default, not a substitute for declaring
+the truth.
+
+## Adding a tool nobody here has to write
+
+If the tool is a call to a third-party API that already publishes an MCP server,
+consider whether it belongs in code at all. A capability is right for something the
+platform must guarantee; a server the vendor maintains is right for the rest. See
+[MCP](../mcp.md) and
+[Add a server to the MCP catalog](add-mcp-server.md).

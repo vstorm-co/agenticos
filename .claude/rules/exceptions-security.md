@@ -38,17 +38,33 @@ API keys:
 - `secrets.compare_digest()` for constant-time comparison
 - `APIKeyHeader(name=settings.API_KEY_HEADER, auto_error=False)`
 
-## Role-Based Access Control
+## Authorization
+
+There is no role column on the user and no role-based dependency. Two aliases,
+and only two:
 
 ```python
-class RoleChecker:
-    def __init__(self, required_role: UserRole) -> None:
-        self.required_role = required_role
-
-    async def __call__(self, user: Annotated[User, Depends(get_current_user)]) -> User:
-        if not user.has_role(self.required_role):
-            raise AuthorizationError(message=f"Role '{self.required_role.value}' required")
-        return user
-
-CurrentAdmin = Annotated[User, Depends(RoleChecker(UserRole.ADMIN))]
+CurrentUser = Annotated[User, Depends(get_current_user)]      # any signed-in user
+CurrentAppAdmin = Annotated[User, Depends(_require_app_admin)] # the deployment's superadmin
 ```
+
+Everything inside an organization is a permission from
+`app/core/permissions.py`:
+
+```python
+# A permission, on a collection route.
+@router.post("/agents", dependencies=[Depends(require(Perm.AGENTS_EDIT))])
+async def create_agent(...) -> Any: ...
+
+# A permission on one row - in the service, never as a route gate.
+if not await resolve_access(db, ctx, agent, Perm.AGENTS_EDIT, resource_type=AGENT):
+    raise AuthorizationError(message="...")
+```
+
+`require(...)` belongs on collection routes only. A role gate cannot see the
+grants on a row, so on a per-resource route it refuses a Viewer holding an
+explicit `edit` grant before `resolve_access` can widen their access.
+
+`UserRole`, `User.has_role()`, `RoleChecker`, `CurrentAdmin` and
+`CurrentSuperuser` no longer exist - the `users.role` column was dropped in
+migration `0066`. Do not reintroduce them.
