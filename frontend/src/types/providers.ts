@@ -41,6 +41,15 @@ export interface ModelProfile {
   credential_id: string | null;
   /** The vault secret this model is keyed by - the store people manage. */
   secret_id?: string | null;
+  /**
+   * Where requests go, when it is not the provider's public API: a gateway, a
+   * LiteLLM proxy, a model server on this network. Absent for most profiles.
+   *
+   * On the profile rather than the key because a key says what authenticates and
+   * this says where it is sent - the same key can front a staging proxy and a
+   * production one as two profiles.
+   */
+  base_url?: string | null;
   params: Record<string, unknown>;
   allow_byo: boolean;
   fallback_profile_ids: string[];

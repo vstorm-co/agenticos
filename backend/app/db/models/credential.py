@@ -56,6 +56,16 @@ class ModelProfile(Base, TimestampMixin):
         ForeignKey("organization_secrets.id", ondelete="SET NULL"),
         nullable=True,
     )
+    # Where to send the request, when it is not the provider's public API: a
+    # gateway, a LiteLLM proxy, or a model server on the deployment's own
+    # network. On the profile rather than on the secret because a secret says
+    # what authenticates and this says where it is sent - the same key in front
+    # of a staging proxy and a production one is two profiles, one secret.
+    #
+    # Only stored for providers whose SDK names an endpoint parameter
+    # (`ProviderSpec.base_url_param`); the service refuses one for the rest
+    # rather than accepting a value it would silently drop.
+    base_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     # Model settings (temperature, max_tokens...) applied on every run.
     params: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default="{}")
     # Whether a user may substitute their own key when running with this profile.

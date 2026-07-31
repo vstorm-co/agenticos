@@ -121,8 +121,14 @@ def _credential(ctx, provider="openai", secret=None, is_active=True, base_url=No
     return credential
 
 
-def _profile(ctx, secret=None, model="gpt-4.1", fallbacks=None, provider="openai"):
-    """A stored model profile, keyed from the vault like every real one."""
+def _profile(ctx, secret=None, model="gpt-4.1", fallbacks=None, provider="openai", base_url=None):
+    """A stored model profile, keyed from the vault like every real one.
+
+    `base_url` defaults to None explicitly rather than being left to the mock: a
+    `MagicMock` attribute is truthy, so it reaches `httpx.URL()` as a mock and
+    raises there instead of meaning "the provider's own API", which is what an
+    unset endpoint means.
+    """
     profile = MagicMock()
     profile.id = uuid.uuid4()
     profile.organization_id = ctx.organization_id
@@ -130,6 +136,7 @@ def _profile(ctx, secret=None, model="gpt-4.1", fallbacks=None, provider="openai
     profile.provider = provider
     profile.model = model
     profile.secret_id = secret.id if secret else uuid.uuid4()
+    profile.base_url = base_url
     profile.params = {}
     profile.fallback_profile_ids = [str(pid) for pid in (fallbacks or [])]
     return profile
@@ -733,3 +740,154 @@ class TestEndpointValidation:
         """No DNS resolution, no SSRF probe: localhost has to validate before
         Ollama is even running, and a public URL is just as fine."""
         assert await validate_endpoint_url(url) == url
+
+
+class TestAnEndpointOfItsOwn:
+    """A profile can point somewhere other than the provider's public API.
+
+    Every piece of this existed before and nothing joined them: the provider
+    catalog said which providers accept an endpoint, `validate_endpoint_url`
+    checked one, and `_build_provider` knew how to pass one to the SDK - while
+    `_resolve_credential` returned `base_url=None` unconditionally and the
+    validator had no caller outside this file. So a deployment could not reach a
+    gateway, a LiteLLM proxy or an Ollama however carefully it stored the URL.
+    """
+
+    @pytest.mark.anyio
+    async def test_a_stored_endpoint_is_the_one_the_client_is_built_with(self):
+        """The point of the whole feature: it reaches the provider client."""
+        ctx = _ctx()
+        secret = _vault_secret(ctx)
+        profile = _profile(ctx, secret=secret, base_url="http://localhost:11434/v1")
+
+        with (
+            patch(
+                "app.services.model_profile.credential_repo.get_profile",
+                new=AsyncMock(return_value=profile),
+            ),
+            patch(
+                "app.services.model_profile.organization_secret_repo.get",
+                new=AsyncMock(return_value=secret),
+            ),
+        ):
+            spec = await ModelProfileService(_db()).resolve(ctx, profile_id=profile.id)
+
+        assert spec.credential.base_url == "http://localhost:11434/v1"
+
+    @pytest.mark.anyio
+    async def test_an_endpoint_is_refused_for_a_provider_that_has_none(self):
+        """Storing one would be storing a value the SDK drops in silence.
+
+        `openrouter` names no endpoint parameter, so a URL saved against it would
+        look configured and change nothing about where the request went.
+        """
+        with pytest.raises(BadRequestError) as exc:
+            await ModelProfileService(_db()).create_profile(
+                _ctx(),
+                label="Through a proxy",
+                provider="openrouter",
+                model="openai/gpt-4.1",
+                secret_id=uuid.uuid4(),
+                base_url="https://proxy.example/v1",
+            )
+        assert "endpoint" in str(exc.value).lower()
+
+    @pytest.mark.anyio
+    async def test_a_keyless_provider_without_an_endpoint_is_refused(self):
+        """There is no public API for it to fall back on."""
+        with pytest.raises(BadRequestError) as exc:
+            await ModelProfileService(_db()).create_profile(
+                _ctx(),
+                label="Local llama",
+                provider="ollama",
+                model="llama3.3",
+                secret_id=None,
+            )
+        assert "endpoint" in str(exc.value).lower()
+
+    @pytest.mark.anyio
+    async def test_a_keyed_provider_without_a_key_is_refused(self):
+        """A model that cannot answer is not worth creating."""
+        with pytest.raises(BadRequestError) as exc:
+            await ModelProfileService(_db()).create_profile(
+                _ctx(),
+                label="Anthropic, keyless",
+                provider="anthropic",
+                model="claude-sonnet-5",
+                secret_id=None,
+            )
+        assert "key" in str(exc.value).lower()
+
+    @pytest.mark.anyio
+    async def test_a_keyless_profile_resolves_with_no_secret_at_all(self):
+        """The case that makes a self-hosted model usable from the product."""
+        ctx = _ctx()
+        profile = _profile(ctx, provider="ollama", model="llama3.3")
+        profile.secret_id = None
+        profile.base_url = "http://localhost:11434/v1"
+
+        with patch(
+            "app.services.model_profile.credential_repo.get_profile",
+            new=AsyncMock(return_value=profile),
+        ):
+            spec = await ModelProfileService(_db()).resolve(ctx, profile_id=profile.id)
+
+        assert isinstance(spec.credential.secret, NoSecret)
+        assert spec.credential.base_url == "http://localhost:11434/v1"
+        assert spec.secret_id is None
+
+    @pytest.mark.anyio
+    async def test_a_profile_whose_key_was_deleted_still_refuses(self):
+        """`keyless` alone must not excuse a missing key.
+
+        It is true of `openai` as well, because OpenAI-compatible servers exist -
+        and the secret foreign key is `ON DELETE SET NULL`, so a profile losing its
+        key is ordinary. Without an endpoint there is nowhere to send the request,
+        and reporting that plainly beats dialling api.openai.com with no
+        credential.
+        """
+        ctx = _ctx()
+        profile = _profile(ctx, provider="openai")
+        profile.secret_id = None
+        profile.base_url = None
+
+        with (
+            patch(
+                "app.services.model_profile.credential_repo.get_profile",
+                new=AsyncMock(return_value=profile),
+            ),
+            pytest.raises(BadRequestError) as exc,
+        ):
+            await ModelProfileService(_db()).resolve(ctx, profile_id=profile.id)
+
+        assert "no key configured" in str(exc.value)
+
+    @pytest.mark.anyio
+    async def test_a_self_hosted_model_is_written_with_its_endpoint_and_no_key(self):
+        """The whole path, end to end: no key, an endpoint, a stored profile.
+
+        This is what "Ollama is a supported provider" has to mean. Before the
+        endpoint was wired there was no way to reach this state: `secret_id` was
+        required by the schema, and `base_url` was accepted nowhere.
+        """
+        ctx = _ctx()
+
+        with (
+            patch(
+                "app.services.model_profile.credential_repo.create_profile",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ) as create,
+            patch("app.services.model_profile.record_audit", new=AsyncMock()),
+        ):
+            await ModelProfileService(_db()).create_profile(
+                ctx,
+                label="Local llama",
+                provider="ollama",
+                model="llama3.3",
+                secret_id=None,
+                base_url="http://localhost:11434/v1",
+            )
+
+        written = create.call_args.kwargs
+        assert written["secret_id"] is None
+        assert written["base_url"] == "http://localhost:11434/v1"

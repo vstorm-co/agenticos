@@ -22,8 +22,18 @@ interface Secret {
   kind: string;
 }
 
+/** One entry of the provider catalog, which is where the two capability flags live. */
+interface ProviderCapabilities {
+  id: string;
+  name: string;
+  secret_kind: string;
+  supports_base_url: boolean;
+  keyless: boolean;
+}
+
 const state = {
   purposes: [] as SecretPurpose[],
+  catalog: [] as ProviderCapabilities[],
   secrets: [] as Secret[],
   models: [] as { id: string; name: string; context_length?: number | null }[],
   source: "live" as "live" | "curated" | null,
@@ -34,7 +44,7 @@ const state = {
 const onCreatedSecret = { handler: undefined as ((id: string) => void) | undefined };
 
 vi.mock("@/hooks", () => ({
-  useModelProviders: () => ({ createProfile: state.createProfile }),
+  useModelProviders: () => ({ createProfile: state.createProfile, catalog: state.catalog }),
   useSecretPurposes: () => ({ purposes: state.purposes }),
   useSecrets: () => ({ secrets: state.secrets }),
   useProviderModels: () => ({
@@ -79,8 +89,29 @@ function secret(overrides: Partial<Secret> = {}): Secret {
   };
 }
 
+function capabilities(
+  id: string,
+  name: string,
+  overrides: Partial<ProviderCapabilities> = {},
+): ProviderCapabilities {
+  return {
+    id,
+    name,
+    secret_kind: "api_key",
+    supports_base_url: false,
+    keyless: false,
+    ...overrides,
+  };
+}
+
 beforeEach(() => {
   state.purposes = [purpose("openai", "OpenAI"), purpose("openrouter", "OpenRouter")];
+  // What each provider's SDK actually reads. `openai` takes an endpoint and is
+  // keyless, because OpenAI-compatible servers exist; `openrouter` takes neither.
+  state.catalog = [
+    capabilities("openai", "OpenAI", { supports_base_url: true, keyless: true }),
+    capabilities("openrouter", "OpenRouter"),
+  ];
   state.secrets = [];
   state.models = [{ id: "gpt-5", name: "GPT-5", context_length: 400_000 }];
   state.source = "live";
@@ -343,6 +374,99 @@ describe("the add-model form", () => {
     state.secrets = [secret()];
     mount({ disabled: true });
     await pickProvider("OpenAI");
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+
+    expect(screen.getByRole("button", { name: "Add model" })).toBeDisabled();
+  });
+});
+
+describe("pointing a model somewhere other than the provider's own API", () => {
+  /**
+   * The feature existed in pieces and was reachable from nowhere: the catalog said
+   * which providers accept an endpoint, the service validated one, the resolver
+   * knew how to pass one to the SDK - and this form never asked. So Ollama and a
+   * LiteLLM proxy were documented providers nobody could configure.
+   *
+   * Both rules below are the API's. A form that guesses differently offers a
+   * submit the API refuses, which is the worst of both.
+   */
+
+  it("offers an endpoint only where the SDK reads one", async () => {
+    mount();
+    await pickProvider("OpenAI");
+    expect(screen.getByLabelText("Endpoint")).toBeInTheDocument();
+  });
+
+  it("offers none for a provider that would ignore it", async () => {
+    // Storing one would look configured and change nothing about where the
+    // request went, which is worse than not offering it at all.
+    mount();
+    await pickProvider("OpenRouter");
+    expect(screen.queryByLabelText("Endpoint")).toBeNull();
+  });
+
+  it("sends the endpoint with the profile", async () => {
+    state.secrets = [secret()];
+    mount();
+    await pickProvider("OpenAI");
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.type(screen.getByLabelText("Endpoint"), "https://gateway.acme/v1");
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+
+    expect(state.createProfile.mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ base_url: "https://gateway.acme/v1" }),
+    );
+  });
+
+  it("sends null when it was left empty, not an empty string", async () => {
+    // The API distinguishes "the provider's own API" from a field somebody
+    // cleared, and "" is neither of those things.
+    state.secrets = [secret()];
+    mount();
+    await pickProvider("OpenAI");
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+
+    expect(state.createProfile.mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ base_url: null }),
+    );
+  });
+
+  it("lets a keyless provider be submitted with an endpoint and no key", async () => {
+    // The case the whole feature is for. There is no Ollama key in the vault and
+    // there should not need to be: a model server on this network authenticates
+    // nothing.
+    state.purposes = [...state.purposes, purpose("ollama", "Ollama")];
+    state.catalog = [
+      ...state.catalog,
+      capabilities("ollama", "Ollama", { supports_base_url: true, keyless: true }),
+    ];
+    mount();
+    await pickProvider("Ollama");
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.type(screen.getByLabelText("Endpoint"), "http://localhost:11434/v1");
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+
+    expect(state.createProfile.mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ secret_id: null, base_url: "http://localhost:11434/v1" }),
+    );
+  });
+
+  it("refuses to submit a keyless provider with neither a key nor an endpoint", async () => {
+    // `keyless` alone does not make a model runnable: without an endpoint there is
+    // nowhere to send the request. The service refuses this, so the form must not
+    // offer it.
+    state.purposes = [...state.purposes, purpose("ollama", "Ollama")];
+    state.catalog = [
+      ...state.catalog,
+      capabilities("ollama", "Ollama", { supports_base_url: true, keyless: true }),
+    ];
+    mount();
+    await pickProvider("Ollama");
     await userEvent.click(screen.getByLabelText("Model"));
     await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
 

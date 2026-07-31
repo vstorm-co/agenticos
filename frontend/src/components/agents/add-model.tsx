@@ -79,7 +79,7 @@ export function modelIdIsWellFormed(providerId: string, model: string): boolean 
 }
 
 export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
-  const { createProfile } = useModelProviders();
+  const { createProfile, catalog } = useModelProviders();
   const { purposes } = useSecretPurposes();
   const { secrets } = useSecrets();
 
@@ -87,11 +87,25 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
   const [model, setModel] = useState("");
   const [label, setLabel] = useState("");
   const [secretId, setSecretId] = useState("");
+  const [baseUrl, setBaseUrl] = useState("");
   const [failure, setFailure] = useState<string | null>(null);
   const [naming, setNaming] = useState(false);
 
   const providers = purposes.filter((entry) => entry.category === "model_provider");
   const provider = providers.find((entry) => entry.id === providerId);
+  // The purposes list says which providers a *key* can be stored for; only the
+  // provider catalog knows whether one accepts an endpoint and whether it can run
+  // without a key at all. Both facts are the API's to state - a hardcoded list
+  // here would disagree with the resolver the moment a provider is added.
+  const capabilities = catalog.find((entry) => entry.id === providerId) ?? null;
+  const acceptsEndpoint = capabilities?.supports_base_url ?? false;
+  // `keyless` means "can run with no credential", and it is true of `openai` too,
+  // because OpenAI-compatible servers exist. So it does not identify a self-hosted
+  // provider on its own - the endpoint does. A key is optional exactly when the
+  // provider is keyless *and* an endpoint says where to send the request, which is
+  // the rule `ModelProfileService.create_profile` enforces; anything looser here
+  // would offer a submit the API refuses.
+  const keyOptional = (capabilities?.keyless ?? false) && baseUrl.trim() !== "";
   // The keys already stored for this provider. A secret's purpose *is* the
   // provider id, which is what makes this a lookup rather than a convention.
   const keys = secrets.filter((secret) => secret.purpose === providerId);
@@ -107,7 +121,7 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
   const canSubmit =
     provider !== undefined &&
     model.trim() !== "" &&
-    chosenKey !== "" &&
+    (chosenKey !== "" || keyOptional) &&
     modelIdIsWellFormed(provider.id, model.trim());
 
   const submit = async () => {
@@ -118,7 +132,12 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
         label: label.trim() || `${provider.label} · ${model.trim()}`,
         provider: provider.id,
         model: model.trim(),
-        secret_id: chosenKey,
+        // `null`, not `""`: the API distinguishes "no key, this is self-hosted"
+        // from an unset field, and an empty string is neither.
+        secret_id: chosenKey || null,
+        // Only when the provider has one. Sending it otherwise is refused rather
+        // than dropped, which is the right refusal but a pointless round trip.
+        base_url: acceptsEndpoint && baseUrl.trim() !== "" ? baseUrl.trim() : null,
       });
       onCreated(profile);
     } catch (error) {
@@ -142,6 +161,7 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
               setProviderId(value);
               setSecretId("");
               setModel("");
+              setBaseUrl("");
               setFailure(null);
             }}
           >
@@ -240,6 +260,35 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
               />
             </div>
           )}
+        </div>
+      )}
+
+      {/* Only for providers whose SDK names an endpoint parameter. Offering it
+          for the rest would collect a URL the client drops, and the API refuses
+          it - which is the right refusal and a pointless one to walk into. */}
+      {provider !== undefined && acceptsEndpoint && (
+        <div className="space-y-1.5">
+          <Label htmlFor="add-model-endpoint">Endpoint</Label>
+          <Input
+            id="add-model-endpoint"
+            value={baseUrl}
+            onChange={(event) => {
+              setBaseUrl(event.target.value);
+              setFailure(null);
+            }}
+            placeholder={
+              capabilities?.keyless === true
+                ? "http://localhost:11434/v1"
+                : "Leave empty for the provider's own API"
+            }
+            autoComplete="off"
+            spellCheck={false}
+          />
+          <p className="text-muted-foreground text-xs">
+            {capabilities?.keyless === true
+              ? "A gateway, a LiteLLM proxy, or a model server on this network. Give one and the key becomes optional — there is nothing to authenticate against on your own hardware."
+              : "Optional. Point this model at a gateway or proxy instead of the provider's own API; the key is still what authenticates."}
+          </p>
         </div>
       )}
 

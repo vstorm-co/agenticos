@@ -47,10 +47,24 @@ class ModelProfileCreate(BaseSchema):
     label: str = Field(min_length=1, max_length=128)
     provider: str = Field(min_length=1, max_length=32)
     model: str = Field(min_length=1, max_length=255)
-    secret_id: UUID = Field(
+    secret_id: UUID | None = Field(
+        default=None,
         description=(
-            "The vault secret this model is keyed by. Required: a model with no key is a "
-            "model that cannot answer, and there is no second store to fall back on."
+            "The vault secret this model is keyed by. Required for every provider except "
+            "the keyless ones (Ollama, a LiteLLM proxy), where there is nothing to "
+            "authenticate against - the service refuses the wrong combination rather than "
+            "letting a model that cannot answer be created."
+        ),
+    )
+    base_url: str | None = Field(
+        default=None,
+        max_length=512,
+        description=(
+            "Where to send the request, when it is not the provider's public API: a "
+            "gateway, a LiteLLM proxy, a model server on this network. Accepted only for "
+            "providers whose SDK names an endpoint parameter - see `supports_base_url` on "
+            "the provider catalog - and required for a keyless one, which has no public "
+            "API to fall back on."
         ),
     )
     params: dict[str, Any] = Field(default_factory=dict)
@@ -69,6 +83,9 @@ class ModelProfileRead(BaseSchema, TimestampSchema):
     # able to see it.
     secret_id: UUID | None = None
     model: str
+    #: Absent for every profile aimed at the provider's own public API, which is
+    #: most of them.
+    base_url: str | None = None
     params: dict[str, Any] = Field(default_factory=dict)
     allow_byo: bool
     fallback_profile_ids: list[str] = Field(default_factory=list)

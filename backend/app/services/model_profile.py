@@ -23,6 +23,7 @@ from app.core.audit import record_audit
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
 from app.core.secret_kinds import (
+    NoSecret,
     SecretKind,
     unseal_secret,
 )
@@ -122,24 +123,63 @@ class ModelProfileService:
         label: str,
         provider: str,
         model: str,
-        secret_id: UUID,
+        secret_id: UUID | None,
+        base_url: str | None = None,
         params: dict | None = None,
         allow_byo: bool = False,
         fallback_profile_ids: list[UUID] | None = None,
     ) -> ModelProfile:
         """Define a selectable model.
 
+        `base_url` points the profile somewhere other than the provider's public
+        API - a gateway, a LiteLLM proxy, an Ollama on this network. It is only
+        accepted for providers whose SDK names an endpoint parameter; offering it
+        for the rest would store a value the client silently drops.
+
+        `secret_id` is optional exactly for the keyless providers, which is what
+        makes a self-hosted model configurable at all: a model server on the
+        deployment's own network usually has nothing to authenticate against. In
+        exchange it *must* carry an endpoint, because there is no public API for
+        the platform to fall back on.
+
         Raises:
             BadRequestError: If the key is not this organization's, or is for a
                 different provider than the profile claims - a mismatch that
                 would otherwise surface as an authentication error from the
-                provider, days later and far from its cause.
+                provider, days later and far from its cause. Also on an endpoint
+                for a provider that has none, a keyless provider with no
+                endpoint, or a keyed provider with no key.
             AlreadyExistsError: If the label is taken. Agents reference a model
                 by this name, so a duplicate is an agent nobody can point at
                 the model they meant.
         """
-        get_provider(provider)
+        spec = get_provider(provider)
         _validate_model_id(provider, model)
+
+        if base_url is not None:
+            if not spec.supports_base_url:
+                raise BadRequestError(
+                    message=(
+                        f"{spec.name} has no endpoint setting - its SDK always talks to the "
+                        "provider's own API, so a custom URL here would be ignored"
+                    ),
+                    details={"provider": provider, "base_url": base_url},
+                )
+            base_url = await validate_endpoint_url(base_url)
+        elif spec.keyless and secret_id is None:
+            raise BadRequestError(
+                message=(
+                    f"{spec.name} runs without a key, so it needs an endpoint to reach - "
+                    "there is no public API to fall back on"
+                ),
+                details={"provider": provider},
+            )
+
+        if secret_id is None and not spec.keyless:
+            raise BadRequestError(
+                message=f"{spec.name} needs a key. Store one in the vault, then add the model",
+                details={"provider": provider},
+            )
 
         if await credential_repo.get_profile_by_label(
             self.db, label, organization_id=ctx.organization_id
@@ -155,19 +195,20 @@ class ModelProfileService:
 
         # The key has to exist and be for the provider the model claims: a
         # Tavily key behind an OpenAI model authenticates against nothing.
-        secret = await organization_secret_repo.get(
-            self.db, secret_id, organization_id=ctx.organization_id
-        )
-        if secret is None:
-            raise BadRequestError(
-                message="That key is not in this organization's vault",
-                details={"secret_id": str(secret_id)},
+        if secret_id is not None:
+            secret = await organization_secret_repo.get(
+                self.db, secret_id, organization_id=ctx.organization_id
             )
-        if secret.purpose != provider:
-            raise BadRequestError(
-                message=f"That key is for {secret.purpose}, not {provider}",
-                details={"secret_purpose": secret.purpose, "provider": provider},
-            )
+            if secret is None:
+                raise BadRequestError(
+                    message="That key is not in this organization's vault",
+                    details={"secret_id": str(secret_id)},
+                )
+            if secret.purpose != provider:
+                raise BadRequestError(
+                    message=f"That key is for {secret.purpose}, not {provider}",
+                    details={"secret_purpose": secret.purpose, "provider": provider},
+                )
 
         profile = await credential_repo.create_profile(
             self.db,
@@ -176,6 +217,7 @@ class ModelProfileService:
             provider=provider,
             model=model,
             secret_id=secret_id,
+            base_url=base_url,
             params=params,
             allow_byo=allow_byo,
             fallback_profile_ids=[str(pid) for pid in (fallback_profile_ids or [])],
@@ -219,8 +261,26 @@ class ModelProfileService:
         "OpenRouter" there is what makes OpenRouter's models runnable. A legacy
         `credential` is the fallback, so profiles created before the two stores
         were joined keep working without a migration that rewrites them.
+
+        A keyless provider with an endpoint has no secret to resolve and is not an
+        error: an Ollama or a LiteLLM proxy on this network authenticates nothing,
+        which is why `NoSecret` is a kind the runtime can hold.
+
+        **Both halves are required.** `keyless` is true of `openai` too, because
+        OpenAI-compatible servers exist - so "keyless" alone does not distinguish a
+        deliberate self-hosted profile from one whose key was deleted, and the
+        foreign key is `ON DELETE SET NULL`, which makes that second case ordinary.
+        The endpoint is what tells them apart: without one there is nowhere to send
+        the request, and the honest answer is the same refusal as before.
         """
         if profile.secret_id is None:
+            spec = get_provider(profile.provider)
+            if spec.keyless and profile.base_url:
+                return ResolvedCredential(
+                    provider=profile.provider,
+                    secret=NoSecret(),
+                    base_url=profile.base_url,
+                )
             raise BadRequestError(
                 message=f"Model '{profile.label}' has no key configured - add one in the vault",
                 details={"profile_id": str(profile.id)},
@@ -241,10 +301,12 @@ class ModelProfileService:
                 scope=VaultScope.organization(organization_id),
                 key_version=secret.key_version,
             ),
-            # A vault secret carries no endpoint: a custom base URL belongs to
-            # the deployment's own server, which is what the keyless provider
-            # path is for.
-            base_url=None,
+            # The profile's, not the secret's. A secret says what authenticates;
+            # where the request is sent is the profile's business, so the same key
+            # can front a staging proxy and a production one as two profiles.
+            # This was hardcoded to `None`, which is why no deployment could reach
+            # a gateway however carefully it stored the URL.
+            base_url=profile.base_url,
         )
 
     async def resolve(

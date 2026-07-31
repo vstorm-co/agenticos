@@ -57,7 +57,15 @@ at. There is no per-provider builder: Pydantic AI infers the provider class and
 the model wrapper from the id. What this platform still has to know is the part
 inference cannot — **which credential shape a provider wants**.
 
-`base_url` means the profile may point at a gateway or proxy of its own choosing.
+**Custom URL** means the provider's SDK names an endpoint parameter, so a profile
+may be pointed at a gateway, a LiteLLM proxy or a model server on your own network
+instead of the vendor's public API. It is a field on the **profile**, not on the
+key: a key says what authenticates, an endpoint says where the request goes, so the
+same key can front a staging proxy and a production one as two profiles.
+
+Set it under **Agents → add a model → Endpoint**, which appears only for the
+providers marked below. Storing one for a provider that has none is refused rather
+than accepted and dropped.
 
 ### Hosted
 
@@ -97,6 +105,22 @@ These two are why "no credential" is a stored *kind* rather than an empty string
 A model server on the deployment's own network usually has nothing to authenticate
 against, and the vault refuses an empty secret — so the resolver switches on a
 total set instead of treating a missing value as a special case.
+
+**A keyless profile needs its endpoint, and that is the only thing it needs.** The
+key field goes optional as soon as one is filled in; without an endpoint the profile
+is refused, because there is no public API to fall back on and nothing to
+authenticate with.
+
+!!! note "The endpoint is what marks a profile self-hosted, not `keyless`"
+
+    `keyless` is true of `openai` as well — OpenAI-compatible servers (vLLM, LM
+    Studio, a LiteLLM proxy) speak its Chat Completions API, which is why an
+    `openai` profile is built as `openai-chat`. So "no key" alone does not
+    distinguish a deliberate local model from a profile whose key was deleted, and
+    the secret foreign key is `ON DELETE SET NULL`, which makes the second case
+    ordinary. A run resolves a keyless profile only when it carries an endpoint;
+    otherwise it is refused with the same "no key configured" message it always
+    had.
 
 ### Credential is not an API key
 

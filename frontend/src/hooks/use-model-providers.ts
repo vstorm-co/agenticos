@@ -16,8 +16,18 @@ export interface NewModelProfile {
   label: string;
   provider: string;
   model: string;
-  /** The vault secret to key it with. Required - there is no second store. */
-  secret_id: string;
+  /**
+   * The vault secret to key it with. `null` only for a keyless provider that
+   * carries an endpoint - a model server on this network authenticates nothing,
+   * and the service refuses every other combination.
+   */
+  secret_id: string | null;
+  /**
+   * Where to send the request, when it is not the provider's public API. Accepted
+   * only for providers with `supports_base_url`; the service refuses it for the
+   * rest rather than storing a value the SDK would drop.
+   */
+  base_url?: string | null;
 }
 
 /**
