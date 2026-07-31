@@ -71,3 +71,18 @@ stale claim is worse than no skill — it is confidently wrong. Two rules:
 2. **When a rename or a removal lands, grep here.** `assistant.py`,
    `CHANNEL_ENCRYPTION_KEY`, `UserRole` and `search_knowledge_base` all survived in this
    directory long after they left the code.
+
+## The docs-drift hook
+
+`settings.json` registers a **Stop** hook running `scripts/docs_drift.py`. When a turn
+ends with changes under a path some `docs/` page describes, and nothing under `docs/`
+moved, it names the pages owed.
+
+A reminder, never a gate — it always exits 0. A refactor with no behaviour change and
+a test-only change legitimately owe nothing, and a check that blocked those would be
+routed around within a week. The trigger map lives in the script (one place, so the
+hook and the reader cannot disagree) and is summarised in `CLAUDE.md` under
+*Documentation*.
+
+Run it by hand any time: `python3 scripts/docs_drift.py`. Review or disable the hook
+with `/hooks`.

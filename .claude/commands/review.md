@@ -52,7 +52,10 @@ Read the change in the context of the system, not as a diff. For each file, chec
 - Platform-layer module added to **both** lists in `pyproject.toml`
 - No test that passes with the implementation deleted
 
-**Docs** — behaviour changed means the page changed. See the table in `CLAUDE.md`.
+**Docs** — behaviour changed means the page changed, in this change. Run
+`python3 scripts/docs_drift.py`; it names the pages owed. A refactor with no
+behaviour change owes nothing — say so rather than editing a page for the sake of
+it. The trigger map is in `CLAUDE.md` under *Documentation*.
 
 Then run:
 

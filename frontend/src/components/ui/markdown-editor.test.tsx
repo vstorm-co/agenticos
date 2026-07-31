@@ -15,9 +15,7 @@ vi.mock("@/components/chat/markdown-content", () => ({
 
 function mount(props: Partial<Parameters<typeof MarkdownEditor>[0]> = {}) {
   const onChange = vi.fn();
-  render(
-    <MarkdownEditor value="# Heading" onChange={onChange} label="Instructions" {...props} />,
-  );
+  render(<MarkdownEditor value="# Heading" onChange={onChange} label="Instructions" {...props} />);
   return { onChange };
 }
 

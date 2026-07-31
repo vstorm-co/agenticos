@@ -1,0 +1,200 @@
+# Production. `make prod`.
+#
+#   docker compose --env-file backend/.env -f docker-compose-prod.yml up -d --build
+#
+# Prerequisites:
+#   1. `backend/.env` with real secrets. The same file serves every environment;
+#      there is no `.env.prod`. Work through the production checklist in
+#      `docs/configuration.md` first — VAULT_MASTER_KEY especially.
+#   2. A reverse proxy in front of this stack. `nginx/nginx.conf` is the
+#      template; it proxies to `backend:8000` and `frontend:3000`, and both
+#      names are provided as network aliases below.
+#
+# The frontend is `docker-compose-prod.frontend.yml`.
+#
+# Two networks, deliberately:
+#
+#   `data`  — internal, no route off the host. Postgres and Redis live here and
+#             have no business reaching the internet.
+#   `edge`  — an ordinary bridge. The app needs it: every agent run calls a
+#             model provider, and an MCP connection calls a vendor's server.
+#
+# This used to be one network marked `internal: true`, which blocks egress. The
+# database was correctly unreachable and so was api.anthropic.com, so no agent
+# could have answered anything.
+
+services:
+  app:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: agenticos_backend:prod
+    container_name: agenticos_backend
+    volumes:
+      - media_data:/app/media
+      # email/templates.py reads pre-compiled HTML/text from /app/emails/compiled.
+      # Build context is ./backend so the dir isn't in the image — mount it.
+      - ./emails:/app/emails:ro
+    env_file:
+      - ./backend/.env
+    environment:
+      - DEBUG=false
+      - ENVIRONMENT=production
+      - POSTGRES_HOST=db
+      - REDIS_HOST=redis
+      - PREFECT_API_URL=http://prefect-server:4200/api
+    # --ws websockets-sansio: uvicorn's `auto` picks the legacy websockets impl,
+    # which fails the handshake against websockets >=14. The chat WS needs it in
+    # production exactly as much as it does locally.
+    command: >-
+      uvicorn app.main:app --host 0.0.0.0 --port 8000
+      --workers 4 --ws websockets-sansio
+    networks:
+      data:
+      edge:
+        aliases:
+          - backend
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+
+  db:
+    # pgvector, not stock postgres: the RAG store runs
+    # `CREATE EXTENSION IF NOT EXISTS vector` when a collection is first
+    # written to, and on postgres:16-alpine that fails with
+    # `extension "vector" is not available`.
+    image: pgvector/pgvector:pg16
+    container_name: agenticos_db
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      - POSTGRES_DB=${POSTGRES_DB:-agenticos}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # No published port, and no egress: `data` is internal.
+    networks:
+      - data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+
+  redis:
+    image: redis:7-alpine
+    container_name: agenticos_redis
+    command: redis-server --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+    volumes:
+      - redis_data:/data
+    networks:
+      - data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
+  prefect-server:
+    # Production had no Prefect at all, which meant document ingestion,
+    # collection syncs and scheduled reports never ran: an upload was accepted
+    # and the document stayed unsearchable forever.
+    image: prefecthq/prefect:3-latest
+    container_name: agenticos_prefect_server
+    command: prefect server start --host 0.0.0.0
+    volumes:
+      - prefect_data:/root/.local/share/prefect/
+    environment:
+      - PREFECT_API_URL=http://prefect-server:4200/api
+      - PREFECT_SERVER_API_HOST=0.0.0.0
+    # No published port: the UI is reached through the reverse proxy or an SSH
+    # tunnel, not from the internet.
+    networks:
+      - data
+      - edge
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:4200/api/health')",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  prefect-runner:
+    image: agenticos_backend:prod
+    pull_policy: never
+    container_name: agenticos_prefect_runner
+    volumes:
+      - media_data:/app/media
+      - ./emails:/app/emails:ro
+    command: python -m app.worker.prefect_app
+    env_file:
+      - ./backend/.env
+    environment:
+      - DEBUG=false
+      - ENVIRONMENT=production
+      - POSTGRES_HOST=db
+      - REDIS_HOST=redis
+      - PREFECT_API_URL=http://prefect-server:4200/api
+    # Egress too: ingestion calls an embedding provider.
+    networks:
+      - data
+      - edge
+    depends_on:
+      prefect-server:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+      app:
+        condition: service_started
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+
+networks:
+  data:
+    name: agenticos_data
+    driver: bridge
+    internal: true
+  edge:
+    name: agenticos_edge
+    driver: bridge
+
+volumes:
+  media_data:
+  postgres_data:
+  redis_data:
+  prefect_data:

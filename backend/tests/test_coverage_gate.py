@@ -22,12 +22,43 @@ green build. Something has to check the checker.
 
 from __future__ import annotations
 
+import re
 import tomllib
 from pathlib import Path
 
 import pytest
 
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
+
+
+def _matches_glob(path: str, pattern: str) -> bool:
+    """Whether a POSIX path matches a coverage-style glob, whole-string.
+
+    `Path.full_match` does exactly this and would be the obvious call, but it
+    landed in **Python 3.13** while `requires-python` is `>=3.12` and every CI
+    job installs 3.12. Using it made this file raise `AttributeError` on the
+    interpreter that actually ships, so the test guarding the gate was itself
+    ungated - and it passed locally, where the venv happens to be newer.
+
+    `fnmatch` is not a substitute either: it treats `*` as matching separators,
+    so `app/*.py` would match `app/agents/spec.py`. Hence the translation -
+    `**` spans directories, a single `*` does not.
+    """
+    parts = []
+    for token in re.split(r"(\*\*/|\*\*|\*|\?)", pattern):
+        if token == "**/":
+            # Zero or more leading directories, so `a/**/b.py` also matches `a/b.py`.
+            parts.append(r"(?:[^/]+/)*")
+        elif token == "**":
+            parts.append(r".*")
+        elif token == "*":
+            parts.append(r"[^/]*")
+        elif token == "?":
+            parts.append(r"[^/]")
+        elif token:
+            parts.append(re.escape(token))
+    return re.fullmatch("".join(parts), path) is not None
+
 
 # Directories whose contents are entirely platform layer: everything AgenticOS
 # adds on top of the generated template. Every file here must be gated.
@@ -131,8 +162,8 @@ class TestPlatformLayerIsFullyListed:
     def _covered(coverage_config: dict, path: str) -> bool:
         include = coverage_config["run"]["include"]
         omit = coverage_config["run"].get("omit", [])
-        matched = any(Path(path).full_match(pattern) for pattern in include)
-        excluded = any(Path(path).full_match(pattern) for pattern in omit)
+        matched = any(_matches_glob(path, pattern) for pattern in include)
+        excluded = any(_matches_glob(path, pattern) for pattern in omit)
         return matched and not excluded
 
     def test_no_platform_module_has_fallen_out(self, coverage_config: dict) -> None:

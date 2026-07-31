@@ -98,11 +98,7 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
   const chosenKey = secretId || keys[0]?.id || "";
   // What the provider publishes, where it publishes anything. Cached hard: a
   // catalog changes when a provider ships a model, not while a form is open.
-  const {
-    models: suggestions,
-    source,
-    isLoading: loadingModels,
-  } = useProviderModels(providerId);
+  const { models: suggestions, source, isLoading: loadingModels } = useProviderModels(providerId);
   const derivedLabel =
     provider && model.trim()
       ? `${provider.label} · ${model.trim()}`

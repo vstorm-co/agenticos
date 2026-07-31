@@ -1,0 +1,65 @@
+# The frontend in production. `make prod-frontend`.
+#
+#   docker compose --env-file backend/.env -f docker-compose-prod.frontend.yml up -d --build
+#
+# Start `docker-compose-prod.yml` first: this joins the `edge` network it creates
+# and declares it `external: true`, so bringing the frontend up without a backend
+# fails immediately instead of serving a site whose every request 502s.
+#
+# It joins `edge` rather than `data`: it talks to the app and to the browser, and
+# has no business reaching Postgres.
+#
+# `NEXT_PUBLIC_*` are **build** arguments — Next inlines them into the browser
+# bundle, so they must be the public URLs and a change means a rebuild. Getting
+# this wrong is the classic "works on the server, broken in the browser" bug:
+# SSR keeps working over the compose network while every client-side call goes to
+# whatever hostname was baked in.
+
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=${PUBLIC_API_URL:?PUBLIC_API_URL is required, e.g. https://api.example.com}
+        - NEXT_PUBLIC_WS_URL=${PUBLIC_WS_URL:?PUBLIC_WS_URL is required, e.g. wss://api.example.com}
+        - NEXT_PUBLIC_SITE_URL=${PUBLIC_SITE_URL:?PUBLIC_SITE_URL is required, e.g. https://app.example.com}
+        - NEXT_PUBLIC_MAX_UPLOAD_SIZE_MB=${MAX_UPLOAD_SIZE_MB:-50}
+        - NEXT_PUBLIC_OAUTH_PROVIDERS=${OAUTH_PROVIDERS:-google}
+        - NEXT_PUBLIC_RAG_ENABLED=${RAG_ENABLED:-true}
+    image: agenticos_frontend:prod
+    container_name: agenticos_frontend
+    environment:
+      - NODE_ENV=production
+      - BACKEND_URL=http://app:8000
+    ports:
+      - "3000:3000"
+    networks:
+      edge:
+        # `nginx/nginx.conf` proxies to `frontend:3000`.
+        aliases:
+          - frontend
+    restart: unless-stopped
+    healthcheck:
+      # The oven/bun image has no curl/wget, so probe with bun's built-in fetch.
+      test:
+        [
+          "CMD",
+          "bun",
+          "-e",
+          "fetch('http://localhost:3000/api/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 10s
+      start_period: 40s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+
+networks:
+  edge:
+    name: agenticos_edge
+    external: true

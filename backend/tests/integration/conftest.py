@@ -78,6 +78,18 @@ async def engine():
     isolation between tests.
     """
     if not await _reachable():
+        # Skipping is right on a laptop with no Docker. In CI it is not: the
+        # service container is declared, so an unreachable database means it
+        # failed to start - and silently skipping two hundred tests would keep
+        # the build green while nothing that needs a database ran at all. This
+        # suite is the only thing that checks constraints, cascades and
+        # cross-tenant reads, so that green would be meaningless.
+        if os.getenv("CI"):
+            raise RuntimeError(
+                f"No database reachable at {_database_url()} but CI is set. The Postgres "
+                "service container did not come up; refusing to skip the integration "
+                "suite and report a green build."
+            )
         pytest.skip("No database reachable - start one with `make docker-db`")
 
     _refuse_a_real_database(_database_url())

@@ -1,9 +1,15 @@
-
-# Frontend development configuration
-# Usage: docker-compose -f docker-compose.frontend.yml up -d
+# The frontend, locally. `make dev-frontend`.
 #
-# Note: Backend must be running first (docker-compose up -d)
-# Frontend connects to backend via host network
+#   docker compose -f docker-compose.frontend.yml up -d
+#
+# Start the backend first (`make dev`). This container reaches it through the
+# host gateway rather than the compose network, because the browser also has to
+# reach it — and the browser is on the host, so one address has to work for both.
+#
+# One file per environment, matching the backend set:
+#   docker-compose.frontend.yml        local
+#   docker-compose-dev.frontend.yml    the dev server
+#   docker-compose-prod.frontend.yml   production
 
 services:
   frontend:
@@ -25,7 +31,6 @@ services:
     environment:
       - NODE_ENV=development
       - BACKEND_URL=http://host.docker.internal:8000
-      - BACKEND_WS_URL=ws://host.docker.internal:8000
       - NEXT_PUBLIC_RAG_ENABLED=true
     extra_hosts:
       - "host.docker.internal:host-gateway"

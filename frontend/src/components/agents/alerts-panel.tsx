@@ -4,14 +4,7 @@ import Link from "next/link";
 import { CircleDollarSign, Hand, PieChart } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  Switch,
-} from "@/components/ui";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, Switch } from "@/components/ui";
 import { useMembers } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import { DEFAULT_NOTIFICATIONS } from "@/lib/agent-spec";

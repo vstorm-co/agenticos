@@ -1,22 +1,25 @@
-
-# Development configuration (alias for docker-compose.yml)
-# Usage: docker-compose -f docker-compose.dev.yml up -d
+# The dev server. `make dev-server`.
 #
-# This file is identical to docker-compose.yml for explicit naming preference.
-# Use docker-compose.yml for default development.
+#   docker compose --env-file backend/.env -f docker-compose-dev.yml up -d --build
+#
+# A deployed environment, not a laptop: images are built rather than
+# bind-mounted, uvicorn does not reload, and Postgres and Redis are not
+# published to the host. It differs from production in the things a shared
+# testing environment wants — verbose logging, a single worker, no resource
+# ceilings, and `ENVIRONMENT=dev` so an agent's traces and alerts are separable
+# from real ones.
+#
+# Put a reverse proxy in front of port 8000; `nginx/nginx.conf` is the template.
+# The frontend is `docker-compose-dev.frontend.yml`.
 
 services:
   app:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    image: agenticos_backend:dev
+    image: agenticos_backend:dev-server
     container_name: agenticos_backend
-    ports:
-      - "8000:8000"
     volumes:
-      - ./backend/app:/app/app:ro
-      - ./backend/cli:/app/cli:ro
       - media_data:/app/media
       # email/templates.py reads pre-compiled HTML/text from /app/emails/compiled.
       # Build context is ./backend so the dir isn't in the image — mount it.
@@ -24,14 +27,24 @@ services:
     env_file:
       - ./backend/.env
     environment:
+      # Verbose on purpose: this is where a failure is meant to be diagnosed.
       - DEBUG=true
-      - ENVIRONMENT=local
+      - ENVIRONMENT=dev
       - POSTGRES_HOST=db
       - REDIS_HOST=redis
       - PREFECT_API_URL=http://prefect-server:4200/api
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    # --ws websockets-sansio: uvicorn's `auto` picks the legacy websockets impl,
+    # which is broken with websockets >=14 (handshake → HTTP 500). Required for
+    # the chat WS. No --reload: there is no mounted source to watch.
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --ws websockets-sansio
+    ports:
+      - "8000:8000"
     networks:
-      - backend
+      backend:
+        # `nginx/nginx.conf` proxies to `backend:8000`. The alias makes that
+        # template resolve without the operator having to rename anything.
+        aliases:
+          - backend
     depends_on:
       db:
         condition: service_healthy
@@ -39,23 +52,21 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-
   db:
     # pgvector, not stock postgres: the RAG store runs
     # `CREATE EXTENSION IF NOT EXISTS vector` when a collection is first
     # written to, and on postgres:16-alpine that fails with
     # `extension "vector" is not available` — so every document upload 500s
-    # before a row is committed. Same major version, same data directory.
+    # before a row is committed.
     image: pgvector/pgvector:pg16
     container_name: agenticos_db
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       - POSTGRES_DB=${POSTGRES_DB:-agenticos}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+    # No published port: reachable only from this network.
     networks:
       - backend
     healthcheck:
@@ -68,14 +79,13 @@ services:
   redis:
     image: redis:7-alpine
     container_name: agenticos_redis
-    ports:
-      - "6379:6379"
+    command: redis-server --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
     volumes:
       - redis_data:/data
     networks:
       - backend
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -85,18 +95,21 @@ services:
     image: prefecthq/prefect:3-latest
     container_name: agenticos_prefect_server
     command: prefect server start --host 0.0.0.0
-    ports:
-      - "4200:4200"
     volumes:
       - prefect_data:/root/.local/share/prefect/
     environment:
-      - PREFECT_UI_URL=http://localhost:4200/api
-      - PREFECT_API_URL=http://localhost:4200/api
+      - PREFECT_API_URL=http://prefect-server:4200/api
       - PREFECT_SERVER_API_HOST=0.0.0.0
     networks:
       - backend
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4200/api/health')"]
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:4200/api/health')",
+        ]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -104,18 +117,22 @@ services:
     restart: unless-stopped
 
   prefect-runner:
-    image: agenticos_backend:dev
+    # Ingestion, collection syncs and scheduled reports run here. Without it
+    # documents upload and then never become searchable.
+    image: agenticos_backend:dev-server
     pull_policy: never
     container_name: agenticos_prefect_runner
     volumes:
-      - ./backend/app:/app/app
       - media_data:/app/media
+      - ./emails:/app/emails:ro
     command: python -m app.worker.prefect_app
     env_file:
       - ./backend/.env
     environment:
       - DEBUG=true
+      - ENVIRONMENT=dev
       - POSTGRES_HOST=db
+      - REDIS_HOST=redis
       - PREFECT_API_URL=http://prefect-server:4200/api
     networks:
       - backend
@@ -124,10 +141,13 @@ services:
         condition: service_healthy
       db:
         condition: service_healthy
+      app:
+        condition: service_started
     restart: unless-stopped
 
 networks:
   backend:
+    name: agenticos_backend
     driver: bridge
 
 volumes:

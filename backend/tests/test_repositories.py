@@ -39,3 +39,44 @@ class TestUserRepository:
         result = await user_repo.get_by_email(mock_session, "notfound@example.com")
 
         assert result is None
+
+    @pytest.mark.anyio
+    async def test_creating_a_user_does_not_pass_a_role_column_that_no_longer_exists(
+        self, mock_session
+    ):
+        """`users.role` was dropped in migration `0066`.
+
+        The repository kept passing `role=` to the model, and SQLAlchemy's
+        declarative constructor raises `TypeError` on an unmapped keyword - so
+        *every* path that creates a user was broken: registration, Google OAuth,
+        `agenticos user create`, and `agenticos cmd bootstrap`, which is the
+        command the install instructions tell a new operator to run. Nothing
+        failed until a real database was involved, so only the E2E job caught it.
+        """
+        mock_session.flush = AsyncMock()
+        mock_session.refresh = AsyncMock()
+
+        user = await user_repo.create(
+            mock_session,
+            email="new@example.com",
+            hashed_password="hashed",
+        )
+
+        assert user.email == "new@example.com"
+        assert not hasattr(user, "role")
+
+    @pytest.mark.anyio
+    async def test_clearing_seeded_users_keeps_the_deployment_admins(self, mock_session):
+        """`--clear` filters on `is_app_admin`, not on the dropped `role` column.
+
+        Reading `User.role` raised before deleting anything, which made
+        `agenticos cmd seed --clear` fail rather than clear.
+        """
+        mock_session.flush = AsyncMock()
+        mock_session.execute.return_value = MagicMock(rowcount=3)
+
+        removed = await user_repo.delete_non_admins(mock_session)
+
+        assert removed == 3
+        statement = str(mock_session.execute.call_args.args[0])
+        assert "is_app_admin" in statement

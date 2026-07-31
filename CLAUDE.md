@@ -145,9 +145,13 @@ to pin `postgres:16-alpine`, which is why no ingestion path had ever been exerci
 locally or in CI and an E2E upload spec sat skipped. **If document ingestion 500s on a
 fresh environment, check the image first.**
 
-**Local development runs Python 3.14; `backend/Dockerfile`, `pyproject.toml` and every
-CI job target 3.12.** Something verified locally has been verified on a newer
-interpreter than the one that ships.
+**Python is pinned to 3.12 by `backend/.python-version`**, matching
+`requires-python`, `backend/Dockerfile` and every CI job. That pin exists because it
+did not: the venv resolved to 3.14, `tests/test_coverage_gate.py` reached for
+`Path.full_match` (added in **3.13**), and the test guarding the coverage gate passed
+locally while raising `AttributeError` in CI. **If `uv run` reports anything other
+than 3.12, delete `backend/.venv` and re-run `uv sync`** — anything verified on a
+newer interpreter has not been verified on the one that ships.
 
 ## Testing — what a first reader must know
 
@@ -186,6 +190,50 @@ history behind each.
 copy, on purpose.** A second copy written for a different reader is a copy that
 disagrees. So: when behaviour changes, change the page; do not write a second
 explanation next to it.
+
+### Finishing an implementation means updating the page (required)
+
+**A change that alters behaviour a page describes is not finished until that page is
+updated, in the same change. Do not wait to be asked.** One copy only stays true if
+it moves with the code; otherwise the page keeps describing what the code used to do
+and the disagreement is found months later by somebody acting on the stale half.
+
+Trigger map — what changed → which page:
+
+| Changed | Update |
+|---|---|
+| `app/agents/spec.py` | `docs/reference/spec.md` (via the docstrings) |
+| `app/agents/capabilities/**` | `docs/reference/capabilities.md` |
+| `app/agents/mcp*.py`, `app/services/mcp_*.py`, `catalog/mcp_servers.json` | `docs/mcp.md` |
+| `app/agents/model_resolver.py`, `app/services/model_profile.py`, `model_catalog.py` | `docs/models.md` |
+| `app/core/vault.py`, `secret_kinds.py`, `app/services/organization_secret.py` | `docs/secrets.md` |
+| `app/core/permissions.py`, `app/services/access.py` | `docs/permissions.md` + `docs/reference/permissions.md` |
+| `app/services/skills.py`, `skill_library.py`, `catalog/skills/**` | `docs/skills.md` |
+| `app/services/spend.py`, `approvals.py`, `notifications.py` | `docs/governance.md` |
+| `app/services/channels/**`, `agent_exposure.py`, `agent_embed.py` | `docs/channels.md` |
+| `app/services/rag/**`, `file_upload.py`, `ingestion_config.py` | `docs/file-processing.md` |
+| `app/core/config.py` | `docs/configuration.md` |
+| `app/commands/**`, a new `make` target | `docs/commands.md` |
+| A new route, service or layering change | `docs/architecture.md` |
+| A capability, permission or setting that changes the first-run path | `docs/first-agent.md`, `docs/install.md` |
+
+**When updating a page:** keep its altitude — `docs/reference/*` is generated from
+docstrings, so fix the **docstring** there rather than adding prose. Keep the
+concept pages behaviour-level, not line-by-line. If a change makes a page's
+structure wrong (a stage removed, a new subsystem), restructure the page rather than
+patching around it. Adding a page means adding it to `nav` in `mkdocs.yml` and to
+the table below.
+
+`.claude/skills/*` and `.claude/rules/*` are subject to the same rule: they name
+files, flags and commands, so a rename or removal makes them confidently wrong.
+`assistant.py`, `CHANNEL_ENCRYPTION_KEY`, `UserRole` and `search_knowledge_base` all
+survived there long after leaving the code.
+
+A **Stop hook** runs `scripts/docs_drift.py` and names the pages owed when a change
+touched the map above and nothing under `docs/` moved. It is a reminder, not a gate —
+a refactor with no behaviour change and a test-only change legitimately owe nothing;
+say so and move on. Run it yourself any time with
+`python3 scripts/docs_drift.py`.
 
 | Topic | Page |
 |---|---|

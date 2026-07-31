@@ -36,12 +36,7 @@ describe("the run summary", () => {
     // The panel this replaced was ten rows of status, model and cost, with no
     // times and no totals - ten identical-looking rows do not answer the question
     // somebody opens the page for.
-    render(
-      <RunSummary
-        agentId="agent-1"
-        runs={[run(), run({ status: "failed" }), run()]}
-      />,
-    );
+    render(<RunSummary agentId="agent-1" runs={[run(), run({ status: "failed" }), run()]} />);
 
     expect(within(figure("Runs")).getByText("3")).toBeInTheDocument();
     expect(within(figure("Failed")).getByText("1")).toBeInTheDocument();

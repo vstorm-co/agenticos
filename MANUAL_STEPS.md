@@ -88,7 +88,7 @@ These are used to sign JWTs and authenticate service-to-service calls. Rotate at
 
 ## Where to find more
 
-- `ENV_VARS.md` — exhaustive env var reference
+- `docs/configuration.md` — exhaustive env var reference, and the production checklist
 - `docs/deploy.md` — platform-specific deployment recipes
 - `SECURITY.md` — security model + production hardening checklist
 - `CONTRIBUTING.md` — dev environment setup

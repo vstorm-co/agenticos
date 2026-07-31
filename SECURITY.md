@@ -35,7 +35,7 @@ We aim to acknowledge within 48h and ship a fix within 7 days for high-severity 
 
 ### Data
 
-- **Secrets** — read from environment via `pydantic-settings`. Never committed. See `.env.example` + `ENV_VARS.md`.
+- **Secrets** — read from environment via `pydantic-settings`. Never committed. See `backend/.env.example` and [Configuration](docs/configuration.md).
 - **Audit log** — admin-mutating actions (user updates, deletes, impersonations, role changes) recorded in `app_admin_audit_log` table with actor + IP + payload snapshot.
 - **RAG documents** — file uploads scoped per-org. No public read endpoint; all retrieval happens server-side during chat.
 

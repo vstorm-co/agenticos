@@ -85,7 +85,9 @@ export function RunSummary({ agentId, runs }: RunSummaryProps) {
         <Figure
           label="Spent"
           value={`$${stats.spent.toFixed(2)}${stats.partial ? "+" : ""}`}
-          hint={stats.partial ? "A model in these runs had no price, so this is a floor." : undefined}
+          hint={
+            stats.partial ? "A model in these runs had no price, so this is a floor." : undefined
+          }
         />
       </div>
 

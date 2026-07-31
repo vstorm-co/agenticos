@@ -154,3 +154,76 @@ Layer: `tests/integration/`.
 Assert the consequence, cover the refusal, and prove the test can fail. A test written
 against code that already works, which nobody has seen fail, is a test that was never
 tested.
+
+---
+
+# Outcome
+
+`make check` green: 2071 backend tests at 100% platform coverage, 747 frontend.
+`make test-integration` green: 192. Docs build clean under `--strict`.
+
+## L1 - fixed
+
+`member_repo.list_emails_for_members` is the new membership-scoped resolver, and
+every person-derived audience goes through it: owner, initiator and chosen alike.
+One resolver rather than three call sites, so the scoping cannot be right for two
+of them and wrong for the third. `admins` still reaches the deployment's app
+admins, deliberately.
+
+Proven: reverting to the unscoped query fails three of the new integration tests
+(`test_a_member_of_another_organization_resolves_to_no_address`,
+`test_a_mixed_list_yields_only_the_members`,
+`test_a_user_who_exists_but_belongs_to_no_organization_resolves_to_nothing`) and
+passes with the fix.
+
+## Tests added
+
+| Layer | File | Count |
+|---|---|---|
+| Integration | `tests/integration/test_notification_recipients.py` | 14 |
+| Integration | `tests/integration/test_deployment_wide_reads.py` | 4 |
+| Integration | `test_platform_flows.py` - counts cannot cross tenants | 1 |
+| API | `tests/api/test_privilege_escalation.py` | 8 |
+| Unit | `tests/test_notifications.py` rewritten for the new contract | 31 |
+| Unit | `test_agent_spec_and_factory.py` - audiences hold references, not addresses | 2 |
+| Unit | `test_spend.py` - the organization's cap reports its own scope | 1 |
+| Frontend | `markdown-editor.test.tsx` | 9 |
+| Frontend | `run-summary.test.tsx` | 8 |
+| Frontend | `agents-filter.integration.test.tsx` | 6 |
+| Frontend | `runs/agent-filter.integration.test.tsx` | 4 |
+| Frontend | `utils.test.ts` - `isAppAdmin` | 5 |
+
+## Where the plan changed as it was executed
+
+**S4 needed almost nothing.** `tests/api/test_no_secret_escapes.py` already sweeps
+every response schema in the generated OpenAPI document, so the knowledge-base
+counts and `/me/permissions` are covered by construction - a new schema with a
+secret-shaped field fails there without anyone writing a test for the route. What
+was genuinely missing was narrower: that an alert audience holds ids rather than
+addresses, which is now asserted on `AlertSpec` and on the YAML export.
+
+**C3 has no bespoke test, on purpose.** The integration conftest builds the schema
+from the models rather than from migrations, so driving alembic inside it would
+fight the fixture. Instead the chain was verified against a scratch database:
+upgrade to head, insert user rows, downgrade `0066` with data present (the column
+returns at its old default, `is_app_admin` untouched), re-upgrade, then the whole
+chain down to base and back. That is what `make test-migrations` does in CI, and it
+passes on a clean database - the local failure is an unrelated FK re-add in an
+earlier migration hitting this developer's populated data.
+
+## Two standing issues, neither from this session's code
+
+**The frontend coverage gate is red, and `make check` does not run it.** CI runs
+`bun run test:coverage`; `make check` runs `test:run`. Current: 71.06% statements
+against an 85% threshold, 88.75% branches against 90%.
+
+The shortfall is entirely in components committed earlier on this branch
+(`b56ba1f`, `d885e4e`) and never tested: `embeds-panel` (351 lines),
+`version-history` (292), `channel-bots-panel` (209), `observability-card` (147),
+`skill-library-gallery` (112), `environments-panel` (88), `conversation-agents`
+(65), `thinking-setting` (64) - roughly 1,300 uncovered lines. Every component
+this session added scores 80-100%, so the gate would fail identically without any
+of this work. Closing it is a separate piece of work worth its own plan.
+
+**`make test-migrations` cannot run locally** against the populated development
+database, for the reason above. It is green on a clean one.

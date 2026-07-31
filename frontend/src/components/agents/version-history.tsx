@@ -55,9 +55,7 @@ function PromoteMenu({
   onPromote: (environmentId: string, versionId: string) => void;
   promoting?: boolean;
 }) {
-  const targets = environments.filter(
-    (environment) => environment.version_id !== version.id,
-  );
+  const targets = environments.filter((environment) => environment.version_id !== version.id);
   if (targets.length === 0) return null;
   return (
     <Select

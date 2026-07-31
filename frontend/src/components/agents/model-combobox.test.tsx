@@ -68,10 +68,7 @@ describe("the model combobox", () => {
     mount();
 
     await userEvent.click(screen.getByRole("combobox"));
-    await userEvent.type(
-      screen.getByPlaceholderText("Search models…"),
-      "anthropic/claude-opus-5",
-    );
+    await userEvent.type(screen.getByPlaceholderText("Search models…"), "anthropic/claude-opus-5");
 
     expect(screen.queryByText("not in the list")).toBeNull();
   });

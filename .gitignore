@@ -114,3 +114,6 @@ backend/media/
 
 # MkDocs build output.
 site/
+
+# Written by the CI security job (uv export) and never committed.
+backend/requirements-audit.txt

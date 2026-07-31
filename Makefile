@@ -1,10 +1,18 @@
-.PHONY: install format lint test run clean help db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean stage stage-down prod prod-down upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build
+.PHONY: install format lint test run clean help db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build
 
 # === Environments ===========================================================
-# `make dev`   — local development (docker-compose.dev.yml + bind-mounted source)
-# `make stage` — staging (docker-compose.yml — built images, no live reload)
-# `make prod`  — production (docker-compose.prod.yml — needs backend/.env + nginx)
-# Each env has matching -down / -logs / -rebuild siblings.
+# Three, one compose file each, with a matching frontend file beside it:
+#
+#   make dev         local, on a laptop    docker-compose.yml
+#                                          docker-compose.frontend.yml
+#   make dev-server  the dev server        docker-compose-dev.yml
+#                                          docker-compose-dev.frontend.yml
+#   make prod        production            docker-compose-prod.yml
+#                                          docker-compose-prod.frontend.yml
+#
+# Local bind-mounts the source and reloads. The other two build images, publish
+# no database port, and want a reverse proxy in front (nginx/nginx.conf).
+# Each has matching -down / -logs / -frontend siblings.
 
 # Wait for postgres to accept connections. Polls pg_isready instead of a
 # fixed sleep — handles slow startups and cold-start image pulls.
@@ -25,18 +33,18 @@ endef
 # doesn't keep retrying user creation.
 dev:
 	@echo "▶ Building backend image…"
-	docker compose -f docker-compose.dev.yml build app
+	docker compose -f docker-compose.yml build app
 	@echo "▶ Starting services…"
-	@if ! docker compose -f docker-compose.dev.yml $(COMPOSE_DEV_PROFILES) up -d; then \
+	@if ! docker compose -f docker-compose.yml $(COMPOSE_DEV_PROFILES) up -d; then \
 		echo ""; \
 		echo "⚠ First start failed. Tearing down stale containers and retrying once…"; \
 		echo "  (volumes preserved — DB data is safe; use 'make clean' for a full wipe)"; \
-		docker compose -f docker-compose.dev.yml down --remove-orphans; \
-		docker compose -f docker-compose.dev.yml $(COMPOSE_DEV_PROFILES) up -d; \
+		docker compose -f docker-compose.yml down --remove-orphans; \
+		docker compose -f docker-compose.yml $(COMPOSE_DEV_PROFILES) up -d; \
 	fi
-	$(call _wait_for_db,docker-compose.dev.yml)
+	$(call _wait_for_db,docker-compose.yml)
 	@echo "▶ Applying migrations…"
-	docker compose -f docker-compose.dev.yml exec -T app agenticos db upgrade
+	docker compose -f docker-compose.yml exec -T app agenticos db upgrade
 	@echo ""
 	@echo "🚀 Dev stack ready:"
 	@echo "   API:      http://localhost:8000"
@@ -51,12 +59,12 @@ dev:
 # clean either way. Replace email/password before deploying anywhere real.
 seed:
 	@echo "▶ Seeding admin user (admin@example.com / admin123)…"
-	@if docker compose -f docker-compose.dev.yml exec -T app \
+	@if docker compose -f docker-compose.yml exec -T app \
 		agenticos user list 2>/dev/null \
 		| grep -q "admin@example.com"; then \
 		echo "  (admin@example.com already exists — nothing to do)"; \
 	else \
-		docker compose -f docker-compose.dev.yml exec -T app \
+		docker compose -f docker-compose.yml exec -T app \
 			agenticos user create \
 				--email admin@example.com --password admin123 --superuser \
 		&& echo "  ✅ Admin created. Login at http://localhost:8000/admin"; \
@@ -67,58 +75,82 @@ seed:
 # Pass a key to make the demo agent actually answerable:
 #   make platform-bootstrap BOOTSTRAP_API_KEY=sk-...
 platform-bootstrap:
-	docker compose -f docker-compose.dev.yml exec -T \
+	docker compose -f docker-compose.yml exec -T \
 		-e BOOTSTRAP_API_KEY=$(BOOTSTRAP_API_KEY) app \
 		agenticos cmd bootstrap
 
 bootstrap: dev seed
 
 dev-down:
-	docker compose -f docker-compose.dev.yml $(COMPOSE_DEV_PROFILES) down
+	docker compose -f docker-compose.yml $(COMPOSE_DEV_PROFILES) down
 
 # Full wipe — containers, networks, AND volumes. Use after a corrupted state
 # (e.g. detached networks, port conflicts that left orphans). DESTROYS DB data.
 docker-clean:
 	@echo "▶ Removing containers, networks, AND volumes for the dev stack…"
 	@echo "  ⚠️  This deletes all local DB data and uploaded files."
-	docker compose -f docker-compose.dev.yml $(COMPOSE_DEV_PROFILES) down -v --remove-orphans
+	docker compose -f docker-compose.yml $(COMPOSE_DEV_PROFILES) down -v --remove-orphans
 	@echo "✅ Cleaned. Run 'make dev' to start fresh."
 
 dev-logs:
-	docker compose -f docker-compose.dev.yml $(COMPOSE_DEV_PROFILES) logs -f
+	docker compose -f docker-compose.yml $(COMPOSE_DEV_PROFILES) logs -f
 
 dev-rebuild:
-	docker compose -f docker-compose.dev.yml build --no-cache app
-	docker compose -f docker-compose.dev.yml up -d --force-recreate app
+	docker compose -f docker-compose.yml build --no-cache app
+	docker compose -f docker-compose.yml up -d --force-recreate app
 dev-frontend:
 	docker compose -f docker-compose.frontend.yml up -d
 	@echo ""
 	@echo "✅ Frontend at http://localhost:3000  (backend must be up — 'make dev')"
 
-# === Staging: built images, no bind mounts (production-like, local DB) ===
-stage:
-	docker compose -f docker-compose.yml up -d --build
-	$(call _wait_for_db,docker-compose.yml)
-	docker compose -f docker-compose.yml exec -T app agenticos db upgrade
-	@echo "✅ Staging stack at http://localhost:8000"
+# === Dev server: a deployed environment, built images, no bind mounts ===
+# Not a laptop. Needs backend/.env with POSTGRES_PASSWORD and REDIS_PASSWORD;
+# neither has a default here, because a shared environment reachable with
+# `postgres/postgres` is not one you want.
+dev-server:
+	@test -f backend/.env || (echo "❌ backend/.env missing — cp backend/.env.example backend/.env and fill it in" && exit 1)
+	docker compose --env-file backend/.env -f docker-compose-dev.yml up -d --build
+	$(call _wait_for_db,docker-compose-dev.yml)
+	docker compose --env-file backend/.env -f docker-compose-dev.yml exec -T app agenticos db upgrade
+	@echo "✅ Dev-server stack up on :8000 — put a reverse proxy in front of it"
 
-stage-down:
-	docker compose -f docker-compose.yml down
+dev-server-frontend:
+	@test -f backend/.env || (echo "❌ backend/.env missing" && exit 1)
+	docker compose --env-file backend/.env -f docker-compose-dev.frontend.yml up -d --build
+	@echo "✅ Dev-server frontend on :3000 (PUBLIC_* vars are baked in at build time)"
+
+dev-server-down:
+	docker compose --env-file backend/.env -f docker-compose-dev.yml down
+	docker compose --env-file backend/.env -f docker-compose-dev.frontend.yml down 2>/dev/null || true
+
+dev-server-logs:
+	docker compose --env-file backend/.env -f docker-compose-dev.yml logs -f
+
+# `make stage` was this file's old name for the dev server. Kept so an existing
+# habit or script does not silently do nothing.
+stage: dev-server
+stage-down: dev-server-down
 
 # === Production: external Nginx, real secrets in backend/.env ===
 prod:
 	@test -f backend/.env || (echo "❌ backend/.env missing — run 'cp backend/.env.example backend/.env' and fill in real secrets" && exit 1)
-	docker compose --env-file backend/.env -f docker-compose.prod.yml up -d --build
+	docker compose --env-file backend/.env -f docker-compose-prod.yml up -d --build
 	@echo "▶ Waiting for DB then running migrations…"
 	@sleep 5
-	docker compose --env-file backend/.env -f docker-compose.prod.yml exec -T app agenticos db upgrade
+	docker compose --env-file backend/.env -f docker-compose-prod.yml exec -T app agenticos db upgrade
 	@echo "✅ Production stack up. Configure your nginx host with nginx/nginx.conf"
 
+prod-frontend:
+	@test -f backend/.env || (echo "❌ backend/.env missing" && exit 1)
+	docker compose --env-file backend/.env -f docker-compose-prod.frontend.yml up -d --build
+	@echo "✅ Production frontend on :3000"
+
 prod-down:
-	docker compose --env-file backend/.env -f docker-compose.prod.yml down
+	docker compose --env-file backend/.env -f docker-compose-prod.frontend.yml down 2>/dev/null || true
+	docker compose --env-file backend/.env -f docker-compose-prod.yml down
 
 prod-logs:
-	docker compose --env-file backend/.env -f docker-compose.prod.yml logs -f
+	docker compose --env-file backend/.env -f docker-compose-prod.yml logs -f
 
 # Legacy alias
 quickstart: dev
@@ -142,19 +174,24 @@ install:
 	@echo ""
 	@echo "Note: backend/.env is pre-configured for development"
 
-# === Template upgrade ===
-# Pull latest template changes via 3-way merge. `make help` lists the targets.
-upgrade:
-	uvx fastapi-fullstack@latest upgrade $(ARGS)
-
-upgrade-dry-run:
-	uvx fastapi-fullstack@latest upgrade --dry-run $(ARGS)
-
-upgrade-new-features:
-	uvx fastapi-fullstack@latest upgrade --with-new-features $(ARGS)
-
-upgrade-finalize:
-	uvx fastapi-fullstack@latest upgrade finalize $(ARGS)
+# === Template upgrade — removed ===
+# `.fastapi-fullstack.json` held the generator state these targets merged
+# against: template ref, commit and the context hash. It is deleted, so the
+# 3-way merge has no base and `uvx fastapi-fullstack upgrade` cannot run.
+#
+# That is deliberate. This codebase has diverged from the template far past the
+# point where a merge helps — the agent runtime, the permission catalog, the
+# vault and the capability registry have no counterpart upstream, and a 3-way
+# merge against a generator that knows none of them produces conflicts in every
+# file worth keeping. Cherry-pick from the template repository by hand instead.
+#
+# The targets are kept as errors rather than deleted so `make upgrade` explains
+# itself instead of answering "No rule to make target".
+upgrade upgrade-dry-run upgrade-new-features upgrade-finalize:
+	@echo "❌ Template upgrades were removed with .fastapi-fullstack.json."
+	@echo "   This project has diverged from the generator; cherry-pick from"
+	@echo "   github.com/vstorm-co/full-stack-ai-agent-template by hand."
+	@exit 1
 
 # === Code Quality ===
 format:
@@ -329,7 +366,7 @@ docker-frontend-build:
 
 # === Docker: Production (with Traefik) ===
 docker-prod:
-	docker compose -f docker-compose.prod.yml up -d
+	docker compose -f docker-compose-prod.yml up -d
 	@echo ""
 	@echo "✅ Production services started with Traefik!"
 	@echo ""
@@ -339,13 +376,13 @@ docker-prod:
 	@echo "   Traefik: https://traefik.$$DOMAIN"
 
 docker-prod-down:
-	docker compose -f docker-compose.prod.yml down
+	docker compose -f docker-compose-prod.yml down
 
 docker-prod-logs:
-	docker compose -f docker-compose.prod.yml logs -f
+	docker compose -f docker-compose-prod.yml logs -f
 
 docker-prod-build:
-	docker compose -f docker-compose.prod.yml build
+	docker compose -f docker-compose-prod.yml build
 
 
 # === Docker: Individual Services ===
@@ -371,10 +408,15 @@ vercel-deploy:
 	cd frontend && npx vercel --prod
 	@echo ""
 	@echo "✅ Frontend deployed to Vercel!"
-	@echo "   Set environment variables in Vercel dashboard:"
+	@echo "   Set these in the Vercel dashboard. Every NEXT_PUBLIC_* is a BUILD"
+	@echo "   variable: set it at runtime only and the browser bundle keeps"
+	@echo "   whatever was baked in, while server rendering carries on working."
 	@echo "   BACKEND_URL=https://api.your-domain.com"
-	@echo "   BACKEND_WS_URL=wss://api.your-domain.com"
-	@echo "   NEXT_PUBLIC_AUTH_ENABLED=true"
+	@echo "   NEXT_PUBLIC_API_URL=https://api.your-domain.com"
+	@echo "   NEXT_PUBLIC_WS_URL=wss://api.your-domain.com"
+	@echo "   NEXT_PUBLIC_SITE_URL=https://app.your-domain.com"
+	@echo "   NEXT_PUBLIC_MAX_UPLOAD_SIZE_MB=50"
+	@echo "   NEXT_PUBLIC_OAUTH_PROVIDERS=google"
 	@echo "   NEXT_PUBLIC_RAG_ENABLED=true"
 
 # === Cleanup ===

@@ -53,7 +53,6 @@ async def create(
     hashed_password: str | None,
     full_name: str | None = None,
     is_active: bool = True,
-    role: str = "user",
     is_app_admin: bool = False,
     oauth_provider: str | None = None,
     oauth_id: str | None = None,
@@ -61,13 +60,17 @@ async def create(
     """Create a new user.
 
     Note: Password should already be hashed by the service layer.
+
+    There is no `role`: the column was dropped in migration `0066`, and authority
+    inside an organization is a membership row plus the permission catalog.
+    `is_app_admin` is the one privilege a user carries on their own row, and it
+    administers the deployment rather than any organization.
     """
     user = User(
         email=email,
         hashed_password=hashed_password,
         full_name=full_name,
         is_active=is_active,
-        role=role,
         is_app_admin=is_app_admin,
         oauth_provider=oauth_provider,
         oauth_id=oauth_id,
@@ -118,8 +121,16 @@ async def delete(db: AsyncSession, user_id: UUID) -> User | None:
 
 
 async def delete_non_admins(db: AsyncSession) -> int:
-    """Bulk-delete users without the admin role. Returns affected row count."""
-    result = await db.execute(sql_delete(User).where(User.role != "admin"))
+    """Bulk-delete every user who does not administer the deployment.
+
+    Used by `agenticos cmd seed --clear`. Keyed on `is_app_admin` because that is
+    the only privilege left on a user row - the `role` column this used to read
+    was dropped in migration `0066`, so the old predicate raised
+    `AttributeError` before deleting anything.
+
+    Returns the number of rows removed.
+    """
+    result = await db.execute(sql_delete(User).where(User.is_app_admin.is_(False)))
     await db.flush()
     return result.rowcount  # ty: ignore[unresolved-attribute]
 

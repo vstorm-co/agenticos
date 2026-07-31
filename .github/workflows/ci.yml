@@ -35,16 +35,21 @@ jobs:
       - name: Run ty
         run: uv run --directory backend ty check
 
-      - name: Verify the coverage gate is actually enforced
-        # A gate that silently stops measuring a file is worse than no gate.
-        # coverage's `source` accepts modules and directories; a file path is
-        # ignored with a warning, so assert none were emitted.
-        run: |
-          if uv run --directory backend coverage run -m pytest tests/ -q 2>&1 \
-             | grep -q "module-not-imported"; then
-            echo "A module in [tool.coverage.run].source is not being measured."
-            exit 1
-          fi
+      # `make lint` runs this too. When CI omits a step the Makefile has, green
+      # locally stops meaning green here, which is the whole value of `make check`.
+      - name: Check for double backticks
+        run: python3 scripts/check_backticks.py
+
+      # The step that used to sit here ran the entire test suite - with no
+      # database, in the lint job - to grep its output for `module-not-imported`.
+      # That warning belongs to `[tool.coverage.run] source`, and this config
+      # selects with `include`, which never emits it: the check could not fail,
+      # and it cost a full suite run to prove nothing.
+      #
+      # `tests/test_coverage_gate.py` asserts what it was reaching for, properly:
+      # every include pattern matches a real file, every platform module is
+      # gated, and the `[[tool.ty.overrides]]` list has not drifted from it. It
+      # runs in the `test` job, where a database exists.
 
   test:
     runs-on: ubuntu-latest
@@ -350,11 +355,24 @@ jobs:
       - name: Install dependencies
         run: uv sync --directory backend --dev
 
-      - name: Install pip-audit
-        run: uv pip install pip-audit
+      # This job never audited anything. `uv pip install pip-audit` ran outside a
+      # virtualenv and died with "No virtual environment found", so it reported
+      # red for a reason unrelated to security - and two further errors were
+      # queued behind it: `--require-hashes` is a flag, not a key=value, and
+      # `--locked` wants a PEP 751 `pylock.toml` rather than `uv.lock`.
+      #
+      # What works: export exactly what the lockfile resolves - which is what a
+      # deployment installs - and audit that. The export is fully pinned, so
+      # `--no-deps --disable-pip` skips a resolution round-trip that pip-audit
+      # would otherwise do in a throwaway virtualenv.
+      - name: Export the locked dependency set
+        run: uv export --frozen --no-emit-project --no-hashes -o requirements-audit.txt
+        working-directory: backend
 
-      - name: Run pip-audit
-        run: uv run pip-audit --require-hashes=false --progress-spinner=off
+      - name: Audit dependencies for known vulnerabilities
+        run: >-
+          uv tool run pip-audit -r requirements-audit.txt
+          --no-deps --disable-pip --progress-spinner=off
         working-directory: backend
 
   docs:

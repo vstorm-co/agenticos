@@ -15,6 +15,7 @@ Self-hosted, open source, and yours.
 [Your first agent](docs/first-agent.md) ·
 [Concepts](docs/concepts.md) ·
 [Integrations](docs/mcp.md) ·
+[Changelog](CHANGELOG.md) ·
 [Roadmap](docs/ROADMAP.md)
 
 </div>

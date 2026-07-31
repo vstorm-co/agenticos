@@ -20,13 +20,7 @@ const NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
  * being promoted is visible. This panel owns the names: creating `dev` for a
  * bot to bind to, removing an environment a client no longer has.
  */
-export function EnvironmentsPanel({
-  agentId,
-  canManage,
-}: {
-  agentId: string;
-  canManage: boolean;
-}) {
+export function EnvironmentsPanel({ agentId, canManage }: { agentId: string; canManage: boolean }) {
   const { environments, isLoading, create, remove } = useAgentEnvironments(agentId);
   const [name, setName] = useState("");
 

@@ -1,6 +1,23 @@
-
-# Backend development configuration
-# Usage: docker-compose up -d
+# Local development, on a laptop. `make dev`.
+#
+#   docker compose up -d
+#
+# Source is bind-mounted and uvicorn reloads, so an edit is live without a
+# rebuild. Postgres and Redis publish their ports so psql, a GUI client and the
+# test suite can reach them from the host.
+#
+# The three files, and which is which:
+#
+#   docker-compose.yml        this one - local
+#   docker-compose-dev.yml    the dev server (built images, no bind mounts)
+#   docker-compose-prod.yml   production
+#
+# The frontend is separate in all three: docker-compose[-env].frontend.yml.
+#
+# There used to be a fourth, `docker-compose.dev.yml`, whose header claimed it
+# was identical to this file. It was not: it had drifted and lost
+# `--ws websockets-sansio`, and it was the file `make dev` used - so the chat
+# websocket 500'd on handshake for anyone developing locally.
 
 services:
   app:
@@ -130,6 +147,9 @@ services:
 
 networks:
   backend:
+    # Named explicitly so the frontend compose file can join it as an external
+    # network instead of guessing the project-prefixed default.
+    name: agenticos_backend
     driver: bridge
 
 volumes:

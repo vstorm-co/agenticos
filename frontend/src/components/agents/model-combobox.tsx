@@ -99,11 +99,7 @@ export function ModelCombobox({
           )}
         >
           <span className={cn("min-w-0 flex-1 truncate font-mono", value === "" && "font-sans")}>
-            {value === "" ? (
-              <span className="text-muted-foreground">{placeholder}</span>
-            ) : (
-              value
-            )}
+            {value === "" ? <span className="text-muted-foreground">{placeholder}</span> : value}
           </span>
           {chosen?.context_length != null && (
             <span className="text-muted-foreground shrink-0 text-xs">

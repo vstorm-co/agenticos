@@ -18,7 +18,7 @@ For staging or small production:
 ```bash
 # 1. Configure
 cp backend/.env.example backend/.env
-# Edit backend/.env with production values (see ENV_VARS.md)
+# Edit backend/.env with production values (see configuration.md)
 
 # 2. Build + start
 docker compose up -d --build
@@ -88,7 +88,7 @@ Before promoting to prod, run:
 docker compose exec app uv run python -c "from app.core.config import settings; print('OK')"
 ```
 
-Catches missing required env vars early. See `ENV_VARS.md` for the full list.
+Catches missing required env vars early. See [Configuration](configuration.md) for the full list.
 
 ## Post-deploy checks
 

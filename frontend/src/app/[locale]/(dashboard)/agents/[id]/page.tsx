@@ -827,8 +827,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
               <CardTitle>Environments</CardTitle>
               <CardDescription>
                 Named pointers at published versions. Publish moves only the default; every other
-                environment stays pinned until a version is promoted onto it from the list below.
-                A bot bound to an environment serves its version.
+                environment stays pinned until a version is promoted onto it from the list below. A
+                bot bound to an environment serves its version.
               </CardDescription>
             </CardHeader>
             <CardContent>

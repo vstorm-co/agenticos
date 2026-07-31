@@ -68,14 +68,14 @@ describe("Activity, arriving from the Builder", () => {
     render(<RunsPage />, { wrapper });
 
     await waitFor(() => expect(runsCalls()).not.toHaveLength(0));
-    expect(runsCalls()[0][1]).toEqual({ params: { agent_id: "agent-42" } });
+    expect(runsCalls()[0]?.[1]).toEqual({ params: { agent_id: "agent-42" } });
   });
 
   it("asks for the whole organization when the URL names nobody", async () => {
     render(<RunsPage />, { wrapper });
 
     await waitFor(() => expect(runsCalls()).not.toHaveLength(0));
-    expect(runsCalls()[0][1]).toBeUndefined();
+    expect(runsCalls()[0]?.[1]).toBeUndefined();
   });
 
   it("says the table is narrowed, and offers the way out", async () => {
@@ -88,10 +88,7 @@ describe("Activity, arriving from the Builder", () => {
     await userEvent.click(await screen.findByRole("tab", { name: "Runs" }));
 
     expect(await screen.findByText(/Narrowed to one agent/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Show every agent" })).toHaveAttribute(
-      "href",
-      "/runs",
-    );
+    expect(screen.getByRole("link", { name: "Show every agent" })).toHaveAttribute("href", "/runs");
   });
 
   it("says nothing about narrowing when nothing is narrowed", async () => {

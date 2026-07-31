@@ -219,9 +219,7 @@ class TestNamedRecipientsHonourTheirOwnSwitches:
         """The argument is optional, and omitting it must not quietly drop the
         other two conditions."""
         home = await _org(db, name="Home")
-        opted_out = await _user(
-            db, email="opted-out@home.test", notify_budget_alerts=False
-        )
+        opted_out = await _user(db, email="opted-out@home.test", notify_budget_alerts=False)
         await _join(db, home, opted_out, OrgRoleName.MEMBER.value)
 
         addresses = await member_repo.list_emails_for_members(
@@ -243,9 +241,7 @@ class TestTheDeploymentsAppAdmins:
         await _org(db, name="Home")
         root = await _user(db, email="root@platform.test", is_app_admin=True)
 
-        addresses = await member_repo.list_app_admin_emails(
-            db, preference="notify_budget_alerts"
-        )
+        addresses = await member_repo.list_app_admin_emails(db, preference="notify_budget_alerts")
 
         assert root.email in addresses
 

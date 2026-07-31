@@ -1,0 +1,58 @@
+# The frontend on the dev server. `make dev-server-frontend`.
+#
+#   docker compose --env-file backend/.env -f docker-compose-dev.frontend.yml up -d --build
+#
+# Start `docker-compose-dev.yml` first: this joins the network it creates, and
+# refuses to start otherwise (`external: true`) rather than coming up healthy
+# with nothing behind it.
+#
+# `NEXT_PUBLIC_*` are **build** arguments, not runtime environment: Next inlines
+# them into the browser bundle. So the URLs here have to be the ones a *browser*
+# will use — the public hostname, not a container name — and changing them means
+# rebuilding the image, not restarting it.
+
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=${PUBLIC_API_URL:?PUBLIC_API_URL is required, e.g. https://dev-api.example.com}
+        - NEXT_PUBLIC_WS_URL=${PUBLIC_WS_URL:?PUBLIC_WS_URL is required, e.g. wss://dev-api.example.com}
+        - NEXT_PUBLIC_SITE_URL=${PUBLIC_SITE_URL:?PUBLIC_SITE_URL is required, e.g. https://dev.example.com}
+        - NEXT_PUBLIC_MAX_UPLOAD_SIZE_MB=${MAX_UPLOAD_SIZE_MB:-50}
+        - NEXT_PUBLIC_OAUTH_PROVIDERS=${OAUTH_PROVIDERS:-google}
+        - NEXT_PUBLIC_RAG_ENABLED=${RAG_ENABLED:-true}
+    image: agenticos_frontend:dev-server
+    container_name: agenticos_frontend
+    environment:
+      # Server-side rendering and the route handlers proxy over the compose
+      # network, so these are container names rather than public URLs.
+      - NODE_ENV=production
+      - BACKEND_URL=http://app:8000
+    ports:
+      - "3000:3000"
+    networks:
+      backend:
+        # `nginx/nginx.conf` proxies to `frontend:3000`.
+        aliases:
+          - frontend
+    restart: unless-stopped
+    healthcheck:
+      # The oven/bun image has no curl/wget, so probe with bun's built-in fetch.
+      test:
+        [
+          "CMD",
+          "bun",
+          "-e",
+          "fetch('http://localhost:3000/api/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 10s
+      start_period: 40s
+      retries: 3
+
+networks:
+  backend:
+    name: agenticos_backend
+    external: true

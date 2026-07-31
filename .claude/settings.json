@@ -31,5 +31,19 @@
       "Bash(cd frontend && bun run test:run*)",
       "Bash(cd frontend && bun run test:coverage*)"
     ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/scripts/docs_drift.py\" --json 2>/dev/null || true",
+            "timeout": 10,
+            "statusMessage": "Checking whether the docs moved with the code"
+          }
+        ]
+      }
+    ]
   }
 }

@@ -343,3 +343,30 @@ class TestWhoHearsAboutAnAgent:
         )
 
         assert AgentSpec.from_yaml(spec.to_yaml()) == spec
+
+    def test_an_alert_audience_names_people_by_reference_never_by_address(self):
+        """The spec's own first rule, applied to the one field that holds people.
+
+        `AlertSpec` carries user ids. If it ever grew an `emails` field - which is
+        the obvious shortcut for "mail this external stakeholder" - a spec exported
+        as YAML into a client's git repository would carry their staff's addresses
+        with it, and a spec imported into another organization would mail people
+        who have nothing to do with it. Ids at least resolve to nobody outside the
+        tenant, which is what `list_emails_for_members` enforces.
+        """
+        fields = set(AlertSpec.model_fields)
+
+        assert fields == {"enabled", "to", "user_ids"}
+        assert not any("mail" in name or "address" in name for name in fields)
+
+    def test_a_rendered_spec_carries_no_address(self):
+        """Belt and braces on the export path, because that is where it would be
+        noticed last: a YAML file in somebody's repository."""
+        spec = AgentSpec(
+            name="Support",
+            notifications=NotificationSpec(
+                approvals=AlertSpec(to=[AlertAudience.CHOSEN], user_ids=[uuid.uuid4()])
+            ),
+        )
+
+        assert "@" not in spec.to_yaml()
