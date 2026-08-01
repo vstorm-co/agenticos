@@ -267,11 +267,12 @@ explicit.
 
 ## Git
 
-- **Never commit on `main`.** Branch first (`feat/…`, `fix/…`). `dev` is the working
-  branch; a pre-commit hook refuses `main` outright.
-- **`main` only ever receives `dev`.** A ruleset refuses a direct push, a force push
-  and a deletion; a required check refuses a pull request from any branch but `dev`.
-  Open your work against `dev` — `docs/branching.md` has the whole picture.
+- **Never commit on `main`.** Branch first (`feat/…`, `fix/…`), then open a pull
+  request. A pre-commit hook refuses `main` locally and a ruleset refuses it at
+  push time; `docs/branching.md` has the whole picture.
+- **One branch, one pull request, squashed on merge.** `main` is the only long-lived
+  branch, so the squashed commit is what survives - which is why the subject line
+  and body below are worth the minute they cost.
 - **Commit only when asked.**
 - **No AI attribution** — no `Co-Authored-By: Claude`, no "Generated with" trailer.
   Write commits and PR descriptions as Kacper authored them.

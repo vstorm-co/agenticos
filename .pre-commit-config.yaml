@@ -28,8 +28,9 @@ repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
-      # `main` receives changes by pull request. `dev` does not: it is the
-      # working branch, and blocking it would only teach everyone --no-verify.
+      # `main` receives changes by pull request only, so a commit made while
+      # standing on it is always a mistake - and one that a ruleset would
+      # refuse at push time anyway, after the work of writing it.
       - id: no-commit-to-branch
         args: [--branch, main, --branch, master]
       # `--unsafe` parses without resolving tags. `mkdocs.yml` needs
