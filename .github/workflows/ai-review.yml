@@ -45,25 +45,14 @@ concurrency:
 # Nothing is granted by default; each job asks for what it needs and no more.
 permissions: {}
 
+# Configuration lives in repository variables, not in this file - bumping a
+# model should not be a commit. `docs/code-review.md` lists them and what each
+# one costs when it is wrong. There is deliberately **no default** for any of
+# them: see the guard at the top of the `review` job.
 env:
-  # Bumped deliberately, not floated. A silent model change moves the review's
-  # false-positive rate under a maintainer who has no reason to look here for
-  # the cause.
-  #
-  # It has to be a slug the installed Codex CLI carries metadata for, which is
-  # a smaller set than `app/services/model_catalog.py`. `gpt-5.3-codex` was
-  # tried first and the run logged "Model metadata for `gpt-5.3-codex` not
-  # found. Defaulting to fallback metadata" - the review still ran, and was
-  # worthless. Check that line in the run log after any bump.
-  REVIEW_MODEL: gpt-5.6-sol
-  # Codex defaults reasoning effort to `none`, which is how the first live run
-  # answered "no findings" in three seconds and 13k tokens without opening a
-  # single file. Reading nine hundred lines of standard and then the code
-  # behind a diff is not a no-reasoning task.
-  REVIEW_EFFORT: high
-  # Above this many changed lines the pass is truncated and expensive rather
-  # than useful, so it is refused with an explanation instead.
-  MAX_CHANGED_LINES: "2000"
+  REVIEW_MODEL: ${{ vars.AI_REVIEW_MODEL }}
+  REVIEW_EFFORT: ${{ vars.AI_REVIEW_EFFORT }}
+  MAX_CHANGED_LINES: ${{ vars.AI_REVIEW_MAX_CHANGED_LINES }}
 
 jobs:
   context:
@@ -174,6 +163,51 @@ jobs:
       HEAD_SHA: ${{ needs.context.outputs.head_sha }}
       PR_NUMBER: ${{ needs.context.outputs.pr_number }}
     steps:
+      - name: Check the configuration
+        id: config
+        # Every consumer of these three treats an empty value as "use your
+        # default", and Codex's default effort is `none` - which is how the
+        # first live run reviewed a cross-tenant leak and reported nothing in
+        # three seconds. So each one is checked for a value it can actually
+        # act on, not merely for being non-empty:
+        #
+        #   AI_REVIEW_EFFORT=none passes an is-it-set check and then asks for
+        #   exactly the no-reasoning mode this guard exists to prevent.
+        #
+        #   AI_REVIEW_MAX_CHANGED_LINES=abc passes it too, and `[ "$n" -gt abc ]`
+        #   is an error that bash scores as a false `elif` - so an oversized
+        #   diff falls through to `status=ok` and the cap silently stops
+        #   existing.
+        #
+        # This reports rather than exits: a job that fails here skips `publish`
+        # too, and the pull request would sit with no comment at all, which is
+        # the one outcome the rest of this workflow refuses to produce. The
+        # summary says what is wrong; the `::error::` annotation makes the run
+        # loud without hiding it.
+        run: |
+          set -euo pipefail
+          problems=()
+          [ -n "$REVIEW_MODEL" ] || problems+=("AI_REVIEW_MODEL is unset")
+          case "$REVIEW_EFFORT" in
+            low | medium | high | xhigh) ;;
+            "") problems+=("AI_REVIEW_EFFORT is unset") ;;
+            *) problems+=("AI_REVIEW_EFFORT is '$REVIEW_EFFORT', expected low, medium, high or xhigh") ;;
+          esac
+          case "$MAX_CHANGED_LINES" in
+            "") problems+=("AI_REVIEW_MAX_CHANGED_LINES is unset") ;;
+            *[!0-9]* | 0) problems+=("AI_REVIEW_MAX_CHANGED_LINES is '$MAX_CHANGED_LINES', expected a positive integer") ;;
+          esac
+
+          if [ "${#problems[@]}" -eq 0 ]; then
+            echo "status=ok" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          printf -v joined '%s; ' "${problems[@]}"
+          echo "status=unconfigured" >> "$GITHUB_OUTPUT"
+          echo "problems=${joined%; }" >> "$GITHUB_OUTPUT"
+          echo "::error::AI review is misconfigured: ${joined%; }"
+
       - name: Name the working directory
         # Outside the checkout, so nothing the reviewer is handed can be
         # confused with a file the pull request wrote. Set here rather than in
@@ -181,6 +215,7 @@ jobs:
         run: echo "REVIEW_DIR=$RUNNER_TEMP/ai-review" >> "$GITHUB_ENV"
 
       - name: Checkout the head commit
+        if: steps.config.outputs.status == 'ok'
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ needs.context.outputs.head_sha }}
@@ -191,6 +226,7 @@ jobs:
           persist-credentials: false
 
       - name: Download the pull request title and body
+        if: steps.config.outputs.status == 'ok'
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: ai-review-pr-meta
@@ -198,6 +234,7 @@ jobs:
 
       - name: Extract the standard from the base branch
         id: standard
+        if: steps.config.outputs.status == 'ok'
         # The reviewer's instructions come from what is already merged. Read
         # from the head instead and a pull request could append "ignore findings
         # about tenant isolation" to `CLAUDE.md` and steer its own review. The
@@ -325,13 +362,15 @@ jobs:
 
       - name: Normalize the result
         id: result
-        if: always() && steps.standard.outcome == 'success'
+        if: always() && (steps.standard.outcome == 'success' || steps.config.outputs.status == 'unconfigured')
         # Every path that is not a review still owes the reader an explanation,
         # so each one writes the same file the publish job knows how to read.
         # A model that returns something other than the schema is a bug worth
         # seeing rather than a silent no-op, so its raw output is carried
         # through into the summary.
         env:
+          CONFIG_STATUS: ${{ steps.config.outputs.status }}
+          CONFIG_PROBLEMS: ${{ steps.config.outputs.problems }}
           STANDARD_STATUS: ${{ steps.standard.outputs.status }}
           DIFF_STATUS: ${{ steps.diff.outputs.status }}
           CHANGED_LINES: ${{ steps.diff.outputs.changed_lines }}
@@ -343,17 +382,28 @@ jobs:
           import pathlib
 
           review_dir = pathlib.Path(os.environ["REVIEW_DIR"])
+          # The checkout is skipped on a misconfigured run, and so is the step
+          # that would otherwise have created this.
+          review_dir.mkdir(parents=True, exist_ok=True)
           out = review_dir / "findings.json"
           base_ref = os.environ["BASE_REF"]
-          standard = os.environ["STANDARD_STATUS"]
+          config = os.environ["CONFIG_STATUS"]
+          standard = os.environ.get("STANDARD_STATUS", "")
           diff_status = os.environ.get("DIFF_STATUS", "")
           changed = os.environ.get("CHANGED_LINES", "0")
-          limit = os.environ["MAX_CHANGED_LINES"]
+          limit = os.environ.get("MAX_CHANGED_LINES", "")
 
           def write(summary: str) -> None:
               out.write_text(json.dumps({"summary": summary, "findings": []}))
 
-          if standard == "no-standard":
+          if config == "unconfigured":
+              write(
+                  "No review: the reviewer is misconfigured - "
+                  f"{os.environ['CONFIG_PROBLEMS']}. Its settings are repository "
+                  "variables, listed in `docs/code-review.md`. Nothing was read and "
+                  "nothing was charged."
+              )
+          elif standard == "no-standard":
               write(
                   f"No review: `{base_ref}` has no `.github/codex/review-prompt.md`. "
                   "The reviewer reads its instructions from the base branch so that a "
