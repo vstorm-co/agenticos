@@ -27,8 +27,7 @@ months testing the login page.
 Two consequences:
 
 - Assert on a **seeded row** — a name, a slug, a count.
-- Where a resource genuinely has no seeded row (Activity needs a real provider key to
-  have a run), assert on the **response** instead.
+- Where a resource genuinely has no seeded row, assert on the **response** instead.
 
 ## The net, which is not a substitute
 
@@ -74,10 +73,34 @@ with a mocked API — cheaper and more precise), a service rule (unit), or a con
 
 ## Existing specs
 
-`auth`, `agents`, `chat`, `journey`, `skills`, `vault`, `sharing`, `navigation`,
-`sidebar`, `sidebar-active`, `activity`, `refusals`, `mcp-servers`, `kb-ingestion`,
-`kb-integrations`. Read the closest one before adding a new file — `refusals.spec.ts`
-in particular, since asserting a refusal is where this suite earns its keep.
+`auth`, `agents`, `chat`, `journey`, `models`, `skills`, `vault`, `sharing`,
+`navigation`, `sidebar`, `sidebar-active`, `activity`, `refusals`, `mcp-servers`,
+`kb-ingestion`, `kb-integrations`. Read the closest one before adding a new file —
+`refusals.spec.ts` in particular, since asserting a refusal is where this suite earns
+its keep.
+
+## The model that answers is a stub, and that is why the journey runs
+
+`journey.spec.ts` is the only spec that runs an agent end to end, and it needs a model
+to answer. It used to need a real provider key and skipped itself without one — which
+meant the one spec covering the seams ran in no environment, CI included.
+
+`e2e/stub-model-server.ts` serves the Chat Completions API, including the SSE path the
+chat takes, and `playwright.config.ts` starts it beside the app on `127.0.0.1:4010`. A
+model profile points at it through the **Endpoint** field, which model profiles allow on
+loopback deliberately: a local model is a first-class provider here.
+
+Two things follow, and both are easy to get wrong:
+
+- **The stub echoes the token it is told to say** and generates nothing. That is the
+  assertion: only the published agent's instructions can put that token in the request,
+  so the reply proves the spec reached the provider. Do not teach it to be clever.
+- **It returns usage**, because the journey's last assertion is a cost. A stub with zero
+  usage would make the spec pass on a run that metered nothing — the one thing it is
+  there to catch.
+
+What it does not cover, and should not pretend to: that a real provider answers, or that
+a real key is accepted. Those would make a green suite depend on somebody else's uptime.
 
 ## The pgvector trap
 

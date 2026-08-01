@@ -110,6 +110,19 @@ bun test:e2e
 bun test:e2e --headed
 ```
 
+Playwright starts what the suite needs: the frontend, and an OpenAI-compatible
+**stub model server** (`frontend/e2e/stub-model-server.ts`) on `127.0.0.1:4010`.
+The backend and its database have to be up already — the seeded owner, model
+profile and published agent come from `agenticos cmd bootstrap`.
+
+The stub is what lets `journey.spec.ts` run an agent end to end without a
+provider key: it serves the Chat Completions API, streaming included, and a model
+profile reaches it through the **Endpoint** field. It echoes back the token the
+agent's instructions tell it to say — which is the assertion, since nothing else
+could put that token in the reply — and returns usage, so the run is priced and
+the journey's last assertion has a cost to find. It authenticates nothing and
+calls no tools; what it does not prove is that a real provider answers.
+
 ## Test Database
 
 Tests don't hit a real database. The `client` fixture in `tests/conftest.py` overrides

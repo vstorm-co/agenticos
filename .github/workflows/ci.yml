@@ -286,17 +286,14 @@ jobs:
         # Thirty-seven specs assert against that profile or against a published
         # agent, so the job could not pass however good the specs were.
         #
-        # A placeholder is enough: the fixture the suite needs is a model profile
-        # that exists and an agent that published, not a key that answers. The
-        # real secret is used where a real answer is the point - the full journey
-        # spec, which skips itself without one.
+        # A placeholder is enough, and it is all that is used: the fixture the
+        # suite needs is a model profile that exists and an agent that published,
+        # not a key that answers. Nothing in this job calls a real provider - the
+        # journey spec runs its agent against the stub model server Playwright
+        # starts - so no secret is in scope here at all.
         run: uv run --directory backend agenticos cmd bootstrap
         env:
-          # Same reasoning as the E2E step below: a dedicated GitHub Environment
-          # would gate this behind an approval, and the point is that CI seeds
-          # itself unattended. The workflow never runs on `pull_request_target`,
-          # so a fork PR cannot reach this step with the secret in scope.
-          BOOTSTRAP_API_KEY: ${{ secrets.E2E_PROVIDER_API_KEY || 'sk-e2e-fixture-not-a-real-key' }} # zizmor: ignore[secrets-outside-env]
+          BOOTSTRAP_API_KEY: sk-e2e-fixture-not-a-real-key
 
       - name: Start the backend
         # `--ws websockets-sansio` because uvicorn's `auto` picks the legacy
@@ -351,14 +348,11 @@ jobs:
         working-directory: frontend
         env:
           CI: true
-          # The full journey needs a real provider key to be worth running; it
-          # skips itself without one rather than asserting against a fake.
-          #
-          # A dedicated GitHub Environment would gate this behind an approval, and
-          # the point of the key is that CI uses it unattended. The workflow never
-          # runs on `pull_request_target`, so a fork PR cannot reach this step with
-          # the secret in scope.
-          E2E_PROVIDER_API_KEY: ${{ secrets.E2E_PROVIDER_API_KEY }} # zizmor: ignore[secrets-outside-env]
+          # No provider key here, and none needed. The full journey runs an agent
+          # against `e2e/stub-model-server.ts`, an OpenAI-compatible server
+          # Playwright starts beside the app - so the one spec covering the seams
+          # runs on every push instead of skipping itself in every environment
+          # that had no key, which was all of them including this one.
 
       - name: Upload the Playwright report when a journey fails
         if: failure()
