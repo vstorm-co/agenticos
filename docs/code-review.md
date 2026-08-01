@@ -84,9 +84,12 @@ required, none of them sufficient alone:
 Nothing is dropped silently; every path that is not a review still explains
 itself in the summary comment.
 
-- **Diff size.** Over 2000 changed lines the pass would be truncated and
-  expensive, so it posts "split this pull request" instead. Adjust
-  `MAX_CHANGED_LINES` in the workflow.
+- **Diff size.** Over `AI_REVIEW_MAX_CHANGED_LINES` the pass would be truncated
+  and expensive, so it posts "split this pull request" instead. See
+  *Configuration* below; it is a repository variable, not a constant in the
+  workflow.
+- **A misconfigured reviewer.** A missing or nonsensical variable posts what is
+  wrong with it and reads nothing.
 - **Path excludes.** Lockfiles, snapshots, generated sources, the built `site/`
   and `docs/audits/` are excluded from the diff. The reviewer can still open
   them in the checkout if a finding needs them.
