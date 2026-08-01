@@ -117,9 +117,21 @@ reachable from one job in one workflow. Leave the environment without required
 reviewers — a protection rule would pause the job waiting for an approval
 nobody is expecting to give.
 
-The model is pinned in the workflow's `env` as `REVIEW_MODEL`. Bump it
-deliberately — a silent model change moves the false-positive rate under a
-maintainer who has no reason to look here for the cause.
+The model and the reasoning effort are pinned in the workflow's `env` as
+`REVIEW_MODEL` and `REVIEW_EFFORT`. Bump them deliberately — a silent model
+change moves the false-positive rate under a maintainer who has no reason to
+look here for the cause.
+
+Two things the first live run taught, both worth checking after a bump:
+
+- **Codex defaults reasoning effort to `none`.** With it, the reviewer answered
+  "no findings" on a pull request carrying a deliberate cross-tenant leak, in
+  three seconds and 13k tokens, without opening a single file. `REVIEW_EFFORT`
+  exists because of that run.
+- **The model slug has to be one the installed Codex CLI carries metadata for**,
+  which is a smaller set than `app/services/model_catalog.py`. Grep the run log
+  for `Model metadata for` — the CLI logs a warning and silently falls back
+  rather than failing.
 
 ## Changing the reviewer
 
