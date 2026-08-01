@@ -209,21 +209,19 @@ export function unsaved(page: Page): Locator {
 }
 
 /**
- * Store the draft now, rather than waiting out the Builder's debounce.
+ * Wait until the Builder has stored the draft.
  *
- * The Builder autosaves 1.2s after the last edit, which is fine for a person and
- * a trap for a spec: anything that reloads the page before the timer fires
- * reloads the *stored* draft, and the assertion that follows describes the state
- * the edit replaced. Clicking Save and waiting for "unsaved" to go is what makes
- * "and it survived a reload" mean anything.
+ * There is no Save button - the draft stores itself 1.2s after the last edit -
+ * and that is a trap for a spec rather than for a person: anything that reloads
+ * the page before the timer fires reloads the draft the edit replaced, and the
+ * assertion that follows describes the wrong state. The badge going quiet is the
+ * only signal the product gives that the two agree, so it is what this waits on.
  */
 export async function saveDraft(page: Page): Promise<void> {
-  // The button is rendered only while there is something to save, and the
-  // debounce may already have fired - so what is waited for is the state, and
-  // the click is only what avoids waiting out the timer.
-  const save = page.getByRole("button", { name: "Save draft" });
-  if (await save.isVisible()) await save.click();
-  await expect(unsaved(page)).toBeHidden();
+  await expect(
+    unsaved(page),
+    "the Builder still says the draft is unsaved, so nothing below is reading what the API stored",
+  ).toBeHidden();
 }
 
 /**

@@ -149,18 +149,40 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
   // The draft stores itself. A Builder with a Save button is a Builder where
   // the tab closed on twenty minutes of instructions; the debounce means a
-  // burst of typing is one request, and the effect re-arms after every
-  // invalidation until the spec and the stored draft agree.
-  const { mutateAsync: storeDraft } = saveDraft;
+  // burst of typing is one request.
+  //
+  // `storing` is a dependency because a save *settling* is what decides whether
+  // another is owed, and nothing else reports it. This effect used to depend on
+  // the edit alone and claim it re-armed "after every invalidation until the
+  // spec and the stored draft agree" - which it did not: when a save does not
+  // land, the refetch that follows returns data deeply equal to what is cached,
+  // React Query hands back the same object, and no dependency here changes. One
+  // missed save therefore left the Builder saying "Unsaved" for as long as the
+  // page stayed open, with nothing retrying and nothing else to click, until
+  // the next edit happened to carry the lost one along.
+  //
+  // Two attempts per distinct spec, and the count is per payload rather than
+  // per render: the second covers a save that failed or did not take, and
+  // stopping there keeps a spec the API genuinely refuses from becoming a
+  // request every 1.2 seconds. When both are spent the badge keeps saying
+  // "Unsaved", which by then is the truth.
+  const { mutateAsync: storeDraft, isPending: storing } = saveDraft;
+  const attempts = useRef<{ payload: string; tries: number }>({ payload: "", tries: 0 });
   useEffect(() => {
-    if (!canEdit || !spec || !agent?.draft_spec || !isDirty) return;
+    if (!canEdit || !spec || !agent?.draft_spec || !isDirty || storing) return;
+    const payload = JSON.stringify(spec);
+    if (payload === attempts.current.payload && attempts.current.tries >= 2) return;
     const timer = setTimeout(() => {
+      attempts.current =
+        payload === attempts.current.payload
+          ? { payload, tries: attempts.current.tries + 1 }
+          : { payload, tries: 1 };
       // Errors already toast in the hook; the badge only needs to keep saying
       // "unsaved", which `isDirty` staying true does on its own.
       void storeDraft(spec).catch(() => null);
     }, 1200);
     return () => clearTimeout(timer);
-  }, [spec, agent?.draft_spec, isDirty, canEdit, storeDraft]);
+  }, [spec, agent?.draft_spec, isDirty, canEdit, storeDraft, storing]);
 
   // Names, never ids: the map exists to be read, and a row of uuids is the
   // thing it replaces. Anything the spec references but the organization no
