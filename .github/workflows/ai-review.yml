@@ -48,8 +48,19 @@ permissions: {}
 env:
   # Bumped deliberately, not floated. A silent model change moves the review's
   # false-positive rate under a maintainer who has no reason to look here for
-  # the cause. Matches the codex tier in `app/services/model_catalog.py`.
-  REVIEW_MODEL: gpt-5.3-codex
+  # the cause.
+  #
+  # It has to be a slug the installed Codex CLI carries metadata for, which is
+  # a smaller set than `app/services/model_catalog.py`. `gpt-5.3-codex` was
+  # tried first and the run logged "Model metadata for `gpt-5.3-codex` not
+  # found. Defaulting to fallback metadata" - the review still ran, and was
+  # worthless. Check that line in the run log after any bump.
+  REVIEW_MODEL: gpt-5.6-sol
+  # Codex defaults reasoning effort to `none`, which is how the first live run
+  # answered "no findings" in three seconds and 13k tokens without opening a
+  # single file. Reading nine hundred lines of standard and then the code
+  # behind a diff is not a no-reasoning task.
+  REVIEW_EFFORT: high
   # Above this many changed lines the pass is truncated and expensive rather
   # than useful, so it is refused with an explanation instead.
   MAX_CHANGED_LINES: "2000"
@@ -302,6 +313,7 @@ jobs:
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           model: ${{ env.REVIEW_MODEL }}
+          effort: ${{ env.REVIEW_EFFORT }}
           # The model gets read access to the whole checkout so it can open the
           # service a route delegates to instead of guessing from a diff hunk.
           # It gets no write access and no network.
