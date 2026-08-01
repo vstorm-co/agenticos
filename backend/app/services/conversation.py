@@ -354,12 +354,19 @@ class ConversationService:
         include_tool_calls: bool = False,
         user_id: UUID | None = None,
     ) -> tuple[list[Message | MessageRead], int]:
-        """When user_id is provided, messages are enriched with user_rating and rating_count.
+        """One conversation's messages, for a reader who is allowed to see them.
 
-        `user_id` enriches; it does not authorize. `organization_id` is what
-        keeps this from reading another tenant's transcript - see `UNSCOPED`.
+        `organization_id` keeps this out of another tenant's transcript;
+        `user_id` keeps it out of a colleague's. Both are needed: the tenant
+        check alone still lets any member of the organization read any
+        conversation in it, which is not what `GET /conversations/{id}` does
+        one route above.
+
+        When `user_id` is given the messages are also enriched with that
+        reader's rating - a second job for one argument, and the reason its
+        authorizing half was missed for so long.
         """
-        await self._resolve(conversation_id, organization_id=organization_id)
+        await self._resolve(conversation_id, organization_id=organization_id, user_id=user_id)
         items = await conversation_repo.get_messages_by_conversation(
             self.db,
             conversation_id,
@@ -392,6 +399,7 @@ class ConversationService:
         data: MessageCreate,
         *,
         organization_id: OrgScope,
+        user_id: UUID | None = None,
     ) -> Message:
         """Append one message into a conversation in `organization_id`.
 
@@ -400,11 +408,18 @@ class ConversationService:
         `role: "assistant"` - to any conversation in the deployment, and it
         would render to its owner as the agent's own words. See `UNSCOPED`.
 
+        `user_id` narrows that to the owner or somebody the conversation was
+        shared with. It is optional because one caller has no user to check:
+        the assistant turn is written by the agent, after `persist_user_turn`
+        has already resolved the same conversation for the person who asked.
+
         An archived conversation is closed to new messages: archiving is the
         user saying "this thread is finished", and a message appended afterwards
         would silently reopen it.
         """
-        conversation = await self._resolve(conversation_id, organization_id=organization_id)
+        conversation = await self._resolve(
+            conversation_id, organization_id=organization_id, user_id=user_id
+        )
         if conversation.is_archived:
             raise BadRequestError(
                 message="Conversation is archived",

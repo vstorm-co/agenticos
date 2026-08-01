@@ -136,7 +136,7 @@ class MattermostAdapter(ChannelAdapter):
             except ChannelNotConfigured:
                 # An operator has to set the server URL; looping cannot. And
                 # `_run_stream` returns without awaiting on that branch, so a
-                # retry here span the event loop at 100% CPU and starved every
+                # retry here spun the event loop at 100% CPU and starved every
                 # other task on the process.
                 logger.warning("Mattermost stream not started for bot %s", bot_id)
                 return
@@ -144,12 +144,14 @@ class MattermostAdapter(ChannelAdapter):
                 logger.exception(
                     "Mattermost stream failed for bot %s, retrying in %.0fs", bot_id, delay
                 )
-                # Backs off to a minute so a server that is down for an hour is
-                # not hammered 720 times by every bot on it.
-                delay = min(delay * 2, 60.0)
             # Outside the `except`: a session that ends by returning has to
             # yield before the next attempt, or this loop never suspends.
             await asyncio.sleep(delay)
+            # Doubled after the wait, not before it: the line logged above names
+            # `delay`, and backing off first made it sleep twice what it said.
+            # Backs off to a minute so a server that is down for an hour is not
+            # hammered 720 times by every bot on it.
+            delay = min(delay * 2, 60.0)
 
     async def _run_stream(self, bot_id: str, bot_token: str) -> None:
         """One authenticated session on the event stream."""

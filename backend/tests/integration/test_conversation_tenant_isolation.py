@@ -136,6 +136,66 @@ class TestWritingIntoAnotherOrganizationsConversation:
         assert [message.content for message in remaining] == ["secret"]
 
 
+class TestAColleagueInTheSameOrganization:
+    """The tenant check is not the whole of it.
+
+    `GET /conversations/{id}` has always checked the owner; its `/messages`
+    sibling did not, so scoping to the organization alone still left one
+    member's transcript readable by every other member of it. Two halves of the
+    same answer disagreeing is how the first half came to look sufficient.
+    """
+
+    async def test_cannot_read_the_transcript(self, db) -> None:
+        organization = await _org(db, name="Shared")
+        owner = await _member(db)
+        colleague = await _member(db)
+        conversation = await _conversation(db, organization, owner)
+
+        service = ConversationService(db)
+        with pytest.raises(NotFoundError):
+            await service.list_messages(
+                conversation.id,
+                organization_id=organization.id,
+                include_tool_calls=True,
+                user_id=colleague.id,
+            )
+
+    async def test_cannot_append_to_it(self, db) -> None:
+        organization = await _org(db, name="Shared")
+        owner = await _member(db)
+        colleague = await _member(db)
+        conversation = await _conversation(db, organization, owner)
+
+        service = ConversationService(db)
+        with pytest.raises(NotFoundError):
+            await service.add_message(
+                conversation.id,
+                MessageCreate(role="assistant", content="not from the agent"),
+                organization_id=organization.id,
+                user_id=colleague.id,
+            )
+
+        remaining = await conversation_repo.get_messages_by_conversation(db, conversation.id)
+        assert [message.content for message in remaining] == ["secret"]
+
+    async def test_the_owner_still_appends(self, db) -> None:
+        """The refusal has to be about the reader, not about everything."""
+        organization = await _org(db, name="Shared")
+        owner = await _member(db)
+        conversation = await _conversation(db, organization, owner)
+
+        service = ConversationService(db)
+        await service.add_message(
+            conversation.id,
+            MessageCreate(role="user", content="and another thing"),
+            organization_id=organization.id,
+            user_id=owner.id,
+        )
+
+        remaining = await conversation_repo.get_messages_by_conversation(db, conversation.id)
+        assert [message.content for message in remaining] == ["secret", "and another thing"]
+
+
 class TestTheDeliberateCrossTenantRead:
     async def test_unscoped_still_reaches_another_organization(self, db) -> None:
         """`/admin/conversations/{id}` exists to read across tenants and is

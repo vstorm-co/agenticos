@@ -150,3 +150,36 @@ class TestMattermost:
 
         with pytest.raises(ChannelNotConfigured):
             await adapter._run_stream("bot-without-a-url", "token")
+
+
+class TestMattermostBackoff:
+    async def test_the_first_retry_waits_what_the_log_says(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The log names `delay`, so `delay` has to be what is then slept.
+
+        Moving the sleep out of the `except` left the doubling in front of it:
+        the line said "retrying in 5s" and the loop waited ten. Doubling after
+        the wait keeps the two agreeing, and keeps the first retry prompt.
+        """
+        adapter = MattermostAdapter()
+        sessions = 0
+        waited: list[float] = []
+
+        async def session(*_: object, **__: object) -> None:
+            nonlocal sessions
+            sessions += 1
+            if sessions >= 4:
+                raise asyncio.CancelledError
+            raise RuntimeError("the server dropped the socket")
+
+        async def counting_sleep(delay: float) -> None:
+            waited.append(delay)
+
+        monkeypatch.setattr(adapter, "_run_stream", session)
+        monkeypatch.setattr(mattermost_module.asyncio, "sleep", counting_sleep)
+
+        with contextlib.suppress(asyncio.CancelledError):
+            await adapter._supervise("bot", "token")
+
+        assert waited == [5.0, 10.0, 20.0]

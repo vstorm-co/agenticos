@@ -214,7 +214,7 @@ async def add_message(
     in the deployment, and it rendered to its owner as the agent's answer.
     """
     return await conversation_service.add_message(
-        conversation_id, data, organization_id=active_org.id
+        conversation_id, data, organization_id=active_org.id, user_id=current_user.id
     )
 
 

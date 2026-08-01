@@ -158,6 +158,7 @@ async def persist_user_turn(
                 UUID(current_conversation_id),
                 MessageCreate(role="user", content=user_message),
                 organization_id=organization_id,
+                user_id=user.id,
             )
             if file_ids:
                 try:
