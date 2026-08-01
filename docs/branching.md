@@ -7,8 +7,12 @@ feat/… fix/… ──▶ dev ──▶ main
 ```
 
 `dev` is where work lands. `main` is what a reader of this repository clones, so
-everything reaching it has already been through `dev`, where CI, the E2E journey
-and the [automated reviewer](code-review.md) ran against it.
+everything reaching it has already been through `dev`, where CI and the E2E
+journey run on every pull request.
+
+The [automated reviewer](code-review.md) runs there too, and again on the release
+pull request — but it is advisory, and a commit pushed straight to `dev` skips it
+entirely. This is a gate on provenance and on CI, not on review.
 
 ## What is enforced, and by what
 

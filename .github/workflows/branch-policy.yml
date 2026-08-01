@@ -1,8 +1,10 @@
 name: Branch policy
 
 # `main` is what a reader of this repository clones, and everything reaching it
-# has to have been through `dev` first - where CI, the E2E journey and the
-# automated reviewer have already run against it.
+# has to have been through `dev` first - where CI and the E2E journey run on
+# every pull request. The automated reviewer runs there too, but it is advisory
+# and a commit pushed straight to `dev` skips it, so what this gates is
+# provenance and CI, not review.
 #
 # A ruleset on `main` enforces the rest: no direct push, no force push, no
 # deletion, and CI green. But a ruleset cannot say *which branch a pull request
