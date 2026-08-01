@@ -43,7 +43,7 @@ const EMPTY_SPEND = {
   month_to_date_usd: "0.00",
   by_agent: [],
   by_provider: [],
-  by_credential: [],
+  by_key: [],
 };
 
 beforeEach(() => {

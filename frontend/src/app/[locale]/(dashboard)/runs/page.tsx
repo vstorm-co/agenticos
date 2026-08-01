@@ -258,8 +258,8 @@ export default function RunsPage() {
             <SpendBreakdown
               title="By key"
               description="Which stored credential it was spent through. A key you do not recognise here is one to rotate."
-              rows={(spend?.by_credential ?? []).map((entry) => ({
-                key: entry.credential_id ?? "deleted",
+              rows={(spend?.by_key ?? []).map((entry) => ({
+                key: entry.secret_id ?? "deleted",
                 label: entry.label ?? "Deleted key",
                 muted: entry.label === null,
                 runs: entry.run_count,

@@ -63,8 +63,9 @@ export interface CostByProvider {
 }
 
 /** One stored key's share. `label` is null once the key has been deleted. */
-export interface CostByCredential {
-  credential_id: string | null;
+export interface CostByKey {
+  /** The vault secret spend was attributed to; null once it has been deleted. */
+  secret_id: string | null;
   label: string | null;
   cost_usd: string;
   run_count: number;
@@ -78,5 +79,5 @@ export interface CostSummary {
   /** What each vendor was paid - the question an invoice arrives with. */
   by_provider: CostByProvider[];
   /** Which key it went through, which is how a leaked or misused one is found. */
-  by_credential: CostByCredential[];
+  by_key: CostByKey[];
 }
