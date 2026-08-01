@@ -139,6 +139,7 @@ nav:
       - adding_features.md
       - testing.md
       - code-review.md
+      - branching.md
       - ROADMAP.md
 
 extra:
