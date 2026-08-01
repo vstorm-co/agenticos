@@ -117,3 +117,6 @@ site/
 
 # Written by the CI security job (uv export) and never committed.
 backend/requirements-audit.txt
+
+# Audit notes are working documents about unfixed vulnerabilities. They stay local.
+docs/audits/
