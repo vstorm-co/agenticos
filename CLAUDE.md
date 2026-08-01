@@ -215,6 +215,7 @@ Trigger map — what changed → which page:
 | `app/core/config.py` | `docs/configuration.md` |
 | `app/commands/**`, a new `make` target | `docs/commands.md` |
 | A new route, service or layering change | `docs/architecture.md` |
+| `.github/workflows/ai-review.yml`, `.github/codex/**` | `docs/code-review.md` |
 | A capability, permission or setting that changes the first-run path | `docs/first-agent.md`, `docs/install.md` |
 
 **When updating a page:** keep its altitude — `docs/reference/*` is generated from
@@ -251,6 +252,7 @@ say so and move on. Run it yourself any time with
 | Routes → services → repositories | `docs/architecture.md` |
 | Adding a feature end to end | `docs/adding_features.md` |
 | Test layers and what belongs in each | `docs/testing.md` |
+| The automated pull request reviewer | `docs/code-review.md` |
 | Recurring patterns | `docs/patterns.md` |
 | Settings and the production checklist | `docs/configuration.md` |
 
