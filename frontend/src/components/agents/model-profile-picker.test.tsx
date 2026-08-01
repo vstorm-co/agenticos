@@ -42,7 +42,7 @@ function profile(overrides: Partial<ModelProfile> = {}): ModelProfile {
     label: "openai default",
     provider: "openai",
     model: "gpt-4.1",
-    credential_id: null,
+    secret_id: null,
     params: {},
     allow_byo: false,
     fallback_profile_ids: [],
@@ -169,8 +169,11 @@ describe("ModelProfilePicker", () => {
   });
 
   it("counts a model keyed from the vault as keyed", () => {
-    // A model added from the vault carries a `secret_id` and no credential;
-    // reading only the old column marked every one of them "no key".
+    // The vault secret is the only key a profile has. This once also tested a
+    // `credential_id` the API had stopped sending, and `undefined === null` is
+    // false - so the badge appeared on nothing, including the profiles that
+    // really had no key. `models.spec.ts` is what caught that; a fixture
+    // supplying the missing field is what hid it here.
     mount({ profiles: [profile({ secret_id: "s-1" })] });
 
     expect(screen.queryByText("no key")).toBeNull();

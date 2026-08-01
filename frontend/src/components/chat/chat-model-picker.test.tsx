@@ -46,7 +46,6 @@ const profile = (id: string, provider: string, model: string): ModelProfile => (
   label: `Team ${model}`,
   provider,
   model,
-  credential_id: null,
   secret_id: "s1",
   params: {},
   allow_byo: false,

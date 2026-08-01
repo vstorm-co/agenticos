@@ -70,12 +70,13 @@ export function ModelProfilePicker({
           title={profile.label}
           subtitle={`${profile.provider} · ${profile.model}`}
           provider={profile.provider}
-          // The vault says this on the same row; a picker that omits it lets
-          // somebody publish an agent onto a model that cannot answer.
-          // Keyed from either store: a model added from the vault carries a
-          // `secret_id` and no credential, and reading only the old column
-          // marked every one of them "no key".
-          noKey={profile.credential_id === null && !profile.secret_id}
+          // A picker that omits this lets somebody publish an agent onto a model
+          // that cannot answer. Read from `secret_id` alone: this used to also
+          // test a `credential_id` the API has not sent since the vault became
+          // the only key store, and `undefined === null` is false - so the badge
+          // rendered for no profile at all, including the ones that really had
+          // no key.
+          noKey={!profile.secret_id}
           disabled={disabled}
           onRemove={allowAdd ? () => deleteProfile.mutate(profile.id) : undefined}
         />
@@ -123,9 +124,7 @@ export function ModelProfilePicker({
               {selected.provider} · {selected.model}
             </span>
           </span>
-          {selected.credential_id === null && !selected.secret_id && (
-            <Badge variant="destructive">no key</Badge>
-          )}
+          {!selected.secret_id && <Badge variant="destructive">no key</Badge>}
         </div>
       )}
 

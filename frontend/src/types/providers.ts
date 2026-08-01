@@ -38,9 +38,15 @@ export interface ModelProfile {
   label: string;
   provider: string;
   model: string;
-  credential_id: string | null;
-  /** The vault secret this model is keyed by - the store people manage. */
-  secret_id?: string | null;
+  /**
+   * The vault secret this model is keyed by, and the only key it has.
+   *
+   * Null on a self-hosted profile, which authenticates against nothing, and on
+   * one whose key was deleted - the foreign key is `ON DELETE SET NULL`. Those
+   * two look the same here and are told apart by `base_url`, which is what the
+   * resolver does.
+   */
+  secret_id: string | null;
   /**
    * Where requests go, when it is not the provider's public API: a gateway, a
    * LiteLLM proxy, a model server on this network. Absent for most profiles.
