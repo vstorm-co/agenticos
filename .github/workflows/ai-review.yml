@@ -45,25 +45,14 @@ concurrency:
 # Nothing is granted by default; each job asks for what it needs and no more.
 permissions: {}
 
+# Configuration lives in repository variables, not in this file - bumping a
+# model should not be a commit. `docs/code-review.md` lists them and what each
+# one costs when it is wrong. There is deliberately **no default** for any of
+# them: see the guard at the top of the `review` job.
 env:
-  # Bumped deliberately, not floated. A silent model change moves the review's
-  # false-positive rate under a maintainer who has no reason to look here for
-  # the cause.
-  #
-  # It has to be a slug the installed Codex CLI carries metadata for, which is
-  # a smaller set than `app/services/model_catalog.py`. `gpt-5.3-codex` was
-  # tried first and the run logged "Model metadata for `gpt-5.3-codex` not
-  # found. Defaulting to fallback metadata" - the review still ran, and was
-  # worthless. Check that line in the run log after any bump.
-  REVIEW_MODEL: gpt-5.6-sol
-  # Codex defaults reasoning effort to `none`, which is how the first live run
-  # answered "no findings" in three seconds and 13k tokens without opening a
-  # single file. Reading nine hundred lines of standard and then the code
-  # behind a diff is not a no-reasoning task.
-  REVIEW_EFFORT: high
-  # Above this many changed lines the pass is truncated and expensive rather
-  # than useful, so it is refused with an explanation instead.
-  MAX_CHANGED_LINES: "2000"
+  REVIEW_MODEL: ${{ vars.AI_REVIEW_MODEL }}
+  REVIEW_EFFORT: ${{ vars.AI_REVIEW_EFFORT }}
+  MAX_CHANGED_LINES: ${{ vars.AI_REVIEW_MAX_CHANGED_LINES }}
 
 jobs:
   context:
@@ -174,6 +163,27 @@ jobs:
       HEAD_SHA: ${{ needs.context.outputs.head_sha }}
       PR_NUMBER: ${{ needs.context.outputs.pr_number }}
     steps:
+      - name: Refuse to run unconfigured
+        # An unset variable arrives as an empty string, and every consumer of
+        # these three treats empty as "use the default" - which is how the
+        # first live run reviewed a cross-tenant leak with `effort: none` and
+        # reported nothing in three seconds. A reviewer that silently degrades
+        # into a rubber stamp is worse than one that is switched off, so this
+        # fails the job instead.
+        run: |
+          set -euo pipefail
+          missing=()
+          [ -n "$REVIEW_MODEL" ] || missing+=(AI_REVIEW_MODEL)
+          [ -n "$REVIEW_EFFORT" ] || missing+=(AI_REVIEW_EFFORT)
+          [ -n "$MAX_CHANGED_LINES" ] || missing+=(AI_REVIEW_MAX_CHANGED_LINES)
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "::error::Unset repository variables: ${missing[*]}"
+            echo "Set them with, for example:"
+            echo "  gh variable set AI_REVIEW_MODEL --repo $GITHUB_REPOSITORY --body gpt-5.6-sol"
+            echo "docs/code-review.md lists all three and what each one is for."
+            exit 1
+          fi
+
       - name: Name the working directory
         # Outside the checkout, so nothing the reviewer is handed can be
         # confused with a file the pull request wrote. Set here rather than in
