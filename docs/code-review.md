@@ -84,9 +84,12 @@ required, none of them sufficient alone:
 Nothing is dropped silently; every path that is not a review still explains
 itself in the summary comment.
 
-- **Diff size.** Over 2000 changed lines the pass would be truncated and
-  expensive, so it posts "split this pull request" instead. Adjust
-  `MAX_CHANGED_LINES` in the workflow.
+- **Diff size.** Over `AI_REVIEW_MAX_CHANGED_LINES` the pass would be truncated
+  and expensive, so it posts "split this pull request" instead. See
+  *Configuration* below; it is a repository variable, not a constant in the
+  workflow.
+- **A misconfigured reviewer.** A missing or nonsensical variable posts what is
+  wrong with it and reads nothing.
 - **Path excludes.** Lockfiles, snapshots, generated sources, the built `site/`
   and `docs/audits/` are excluded from the diff. The reviewer can still open
   them in the checkout if a finding needs them.
@@ -117,17 +120,32 @@ reachable from one job in one workflow. Leave the environment without required
 reviewers — a protection rule would pause the job waiting for an approval
 nobody is expecting to give.
 
-The model and the reasoning effort are pinned in the workflow's `env` as
-`REVIEW_MODEL` and `REVIEW_EFFORT`. Bump them deliberately — a silent model
-change moves the false-positive rate under a maintainer who has no reason to
-look here for the cause.
+## Configuration
 
-Two things the first live run taught, both worth checking after a bump:
+Nothing tunable is hardcoded in the workflow. Three **repository variables**,
+all required — the job refuses to run with any of them unset rather than
+falling back to a default.
 
-- **Codex defaults reasoning effort to `none`.** With it, the reviewer answered
-  "no findings" on a pull request carrying a deliberate cross-tenant leak, in
-  three seconds and 13k tokens, without opening a single file. `REVIEW_EFFORT`
-  exists because of that run.
+```bash
+gh variable set AI_REVIEW_MODEL --repo vstorm-co/agenticos --body gpt-5.6-sol
+gh variable set AI_REVIEW_EFFORT --repo vstorm-co/agenticos --body high
+gh variable set AI_REVIEW_MAX_CHANGED_LINES --repo vstorm-co/agenticos --body 2000
+```
+
+| Variable | |
+|---|---|
+| `AI_REVIEW_MODEL` | The model Codex runs. Must be a slug the installed CLI carries metadata for |
+| `AI_REVIEW_EFFORT` | Reasoning effort: `low`, `medium`, `high`, `xhigh` |
+| `AI_REVIEW_MAX_CHANGED_LINES` | Above this, the pass is declined with an explanation |
+
+They are variables rather than constants in the file because bumping a model
+should not be a commit, and a value with no default is a value somebody has to
+decide. Two things the first live run taught, both worth checking after a bump:
+
+- **Codex defaults reasoning effort to `none` when it is not told otherwise.**
+  With it, the reviewer answered "no findings" on a pull request carrying a
+  deliberate cross-tenant leak, in three seconds and 13k tokens, without opening
+  a single file. That is why the guard exists and why there is no default.
 - **The model slug has to be one the installed Codex CLI carries metadata for**,
   which is a smaller set than `app/services/model_catalog.py`. Grep the run log
   for `Model metadata for` — the CLI logs a warning and silently falls back
