@@ -221,17 +221,26 @@ describe("reading a file back", () => {
   });
 });
 
+// The backend signature is `user_id: UUID`, and the route now says so. A
+// placeholder like "u-1" was never a value this endpoint could serve.
+const AVATAR_USER = "8f14e45f-ceea-4a67-b1e6-6c1f2b1f4a3d";
+
 describe("avatars", () => {
   it("serves a person's avatar to anybody, because a picture is not a secret", async () => {
     // No session: the chat renders avatars for every participant, and gating them
     // would mean a page of empty circles for anybody but the caller.
     serve("jpeg-bytes", { headers: { "content-type": "image/png" } });
 
-    const response = await userAvatar(request("http://localhost:3000/api/users/avatar/u-1"), {
-      params: Promise.resolve({ userId: "u-1" }),
-    });
+    const response = await userAvatar(
+      request(`http://localhost:3000/api/users/avatar/${AVATAR_USER}`),
+      {
+        params: Promise.resolve({ userId: AVATAR_USER }),
+      },
+    );
 
-    expect(fetchMock.mock.calls[0]![0]).toBe("http://localhost:8000/api/v1/users/avatar/u-1");
+    expect(fetchMock.mock.calls[0]![0]).toBe(
+      `http://localhost:8000/api/v1/users/avatar/${AVATAR_USER}`,
+    );
     expect(response.headers.get("content-type")).toBe("image/png");
     // Never cached: a replaced picture has the same URL as the old one.
     expect(response.headers.get("cache-control")).toBe("no-store");
@@ -240,9 +249,12 @@ describe("avatars", () => {
   it("assumes a JPEG when the backend named no type", async () => {
     serve("bytes", { headers: { "content-type": "" } });
 
-    const response = await userAvatar(request("http://localhost:3000/api/users/avatar/u-1"), {
-      params: Promise.resolve({ userId: "u-1" }),
-    });
+    const response = await userAvatar(
+      request(`http://localhost:3000/api/users/avatar/${AVATAR_USER}`),
+      {
+        params: Promise.resolve({ userId: AVATAR_USER }),
+      },
+    );
 
     expect(response.headers.get("content-type")).toBe("image/jpeg");
   });
@@ -252,9 +264,12 @@ describe("avatars", () => {
     // JSON body there renders as a broken image with a parse error in the console.
     serve(null, { status: 404 });
 
-    const response = await userAvatar(request("http://localhost:3000/api/users/avatar/u-1"), {
-      params: Promise.resolve({ userId: "u-1" }),
-    });
+    const response = await userAvatar(
+      request(`http://localhost:3000/api/users/avatar/${AVATAR_USER}`),
+      {
+        params: Promise.resolve({ userId: AVATAR_USER }),
+      },
+    );
 
     expect(response.status).toBe(404);
     await expect(response.text()).resolves.toBe("");
@@ -264,12 +279,42 @@ describe("avatars", () => {
     fetchMock = vi.fn().mockRejectedValue(new Error("ECONNREFUSED"));
     vi.stubGlobal("fetch", fetchMock);
 
-    const response = await userAvatar(request("http://localhost:3000/api/users/avatar/u-1"), {
-      params: Promise.resolve({ userId: "u-1" }),
-    });
+    const response = await userAvatar(
+      request(`http://localhost:3000/api/users/avatar/${AVATAR_USER}`),
+      {
+        params: Promise.resolve({ userId: AVATAR_USER }),
+      },
+    );
 
     expect(response.status).toBe(500);
     await expect(response.text()).resolves.toBe("");
+  });
+
+  it("cannot be walked out of its own path segment", async () => {
+    // The defect: the segment was interpolated raw. Next decodes `%2F` into the
+    // param and `fetch` then normalises `..`, so this reached the backend as
+    // `GET /api/v1/openapi.json` - from an anonymous caller, because avatars
+    // are deliberately served without a cookie. Everything the backend answers
+    // without an Authorization header became public and un-throttled.
+    serve("bytes");
+
+    const response = await userAvatar(request("http://localhost:3000/api/users/avatar/traversal"), {
+      params: Promise.resolve({ userId: "x/../../../openapi.json" }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses a segment carrying a query string", async () => {
+    serve("bytes");
+
+    const response = await userAvatar(request("http://localhost:3000/api/users/avatar/traversal"), {
+      params: Promise.resolve({ userId: "../../../health?probe=1" }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("uploads the caller's own picture as multipart", async () => {

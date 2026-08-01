@@ -174,6 +174,28 @@ Mattermost does not sign webhook bodies the way Slack does — the token in the
 payload is the whole check — so **a bot with no webhook secret refuses every
 call** rather than trusting it.
 
+## A bot that cannot start stops, rather than retrying
+
+Slack Socket Mode and the Mattermost event stream both run under a supervisor
+that reconnects a dropped session. A missing configuration value is not a
+dropped session, and the supervisor treats it differently: it logs once and
+stops. Nothing it does would change the row — an operator has to add the Slack
+`xapp-` token or the Mattermost server URL.
+
+This matters more than it sounds. Retrying a start that fails immediately never
+suspends, so the supervisor spins without yielding and every other task on the
+process — requests, health checks, chat WebSockets — stops being scheduled. The
+API stays up and answers nothing. Both trigger states are ordinary rows somebody
+has not filled in yet, so the failure was one restart away at any time.
+
+If a bot is silent, check the log for `not started` before assuming a network
+problem.
+
+A dropped session is different: that one is retried, waiting five seconds and
+doubling to a minute, so a Mattermost server down for an hour is not hammered
+720 times by every bot on it. The line logged before each wait names the delay
+it is about to wait.
+
 ---
 
 ## What every channel shares
