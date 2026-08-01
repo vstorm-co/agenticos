@@ -12,7 +12,7 @@ const select = vi.fn();
 const setDefault = vi.fn();
 
 vi.mock("@/hooks", () => ({
-  useAgents: () => ({ agents: listed(), isLoading: loading }),
+  useAgents: () => ({ agents: listed(), isLoading: loading, isFetching: loading || fetching }),
 }));
 vi.mock("@/stores", () => ({
   useAgentSelectionStore: (pick: (state: unknown) => unknown) =>
@@ -22,6 +22,8 @@ vi.mock("@/stores", () => ({
 }));
 
 let loading = false;
+/** A refetch in flight over data already on screen - the stale-while-revalidate window. */
+let fetching = false;
 
 const agent = (
   id: string,
@@ -58,6 +60,7 @@ beforeEach(() => {
   // explicitly so one test's default does not leak into the next.
   defaultId.mockReturnValue(null);
   loading = false;
+  fetching = false;
 });
 
 describe("the chat's agent picker", () => {
@@ -168,6 +171,33 @@ describe("the chat's agent picker", () => {
     render(<AgentPicker />);
 
     expect(select).not.toHaveBeenCalled();
+  });
+
+  it("does not replace a selection the list has not caught up with", async () => {
+    // The Builder's "Open in chat" selects an agent and navigates. If that agent
+    // was published a moment ago, the list this render sees is the previous one
+    // being revalidated - so the id resolves to nothing, and falling back here
+    // would hand the conversation to a different agent than the one asked for.
+    fetching = true;
+    listed.mockReturnValue(PUBLISHED);
+    selectedId.mockReturnValue("a9-just-published");
+
+    render(<AgentPicker />);
+
+    expect(select).not.toHaveBeenCalled();
+  });
+
+  it("still fills in an empty choice while the list is being revalidated", async () => {
+    // The guard above is about *replacing* a choice. Having made none is the
+    // ordinary first visit, and leaving the composer addressed to nobody
+    // through every background refetch is not a fix for anything.
+    fetching = true;
+    listed.mockReturnValue(PUBLISHED);
+    selectedId.mockReturnValue(null);
+
+    render(<AgentPicker />);
+
+    expect(select).toHaveBeenCalledWith("a1");
   });
 
   it("marks the selected agent and only that one", async () => {

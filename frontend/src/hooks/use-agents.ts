@@ -28,7 +28,7 @@ import type {
 export function useAgents({ includeArchived = false }: { includeArchived?: boolean } = {}) {
   const queryClient = useQueryClient();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching } = useQuery({
     queryKey: qk.agents.list(includeArchived),
     queryFn: () =>
       apiClient.get<AgentList>(
@@ -107,6 +107,10 @@ export function useAgents({ includeArchived = false }: { includeArchived?: boole
     agents: data?.items ?? [],
     total: data?.total ?? 0,
     isLoading,
+    // Stale data is served while a refetch is in flight, so "this agent is not
+    // in the list" can mean "not yet". Anything that would act on an absence
+    // has to know the difference - see the chat's agent picker.
+    isFetching,
     create,
     clone,
     archive,

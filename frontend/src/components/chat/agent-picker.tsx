@@ -40,7 +40,7 @@ export const isRunnable = (agent: Agent): boolean => agent.status === "published
 export function AgentPicker() {
   // Archived agents included so a conversation that was had with one still
   // resolves its name; `isRunnable` is what decides who can be picked.
-  const { agents, isLoading } = useAgents({ includeArchived: true });
+  const { agents, isLoading, isFetching } = useAgents({ includeArchived: true });
   const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
   const selectAgent = useAgentSelectionStore((state) => state.select);
   const defaultAgentId = useAgentSelectionStore((state) => state.defaultAgentId);
@@ -57,9 +57,17 @@ export function AgentPicker() {
   // without an agent.
   useEffect(() => {
     if (isLoading || selected !== null) return;
+    // Not while the list is being refetched, and that is the whole of this
+    // guard. React Query serves the previous answer until the new one lands, so
+    // an agent published a second ago is missing from the list this render sees
+    // - and falling back then does not fill in an empty choice, it *replaces* a
+    // deliberate one. The Builder's "Open in chat" hands over an agent id and
+    // navigates; the picker would quietly hand the conversation to somebody
+    // else, having been told exactly who was wanted.
+    if (isFetching && selectedAgentId !== null) return;
     const fallback = runnable.find((agent) => agent.id === defaultAgentId) ?? runnable[0];
     if (fallback) selectAgent(fallback.id);
-  }, [isLoading, selected, runnable, defaultAgentId, selectAgent]);
+  }, [isLoading, isFetching, selected, selectedAgentId, runnable, defaultAgentId, selectAgent]);
 
   return (
     <Popover>
