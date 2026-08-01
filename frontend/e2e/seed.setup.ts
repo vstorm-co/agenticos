@@ -154,10 +154,15 @@ setup("a provider key is stored", async ({ page }) => {
 setup("a secret is stored", async ({ page }) => {
   if (await alreadyThere(page.request, "/api/secrets", "name", SEEDED_SECRET_NAME)) return;
 
-  // "Something else" is the generic shape - a bare API key for a service the
-  // catalog does not name, which is what a capability binding needs to exist.
+  // "Something else" twice over - the family, and then the purpose inside it.
+  // The family alone falls through to the first service in it (LlamaParse), and
+  // a key with a named service is offered only to a capability configured for
+  // that service. `custom` is the purpose that fits any of them, which is what a
+  // capability binding needs to exist without this seed having to know which
+  // search provider a spec will pick.
   await storeSecret(page, {
     group: "Something else",
+    service: "Something else",
     name: SEEDED_SECRET_NAME,
     value: SEEDED_SECRET_VALUE,
   });

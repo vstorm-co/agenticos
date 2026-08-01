@@ -46,7 +46,12 @@ test.describe("Skills", () => {
     // is what makes this a test of the fetch behind the dialog — the gallery
     // only ever had the summary, so the body proves the detail request landed.
     await expect(dialog.getByLabel("Description")).toHaveValue(SEEDED_SKILL_DESCRIPTION);
-    await expect(dialog.getByLabel("Content")).toHaveValue(SEEDED_SKILL_CONTENT);
+
+    // The body is `SKILL.md` in a file tree now rather than a "Content" box, and
+    // the dialog opens in Preview - where the text is rendered and there is no
+    // input to read a value off at all. Source is where the model's own copy is.
+    await dialog.getByRole("button", { name: "Source" }).click();
+    await expect(dialog.getByLabel(/SKILL\.md source/)).toHaveValue(SEEDED_SKILL_CONTENT);
   });
 
   test("editing a skill warns how far the save reaches", async ({ page }) => {

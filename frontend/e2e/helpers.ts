@@ -192,6 +192,41 @@ export async function openAgent(page: Page, name: string): Promise<void> {
 }
 
 /**
+ * Move the Builder to one of its tabs.
+ *
+ * The Builder is seven tabs now, not one column: capabilities and MCP servers
+ * are under Toolbox, sharing and channels under Availability, versions under
+ * History. A spec that reaches straight for a control times out on a panel that
+ * simply is not mounted, which reads like the control was removed.
+ */
+export async function openBuilderTab(page: Page, name: string): Promise<void> {
+  await page.getByRole("tab", { name, exact: true }).click();
+}
+
+/** The Builder's own word for "what is on screen is not what the server holds". */
+export function unsaved(page: Page): Locator {
+  return page.getByText("unsaved");
+}
+
+/**
+ * Store the draft now, rather than waiting out the Builder's debounce.
+ *
+ * The Builder autosaves 1.2s after the last edit, which is fine for a person and
+ * a trap for a spec: anything that reloads the page before the timer fires
+ * reloads the *stored* draft, and the assertion that follows describes the state
+ * the edit replaced. Clicking Save and waiting for "unsaved" to go is what makes
+ * "and it survived a reload" mean anything.
+ */
+export async function saveDraft(page: Page): Promise<void> {
+  // The button is rendered only while there is something to save, and the
+  // debounce may already have fired - so what is waited for is the state, and
+  // the click is only what avoids waiting out the timer.
+  const save = page.getByRole("button", { name: "Save draft" });
+  if (await save.isVisible()) await save.click();
+  await expect(unsaved(page)).toBeHidden();
+}
+
+/**
  * The card for one skill in the gallery.
  *
  * A card is a button labelled by the skill's own name and description — there

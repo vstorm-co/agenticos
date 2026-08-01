@@ -17,7 +17,10 @@ import {
   agentCard,
   expectNoRenderedSecret,
   openAgent,
+  openBuilderTab,
   pageHeading,
+  saveDraft,
+  unsaved,
 } from "./helpers";
 
 /**
@@ -57,10 +60,42 @@ async function capabilityPanel(page: Page, name: string): Promise<Locator> {
  * name printed in it is editable, and one of the specs below edits it.
  */
 async function toolRow(page: Page): Promise<Locator> {
+  // The tab, every time: these specs reload to prove what came back from the
+  // API, and a reload puts the Builder back on Build - where no capability is
+  // mounted at all.
+  await openBuilderTab(page, "Toolbox");
   const panel = await capabilityPanel(page, CAPABILITY_WITH_TOOLS);
   const row = panel.getByRole("listitem", { name: CAPABILITY_TOOL });
   await expect(row).toBeVisible();
   return row;
+}
+
+/**
+ * What the generated config form labels a schema field.
+ *
+ * The form titles a property the way a JSON Schema does - `max_results` becomes
+ * "Max Results" - so a spec that knows the field name still has to know that
+ * rule to find the control.
+ */
+function fieldLabel(field: string): string {
+  return field
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+/**
+ * The checkbox that binds one MCP server, found through the picker's search.
+ *
+ * The picker is a catalog now rather than a list of what is connected - every
+ * server this deployment knows, connected or not - so the organization's own is
+ * one row among thirty and off screen until it is searched for.
+ */
+async function findServer(page: Page, name: string): Promise<Locator> {
+  await page.getByPlaceholder("Search servers…").fill(name);
+  const server = page.getByRole("checkbox", { name, exact: true });
+  await expect(server).toBeVisible();
+  return server;
 }
 
 /**
@@ -79,6 +114,7 @@ function capabilitySwitch(page: Page, name: string): Locator {
 /** The Builder, open on the draft agent with the tool-bearing capability on. */
 async function openToolRow(page: Page): Promise<Locator> {
   await openAgent(page, DRAFT_AGENT_NAME);
+  await openBuilderTab(page, "Toolbox");
 
   const capability = capabilitySwitch(page, CAPABILITY_WITH_TOOLS);
   await expect(capability).toBeVisible();
@@ -102,20 +138,15 @@ async function openToolRow(page: Page): Promise<Locator> {
  */
 interface CatalogEntry {
   name: string;
-  requires_secret: { kind: string; description: string } | null;
+  requires_secret: {
+    kind: string;
+    description: string;
+    /** Null when the key is always needed; otherwise the config that needs it. */
+    required_when: { field: string; equals: string[] } | null;
+  } | null;
 }
 
 type NeedsSecret = CatalogEntry & { requires_secret: { kind: string; description: string } };
-
-/** The Builder's own word for "what is on screen is not what the server holds". */
-function unsaved(page: Page): Locator {
-  return page.getByText("unsaved");
-}
-
-async function saveDraft(page: Page): Promise<void> {
-  await page.getByRole("button", { name: "Save draft" }).click();
-  await expect(unsaved(page)).toBeHidden();
-}
 
 test.use({ storageState: AUTH_STATE });
 
@@ -238,6 +269,9 @@ test.describe("Agents", () => {
     await expect(
       page.getByRole("group", { name: "Current model" }).getByText(SEEDED_MODEL_LABEL),
     ).toBeVisible();
+    // One tab over, because the capability list is not on Build - and what is
+    // being proved is the same thing: the binding came back from the API.
+    await openBuilderTab(page, "Toolbox");
     await expect(capabilitySwitch(page, "Date and time")).toHaveAttribute("aria-checked", "true");
   });
 
@@ -416,6 +450,7 @@ test.describe("Agents", () => {
     }
 
     await openAgent(page, DRAFT_AGENT_NAME);
+    await openBuilderTab(page, "Toolbox");
     const capability = capabilitySwitch(page, needy.name);
     await expect(capability).toBeVisible();
 
@@ -428,6 +463,19 @@ test.describe("Agents", () => {
     await expect(capability).toHaveAttribute("aria-checked", "true");
 
     const group = await capabilityPanel(page, needy.name);
+
+    // The requirement is conditional now, and the condition is the whole reason
+    // it is worth asserting: Web search takes a key for Tavily and none for
+    // DuckDuckGo, so a flat requirement would lock the free default behind an
+    // account. Nothing is asked for until the configuration that needs it is
+    // chosen.
+    const condition = needy.requires_secret.required_when;
+    await expect(group.getByLabel("Secret")).toHaveCount(0);
+    if (condition !== null) {
+      await group.getByLabel(fieldLabel(condition.field)).click();
+      await page.getByRole("option", { name: condition.equals[0]!, exact: true }).click();
+    }
+
     const picker = group.getByLabel("Secret");
 
     // What the capability's author wrote about why it needs a credential, which
@@ -446,12 +494,16 @@ test.describe("Agents", () => {
     await expect(picker).toContainText(SEEDED_SECRET_HINT);
     await expect(group.getByText(/cannot be published until it has one/)).toBeHidden();
 
-    await expect(unsaved(page)).toBeVisible();
+    // Stored, without asserting the badge on the way: this spec walks through
+    // two selects and a catalog read, which is long enough for the Builder's own
+    // 1.2s autosave to have already saved it. That the badge appears at all is
+    // the approval spec's assertion, where the edit is one click.
     await saveDraft(page);
     await page.reload();
 
     // Re-read from scratch, because the point is the reference that came back
     // from the API rather than what React still had in memory.
+    await openBuilderTab(page, "Toolbox");
     const saved = await capabilityPanel(page, needy.name);
     await expect(saved.getByLabel("Secret")).toContainText(SEEDED_SECRET_NAME);
     await expect(saved.getByText(/cannot be published until it has one/)).toBeHidden();
@@ -515,9 +567,9 @@ test.describe("Agents", () => {
     // choice reaches the stored draft, and the spec publishes with it — which
     // it could not do while the only connectable servers were personal.
     await openAgent(page, DRAFT_AGENT_NAME);
+    await openBuilderTab(page, "Toolbox");
 
-    const server = page.getByRole("checkbox", { name: SEEDED_ORG_MCP_NAME, exact: true });
-    await expect(server).toBeVisible();
+    const server = await findServer(page, SEEDED_ORG_MCP_NAME);
 
     if ((await server.getAttribute("aria-checked")) !== "true") {
       await server.click();
@@ -526,9 +578,11 @@ test.describe("Agents", () => {
     }
 
     await page.reload();
-    await expect(
-      page.getByRole("checkbox", { name: SEEDED_ORG_MCP_NAME, exact: true }),
-    ).toHaveAttribute("aria-checked", "true");
+    await openBuilderTab(page, "Toolbox");
+    await expect(await findServer(page, SEEDED_ORG_MCP_NAME)).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
 
     // The refusal this whole change was blocked on. Publishing a spec that
     // named an org server used to be impossible because no org server could

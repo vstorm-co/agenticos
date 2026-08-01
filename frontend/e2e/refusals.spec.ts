@@ -2,11 +2,12 @@ import { expect, test } from "./fixtures";
 
 import {
   AUTH_STATE,
+  DRAFT_AGENT_NAME,
   FAKE_KEY_LABEL,
-  SEEDED_MODEL_LABEL,
   SEEDED_SECRET_NAME,
   expectNoRenderedSecret,
   gotoRoleMatrix,
+  openAgent,
   pageHeading,
   scopeInMatrix,
 } from "./helpers";
@@ -33,12 +34,10 @@ test.use({ storageState: AUTH_STATE });
 const GOVERNED: { permission: string; path: string; heading: string; control: string }[] = [
   { permission: "agents:edit", path: "/agents", heading: "Agents", control: "New agent" },
   { permission: "skills:edit", path: "/skills", heading: "Skills", control: "New skill" },
-  {
-    permission: "connections:manage",
-    path: "/vault",
-    heading: "Vault",
-    control: "Add credential",
-  },
+  // `secrets:edit`, not `connections:manage`: a Member holds the first at OWN
+  // scope, and gating the button on the second made the vault read-only for
+  // exactly the people who store their own keys.
+  { permission: "secrets:edit", path: "/vault", heading: "Vault", control: "Add key" },
 ];
 
 test.describe("Refusals", () => {
@@ -59,7 +58,7 @@ test.describe("Refusals", () => {
     // stop being true.
     await expectNoRenderedSecret(page);
 
-    await page.getByRole("button", { name: "Add credential" }).click();
+    await page.getByRole("button", { name: "Add key" }).first().click();
     await expectNoRenderedSecret(page);
     await page.getByRole("dialog").getByRole("button", { name: "Cancel" }).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
@@ -71,18 +70,20 @@ test.describe("Refusals", () => {
     await expectNoRenderedSecret(page);
     await page.getByRole("dialog").getByRole("button", { name: "Cancel" }).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
+  });
 
-    // The model dialog enumerates stored credentials so one can be chosen. A
-    // list of keys is the single most likely place for a key to be printed in
-    // full by accident, which is why the sweep is repeated with it open — and
-    // why the stored key has to actually appear in that list first. It only
-    // does once a provider is named, since the list is scoped to that provider.
-    await page.getByRole("button", { name: "Add model" }).click();
-    const model = page.getByRole("dialog");
-    await model.getByRole("combobox").first().click();
+  test("a list of keys, enumerated so one can be picked, prints none of them", async ({ page }) => {
+    // The single most likely place for a key to be printed in full by accident:
+    // a control whose whole job is to enumerate the stored ones. It is in the
+    // Builder rather than the vault now - a key is chosen where a model is
+    // created - and the list is scoped to the provider, so the seeded key only
+    // appears once one is named.
+    await openAgent(page, DRAFT_AGENT_NAME);
+
+    await page.locator("#add-model-provider").click();
     await page.getByRole("option", { name: "OpenAI", exact: true }).click();
 
-    await model.getByRole("combobox").filter({ hasText: "Choose a key" }).click();
+    await page.locator("#add-model-key").click();
     await expect(page.getByRole("option", { name: new RegExp(FAKE_KEY_LABEL) })).toBeVisible();
     await expectNoRenderedSecret(page);
   });
@@ -141,22 +142,5 @@ test.describe("Refusals", () => {
         ).toHaveCount(0);
       }
     }
-  });
-
-  test("a model with no key is marked as one, rather than failing at run time", async ({
-    page,
-  }) => {
-    // The other half of a refusal: the platform says up front what it will not
-    // be able to do. Bootstrap's model profile has no credential bound to it,
-    // and the page has to carry that, next to the model it applies to.
-    await page.goto("/vault");
-    await expect(pageHeading(page, "Vault")).toBeVisible();
-
-    await expect(page.getByRole("main").getByText(SEEDED_MODEL_LABEL).first()).toBeVisible();
-    // On that model's own row: "somewhere on this page is the words 'no key'" is
-    // also satisfied by a badge belonging to a different model entirely.
-    await expect(
-      page.getByRole("main").locator("div", { hasText: SEEDED_MODEL_LABEL }).last(),
-    ).toContainText("no key");
   });
 });

@@ -6,7 +6,7 @@ import {
   AUTH_STATE,
   SEEDED_AGENT_NAME,
   SEEDED_KB_NAME,
-  SEEDED_MODEL_LABEL,
+  FAKE_KEY_LABEL,
   openAgent,
   pageHeading,
 } from "./helpers";
@@ -95,7 +95,9 @@ test.describe("Sidebar section marking", () => {
     await page.goto("/settings/providers");
     await expect(page).toHaveURL(/\/vault$/);
 
-    await expect(page.getByRole("main").getByText(SEEDED_MODEL_LABEL).first()).toBeVisible();
+    // Landed and loaded, not merely redirected: a seeded row is what separates
+    // the vault having rendered from the vault having answered 502.
+    await expect(page.getByRole("main").getByText(FAKE_KEY_LABEL).first()).toBeVisible();
 
     await expectMarked(page, "Vault");
   });

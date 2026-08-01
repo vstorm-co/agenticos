@@ -9,6 +9,7 @@ import {
   OWNER_EMAIL,
   SEEDED_AGENT_NAME,
   openAgent,
+  openBuilderTab,
 } from "./helpers";
 
 test.use({ storageState: AUTH_STATE });
@@ -31,10 +32,16 @@ test.use({ storageState: AUTH_STATE });
  * would make them pass or fail on the order the workers happened to pick.
  */
 
-/** Open the Sharing tab of an agent and wait for it to have loaded. */
+/**
+ * Open the panel that shares an agent, and wait for it to have loaded.
+ *
+ * Under Availability now rather than a tab of its own: who may reach this agent
+ * is the same question as which channels it is exposed on, and the answer was
+ * split across two tabs.
+ */
 async function openSharing(page: Page, agent: string): Promise<Locator> {
   await openAgent(page, agent);
-  await page.getByRole("tab", { name: "Sharing" }).click();
+  await openBuilderTab(page, "Availability");
 
   const panel = page.getByRole("tabpanel");
   // The panel renders a spinner until both the sharing state and the member
@@ -66,14 +73,14 @@ test.describe("Sharing", () => {
     await expect(level).toHaveText("Can use");
 
     await page.reload();
-    await page.getByRole("tab", { name: "Sharing" }).click();
+    await openBuilderTab(page, "Availability");
     await expect(panel.getByLabel(`Access for ${COLLEAGUE_EMAIL}`)).toHaveText("Can use");
 
     await panel.getByRole("button", { name: `Remove ${COLLEAGUE_EMAIL}` }).click();
     await expect(panel.getByLabel(`Access for ${COLLEAGUE_EMAIL}`)).toHaveCount(0);
 
     await page.reload();
-    await page.getByRole("tab", { name: "Sharing" }).click();
+    await openBuilderTab(page, "Availability");
     await expect(panel.getByLabel(`Access for ${COLLEAGUE_EMAIL}`)).toHaveCount(0);
     await expect(panel.getByText("Not shared with anyone yet.")).toBeVisible();
   });
@@ -96,16 +103,21 @@ test.describe("Sharing", () => {
   test("a change of visibility is stored, not just shown", async ({ page }) => {
     const panel = await openSharing(page, DRAFT_AGENT_NAME);
 
+    // "Organization", because "Team" is no longer offered: this deployment has
+    // no teams, so the option is rendered only for a row already set to it, to
+    // be seen and moved off. Two visibilities are what there is to choose
+    // between, which is what this moves between.
+    //
     // Clicked rather than `check()`ed: the radio is controlled by the stored
     // visibility, so it stays where it was until the write comes back. `check()`
     // asserts the box flipped the instant it was clicked, which here would be
     // asserting that the UI lied optimistically.
-    await panel.getByRole("radio", { name: "Team" }).click();
-    await expect(panel.getByRole("radio", { name: "Team" })).toBeChecked();
+    await panel.getByRole("radio", { name: "Organization" }).click();
+    await expect(panel.getByRole("radio", { name: "Organization" })).toBeChecked();
 
     await page.reload();
-    await page.getByRole("tab", { name: "Sharing" }).click();
-    await expect(panel.getByRole("radio", { name: "Team" })).toBeChecked();
+    await openBuilderTab(page, "Availability");
+    await expect(panel.getByRole("radio", { name: "Organization" })).toBeChecked();
 
     // Put it back: the draft is a shared fixture, and a test that leaves the
     // database somewhere else than it found it is a test that only works once.

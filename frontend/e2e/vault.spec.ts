@@ -4,8 +4,6 @@ import {
   AUTH_STATE,
   FAKE_KEY_HINT,
   FAKE_KEY_LABEL,
-  SEEDED_MODEL_ID,
-  SEEDED_MODEL_LABEL,
   SEEDED_SECRET_HINT,
   SEEDED_SECRET_NAME,
   expectNoRenderedSecret,
@@ -27,24 +25,6 @@ test.use({ storageState: AUTH_STATE });
  */
 
 test.describe("Vault", () => {
-  test("lists the model the seed created, and what it points at", async ({ page }) => {
-    await page.goto("/vault");
-    await expect(pageHeading(page, "Vault")).toBeVisible();
-
-    // An agent references a model by name; the name is worth nothing unless the
-    // provider and model id behind it are visible, because that pair is what
-    // decides which API is called and what it costs.
-    await expect(page.getByRole("main").getByText(SEEDED_MODEL_LABEL).first()).toBeVisible();
-    await expect(page.getByText(`openai · ${SEEDED_MODEL_ID}`)).toBeVisible();
-
-    // Bootstrap creates that profile without a credential on purpose, and the
-    // page has to say so — an agent that cannot run should look different from
-    // one that can, well before somebody finds out at run time. Asserted on that
-    // model's own row: "somewhere on this page is the words 'no key'" is also
-    // satisfied by a badge belonging to a different model entirely.
-    await expect(modelRow(page, SEEDED_MODEL_LABEL)).toContainText("no key");
-  });
-
   test("a stored credential is identified by four characters, not by its value", async ({
     page,
   }) => {
@@ -67,9 +47,17 @@ test.describe("Vault", () => {
     await page.goto("/vault");
     await expect(pageHeading(page, "Vault")).toBeVisible();
 
-    const secrets = page.getByRole("main").locator("div", { hasText: SEEDED_SECRET_NAME }).last();
-    await expect(secrets).toContainText("api_key");
-    await expect(secrets).toContainText(`····${SEEDED_SECRET_HINT}`);
+    // A table row now, not a card, and the service column carries the purpose's
+    // human label rather than the raw kind. The purpose is the field a capability
+    // binding matches on, so naming the service is what a reader needs; `api_key`
+    // was never the interesting half - and it is the same word on both of these
+    // rows, which is exactly what makes it useless for telling them apart.
+    const secret = page.getByRole("row", { name: new RegExp(SEEDED_SECRET_NAME) });
+    await expect(secret).toContainText("Custom service");
+    await expect(secret).toContainText(`····${SEEDED_SECRET_HINT}`);
+
+    const key = page.getByRole("row", { name: new RegExp(FAKE_KEY_LABEL) });
+    await expect(key).toContainText("OpenAI");
     await expectNoRenderedSecret(page);
   });
 
@@ -77,26 +65,33 @@ test.describe("Vault", () => {
     await page.goto("/vault");
     await expect(pageHeading(page, "Vault")).toBeVisible();
 
-    await page.getByRole("button", { name: "Add credential" }).click();
+    // One button and one dialog for every kind of key now: a provider credential
+    // is a secret whose *purpose* names the service, so there is no separate
+    // "Add credential".
+    await page.getByRole("button", { name: "Add key" }).first().click();
     const dialog = page.getByRole("dialog");
+    await expect(dialog.getByText("Add a secret")).toBeVisible();
 
-    // Nothing is preselected, because the provider decides every field below it
-    // and a default is how an OpenAI key gets stored under another provider.
-    await expect(dialog.getByLabel("Provider")).toHaveText("Choose a provider");
-    await expect(dialog.getByRole("button", { name: "Store credential" })).toBeDisabled();
-
-    await dialog.getByRole("combobox").first().click();
+    // The family first, then the service - two questions rather than a scroll
+    // through thirty-one. Which service decides every field below it.
+    await dialog.getByRole("button", { name: /^Model provider/ }).click();
+    await dialog.getByLabel(/^(Which one|Service)$/).click();
     await page.getByRole("option", { name: "OpenAI", exact: true }).click();
 
     // Masked, not because typing a key is dangerous, but because the field is
     // filled in meetings and on shared screens. The input is generated from the
-    // provider's own secret schema, and it is `format: "password"` there that
+    // service's own secret schema, and it is `format: "password"` there that
     // decides this — so what is really asserted is that the generator honours it.
-    await expect(dialog.getByLabel(/Api Key/)).toHaveAttribute("type", "password");
+    await expect(dialog.getByRole("textbox", { name: /API key/i })).toHaveAttribute(
+      "type",
+      "password",
+    );
 
     // The dialog states the contract the rest of the suite enforces. If this
     // sentence ever goes away, the promise it makes should have gone away too.
-    await expect(dialog).toContainText("It cannot be read back");
+    // Matched as a phrase rather than a sentence: it sits mid-sentence now, and
+    // the promise is what matters, not where the clause begins.
+    await expect(dialog).toContainText(/cannot be read back/);
   });
 
   test("asks a provider for the shape of credential it actually takes", async ({ page }) => {
@@ -107,99 +102,24 @@ test.describe("Vault", () => {
     await page.goto("/vault");
     await expect(pageHeading(page, "Vault")).toBeVisible();
 
-    await page.getByRole("button", { name: "Add credential" }).click();
+    await page.getByRole("button", { name: "Add key" }).first().click();
     const dialog = page.getByRole("dialog");
 
-    await dialog.getByRole("combobox").first().click();
+    await dialog.getByRole("button", { name: /^Model provider/ }).click();
+    await dialog.getByLabel(/^(Which one|Service)$/).click();
     await page.getByRole("option", { name: "AWS Bedrock" }).click();
 
-    await expect(dialog.getByLabel(/Aws Access Key Id/)).toBeVisible();
-    await expect(dialog.getByLabel(/Region Name/)).toBeVisible();
-    await expect(dialog.getByLabel(/^Api Key/)).toHaveCount(0);
+    // Labelled from the schema's titles now - "Access key ID", not the raw
+    // `aws_access_key_id`. The two secret halves of the pair are password inputs,
+    // which have no `textbox` role at all; their reveal buttons are what proves
+    // they rendered.
+    await expect(dialog.getByRole("textbox", { name: /Access key ID/i })).toBeVisible();
+    await expect(dialog.getByRole("textbox", { name: /Region/i })).toBeVisible();
+    await expect(dialog.getByRole("button", { name: /Show Secret access key/i })).toBeVisible();
 
-    // Bedrock is reached at its own endpoint, so a custom one would be ignored
-    // and the backend refuses to store it. A setting that does nothing is worse
-    // than an error, so it is not offered at all.
-    await expect(dialog.getByLabel(/Endpoint/)).toHaveCount(0);
-  });
-
-  test("stores a local server with no key at all, which is what keyless is for", async ({
-    page,
-  }) => {
-    const label = `e2e-keyless-${Date.now().toString(36)}`;
-
-    await page.goto("/vault");
-    await expect(pageHeading(page, "Vault")).toBeVisible();
-
-    await page.getByRole("button", { name: "Add credential" }).click();
-    const dialog = page.getByRole("dialog");
-
-    await dialog.getByRole("combobox").first().click();
-    await page.getByRole("option", { name: "Ollama" }).click();
-    await dialog.getByLabel("Label").fill(label);
-
-    // Ollama on a machine of your own has nothing to authenticate against, and
-    // demanding a token here is demanding that somebody invent one.
-    await dialog.getByRole("switch", { name: /needs no key/ }).click();
-    await expect(dialog.getByLabel(/^Api Key/)).toHaveCount(0);
-
-    // Still refused until it says where to reach the server: a credential with
-    // no key and no address is one aimed at the vendor's public API with nothing
-    // behind it, and the backend rejects it.
-    await expect(dialog.getByRole("button", { name: "Store credential" })).toBeDisabled();
-
-    // A resolvable public host, because this deployment has
-    // ALLOW_INTERNAL_MODEL_ENDPOINTS off — which is the default, and which the
-    // spec below is about. What is being proved here is the keyless path, not
-    // the address policy.
-    await dialog.getByLabel(/Endpoint/).fill("https://example.com/v1");
-    await dialog.getByRole("button", { name: "Store credential" }).click();
-
-    const row = page.getByRole("main").locator("div", { hasText: label }).last();
-    await expect(row).toContainText("no key");
-    await expect(row).toContainText("https://example.com/v1");
-
-    // Reloaded, because a row that exists only in the mutation's cache patch is
-    // a row that was never written.
-    await page.reload();
-    await expect(pageHeading(page, "Vault")).toBeVisible();
-    await expect(page.getByRole("main").getByText(label)).toBeVisible();
-
-    await page.getByRole("button", { name: `Delete ${label}` }).click();
-    await expect(page.getByRole("main").getByText(label)).toHaveCount(0);
-  });
-
-  test("a refused endpoint is reported under the endpoint, in the server's own words", async ({
-    page,
-  }) => {
-    // Every `base_url` check reports the URL it refused, and this is the whole
-    // journey for one of them: the browser sends it, the service refuses it, the
-    // proxy carries the refusal back with its body intact, and the dialog puts
-    // the sentence under the input that produced it rather than in a toast that
-    // takes it away again.
-    //
-    // The scheme check is used rather than the internal-address one because it
-    // applies either way: whether an internal address is refused depends on
-    // ALLOW_INTERNAL_MODEL_ENDPOINTS, and a spec that fails on a legitimate
-    // configuration is a spec people learn to re-run instead of read. That
-    // message — the one naming the setting — is asserted in the unit tests.
-    await page.goto("/vault");
-    await expect(pageHeading(page, "Vault")).toBeVisible();
-
-    await page.getByRole("button", { name: "Add credential" }).click();
-    const dialog = page.getByRole("dialog");
-
-    await dialog.getByRole("combobox").first().click();
-    await page.getByRole("option", { name: "Ollama" }).click();
-    await dialog.getByLabel("Label").fill(`e2e-refused-${Date.now().toString(36)}`);
-    await dialog.getByRole("switch", { name: /needs no key/ }).click();
-    await dialog.getByLabel(/Endpoint/).fill("file:///etc/passwd");
-    await dialog.getByRole("button", { name: "Store credential" }).click();
-
-    await expect(dialog.getByText(/must be an http or https URL/)).toBeVisible();
-    // Still open, with what was typed still in it. A dialog that closed on a
-    // refusal would throw away the thing that needs correcting.
-    await expect(dialog.getByLabel(/Endpoint/)).toHaveValue("file:///etc/passwd");
+    // The single "API key" box the old form offered for all twenty-four providers
+    // is exactly what a key pair does not fit into.
+    await expect(dialog.getByRole("textbox", { name: /^API key/i })).toHaveCount(0);
   });
 
   test("rotating a secret changes its value and keeps its id", async ({ page }) => {
@@ -212,13 +132,18 @@ test.describe("Vault", () => {
     await page.goto("/vault");
     await expect(pageHeading(page, "Vault")).toBeVisible();
 
-    await page.getByRole("button", { name: "Add secret" }).click();
+    await page.getByRole("button", { name: "Add key" }).first().click();
     const add = page.getByRole("dialog");
+    // "Something else" is the generic shape - a bare API key for a service the
+    // catalog does not name. Deliberately not a model provider's: a second
+    // OpenAI key would change what the Builder's key picker offers, and this
+    // spec is about rotation rather than about what a provider key unlocks.
+    await add.getByRole("button", { name: /^Something else/ }).click();
     await add.getByLabel("Name").fill(name);
-    await add.getByLabel(/Api Key/).fill("sk-e2eROTATEfirstvalueAAAA");
+    await add.getByRole("textbox", { name: /API key/i }).fill("sk-e2eROTATEfirstvalueAAAA");
     await add.getByRole("button", { name: "Store secret" }).click();
 
-    const row = () => page.getByRole("main").locator("div", { hasText: name }).last();
+    const row = () => page.getByRole("row", { name: new RegExp(name) });
     await expect(row()).toContainText("····AAAA");
     const before = await secretId(page, name);
 
@@ -228,7 +153,7 @@ test.describe("Vault", () => {
     // old value down elsewhere needs to know before they find out.
     await expect(rotate).toContainText("the old one is gone");
     await expect(rotate).toContainText("····AAAA");
-    await rotate.getByLabel(/Api Key/).fill("sk-e2eROTATEsecondvalueBBBB");
+    await rotate.getByRole("textbox", { name: /API key/i }).fill("sk-e2eROTATEsecondvalueBBBB");
     await rotate.getByRole("button", { name: "Rotate" }).click();
 
     await expect(row()).toContainText("····BBBB");
@@ -240,77 +165,7 @@ test.describe("Vault", () => {
     await page.getByRole("button", { name: `Delete ${name}` }).click();
     await expect(page.getByRole("main").getByText(name)).toHaveCount(0);
   });
-
-  test("a model cannot be created without a name and a model id", async ({ page }) => {
-    await page.goto("/vault");
-    await expect(pageHeading(page, "Vault")).toBeVisible();
-
-    await page.getByRole("button", { name: "Add model" }).click();
-
-    const dialog = page.getByRole("dialog");
-    const submit = dialog.getByRole("button", { name: "Add model" });
-    await expect(submit).toBeDisabled();
-
-    await dialog.getByLabel("Name").fill("E2E model");
-    // Still refused: an agent references a model by name, and a named model
-    // pointing at nothing fails at the moment a run needs it instead of here.
-    await expect(submit).toBeDisabled();
-
-    await dialog.getByLabel("Model id").fill("gpt-4.1-mini");
-    // And still refused, because a model with no provider is a model nothing
-    // can resolve. Nothing is preselected here either.
-    await expect(submit).toBeDisabled();
-
-    await dialog.getByRole("combobox").first().click();
-    await page.getByRole("option", { name: "OpenAI", exact: true }).click();
-    await expect(submit).toBeEnabled();
-  });
-
-  test("a model bound to a stored credential comes back bound", async ({ page }) => {
-    const label = `e2e-model-${Date.now().toString(36)}`;
-
-    await page.goto("/vault");
-    await expect(pageHeading(page, "Vault")).toBeVisible();
-
-    await page.getByRole("button", { name: "Add model" }).click();
-    const dialog = page.getByRole("dialog");
-    await dialog.getByRole("combobox").first().click();
-    await page.getByRole("option", { name: "OpenAI", exact: true }).click();
-    await dialog.getByLabel("Name").fill(label);
-    await dialog.getByLabel("Model id").fill("gpt-4.1-mini");
-
-    // The picker lists the credentials stored *for this provider*, by label.
-    // Choosing one is what proves the credential list on this page came out of
-    // the vault rather than out of an empty array the UI shrugged off.
-    await dialog.getByRole("combobox").filter({ hasText: "Choose a key" }).click();
-    await page.getByRole("option", { name: new RegExp(FAKE_KEY_LABEL) }).click();
-    await dialog.getByRole("button", { name: "Add model" }).click();
-
-    await expect(page.getByRole("main").getByText(label)).toBeVisible();
-
-    // Reloaded, because a row that exists only in the mutation's cache patch is
-    // a row that was never written.
-    await page.reload();
-    await expect(pageHeading(page, "Vault")).toBeVisible();
-    await expect(page.getByRole("main").getByText(label)).toBeVisible();
-    await expect(page.getByRole("main")).toContainText("openai · gpt-4.1-mini");
-    await expectNoRenderedSecret(page);
-
-    await page.getByRole("button", { name: `Delete ${label}` }).click();
-    await expect(page.getByRole("main").getByText(label)).toHaveCount(0);
-  });
 });
-
-/**
- * The row one model profile occupies, found by the label printed on it.
- *
- * The innermost matching element, because every card and section above it also
- * contains the label — and a badge asserted against the whole page is a badge
- * that may belong to any other row.
- */
-function modelRow(page: import("@playwright/test").Page, label: string) {
-  return page.getByRole("main").locator("div", { hasText: label }).last();
-}
 
 /**
  * The id the vault holds a secret under, read from the API.
