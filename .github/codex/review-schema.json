@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AgenticOS pull request review",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["summary", "findings"],
+  "properties": {
+    "summary": {
+      "type": "string",
+      "description": "Markdown for the upserted summary comment. A few sentences, no heading."
+    },
+    "findings": {
+      "type": "array",
+      "description": "Empty is a valid answer. Most pull requests here are correct.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "start_line",
+          "line",
+          "severity",
+          "title",
+          "evidence",
+          "rule",
+          "suggestion",
+          "ai_agent_prompt"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Repository-relative path, exactly as it appears in the diff."
+          },
+          "start_line": {
+            "type": "integer",
+            "description": "First line of the range in the new file. Equal to `line` for a single-line finding."
+          },
+          "line": {
+            "type": "integer",
+            "description": "Last line of the range in the new file. Must be a line the diff adds or changes."
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["blocker", "major", "minor"]
+          },
+          "title": {
+            "type": "string",
+            "description": "One line naming the defect, under 80 characters."
+          },
+          "evidence": {
+            "type": "string",
+            "description": "Input, path through the code, wrong outcome. Without this it is not a finding."
+          },
+          "rule": {
+            "type": "string",
+            "description": "File and section of the standard this comes from. Empty string when no rule covers it."
+          },
+          "suggestion": {
+            "type": "string",
+            "description": "Replacement source for start_line..line, no fence and no diff markers. Empty string when the fix is not a local edit."
+          },
+          "ai_agent_prompt": {
+            "type": "string",
+            "description": "Self-contained instruction a coding agent could act on without reading the review."
+          }
+        }
+      }
+    }
+  }
+}

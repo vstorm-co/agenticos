@@ -138,6 +138,7 @@ nav:
       - patterns.md
       - adding_features.md
       - testing.md
+      - code-review.md
       - ROADMAP.md
 
 extra:
