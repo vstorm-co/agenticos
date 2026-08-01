@@ -171,6 +171,7 @@ async def list_messages(
     conversation_id: UUID,
     conversation_service: ConversationSvc,
     current_user: CurrentUser,
+    active_org: ActiveOrg,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
 ) -> Any:
@@ -178,12 +179,18 @@ async def list_messages(
 
     Same reasoning as `get_conversation` above: cross-user reads belong to
     `/admin/conversations`, not to a column on the user row.
+
+    `user_id` only enriches each message with the caller's rating. The
+    organization is what makes the sentence above true - without it this
+    returned any conversation in the deployment, transcript and tool
+    arguments included.
     """
     items, total = await conversation_service.list_messages(
         conversation_id,
         skip=skip,
         limit=limit,
         include_tool_calls=True,
+        organization_id=active_org.id,
         user_id=current_user.id,
     )
     return MessageList(items=items, total=total)  # ty: ignore[invalid-argument-type]
@@ -199,9 +206,16 @@ async def add_message(
     data: MessageCreate,
     conversation_service: ConversationSvc,
     current_user: CurrentUser,
+    active_org: ActiveOrg,
 ) -> Any:
-    """Add a message to a conversation."""
-    return await conversation_service.add_message(conversation_id, data)
+    """Add a message to a conversation in the caller's organization.
+
+    Unscoped, this accepted a `role: "assistant"` turn into any conversation
+    in the deployment, and it rendered to its owner as the agent's answer.
+    """
+    return await conversation_service.add_message(
+        conversation_id, data, organization_id=active_org.id
+    )
 
 
 @router.post(

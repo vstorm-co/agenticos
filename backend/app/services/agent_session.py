@@ -224,6 +224,7 @@ class AgentSession:
                     output,
                     model_label,
                     collected_tool_calls,
+                    organization_id=self.organization_id,
                     thinking="".join(collected_thinking) or None,
                     agent_id=agent_id,
                     agent_version_id=agent_version_id,
