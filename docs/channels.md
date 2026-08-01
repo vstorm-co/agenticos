@@ -191,6 +191,11 @@ has not filled in yet, so the failure was one restart away at any time.
 If a bot is silent, check the log for `not started` before assuming a network
 problem.
 
+A dropped session is different: that one is retried, waiting five seconds and
+doubling to a minute, so a Mattermost server down for an hour is not hammered
+720 times by every bot on it. The line logged before each wait names the delay
+it is about to wait.
+
 ---
 
 ## What every channel shares

@@ -166,9 +166,13 @@ bounds a read; the user is what narrows it further.**
   conversation is looked up by primary key alone, and any signed-in caller who
   knows a UUID reads — or appends to — a conversation in another tenant.
 - They also pass `user_id=current_user.id`, which restricts a row to its owner
-  or somebody it was shared with. Note that on `list_messages` the same argument
-  name does something else entirely: it enriches each message with the caller's
-  rating and authorizes nothing. Passing it is not scoping.
+  or somebody it was shared with. The tenant check alone is not enough: without
+  this, every member of an organization can read and append to every other
+  member's conversation.
+- On `list_messages` that one argument does two jobs — it authorizes, *and* it
+  enriches each message with the caller's own rating. That overload is why its
+  authorizing half went missing for so long: the route passed it, the argument
+  was plainly there in review, and it was doing the other job.
 - File downloads verify `chat_file.user_id == current_user.id`.
 
 `ConversationService` makes the distinction impossible to omit: `organization_id`
