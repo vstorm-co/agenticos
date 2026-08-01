@@ -37,6 +37,7 @@ import httpx
 
 from app.db.session import get_db_context
 from app.services.channels.base import ChannelAdapter, IncomingMessage, OutgoingMessage
+from app.services.channels.exceptions import ChannelNotConfigured
 from app.services.channels.router import ChannelMessageRouter
 
 logger = logging.getLogger(__name__)
@@ -132,30 +133,43 @@ class MattermostAdapter(ChannelAdapter):
                 delay = 5.0
             except asyncio.CancelledError:
                 raise
+            except ChannelNotConfigured:
+                # An operator has to set the server URL; looping cannot. And
+                # `_run_stream` returns without awaiting on that branch, so a
+                # retry here span the event loop at 100% CPU and starved every
+                # other task on the process.
+                logger.warning("Mattermost stream not started for bot %s", bot_id)
+                return
             except Exception:
                 logger.exception(
                     "Mattermost stream failed for bot %s, retrying in %.0fs", bot_id, delay
                 )
-                await asyncio.sleep(delay)
                 # Backs off to a minute so a server that is down for an hour is
                 # not hammered 720 times by every bot on it.
                 delay = min(delay * 2, 60.0)
+            # Outside the `except`: a session that ends by returning has to
+            # yield before the next attempt, or this loop never suspends.
+            await asyncio.sleep(delay)
 
     async def _run_stream(self, bot_id: str, bot_token: str) -> None:
         """One authenticated session on the event stream."""
         try:
             from websockets.asyncio.client import connect
-        except ImportError:
-            logger.error(
-                "The Mattermost event stream needs the 'websockets' package. "
-                "Use webhook mode, or install it."
-            )
-            return
+        except ImportError as exc:
+            raise ChannelNotConfigured(
+                message=(
+                    "The Mattermost event stream needs the 'websockets' package. "
+                    "Use webhook mode, or install it."
+                ),
+                details={"bot_id": bot_id},
+            ) from exc
 
         base_url = self._base_urls.get(bot_id)
         if not base_url:
-            logger.error("Mattermost bot %s has no server URL; cannot open a stream", bot_id)
-            return
+            raise ChannelNotConfigured(
+                message="Mattermost bot has no server URL; cannot open a stream",
+                details={"bot_id": bot_id},
+            )
 
         socket_url = base_url.replace("https://", "wss://").replace("http://", "ws://")
         async with connect(f"{socket_url}/api/v4/websocket") as socket:

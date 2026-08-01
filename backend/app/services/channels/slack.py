@@ -18,6 +18,7 @@ from typing import Any
 
 from app.db.session import get_db_context
 from app.services.channels.base import ChannelAdapter, IncomingMessage, OutgoingMessage
+from app.services.channels.exceptions import ChannelNotConfigured
 from app.services.channels.router import ChannelMessageRouter
 
 logger = logging.getLogger(__name__)
@@ -91,15 +92,28 @@ class SlackAdapter(ChannelAdapter):
         logger.info("Stopped Slack Socket Mode for bot %s", bot_id)
 
     async def _socket_supervisor(self, bot_id: str, bot_token: str) -> None:
-        """Supervised loop: restart Socket Mode on crash."""
+        """Supervised loop: restart Socket Mode on crash.
+
+        The sleep is outside the `except` on purpose. `_run_socket_mode` has
+        branches that return without ever awaiting, and awaiting a coroutine
+        that never suspends does not yield to the event loop - so this looped at
+        100% CPU and no other task on the process was scheduled again. The API
+        stayed up and answered nothing, health check included, on one WARNING
+        line.
+        """
         while True:
             try:
                 await self._run_socket_mode(bot_id, bot_token)
             except asyncio.CancelledError:
                 break
+            except ChannelNotConfigured:
+                # Not a crash and not something a retry fixes: an operator has
+                # to add the token. Retrying would be the spin all over again.
+                logger.warning("Slack Socket Mode not started for bot %s", bot_id)
+                return
             except Exception:
                 logger.exception("Slack Socket Mode crashed for bot %s, restarting in 5s", bot_id)
-                await asyncio.sleep(5)
+            await asyncio.sleep(5)
 
     async def _run_socket_mode(self, bot_id: str, bot_token: str) -> None:
         """Run one Socket Mode session."""
@@ -107,21 +121,24 @@ class SlackAdapter(ChannelAdapter):
             from slack_sdk.socket_mode.aiohttp import SocketModeClient
             from slack_sdk.socket_mode.request import SocketModeRequest
             from slack_sdk.socket_mode.response import SocketModeResponse
-        except ImportError:
-            logger.error(
-                "Slack Socket Mode requires 'slack-sdk[socket-mode]'. "
-                "Install with: pip install 'slack-sdk[socket-mode]'"
-            )
-            return
+        except ImportError as exc:
+            raise ChannelNotConfigured(
+                message=(
+                    "Slack Socket Mode requires 'slack-sdk[socket-mode]'. "
+                    "Install with: pip install 'slack-sdk[socket-mode]'"
+                ),
+                details={"bot_id": bot_id},
+            ) from exc
 
         app_token = self._app_tokens.get(bot_id)
         if not app_token:
-            logger.warning(
-                "Slack bot %s has no app-level token - Socket Mode not started. "
-                "Add the xapp- token in the bot's settings.",
-                bot_id,
+            raise ChannelNotConfigured(
+                message=(
+                    "Slack bot has no app-level token - Socket Mode not started. "
+                    "Add the xapp- token in the bot's settings."
+                ),
+                details={"bot_id": bot_id},
             )
-            return
 
         client = SocketModeClient(
             app_token=app_token,
