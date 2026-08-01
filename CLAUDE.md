@@ -216,6 +216,7 @@ Trigger map — what changed → which page:
 | `app/commands/**`, a new `make` target | `docs/commands.md` |
 | A new route, service or layering change | `docs/architecture.md` |
 | `.github/workflows/ai-review.yml`, `.github/codex/**` | `docs/code-review.md` |
+| `.github/workflows/branch-policy.yml`, the branch rulesets | `docs/branching.md` |
 | A capability, permission or setting that changes the first-run path | `docs/first-agent.md`, `docs/install.md` |
 
 **When updating a page:** keep its altitude — `docs/reference/*` is generated from
@@ -253,6 +254,7 @@ say so and move on. Run it yourself any time with
 | Adding a feature end to end | `docs/adding_features.md` |
 | Test layers and what belongs in each | `docs/testing.md` |
 | The automated pull request reviewer | `docs/code-review.md` |
+| Branches, rulesets and how a release reaches `main` | `docs/branching.md` |
 | Recurring patterns | `docs/patterns.md` |
 | Settings and the production checklist | `docs/configuration.md` |
 
@@ -267,6 +269,9 @@ explicit.
 
 - **Never commit on `main`.** Branch first (`feat/…`, `fix/…`). `dev` is the working
   branch; a pre-commit hook refuses `main` outright.
+- **`main` only ever receives `dev`.** A ruleset refuses a direct push, a force push
+  and a deletion; a required check refuses a pull request from any branch but `dev`.
+  Open your work against `dev` — `docs/branching.md` has the whole picture.
 - **Commit only when asked.**
 - **No AI attribution** — no `Co-Authored-By: Claude`, no "Generated with" trailer.
   Write commits and PR descriptions as Kacper authored them.

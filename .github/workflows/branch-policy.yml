@@ -1,0 +1,56 @@
+name: Branch policy
+
+# `main` is what a reader of this repository clones, and everything reaching it
+# has to have been through `dev` first - where CI, the E2E journey and the
+# automated reviewer have already run against it.
+#
+# A ruleset on `main` enforces the rest: no direct push, no force push, no
+# deletion, and CI green. But a ruleset cannot say *which branch a pull request
+# may come from*, so that half is this workflow, wired in as a required status
+# check. Failing here blocks the merge button.
+#
+# The escape hatch is deliberate and visible: an owner disables the ruleset,
+# merges, and turns it back on. There is no bypass actor, so a rushed merge is
+# a decision somebody makes on purpose rather than a habit.
+
+on:
+  pull_request:
+    branches: [main, master]
+    # `edited` matters as much as the rest: retargeting an existing pull request
+    # onto `main` fires only that, and without it a branch that opened against
+    # `dev` could be pointed at `main` after this check had already passed.
+    types: [opened, reopened, synchronize, edited]
+
+permissions: {}
+
+jobs:
+  source-is-dev:
+    name: Source branch is dev
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check where this pull request comes from
+        env:
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          set -euo pipefail
+
+          # A fork can have a branch called `dev` too, and it has not been
+          # through this repository's `dev` at all.
+          if [ "$HEAD_REPO" != "$GITHUB_REPOSITORY" ]; then
+            echo "::error::A pull request into $BASE_REF must come from this repository's dev branch."
+            echo "This one comes from the fork $HEAD_REPO. Open it against dev instead;"
+            echo "dev is what reaches $BASE_REF, and only after CI and a review have run there."
+            exit 1
+          fi
+
+          if [ "$HEAD_REF" != "dev" ]; then
+            echo "::error::A pull request into $BASE_REF must come from dev, not $HEAD_REF."
+            echo "Retarget this pull request at dev. Once it lands there and CI is green,"
+            echo "dev goes to $BASE_REF in one pull request carrying everything that is ready."
+            exit 1
+          fi
+
+          echo "$HEAD_REF -> $BASE_REF: allowed."
