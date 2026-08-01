@@ -157,6 +157,8 @@ async def persist_user_turn(
             user_msg = await conv_service.add_message(
                 UUID(current_conversation_id),
                 MessageCreate(role="user", content=user_message),
+                organization_id=organization_id,
+                user_id=user.id,
             )
             if file_ids:
                 try:
@@ -185,11 +187,17 @@ async def persist_assistant_turn(
     output: str,
     model_name: str | None,
     collected_tool_calls: list[dict[str, Any]],
+    organization_id: UUID,
     thinking: str | None = None,
     agent_id: UUID | None = None,
     agent_version_id: UUID | None = None,
 ) -> str | None:
     """Persist the assistant message and any tool calls. Returns the saved message id.
+
+    `organization_id` is the session's active organization, and it is checked
+    rather than trusted: `conversation_id` reaches here from the socket, where
+    it started as a client-supplied value. `persist_user_turn` refuses one
+    belonging to another organization, and this refuses to write into one.
 
     `agent_id` and `agent_version_id` are recorded per message rather than
     per conversation because the agent can be changed mid-thread, and because
@@ -202,7 +210,8 @@ async def persist_assistant_turn(
             conv_service = get_conversation_service(db)
             assistant_msg = await conv_service.add_message(
                 UUID(conversation_id),
-                MessageCreate(
+                organization_id=organization_id,
+                data=MessageCreate(
                     role="assistant",
                     content=output,
                     thinking=thinking,

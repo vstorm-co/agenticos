@@ -11,7 +11,7 @@ import json
 import logging
 from collections.abc import Sequence
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Final, Literal
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -36,6 +36,23 @@ from app.schemas.conversation import (
 from app.schemas.conversation_share import AdminConversationList, AdminConversationRead
 
 logger = logging.getLogger(__name__)
+
+UNSCOPED: Final = "unscoped"
+"""Read this conversation without a tenant predicate, on purpose.
+
+`organization_id` used to default to `None` on the methods below, and `None`
+meant unscoped. Two routes serving ordinary members simply omitted it, and any
+signed-in user could read and append to any conversation in the deployment.
+An omission cannot express intent; this can, and `rg UNSCOPED` lists every
+place that claims it.
+
+There is one caller, `/admin/conversations/{id}`, which exists to read across
+tenants and is gated on `CurrentAppAdmin`. Anything serving an ordinary member
+passes the active organization.
+"""
+
+type OrgScope = UUID | Literal["unscoped"]
+"""A tenant to check against, or an explicit refusal to check one."""
 
 
 def _safe_parse_args(args: Any) -> dict:
@@ -280,15 +297,13 @@ class ConversationService:
         self,
         conversation_id: UUID,
         *,
-        organization_id: UUID | None = None,
+        organization_id: OrgScope,
     ) -> Conversation:
-        """A transcript, tenant-checked when a tenant is given.
+        """A transcript, tenant-checked unless the caller passes `UNSCOPED`.
 
-        `organization_id=None` is **deliberately unscoped**, and there are two
-        callers: the app-admin transcript view, which exists to read across
-        tenants, and the WebSocket session, which resolved the organization when
-        the socket was opened. Grep for this default when auditing cross-tenant
-        reads; anything serving an ordinary member must pass the tenant.
+        Required rather than defaulted: the default was `None`, `None` meant
+        unscoped, and omitting an argument is indistinguishable from intending
+        to omit it. See `UNSCOPED`.
         """
         return await self._resolve(
             conversation_id, organization_id=organization_id, include_messages=True
@@ -298,12 +313,12 @@ class ConversationService:
         self,
         conversation_id: UUID,
         *,
-        organization_id: UUID | None,
+        organization_id: OrgScope,
         include_messages: bool = False,
         user_id: UUID | None = None,
     ) -> Conversation:
-        """Load one conversation, with the tenant check only when there is a tenant."""
-        if organization_id is not None:
+        """Load one conversation, skipping the tenant check only for `UNSCOPED`."""
+        if organization_id != UNSCOPED:
             return await self.get_conversation(
                 conversation_id,
                 organization_id=organization_id,
@@ -335,15 +350,23 @@ class ConversationService:
         *,
         skip: int = 0,
         limit: int = 100,
-        organization_id: UUID | None = None,
+        organization_id: OrgScope,
         include_tool_calls: bool = False,
         user_id: UUID | None = None,
     ) -> tuple[list[Message | MessageRead], int]:
-        """When user_id is provided, messages are enriched with user_rating and rating_count.
+        """One conversation's messages, for a reader who is allowed to see them.
 
-        `organization_id=None` is unscoped - see `get_conversation_with_messages`.
+        `organization_id` keeps this out of another tenant's transcript;
+        `user_id` keeps it out of a colleague's. Both are needed: the tenant
+        check alone still lets any member of the organization read any
+        conversation in it, which is not what `GET /conversations/{id}` does
+        one route above.
+
+        When `user_id` is given the messages are also enriched with that
+        reader's rating - a second job for one argument, and the reason its
+        authorizing half was missed for so long.
         """
-        await self._resolve(conversation_id, organization_id=organization_id)
+        await self._resolve(conversation_id, organization_id=organization_id, user_id=user_id)
         items = await conversation_repo.get_messages_by_conversation(
             self.db,
             conversation_id,
@@ -375,16 +398,28 @@ class ConversationService:
         conversation_id: UUID,
         data: MessageCreate,
         *,
-        organization_id: UUID | None = None,
+        organization_id: OrgScope,
+        user_id: UUID | None = None,
     ) -> Message:
-        """Append one message. `organization_id=None` is unscoped - see
-        `get_conversation_with_messages`.
+        """Append one message into a conversation in `organization_id`.
+
+        Required, and for the sharper reason: this writes. Unscoped, any
+        signed-in caller could append a turn - including one with
+        `role: "assistant"` - to any conversation in the deployment, and it
+        would render to its owner as the agent's own words. See `UNSCOPED`.
+
+        `user_id` narrows that to the owner or somebody the conversation was
+        shared with. It is optional because one caller has no user to check:
+        the assistant turn is written by the agent, after `persist_user_turn`
+        has already resolved the same conversation for the person who asked.
 
         An archived conversation is closed to new messages: archiving is the
         user saying "this thread is finished", and a message appended afterwards
         would silently reopen it.
         """
-        conversation = await self._resolve(conversation_id, organization_id=organization_id)
+        conversation = await self._resolve(
+            conversation_id, organization_id=organization_id, user_id=user_id
+        )
         if conversation.is_archived:
             raise BadRequestError(
                 message="Conversation is archived",

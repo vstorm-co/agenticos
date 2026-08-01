@@ -8,6 +8,7 @@ from app.schemas.conversation import (
     ConversationReadWithMessages,
 )
 from app.schemas.conversation_share import AdminConversationList
+from app.services.conversation import UNSCOPED
 
 router = APIRouter()
 
@@ -49,5 +50,9 @@ async def admin_get_conversation(
     service: ConversationSvc,
     _: CurrentAppAdmin,
 ) -> Any:
-    """Get any conversation with messages (admin read-only access)."""
-    return await service.get_conversation_with_messages(conversation_id)
+    """Get any conversation with messages (admin read-only access).
+
+    The one deliberate cross-tenant read: reading across organizations is what
+    this route is for, and `CurrentAppAdmin` is what makes that acceptable.
+    """
+    return await service.get_conversation_with_messages(conversation_id, organization_id=UNSCOPED)
