@@ -45,6 +45,16 @@ async def get_many(
     return {skill.id: skill for skill in result.scalars().all()}
 
 
+async def list_recent(db: AsyncSession, *, limit: int = 10) -> list[Skill]:
+    """The most recently edited skills, newest first.
+
+    Feeds the dashboard widget, which wants a short "what changed lately" list
+    rather than a page of a filtered listing.
+    """
+    result = await db.execute(select(Skill).order_by(Skill.updated_at.desc()).limit(limit))
+    return list(result.scalars().all())
+
+
 async def list_visible(
     db: AsyncSession,
     *,

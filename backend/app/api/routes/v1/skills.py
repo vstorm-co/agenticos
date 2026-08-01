@@ -15,9 +15,10 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 
 from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 
-from app.api.deps import Auth, SkillSvc, require
+from app.api.deps import Auth, DBSession, SkillSvc, require
 from app.core.permissions import Perm
 from app.db.models.skill import Skill
+from app.repositories import skill as skill_repo
 from app.repositories.skill import SkillSort
 from app.schemas.skill import (
     LibrarySkillList,
@@ -86,6 +87,25 @@ async def list_skills(
         total=total,
         categories=await service.list_categories(ctx),
         suggested_categories=list(SUGGESTED_CATEGORIES),
+    )
+
+
+@router.get("/recent", response_model=SkillList)
+async def list_recent_skills(
+    db: DBSession,
+    ctx: Auth,
+    limit: int = Query(10, ge=1, le=50),
+) -> Any:
+    """The dashboard's "recently edited" widget.
+
+    Declared above `/{skill_id}`, which parses its segment as a UUID and would
+    answer this path with a 422.
+    """
+    bundled_names = frozenset(entry.name for entry in skill_library.library())
+    items = await skill_repo.list_recent(db, limit=limit)
+    return SkillList(
+        items=[_summary(skill, bundled_names) for skill in items],
+        total=len(items),
     )
 
 
