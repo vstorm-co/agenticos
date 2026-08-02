@@ -57,7 +57,7 @@ function refreshAccessToken(): Promise<boolean> {
 }
 
 class ApiClient {
-  private async request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
+  private async send(endpoint: string, options: RequestOptions = {}): Promise<Response> {
     const { params, body, ...fetchOptions } = options;
 
     let url = `/api${endpoint}`;
@@ -110,6 +110,12 @@ class ApiClient {
       throw new ApiError(response.status, parseErrorMessage(errorData), errorData);
     }
 
+    return response;
+  }
+
+  private async request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
+    const response = await this.send(endpoint, options);
+
     // Handle empty responses
     const text = await response.text();
     if (!text) {
@@ -117,6 +123,24 @@ class ApiClient {
     }
 
     return JSON.parse(text);
+  }
+
+  /**
+   * The `Response` itself, for a body that is not JSON.
+   *
+   * A download and a preview want bytes, or text, or the `Content-Type` the
+   * server chose - none of which survive `JSON.parse`. They were written as
+   * bare `fetch` calls for that reason, and a bare `fetch` sends no
+   * `X-Organization-Id`: on an org-scoped endpoint the backend then falls back
+   * to the caller's personal organization, so a knowledge base belonging to the
+   * organization on screen was fetched from a different tenant entirely.
+   *
+   * Everything `request` does except the parse - the organization header, the
+   * one-shot 401 refresh, `ApiError` on a failure - so a caller reaching for
+   * bytes does not have to give the rest up.
+   */
+  raw(endpoint: string, options?: RequestOptions) {
+    return this.send(endpoint, { ...options, method: options?.method ?? "GET" });
   }
 
   get<T>(endpoint: string, options?: RequestOptions) {

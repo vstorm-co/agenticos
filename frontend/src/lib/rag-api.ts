@@ -2,7 +2,7 @@
  * RAG (Retrieval Augmented Generation) API client.
  */
 
-import { apiClient, ApiError } from "./api-client";
+import { apiClient } from "./api-client";
 import type { KBParsedContent } from "@/types";
 
 export interface RAGCollectionList {
@@ -111,8 +111,9 @@ export async function downloadKBDocument(
   doc: { id: string; filename: string },
   mode: "download" | "view" = "download",
 ): Promise<void> {
-  const res = await fetch(`/api/kb/${kbId}/documents/${doc.id}/download`);
-  if (!res.ok) throw new Error(`Download failed: ${res.status}`);
+  // `raw` rather than `fetch`: this is an org-scoped endpoint, and without the
+  // organization header the backend answers from the caller's personal one.
+  const res = await apiClient.raw(`/kb/${kbId}/documents/${doc.id}/download`);
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
   if (mode === "view") {
@@ -159,27 +160,25 @@ export async function listDocuments(collectionName: string): Promise<RAGDocument
   return apiClient.get<RAGDocumentList>(`/rag/collections/${collectionName}/documents`);
 }
 
-export async function ingestFile(
+/**
+ * Ingest one file into a collection.
+ *
+ * Through `apiClient.upload`, not a bare `fetch`. This endpoint is org-scoped,
+ * and a request without `X-Organization-Id` is not tenant-less: the backend
+ * falls back to the caller's personal organization. Uploading into a collection
+ * whose name exists in both wrote the file to the wrong tenant and reported
+ * success under the right one.
+ */
+export function ingestFile(
   collectionName: string,
   file: File,
   replace = false,
 ): Promise<RAGIngestResult> {
-  const formData = new FormData();
-  formData.append("file", file);
-
-  const url = `/api/rag/collections/${collectionName}/ingest${replace ? "?replace=true" : ""}`;
-  const response = await fetch(url, {
-    method: "POST",
-    body: formData,
-    credentials: "include",
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: "Upload failed" }));
-    throw new ApiError(response.status, error.detail || "Ingestion failed", error);
-  }
-
-  return response.json();
+  return apiClient.upload<RAGIngestResult>(
+    `/rag/collections/${collectionName}/ingest`,
+    file,
+    replace ? { params: { replace: "true" } } : undefined,
+  );
 }
 
 export interface SyncSourceCreate {

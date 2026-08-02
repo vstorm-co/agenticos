@@ -7,6 +7,7 @@ import { Download, ExternalLink, FileText, Loader2, ScanText, X } from "lucide-r
 import { MarkdownContent } from "@/components/chat/markdown-content";
 import { Button } from "@/components/ui/button";
 import { DialogOverlay, DialogPortal } from "@/components/ui/dialog";
+import { apiClient } from "@/lib/api-client";
 import { getParsedKBDocument } from "@/lib/rag-api";
 import { cn } from "@/lib/utils";
 import type { KBParsedContent } from "@/types";
@@ -166,8 +167,9 @@ export function FileViewer({ kbId, doc, open, onClose }: FileViewerProps) {
       setTextContent(null);
 
       try {
-        const res = await fetch(`/api/kb/${kbId}/documents/${currentDoc.id}/download`);
-        if (!res.ok) throw new Error(`Failed to load file (${res.status})`);
+        // `raw` rather than `fetch`: org-scoped endpoint, and without the
+        // organization header the backend answers from the personal one.
+        const res = await apiClient.raw(`/kb/${kbId}/documents/${currentDoc.id}/download`);
         if (cancelled) return;
 
         const ct = res.headers.get("content-type") || "application/octet-stream";
