@@ -93,12 +93,16 @@ jobs:
         run: |
           set -euo pipefail
           uv lock --upgrade 2>&1 | tee /tmp/upgrade.log
-          uv sync --dev
+          # Written before the sync, not after. `uv sync` can fail installing
+          # one of the very packages this is meant to name, and with `set -e`
+          # that would leave the issue saying the changes could not be listed
+          # when they are sitting in the log.
           {
             echo 'versions<<EOF'
             grep -E '^(Updated|Added|Removed) ' /tmp/upgrade.log | sort || echo '(nothing moved)'
             echo EOF
           } >> "$GITHUB_OUTPUT"
+          uv sync --dev
         working-directory: backend
 
       - name: What it resolved to
@@ -155,7 +159,10 @@ jobs:
               `Run: ${run}`,
               '',
               'The lockfile in the repository is untouched — this job throws its',
-              'upgrade away. Reproduce locally with `make deps-upgrade-all`.',
+              'upgrade away. Reproduce from `backend/`, which is all this job',
+              'touches: `uv lock --upgrade && uv sync --dev`, then `make test`.',
+              '(`make deps-upgrade-all` does the same and updates the frontend',
+              'too, which would add failures this job never saw.)',
             ].join('\n');
 
             if (open.data.length > 0) {
