@@ -1,6 +1,8 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useChanged } from "@/hooks/use-changed";
 import { ArrowUpRight, Copy, KeyRound, Mail, Shield, ShieldOff, Trash2, UserX } from "lucide-react";
 import { toast } from "sonner";
 
@@ -68,10 +70,22 @@ export function UserDetailDrawer({
     enabled: open && Boolean(user),
   });
 
-  if (!user) return null;
+  // The row the drawer is showing, kept for as long as the sheet is on screen.
+  //
+  // The page holds the selected user's *id* and derives the row from the list,
+  // so deleting one takes the row out from under an open drawer: `user` becomes
+  // null while Radix is still animating the sheet closed, and returning null
+  // here tore it out mid-slide. Holding the last one it was given lets the
+  // animation finish showing what was deleted, which is what the user asked to
+  // look at.
+  const [shown, setShown] = useState(user);
+  if (useChanged(user) && user) setShown(user);
+  const subject = user ?? shown;
+
+  if (!subject) return null;
 
   const handleImpersonate = async () => {
-    const token = await onImpersonate(user.id);
+    const token = await onImpersonate(subject.id);
     if (token) {
       try {
         await navigator.clipboard.writeText(token);
@@ -84,14 +98,14 @@ export function UserDetailDrawer({
 
   const handleCopyId = async () => {
     try {
-      await navigator.clipboard.writeText(user.id);
+      await navigator.clipboard.writeText(subject.id);
       toast.success("User ID copied");
     } catch {
       toast.error("Copy failed");
     }
   };
 
-  const initials = (user.full_name || user.email)
+  const initials = (subject.full_name || subject.email)
     .split(/[\s@]/)
     .filter(Boolean)
     .slice(0, 2)
@@ -106,26 +120,26 @@ export function UserDetailDrawer({
       >
         <header className="border-foreground/10 flex items-center gap-4 border-b px-6 py-5">
           <Avatar className="h-12 w-12 shrink-0">
-            <AvatarImage src={`/api/users/avatar/${user.id}`} alt={user.email} />
+            <AvatarImage src={`/api/users/avatar/${subject.id}`} alt={subject.email} />
             <AvatarFallback className="font-mono text-sm">{initials || "?"}</AvatarFallback>
           </Avatar>
           <div className="min-w-0 flex-1">
             <p className="text-foreground truncate text-base font-semibold">
-              {user.full_name || user.email.split("@")[0]}
+              {subject.full_name || subject.email.split("@")[0]}
             </p>
-            <p className="text-foreground/55 truncate text-xs">{user.email}</p>
+            <p className="text-foreground/55 truncate text-xs">{subject.email}</p>
           </div>
         </header>
 
         <div className="flex-1 scrollbar-thin overflow-y-auto px-6 py-5">
           <div className="flex flex-wrap gap-1.5">
-            <Badge variant={user.is_active ? "default" : "secondary"} className="text-[10px]">
-              {user.is_active ? "Active" : "Suspended"}
+            <Badge variant={subject.is_active ? "default" : "secondary"} className="text-[10px]">
+              {subject.is_active ? "Active" : "Suspended"}
             </Badge>
             {/* One privilege, so one badge. There used to be a second one
                 printing `users.role`, which said "user" for every account on
                 the deployment - including the ones that administered it. */}
-            {user.is_app_admin && (
+            {subject.is_app_admin && (
               <Badge className="bg-brand text-brand-foreground border-transparent text-[10px]">
                 <Shield className="mr-1 h-3 w-3" />
                 App admin
@@ -134,10 +148,10 @@ export function UserDetailDrawer({
           </div>
 
           <dl className="border-foreground/10 divide-foreground/10 mt-5 divide-y rounded-xl border">
-            <KV label="User ID" value={user.id} mono onCopy={handleCopyId} />
-            <KV label="Email" value={user.email} mono />
-            {user.full_name && <KV label="Display name" value={user.full_name} />}
-            <KV label="Joined" value={formatDateTime(user.created_at)} />
+            <KV label="User ID" value={subject.id} mono onCopy={handleCopyId} />
+            <KV label="Email" value={subject.email} mono />
+            {subject.full_name && <KV label="Display name" value={subject.full_name} />}
+            <KV label="Joined" value={formatDateTime(subject.created_at)} />
           </dl>
 
           <section className="mt-7">
@@ -189,10 +203,10 @@ export function UserDetailDrawer({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => onUpdate(user.id, { is_active: !user.is_active })}
+            onClick={() => onUpdate(subject.id, { is_active: !subject.is_active })}
             className="rounded-full"
           >
-            {user.is_active ? (
+            {subject.is_active ? (
               <>
                 <UserX className="mr-1.5 h-3.5 w-3.5" />
                 Suspend
@@ -207,10 +221,10 @@ export function UserDetailDrawer({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => onUpdate(user.id, { is_app_admin: !user.is_app_admin })}
+            onClick={() => onUpdate(subject.id, { is_app_admin: !subject.is_app_admin })}
             className="rounded-full"
           >
-            {user.is_app_admin ? (
+            {subject.is_app_admin ? (
               <>
                 <ShieldOff className="mr-1.5 h-3.5 w-3.5" />
                 Demote
@@ -240,7 +254,7 @@ export function UserDetailDrawer({
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Delete {user.email}?</AlertDialogTitle>
+                <AlertDialogTitle>Delete {subject.email}?</AlertDialogTitle>
                 <AlertDialogDescription>
                   Permanently removes the user, their conversations, and credit balance. This
                   can&apos;t be undone.
@@ -250,7 +264,7 @@ export function UserDetailDrawer({
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction
                   onClick={() => {
-                    onDelete(user.id);
+                    onDelete(subject.id);
                     onOpenChange(false);
                   }}
                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"

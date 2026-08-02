@@ -100,9 +100,13 @@ export function SyncSourceWizard({
 
   // Reopening starts from the beginning, during render - an effect would show
   // the last wizard's answers for a frame before clearing them.
-  const opened = useChanged(open);
-  const collectionMoved = useChanged(defaultCollection);
-  if ((opened || collectionMoved) && open) {
+  //
+  // Opening is the only thing that resets it. It used to watch
+  // `defaultCollection` as well, which is derived on the page it comes from -
+  // `chosen || collections[0]?.name` - so a background refetch that reordered
+  // the list moved it on its own and threw away a half-filled form. The
+  // collection the wizard was opened with is the one it is for.
+  if (useChanged(open) && open) {
     setMode("new");
     setStep("source");
     setForm({ ...EMPTY_FORM, collection_name: defaultCollection ?? null });
