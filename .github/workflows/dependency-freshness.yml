@@ -1,21 +1,23 @@
-# Are we still compatible with the newest FastAPI, Pydantic AI, Logfire and
-# genai-prices?
+# Are we still compatible with the newest release of everything?
 #
-# This platform tracks those four rather than pinning them: the subject matter
-# moves at their pace, and genai-prices is the price snapshot budgets are computed
-# from. Uncapping them in `pyproject.toml` is only half the job - the lockfile
-# still pins exact versions, so without something that tries the newest release we
-# would find out from a Dependabot PR nobody had time to read.
+# Nothing in `pyproject.toml` is capped, so the lockfile is the only thing
+# holding versions still. Without something that tries the newest of each, the
+# first anyone hears of a breaking change is a Dependabot pull request nobody
+# had time to read - or, for a transitive dependency Dependabot does not
+# propose at all, a failure in production.
 #
-# So: upgrade just those packages, run the whole suite, and open an issue when it
-# breaks. Nothing is committed - the lockfile change is thrown away with the
-# runner. Dependabot still opens the PR; this exists to make sure the PR is not
-# the first anyone hears of a breaking change.
+# So: upgrade the whole lock, run the whole suite, open an issue when it breaks.
+# Nothing is committed - the lockfile change is thrown away with the runner.
 #
-# It has caught one already: FastAPI 0.141 stopped flattening included routers
-# into `app.routes`, which silently reduced every route sweep in
-# `tests/api/test_platform_routes.py` to zero routes.
-name: Framework freshness
+# This used to upgrade five named packages, on the reasoning that the four
+# frameworks are the ones that move. They are, and they still fail loudest -
+# but five of fifty-seven direct dependencies is a canary that watches one
+# corner of the mine, and the transitive set it never touched is larger still.
+#
+# It has caught one already while narrow: FastAPI 0.141 stopped flattening
+# included routers into `app.routes`, which silently reduced every route sweep
+# in `tests/api/test_platform_routes.py` to zero routes.
+name: Dependency freshness
 
 on:
   schedule:
@@ -28,7 +30,7 @@ permissions:
 
 jobs:
   newest:
-    name: newest FastAPI / Pydantic AI / Logfire / genai-prices
+    name: the newest release of everything
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
@@ -82,20 +84,25 @@ jobs:
       - name: Set up Python
         run: uv python install 3.12
 
-      - name: Upgrade the four to their newest releases
+      - name: Upgrade everything to its newest release
         id: upgrade
+        # What moved, not what is installed. `uv lock --upgrade` reports each
+        # change as `Updated <name> vA -> vB`, which is the useful half of a
+        # three-hundred-package lockfile - a full `pip list` in the issue is a
+        # wall nobody reads, and the point is to name the version that broke us.
         run: |
-          uv lock --upgrade-package fastapi \
-                  --upgrade-package pydantic-ai-slim \
-                  --upgrade-package pydantic-ai-skills \
-                  --upgrade-package logfire \
-                  --upgrade-package genai-prices
-          uv sync --dev
+          set -euo pipefail
+          uv lock --upgrade 2>&1 | tee /tmp/upgrade.log
+          # Written before the sync, not after. `uv sync` can fail installing
+          # one of the very packages this is meant to name, and with `set -e`
+          # that would leave the issue saying the changes could not be listed
+          # when they are sitting in the log.
           {
             echo 'versions<<EOF'
-            uv pip list | grep -Ei '^(fastapi|pydantic-ai-slim|pydantic-ai-skills|pydantic-graph|logfire|genai-prices) '
+            grep -E '^(Updated|Added|Removed) ' /tmp/upgrade.log | sort || echo '(nothing moved)'
             echo EOF
           } >> "$GITHUB_OUTPUT"
+          uv sync --dev
         working-directory: backend
 
       - name: What it resolved to
@@ -133,26 +140,29 @@ jobs:
           script: |
             const versions = (process.env.VERSIONS ?? '').trim();
             const run = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-            const title = 'Framework freshness: the newest release breaks the suite';
+            const title = 'Dependency freshness: the newest release breaks the suite';
 
             const open = await github.rest.issues.listForRepo({
               owner: context.repo.owner,
               repo: context.repo.repo,
               state: 'open',
-              labels: 'framework-freshness',
+              labels: 'dependency-freshness',
             });
             const body = [
-              'The scheduled upgrade of FastAPI, Pydantic AI, Logfire and genai-prices',
-              'to their newest releases failed.',
+              'The scheduled upgrade of every dependency to its newest release',
+              'failed. What moved:',
               '',
               '```',
-              versions || '(resolution failed before the versions could be listed)',
+              versions || '(resolution failed before the changes could be listed)',
               '```',
               '',
               `Run: ${run}`,
               '',
               'The lockfile in the repository is untouched — this job throws its',
-              'upgrade away. Reproduce locally with `make deps-upgrade`.',
+              'upgrade away. Reproduce from `backend/`, which is all this job',
+              'touches: `uv lock --upgrade && uv sync --dev`, then `make test`.',
+              '(`make deps-upgrade-all` does the same and updates the frontend',
+              'too, which would add failures this job never saw.)',
             ].join('\n');
 
             if (open.data.length > 0) {
@@ -169,5 +179,5 @@ jobs:
               repo: context.repo.repo,
               title,
               body,
-              labels: ['framework-freshness', 'dependencies'],
+              labels: ['dependency-freshness', 'dependencies'],
             });
