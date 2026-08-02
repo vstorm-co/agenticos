@@ -1521,3 +1521,56 @@ class TestWorkspaceConfigurationsRefusedAtPublish:
             f"{REGISTRY_PATH}.credential_repo.get_profile", new=AsyncMock(return_value=profile)
         ):
             await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+
+class TestASharedWorkspaceIsAnswerableAfterwards:
+    """`session_scope="agent"` ships without a permission of its own.
+
+    So the audit entry is what makes the decision answerable: a member who finds
+    a file they never created can be told when the sharing started and who chose
+    it, rather than concluding something leaked.
+    """
+
+    @staticmethod
+    async def _publish(spec):
+        service = AgentRegistryService(_db())
+        agent = MagicMock(id=uuid.uuid4(), draft_spec=spec.model_dump(mode="json"))
+
+        with (
+            patch.object(service, "get", new=AsyncMock(return_value=agent)),
+            patch.object(service, "validate_spec", new=AsyncMock()),
+            patch.object(service, "_repoint_default_environment", new=AsyncMock()),
+            patch(f"{REGISTRY_PATH}.agent_repo.next_version_number", new=AsyncMock(return_value=3)),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.create_version",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch(f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock()),
+            patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()) as audited,
+        ):
+            await service.publish(_ctx(), agent.id)
+
+        return [call.kwargs["action"] for call in audited.await_args_list]
+
+    @pytest.mark.anyio
+    async def test_sharing_between_people_is_recorded(self):
+        actions = await self._publish(
+            _spec(capabilities=[{"id": "sandbox", "config": {"session_scope": "agent"}}])
+        )
+
+        assert "agent.workspace_shared" in actions
+
+    @pytest.mark.anyio
+    async def test_a_workspace_nobody_else_can_read_is_not(self):
+        """Recording every publish as sharing would make the entry meaningless."""
+        actions = await self._publish(
+            _spec(capabilities=[{"id": "sandbox", "config": {"session_scope": "conversation"}}])
+        )
+
+        assert "agent.workspace_shared" not in actions
+
+    @pytest.mark.anyio
+    async def test_an_agent_with_no_workspace_is_not(self):
+        actions = await self._publish(_spec())
+
+        assert "agent.workspace_shared" not in actions

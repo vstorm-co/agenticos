@@ -559,7 +559,37 @@ class AgentRegistryService:
             target_id=str(agent.id),
             details={"version": number, "note": note},
         )
+        await self._audit_shared_workspace(ctx, agent=agent, spec=spec, version=number)
         return version
+
+    async def _audit_shared_workspace(
+        self, ctx: AuthContext, *, agent: Agent, spec: AgentSpec, version: int
+    ) -> None:
+        """Record that this agent's workspace is now shared between people.
+
+        `session_scope="agent"` means any user of the agent reads what another
+        user wrote. It ships without a permission of its own, so the audit entry
+        is what makes the decision answerable afterwards: a member who opens a
+        chat and finds a file they never created can be told when the sharing
+        started and who chose it, instead of being left to conclude that
+        something leaked.
+        """
+        config = sandbox_config(spec)
+        if config is None or config.session_scope != "agent":
+            return
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="agent.workspace_shared",
+            target_type="agent",
+            target_id=str(agent.id),
+            details={
+                "version": version,
+                "session_scope": config.session_scope,
+                "backend": config.backend,
+            },
+        )
 
     async def _repoint_default_environment(
         self, ctx: AuthContext, *, agent: Agent, version: AgentVersion
