@@ -69,7 +69,9 @@ TRIGGERS: tuple[tuple[str, str], ...] = (
     ("backend/alembic/versions/", "docs/architecture.md"),
     (".github/workflows/ai-review.yml", "docs/code-review.md"),
     (".github/codex/", "docs/code-review.md"),
-    (".github/workflows/branch-policy.yml", "docs/branching.md"),
+    # The only in-repo half of the branch policy; the rest is a ruleset,
+    # which nothing here can watch.
+    (".pre-commit-config.yaml", "docs/branching.md"),
 )
 
 # A change under any of these means the docs did move, so nothing is reported.

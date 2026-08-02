@@ -1,13 +1,14 @@
 
 name: CI
 
-# `dev` is where work lands before it reaches `main`, so it has to run the same
-# checks - a branch CI ignores is a branch whose status badge means nothing.
+# Work reaches `main` by pull request from a short-lived branch, so the pull
+# request is where these run. The push trigger covers the merge itself - a
+# branch CI ignores is a branch whose status badge means nothing.
 on:
   push:
-    branches: [main, master, dev]
+    branches: [main, master]
   pull_request:
-    branches: [main, master, dev]
+    branches: [main, master]
 
 # Least privilege for every job. Nothing in this workflow writes anything back:
 # the docker job builds with `push: false`, and Codecov uses its own token. A
