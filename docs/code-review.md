@@ -12,10 +12,10 @@ It posts as a comment. It is **not** a required status check and it never
 requests changes — but that does not mean it cannot hold up a merge, and the
 distinction is worth being precise about.
 
-`main`'s ruleset requires review threads to be resolved. An inline finding _is_ a
-review thread, so a pull request carrying one will not merge until somebody marks
-that thread resolved — replying to it does not count. That is deliberate: a finding you can
-dismiss by clicking merge is a finding nobody reads. What the reviewer cannot do
+`main`'s ruleset requires review threads to be resolved. An inline finding *is* a
+review thread, so a pull request carrying one will not merge until somebody
+marks that thread resolved — replying to it does not count. That is deliberate:
+a finding you can dismiss by clicking merge is a finding nobody reads. What the reviewer cannot do
 is fail a check or request changes — the decision stays a human's, it just has
 to be made rather than skipped.
 
@@ -24,12 +24,12 @@ reviewer left one comment and the merge button went grey.)
 
 ## When it runs
 
-| Trigger                                            | Who                                | Note                |
-| -------------------------------------------------- | ---------------------------------- | ------------------- |
-| A pull request is opened, reopened or marked ready | automatic                          | Drafts are skipped  |
-| The `ai-review` label is added                     | anyone with write access           | On demand           |
-| A comment starting with `/review`                  | OWNER, MEMBER or COLLABORATOR only | Re-run after fixes  |
-| `workflow_dispatch` with a pull request number     | write access                       | Manual, for testing |
+| Trigger | Who | Note |
+|---|---|---|
+| A pull request is opened, reopened or marked ready | automatic | Drafts are skipped |
+| The `ai-review` label is added | anyone with write access | On demand |
+| A comment starting with `/review` | OWNER, MEMBER or COLLABORATOR only | Re-run after fixes |
+| `workflow_dispatch` with a pull request number | write access | Manual, for testing |
 
 Deliberately **not** on `synchronize`. Two developers, a dozen pushes per pull
 request: a review on every one of them is a review nobody reads. Ask for a
@@ -43,11 +43,11 @@ refuses it before a runner is allocated.
 `.github/workflows/ai-review.yml` splits the work by privilege, because the
 middle job runs a model over code the pull request controls.
 
-| Job       | Permissions            | Holds the key |
-| --------- | ---------------------- | ------------- |
-| `context` | `pull-requests: read`  | no            |
-| `review`  | `contents: read`       | **yes**       |
-| `publish` | `pull-requests: write` | no            |
+| Job | Permissions | Holds the key |
+|---|---|---|
+| `context` | `pull-requests: read` | no |
+| `review` | `contents: read` | **yes** |
+| `publish` | `pull-requests: write` | no |
 
 The job with `OPENAI_API_KEY` can write nothing back — no comment, no label, no
 ref — whatever the model is talked into. The job that writes has never seen the
@@ -73,7 +73,7 @@ git show "origin/${BASE_REF}:CLAUDE.md" > "$REVIEW_DIR/standard/CLAUDE.md"
 The same goes for the prompt itself and the output schema. The standard is what
 is already merged. **The pull request is reviewed; it does not review.**
 
-A consequence worth knowing: a pull request that _changes_ the prompt is
+A consequence worth knowing: a pull request that *changes* the prompt is
 reviewed by the old one, and a base branch with no prompt at all produces a
 comment saying so rather than a review.
 
@@ -97,7 +97,7 @@ itself in the summary comment.
 
 - **Diff size.** Over `AI_REVIEW_MAX_CHANGED_LINES` the pass would be truncated
   and expensive, so it posts "split this pull request" instead. See
-  _Configuration_ below; it is a repository variable, not a constant in the
+  *Configuration* below; it is a repository variable, not a constant in the
   workflow.
 - **A misconfigured reviewer.** A missing or nonsensical variable posts what is
   wrong with it and reads nothing.
@@ -143,11 +143,11 @@ gh variable set AI_REVIEW_EFFORT --repo vstorm-co/agenticos --body high
 gh variable set AI_REVIEW_MAX_CHANGED_LINES --repo vstorm-co/agenticos --body 2000
 ```
 
-| Variable                      |                                                                             |
-| ----------------------------- | --------------------------------------------------------------------------- |
-| `AI_REVIEW_MODEL`             | The model Codex runs. Must be a slug the installed CLI carries metadata for |
-| `AI_REVIEW_EFFORT`            | Reasoning effort: `low`, `medium`, `high`, `xhigh`                          |
-| `AI_REVIEW_MAX_CHANGED_LINES` | Above this, the pass is declined with an explanation                        |
+| Variable | |
+|---|---|
+| `AI_REVIEW_MODEL` | The model Codex runs. Must be a slug the installed CLI carries metadata for |
+| `AI_REVIEW_EFFORT` | Reasoning effort: `low`, `medium`, `high`, `xhigh` |
+| `AI_REVIEW_MAX_CHANGED_LINES` | Above this, the pass is declined with an explanation |
 
 They are variables rather than constants in the file because bumping a model
 should not be a commit, and a value with no default is a value somebody has to
