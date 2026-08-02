@@ -84,7 +84,7 @@ jobs:
     steps:
       - name: Resolve the pull request and refuse a fork head
         id: resolve
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number || inputs.pr_number }}
         with:
@@ -137,7 +137,7 @@ jobs:
 
       - name: Upload the pull request title and body
         if: steps.resolve.outputs.verdict == 'review'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ai-review-pr-meta
           path: pr-meta/
@@ -216,7 +216,7 @@ jobs:
 
       - name: Checkout the head commit
         if: steps.config.outputs.status == 'ok'
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.context.outputs.head_sha }}
           # The base branch has to be present locally to extract the standard
@@ -227,7 +227,7 @@ jobs:
 
       - name: Download the pull request title and body
         if: steps.config.outputs.status == 'ok'
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: ai-review-pr-meta
           path: ${{ runner.temp }}/ai-review/pr
@@ -435,7 +435,7 @@ jobs:
 
       - name: Upload the findings
         if: always() && steps.result.outcome == 'success'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ai-review-findings
           path: ${{ runner.temp }}/ai-review/findings.json
@@ -451,13 +451,13 @@ jobs:
       pull-requests: write
     steps:
       - name: Download the findings
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: ai-review-findings
           path: findings
 
       - name: Post the findings
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           PR_NUMBER: ${{ needs.context.outputs.pr_number }}
           HEAD_SHA: ${{ needs.context.outputs.head_sha }}
