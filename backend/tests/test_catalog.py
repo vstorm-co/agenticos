@@ -52,11 +52,40 @@ class TestCustomIcons:
         (icons_dir / "acme.svg").write_text("<svg/>")
         assert catalog.custom_icon("acme") == icons_dir / "acme.svg"
 
+    def test_picks_the_asked_for_mark_out_of_several(self, icons_dir: Path):
+        """The lookup walks the directory rather than building a path, so it has
+        to pass over the marks it was not asked for."""
+        for stem in ("acme", "beta", "gamma"):
+            (icons_dir / f"{stem}.svg").write_text(f"<svg>{stem}</svg>")
+
+        assert catalog.custom_icon("gamma") == icons_dir / "gamma.svg"
+
     def test_a_missing_icon_resolves_to_none(self, icons_dir: Path):
         assert catalog.custom_icon("ghost") is None
 
     @pytest.mark.parametrize("name", ["../secrets", "a/b", "acme.svg", "ACME", "", "-x"])
     def test_a_name_outside_the_slug_grammar_is_refused(self, icons_dir: Path, name: str):
-        """The regex is the whole traversal defence: no dot and no slash means
+        """The first half of the traversal defence: no dot and no slash means
         no way to name a path outside the icons directory."""
         assert catalog.custom_icon(name) is None
+
+    def test_a_symlink_out_of_the_directory_is_refused(self, icons_dir: Path, tmp_path: Path):
+        """The half the grammar cannot cover.
+
+        `brand.svg` is a perfectly legal name. If it is a link to something
+        outside the icons directory, every rule above is satisfied and the
+        route would serve bytes the operator never put there - which is the one
+        way this endpoint could read a file it has no business reading. An
+        icons directory is somewhere files get dropped, so a link landing in it
+        is not far-fetched.
+        """
+        outside = tmp_path.parent / "not-an-icon.svg"
+        outside.write_text("<svg>secrets</svg>")
+        (icons_dir / "brand.svg").symlink_to(outside)
+
+        assert catalog.custom_icon("brand") is None
+
+    def test_a_real_file_beside_a_refused_link_still_resolves(self, icons_dir: Path):
+        """The refusal has to be about the link, not about the directory."""
+        (icons_dir / "acme.svg").write_text("<svg/>")
+        assert catalog.custom_icon("acme") is not None

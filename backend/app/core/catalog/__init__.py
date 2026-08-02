@@ -44,8 +44,9 @@ def load[T](filename: str, adapter: TypeAdapter[T]) -> T:
     return adapter.validate_json((_DIR / filename).read_bytes())
 
 
-# Also the whole traversal defence: a name that cannot contain a dot or a slash
-# cannot name a path outside ICONS_DIR.
+# The first half of the traversal defence: a name that cannot contain a dot or
+# a slash cannot name a path outside ICONS_DIR. The second half is the
+# containment check in `custom_icon` - see there for why one is not enough.
 _ICON_NAME = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 
 
@@ -63,5 +64,23 @@ def custom_icon(name: str) -> Path | None:
     """
     if not _ICON_NAME.fullmatch(name):
         return None
-    path = ICONS_DIR / f"{name}.svg"
-    return path if path.is_file() else None
+
+    # Matched against the directory listing rather than concatenated onto it.
+    #
+    # `ICONS_DIR / f"{name}.svg"` would be safe - the grammar above admits no
+    # dot and no slash - but it builds a path *out of* a request parameter, and
+    # nothing downstream can tell that by looking. Selecting from what is
+    # already there means the path this returns never derives from user input
+    # at all, which is a property a reader can check in one line instead of
+    # reasoning about a regular expression.
+    icons_dir = ICONS_DIR.resolve()
+    for candidate in icons_dir.glob("*.svg"):
+        if candidate.stem != name:
+            continue
+        # An icons directory is a place an operator drops files into, and
+        # `resolve()` follows symlinks: a link named `brand.svg` pointing at
+        # `/etc/passwd` passes every rule above and is the one way bytes from
+        # outside this directory could be served.
+        resolved = candidate.resolve()
+        return resolved if resolved.is_relative_to(icons_dir) else None
+    return None
