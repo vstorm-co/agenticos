@@ -19,6 +19,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.2] — 2026-08-02
+
+A dependency patch, and the first release cut through the path 0.0.1 built.
+
+### Changed
+
+- `tavily-python` 0.7.26 → 0.7.27, which is what the `web_research` capability
+  searches with.
+
 ## [0.0.1] — 2026-08-02
 
 First tagged version. The platform is usable end to end — build an agent in the
@@ -192,5 +201,6 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.1...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.2...HEAD
+[0.0.2]: https://github.com/vstorm-co/agenticos/compare/v0.0.1...v0.0.2
 [0.0.1]: https://github.com/vstorm-co/agenticos/releases/tag/v0.0.1
