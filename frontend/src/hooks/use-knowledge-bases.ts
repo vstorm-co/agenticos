@@ -28,6 +28,7 @@ import type {
 
 export function useKnowledgeBases() {
   const queryClient = useQueryClient();
+  const listOrgId = useOrgStore((state) => state.activeOrgId);
 
   // React Query owns the list: cached across navigations, deduped, no refetch
   // storms. Mutations patch the cache directly so the UI stays instant.
@@ -36,9 +37,20 @@ export function useKnowledgeBases() {
     queryFn: async () => (await apiClient.get<KnowledgeBaseList>("/kb")).items,
   });
 
+  /**
+   * Patch the cached list, unless the organization changed while we were away.
+   *
+   * `qk.kb.list()` names no tenant, and every caller writes after an await, so
+   * a creation started in one organization landed in the list the next one is
+   * reading - `setQueryData` recreates the key the switch had just dropped. The
+   * guard is here rather than at the three call sites because there is no
+   * fourth caller that should be allowed to forget it.
+   */
   const writeCache = useCallback(
-    (updater: (prev: KnowledgeBase[]) => KnowledgeBase[]) =>
-      queryClient.setQueryData<KnowledgeBase[]>(qk.kb.list(), (prev = []) => updater(prev)),
+    (updater: (prev: KnowledgeBase[]) => KnowledgeBase[], startedIn: string | null) => {
+      if (useOrgStore.getState().activeOrgId !== startedIn) return;
+      queryClient.setQueryData<KnowledgeBase[]>(qk.kb.list(), (prev = []) => updater(prev));
+    },
     [queryClient],
   );
 
@@ -57,19 +69,21 @@ export function useKnowledgeBases() {
    */
   const createKB = useCallback(
     async (input: CreateKnowledgeBaseInput): Promise<KnowledgeBase> => {
+      const startedIn = listOrgId;
       const kb = await apiClient.post<KnowledgeBase>("/kb", input);
-      writeCache((prev) => [kb, ...prev]);
+      writeCache((prev) => [kb, ...prev], startedIn);
       toast.success("Knowledge base created");
       return kb;
     },
-    [writeCache],
+    [writeCache, listOrgId],
   );
 
   const patchKB = useCallback(
     async (id: string, patch: Partial<Pick<KnowledgeBase, "name" | "description">>) => {
+      const startedIn = listOrgId;
       try {
         const updated = await apiClient.patch<KnowledgeBase>(`/kb/${id}`, patch);
-        writeCache((prev) => prev.map((k) => (k.id === id ? updated : k)));
+        writeCache((prev) => prev.map((k) => (k.id === id ? updated : k)), startedIn);
         toast.success("Knowledge base updated");
         return updated;
       } catch {
@@ -77,20 +91,21 @@ export function useKnowledgeBases() {
         return null;
       }
     },
-    [writeCache],
+    [writeCache, listOrgId],
   );
 
   const deleteKB = useCallback(
     async (id: string) => {
+      const startedIn = listOrgId;
       try {
         await apiClient.delete(`/kb/${id}`);
-        writeCache((prev) => prev.filter((k) => k.id !== id));
+        writeCache((prev) => prev.filter((k) => k.id !== id), startedIn);
         toast.success("Knowledge base deleted");
       } catch {
         toast.error("Failed to delete knowledge base");
       }
     },
-    [writeCache],
+    [writeCache, listOrgId],
   );
 
   return { kbs, isLoading, fetchKBs, createKB, patchKB, deleteKB };

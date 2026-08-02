@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { refusesOrganization, useActiveOrganizationRecovery } from "./use-active-organization";
 import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
-import { useOrgStore } from "@/stores";
+import { useAgentSelectionStore, useConversationStore, useOrgStore } from "@/stores";
 
 vi.mock("@/lib/api-client", async () => {
   const { ApiError } = await import("@/lib/api-error");
@@ -120,6 +120,25 @@ describe("useActiveOrganizationRecovery", () => {
     // Removed, not marked stale: an invalidated query still serves its rows
     // while the refetch is in flight, which is the previous tenant on screen.
     await waitFor(() => expect(client.getQueryData(["agents", "list", false])).toBeUndefined());
+  });
+
+  it("empties the stores the query cache cannot reach", async () => {
+    // A conversation, a chat transcript, an open preview and the sources
+    // behind the last answer all belong to a tenant and none of them live in
+    // the query cache - they are module-scope stores, so `removeQueries` goes
+    // straight past them and organization A's chat stayed on screen under B.
+    answerWith([{ id: PERSONAL, is_personal: true }], { permissions: [] });
+    useOrgStore.setState({ activeOrgId: PERSONAL });
+    const { rerender } = renderHook(() => useActiveOrganizationRecovery(), { wrapper });
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/orgs"));
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useAgentSelectionStore.getState().select("agent-1");
+
+    useOrgStore.setState({ activeOrgId: STALE });
+    rerender();
+
+    expect(useConversationStore.getState().currentConversationId).toBeNull();
+    expect(useAgentSelectionStore.getState().selectedAgentId).toBeNull();
   });
 
   it("leaves a mounted page asking again rather than showing nothing", async () => {

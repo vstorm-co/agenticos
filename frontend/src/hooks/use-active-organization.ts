@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { usePermissions } from "@/hooks/use-permissions";
 import { preferredOrg, useOrganizationList } from "@/hooks/use-organizations";
 import { ApiError } from "@/lib/api-client";
-import { useOrgStore } from "@/stores";
+import { resetTenantState, useOrgStore } from "@/stores";
 
 /**
  * Whether `failure` is the server saying it will not serve `activeOrgId`.
@@ -33,37 +33,6 @@ export function refusesOrganization(failure: unknown, activeOrgId: string | null
   return failure.details?.org_id === activeOrgId;
 }
 
-/**
- * Detect an active organization the server will not serve, and move off it.
- *
- * The persisted selection outlives the thing it names. An organization gets
- * deleted, or - the case that will keep happening in a multi-tenant product -
- * somebody is removed from one while they are signed in, and the id in
- * `localStorage` goes on being sent as `X-Organization-Id` on every request.
- * The server is right to refuse it. What was wrong was the consequence:
- * `usePermissions().can()` answers false whenever permissions are unavailable,
- * which is correct for the second it takes to load them and indefensible when
- * they never arrive - the sidebar quietly lost Agents, Skills, Activity,
- * Knowledge bases, RAG search, providers and MCP servers, with no error and no
- * route back short of knowing to open the organization switcher.
- *
- * Recovery belongs here rather than in the store, the API client or
- * `usePermissions`:
- *
- * - the **store** cannot fetch, and choosing a replacement means knowing which
- *   organizations the caller actually belongs to;
- * - the **API client** sees every refusal, which sounds like the right vantage
- *   point until you need to tell a missing agent's 404 from a missing
- *   organization's. It also runs outside React, with no query cache to
- *   invalidate and no orgs list to fall back to;
- * - **`usePermissions`** is where the refusal is visible, but it is rendered by
- *   a dozen components at once - putting the recovery there fires it a dozen
- *   times for one failure.
- *
- * So: one hook, mounted once, by one component. It reads the permissions query
- * that every page already runs, and does nothing at all until that query is
- * refused for this organization specifically.
- */
 /**
  * Drop everything read as the previous organization when the tenant changes.
  *
@@ -116,10 +85,48 @@ function useTenantCacheReset(activeOrgId: string | null): void {
     // The first tenant this page identifies is the one its cache already
     // belongs to; there is nothing to drop, and dropping it would cancel the
     // queries the page started before the organization list came back.
-    if (previous !== null && previous !== tenant) queryClient.removeQueries();
+    if (previous !== null && previous !== tenant) {
+      queryClient.removeQueries();
+      // The cache is not all of it. Conversations, the chat transcript, the
+      // open preview and the sources behind the last answer are module-scope
+      // stores, which `removeQueries` cannot reach - and every one of them
+      // belongs to the organization just left.
+      resetTenantState();
+    }
   }, [tenant, queryClient]);
 }
 
+/**
+ * Detect an active organization the server will not serve, and move off it.
+ *
+ * The persisted selection outlives the thing it names. An organization gets
+ * deleted, or - the case that will keep happening in a multi-tenant product -
+ * somebody is removed from one while they are signed in, and the id in
+ * `localStorage` goes on being sent as `X-Organization-Id` on every request.
+ * The server is right to refuse it. What was wrong was the consequence:
+ * `usePermissions().can()` answers false whenever permissions are unavailable,
+ * which is correct for the second it takes to load them and indefensible when
+ * they never arrive - the sidebar quietly lost Agents, Skills, Activity,
+ * Knowledge bases, RAG search, providers and MCP servers, with no error and no
+ * route back short of knowing to open the organization switcher.
+ *
+ * Recovery belongs here rather than in the store, the API client or
+ * `usePermissions`:
+ *
+ * - the **store** cannot fetch, and choosing a replacement means knowing which
+ *   organizations the caller actually belongs to;
+ * - the **API client** sees every refusal, which sounds like the right vantage
+ *   point until you need to tell a missing agent's 404 from a missing
+ *   organization's. It also runs outside React, with no query cache to
+ *   invalidate and no orgs list to fall back to;
+ * - **`usePermissions`** is where the refusal is visible, but it is rendered by
+ *   a dozen components at once - putting the recovery there fires it a dozen
+ *   times for one failure.
+ *
+ * So: one hook, mounted once, by one component. It reads the permissions query
+ * that every page already runs, and does nothing at all until that query is
+ * refused for this organization specifically.
+ */
 export function useActiveOrganizationRecovery(): void {
   const queryClient = useQueryClient();
   const activeOrgId = useOrgStore((state) => state.activeOrgId);

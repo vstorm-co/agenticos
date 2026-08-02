@@ -18,8 +18,10 @@ vi.mock("@/lib/api-client", async () => {
 });
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
+/** Hoisted so a test can read the cache directly, which is where the leak is. */
+let client: QueryClient;
+
 function wrapper({ children }: { children: ReactNode }) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 
@@ -115,6 +117,7 @@ async function sent(index = 0) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   // The hook reads it, and a test that leaves one behind hands the next one an
   // organization it never chose - which, for the two switch tests below, is the
   // difference between asserting something and asserting nothing.
@@ -139,6 +142,37 @@ describe("the list of knowledge bases", () => {
 
     await waitFor(() => expect(result.current.kbs).toHaveLength(1));
     expect(apiClient.get).toHaveBeenCalledWith("/kb");
+  });
+
+  it("keeps a collection created in one organization out of another's list", async () => {
+    // `qk.kb.list()` names no tenant, and `setQueryData` recreates a key the
+    // switch had just dropped - so a creation that finished late put the
+    // previous organization's collection into the list the new one is reading.
+    useOrgStore.setState({ activeOrgId: "org-a" });
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    const { result } = renderHook(() => useKnowledgeBases(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    let answer: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.post).mockImplementation(
+      () => new Promise((resolve) => (answer = resolve)),
+    );
+    let creating: Promise<unknown>;
+    await act(async () => {
+      creating = result.current.createKB({ name: "Org A's handbook", scope: "org" });
+      await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+    });
+
+    await act(async () => {
+      useOrgStore.setState({ activeOrgId: "org-b" });
+      answer({ id: "kb-private", name: "Org A's handbook" });
+      await creating!;
+    });
+
+    // Read from the cache, not from the hook: the leak is a key being written,
+    // and a render that has not flushed yet would report it absent either way.
+    const cached = client.getQueryData<Array<{ id: string }>>(["kb", "list"]) ?? [];
+    expect(cached.map((kb) => kb.id)).not.toContain("kb-private");
   });
 
   it("lets a refused creation through, because the dialog has fields to blame", async () => {
