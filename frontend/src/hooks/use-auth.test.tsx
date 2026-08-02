@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
@@ -7,6 +8,7 @@ import { apiClient, ApiError } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
 import { useAuthStore } from "@/stores";
 import type { User } from "@/types";
+import type { ReactNode } from "react";
 
 vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
@@ -16,6 +18,18 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const push = vi.hoisted(() => vi.fn());
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+
+/**
+ * A client per test, reachable from the test body.
+ *
+ * `useAuth` empties it as a session begins and as one ends, so the assertions
+ * about that need to hold the same instance the hook was handed.
+ */
+let client: QueryClient;
+
+function wrapper({ children }: { children: ReactNode }) {
+  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+}
 
 function user(overrides: Partial<User> = {}): User {
   return {
@@ -38,9 +52,10 @@ function user(overrides: Partial<User> = {}): User {
  * `ApiError` class than the ones asserted on here.
  */
 beforeEach(async () => {
+  client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   vi.mocked(apiClient.get).mockResolvedValue(user());
   vi.mocked(apiClient.post).mockResolvedValue({});
-  const { result, unmount } = renderHook(() => useAuth());
+  const { result, unmount } = renderHook(() => useAuth(), { wrapper });
   await act(async () => {
     await result.current.logout();
   });
@@ -62,7 +77,7 @@ afterEach(() => {
 
 describe("checking the session on load", () => {
   it("reads /auth/me and adopts the user", async () => {
-    const { result } = renderHook(() => useAuth());
+    const { result } = renderHook(() => useAuth(), { wrapper });
 
     await waitFor(() => expect(result.current.isAuthenticated).toBe(true));
     expect(apiClient.get).toHaveBeenCalledWith("/auth/me");
@@ -73,14 +88,14 @@ describe("checking the session on load", () => {
     // what the websocket authenticates with - but it is not a field of the user.
     vi.mocked(apiClient.get).mockResolvedValue({ ...user(), access_token: "t-1" });
 
-    const { result } = renderHook(() => useAuth());
+    const { result } = renderHook(() => useAuth(), { wrapper });
 
     await waitFor(() => expect(useAuthStore.getState().accessToken).toBe("t-1"));
     expect(result.current.user).not.toHaveProperty("access_token");
   });
 
   it("has no token when the session came back without one", async () => {
-    renderHook(() => useAuth());
+    renderHook(() => useAuth(), { wrapper });
 
     await waitFor(() => expect(useAuthStore.getState().user).not.toBeNull());
     expect(useAuthStore.getState().accessToken).toBeNull();
@@ -89,10 +104,10 @@ describe("checking the session on load", () => {
   it("asks once however many components mount the hook", async () => {
     // Six panels on one page used to mean six `/auth/me` requests.
 
-    renderHook(() => useAuth());
-    renderHook(() => useAuth());
+    renderHook(() => useAuth(), { wrapper });
+    renderHook(() => useAuth(), { wrapper });
     await waitFor(() => expect(useAuthStore.getState().isAuthenticated).toBe(true));
-    renderHook(() => useAuth());
+    renderHook(() => useAuth(), { wrapper });
 
     expect(apiClient.get).toHaveBeenCalledTimes(1);
   });
@@ -101,7 +116,7 @@ describe("checking the session on load", () => {
     useAuthStore.setState({ user: user(), isAuthenticated: true, accessToken: "stale" });
     vi.mocked(apiClient.get).mockRejectedValue(new ApiError(401, "Token expired"));
 
-    renderHook(() => useAuth());
+    renderHook(() => useAuth(), { wrapper });
 
     await waitFor(() => expect(useAuthStore.getState().isAuthenticated).toBe(false));
     expect(useAuthStore.getState().accessToken).toBeNull();
@@ -109,13 +124,33 @@ describe("checking the session on load", () => {
 });
 
 describe("signing in", () => {
+  it("starts the session on an empty cache", async () => {
+    // The query cache holds whoever was here last: their conversations, their
+    // agents, the device names and IP addresses on their profile. A session
+    // that ended without a logout - an expired cookie, a failed refresh - would
+    // otherwise leave all of it to be served to the account that signs in next.
+    client.setQueryData(["sessions", "list", 0], { items: [{ ip_address: "10.0.0.1" }] });
+    vi.mocked(apiClient.post).mockResolvedValue({
+      user: user({ id: "u-2" }),
+      access_token: "t-2",
+      message: "ok",
+    });
+    const { result } = renderHook(() => useAuth(), { wrapper });
+
+    await act(async () => {
+      await result.current.login({ email: "b@example.com", password: "pw" });
+    });
+
+    expect(client.getQueryData(["sessions", "list", 0])).toBeUndefined();
+  });
+
   it("adopts the user and the token the login answered with", async () => {
     vi.mocked(apiClient.post).mockResolvedValue({
       user: user(),
       access_token: "t-1",
       message: "ok",
     });
-    const { result } = renderHook(() => useAuth());
+    const { result } = renderHook(() => useAuth(), { wrapper });
 
     await act(async () => {
       await result.current.login({ email: "kacper@example.com", password: "secret" });
@@ -134,7 +169,7 @@ describe("signing in", () => {
       access_token: "t-1",
       message: "ok",
     });
-    const { result } = renderHook(() => useAuth());
+    const { result } = renderHook(() => useAuth(), { wrapper });
 
     await act(async () => {
       await result.current.login({ email: "a@example.com", password: "x" });
@@ -152,13 +187,13 @@ describe("signing in", () => {
     // The login response carries the user and the token; a follow-up `/auth/me`
     // would be a second round trip for what is already in hand.
     vi.mocked(apiClient.post).mockResolvedValue({ user: user(), access_token: "t", message: "ok" });
-    const { result } = renderHook(() => useAuth());
+    const { result } = renderHook(() => useAuth(), { wrapper });
     await act(async () => {
       await result.current.login({ email: "a@example.com", password: "x" });
     });
     vi.mocked(apiClient.get).mockClear();
 
-    renderHook(() => useAuth());
+    renderHook(() => useAuth(), { wrapper });
 
     expect(apiClient.get).not.toHaveBeenCalled();
   });
@@ -167,7 +202,7 @@ describe("signing in", () => {
     // The form puts "Incorrect email or password" beside the fields; swallowing it
     // would leave a spinner and no explanation.
     vi.mocked(apiClient.post).mockRejectedValue(new ApiError(401, "Incorrect email or password"));
-    const { result } = renderHook(() => useAuth());
+    const { result } = renderHook(() => useAuth(), { wrapper });
 
     await expect(
       result.current.login({ email: "a@example.com", password: "wrong" }),
@@ -178,7 +213,7 @@ describe("signing in", () => {
   it("registers without signing anybody in", async () => {
     // Registration may need a verification step, so it does not touch the session.
     vi.mocked(apiClient.post).mockResolvedValue({ id: "u-2", email: "new@example.com" });
-    const { result } = renderHook(() => useAuth());
+    const { result } = renderHook(() => useAuth(), { wrapper });
 
     const registered = await result.current.register({
       email: "new@example.com",
@@ -198,7 +233,7 @@ describe("signing in", () => {
 
 describe("signing out", () => {
   it("clears the session, says so, and goes to the login page", async () => {
-    const { result } = renderHook(() => useAuth());
+    const { result } = renderHook(() => useAuth(), { wrapper });
     await waitFor(() => expect(useAuthStore.getState().isAuthenticated).toBe(true));
 
     await act(async () => {
@@ -211,11 +246,23 @@ describe("signing out", () => {
     expect(push).toHaveBeenCalledWith(ROUTES.LOGIN);
   });
 
+  it("leaves nothing of the session in the cache", async () => {
+    client.setQueryData(["sessions", "list", 0], { items: [{ ip_address: "10.0.0.1" }] });
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(useAuthStore.getState().isAuthenticated).toBe(true));
+
+    await act(async () => {
+      await result.current.logout();
+    });
+
+    expect(client.getQueryData(["sessions", "list", 0])).toBeUndefined();
+  });
+
   it("clears the session even when the server could not be told", async () => {
     // A logout that fails on the network still has to end the session locally;
     // leaving somebody signed in on a shared machine is the worse outcome.
     vi.mocked(apiClient.post).mockRejectedValue(new Error("offline"));
-    const { result } = renderHook(() => useAuth());
+    const { result } = renderHook(() => useAuth(), { wrapper });
     await waitFor(() => expect(useAuthStore.getState().isAuthenticated).toBe(true));
 
     await act(async () => {
@@ -229,13 +276,13 @@ describe("signing out", () => {
   it("checks the session again on the next mount", async () => {
     // The once-per-session guard has to be released, or signing in as somebody
     // else renders the previous user until a reload.
-    const { result } = renderHook(() => useAuth());
+    const { result } = renderHook(() => useAuth(), { wrapper });
     await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(1));
 
     await act(async () => {
       await result.current.logout();
     });
-    renderHook(() => useAuth());
+    renderHook(() => useAuth(), { wrapper });
 
     await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(2));
   });
@@ -244,7 +291,7 @@ describe("signing out", () => {
 describe("refreshing the token by hand", () => {
   it("mints a token and re-reads who it belongs to", async () => {
     vi.mocked(apiClient.post).mockResolvedValue({ access_token: "fresh", message: "ok" });
-    const { result } = renderHook(() => useAuth());
+    const { result } = renderHook(() => useAuth(), { wrapper });
 
     let refreshed: boolean | undefined;
     await act(async () => {
@@ -260,7 +307,7 @@ describe("refreshing the token by hand", () => {
     // A 401 here means the refresh cookie is gone; staying on the page would
     // 401 every request behind it.
     vi.mocked(apiClient.post).mockRejectedValue(new ApiError(401, "No refresh cookie"));
-    const { result } = renderHook(() => useAuth());
+    const { result } = renderHook(() => useAuth(), { wrapper });
     await waitFor(() => expect(useAuthStore.getState().isAuthenticated).toBe(true));
 
     let refreshed: boolean | undefined;
@@ -276,7 +323,7 @@ describe("refreshing the token by hand", () => {
   it("keeps the session for a failure that is not a refusal", async () => {
     // A 502 from the proxy is not a reason to sign somebody out.
     vi.mocked(apiClient.post).mockRejectedValue(new ApiError(502, "Bad gateway"));
-    const { result } = renderHook(() => useAuth());
+    const { result } = renderHook(() => useAuth(), { wrapper });
     await waitFor(() => expect(useAuthStore.getState().isAuthenticated).toBe(true));
 
     let refreshed: boolean | undefined;
@@ -296,8 +343,8 @@ describe("keeping the in-memory token fresh", () => {
     // in-memory one; without this the chat goes "Offline" in a tab left open.
     vi.useFakeTimers();
     vi.mocked(apiClient.get).mockResolvedValue({ ...user(), access_token: "t-1" });
-    renderHook(() => useAuth());
-    renderHook(() => useAuth());
+    renderHook(() => useAuth(), { wrapper });
+    renderHook(() => useAuth(), { wrapper });
     await vi.waitFor(() => expect(useAuthStore.getState().isAuthenticated).toBe(true));
 
     vi.mocked(apiClient.get).mockResolvedValue({ ...user(), access_token: "t-2" });
@@ -315,7 +362,7 @@ describe("keeping the in-memory token fresh", () => {
   it("does not ask on behalf of somebody who is not signed in", async () => {
     vi.useFakeTimers();
     vi.mocked(apiClient.get).mockRejectedValue(new ApiError(401, "no session"));
-    renderHook(() => useAuth());
+    renderHook(() => useAuth(), { wrapper });
     await vi.waitFor(() => expect(useAuthStore.getState().isAuthenticated).toBe(false));
     vi.mocked(apiClient.get).mockClear();
 
@@ -330,7 +377,7 @@ describe("keeping the in-memory token fresh", () => {
   it("ignores a refresh that fails, because the next real request handles it", async () => {
     vi.useFakeTimers();
     vi.mocked(apiClient.get).mockResolvedValue({ ...user(), access_token: "t-1" });
-    renderHook(() => useAuth());
+    renderHook(() => useAuth(), { wrapper });
     await vi.waitFor(() => expect(useAuthStore.getState().accessToken).toBe("t-1"));
 
     vi.mocked(apiClient.get).mockRejectedValue(new Error("offline"));
@@ -345,7 +392,7 @@ describe("keeping the in-memory token fresh", () => {
   it("keeps the token it already has when a refresh answers without one", async () => {
     vi.useFakeTimers();
     vi.mocked(apiClient.get).mockResolvedValue({ ...user(), access_token: "t-1" });
-    renderHook(() => useAuth());
+    renderHook(() => useAuth(), { wrapper });
     await vi.waitFor(() => expect(useAuthStore.getState().accessToken).toBe("t-1"));
 
     vi.mocked(apiClient.get).mockResolvedValue(user());
@@ -360,7 +407,7 @@ describe("keeping the in-memory token fresh", () => {
   it("stops the timer on logout", async () => {
     vi.useFakeTimers();
     vi.mocked(apiClient.get).mockResolvedValue({ ...user(), access_token: "t-1" });
-    const { result } = renderHook(() => useAuth());
+    const { result } = renderHook(() => useAuth(), { wrapper });
     await vi.waitFor(() => expect(useAuthStore.getState().isAuthenticated).toBe(true));
 
     await act(async () => {

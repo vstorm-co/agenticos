@@ -166,6 +166,10 @@ export const qk = {
     catalog: () => ["mcp-servers", "catalog"] as const,
   },
   sessions: {
+    // The namespace, for invalidating every page at once: a revocation shifts
+    // rows across all of them, so refreshing only the page on screen leaves
+    // revoked sessions cached on the others.
+    all: () => ["sessions"] as const,
     list: (page: number) => ["sessions", "list", page] as const,
   },
   admin: {

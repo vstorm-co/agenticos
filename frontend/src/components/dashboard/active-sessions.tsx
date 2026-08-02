@@ -75,14 +75,19 @@ export function ActiveSessions() {
   const total = data && data !== "unavailable" ? data.total : 0;
   const loading = isPending;
 
-  /** Reload after a revocation, stepping back when the page it emptied was the last one. */
+  /**
+   * Reload after a revocation, stepping back when the page it emptied was the
+   * last one.
+   *
+   * Every page is invalidated, not just the one on screen. A revocation shifts
+   * the rows across all of them, and "revoke all others" from page two used to
+   * step back to a page one that was still cached - listing, for the next five
+   * minutes, the sessions it had just revoked.
+   */
   const reload = (remaining: number) => {
+    void queryClient.invalidateQueries({ queryKey: qk.sessions.all() });
     const lastPage = Math.max(0, Math.ceil(remaining / PAGE_SIZE) - 1);
-    if (page > lastPage) {
-      setPage(lastPage);
-      return;
-    }
-    void queryClient.invalidateQueries({ queryKey: qk.sessions.list(page) });
+    if (page > lastPage) setPage(lastPage);
   };
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));

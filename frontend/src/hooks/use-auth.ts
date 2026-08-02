@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useAuthStore } from "@/stores";
@@ -68,6 +69,7 @@ function runAuthCheck(setUser: (u: User | null) => void): Promise<void> {
 
 export function useAuth() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { user, isAuthenticated, isLoading, setUser, setLoading, logout } = useAuthStore();
 
   // Check auth status once per session. /auth/me returns the access_token in
@@ -86,6 +88,13 @@ export function useAuth() {
           access_token: string;
           message: string;
         }>("/auth/login", credentials);
+        // The query cache belongs to a session, not to the browser tab. Cleared
+        // as one begins rather than only as one ends, so a session that finished
+        // some other way - an expired cookie, a failed refresh, a closed laptop -
+        // cannot serve the previous account's data to this one. Everything held
+        // there is somebody's: their conversations, their agents, the device
+        // names and IP addresses on their profile.
+        queryClient.clear();
         setUser(response.user);
         useAuthStore.getState().setAccessToken(response.access_token);
         authChecked = true; // login already populated user + token; skip /auth/me
@@ -95,7 +104,7 @@ export function useAuth() {
         setLoading(false);
       }
     },
-    [router, setUser, setLoading],
+    [router, setUser, setLoading, queryClient],
   );
 
   const register = useCallback(async (data: RegisterRequest) => {
@@ -112,11 +121,12 @@ export function useAuth() {
       authChecked = false; // re-check on next login
       authCheckPromise = null;
       stopTokenRefresh();
+      queryClient.clear();
       logout();
       toast.success("Logged out");
       router.push(ROUTES.LOGIN);
     }
-  }, [logout, router]);
+  }, [logout, router, queryClient]);
 
   const refreshToken = useCallback(async () => {
     try {
