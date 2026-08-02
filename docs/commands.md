@@ -328,6 +328,7 @@ Commands are auto-discovered from `app/commands/`. Create a new file:
 import click
 from app.commands import command, success, error
 
+
 @command("my-command", help="Description of what this does")
 @click.option("--name", "-n", required=True, help="Name parameter")
 def my_command(name: str):

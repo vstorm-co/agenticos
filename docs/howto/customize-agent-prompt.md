@@ -77,6 +77,7 @@ SUPPORT_PROMPT = """You are a customer support agent..."""
 ANALYST_PROMPT = """You are a data analyst..."""
 WRITER_PROMPT = """You are a content writer..."""
 
+
 def get_prompt(persona: str = "default") -> str:
     prompts = {
         "default": DEFAULT_SYSTEM_PROMPT,

@@ -72,6 +72,7 @@ class MySourceConnector(BaseSyncConnector):
 
     async def download_file(self, file: RemoteFile, dest_dir: Path) -> Path:
         """Download a single file to a local directory."""
+
         def _download():
             dest_path = dest_dir / file.name
             # Your download logic here

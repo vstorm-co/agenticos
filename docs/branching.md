@@ -16,15 +16,15 @@ cost a second place for every change to sit, so it was removed.
 
 ## What is enforced, and by what
 
-| Rule | Enforced by |
-|---|---|
-| No direct push to `main` | Ruleset — a pull request is required |
-| CI green before merge | Required status checks: `lint`, `test`, `test-frontend`, `e2e`, `docs`, `Security Scan` |
-| Squash on merge | Ruleset — the only allowed merge method |
-| Conversations resolved | Ruleset |
-| Stale approvals dismissed on a new push | Ruleset |
-| No force push, no deletion | Ruleset |
-| No commit made while standing on `main` | `no-commit-to-branch` in `.pre-commit-config.yaml` |
+| Rule                                    | Enforced by                                                                             |
+| --------------------------------------- | --------------------------------------------------------------------------------------- |
+| No direct push to `main`                | Ruleset — a pull request is required                                                    |
+| CI green before merge                   | Required status checks: `lint`, `test`, `test-frontend`, `e2e`, `docs`, `Security Scan` |
+| Squash on merge                         | Ruleset — the only allowed merge method                                                 |
+| Conversations resolved                  | Ruleset                                                                                 |
+| Stale approvals dismissed on a new push | Ruleset                                                                                 |
+| No force push, no deletion              | Ruleset                                                                                 |
+| No commit made while standing on `main` | `no-commit-to-branch` in `.pre-commit-config.yaml`                                      |
 
 The status checks are listed individually today. They should collapse into a
 single aggregating `All Checks Passed` job, so that adding a CI job stops meaning
@@ -50,6 +50,6 @@ friction for something that should be rare.
 
 The [automated reviewer](code-review.md) runs on every pull request. It is never
 a required check, so it cannot fail a build — but its findings are review
-threads, and the ruleset above requires those resolved. A finding therefore has
-to be answered or resolved before the merge button comes back. See
+threads, and the ruleset above requires those resolved. Replying is not enough —
+somebody has to mark the thread resolved before the merge button comes back. See
 [code-review.md](code-review.md).

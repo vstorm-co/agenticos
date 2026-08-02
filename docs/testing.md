@@ -54,10 +54,12 @@ async def db_session():
         yield session
         await session.rollback()
 
+
 # Test client
 @pytest.fixture
 def client():
     return TestClient(app)
+
 
 # Authenticated client
 @pytest.fixture

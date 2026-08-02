@@ -7,6 +7,7 @@ Use FastAPI's `Depends()` for injecting dependencies:
 ```python
 from app.api.deps import get_db, get_current_user
 
+
 @router.get("/conversations")
 async def list_conversations(
     db: AsyncSession = Depends(get_db),
@@ -72,9 +73,7 @@ class ConversationRepository:
         self, db: AsyncSession, user_id: UUID, skip: int = 0, limit: int = 100
     ) -> list[Conversation]:
         result = await db.execute(
-            select(Conversation)
-            .where(Conversation.user_id == user_id)
-            .offset(skip).limit(limit)
+            select(Conversation).where(Conversation.user_id == user_id).offset(skip).limit(limit)
         )
         return list(result.scalars().all())
 ```
@@ -88,15 +87,10 @@ from app.core.exceptions import NotFoundError, AlreadyExistsError, ValidationErr
 
 # In service
 if not conversation:
-    raise NotFoundError(
-        message="Conversation not found",
-        details={"id": str(id)}
-    )
+    raise NotFoundError(message="Conversation not found", details={"id": str(id)})
 
 if await self.repo.exists_by_email(self.db, email):
-    raise AlreadyExistsError(
-        message="User with this email already exists"
-    )
+    raise AlreadyExistsError(message="User with this email already exists")
 ```
 
 Exception handlers convert to HTTP responses automatically.
@@ -111,14 +105,17 @@ class UserBase(BaseModel):
     email: str
     full_name: str | None = None
 
+
 # For creation (input)
 class UserCreate(UserBase):
     password: str
+
 
 # For updates (all optional)
 class UserUpdate(BaseModel):
     full_name: str | None = None
     email: str | None = None
+
 
 # For responses (with DB fields)
 class UserResponse(UserBase):
@@ -144,6 +141,7 @@ pattern defined in `app/services/rag/connectors/`. Each connector inherits from
 ```python
 from app.services.rag.connectors import BaseSyncConnector, RemoteFile, CONNECTOR_REGISTRY
 
+
 class SharePointConnector(BaseSyncConnector):
     CONNECTOR_TYPE = "sharepoint"
     DISPLAY_NAME = "SharePoint"
@@ -159,6 +157,7 @@ class SharePointConnector(BaseSyncConnector):
     async def download_file(self, file: RemoteFile, dest_dir: Path) -> Path:
         # Download file to dest_dir, return local Path
         ...
+
 
 # Register so the sync service can discover it
 CONNECTOR_REGISTRY["sharepoint"] = SharePointConnector
