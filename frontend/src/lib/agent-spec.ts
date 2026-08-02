@@ -34,6 +34,17 @@ export const DEFAULT_NOTIFICATIONS: NotificationSpec = {
 export const THINKING_ID = "thinking";
 
 /**
+ * The workspace capability, which has a section of its own.
+ *
+ * Every other capability answers "may this agent do X". This one answers "where
+ * does it keep things, and who else can read them" - four choices with
+ * different infrastructure behind them, one of which shares files between
+ * people. A row in the capability picker would present that as the same kind of
+ * decision as switching on a chart tool.
+ */
+export const SANDBOX_ID = "sandbox";
+
+/**
  * The bindings with one capability switched on or off.
  *
  * Switching one on that is already on returns the list untouched, so a caller

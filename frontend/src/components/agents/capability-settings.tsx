@@ -165,6 +165,16 @@ interface CapabilityDetailProps {
   definition: CapabilityCatalogEntry;
   onChange: (binding: CapabilityBindingSpec) => void;
   disabled?: boolean;
+  /**
+   * Suppress the generated configuration form.
+   *
+   * For a capability whose configuration is a decision rather than a set of
+   * fields - the workspace, where the choice of backend and of who shares it
+   * are presented as what they are and one of them carries a warning a schema
+   * cannot express. Everything else here (the secret, approval, tool text) is
+   * the same for every capability and is not worth a second implementation.
+   */
+  hideConfigForm?: boolean;
 }
 
 /**
@@ -179,6 +189,7 @@ export function CapabilityDetail({
   definition,
   onChange,
   disabled,
+  hideConfigForm,
 }: CapabilityDetailProps) {
   return (
     // Grouped and named, so the tool rows below are read as belonging to
@@ -198,7 +209,7 @@ export function CapabilityDetail({
 
         <p className="text-muted-foreground text-sm">{definition.description}</p>
 
-        {definition.config_schema && (
+        {definition.config_schema && !hideConfigForm && (
           <SchemaForm
             idPrefix={binding.id}
             schema={definition.config_schema}

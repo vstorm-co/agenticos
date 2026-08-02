@@ -24,6 +24,7 @@ import { AgentMap, MAP_ICONS, type MapNode } from "@/components/agents/agent-map
 import { AgentStatusBadge } from "@/components/agents/status-badge";
 import { AlertsPanel } from "@/components/agents/alerts-panel";
 import { CapabilityWorkbench } from "@/components/agents/capability-workbench";
+import { WorkspaceSection } from "@/components/agents/workspace-section";
 import { ChannelBotsPanel } from "@/components/agents/channel-bots-panel";
 import { CollectionPicker } from "@/components/agents/collection-picker";
 import { EmbedsPanel } from "@/components/agents/embeds-panel";
@@ -82,7 +83,7 @@ import {
   useRuns,
   useSkills,
 } from "@/hooks";
-import { SKILLS_ID, THINKING_ID, withCapability, withSkills } from "@/lib/agent-spec";
+import { SANDBOX_ID, SKILLS_ID, THINKING_ID, withCapability, withSkills } from "@/lib/agent-spec";
 import { ROUTES } from "@/lib/constants";
 import { useAgentSelectionStore, useConversationStore } from "@/stores";
 import { cn } from "@/lib/utils";
@@ -272,9 +273,14 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // first. Thinking sits with the model settings: it contributes no tools and
   // changes how the model runs, not what the agent can do. Skills sits in its
   // own section, which owns both halves of a decision that used to be split -
-  // see `setSkills`.
+  // see `setSkills`. The workspace has one too: it is a choice between four
+  // backends rather than a switch, and one of its scopes shares files between
+  // people.
   const grantable = useMemo(
-    () => capabilities.filter((entry) => entry.id !== THINKING_ID && entry.id !== SKILLS_ID),
+    () =>
+      capabilities.filter(
+        (entry) => entry.id !== THINKING_ID && entry.id !== SKILLS_ID && entry.id !== SANDBOX_ID,
+      ),
     [capabilities],
   );
 
@@ -658,6 +664,25 @@ export default function AgentBuilderPage({ params }: PageProps) {
               <CapabilityWorkbench
                 catalog={grantable}
                 selected={spec.capabilities}
+                onToggle={toggleCapability}
+                onChange={updateCapability}
+                disabled={!canEdit}
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Workspace</CardTitle>
+              <CardDescription>
+                Where this agent keeps files between turns, and who else can read them. Attachments
+                land here too, so a large file stops being pasted into every message.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <WorkspaceSection
+                definition={capabilities.find((entry) => entry.id === SANDBOX_ID)}
+                binding={spec.capabilities.find((binding) => binding.id === SANDBOX_ID)}
                 onToggle={toggleCapability}
                 onChange={updateCapability}
                 disabled={!canEdit}
