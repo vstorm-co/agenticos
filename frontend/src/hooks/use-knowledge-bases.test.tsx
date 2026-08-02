@@ -86,21 +86,22 @@ function xhr(index = 0): FakeXhr {
 
 function stubXhr() {
   xhrs = [];
-  vi.stubGlobal(
-    "XMLHttpRequest",
-    vi.fn(() => {
-      const instance: FakeXhr = {
-        open: vi.fn(),
-        send: vi.fn(),
-        withCredentials: false,
-        status: 201,
-        responseText: "{}",
-        upload: {},
-      };
-      xhrs.push(instance);
-      return instance;
-    }),
-  );
+  // A class, not `vi.fn(() => ({...}))`: the code under test calls
+  // `new XMLHttpRequest()`, and an arrow function cannot be constructed - the
+  // fake returned nothing, so no request was ever recorded.
+  class FakeXhrImpl implements FakeXhr {
+    open = vi.fn();
+    send = vi.fn();
+    withCredentials = false;
+    status = 201;
+    responseText = "{}";
+    upload: FakeXhr["upload"] = {};
+
+    constructor() {
+      xhrs.push(this);
+    }
+  }
+  vi.stubGlobal("XMLHttpRequest", FakeXhrImpl);
 }
 
 /** Wait until the upload has actually been sent, so its handlers exist. */
@@ -185,6 +186,49 @@ describe("the list of knowledge bases", () => {
       await result.current.deleteKB("kb-1");
     });
     expect(toast.error).toHaveBeenCalledWith("Failed to delete knowledge base");
+  });
+
+  it("puts the renamed collection back in the list, not just a toast", async () => {
+    // The toast says it worked; the cache is what the page renders. These were
+    // asserted separately from each other until the list was seeded, at which
+    // point the rewrite is observable.
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: [
+        { id: "kb-1", name: "Handbook" },
+        { id: "kb-2", name: "Contracts" },
+      ],
+      total: 2,
+    });
+    vi.mocked(apiClient.patch).mockResolvedValue({ id: "kb-1", name: "Handbook v2" });
+    const { result } = renderHook(() => useKnowledgeBases(), { wrapper });
+    await waitFor(() => expect(result.current.kbs).toHaveLength(2));
+
+    await act(async () => {
+      await result.current.patchKB("kb-1", { name: "Handbook v2" });
+    });
+
+    await waitFor(() =>
+      expect(result.current.kbs.map((kb) => kb.name)).toEqual(["Handbook v2", "Contracts"]),
+    );
+  });
+
+  it("takes the deleted collection out of the list", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: [
+        { id: "kb-1", name: "Handbook" },
+        { id: "kb-2", name: "Contracts" },
+      ],
+      total: 2,
+    });
+    vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+    const { result } = renderHook(() => useKnowledgeBases(), { wrapper });
+    await waitFor(() => expect(result.current.kbs).toHaveLength(2));
+
+    await act(async () => {
+      await result.current.deleteKB("kb-1");
+    });
+
+    await waitFor(() => expect(result.current.kbs.map((kb) => kb.id)).toEqual(["kb-2"]));
   });
 
   it("refetches on demand", async () => {

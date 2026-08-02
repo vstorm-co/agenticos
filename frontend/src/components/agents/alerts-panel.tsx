@@ -88,6 +88,7 @@ const ALERTS: readonly AlertKindMeta[] = [
  * people who can, and no agent can redirect or silence it.
  */
 export function AlertsPanel({ value, onChange, disabled }: AlertsPanelProps) {
+  /* v8 ignore next -- the selector never runs: every test here mocks the store */
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const { members } = useMembers(activeOrgId ?? "");
   // Defaulted rather than guarded: the API always answers with a full block, and

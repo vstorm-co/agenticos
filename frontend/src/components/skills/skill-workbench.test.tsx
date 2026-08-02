@@ -347,6 +347,37 @@ describe("the skill's files", () => {
     expect(skillHooks.uploadResources.mutateAsync).not.toHaveBeenCalled();
   });
 
+  it("survives an upload the server refuses", async () => {
+    // The mutation reports its own failure; what must not happen is an
+    // unhandled rejection taking the workbench down with it.
+    skillHooks.uploadResources.mutateAsync.mockRejectedValueOnce(new Error("413"));
+    renderWorkbench({ skill: withFile });
+
+    await userEvent.upload(
+      screen.getByLabelText("Files"),
+      new File(["a"], "huge.md", { type: "text/markdown" }),
+    );
+
+    expect(screen.getByRole("button", { name: /SKILL\.md/ })).toBeInTheDocument();
+  });
+
+  it("closes the pane even when the delete is refused", async () => {
+    // The pane is closed unconditionally on purpose: it was rendering a
+    // resource whose fate is now unknown, and showing it as present is the one
+    // answer that is definitely wrong.
+    skillHooks.loaded.resource = { content: "old" };
+    skillHooks.removeResource.mutateAsync.mockRejectedValueOnce(new Error("409"));
+    renderWorkbench({ skill: withFile });
+    await userEvent.click(screen.getByRole("button", { name: "workflows.md" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Remove references/workflows.md" }));
+
+    expect(screen.getByRole("button", { name: /SKILL\.md/ })).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+  });
+
   it("offers a viewer no way to add, upload or delete a file", async () => {
     skillHooks.loaded.resource = { content: "old" };
     renderWorkbench({ skill: withFile, canEdit: false });

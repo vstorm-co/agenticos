@@ -247,6 +247,24 @@ describe("downloading a knowledge-base document", () => {
     );
   });
 
+  it("holds the viewing URL open for a minute, then releases it", async () => {
+    // Revoking straight away would close the tab that was just opened; never
+    // revoking leaks the blob for the life of the page. The delay is the whole
+    // behaviour, so the timer has to be run to see it.
+    vi.useFakeTimers();
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+
+    await rag.downloadKBDocument("kb-1", { id: "d-1", filename: "handbook.pdf" }, "view");
+
+    expect(open).toHaveBeenCalled();
+    expect(revoked).toEqual([]);
+    vi.advanceTimersByTime(60_000);
+    expect(revoked).toEqual(created);
+
+    open.mockRestore();
+    vi.useRealTimers();
+  });
+
   it("saves the original bytes under the document's own filename", async () => {
     // Not the id: a file called `9f3c…pdf` in somebody's downloads folder is a
     // file they cannot find again.
