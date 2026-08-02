@@ -28,15 +28,23 @@ reviewer left one comment and the merge button went grey.)
 |---|---|---|
 | A pull request is opened, reopened or marked ready | automatic | Drafts are skipped |
 | The `ai-review` label is added | anyone with write access | On demand |
-| A comment starting with `/review` | OWNER, MEMBER or COLLABORATOR only | Re-run after fixes |
 | `workflow_dispatch` with a pull request number | write access | Manual, for testing |
 
 Deliberately **not** on `synchronize`. Two developers, a dozen pushes per pull
 request: a review on every one of them is a review nobody reads. Ask for a
 re-run when the fixes are in.
 
-A `/review` comment from anyone else does nothing at all — the job's `if`
-refuses it before a runner is allocated.
+Re-running is the label, and there is no `/review` comment trigger — that is a
+security property, not an omission. `issue_comment` is a **privileged** event:
+it runs from the default branch *with secrets*, for a comment on any pull
+request including one from a fork. Checking out the pull request's own code in
+that context, inside the job holding `OPENAI_API_KEY`, is exactly the shape
+CodeQL flags as `actions/untrusted-checkout` — and it was right to. The label
+does the same job through `pull_request`, which hands a fork neither the secret
+nor a writable token, so the exposure is gone rather than argued about.
+
+Adding a label needs write access, which is the same bar the comment trigger
+was checking with `author_association`.
 
 ## The three jobs, and why
 
@@ -174,11 +182,6 @@ instructions. Three clauses in it earn their place and should survive an edit:
 - **A documented decision is not a finding.** `CLAUDE.md` has a section on what
   was deliberately removed; without this the reviewer proposes `RoleChecker`
   every week.
-
-Editing the `issue_comment` half cannot be tested inside a pull request: GitHub
-runs `issue_comment` workflows from the copy on the **default branch**, so a
-change to that path only takes effect once it has landed there. Test it with
-`workflow_dispatch`, or after the merge.
 
 The local equivalent, for the same checks before pushing, is the `/review`
 command in `.claude/commands/review.md`.
