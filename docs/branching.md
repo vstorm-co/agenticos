@@ -52,6 +52,14 @@ The backend runs weekly, with the agent frameworks grouped apart from everything
 else — they move fast and this codebase is meant to track them. The frontend
 runs monthly, after a seven-day cooldown.
 
+Dependabot proposes updates for **direct** dependencies. Everything under them
+moves only when a direct one drags it along, which is why
+`.github/workflows/dependency-freshness.yml` exists: once a week it upgrades the
+entire lock — transitive packages included — runs the whole suite against it,
+and opens an issue if that breaks. Nothing is committed; the upgrade is thrown
+away with the runner. `make deps-upgrade-all` is the same thing locally, and is
+how a red issue from it reproduces.
+
 Two things about it are not obvious, and both cost time before they were
 understood:
 
