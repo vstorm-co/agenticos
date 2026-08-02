@@ -85,11 +85,23 @@ export function useConversations() {
   // select-messages fetch; preserve that union.
   const isLoading = listLoading || selectLoading;
 
+  /**
+   * Patch the cached list, unless the account changed while we were away.
+   *
+   * The guard lives here rather than at the six call sites because five of them
+   * run after an await, and `setQueryData` recreates a key that is not there -
+   * so a conversation created by one account lands in the next one's sidebar,
+   * and the mutations put an empty list under the key before the new account's
+   * own fetch has answered. One place to hold it, and no seventh caller to
+   * forget.
+   */
   const writeCache = useCallback(
-    (updater: (prev: Conversation[]) => Conversation[]) =>
+    (updater: (prev: Conversation[]) => Conversation[], startedAs: string | undefined) => {
+      if (!stillSameAccount(startedAs)) return;
       queryClient.setQueryData<Conversation[]>(qk.conversations.list(), (prev = []) =>
         updater(prev),
-      ),
+      );
+    },
     [queryClient],
   );
 
@@ -128,16 +140,16 @@ export function useConversations() {
       const response = await apiClient.get<ConversationListResponse>(
         `/conversations?limit=${PAGE_SIZE}&skip=${current.length}&include_archived=true`,
       );
-      // Writing the cache is not the same as reading it: the sign-in that
-      // emptied it has already happened, and this would put one page of the
-      // previous account's titles straight back under the same key.
+      // `writeCache` holds the account for its own write; this returns for the
+      // sake of `rememberHasMore`, which would otherwise answer the new
+      // account's sidebar with the previous one's pagination.
       if (!stillSameAccount(startedAs)) return;
       if (response.items.length > 0) {
         // Dedupe in case a refetch raced with the append.
         writeCache((prev) => {
           const seen = new Set(prev.map((c) => c.id));
           return [...prev, ...response.items.filter((c) => !seen.has(c.id))];
-        });
+        }, startedAs);
       }
       rememberHasMore(response.items.length >= PAGE_SIZE);
     } catch {
@@ -148,6 +160,7 @@ export function useConversations() {
 
   const createConversation = useCallback(
     async (title?: string): Promise<Conversation | null> => {
+      const startedAs = useAuthStore.getState().user?.id;
       setLoading(true);
       setError(null);
       try {
@@ -161,7 +174,7 @@ export function useConversations() {
           updated_at: response.updated_at,
           is_archived: response.is_archived,
         };
-        writeCache((prev) => [newConversation, ...prev]);
+        writeCache((prev) => [newConversation, ...prev], startedAs);
         return newConversation;
       } catch (err) {
         const message = getErrorMessage(err, "Failed to create conversation");
@@ -218,9 +231,13 @@ export function useConversations() {
 
   const archiveConversation = useCallback(
     async (id: string) => {
+      const startedAs = useAuthStore.getState().user?.id;
       try {
         await apiClient.patch(`/conversations/${id}`, { is_archived: true });
-        writeCache((prev) => prev.map((c) => (c.id === id ? { ...c, is_archived: true } : c)));
+        writeCache(
+          (prev) => prev.map((c) => (c.id === id ? { ...c, is_archived: true } : c)),
+          startedAs,
+        );
         toast.success("Conversation archived");
       } catch (err) {
         const message = getErrorMessage(err, "Failed to archive conversation");
@@ -233,9 +250,13 @@ export function useConversations() {
 
   const unarchiveConversation = useCallback(
     async (id: string) => {
+      const startedAs = useAuthStore.getState().user?.id;
       try {
         await apiClient.patch(`/conversations/${id}`, { is_archived: false });
-        writeCache((prev) => prev.map((c) => (c.id === id ? { ...c, is_archived: false } : c)));
+        writeCache(
+          (prev) => prev.map((c) => (c.id === id ? { ...c, is_archived: false } : c)),
+          startedAs,
+        );
         toast.success("Conversation restored");
       } catch (err) {
         const message = getErrorMessage(err, "Failed to restore conversation");
@@ -248,9 +269,10 @@ export function useConversations() {
 
   const deleteConversation = useCallback(
     async (id: string) => {
+      const startedAs = useAuthStore.getState().user?.id;
       try {
         await apiClient.delete(`/conversations/${id}`);
-        writeCache((prev) => prev.filter((c) => c.id !== id));
+        writeCache((prev) => prev.filter((c) => c.id !== id), startedAs);
         // Mirror the old store behavior: clear the active selection if it was
         // the conversation we just removed.
         if (useConversationStore.getState().currentConversationId === id) {
@@ -268,9 +290,10 @@ export function useConversations() {
 
   const renameConversation = useCallback(
     async (id: string, title: string) => {
+      const startedAs = useAuthStore.getState().user?.id;
       try {
         await apiClient.patch(`/conversations/${id}`, { title });
-        writeCache((prev) => prev.map((c) => (c.id === id ? { ...c, title } : c)));
+        writeCache((prev) => prev.map((c) => (c.id === id ? { ...c, title } : c)), startedAs);
         toast.success("Conversation renamed");
       } catch (err) {
         const message = getErrorMessage(err, "Failed to rename conversation");

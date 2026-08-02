@@ -526,6 +526,39 @@ describe("creating, renaming and removing a conversation", () => {
   });
 });
 
+describe("a request that outlives the account that made it", () => {
+  it("keeps a conversation created by one account out of the next one's list", async () => {
+    // The one write that adds a row rather than mapping over the rows already
+    // there, so it is the one that can put A's conversation in B's sidebar.
+    useAuthStore.getState().setUser({ id: "u-a", email: "a@example.com" } as never);
+    const result = await hook();
+
+    let answer: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.post).mockImplementation(
+      () => new Promise((resolve) => (answer = resolve)),
+    );
+    let creating: Promise<unknown>;
+    await act(async () => {
+      creating = result.current.createConversation("A's thread");
+      await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+    });
+
+    await act(async () => {
+      useAuthStore.getState().setUser({ id: "u-b", email: "b@example.com" } as never);
+      answer({
+        id: "c-private",
+        title: "A's thread",
+        created_at: "2026-07-01T00:00:00Z",
+        updated_at: null,
+        is_archived: false,
+      });
+      await creating!;
+    });
+
+    expect(result.current.conversations.map((c) => c.id)).not.toContain("c-private");
+  });
+});
+
 describe("starting a new chat", () => {
   it("reuses the conversation already open when it is empty", async () => {
     // Otherwise every stray click leaves an untitled empty row in the sidebar.
