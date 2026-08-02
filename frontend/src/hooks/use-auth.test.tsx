@@ -3,7 +3,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
-import { useAdoptSession, useAuth } from "./use-auth";
+import { useAdoptSession, useAuth, useReauthenticate } from "./use-auth";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
 import { useAuthStore, useConversationStore } from "@/stores";
@@ -166,6 +166,23 @@ describe("signing in", () => {
       await result.current.login({ email: "d@example.com", password: "pw" });
     });
 
+    expect(client.getQueryData(["sessions", "list", 0])).toBeUndefined();
+  });
+
+  it("re-reads the account after a flow that hands back no user", async () => {
+    // The magic link answers with tokens only, and the auth check runs once per
+    // page load - so a tab that had already asked kept the previous account
+    // while every request authenticated as the new one.
+    useAuthStore.getState().setSessionOwnerId("u-1");
+    client.setQueryData(["sessions", "list", 0], { items: [{ ip_address: "10.0.0.1" }] });
+    vi.mocked(apiClient.get).mockResolvedValue(user({ id: "u-5" }));
+    const { result } = renderHook(() => useReauthenticate(), { wrapper });
+
+    await act(async () => {
+      await result.current();
+    });
+
+    expect(useAuthStore.getState().user?.id).toBe("u-5");
     expect(client.getQueryData(["sessions", "list", 0])).toBeUndefined();
   });
 

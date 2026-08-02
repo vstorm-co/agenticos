@@ -100,6 +100,29 @@ export function useAdoptSession(): (user: User, accessToken: string | null) => v
   );
 }
 
+/**
+ * Re-read who is signed in, adopting whoever answers.
+ *
+ * For a flow that establishes the session server-side and gets no user back:
+ * the magic link answers with tokens only, so there is nothing for
+ * `useAdoptSession` to adopt. The auth check otherwise runs once per page load,
+ * and a tab that had already asked keeps the account it asked about - so
+ * verifying a link for somebody else left the previous account's cache on
+ * screen while every request authenticated as the new one.
+ *
+ * Awaited before the redirect, so the change of account is settled while the
+ * page still says "verifying" rather than a frame into the next one.
+ */
+export function useReauthenticate(): () => Promise<void> {
+  const queryClient = useQueryClient();
+  const setUser = useAuthStore((state) => state.setUser);
+  return useCallback(async () => {
+    authChecked = false;
+    authCheckPromise = null;
+    await runAuthCheck((u) => adoptUser(queryClient, setUser, u));
+  }, [queryClient, setUser]);
+}
+
 function runAuthCheck(setUser: (u: User | null) => void): Promise<void> {
   if (authChecked) return Promise.resolve();
   if (authCheckPromise) return authCheckPromise;
