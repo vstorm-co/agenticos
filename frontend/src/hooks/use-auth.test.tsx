@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { useAdoptSession, useAuth, useReauthenticate } from "./use-auth";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
-import { useAuthStore, useConversationStore } from "@/stores";
+import { useAuthStore, useConversationStore, useOrgStore } from "@/stores";
 import type { User } from "@/types";
 import type { ReactNode } from "react";
 
@@ -342,16 +342,21 @@ describe("signing out", () => {
     // The stores outlive a sign-out the way the cache does - they are module
     // scope, two of them `localStorage` - so the account signing in next was
     // shown the previous one's open conversation.
-    client.setQueryData(["sessions", "list", 0], { items: [{ ip_address: "10.0.0.1" }] });
-    useConversationStore.getState().setCurrentConversationId("c-1");
     const { result } = renderHook(() => useAuth(), { wrapper });
     await waitFor(() => expect(useAuthStore.getState().isAuthenticated).toBe(true));
+    // Seeded after the mount adoption, which clears the stores itself - setting
+    // it earlier would make this assertion pass without `logout` doing anything.
+    client.setQueryData(["sessions", "list", 0], { items: [{ ip_address: "10.0.0.1" }] });
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useOrgStore.getState().setActiveOrgId("org-1");
 
     await act(async () => {
       await result.current.logout();
     });
 
     expect(client.getQueryData(["sessions", "list", 0])).toBeUndefined();
+    expect(useConversationStore.getState().currentConversationId).toBeNull();
+    expect(useOrgStore.getState().activeOrgId).toBeNull();
   });
 
   it("clears the session even when the server could not be told", async () => {

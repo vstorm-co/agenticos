@@ -26,14 +26,22 @@ let authChecked = false;
 let tokenRefreshTimer: ReturnType<typeof setInterval> | null = null;
 const TOKEN_REFRESH_INTERVAL_MS = 10 * 60 * 1000;
 
-function ensureTokenRefresh(): void {
+function ensureTokenRefresh(adopt: (u: User) => void): void {
   if (tokenRefreshTimer) return;
   tokenRefreshTimer = setInterval(() => {
     if (!useAuthStore.getState().isAuthenticated) return;
     void (async () => {
       try {
-        const data = await apiClient.get<User & { access_token?: string }>("/auth/me");
-        if (data.access_token) useAuthStore.getState().setAccessToken(data.access_token);
+        const { access_token, ...userData } = await apiClient.get<User & { access_token?: string }>(
+          "/auth/me",
+        );
+        // The answer says who the cookie belongs to now, and cookies are shared
+        // across tabs: signing in as somebody else in another tab used to leave
+        // this one rendering the first account while installing the second
+        // one's token, so every request it made authenticated as them. The
+        // identity was in this response all along and was being dropped.
+        adopt(userData as User);
+        if (access_token) useAuthStore.getState().setAccessToken(access_token);
       } catch {
         // Ignore - the next real request (or its 401 → refresh) handles failure.
       }
@@ -151,8 +159,9 @@ export function useAuth() {
   // Check auth status once per session. /auth/me returns the access_token in
   // the body (httpOnly cookie isn't JS-readable) for WebSocket auth.
   useEffect(() => {
-    void runAuthCheck((u) => adoptUser(queryClient, setUser, u));
-    ensureTokenRefresh();
+    const adopt = (u: User | null) => adoptUser(queryClient, setUser, u);
+    void runAuthCheck(adopt);
+    ensureTokenRefresh(adopt);
   }, [setUser, queryClient]);
 
   const login = useCallback(
@@ -208,7 +217,7 @@ export function useAuth() {
       );
       useAuthStore.getState().setAccessToken(refreshResponse.access_token);
       const userData = await apiClient.get<User>("/auth/me");
-      setUser(userData);
+      adoptUser(queryClient, setUser, userData);
       return true;
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
@@ -217,7 +226,7 @@ export function useAuth() {
       }
       return false;
     }
-  }, [logout, router, setUser]);
+  }, [logout, router, setUser, queryClient]);
 
   return {
     user,

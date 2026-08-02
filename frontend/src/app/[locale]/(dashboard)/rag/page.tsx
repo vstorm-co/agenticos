@@ -59,10 +59,7 @@ import {
   type RAGCollectionInfo,
   type RAGTrackedDocument,
   type RAGSearchResult,
-  type RAGSyncLog,
-  type SyncSourceRead,
   type SyncSourceCreate,
-  type ConnectorInfo,
 } from "@/lib/rag-api";
 import { DragDropOverlay } from "@/components/rag/drag-drop-overlay";
 import { SyncSourceWizard } from "@/components/rag/sync-source-wizard";
@@ -92,6 +89,19 @@ function StatusIcon({ status }: { status: string }) {
       )}
     </span>
   );
+}
+
+/**
+ * Whether the organization the caller started in is still the active one.
+ *
+ * Clearing this page's state as the organization changes is not enough on its
+ * own: a request in flight across the switch resolves afterwards and writes the
+ * previous tenant's rows straight back into the state that was just emptied.
+ * Every imperative fetch below checks before it writes. Read from the store
+ * rather than from a render, so the fetchers that call it can stay stable.
+ */
+function stillCurrent(startedIn: string): boolean {
+  return (useOrgStore.getState().activeOrgId ?? "") === startedIn;
 }
 
 const DEFAULT_FORMATS = [".pdf", ".docx", ".txt", ".md"];
@@ -140,11 +150,6 @@ export default function RAGPage() {
     else url.searchParams.set("tab", t);
     window.history.replaceState({}, "", url.toString());
   };
-  const [syncLogs, setSyncLogs] = useState<RAGSyncLog[]>([]);
-  const [syncLogsLoading, setSyncLogsLoading] = useState(false);
-  const [syncSources, setSyncSources] = useState<SyncSourceRead[]>([]);
-  const [syncSourcesLoading, setSyncSourcesLoading] = useState(false);
-  const [connectors, setConnectors] = useState<ConnectorInfo[]>([]);
   const [addSourceOpen, setAddSourceOpen] = useState(false);
   const [addSourceSubmitting, setAddSourceSubmitting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -184,20 +189,13 @@ export default function RAGPage() {
 
   const selected = chosen || collections[0]?.name || "";
 
-  // Nothing on this page belongs to more than one tenant. The collection the
-  // user picked does not exist in the next organization, and neither do its
-  // documents, its search results, or the sync sources and history below -
-  // which are fetched imperatively and would otherwise keep rendering the
-  // previous organization's source names, collections and errors under the new
-  // one. Cleared as the organization moves, so the page falls back to whatever
-  // the new tenant actually has.
+  // The collection the user picked does not exist in the next organization, and
+  // neither do the results of a search inside it. Everything else the page
+  // holds is a query keyed on the organization, so it answers for itself.
   if (useChanged(orgId)) {
     setChosen("");
     setSearchResults([]);
     setSearchDone(false);
-    setSyncLogs([]);
-    setSyncSources([]);
-    setConnectors([]);
   }
 
   const {
@@ -218,52 +216,36 @@ export default function RAGPage() {
     select: (data) => data.formats,
   });
 
-  /**
-   * Whether the organization the caller started in is still the active one.
-   *
-   * Clearing this page's state as the organization changes is not enough on its
-   * own: a request in flight across the switch resolves afterwards and writes
-   * the previous tenant's rows straight back into the state that was just
-   * emptied. Every imperative fetch below checks before it writes.
-   */
-  const stillCurrent = (startedIn: string) =>
-    (useOrgStore.getState().activeOrgId ?? "") === startedIn;
+  // The sync tab, through the query layer like everything else on this page.
+  // These were three imperative fetchers writing their own loading flags before
+  // their first await, loaded from the tab's `onClick` alone - so switching
+  // organization while already on the tab left all three lists showing the
+  // previous tenant's rows, and clearing them left the tab blank until the user
+  // clicked away and back. Keyed on the organization and enabled by the tab,
+  // both answer themselves.
+  const syncEnabled = tab === "sync";
 
-  const fetchSyncLogs = async () => {
-    const startedIn = orgId;
-    setSyncLogsLoading(true);
-    try {
-      const data = await listSyncLogs(selected || undefined);
-      if (stillCurrent(startedIn)) setSyncLogs(data.items || []);
-    } catch {
-      if (stillCurrent(startedIn)) setSyncLogs([]);
-    } finally {
-      setSyncLogsLoading(false);
-    }
-  };
+  const { data: syncSources = [], isPending: syncSourcesPending } = useQuery({
+    queryKey: qk.rag.syncSources(orgId),
+    queryFn: () => listSyncSources().then((d) => d.items || []),
+    enabled: syncEnabled,
+  });
+  const syncSourcesLoading = syncEnabled && syncSourcesPending;
 
-  const fetchSyncSources = async () => {
-    const startedIn = orgId;
-    setSyncSourcesLoading(true);
-    try {
-      const data = await listSyncSources();
-      if (stillCurrent(startedIn)) setSyncSources(data.items || []);
-    } catch {
-      if (stillCurrent(startedIn)) setSyncSources([]);
-    } finally {
-      setSyncSourcesLoading(false);
-    }
-  };
+  const { data: syncLogs = [], isPending: syncLogsPending } = useQuery({
+    queryKey: qk.rag.syncLogs(orgId, selected),
+    queryFn: () => listSyncLogs(selected || undefined).then((d) => d.items || []),
+    enabled: syncEnabled,
+  });
+  const syncLogsLoading = syncEnabled && syncLogsPending;
 
-  const fetchConnectors = async () => {
-    const startedIn = orgId;
-    try {
-      const data = await listConnectors();
-      if (stillCurrent(startedIn)) setConnectors(data.items || []);
-    } catch {
-      if (stillCurrent(startedIn)) setConnectors([]);
-    }
-  };
+  const { data: connectors = [] } = useQuery({
+    queryKey: qk.rag.connectors(orgId),
+    queryFn: () => listConnectors().then((d) => d.items || []),
+    enabled: syncEnabled,
+  });
+
+  const refreshSync = () => void queryClient.invalidateQueries({ queryKey: qk.rag.sync(orgId) });
 
   const handleAddSource = async (data: SyncSourceCreate) => {
     if (!data.name || !data.connector_type || !data.collection_name) {
@@ -275,7 +257,7 @@ export default function RAGPage() {
       await createSyncSource(data);
       toast.success(`Source "${data.name}" created`);
       setAddSourceOpen(false);
-      fetchSyncSources();
+      refreshSync();
     } catch (err) {
       toast.error(getErrorMessage(err, "Failed to create source"));
     } finally {
@@ -287,7 +269,7 @@ export default function RAGPage() {
     try {
       await deleteSyncSource(sourceId);
       toast.success("Source deleted");
-      setSyncSources((prev) => prev.filter((s) => s.id !== sourceId));
+      refreshSync();
     } catch {
       toast.error("Failed to delete source");
     }
@@ -297,8 +279,7 @@ export default function RAGPage() {
     try {
       await triggerSyncSource(sourceId);
       toast.success("Sync triggered");
-      fetchSyncLogs();
-      fetchSyncSources();
+      refreshSync();
     } catch {
       toast.error("Failed to trigger sync");
     }
@@ -656,14 +637,7 @@ export default function RAGPage() {
             {tabs.map((t) => (
               <button
                 key={t.key}
-                onClick={() => {
-                  if (t.key === "sync") {
-                    fetchSyncSources();
-                    fetchConnectors();
-                    if (syncLogs.length === 0 && !syncLogsLoading) fetchSyncLogs();
-                  }
-                  setTab(t.key);
-                }}
+                onClick={() => setTab(t.key)}
                 className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
                   tab === t.key
                     ? "border-foreground text-foreground"
@@ -875,7 +849,6 @@ export default function RAGPage() {
                     className="rounded-xl"
                     onClick={() => {
                       setAddSourceOpen(true);
-                      if (connectors.length === 0) fetchConnectors();
                     }}
                   >
                     <Plus className="mr-1 h-3.5 w-3.5" /> Add source
@@ -1024,7 +997,7 @@ export default function RAGPage() {
                                   try {
                                     await cancelSync(log.id);
                                     toast.success("Sync cancelled");
-                                    fetchSyncLogs();
+                                    refreshSync();
                                   } catch {
                                     toast.error("Failed to cancel");
                                   }

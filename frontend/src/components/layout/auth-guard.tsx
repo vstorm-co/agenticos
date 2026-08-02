@@ -4,13 +4,20 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores";
 import { apiClient } from "@/lib/api-client";
+import { useAdoptSession } from "@/hooks/use-auth";
 import { ROUTES } from "@/lib/constants";
 import type { User } from "@/types";
 import { Spinner } from "@/components/ui";
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const { isAuthenticated, setUser } = useAuthStore();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  // Through the same door as every other sign-in. This guard wraps the whole
+  // dashboard and re-reads `/auth/me` whenever it finds nobody signed in, so
+  // after the first auth check it is the only thing in the tab that can learn
+  // the identity has changed - and it used to write the answer straight into
+  // the store, leaving the previous account's cache under the new one.
+  const adoptSession = useAdoptSession();
   const [checking, setChecking] = useState(!isAuthenticated);
 
   useEffect(() => {
@@ -18,8 +25,10 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
     const verify = async () => {
       try {
-        const user = await apiClient.get<User>("/auth/me");
-        setUser(user);
+        const { access_token, ...user } = await apiClient.get<User & { access_token?: string }>(
+          "/auth/me",
+        );
+        adoptSession(user as User, access_token ?? null);
       } catch {
         router.replace(ROUTES.LOGIN);
       } finally {
@@ -28,7 +37,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     };
 
     verify();
-  }, [isAuthenticated, router, setUser]);
+  }, [isAuthenticated, router, adoptSession]);
 
   if (checking && !isAuthenticated) {
     return (

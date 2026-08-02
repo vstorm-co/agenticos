@@ -37,12 +37,13 @@ export function useConversations() {
     setError,
   } = useConversationStore();
   const { clearMessages } = useChatStore();
-  // State, not a ref, because it is returned to a caller that renders it. A ref
-  // read during render gives whoever asked a value React never re-renders them
-  // for: the "load more" control stayed on screen after the last page arrived
-  // until something else happened to re-render the list. The ref stays beside
-  // it for the guard in `fetchMoreConversations`, which runs outside render and
-  // must see the newest value synchronously.
+  // State, not a ref, because it is returned. Reading `hasMoreRef.current` to
+  // build the return value is a ref read during render, and it hands whoever
+  // asked a value React will never re-render them for - a "load more" control
+  // driven by it would stay on screen after the last page arrived. No consumer
+  // reads it today; the hook offers it, so it has to be true when one does. The
+  // ref stays beside it for the guard in `fetchMoreConversations`, which runs
+  // outside render and must see the newest value synchronously.
   const [hasMore, setHasMore] = useState(true);
   const hasMoreRef = useRef(true);
 

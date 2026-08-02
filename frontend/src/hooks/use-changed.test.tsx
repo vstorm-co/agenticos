@@ -59,6 +59,20 @@ describe("useChanged", () => {
     expect(result.current).toBe(true);
   });
 
+  it("counts the first render even when the key itself is undefined", () => {
+    // The sentinel is a symbol rather than `undefined` for this: a caller
+    // watching an optional value - `useChanged(agent?.draft_spec)` was one -
+    // starts with `undefined`, and a hook that seeded its memory with the same
+    // thing would sit out the mount pass for exactly those callers.
+    const { result } = renderHook(() => {
+      const [seen, setSeen] = useState(0);
+      if (useChanged(undefined)) setSeen((n) => n + 1);
+      return seen;
+    });
+
+    expect(result.current).toBe(1);
+  });
+
   it("compares with Object.is, so an equal object still counts as a change", () => {
     // Reference equality, and the reason the docstring tells callers watching
     // several fields to build a string rather than an object.

@@ -28,7 +28,10 @@ export function resetSessionState(): void {
   useChatStore.getState().clearMessages();
   useChatStore.getState().setStreaming(false);
   useFilePreviewStore.getState().close();
-  useSourcesPanelStore.getState().close();
+  // `setState`, not `close()`: closing leaves the retrieved chunks in the store,
+  // and those are the previous account's documents. Nothing renders them while
+  // the panel is shut, which is the only reason it never showed.
+  useSourcesPanelStore.setState({ isOpen: false, sources: [], highlightedIndex: null });
   // `refusedOrgIds` too, not only the selection: a refusal is a fact about one
   // account, and leaving it behind filters an organization out of the next
   // account's automatic pick even where that account is a member in good

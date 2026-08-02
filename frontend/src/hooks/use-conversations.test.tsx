@@ -184,6 +184,10 @@ describe("the conversation list", () => {
     });
 
     expect(result.current.conversations.map((c) => c.id)).not.toContain("c-private");
+    // And the pagination the page answered with. `writeCache` holds the list on
+    // its own; this is the other half, and it is the reason the early return is
+    // there rather than only the guard inside the write.
+    expect(result.current.hasMore).toBe(true);
   });
 
   it("refreshes the list on demand", async () => {
@@ -389,6 +393,32 @@ describe("opening a conversation", () => {
     expect(useConversationStore.getState().currentMessages).toEqual([]);
   });
 
+  it("keeps a failed select from writing an error onto the next account's screen", async () => {
+    // The matrix cell the other tests miss: select *fails*, and the account has
+    // changed by the time it does. The refusal was A's; B is looking at the
+    // chat that shows it.
+    useAuthStore.getState().setUser({ id: "u-a", email: "a@example.com" } as never);
+    const result = await hook();
+    let refuse: (reason: unknown) => void = () => {};
+    vi.mocked(apiClient.get).mockImplementation(
+      () => new Promise((_, reject) => (refuse = reject)),
+    );
+
+    let selecting: Promise<void>;
+    await act(async () => {
+      selecting = result.current.selectConversation("c-1");
+      await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(2));
+    });
+
+    await act(async () => {
+      useAuthStore.getState().setUser({ id: "u-b", email: "b@example.com" } as never);
+      refuse(new Error("boom"));
+      await selecting!;
+    });
+
+    expect(useConversationStore.getState().error).toBeNull();
+  });
+
   it("says nothing about an aborted request, because it was not a failure", async () => {
     const result = await hook();
     vi.mocked(apiClient.get).mockRejectedValue(
@@ -467,6 +497,9 @@ describe("creating, renaming and removing a conversation", () => {
   });
 
   it("archives and restores in place, so the row moves tab without a refetch", async () => {
+    // Two rows, so the `map`'s other branch is taken: a patch that returned a
+    // whole new list, or one that touched every row, would pass against one.
+    serve({ items: [conversation("c-1"), conversation("c-2")] });
     const result = await hook();
 
     await act(async () => {
@@ -474,6 +507,7 @@ describe("creating, renaming and removing a conversation", () => {
     });
     expect(apiClient.patch).toHaveBeenCalledWith("/conversations/c-1", { is_archived: true });
     await waitFor(() => expect(result.current.conversations[0]?.is_archived).toBe(true));
+    expect(result.current.conversations[1]?.is_archived).toBe(false);
 
     await act(async () => {
       await result.current.unarchiveConversation("c-1");
@@ -497,7 +531,8 @@ describe("creating, renaming and removing a conversation", () => {
     expect(toast.error).toHaveBeenCalledWith("Failed to restore conversation");
   });
 
-  it("renames in place", async () => {
+  it("renames in place, and leaves the others alone", async () => {
+    serve({ items: [conversation("c-1"), conversation("c-2")] });
     const result = await hook();
 
     await act(async () => {
@@ -506,6 +541,7 @@ describe("creating, renaming and removing a conversation", () => {
 
     expect(apiClient.patch).toHaveBeenCalledWith("/conversations/c-1", { title: "Refund policy" });
     await waitFor(() => expect(result.current.conversations[0]?.title).toBe("Refund policy"));
+    expect(result.current.conversations[1]?.title).toBe("Conversation c-2");
   });
 
   it("reports a refused rename", async () => {
