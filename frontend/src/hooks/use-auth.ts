@@ -56,18 +56,24 @@ function stopTokenRefresh(): void {
  * establish a session by different routes, and hanging the cleanup off any one
  * of them leaves the others handing the new account the previous one's data.
  *
- * The comparison is against the persisted user, so reloading a page is not
- * mistaken for a change of account - a refresh keeps its cache, its selected
- * organization and its selected agent, and only a different `id` clears them.
+ * The comparison is against `sessionOwnerId` rather than against `user`, and
+ * only a different signed-in account clears anything. `user` goes null for
+ * reasons that are not somebody else arriving - a transient `/auth/me` failure
+ * is one - and reloading a page adopts the same account again, so neither may
+ * cost the person their cache, their selected organization or their agent.
  */
 function adoptUser(
   queryClient: QueryClient,
   setUser: (u: User | null) => void,
   user: User | null,
 ): void {
-  if (useAuthStore.getState().user?.id !== user?.id) {
-    queryClient.clear();
-    resetSessionState();
+  const { sessionOwnerId, setSessionOwnerId } = useAuthStore.getState();
+  if (user && sessionOwnerId !== user.id) {
+    if (sessionOwnerId !== null) {
+      queryClient.clear();
+      resetSessionState();
+    }
+    setSessionOwnerId(user.id);
   }
   setUser(user);
 }

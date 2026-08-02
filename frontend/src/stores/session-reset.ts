@@ -29,7 +29,11 @@ export function resetSessionState(): void {
   useChatStore.getState().setStreaming(false);
   useFilePreviewStore.getState().close();
   useSourcesPanelStore.getState().close();
-  useOrgStore.getState().setActiveOrgId(null);
+  // `refusedOrgIds` too, not only the selection: a refusal is a fact about one
+  // account, and leaving it behind filters an organization out of the next
+  // account's automatic pick even where that account is a member in good
+  // standing.
+  useOrgStore.setState({ activeOrgId: null, refusedOrgIds: [] });
   useAgentSelectionStore.getState().select(null);
   useAgentSelectionStore.getState().setDefault(null);
 }

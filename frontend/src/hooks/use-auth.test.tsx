@@ -129,6 +129,9 @@ describe("signing in", () => {
     // agents, the device names and IP addresses on their profile. A session
     // that ended without a logout - an expired cookie, a failed refresh - would
     // otherwise leave all of it to be served to the account that signs in next.
+    // A session that ended without a logout - an expired cookie, a closed
+    // laptop - so the browser still holds the account that filled it.
+    useAuthStore.getState().setSessionOwnerId("u-1");
     client.setQueryData(["sessions", "list", 0], { items: [{ ip_address: "10.0.0.1" }] });
     useConversationStore.getState().setCurrentConversationId("c-1");
     vi.mocked(apiClient.post).mockResolvedValue({
@@ -144,6 +147,21 @@ describe("signing in", () => {
 
     expect(client.getQueryData(["sessions", "list", 0])).toBeUndefined();
     expect(useConversationStore.getState().currentConversationId).toBeNull();
+  });
+
+  it("leaves a transient auth failure alone", async () => {
+    // `/auth/me` answering 502 nulls the user, which is not somebody else
+    // arriving. Treating it as one would cost the person still signed in their
+    // selected organization and agent on a bad network.
+    useAuthStore.getState().setSessionOwnerId("u-1");
+    client.setQueryData(["sessions", "list", 0], { items: [] });
+    vi.mocked(apiClient.get).mockRejectedValue(new Error("502"));
+
+    renderHook(() => useAuth(), { wrapper });
+
+    await waitFor(() => expect(useAuthStore.getState().isAuthenticated).toBe(false));
+    expect(client.getQueryData(["sessions", "list", 0])).toEqual({ items: [] });
+    expect(useAuthStore.getState().sessionOwnerId).toBe("u-1");
   });
 
   it("keeps the cache when the same account comes back", async () => {
@@ -171,6 +189,7 @@ describe("signing in", () => {
   it("empties the previous account on a sign-in that never calls login", async () => {
     // OAuth exchanges its code and adopts the session itself. Signing in
     // through Google is still signing in, and used to skip the cleanup.
+    useAuthStore.getState().setSessionOwnerId("u-1");
     client.setQueryData(["sessions", "list", 0], { items: [{ ip_address: "10.0.0.1" }] });
     const { result } = renderHook(() => useAdoptSession(), { wrapper });
 
