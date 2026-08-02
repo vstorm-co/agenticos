@@ -10,14 +10,16 @@ Two things are versioned separately from this file and worth knowing about:
   and a client's exported YAML both carry it, so it only ever moves forward with a
   migration that keeps old documents loading. See
   [the spec reference](docs/reference/spec.md).
-- **The migration chain** — `backend/alembic/versions/`, currently through
-  `0066`. Schema changes are listed here by what they do, not by revision id.
+- **The migration chain** — `backend/alembic/versions/`, squashed to a single
+  `0001_baseline` for this first version. Revision ids named below (`0038`,
+  `0059`, `0066`) are history: they describe when something changed, not a file
+  that still exists. Schema changes are listed here by what they do.
 
 ## [Unreleased]
 
 Nothing yet.
 
-## [0.0.1] — 2026-07-31
+## [0.0.1] — 2026-08-02
 
 First tagged version. The platform is usable end to end — build an agent in the
 UI, publish it, run it from chat, an HTTP API, Slack or an embedded widget, with
@@ -125,16 +127,50 @@ installed hook did nothing.
 - **`backend/.pre-commit-config.yaml`** shadowed the repository root and carried a
   `ty` hook that failed on an argument the pinned `ty` does not accept.
 
+### Security
+
+- **A conversation was readable and writable across tenants.** `GET
+  /conversations/{id}/messages` returned a full transcript — tool calls and
+  their arguments included — for a conversation in another organization, and
+  `POST` to the same path appended a turn to it, `role: "assistant"` included,
+  which rendered to its owner as the agent's own words. `organization_id` is now
+  a required argument on every conversation read and write; a caller that
+  genuinely reads across tenants passes an explicit sentinel.
+- **The avatar proxy forwarded a path traversal to the backend.** It is the one
+  route handler served without a session, so an anonymous caller could drive
+  arbitrary `GET`s against the internal API and read the response.
+- **A channel bot missing one configuration value stalled the whole API.** The
+  Slack and Mattermost supervisors retried a start that returns without
+  awaiting, which never yields — so the event loop starved and every request,
+  health check included, stopped being answered.
+- **Icons are resolved from the directory listing**, not by joining a request
+  parameter onto a path, and a symlink out of that directory is refused.
+
+### Added — the toolchain that keeps it honest
+
+- **An automated pull request reviewer** that reads this repository's own rules
+  from the base branch rather than a generic checklist. See
+  [Code review](docs/code-review.md).
+- **`main` is protected by a ruleset** with no bypass actors: pull request
+  required, CI green, squash only, no force push. See
+  [Branches](docs/branching.md).
+- **A weekly freshness job** that upgrades the entire lockfile, transitive
+  packages included, runs the suite against it and opens an issue when the
+  newest release breaks us.
+
 ### Changed
 
 - **One compose file per environment**, with a matching frontend file beside it:
   `docker-compose.yml` (local), `docker-compose-dev.yml` (dev server),
   `docker-compose-prod.yml` (production), each with a `.frontend.yml` sibling.
   `make stage` is kept as an alias for the new `make dev-server`.
-- **CI runs on `dev`**, not only `main`, and its lint job now matches `make lint`.
-  The integration suite refuses to skip when `CI` is set: an unreachable database
-  there means the service container failed, and skipping two hundred tests to
-  report green is worse than failing.
+- **One long-lived branch.** Work reaches `main` by pull request from a
+  short-lived branch, squashed on merge. A `dev` branch existed briefly and was
+  removed; see [Branches](docs/branching.md). CI's lint job matches `make lint`,
+  and the integration suite refuses to skip when `CI` is set: an unreachable
+  database there means the service container failed, and skipping two hundred
+  tests to report green is worse than failing.
+- **Pydantic AI 2.x** is the agent runtime, and the frontend is on **Next 16**.
 - **The documentation is the single copy of how the system works**, with a
   trigger map from code path to page in `CLAUDE.md` and a `Stop` hook
   (`scripts/docs_drift.py`) that names the pages a change owes.

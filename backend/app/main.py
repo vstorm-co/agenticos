@@ -4,6 +4,7 @@
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, suppress
+from importlib.metadata import version as installed_version
 from typing import Any, TypedDict
 
 from fastapi import FastAPI
@@ -212,7 +213,11 @@ OS for your agents.
 - [Swagger UI](/docs) - Interactive API documentation
 - [ReDoc](/redoc) - Alternative documentation view
         """.strip(),
-        version="0.1.0",
+        # Read from the installed distribution rather than written here. It
+        # said 0.1.0 while `pyproject.toml` said 0.0.1, and the number in
+        # `/docs` and `/openapi.json` is the one a client integrates against -
+        # a second copy of a version is a copy that disagrees.
+        version=installed_version("agenticos"),
         openapi_url=openapi_url,
         docs_url=docs_url,
         redoc_url=redoc_url,
