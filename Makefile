@@ -194,10 +194,11 @@ upgrade upgrade-dry-run upgrade-new-features upgrade-finalize:
 	@exit 1
 
 # === Dependencies ===
-# FastAPI, Pydantic AI, Logfire and genai-prices are uncapped and meant to track
-# their newest release. This is the local half of that: bump them, then run the
-# suite, because the upgrade is only done when it still passes. The
-# `framework-freshness` workflow does the same on a schedule and opens an issue.
+# Nothing is capped, so the lockfile is what holds versions still. Two targets:
+# `deps-upgrade` moves the four frameworks this platform tracks, which is the
+# one you want mid-week; `deps-upgrade-all` moves everything, which is what the
+# `dependency-freshness` workflow runs on a schedule. Either way the upgrade is
+# only done when the suite still passes.
 FRAMEWORKS := fastapi pydantic-ai-slim pydantic-ai-skills logfire genai-prices
 
 deps-upgrade:
@@ -207,7 +208,8 @@ deps-upgrade:
 		print(f'fastapi {fastapi.__version__} | logfire {logfire.__version__} | pydantic-ai {pydantic_ai.__version__}')"
 	@echo "▶ Now run 'make test' — an upgrade that breaks the suite is not done."
 
-# Everything, not just the four. Use before a release; expect more fallout.
+# Everything, not just the four - the same thing the scheduled freshness job
+# does, so a red issue from it reproduces here. Expect more fallout.
 deps-upgrade-all:
 	uv lock --directory backend --upgrade
 	uv sync --directory backend --dev

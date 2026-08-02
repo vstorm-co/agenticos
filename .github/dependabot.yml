@@ -9,8 +9,10 @@
 # Everything else batches monthly. A PR per patch bump to a transitive
 # dependency is a PR nobody reads.
 #
-# `framework-freshness.yml` runs the same upgrade on a schedule and reports what
-# breaks, so a red Dependabot PR is rarely the first anyone hears of it.
+# `dependency-freshness.yml` goes further on a schedule: it upgrades the whole
+# lock, transitive packages included, and opens an issue when the newest release
+# breaks the suite. So a red Dependabot PR is rarely the first anyone hears of
+# it - and a transitive dependency Dependabot never proposes still gets tried.
 
 version: 2
 
@@ -19,7 +21,7 @@ updates:
   # per-group, so any delay on `uv` also delays the four frameworks it groups - and
   # a stale `genai-prices` means budgets computed from stale prices, which is a
   # correctness bug rather than a maintenance chore. The freshness workflow is
-  # what covers the risk a cooldown would: it runs the same upgrade on a
+  # what covers the risk a cooldown would: it tries the newest of everything on a
   # schedule and reports what breaks.
   - package-ecosystem: uv # zizmor: ignore[dependabot-cooldown]
     directory: /backend

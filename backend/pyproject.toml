@@ -13,9 +13,9 @@ dependencies = [
     # the newest release: this platform's whole subject matter moves at their
     # pace, and genai-prices in particular *is* the model price snapshot, so an
     # old one means budgets computed from stale prices. `make deps-upgrade`
-    # bumps them, the `framework-freshness` workflow tries the latest on a
-    # schedule, and Dependabot opens the PR. A cap here (it was `<0.137`) turns
-    # all three into no-ops.
+    # bumps them, the `dependency-freshness` workflow tries the newest of
+    # everything on a schedule, and Dependabot opens the PR. A cap here (it was
+    # `<0.137`) turns all three into no-ops.
     "fastapi>=0.135.3",
     "uvicorn[standard]>=0.52.0",
     "pydantic[email]>=2.13.4",
