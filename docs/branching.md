@@ -1,58 +1,52 @@
 # Branches and what protects them
 
-Two long-lived branches, and one direction of travel.
+One long-lived branch.
 
 ```
-feat/… fix/… ──▶ dev ──▶ main
+feat/… fix/… ──pull request──▶ main
 ```
 
-`dev` is where work lands. `main` is what a reader of this repository clones, so
-everything reaching it has already been through `dev`, where CI and the E2E
-journey run on every pull request.
+`main` is what a reader of this repository clones and what tags are cut from.
+Everything reaching it does so as a squashed commit from a short-lived branch,
+after CI has run on the pull request.
 
-The [automated reviewer](code-review.md) runs there too, and again on the release
-pull request — but it is advisory, and a commit pushed straight to `dev` skips it
-entirely. This is a gate on provenance and on CI, not on review.
+There is no `dev`. There was, briefly: work landed there and reached `main` in
+release pull requests. At this size it bought a staging branch nobody needed and
+cost a second place for every change to sit, so it was removed.
 
 ## What is enforced, and by what
 
-| Rule | On | Enforced by |
-|---|---|---|
-| No direct push | `main` | Ruleset — a pull request is required |
-| A pull request may only come from `dev` | `main` | The `Source branch is dev` check, required |
-| CI green before merge | `main` | Required status checks |
-| No force push, no deletion | `main`, `dev` | Ruleset |
-| No commit made while on `main` | local | `no-commit-to-branch` in `.pre-commit-config.yaml` |
+| Rule | Enforced by |
+|---|---|
+| No direct push to `main` | Ruleset — a pull request is required |
+| CI green before merge | Required status checks: `lint`, `test`, `test-frontend`, `e2e`, `docs`, `Security Scan` |
+| Squash on merge | Ruleset — the only allowed merge method |
+| Conversations resolved | Ruleset |
+| Stale approvals dismissed on a new push | Ruleset |
+| No force push, no deletion | Ruleset |
+| No commit made while standing on `main` | `no-commit-to-branch` in `.pre-commit-config.yaml` |
 
-`dev` itself takes direct pushes. Blocking them would only teach everybody
-`--no-verify`, and the branch it protects is the next one along.
+The status checks are listed individually today. They should collapse into a
+single aggregating `All Checks Passed` job, so that adding a CI job stops meaning
+"remember to edit a ruleset" — a required-check list that drifts from the
+workflow is how a build ends up passing on nothing.
 
-## Why the source-branch rule is a workflow
+## Squash, and why the pull request title matters
 
-A ruleset can require a pull request, an approval and a green build. It cannot
-say **which branch the pull request may come from** — so that half lives in
-`.github/workflows/branch-policy.yml`, wired in as a required status check.
-A pull request into `main` from anything other than this repository's `dev`
-fails it, and the merge button stays disabled.
-
-It also refuses a fork whose branch happens to be called `dev`. Same name,
-different history, and none of it has been through this repository.
+`main` keeps one commit per pull request, built from the **pull request title and
+body** rather than from the branch's own commits. So `wip`, `fixup` and `try
+again` never reach it — and the description is not a courtesy, it is the commit
+message that survives. `CLAUDE.md` has the format.
 
 ## The escape hatch
 
 There are **no bypass actors**. An owner who needs to merge something now
-disables the ruleset, merges, and turns it back on. That is deliberate: a
-bypass that is always available is a bypass that gets used weekly, and a
-release path nobody can describe. Three clicks and an audit entry is the right
-amount of friction for something that should be rare.
+disables the ruleset, merges, and turns it back on. That is deliberate: a bypass
+that is always available is a bypass that gets used weekly, and a release path
+nobody can describe. Three clicks and an audit entry is the right amount of
+friction for something that should be rare.
 
-## Releasing
+## Reviews
 
-One pull request, `dev` into `main`, carrying everything that is ready.
-
-```bash
-gh pr create --base main --head dev --title "chore: release" --body "…"
-```
-
-The reviewer runs on it like any other pull request, and CI runs the full
-matrix. Nothing else opens against `main`.
+The [automated reviewer](code-review.md) runs on every pull request. It is
+advisory and never a required check — a model does not block a human's merge.
