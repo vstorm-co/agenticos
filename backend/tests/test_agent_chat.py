@@ -17,6 +17,7 @@ import asyncio
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -114,14 +115,17 @@ async def _run(
     conversation_id: uuid.UUID | None = None,
     ask_user: Any = None,
     stream: Any = _nothing,
+    user_input: Any = "what is the refund window",
+    attachments: Any = None,
 ):
     return await ChatAgentRunner(db).run(
         user=user or _user(),
         organization_id=organization_id or uuid.uuid4(),
         agent_id=agent_id or uuid.uuid4(),
-        user_input="what is the refund window",
+        user_input=user_input,
         message_history=[],
         conversation_id=conversation_id,
+        attachments=attachments,
         ask_user=ask_user or AsyncMock(return_value=[]),
         stream=stream,
     )
@@ -326,3 +330,83 @@ class TestPausingMidRun:
         assert finished["status"] is RunStatus.AWAITING_APPROVAL
         assert finished["paused_state"].tool_call_ids == {"approval-1": "call-1"}
         assert "approval" in turn.output.lower()
+
+
+class TestAttachmentsAreRoutedHereAndNotBySurfaces:
+    """Where a file goes depends on whether the agent has a workspace, and only
+    `prepare` knows that - so a surface cannot have assembled the prompt yet.
+
+    The WebSocket used to do this inline and no other surface did it at all,
+    which made an attachment mean something different depending on where the
+    person was sitting. Once a workspace is involved that would have been three
+    different behaviours.
+    """
+
+    async def test_a_file_reaches_the_prompt_the_agent_is_run_with(self):
+        attachment = SimpleNamespace(
+            id=uuid.uuid4(),
+            filename="raport.csv",
+            mime_type="text/csv",
+            size=512,
+            storage_path="u/1/raport.csv",
+            file_type="text",
+            parsed_content="month,total\njan,10",
+        )
+        prepared = _prepared()
+        prepared.workspace = None
+
+        with _runner(prepared):
+            await _run(_db(), attachments=[attachment])
+
+        prompt = prepared.built.agent.iter.call_args.args[0]
+        assert "month,total" in prompt
+
+    async def test_the_workspace_the_run_opened_is_the_one_the_file_lands_in(self):
+        """Not a fresh one, and not none - the file has to be where the agent
+        will look for it."""
+        from pydantic_ai_backends import StateBackend
+
+        attachment = SimpleNamespace(
+            id=uuid.uuid4(),
+            filename="raport.csv",
+            mime_type="text/csv",
+            size=512,
+            storage_path="u/1/raport.csv",
+            file_type="text",
+            parsed_content="month,total",
+        )
+        backend = StateBackend()
+        prepared = _prepared()
+        prepared.workspace = SimpleNamespace(backend=backend)
+
+        with (
+            _runner(prepared),
+            patch(
+                "app.services.attachments.get_file_storage",
+                lambda: SimpleNamespace(load=AsyncMock(return_value=b"month,total")),
+            ),
+        ):
+            await _run(_db(), attachments=[attachment])
+
+        assert any(path.startswith("/uploads/") for path in backend.files)
+
+    async def test_a_prompt_already_assembled_as_parts_keeps_its_text(self):
+        """A caller passing the richer shape would otherwise have its
+        attachments appended to a `repr`."""
+        attachment = SimpleNamespace(
+            id=uuid.uuid4(),
+            filename="notes.txt",
+            mime_type="text/plain",
+            size=10,
+            storage_path="u/1/notes.txt",
+            file_type="text",
+            parsed_content="hello",
+        )
+        prepared = _prepared()
+        prepared.workspace = None
+
+        with _runner(prepared):
+            await _run(_db(), user_input=["what is this", "and this"], attachments=[attachment])
+
+        prompt = prepared.built.agent.iter.call_args.args[0]
+        assert prompt.startswith("what is thisand this")

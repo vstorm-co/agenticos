@@ -26,6 +26,7 @@ tools listed.
 | `skills` | Skills | knowledge | `list_skills`, `load_skill`, `read_skill_resource` | `knowledge:read` | — |
 | `web_research` | Web search | research | `web_search` | `web:read` | for paid services |
 | `code_execution` | Run Python | analysis | `run_python` | `code:execute` | — |
+| `sandbox` | Files & shell | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | for Daytona |
 | `charts` | Charts | analysis | `create_chart` | — | — |
 | `thinking` | Thinking | reasoning | none, by design | — | — |
 | `clock` | Date and time | utility | none, by design | — | — |
@@ -108,6 +109,61 @@ Capped rather than open-ended, and per agent rather than per deployment: an auth
 raising a limit for one data-heavy agent should not need an operator or a
 redeploy.
 
+## Files & shell
+
+`ls`, `read_file`, `glob`, `grep` — *reading.*
+`write_file`, `edit_file`, `execute` — *writing and running.*
+
+A workspace that survives between turns. `code_execution` computes and forgets;
+this remembers, and on a container-backed backend it has a real shell. An agent
+granted both computes with one and keeps its work in the other — which is the
+normal pairing on the `state` backend, because that one has no shell at all.
+
+| Config | Default | Values |
+|---|---|---|
+| `backend` | `state` | `state`, `docker`, `daytona` |
+| `session_scope` | `conversation` | `run`, `conversation`, `user`, `agent` |
+| `runtime` | null | an alias the deployment allows; container backends only |
+| `include_execute` | `true` | removes the shell entirely when off, rather than gating it |
+
+**`backend` is infrastructure; `session_scope` is a data-sharing policy.** Getting
+the first wrong costs a feature. Getting the second wrong shows one person
+another person's files, so it is worth reading twice:
+
+| Scope | Who shares the workspace |
+|---|---|
+| `run` | Nobody — a fresh one every turn |
+| `conversation` | Everyone in that chat, group channels included |
+| `user` | One person, across their chats with this agent |
+| `agent` | **Everyone who talks to this agent**, across the organization |
+
+`agent` is the one that crosses a boundary between people. The Builder warns at
+the field, the file panel labels whose workspace it is rather than calling it "this
+conversation's files", and setting it is recorded in the audit log — because a user
+who sees a file they did not create should be able to find out why.
+
+A spec chooses a backend and never an image, a mount, a network mode or a
+ceiling. Those belong to whoever runs the deployment: a spec is authored in a
+browser by anyone holding `edit` on the agent, and one that could name a
+container image could name one whose entrypoint mounts the host. `runtime` is an
+alias, validated against the service's own allowlist.
+
+What each backend costs to run:
+
+| Backend | Needs | Shell | Where files live |
+|---|---|---|---|
+| `state` | nothing | no | this database, capped at `SANDBOX_STATE_MAX_BYTES` |
+| `docker` | the `sandboxd` service | yes | a container, on a host volume |
+| `daytona` | an organization API key | yes | Daytona's cloud, billed to that account |
+
+Reading is free and writing is not: `write_file`, `edit_file` and `execute`
+declare themselves side-effecting per tool, so an agent asks before it changes
+something and does not ask to list a directory. See
+[Governance](../governance.md) for how an approval is put to a person.
+
+Files somebody attaches to a message land in `/uploads` — see
+[File processing](../file-processing.md).
+
 ## Charts
 
 `create_chart` — *Draw a chart of numbers you already have, so the user can see
@@ -180,8 +236,9 @@ the agent is assembled:
 | `knowledge:read` | `knowledge`, `skills` |
 | `web:read` | `web_research` |
 | `code:execute` | `code_execution` |
+| `sandbox:execute` | `sandbox` |
 
-All three are granted by default today (`DEFAULT_GRANTED_SCOPES` in
+All four are granted by default today (`DEFAULT_GRANTED_SCOPES` in
 `app/services/agent_registry.py`). Per-organization scope management is
 [roadmap](../ROADMAP.md) work; the check is live and honest in the meantime rather
 than disabled and forgotten.

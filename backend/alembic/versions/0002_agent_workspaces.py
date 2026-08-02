@@ -19,8 +19,9 @@ paying an index for on a table with one row per warm conversation.
 """
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision = "0002_agent_workspaces"
 down_revision = "0001_baseline"

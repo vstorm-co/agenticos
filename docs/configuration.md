@@ -207,6 +207,33 @@ refused.
 | `S3_RAG_BUCKET` | `agenticos-rag` | Bucket name |
 | `S3_RAG_REGION` | `us-east-1` | AWS region |
 
+## Agent workspaces
+
+The `state` workspace needs nothing here. It is stored in this database, works on
+every deployment, and is what an agent gets by default — so the settings below
+are only for a container-backed one.
+
+| Variable | Default | Notes |
+|---|---|---|
+| `SANDBOXD_URL` | (empty) | The sandbox service. Empty means this deployment has none, and publishing an agent that asks for a container is refused in the Builder |
+| `SANDBOXD_TOKEN` | (empty) | Authorises opening a session. `make sandbox-token` generates one |
+| `SANDBOX_STATE_MAX_BYTES` | 4 MiB | Per workspace. Past it a write is refused with a message the model reads |
+| `SANDBOX_INLINE_IMAGE_MAX_BYTES` | 5 MiB | Above this an attached image is written to the workspace and not also sent inline |
+
+**`SANDBOXD_TOKEN` is worth what the Docker socket is worth.** The service holds
+that socket, the socket is an unauthenticated API for root on the host, and this
+token is what opens a session on it. Never in a browser, never in a log, never
+committed. The service's own dashboard (`SANDBOXD_UI_ENABLED`) is off in every
+shipped compose file for the same reason: it asks a human to paste this value
+into a browser.
+
+The service runs behind the `sandbox` compose profile, which is on by default in
+local dev and off elsewhere until an operator opts in — mounting the Docker
+socket on a shared host is a deliberate act. `COMPOSE_DEV_PROFILES` in the
+Makefile is the one place to change that. `uv run agenticos cmd doctor` reports
+whether the service answers, whether it accepts the token, and which runtimes it
+allows; an unconfigured service is a warning, not a failure.
+
 ## Messaging Channels
 
 | Variable | Default | Description |
