@@ -4,13 +4,13 @@
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, suppress
-from importlib.metadata import version as installed_version
 from typing import Any, TypedDict
 
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
+from app import __version__
 from app.api.exception_handlers import register_exception_handlers
 from app.api.router import api_router
 from app.agents.capabilities import load_builtins
@@ -213,11 +213,10 @@ OS for your agents.
 - [Swagger UI](/docs) - Interactive API documentation
 - [ReDoc](/redoc) - Alternative documentation view
         """.strip(),
-        # Read from the installed distribution rather than written here. It
-        # said 0.1.0 while `pyproject.toml` said 0.0.1, and the number in
-        # `/docs` and `/openapi.json` is the one a client integrates against -
-        # a second copy of a version is a copy that disagrees.
-        version=installed_version("agenticos"),
+        # `app.__version__`, which reads the installed distribution. The number
+        # in `/docs` and `/openapi.json` is the one a client integrates against,
+        # and it used to be a literal that disagreed with `pyproject.toml`.
+        version=__version__,
         openapi_url=openapi_url,
         docs_url=docs_url,
         redoc_url=redoc_url,
