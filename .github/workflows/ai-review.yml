@@ -412,7 +412,8 @@ jobs:
               write(
                   f"No review: {changed} changed lines, over the {limit} line limit. "
                   "A truncated pass costs as much as a real one and finds less. Split "
-                  "the pull request, or comment `/review` on a smaller follow-up."
+                  "the pull request, or raise `AI_REVIEW_MAX_CHANGED_LINES` if a diff "
+                  "this size is genuinely one change."
               )
           elif not out.exists():
               write("No review: the reviewer did not produce a result. See the workflow run.")
