@@ -18,19 +18,21 @@ name: AI review
 #            back, whatever the model is talked into.
 #   publish  posts the result. Never sees the key.
 #
-# Editing the `issue_comment` half cannot be tested inside a pull request:
-# GitHub runs `issue_comment` workflows from the copy on the **default branch**,
-# so a change to this file only takes effect once it has landed there. Test that
-# path with `workflow_dispatch`, or after the merge.
+# There is deliberately no `issue_comment` trigger, and it is a security
+# property rather than a simplification. `issue_comment` is privileged: it runs
+# from the default branch **with secrets**, for a comment on any pull request
+# including one from a fork. Checking out the pull request's own code in that
+# context, in the job that holds `OPENAI_API_KEY`, is the shape CodeQL flags as
+# `actions/untrusted-checkout` - correctly. The `ai-review` label does the same
+# job through `pull_request`, which hands a fork neither the secret nor a
+# writable token, so the exposure is gone rather than argued about.
 
 on:
   pull_request:
     # Deliberately not `synchronize`. Two developers, a dozen pushes per pull
     # request; a review on every one of them is a review nobody reads. Re-run
-    # after fixes with a `/review` comment or the `ai-review` label.
+    # after fixes by adding the `ai-review` label.
     types: [opened, reopened, ready_for_review, labeled]
-  issue_comment:
-    types: [created]
   workflow_dispatch:
     inputs:
       pr_number:
@@ -39,7 +41,7 @@ on:
         type: string
 
 concurrency:
-  group: ai-review-${{ github.event.pull_request.number || github.event.issue.number || inputs.pr_number }}
+  group: ai-review-${{ github.event.pull_request.number || inputs.pr_number }}
   cancel-in-progress: true
 
 # Nothing is granted by default; each job asks for what it needs and no more.
@@ -61,21 +63,15 @@ jobs:
     timeout-minutes: 5
     permissions:
       pull-requests: read
-    # The gate for every trigger, evaluated before anything is checked out.
-    #
-    # `labeled` fires for every label, so it is narrowed to `ai-review`.
-    # `issue_comment` fires on issues too, and from anybody at all - hence the
-    # pull request check and the author association, which is the only thing
-    # standing between a drive-by comment and a run that costs money.
+    # The gate for both triggers, evaluated before anything is checked out.
+    # `labeled` fires for every label, so it is narrowed to `ai-review` - which
+    # only somebody with write access can add, and which is what makes the
+    # on-demand re-run safe without an author-association check of its own.
     if: >-
       github.event_name == 'workflow_dispatch'
       || (github.event_name == 'pull_request'
           && github.event.pull_request.draft == false
           && (github.event.action != 'labeled' || github.event.label.name == 'ai-review'))
-      || (github.event_name == 'issue_comment'
-          && github.event.issue.pull_request != null
-          && startsWith(github.event.comment.body, '/review')
-          && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association))
     outputs:
       verdict: ${{ steps.resolve.outputs.verdict }}
       pr_number: ${{ steps.resolve.outputs.pr_number }}
@@ -86,7 +82,7 @@ jobs:
         id: resolve
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
-          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number || inputs.pr_number }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
         with:
           github-token: ${{ github.token }}
           script: |
@@ -587,7 +583,7 @@ jobs:
             summary.push(
               '',
               '---',
-              `Comment \`/review\` to re-run, or add the \`ai-review\` label. [Run](${process.env.RUN_URL}).`,
+              `Add the \`ai-review\` label to re-run. [Run](${process.env.RUN_URL}).`,
               'Advisory only — this is not a required check.',
             );
 
