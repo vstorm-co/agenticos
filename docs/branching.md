@@ -46,6 +46,36 @@ that is always available is a bypass that gets used weekly, and a release path
 nobody can describe. Three clicks and an audit entry is the right amount of
 friction for something that should be rare.
 
+## Dependency updates
+
+The backend runs weekly, with the agent frameworks grouped apart from everything
+else — they move fast and this codebase is meant to track them. The frontend
+runs monthly, after a seven-day cooldown.
+
+Two things about it are not obvious, and both cost time before they were
+understood:
+
+- **A group pattern must carry a trailing `*` to match a dependency written with
+  extras.** `pydantic-ai-slim[openrouter,…]` is not matched by
+  `pydantic-ai-slim`. That silence cost months: the `agent-frameworks` group
+  never opened a single pull request, and the runtime rode in
+  `backend-everything-else` with its majors. Equally, `fastapi` stays exact —
+  `fastapi*` would drag in `fastapi-cache2`.
+- **Dependabot cannot update `frontend/bun.lock`.** Its npm ecosystem knows
+  `package-lock.json`, `yarn.lock` and `pnpm-lock.yaml`, and not bun's. So a
+  frontend bump arrives as `package.json` alone and `bun install
+  --frozen-lockfile` refuses the mismatch, turning `test-frontend` and `e2e` red
+  for a reason unrelated to the dependency. **Regenerate it by hand** on the
+  pull request branch:
+
+  ```bash
+  cd frontend && bun install --lockfile-only && git commit -am "build(deps): sync bun.lock"
+  ```
+
+  Automating that is harder than it looks: a workflow on `pull_request` gets a
+  read-only token when Dependabot triggered it, whatever its `permissions` block
+  says, so it cannot push the result back.
+
 ## Reviews
 
 The [automated reviewer](code-review.md) runs on every pull request. It is never

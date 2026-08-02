@@ -216,7 +216,7 @@ Trigger map — what changed → which page:
 | `app/commands/**`, a new `make` target | `docs/commands.md` |
 | A new route, service or layering change | `docs/architecture.md` |
 | `.github/workflows/ai-review.yml`, `.github/codex/**` | `docs/code-review.md` |
-| `.pre-commit-config.yaml`, the branch rulesets | `docs/branching.md` |
+| `.pre-commit-config.yaml`, `.github/dependabot.yml`, the branch rulesets | `docs/branching.md` |
 | A capability, permission or setting that changes the first-run path | `docs/first-agent.md`, `docs/install.md` |
 
 **When updating a page:** keep its altitude — `docs/reference/*` is generated from

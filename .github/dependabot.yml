@@ -29,14 +29,26 @@ updates:
     open-pull-requests-limit: 5
     labels: [dependencies, backend]
     groups:
+      # The two wildcards are load-bearing; the rest are exact on purpose.
+      #
+      # A pattern is matched against the dependency as written, and exactly two
+      # of these are written with extras - `pydantic-ai-slim[openrouter,...]`
+      # and `logfire[fastapi,asyncpg,...]`. Without a wildcard they matched
+      # nothing, so this group never opened a single pull request and the
+      # runtime this platform is built on rode in `backend-everything-else`
+      # for months, majors included.
+      #
+      # `fastapi` stays exact for the opposite reason: `fastapi*` also captures
+      # `fastapi-cache2`, which is a cache library and has nothing to do with
+      # the frameworks this group exists to isolate.
       agent-frameworks:
         applies-to: version-updates
         patterns:
           - fastapi
-          - pydantic-ai-slim
+          - pydantic-ai-slim*
           - pydantic-ai-skills
           - pydantic-graph
-          - logfire
+          - logfire*
           - genai-prices
       # No `update-types` filter: majors included. Holding one back does not avoid
       # the upgrade, it only delays it until the jump is several versions wide and
@@ -45,12 +57,14 @@ updates:
       backend-everything-else:
         applies-to: version-updates
         patterns: ["*"]
+        # Must mirror the group above exactly, wildcards included: an exclusion
+        # that does not match is an exclusion that silently does nothing.
         exclude-patterns:
           - fastapi
-          - pydantic-ai-slim
+          - pydantic-ai-slim*
           - pydantic-ai-skills
           - pydantic-graph
-          - logfire
+          - logfire*
           - genai-prices
 
   # A week before a release is offered. Nothing here is read the day it lands, so
