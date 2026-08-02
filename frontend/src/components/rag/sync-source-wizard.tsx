@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -32,6 +32,7 @@ import {
 import { BrandIcon, connectorBrand } from "@/components/icons/brand-icon";
 import type { ConnectorInfo, SyncSourceCreate, SyncSourceRead } from "@/lib/rag-api";
 import { cn } from "@/lib/utils";
+import { useChanged } from "@/hooks/use-changed";
 
 interface SyncSourceWizardProps {
   open: boolean;
@@ -97,15 +98,17 @@ export function SyncSourceWizard({
   const [cloneSourceId, setCloneSourceId] = useState<string>("");
   const [cloneName, setCloneName] = useState<string>("");
 
-  useEffect(() => {
-    if (open) {
-      setMode("new");
-      setStep("source");
-      setForm({ ...EMPTY_FORM, collection_name: defaultCollection ?? null });
-      setCloneSourceId("");
-      setCloneName("");
-    }
-  }, [open, defaultCollection]);
+  // Reopening starts from the beginning, during render - an effect would show
+  // the last wizard's answers for a frame before clearing them.
+  const opened = useChanged(open);
+  const collectionMoved = useChanged(defaultCollection);
+  if ((opened || collectionMoved) && open) {
+    setMode("new");
+    setStep("source");
+    setForm({ ...EMPTY_FORM, collection_name: defaultCollection ?? null });
+    setCloneSourceId("");
+    setCloneName("");
+  }
 
   const selectedConnector = useMemo(
     () => connectors.find((c) => c.type === form.connector_type),

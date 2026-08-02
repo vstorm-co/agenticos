@@ -6,7 +6,7 @@ import { Download, ExternalLink, X } from "lucide-react";
 import { useFilePreviewStore } from "@/stores";
 import { getFileUrl } from "@/lib/file-api";
 import { cn } from "@/lib/utils";
-import { FilePreviewCard, extOf, iconFor, previewKind } from "./file-preview-card";
+import { FileKindIcon, FilePreviewCard, extOf, previewKind } from "./file-preview-card";
 
 const DEFAULT_WIDTH = 480;
 const MIN_WIDTH = 320;
@@ -22,16 +22,13 @@ export function FilePreviewPanel() {
   const file = useFilePreviewStore((s) => s.file);
   const close = useFilePreviewStore((s) => s.close);
 
-  const [width, setWidth] = useState<number>(DEFAULT_WIDTH);
+  // The stored width is read once, as the initial state, rather than written
+  // back from an effect - which rendered the panel at the default first and
+  // snapped it to the remembered width a frame later. Safe to read during
+  // render because the panel renders nothing until a file is selected, and
+  // nothing selects one on the server: there is no first paint to disagree with.
+  const [width, setWidth] = useState<number>(storedWidth);
   const [isDragging, setIsDragging] = useState(false);
-
-  useEffect(() => {
-    const stored = typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEY) : null;
-    if (stored) {
-      const n = parseInt(stored, 10);
-      if (Number.isFinite(n)) setWidth(clamp(n, MIN_WIDTH, MAX_WIDTH));
-    }
-  }, []);
 
   const onMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -71,7 +68,6 @@ export function FilePreviewPanel() {
   const downloadUrl = `${inlineUrl}?disposition=attachment`;
   const ext = extOf(file.filename);
   const kind = previewKind(file.mime_type, ext);
-  const KindIcon = iconFor(kind);
 
   return (
     <aside
@@ -94,7 +90,7 @@ export function FilePreviewPanel() {
 
       <header className="border-foreground/10 flex items-center gap-2 border-b px-3 py-2">
         <span className="bg-foreground/8 text-foreground/65 flex h-7 w-7 shrink-0 items-center justify-center rounded-md">
-          <KindIcon className="h-3.5 w-3.5" />
+          <FileKindIcon kind={kind} className="h-3.5 w-3.5" />
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-foreground truncate text-sm font-medium" title={file.filename}>
@@ -143,6 +139,13 @@ export function FilePreviewPanel() {
       </div>
     </aside>
   );
+}
+
+function storedWidth(): number {
+  /* v8 ignore next -- an SSR guard, and the test environment is jsdom */
+  if (typeof window === "undefined") return DEFAULT_WIDTH;
+  const n = parseInt(localStorage.getItem(STORAGE_KEY) ?? "", 10);
+  return Number.isFinite(n) ? clamp(n, MIN_WIDTH, MAX_WIDTH) : DEFAULT_WIDTH;
 }
 
 function clamp(n: number, min: number, max: number): number {

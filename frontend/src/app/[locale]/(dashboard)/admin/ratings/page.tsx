@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
@@ -30,6 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { apiClient } from "@/lib/api-client";
+import { qk } from "@/lib/query-keys";
 import { ROUTES } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
 import type { MessageRatingListResponse, MessageRatingWithDetails, RatingSummary } from "@/types";
@@ -38,41 +40,34 @@ const PAGE_SIZE = 50;
 type RatingFilter = "all" | "positive" | "negative";
 
 export default function AdminRatingsPage() {
-  const [summary, setSummary] = useState<RatingSummary | null>(null);
-  const [ratings, setRatings] = useState<MessageRatingListResponse | null>(null);
   const [filter, setFilter] = useState<RatingFilter>("all");
   const [commentsOnly, setCommentsOnly] = useState(false);
   const [page, setPage] = useState(0);
-  const [loading, setLoading] = useState(true);
   const [exportFormat, setExportFormat] = useState<"json" | "csv">("csv");
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const ratingsParams = new URLSearchParams({
+  // Two queries, not one `Promise.all` behind an effect. The summary is a fixed
+  // thirty-day window - it does not depend on the page, the filter or the
+  // comments toggle, and refetching it on every page step was work nobody asked
+  // for. Split, it is fetched once and served from the cache thereafter.
+  const { data: summary = null, isPending: summaryPending } = useQuery({
+    queryKey: qk.admin.ratings({ summary: 30 }),
+    queryFn: () => apiClient.get<RatingSummary>("/admin/ratings/summary?days=30"),
+  });
+
+  const { data: ratings = null, isPending: ratingsPending } = useQuery({
+    queryKey: qk.admin.ratings({ page, filter, commentsOnly }),
+    queryFn: () => {
+      const params = new URLSearchParams({
         skip: String(page * PAGE_SIZE),
         limit: String(PAGE_SIZE),
         with_comments_only: String(commentsOnly),
       });
-      if (filter !== "all") {
-        ratingsParams.set("rating_filter", filter === "positive" ? "1" : "-1");
-      }
-      const [summaryData, ratingsData] = await Promise.all([
-        apiClient.get<RatingSummary>("/admin/ratings/summary?days=30"),
-        apiClient.get<MessageRatingListResponse>(`/admin/ratings?${ratingsParams}`),
-      ]);
-      setSummary(summaryData);
-      setRatings(ratingsData);
-    } catch {
-      /* ignore - empty state handles errors */
-    } finally {
-      setLoading(false);
-    }
-  }, [page, filter, commentsOnly]);
+      if (filter !== "all") params.set("rating_filter", filter === "positive" ? "1" : "-1");
+      return apiClient.get<MessageRatingListResponse>(`/admin/ratings?${params}`);
+    },
+  });
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  const loading = summaryPending || ratingsPending;
 
   const handleExport = () => {
     const params = new URLSearchParams({ export_format: exportFormat });

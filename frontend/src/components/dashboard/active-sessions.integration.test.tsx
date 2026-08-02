@@ -1,4 +1,5 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render as renderBare, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -13,6 +14,17 @@ vi.mock("@/lib/api-client", async () => {
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const PAGE_SIZE = 5;
+
+/**
+ * The component reads its sessions through the query layer now, so it needs a
+ * client. A fresh one per render, with retries off: a test that retries a
+ * deliberate failure three times is a test that takes three seconds to say the
+ * same thing.
+ */
+function render(ui: React.ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return renderBare(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+}
 
 function session(n: number): Session {
   return {

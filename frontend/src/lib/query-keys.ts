@@ -128,6 +128,8 @@ export const qk = {
   rag: {
     stats: () => ["rag", "stats"] as const,
     collections: () => ["rag", "collections"] as const,
+    documents: (collection: string) => ["rag", "documents", collection] as const,
+    supportedFormats: () => ["rag", "supported-formats"] as const,
   },
   integrations: {
     all: () => ["integrations"] as const,
@@ -156,10 +158,15 @@ export const qk = {
     // discard a catalog that only changes on redeploy.
     catalog: () => ["mcp-servers", "catalog"] as const,
   },
+  sessions: {
+    list: (page: number) => ["sessions", "list", page] as const,
+  },
   admin: {
     stats: () => ["admin", "stats"] as const,
     events: () => ["admin", "events"] as const,
     users: (params?: unknown) => ["admin", "users", params] as const,
     conversations: (params?: unknown) => ["admin", "conversations", params] as const,
+    system: () => ["admin", "system"] as const,
+    ratings: (params?: unknown) => ["admin", "ratings", params] as const,
   },
 } as const;

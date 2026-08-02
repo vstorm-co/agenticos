@@ -43,6 +43,7 @@ import { Perm } from "@/types/permissions";
 import type { OrganizationMember, OrgRole } from "@/types";
 import { formatDate, getErrorMessage, MAX_AVATAR_SIZE_BYTES } from "@/lib/utils";
 import { ROUTES } from "@/lib/constants";
+import { useChanged } from "@/hooks/use-changed";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -96,9 +97,9 @@ export default function OrgMembersPage({ params }: PageProps) {
   const [avatarUploading, setAvatarUploading] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (org) setName(org.name);
-  }, [org?.id, org?.name]);
+  // Re-seeded when the stored name moves - a save coming back, or another tab.
+  // During render, so the old name is never shown in the field.
+  if (useChanged(`${org?.id}|${org?.name}`) && org) setName(org.name);
 
   const handleSaveName = async () => {
     if (!org) return;

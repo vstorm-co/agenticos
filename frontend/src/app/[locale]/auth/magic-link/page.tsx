@@ -21,15 +21,15 @@ export default function MagicLinkVerifyPage() {
   const router = useRouter();
   const params = useSearchParams();
   const token = params.get("token");
-  const [state, setState] = useState<"verifying" | "success" | "error">("verifying");
-  const [error, setError] = useState<string>("");
+  // A link with no token is an error before anything runs, so it is the initial
+  // state rather than something an effect corrects a render later.
+  const [state, setState] = useState<"verifying" | "success" | "error">(
+    token ? "verifying" : "error",
+  );
+  const [error, setError] = useState<string>(token ? "" : t("errorMissingToken"));
 
   useEffect(() => {
-    if (!token) {
-      setState("error");
-      setError(t("errorMissingToken"));
-      return;
-    }
+    if (!token) return;
     let active = true;
     apiClient
       .post("/auth/magic-link/verify", { token })

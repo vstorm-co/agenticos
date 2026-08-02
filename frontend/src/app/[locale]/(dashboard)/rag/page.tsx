@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks";
@@ -66,6 +67,7 @@ import {
 import { DragDropOverlay } from "@/components/rag/drag-drop-overlay";
 import { SyncSourceWizard } from "@/components/rag/sync-source-wizard";
 import { apiClient } from "@/lib/api-client";
+import { qk } from "@/lib/query-keys";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { usePollWhileIngesting } from "@/hooks";
 
@@ -89,6 +91,8 @@ function StatusIcon({ status }: { status: string }) {
   );
 }
 
+const DEFAULT_FORMATS = [".pdf", ".docx", ".txt", ".md"];
+
 export default function RAGPage() {
   const { user } = useAuth();
   const router = useRouter();
@@ -99,13 +103,15 @@ export default function RAGPage() {
     }
   }, [user, router]);
 
-  const [collections, setCollections] = useState<CollectionWithInfo[]>([]);
-  const [selected, setSelected] = useState<string>("");
-  const [docs, setDocs] = useState<RAGTrackedDocument[]>([]);
+  // The collection the user picked, falling back to the first one the server
+  // returned. Derived rather than written back after the fetch: the effect that
+  // did that ran a second render pass, and it could only default once - a
+  // collection list arriving after a failed first load left the page with
+  // nothing selected and no way to notice.
+  const queryClient = useQueryClient();
+  const [chosen, setChosen] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<RAGSearchResult[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [docsLoading, setDocsLoading] = useState(false);
   const [searching, setSearching] = useState(false);
   const [searchDone, setSearchDone] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -137,50 +143,59 @@ export default function RAGPage() {
   const [connectors, setConnectors] = useState<ConnectorInfo[]>([]);
   const [addSourceOpen, setAddSourceOpen] = useState(false);
   const [addSourceSubmitting, setAddSourceSubmitting] = useState(false);
-  const [supportedFormats, setSupportedFormats] = useState<string[]>([
-    ".pdf",
-    ".docx",
-    ".txt",
-    ".md",
-  ]);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const fetchCollections = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await listCollections();
-      const items: CollectionWithInfo[] = [];
-      for (const name of data.items) {
-        try {
-          items.push({ name, info: await getCollectionInfo(name) });
-        } catch {
-          items.push({ name, info: null });
+  // Server data through the query layer, which is where `.claude/rules/frontend.md`
+  // says it lives. Both fetchers set their loading flag synchronously before
+  // the first await, so an effect calling either of them wrote state during the
+  // effect and forced a cascading render.
+  const {
+    data: collections = [],
+    isPending: loading,
+    refetch: refetchCollections,
+  } = useQuery({
+    queryKey: qk.rag.collections(),
+    // One toast, so the failure is visible on a page whose empty state cannot
+    // tell "no collections" from "the request failed" - and no retry, so it
+    // stays one.
+    retry: false,
+    queryFn: async (): Promise<CollectionWithInfo[]> => {
+      try {
+        const data = await listCollections();
+        const items: CollectionWithInfo[] = [];
+        for (const name of data.items) {
+          try {
+            items.push({ name, info: await getCollectionInfo(name) });
+          } catch {
+            items.push({ name, info: null });
+          }
         }
+        return items;
+      } catch (err) {
+        toast.error("Failed to load collections");
+        throw err;
       }
-      setCollections(items);
-      setSelected((prev) => (items.length > 0 && !prev ? (items[0]?.name ?? "") : prev));
-    } catch {
-      toast.error("Failed to load collections");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    },
+  });
 
-  const fetchDocs = useCallback(async (col: string) => {
-    if (!col) {
-      setDocs([]);
-      return;
-    }
-    setDocsLoading(true);
-    try {
-      const data = await listTrackedDocuments(col);
-      setDocs(data.items || []);
-    } catch {
-      setDocs([]);
-    } finally {
-      setDocsLoading(false);
-    }
-  }, []);
+  const selected = chosen || collections[0]?.name || "";
+
+  const {
+    data: docs = [],
+    isPending: docsPending,
+    refetch: refetchDocs,
+  } = useQuery({
+    queryKey: qk.rag.documents(selected),
+    queryFn: () => listTrackedDocuments(selected).then((d) => d.items || []),
+    enabled: Boolean(selected),
+  });
+  const docsLoading = Boolean(selected) && docsPending;
+
+  const { data: supportedFormats = DEFAULT_FORMATS } = useQuery({
+    queryKey: qk.rag.supportedFormats(),
+    queryFn: () => apiClient.get<{ formats: string[] }>("/rag/supported-formats"),
+    select: (data) => data.formats,
+  });
 
   const fetchSyncLogs = async () => {
     setSyncLogsLoading(true);
@@ -254,29 +269,16 @@ export default function RAGPage() {
     }
   };
 
-  useEffect(() => {
-    fetchCollections();
-    apiClient
-      .get<{ formats: string[] }>("/rag/supported-formats")
-      .then((data) => {
-        if (data?.formats) setSupportedFormats(data.formats);
-      })
-      .catch(() => {});
-  }, [fetchCollections]);
-  useEffect(() => {
-    if (selected) fetchDocs(selected);
-  }, [selected, fetchDocs]);
-
-  usePollWhileIngesting(docs, () => fetchDocs(selected));
+  usePollWhileIngesting(docs, () => void refetchDocs());
 
   // A finished ingest changes the collection's vector count, so refresh the
   // sidebar once the last document settles rather than on every poll tick.
   const wasIngestingRef = useRef(false);
   useEffect(() => {
     const ingesting = docs.some((d) => d.status === "processing");
-    if (wasIngestingRef.current && !ingesting) fetchCollections();
+    if (wasIngestingRef.current && !ingesting) void refetchCollections();
     wasIngestingRef.current = ingesting;
-  }, [docs, fetchCollections]);
+  }, [docs, refetchCollections]);
 
   const handleCreate = async () => {
     const name = newName.trim().toLowerCase().replace(/\s+/g, "_");
@@ -286,8 +288,8 @@ export default function RAGPage() {
       toast.success(`"${name}" created`);
       setNewName("");
       setShowCreate(false);
-      await fetchCollections();
-      setSelected(name);
+      await refetchCollections();
+      setChosen(name);
     } catch {
       toast.error("Failed to create collection");
     }
@@ -297,10 +299,12 @@ export default function RAGPage() {
     try {
       await deleteCollection(name);
       toast.success(`"${name}" deleted`);
-      setCollections((prev) => prev.filter((c) => c.name !== name));
+      queryClient.setQueryData<CollectionWithInfo[]>(qk.rag.collections(), (prev = []) =>
+        prev.filter((c) => c.name !== name),
+      );
       if (selected === name) {
-        setSelected("");
-        setDocs([]);
+        setChosen("");
+        queryClient.removeQueries({ queryKey: qk.rag.documents(name) });
         setSearchResults([]);
       }
     } catch {
@@ -312,8 +316,10 @@ export default function RAGPage() {
     try {
       await deleteTrackedDocument(docId);
       toast.success("Document deleted");
-      setDocs((prev) => prev.filter((d) => d.id !== docId));
-      fetchCollections();
+      queryClient.setQueryData<RAGTrackedDocument[]>(qk.rag.documents(selected), (prev = []) =>
+        prev.filter((d) => d.id !== docId),
+      );
+      void refetchCollections();
     } catch {
       toast.error("Failed to delete");
     }
@@ -362,10 +368,10 @@ export default function RAGPage() {
         );
       }
 
-      await fetchDocs(selected);
-      await fetchCollections();
+      await refetchDocs();
+      await refetchCollections();
     },
-    [selected, supportedFormats, fetchDocs, fetchCollections],
+    [selected, supportedFormats, refetchDocs, refetchCollections],
   );
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -457,7 +463,7 @@ export default function RAGPage() {
               <Select
                 value={selected}
                 onValueChange={(v) => {
-                  setSelected(v);
+                  setChosen(v);
                   setSearchResults([]);
                   setSearchDone(false);
                   setTab("documents");

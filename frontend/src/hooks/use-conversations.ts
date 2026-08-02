@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
@@ -37,7 +37,19 @@ export function useConversations() {
     setError,
   } = useConversationStore();
   const { clearMessages } = useChatStore();
+  // State, not a ref, because it is returned to a caller that renders it. A ref
+  // read during render gives whoever asked a value React never re-renders them
+  // for: the "load more" control stayed on screen after the last page arrived
+  // until something else happened to re-render the list. The ref stays beside
+  // it for the guard in `fetchMoreConversations`, which runs outside render and
+  // must see the newest value synchronously.
+  const [hasMore, setHasMore] = useState(true);
   const hasMoreRef = useRef(true);
+
+  const rememberHasMore = useCallback((more: boolean) => {
+    hasMoreRef.current = more;
+    setHasMore(more);
+  }, []);
   // Tracks the in-flight message fetch so a rapid conversation switch can abort
   // the previous request - otherwise a slower earlier fetch could resolve last
   // and overwrite the messages of the conversation the user actually selected.
@@ -53,7 +65,7 @@ export function useConversations() {
       const response = await apiClient.get<ConversationListResponse>(
         `/conversations?limit=${PAGE_SIZE}&include_archived=true`,
       );
-      hasMoreRef.current = response.items.length >= PAGE_SIZE;
+      rememberHasMore(response.items.length >= PAGE_SIZE);
       return response.items;
     },
   });
@@ -109,12 +121,12 @@ export function useConversations() {
           return [...prev, ...response.items.filter((c) => !seen.has(c.id))];
         });
       }
-      hasMoreRef.current = response.items.length >= PAGE_SIZE;
+      rememberHasMore(response.items.length >= PAGE_SIZE);
     } catch {
     } finally {
       loadingMoreRef.current = false;
     }
-  }, [queryClient, writeCache]);
+  }, [queryClient, writeCache, rememberHasMore]);
 
   const createConversation = useCallback(
     async (title?: string): Promise<Conversation | null> => {
@@ -282,7 +294,7 @@ export function useConversations() {
     error,
     fetchConversations,
     fetchMoreConversations,
-    hasMore: hasMoreRef.current,
+    hasMore,
     createConversation,
     selectConversation,
     archiveConversation,

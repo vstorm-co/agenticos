@@ -33,6 +33,7 @@ import { ConversationAgents } from "@/components/agents/conversation-agents";
 import { useAdminConversations, useAgents } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import { cn, formatDate } from "@/lib/utils";
+import { useChanged } from "@/hooks/use-changed";
 
 const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
 type SortDir = "asc" | "desc";
@@ -113,9 +114,16 @@ export default function AdminConversationsPage() {
     dir: "desc",
   });
 
-  useEffect(() => {
+  // Back to the first page whenever the filters move: page 4 of a list that
+  // now has one page shows nothing. During render, so the empty page is never
+  // painted on the way.
+  if (
+    useChanged(
+      `${search}|${selectedUserId}|${selectedAgentId}|${status}|${pageSize}|${sort.by}|${sort.dir}`,
+    )
+  ) {
     setPage(0);
-  }, [search, selectedUserId, selectedAgentId, status, pageSize, sort.by, sort.dir]);
+  }
 
   // Load owners list for the dropdown - once on mount, independent of any tab.
   useEffect(() => {

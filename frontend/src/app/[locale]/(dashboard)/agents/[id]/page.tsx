@@ -88,6 +88,7 @@ import { useAgentSelectionStore, useConversationStore } from "@/stores";
 import { cn } from "@/lib/utils";
 import type { AgentSpec, CapabilityBindingSpec } from "@/types/agents";
 import { Perm } from "@/types/permissions";
+import { useChanged } from "@/hooks/use-changed";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -133,9 +134,9 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // invalidates the agent query, and re-adopting the answer would overwrite
   // whatever was typed while the save was in flight. `setSpec(null)` is how a
   // flow that really does replace the draft (rollback) asks to adopt again.
-  useEffect(() => {
-    if (agent?.draft_spec && spec === null) setSpec(agent.draft_spec);
-  }, [agent?.draft_spec, spec]);
+  if (useChanged(agent?.draft_spec) && agent?.draft_spec && spec === null) {
+    setSpec(agent.draft_spec);
+  }
 
   const canEdit = can(Perm.agentsEdit);
   const canPublish = can(Perm.agentsPublish);

@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Camera } from "lucide-react";
 import { toast } from "sonner";
 
@@ -13,6 +13,7 @@ import { apiClient, ApiError } from "@/lib/api-client";
 import { formatDate, getErrorMessage, isAppAdmin, MAX_AVATAR_SIZE_BYTES } from "@/lib/utils";
 import { useAuthStore } from "@/stores";
 import type { User } from "@/types";
+import { useChanged } from "@/hooks/use-changed";
 
 export default function ProfileSettingsPage() {
   const { user } = useAuth();
@@ -24,10 +25,12 @@ export default function ProfileSettingsPage() {
   const [avatarUploading, setAvatarUploading] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
+  // Re-seeded when the stored profile moves - a save coming back, or another
+  // tab. During render, so a stale name is never shown in the field.
+  if (useChanged(`${user?.id}|${user?.email}|${user?.full_name}`)) {
     setName(user?.full_name ?? "");
     setEmail(user?.email ?? "");
-  }, [user?.id, user?.email, user?.full_name]);
+  }
 
   const handleSaveProfile = async () => {
     if (!user) return;
