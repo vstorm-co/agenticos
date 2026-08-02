@@ -68,6 +68,8 @@ import { DragDropOverlay } from "@/components/rag/drag-drop-overlay";
 import { SyncSourceWizard } from "@/components/rag/sync-source-wizard";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
+import { useChanged } from "@/hooks/use-changed";
+import { useOrgStore } from "@/stores";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { usePollWhileIngesting } from "@/hooks";
 
@@ -109,6 +111,7 @@ export default function RAGPage() {
   // collection list arriving after a failed first load left the page with
   // nothing selected and no way to notice.
   const queryClient = useQueryClient();
+  const orgId = useOrgStore((state) => state.activeOrgId) ?? "";
   const [chosen, setChosen] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<RAGSearchResult[]>([]);
@@ -154,7 +157,7 @@ export default function RAGPage() {
     isPending: loading,
     refetch: refetchCollections,
   } = useQuery({
-    queryKey: qk.rag.collections(),
+    queryKey: qk.rag.collections(orgId),
     // One toast, so the failure is visible on a page whose empty state cannot
     // tell "no collections" from "the request failed" - and no retry, so it
     // stays one.
@@ -180,12 +183,21 @@ export default function RAGPage() {
 
   const selected = chosen || collections[0]?.name || "";
 
+  // The collection picked in one organization does not exist in the next, and
+  // neither do its search results. Cleared as the organization moves, so the
+  // page falls back to the first collection the new tenant actually has.
+  if (useChanged(orgId)) {
+    setChosen("");
+    setSearchResults([]);
+    setSearchDone(false);
+  }
+
   const {
     data: docs = [],
     isPending: docsPending,
     refetch: refetchDocs,
   } = useQuery({
-    queryKey: qk.rag.documents(selected),
+    queryKey: qk.rag.documents(orgId, selected),
     queryFn: () => listTrackedDocuments(selected).then((d) => d.items || []),
     enabled: Boolean(selected),
   });
@@ -299,12 +311,12 @@ export default function RAGPage() {
     try {
       await deleteCollection(name);
       toast.success(`"${name}" deleted`);
-      queryClient.setQueryData<CollectionWithInfo[]>(qk.rag.collections(), (prev = []) =>
+      queryClient.setQueryData<CollectionWithInfo[]>(qk.rag.collections(orgId), (prev = []) =>
         prev.filter((c) => c.name !== name),
       );
       if (selected === name) {
         setChosen("");
-        queryClient.removeQueries({ queryKey: qk.rag.documents(name) });
+        queryClient.removeQueries({ queryKey: qk.rag.documents(orgId, name) });
         setSearchResults([]);
       }
     } catch {
@@ -316,8 +328,9 @@ export default function RAGPage() {
     try {
       await deleteTrackedDocument(docId);
       toast.success("Document deleted");
-      queryClient.setQueryData<RAGTrackedDocument[]>(qk.rag.documents(selected), (prev = []) =>
-        prev.filter((d) => d.id !== docId),
+      queryClient.setQueryData<RAGTrackedDocument[]>(
+        qk.rag.documents(orgId, selected),
+        (prev = []) => prev.filter((d) => d.id !== docId),
       );
       void refetchCollections();
     } catch {

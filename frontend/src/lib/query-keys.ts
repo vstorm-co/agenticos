@@ -127,8 +127,15 @@ export const qk = {
   },
   rag: {
     stats: () => ["rag", "stats"] as const,
-    collections: () => ["rag", "collections"] as const,
-    documents: (collection: string) => ["rag", "documents", collection] as const,
+    // Keyed on the organization. Collection names and document titles belong to
+    // one tenant, and a cache that outlived an org switch would paint the
+    // previous tenant's names onto the new one's page for as long as the
+    // refetch took - the names being the part worth not leaking.
+    collections: (orgId: string) => ["rag", "collections", orgId] as const,
+    documents: (orgId: string, collection: string) =>
+      ["rag", "documents", orgId, collection] as const,
+    // Not keyed on the organization: what the deployment's parsers accept is a
+    // property of the deployment, the same answer for every tenant.
     supportedFormats: () => ["rag", "supported-formats"] as const,
   },
   integrations: {
