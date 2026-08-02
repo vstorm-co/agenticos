@@ -189,6 +189,98 @@ describe("WorkspaceSection", () => {
     expect(screen.queryByLabelText("backend")).toBeNull();
   });
 
+  it("changing who shares it is written to the binding", async () => {
+    const onChange = vi.fn();
+    render(
+      <WorkspaceSection
+        definition={SANDBOX}
+        binding={binding({ backend: "state", session_scope: "conversation" })}
+        onToggle={vi.fn()}
+        onChange={onChange}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Who shares it" }));
+    await userEvent.click(screen.getByRole("option", { name: "Everyone using this agent" }));
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ config: expect.objectContaining({ session_scope: "agent" }) }),
+    );
+  });
+
+  it("a runtime reaches the binding as it is typed", async () => {
+    const onChange = vi.fn();
+    render(
+      <WorkspaceSection
+        definition={SANDBOX}
+        binding={binding({ backend: "docker" })}
+        onToggle={vi.fn()}
+        onChange={onChange}
+      />,
+    );
+
+    await userEvent.type(screen.getByLabelText("Runtime"), "p");
+
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ config: expect.objectContaining({ runtime: "p" }) }),
+    );
+  });
+
+  it("clearing the runtime means the deployment's default, not an empty alias", async () => {
+    // An empty string would be sent as a runtime the service has never heard of.
+    const onChange = vi.fn();
+    render(
+      <WorkspaceSection
+        definition={SANDBOX}
+        binding={binding({ backend: "docker", runtime: "python" })}
+        onToggle={vi.fn()}
+        onChange={onChange}
+      />,
+    );
+
+    await userEvent.clear(screen.getByLabelText("Runtime"));
+
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ config: expect.objectContaining({ runtime: null }) }),
+    );
+  });
+
+  it("the shell can be removed from a backend that has one", async () => {
+    const onChange = vi.fn();
+    render(
+      <WorkspaceSection
+        definition={SANDBOX}
+        binding={binding({ backend: "docker" })}
+        onToggle={vi.fn()}
+        onChange={onChange}
+      />,
+    );
+
+    await userEvent.click(screen.getByLabelText("Allow shell commands"));
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ config: expect.objectContaining({ include_execute: false }) }),
+    );
+  });
+
+  it("a choice made before the binding exists cannot write to nothing", async () => {
+    // `onToggle` creates the binding; the config patch lands on the next render
+    // with the binding the parent then supplies.
+    const onChange = vi.fn();
+    render(
+      <WorkspaceSection
+        definition={SANDBOX}
+        binding={undefined}
+        onToggle={vi.fn()}
+        onChange={onChange}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /^Container/ }));
+
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
   it("is inert for somebody who may not edit the agent", () => {
     render(
       <WorkspaceSection
