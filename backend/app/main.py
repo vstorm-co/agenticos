@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
+from app import __version__
 from app.api.exception_handlers import register_exception_handlers
 from app.api.router import api_router
 from app.agents.capabilities import load_builtins
@@ -212,7 +213,10 @@ OS for your agents.
 - [Swagger UI](/docs) - Interactive API documentation
 - [ReDoc](/redoc) - Alternative documentation view
         """.strip(),
-        version="0.1.0",
+        # `app.__version__`, which reads the installed distribution. The number
+        # in `/docs` and `/openapi.json` is the one a client integrates against,
+        # and it used to be a literal that disagreed with `pyproject.toml`.
+        version=__version__,
         openapi_url=openapi_url,
         docs_url=docs_url,
         redoc_url=redoc_url,
