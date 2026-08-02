@@ -555,6 +555,19 @@ describe("a tool with no renderer of its own", () => {
     expect(screen.getByText("42")).toBeInTheDocument();
   });
 
+  it("shows nothing for a call that carried no arguments at all", () => {
+    // `args` arrives from the stream and is null for a no-argument tool.
+    // Formatted as "null" it would read as an argument the model passed.
+    render(
+      <GenericToolResult
+        toolCall={toolCall({ args: null as unknown as ToolCall["args"] })}
+        resultText="ok"
+      />,
+    );
+
+    expect(screen.queryByText("null")).not.toBeInTheDocument();
+  });
+
   it("shows the arguments it was called with", () => {
     render(<GenericToolResult toolCall={toolCall({ args: { invoice_id: 7 } })} resultText="ok" />);
 

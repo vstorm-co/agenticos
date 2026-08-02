@@ -238,6 +238,25 @@ describe("rating an answer", () => {
     );
   });
 
+  it("moves both counts the other way round too", async () => {
+    // The mirror of the case above, and a separate branch: switching off a
+    // dislike decrements a different counter than switching off a like, and
+    // only one of the two was ever exercised.
+    const onRatingChange = mount({
+      currentRating: RatingValue.DISLIKE,
+      ratingCount: { likes: 3, dislikes: 2 },
+    });
+
+    await userEvent.click(up());
+
+    await waitFor(() =>
+      expect(onRatingChange).toHaveBeenCalledWith({
+        rating: RatingValue.LIKE,
+        rating_count: { likes: 4, dislikes: 1 },
+      }),
+    );
+  });
+
   it("never counts below zero, however out of step the tally was", async () => {
     // The count arrives from the server and the rating from the local store; they
     // can disagree after a reload, and a negative count on screen is worse than

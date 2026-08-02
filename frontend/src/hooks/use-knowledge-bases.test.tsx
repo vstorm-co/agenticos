@@ -86,21 +86,22 @@ function xhr(index = 0): FakeXhr {
 
 function stubXhr() {
   xhrs = [];
-  vi.stubGlobal(
-    "XMLHttpRequest",
-    vi.fn(() => {
-      const instance: FakeXhr = {
-        open: vi.fn(),
-        send: vi.fn(),
-        withCredentials: false,
-        status: 201,
-        responseText: "{}",
-        upload: {},
-      };
-      xhrs.push(instance);
-      return instance;
-    }),
-  );
+  // A class, not `vi.fn(() => ({...}))`: the code under test calls
+  // `new XMLHttpRequest()`, and an arrow function cannot be constructed - the
+  // fake returned nothing, so no request was ever recorded.
+  class FakeXhrImpl implements FakeXhr {
+    open = vi.fn();
+    send = vi.fn();
+    withCredentials = false;
+    status = 201;
+    responseText = "{}";
+    upload: FakeXhr["upload"] = {};
+
+    constructor() {
+      xhrs.push(this);
+    }
+  }
+  vi.stubGlobal("XMLHttpRequest", FakeXhrImpl);
 }
 
 /** Wait until the upload has actually been sent, so its handlers exist. */

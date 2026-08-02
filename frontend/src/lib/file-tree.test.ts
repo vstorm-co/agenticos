@@ -11,6 +11,12 @@ describe("buildTree", () => {
     expect(node).toMatchObject({ kind: "file", path: "SKILL.md", label: "SKILL.md" });
   });
 
+  it("drops an entry whose name is nothing but separators", () => {
+    // The API returns the name as stored, and a leading or doubled slash makes
+    // an empty segment. Left in, it would render as a folder with no label.
+    expect(buildTree([entry("/"), entry("SKILL.md")])).toHaveLength(1);
+  });
+
   it("turns a path into the folders it implies", () => {
     // There is no folder table: a folder is a prefix some file has, which is
     // what makes an empty one impossible.
