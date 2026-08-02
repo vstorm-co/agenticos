@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { nanoid } from "nanoid";
 import { useWebSocket } from "./use-websocket";
 import { useChatStore, useAuthStore, useOrgStore } from "@/stores";
+import { useTenantId } from "@/hooks/use-organizations";
 import { useAgentSelectionStore } from "@/stores";
 import type {
   AskUserAnswer,
@@ -342,6 +343,7 @@ export function useChat(options: UseChatOptions = {}) {
   // socket otherwise. Switching orgs changes the URL, which reconnects the
   // socket, so a conversation never continues under the wrong organization.
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
+  const tenantId = useTenantId();
   const wsUrl = useMemo(() => {
     const base = `${WS_URL}/api/v1/ws/agent`;
     return activeOrgId ? `${base}?organization_id=${encodeURIComponent(activeOrgId)}` : base;
@@ -455,6 +457,25 @@ export function useChat(options: UseChatOptions = {}) {
     messageQueueRef.current = [];
     setQueuedMessages([]);
   }, []);
+
+  // A queued message belongs to the organization it was typed in. It sits in
+  // this hook's own state until the socket comes back, so neither dropping the
+  // query cache nor resetting the stores reaches it - switching organization
+  // with the connection down left the message on screen and sent it as the new
+  // tenant once their socket connected. An approval or a question waiting on
+  // the previous organization's run is the same thing, one turn later.
+  //
+  // A layout effect rather than a write during render, because the queue lives
+  // in a ref as well as in state and a ref may not be written while rendering.
+  // Before the paint either way, so nothing of the previous tenant is shown.
+  const queueBelongsTo = useRef(tenantId);
+  useLayoutEffect(() => {
+    if (queueBelongsTo.current === tenantId) return;
+    queueBelongsTo.current = tenantId;
+    clearQueued();
+    setPendingApproval(null);
+    setPendingQuestions(null);
+  }, [tenantId, clearQueued]);
 
   const sendResumeDecisions = useCallback(
     (decisions: Decision[]) => {

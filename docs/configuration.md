@@ -84,6 +84,16 @@ Production validation: `API_KEY` cannot use the default value in
 | `GOOGLE_REDIRECT_URI` | `http://localhost:8000/api/v1/oauth/google/callback` | OAuth2 callback URL |
 | `FRONTEND_URL` | `http://localhost:3000` | Frontend URL for OAuth2 redirects |
 
+Getting the pair: [Google Cloud console](https://console.cloud.google.com/) →
+APIs & Services → Credentials → Create OAuth client ID → **Web application**.
+
+The authorized redirect URI is the **backend's** callback, not the frontend's -
+`http://localhost:8000/api/v1/oauth/google/callback` by default, and whatever
+`GOOGLE_REDIRECT_URI` says in a deployment. Google exchanges the code with the
+API, which then sends the browser on to `FRONTEND_URL`. Registering the
+frontend URL instead is the mistake worth naming: the consent screen works, and
+the callback 404s.
+
 
 ## Database (PostgreSQL)
 
@@ -180,6 +190,12 @@ belongs to no collection, so there is no stored configuration to read.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `GOOGLE_DRIVE_CREDENTIALS_FILE` | `credentials/google-drive-sa.json` | Path to Google service account credentials |
+
+The file is a service account's key: [Cloud console](https://console.cloud.google.com/iam-admin/serviceaccounts)
+→ create a service account → Keys → Add key → JSON. Then **share the Drive
+folder with the service account's own email address** - it is a principal like
+any other, and a folder nobody shared with it lists as empty rather than as
+refused.
 
 ### S3/MinIO Sync
 

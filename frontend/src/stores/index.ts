@@ -8,4 +8,4 @@ export { useFilePreviewStore } from "./file-preview-store";
 export { useOrgStore } from "./org-store";
 export { useAgentSelectionStore } from "./agent-selection-store";
 export { useSourcesPanelStore } from "./sources-panel-store";
-export { resetSessionState } from "./session-reset";
+export { resetSessionState, resetTenantState } from "./session-reset";
