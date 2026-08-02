@@ -368,3 +368,21 @@ times has been asked the same question seven times.
 If the reviewer is wrong — and it is, sometimes; it does not always know what a
 file's surrounding code already does — say so in the commit body or the pull
 request, with the reason, rather than churning the code to silence it.
+
+### A bug you find is a bug you file
+
+**Every defect found along the way gets a GitHub issue** — `gh issue create`,
+straight away, whoever or whatever found it: the reviewer, a subagent, you
+reading a neighbouring file, a test that failed for the wrong reason.
+
+- **In scope for what you are doing?** Fix it in the same change, and the issue
+  is unnecessary — the commit body carries the story.
+- **Out of scope?** File it and keep going. Do not fold an unrelated fix into a
+  branch about something else, and do not drop it either. Mentioning a bug in a
+  pull request comment is not recording it: the comment is closed with the pull
+  request and the bug outlives both.
+
+An issue says what breaks, the sequence that triggers it, the `file:line`, and
+how you would know it was fixed. Say plainly whether the current branch caused
+it or merely found it — "pre-existing, found reviewing #105" is information the
+next reader needs. `#106` is the shape to copy.
