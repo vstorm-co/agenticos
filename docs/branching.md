@@ -48,5 +48,8 @@ friction for something that should be rare.
 
 ## Reviews
 
-The [automated reviewer](code-review.md) runs on every pull request. It is
-advisory and never a required check — a model does not block a human's merge.
+The [automated reviewer](code-review.md) runs on every pull request. It is never
+a required check, so it cannot fail a build — but its findings are review
+threads, and the ruleset above requires those resolved. Replying is not enough —
+somebody has to mark the thread resolved before the merge button comes back. See
+[code-review.md](code-review.md).
