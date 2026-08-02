@@ -122,11 +122,16 @@ export function useConversations() {
   const fetchMoreConversations = useCallback(async () => {
     if (!hasMoreRef.current || loadingMoreRef.current) return;
     loadingMoreRef.current = true;
+    const startedAs = useAuthStore.getState().user?.id;
     const current = queryClient.getQueryData<Conversation[]>(qk.conversations.list()) ?? [];
     try {
       const response = await apiClient.get<ConversationListResponse>(
         `/conversations?limit=${PAGE_SIZE}&skip=${current.length}&include_archived=true`,
       );
+      // Writing the cache is not the same as reading it: the sign-in that
+      // emptied it has already happened, and this would put one page of the
+      // previous account's titles straight back under the same key.
+      if (!stillSameAccount(startedAs)) return;
       if (response.items.length > 0) {
         // Dedupe in case a refetch raced with the append.
         writeCache((prev) => {

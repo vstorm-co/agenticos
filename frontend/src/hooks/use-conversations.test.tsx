@@ -161,6 +161,31 @@ describe("the conversation list", () => {
     expect(result.current.conversations).toHaveLength(30);
   });
 
+  it("drops a next page that arrives after somebody else has signed in", async () => {
+    // Writing the cache is not the same as reading it: the sign-in that emptied
+    // it has already happened, so this would put one page of A's titles back
+    // under the key B is reading.
+    useAuthStore.getState().setUser({ id: "u-a", email: "a@example.com" } as never);
+    serve({ items: Array.from({ length: 30 }, (_, index) => conversation(`c-${index}`)) });
+    const result = await hook();
+
+    let answer: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.get).mockImplementation(() => new Promise((resolve) => (answer = resolve)));
+    let loading: Promise<void>;
+    await act(async () => {
+      loading = result.current.fetchMoreConversations();
+      await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(2));
+    });
+
+    await act(async () => {
+      useAuthStore.getState().setUser({ id: "u-b", email: "b@example.com" } as never);
+      answer({ items: [conversation("c-private")], total: 31 });
+      await loading!;
+    });
+
+    expect(result.current.conversations.map((c) => c.id)).not.toContain("c-private");
+  });
+
   it("refreshes the list on demand", async () => {
     const result = await hook();
 
