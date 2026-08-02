@@ -27,6 +27,7 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
+from pydantic_ai_backends import FileInfo
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.sandbox import SandboxConfig
@@ -296,3 +297,89 @@ class SandboxWorkspaceService:
             logger.warning(
                 "workspace_purge_failed", extra={"scope_key": row.scope_key}, exc_info=True
             )
+
+    async def listing(
+        self, *, organization_id: UUID, conversation_id: UUID
+    ) -> tuple[AgentWorkspace, list[FileInfo]] | None:
+        """The files a conversation's workspace holds, and the row describing it.
+
+        `None` when the conversation has no workspace - it ran an agent without
+        one, or the agent's scope is not `conversation`, in which case the files
+        are real but are not this conversation's to list.
+
+        No sandbox is started for a container-backed workspace: the files are
+        read off the host volume the service keeps, which is what makes browsing
+        a conversation from last week cost nothing and work at all after its
+        session was reaped.
+        """
+        rows = await workspace_repo.list_for_conversation(
+            self.db, organization_id=organization_id, conversation_id=conversation_id
+        )
+        if not rows:
+            return None
+        row = rows[0]
+        return row, self._entries(row)
+
+    def _entries(self, row: AgentWorkspace) -> list[FileInfo]:
+        if row.backend == "state":
+            from pydantic_ai_backends import StateBackend
+
+            return list(StateBackend(files=dict(row.files or {})).glob_info("**/*"))
+        return self._remote_entries(row)
+
+    def _remote_entries(self, row: AgentWorkspace) -> list[FileInfo]:
+        if not settings.SANDBOXD_URL:
+            return []
+        from pydantic_ai_backends.remote import WorkspaceArchive
+
+        archive = WorkspaceArchive(settings.SANDBOXD_URL, token=settings.SANDBOXD_TOKEN)
+        try:
+            return list(archive.ls(row.session_id or row.scope_key))
+        except Exception:
+            # Raised rather than degraded by the archive on purpose: "there are
+            # no files" and "the service is misconfigured" must be
+            # distinguishable. The route turns this into a 502 rather than an
+            # empty folder, because an empty folder is what a user believes.
+            logger.warning(
+                "workspace_listing_failed", extra={"scope_key": row.scope_key}, exc_info=True
+            )
+            raise
+
+    async def read_text(
+        self, *, organization_id: UUID, conversation_id: UUID, path: str
+    ) -> str | None:
+        """One file's text, or `None` when there is no such workspace or file."""
+        found = await self.listing(organization_id=organization_id, conversation_id=conversation_id)
+        if found is None:
+            return None
+        row, _ = found
+        if row.backend == "state":
+            from pydantic_ai_backends import StateBackend
+
+            backend = StateBackend(files=dict(row.files or {}))
+            if not backend.exists(path):
+                return None
+            return backend.read(path)
+
+        if not settings.SANDBOXD_URL:
+            return None
+        from pydantic_ai_backends.remote import WorkspaceArchive
+
+        archive = WorkspaceArchive(settings.SANDBOXD_URL, token=settings.SANDBOXD_TOKEN)
+        return archive.read(row.session_id or row.scope_key, path)
+
+
+def owner_label(row: AgentWorkspace) -> str:
+    """Whose workspace this is, for a person looking at a file list.
+
+    Not decoration. Under `agent` scope a user opens a chat and finds a file
+    they never created; without a label saying why, the reasonable reading is
+    that something leaked.
+    """
+    if row.scope == "conversation":
+        return "This conversation"
+    if row.scope == "user":
+        return "Your files for this agent"
+    if row.scope == "agent":
+        return "Shared by everyone who uses this agent"
+    return "This run only"

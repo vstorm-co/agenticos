@@ -9,7 +9,9 @@ from app.api.deps import (
     ConversationSvc,
     CurrentUser,
     MessageRatingSvc,
+    WorkspaceSvc,
 )
+from app.core.exceptions import NotFoundError
 from app.schemas.conversation import (
     ConversationCreate,
     ConversationList,
@@ -29,6 +31,12 @@ from app.schemas.message_rating import (
     MessageRatingCreate,
     MessageRatingRead,
 )
+from app.schemas.workspace import (
+    WorkspaceFileContent,
+    WorkspaceFileRead,
+    WorkspaceListing,
+)
+from app.services.sandbox_workspace import owner_label
 
 router = APIRouter()
 
@@ -134,6 +142,7 @@ async def update_conversation(
 async def delete_conversation(
     conversation_id: UUID,
     conversation_service: ConversationSvc,
+    workspaces: WorkspaceSvc,
     current_user: CurrentUser,
     active_org: ActiveOrg,
 ) -> None:
@@ -142,6 +151,13 @@ async def delete_conversation(
         conversation_id,
         organization_id=active_org.id,
         user_id=current_user.id,
+    )
+    # The rows would cascade away with the conversation, but a container-backed
+    # workspace lives outside this database and would sit on the host until its
+    # TTL swept it - holding files whose conversation the user just deleted. Only
+    # this platform knows the conversation is gone.
+    await workspaces.purge_for_conversation(
+        organization_id=active_org.id, conversation_id=conversation_id
     )
 
 
@@ -308,3 +324,89 @@ async def revoke_share(
 ) -> None:
     """Revoke a conversation share."""
     await share_service.revoke_share(share_id, current_user.id)
+
+
+@router.get("/{conversation_id}/workspace", response_model=WorkspaceListing)
+async def list_workspace_files(
+    conversation_id: UUID,
+    conversation_service: ConversationSvc,
+    workspaces: WorkspaceSvc,
+    current_user: CurrentUser,
+    active_org: ActiveOrg,
+) -> Any:
+    """The files the agent kept in this conversation.
+
+    Authorised by fetching the conversation first, which is the platform's
+    answer to "is this yours" and reports a refusal as "not found" so ids stay
+    unprobeable. The workspace itself is behind a service token that also
+    unlocks `exec`, so nothing here is proxied until that check has passed - and
+    the token never leaves this process.
+
+    Read-only, and no sandbox is started: a container-backed workspace is read
+    off the volume the service keeps, so a conversation from last week lists its
+    files after its session was long reaped.
+    """
+    await conversation_service.get_conversation(
+        conversation_id,
+        organization_id=active_org.id,
+        include_messages=False,
+        user_id=current_user.id,
+    )
+    found = await workspaces.listing(organization_id=active_org.id, conversation_id=conversation_id)
+    if found is None:
+        # No workspace is not an error. An agent without one is the default, and
+        # an empty listing is the honest answer for a chat that never had files.
+        return WorkspaceListing(
+            scope="none", backend="none", owner_label="No files", items=[], total=0
+        )
+
+    row, entries = found
+    items = [
+        WorkspaceFileRead(
+            path=str(entry.get("path")),
+            size=entry.get("size"),
+            is_dir=bool(entry.get("is_dir")),
+        )
+        for entry in entries
+    ]
+    return WorkspaceListing(
+        scope=row.scope,
+        backend=row.backend,
+        owner_label=owner_label(row),
+        items=items,
+        total=len(items),
+        bytes_total=row.bytes_total,
+    )
+
+
+@router.get("/{conversation_id}/workspace/file", response_model=WorkspaceFileContent)
+async def read_workspace_file(
+    conversation_id: UUID,
+    conversation_service: ConversationSvc,
+    workspaces: WorkspaceSvc,
+    current_user: CurrentUser,
+    active_org: ActiveOrg,
+    path: str = Query(description="Path inside the workspace, as the listing gives it"),
+) -> Any:
+    """One file's text.
+
+    The path arrives as a query parameter rather than in the URL: workspace
+    paths contain slashes, and a path parameter would either need escaping the
+    client has to get right or a catch-all route that swallows the ones below
+    it.
+    """
+    await conversation_service.get_conversation(
+        conversation_id,
+        organization_id=active_org.id,
+        include_messages=False,
+        user_id=current_user.id,
+    )
+    content = await workspaces.read_text(
+        organization_id=active_org.id, conversation_id=conversation_id, path=path
+    )
+    if content is None:
+        raise NotFoundError(
+            message="No such file in this conversation's workspace",
+            details={"path": path},
+        )
+    return WorkspaceFileContent(path=path, content=content)

@@ -680,3 +680,185 @@ class TestDeletingAConversation:
             )
             == 1
         )
+
+
+class TestShowingTheFilesToAPerson:
+    """Listing and reading, which the conversation routes proxy.
+
+    No sandbox is started for a container-backed workspace: the files are read
+    off the volume the service keeps, which is what makes a conversation from
+    last week list its files at all after its session was reaped.
+    """
+
+    async def test_a_conversation_with_no_workspace_lists_nothing(
+        self, monkeypatch, mock_db_session
+    ):
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[]))
+
+        found = await SandboxWorkspaceService(mock_db_session).listing(
+            organization_id=uuid4(), conversation_id=uuid4()
+        )
+
+        assert found is None
+
+    async def test_a_state_workspace_lists_what_it_holds(self, monkeypatch, mock_db_session):
+        stored = StateBackend()
+        stored.write("/uploads/report.csv", "month,total")
+        monkeypatch.setattr(
+            workspace_repo,
+            "list_for_conversation",
+            AsyncMock(return_value=[_row(files=dict(stored.files))]),
+        )
+
+        found = await SandboxWorkspaceService(mock_db_session).listing(
+            organization_id=uuid4(), conversation_id=uuid4()
+        )
+
+        assert found is not None
+        _, entries = found
+        assert [entry["path"] for entry in entries] == ["/uploads/report.csv"]
+
+    async def test_a_state_file_is_read_back(self, monkeypatch, mock_db_session):
+        stored = StateBackend()
+        stored.write("/uploads/report.csv", "month,total")
+        monkeypatch.setattr(
+            workspace_repo,
+            "list_for_conversation",
+            AsyncMock(return_value=[_row(files=dict(stored.files))]),
+        )
+
+        text = await SandboxWorkspaceService(mock_db_session).read_text(
+            organization_id=uuid4(), conversation_id=uuid4(), path="/uploads/report.csv"
+        )
+
+        assert text is not None
+        assert "month,total" in text
+
+    async def test_a_path_that_is_not_there_reads_as_nothing(self, monkeypatch, mock_db_session):
+        monkeypatch.setattr(
+            workspace_repo, "list_for_conversation", AsyncMock(return_value=[_row(files={})])
+        )
+
+        assert (
+            await SandboxWorkspaceService(mock_db_session).read_text(
+                organization_id=uuid4(), conversation_id=uuid4(), path="/nope.txt"
+            )
+            is None
+        )
+
+    async def test_reading_from_a_conversation_with_no_workspace_is_nothing(
+        self, monkeypatch, mock_db_session
+    ):
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[]))
+
+        assert (
+            await SandboxWorkspaceService(mock_db_session).read_text(
+                organization_id=uuid4(), conversation_id=uuid4(), path="/a.txt"
+            )
+            is None
+        )
+
+    async def test_a_container_workspace_is_read_off_the_host_volume(
+        self, monkeypatch, mock_db_session
+    ):
+        from pydantic_ai_backends import remote as remote_module
+
+        from app.core import config as config_module
+
+        monkeypatch.setattr(config_module.settings, "SANDBOXD_URL", "http://sandboxd:8080")
+
+        class _Archive:
+            def __init__(self, url, token=""):
+                pass
+
+            def ls(self, session_id):
+                return [{"path": "/workspace/run.py", "size": 12, "is_dir": False}]
+
+            def read(self, session_id, path):
+                return "print(1)"
+
+        monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
+        monkeypatch.setattr(
+            workspace_repo,
+            "list_for_conversation",
+            AsyncMock(return_value=[_row(backend="docker", session_id="dc-1")]),
+        )
+        service = SandboxWorkspaceService(mock_db_session)
+
+        found = await service.listing(organization_id=uuid4(), conversation_id=uuid4())
+        text = await service.read_text(
+            organization_id=uuid4(), conversation_id=uuid4(), path="/workspace/run.py"
+        )
+
+        assert found is not None
+        assert found[1][0]["path"] == "/workspace/run.py"
+        assert text == "print(1)"
+
+    async def test_a_service_that_is_misconfigured_raises_rather_than_looking_empty(
+        self, monkeypatch, mock_db_session
+    ):
+        """An empty folder is what a user believes; a 502 is what they can act on."""
+        from pydantic_ai_backends import remote as remote_module
+
+        from app.core import config as config_module
+
+        monkeypatch.setattr(config_module.settings, "SANDBOXD_URL", "http://sandboxd:8080")
+
+        class _Archive:
+            def __init__(self, url, token=""):
+                pass
+
+            def ls(self, session_id):
+                raise RuntimeError("no workspace root configured")
+
+        monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
+        monkeypatch.setattr(
+            workspace_repo,
+            "list_for_conversation",
+            AsyncMock(return_value=[_row(backend="docker", session_id="dc-1")]),
+        )
+
+        with pytest.raises(RuntimeError):
+            await SandboxWorkspaceService(mock_db_session).listing(
+                organization_id=uuid4(), conversation_id=uuid4()
+            )
+
+    async def test_a_container_workspace_with_no_service_lists_nothing(
+        self, monkeypatch, mock_db_session
+    ):
+        from app.core import config as config_module
+
+        monkeypatch.setattr(config_module.settings, "SANDBOXD_URL", "")
+        monkeypatch.setattr(
+            workspace_repo,
+            "list_for_conversation",
+            AsyncMock(return_value=[_row(backend="docker", session_id="dc-1")]),
+        )
+        service = SandboxWorkspaceService(mock_db_session)
+
+        found = await service.listing(organization_id=uuid4(), conversation_id=uuid4())
+
+        assert found is not None
+        assert found[1] == []
+        assert (
+            await service.read_text(organization_id=uuid4(), conversation_id=uuid4(), path="/a.txt")
+            is None
+        )
+
+
+class TestWhoseWorkspaceItIs:
+    """A user seeing a file they never created should be able to find out why."""
+
+    @pytest.mark.parametrize(
+        ("scope", "expected"),
+        [
+            ("conversation", "This conversation"),
+            ("user", "Your files for this agent"),
+            ("agent", "Shared by everyone who uses this agent"),
+            ("run", "This run only"),
+        ],
+    )
+    def test_the_label_names_the_scope_in_words(self, scope: str, expected: str):
+        from app.services.sandbox_workspace import owner_label
+
+        assert owner_label(_row(scope=scope)) == expected

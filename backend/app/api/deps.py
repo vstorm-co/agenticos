@@ -38,6 +38,7 @@ Redis = Annotated[RedisClient, Depends(get_redis)]
 from app.services.user import UserService
 from app.services.session import SessionService
 from app.services.conversation import ConversationService
+from app.services.sandbox_workspace import SandboxWorkspaceService
 from app.services.conversation_share import ConversationShareService
 
 
@@ -61,6 +62,13 @@ def get_conversation_service(db: DBSession) -> ConversationService:
 
 
 ConversationSvc = Annotated[ConversationService, Depends(get_conversation_service)]
+
+
+def get_sandbox_workspace_service(db: DBSession) -> SandboxWorkspaceService:
+    return SandboxWorkspaceService(db)
+
+
+WorkspaceSvc = Annotated[SandboxWorkspaceService, Depends(get_sandbox_workspace_service)]
 
 
 def get_conversation_share_service(db: DBSession) -> ConversationShareService:
