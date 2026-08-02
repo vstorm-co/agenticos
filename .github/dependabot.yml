@@ -29,15 +29,22 @@ updates:
     open-pull-requests-limit: 5
     labels: [dependencies, backend]
     groups:
+      # Trailing `*` on everything, and it is load-bearing rather than tidy.
+      # A pattern is matched against the dependency as written, and three of
+      # these are written with extras - `pydantic-ai-slim[openrouter,...]`,
+      # `logfire[fastapi,asyncpg,...]`. Without the wildcard they matched
+      # nothing, so this group never opened a single pull request and the
+      # runtime this platform is built on rode in `backend-everything-else`
+      # for months, majors included.
       agent-frameworks:
         applies-to: version-updates
         patterns:
-          - fastapi
-          - pydantic-ai-slim
-          - pydantic-ai-skills
-          - pydantic-graph
-          - logfire
-          - genai-prices
+          - fastapi*
+          - pydantic-ai-slim*
+          - pydantic-ai-skills*
+          - pydantic-graph*
+          - logfire*
+          - genai-prices*
       # No `update-types` filter: majors included. Holding one back does not avoid
       # the upgrade, it only delays it until the jump is several versions wide and
       # nobody remembers what changed. CI runs the whole suite on the PR, which is
@@ -45,13 +52,15 @@ updates:
       backend-everything-else:
         applies-to: version-updates
         patterns: ["*"]
+        # Same wildcards as the group above, for the same reason: an exclusion
+        # that does not match is an exclusion that silently does nothing.
         exclude-patterns:
-          - fastapi
-          - pydantic-ai-slim
-          - pydantic-ai-skills
-          - pydantic-graph
-          - logfire
-          - genai-prices
+          - fastapi*
+          - pydantic-ai-slim*
+          - pydantic-ai-skills*
+          - pydantic-graph*
+          - logfire*
+          - genai-prices*
 
   # A week before a release is offered. Nothing here is read the day it lands, so
   # the delay costs nothing and skips the versions that get yanked within hours.

@@ -1,0 +1,71 @@
+name: Bun lock sync
+
+# Dependabot cannot update `frontend/bun.lock`. Its npm ecosystem knows
+# `package-lock.json`, `yarn.lock` and `pnpm-lock.yaml`; bun's lockfile is not
+# among them. So every frontend bump arrives as `package.json` alone, `bun
+# install --frozen-lockfile` refuses the mismatch, and `test-frontend` and `e2e`
+# go red for a reason that has nothing to do with the dependency.
+#
+# Left alone, that is a permanent tax: someone regenerates the lockfile by hand
+# on every batch, or the batch sits red until somebody does. This regenerates it
+# on the pull request instead.
+#
+# Scoped to Dependabot's own branches on purpose. It pushes a commit, and a
+# workflow that pushes should be reachable from as few places as possible - a
+# contributor's branch does not need it, because a contributor runs `bun
+# install` locally and commits the result like anybody else.
+
+on:
+  pull_request:
+    paths:
+      - "frontend/package.json"
+
+permissions: {}
+
+jobs:
+  sync:
+    name: Regenerate bun.lock
+    # Dependabot's numeric user id, not `github.actor` and not the branch
+    # name. A branch called `dependabot/…` can be pushed by anyone with write
+    # access, `github.actor` changes to whoever re-ran the workflow, and a
+    # login can be renamed. The id on the pull request author cannot be any of
+    # those things - and this job commits, so it is worth the pedantry.
+    if: >-
+      github.event.pull_request.user.id == 49699333
+      && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout the pull request branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          # Kept, unlike everywhere else in this repository: this job pushes,
+          # and the push needs them.
+          persist-credentials: true
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+
+      - name: Regenerate the lockfile
+        run: bun install --lockfile-only
+        working-directory: frontend
+
+      - name: Commit it if it moved
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- frontend/bun.lock; then
+            echo "bun.lock already matches package.json - nothing to do."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontend/bun.lock
+          git commit -m "build(deps): sync bun.lock with package.json
+
+          Dependabot's npm ecosystem does not update bun's lockfile, so the
+          bump arrived with package.json alone and \`bun install
+          --frozen-lockfile\` refused the mismatch."
+          git push

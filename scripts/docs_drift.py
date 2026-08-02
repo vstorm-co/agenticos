@@ -72,6 +72,8 @@ TRIGGERS: tuple[tuple[str, str], ...] = (
     # The only in-repo half of the branch policy; the rest is a ruleset,
     # which nothing here can watch.
     (".pre-commit-config.yaml", "docs/branching.md"),
+    (".github/dependabot.yml", "docs/branching.md"),
+    (".github/workflows/bun-lock-sync.yml", "docs/branching.md"),
 )
 
 # A change under any of these means the docs did move, so nothing is reported.
