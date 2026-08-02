@@ -65,40 +65,54 @@ export function refusesOrganization(failure: unknown, activeOrgId: string | null
  * refused for this organization specifically.
  */
 /**
- * Drop everything read as the previous organization when the active one moves.
+ * Drop everything read as the previous organization when the tenant changes.
  *
  * Most query keys do not name the organization - `agents.list()`,
- * `kb.list()`, `skills.list()`, `secrets.list()` and the rest are the same
- * key whichever tenant is active - so without this, switching organization
- * changes a label in the header and nothing else. With `staleTime` at five
- * minutes and `refetchOnWindowFocus` off, the previous tenant's agent names,
- * knowledge bases and secrets stay on screen for as long as the cache holds
- * them, with no request in flight to correct them.
+ * `kb.list()`, `skills.list()`, `secrets.list()` and the rest are the same key
+ * whichever tenant is active - so without this, switching organization changes
+ * a label in the header and nothing else. With `staleTime` at five minutes and
+ * `refetchOnWindowFocus` off, the previous tenant's agent names, knowledge
+ * bases and secrets stay on screen for as long as the cache holds them, with
+ * no request in flight to correct them.
  *
  * `removeQueries`, not `invalidateQueries`. Invalidating marks a query stale
  * and refetches it, but React Query serves the cached rows meanwhile - so the
  * previous tenant's names are still painted, just briefly. Between "briefly"
- * and "not at all", a multi-tenant product picks the second: a switch drops
- * the data and every mounted page asks again from scratch.
+ * and "not at all", a multi-tenant product picks the second.
  *
  * It costs a refetch of the deployment-wide catalogs too - model profiles, the
  * capability catalog, the skill library - which are the same answer for every
  * tenant. That is the price of one guard instead of eleven key signatures,
  * each of which is a place the next key can forget.
  *
- * The ref starts at the mounted value so the first pass does nothing. A page
- * load has an empty cache and queries already in flight; dropping those would
- * cancel the page's own first fetch.
+ * **The comparison is on the tenant, not on the selection.** `activeOrgId` is
+ * null until the list loads and the default is picked, and a request made
+ * meanwhile carries no `X-Organization-Id` - which the backend reads as the
+ * caller's personal organization, not as no organization at all. So null and
+ * the personal org's id are the same tenant, and treating the first resolution
+ * as a switch dropped the queries a freshly loaded page had just started. The
+ * seed's "a provider key is stored" caught that: the secret was created and
+ * the list that should have shown it never arrived.
  */
-function useOrganizationCacheReset(activeOrgId: string | null): void {
+function useTenantCacheReset(activeOrgId: string | null): void {
   const queryClient = useQueryClient();
-  const cacheBelongsTo = useRef(activeOrgId);
+  const { data: orgs } = useOrganizationList();
+  const personalId = orgs?.find((org) => org.is_personal)?.id ?? null;
+  const tenant = activeOrgId ?? personalId;
+  const cacheBelongsTo = useRef<string | null>(null);
 
   useEffect(() => {
-    if (cacheBelongsTo.current === activeOrgId) return;
-    cacheBelongsTo.current = activeOrgId;
-    queryClient.removeQueries();
-  }, [activeOrgId, queryClient]);
+    // Nothing has identified the tenant yet - no selection, and no list to
+    // resolve the personal organization from. Anything cached now is cached
+    // under whoever this turns out to be.
+    if (tenant === null) return;
+    const previous = cacheBelongsTo.current;
+    cacheBelongsTo.current = tenant;
+    // The first tenant this page identifies is the one its cache already
+    // belongs to; there is nothing to drop, and dropping it would cancel the
+    // queries the page started before the organization list came back.
+    if (previous !== null && previous !== tenant) queryClient.removeQueries();
+  }, [tenant, queryClient]);
 }
 
 export function useActiveOrganizationRecovery(): void {
@@ -112,7 +126,7 @@ export function useActiveOrganizationRecovery(): void {
 
   // Whatever moved the selection - the switcher, the recovery below, or a
   // path that does not exist yet - the cache follows it.
-  useOrganizationCacheReset(activeOrgId);
+  useTenantCacheReset(activeOrgId);
 
   useEffect(() => {
     if (activeOrgId === null || orgs === undefined) return;

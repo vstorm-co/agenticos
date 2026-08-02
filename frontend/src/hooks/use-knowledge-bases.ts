@@ -14,6 +14,8 @@ import type {
   SyncSourceRead,
 } from "@/lib/rag-api";
 import { overrideSize } from "@/lib/ingestion-config";
+import { useChanged } from "@/hooks/use-changed";
+import { useOrgStore } from "@/stores";
 import type {
   CreateKnowledgeBaseInput,
   IngestionConfig,
@@ -125,6 +127,25 @@ export function useKBDetail(id: string | null) {
   const [uploadProgress, setUploadProgress] = useState<UploadProgress[]>([]);
   const [error, setError] = useState<string | null>(null);
 
+  // A knowledge base belongs to one organization, and everything above is a
+  // response read as that one. Dropping the query cache on a tenant switch does
+  // not reach any of it - this hook keeps its data in `useState` - so without
+  // this the page went on showing the previous tenant's documents, and an open
+  // file viewer went on showing their file. Cleared during render, so the
+  // stale rows are never painted under the new organization's name; `refresh`
+  // takes the organization in its dependencies below, which is what sends the
+  // page back to the server for whatever this id means here, if anything.
+  const activeOrgId = useOrgStore((state) => state.activeOrgId);
+  if (useChanged(activeOrgId)) {
+    setKb(null);
+    setDocuments([]);
+    setDocumentsTotal(0);
+    setSyncSources([]);
+    setOrgIntegrations([]);
+    setConnectors([]);
+    setError(null);
+  }
+
   // An upload is in flight whenever there's at least one progress entry. Derived
   // rather than stored so sequential/concurrent uploads stay consistent.
   const isUploading = uploadProgress.length > 0;
@@ -148,6 +169,7 @@ export function useKBDetail(id: string | null) {
    */
   const refresh = useCallback(async () => {
     if (!id) return;
+    const startedIn = activeOrgId;
     setIsLoading(true);
     setError(null);
     try {
@@ -169,6 +191,11 @@ export function useKBDetail(id: string | null) {
           items: [] as ConnectorInfo[],
         })),
       ]);
+      // Five requests, and the organization can move while they are in the
+      // air. Writing them afterwards would put the tenant they were made as
+      // back on a page that has moved on - the same shape as clearing the
+      // cache and letting a late response refill it.
+      if (useOrgStore.getState().activeOrgId !== startedIn) return;
       setKb(kbData);
       setDocuments(docList.items);
       setDocumentsTotal(docList.total);
@@ -180,7 +207,7 @@ export function useKBDetail(id: string | null) {
     } finally {
       setIsLoading(false);
     }
-  }, [id]);
+  }, [id, activeOrgId]);
 
   /** Append the next page of documents (server-side skip/limit pagination). */
   const loadMoreDocuments = useCallback(async () => {

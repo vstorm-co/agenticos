@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { useKBDetail, useKnowledgeBases } from "./use-knowledge-bases";
 import { apiClient } from "@/lib/api-client";
+import { useOrgStore } from "@/stores";
 import { DEFAULT_INGESTION_CONFIG } from "@/lib/ingestion-config";
 
 vi.mock("@/lib/api-client", async () => {
@@ -112,6 +113,10 @@ async function sent(index = 0) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // The hook reads it, and a test that leaves one behind hands the next one an
+  // organization it never chose - which, for the two switch tests below, is the
+  // difference between asserting something and asserting nothing.
+  useOrgStore.setState({ activeOrgId: null });
   vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
   vi.mocked(apiClient.post).mockResolvedValue({ id: "x" });
   vi.mocked(apiClient.patch).mockResolvedValue({ id: "kb-1" });
@@ -267,6 +272,55 @@ describe("one collection's page", () => {
     });
 
     expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
+  it("shows nothing of the organization the caller has just left", async () => {
+    // This hook keeps its data in `useState`, so dropping the query cache on a
+    // tenant switch does not reach it - the page went on showing the previous
+    // organization's documents, and an open file viewer their file.
+    useOrgStore.setState({ activeOrgId: "org-a" });
+    serveDetail();
+    const { result, rerender } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+    await act(async () => {
+      await result.current.refresh();
+    });
+    expect(result.current.kb).toMatchObject({ id: "kb-1" });
+
+    useOrgStore.setState({ activeOrgId: "org-b" });
+    rerender();
+
+    expect(result.current.kb).toBeNull();
+    expect(result.current.documents).toEqual([]);
+    expect(result.current.syncSources).toEqual([]);
+  });
+
+  it("drops a response that lands after the organization moved", async () => {
+    // Five requests, and the switch can happen while they are in the air.
+    // Clearing the state is no use if a late answer refills it.
+    useOrgStore.setState({ activeOrgId: "org-a" });
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    serveDetail();
+    const answering = vi.mocked(apiClient.get).getMockImplementation()!;
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      await gate;
+      return answering(path);
+    });
+    const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+
+    let refreshing: Promise<void>;
+    await act(async () => {
+      refreshing = result.current.refresh();
+      await waitFor(() => expect(apiClient.get).toHaveBeenCalled());
+    });
+
+    await act(async () => {
+      useOrgStore.setState({ activeOrgId: "org-b" });
+      release();
+      await refreshing!;
+    });
+
+    expect(result.current.kb).toBeNull();
   });
 
   it("reads the collection, its documents and its sources together", async () => {

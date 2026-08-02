@@ -143,6 +143,29 @@ describe("useActiveOrganizationRecovery", () => {
     await waitFor(() => expect(agents).toHaveBeenCalledTimes(2));
   });
 
+  it("drops the cache when the selection falls back to no organization at all", async () => {
+    // The recovery sets `null` when there is no organization left to move to,
+    // and `null` is not "no tenant" - the requests that follow are read as the
+    // personal one. Without resolving it, this looked like "cannot tell yet"
+    // and the organization just left stayed on screen.
+    answerWith(
+      [
+        { id: PERSONAL, is_personal: true },
+        { id: STALE, is_personal: false },
+      ],
+      { permissions: [] },
+    );
+    useOrgStore.setState({ activeOrgId: STALE });
+    const { rerender } = renderHook(() => useActiveOrganizationRecovery(), { wrapper });
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/orgs"));
+    client.setQueryData(["agents", "list", false], [{ id: "a-1" }]);
+
+    useOrgStore.setState({ activeOrgId: null });
+    rerender();
+
+    await waitFor(() => expect(client.getQueryData(["agents", "list", false])).toBeUndefined());
+  });
+
   it("leaves the cache alone on the first render, when nothing has moved", async () => {
     // A page load starts with its own queries already in flight. Treating the
     // mount as a switch would cancel the fetch the page just made.
@@ -154,6 +177,24 @@ describe("useActiveOrganizationRecovery", () => {
     rerender();
 
     expect(client.getQueryData(["agents", "list", false])).toEqual([{ id: "a-1" }]);
+  });
+
+  it("treats no selection and the personal organization as the same tenant", async () => {
+    // Until the list loads there is no selection, and a request without
+    // `X-Organization-Id` is read as the personal organization - so adopting
+    // its id is a page finishing its first render, not a tenant switch. The
+    // e2e seed caught this: it dropped the queries a freshly loaded page had
+    // just started, and a secret that had been stored never appeared.
+    answerWith([{ id: PERSONAL, is_personal: true }], { permissions: [] });
+    useOrgStore.setState({ activeOrgId: null });
+    const { rerender } = renderHook(() => useActiveOrganizationRecovery(), { wrapper });
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/orgs"));
+    client.setQueryData(["secrets", "list"], [{ id: "s-1" }]);
+
+    useOrgStore.setState({ activeOrgId: PERSONAL });
+    rerender();
+
+    expect(client.getQueryData(["secrets", "list"])).toEqual([{ id: "s-1" }]);
   });
 
   it("falls back to an organization the caller belongs to", async () => {
