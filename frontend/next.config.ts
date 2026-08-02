@@ -124,15 +124,5 @@ const nextConfig: NextConfig = {
       },
     ];
   },
-
-  // Environment variables available on the server side only
-  serverRuntimeConfig: {
-    apiUrl: process.env.BACKEND_URL || "http://localhost:8000",
-  },
-
-  // Environment variables available on both server and client
-  publicRuntimeConfig: {
-    appName: "agenticos",
-  },
 };
 export default withAnalyzer(withNextIntl(nextConfig));
