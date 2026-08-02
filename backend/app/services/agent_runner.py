@@ -382,7 +382,12 @@ class AgentRunnerService:
         # workspace it never touches costs nothing.
         workspace = await self.workspaces.open(
             spec,
-            WorkspaceIdentity(
+            # The same unsealed secrets the capabilities get. Daytona is billed
+            # to the organization's own account, so its key has to be the
+            # organization's rather than whatever the deployment's environment
+            # happens to hold.
+            secrets=secrets,
+            identity=WorkspaceIdentity(
                 organization_id=ctx.organization_id,
                 agent_id=agent.id,
                 run_id=run.id,

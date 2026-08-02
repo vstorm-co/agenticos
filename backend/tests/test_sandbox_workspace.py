@@ -56,6 +56,26 @@ def _spec(**config: object) -> AgentSpec:
     )
 
 
+def _daytona_spec() -> tuple[AgentSpec, dict]:
+    """A spec whose workspace names a key, and the unsealed key itself.
+
+    Daytona is the one backend that authenticates, and it authenticates to an
+    account the *organization* pays for - so the key has to come from the
+    organization's vault. The SDK's own `DAYTONA_API_KEY` fallback would put
+    every tenant's sandboxes on whichever account the deployment configured.
+    """
+    from app.core.secret_kinds import ApiKeySecret
+
+    secret_id = uuid4()
+    spec = AgentSpec(
+        name="Analyst",
+        capabilities=[
+            {"id": "sandbox", "config": {"backend": "daytona"}, "secret_id": str(secret_id)}
+        ],
+    )
+    return spec, {secret_id: ApiKeySecret(api_key="dtn-live-key")}
+
+
 class TestWhoSharesAWorkspace:
     def test_two_organizations_never_share_a_key(self):
         """The refusal this whole feature is measured against."""
@@ -302,14 +322,14 @@ class TestOpeningAndClosing:
     async def test_an_agent_without_a_workspace_opens_nothing(self, mock_db_session):
         service = SandboxWorkspaceService(mock_db_session)
 
-        assert await service.open(AgentSpec(name="Plain"), _identity()) is None
+        assert await service.open(AgentSpec(name="Plain"), identity=_identity()) is None
 
     async def test_a_run_scoped_state_workspace_needs_no_row(self, monkeypatch, mock_db_session):
         created = AsyncMock()
         monkeypatch.setattr(workspace_repo, "create", created)
         service = SandboxWorkspaceService(mock_db_session)
 
-        workspace = await service.open(_spec(session_scope="run"), _identity())
+        workspace = await service.open(_spec(session_scope="run"), identity=_identity())
 
         assert workspace is not None
         assert workspace.row_id is None
@@ -325,7 +345,7 @@ class TestOpeningAndClosing:
         monkeypatch.setattr(workspace_repo, "touch", AsyncMock(return_value=row))
         service = SandboxWorkspaceService(mock_db_session)
 
-        workspace = await service.open(_spec(), _identity())
+        workspace = await service.open(_spec(), identity=_identity())
 
         assert workspace is not None
         assert "the numbers" in workspace.backend.read("/report.md")
@@ -339,7 +359,7 @@ class TestOpeningAndClosing:
         mock_db_session.get = AsyncMock(return_value=row)
         service = SandboxWorkspaceService(mock_db_session)
 
-        workspace = await service.open(_spec(), _identity())
+        workspace = await service.open(_spec(), identity=_identity())
         assert workspace is not None
         workspace.backend.write("/notes.txt", "kept")
         await service.close(workspace)
@@ -357,7 +377,7 @@ class TestOpeningAndClosing:
         monkeypatch.setattr(workspace_repo, "save_files", saved)
         service = SandboxWorkspaceService(mock_db_session)
 
-        workspace = await service.open(_spec(session_scope="run"), _identity())
+        workspace = await service.open(_spec(session_scope="run"), identity=_identity())
         assert workspace is not None
         workspace.backend.write("/scratch.txt", "gone after this")
         await service.close(workspace)
@@ -376,7 +396,7 @@ class TestOpeningAndClosing:
         mock_db_session.get = AsyncMock(return_value=None)
         service = SandboxWorkspaceService(mock_db_session)
 
-        workspace = await service.open(_spec(), _identity())
+        workspace = await service.open(_spec(), identity=_identity())
         await service.close(workspace)
 
         saved.assert_not_called()
@@ -394,7 +414,7 @@ class TestOpeningAndClosing:
         mock_db_session.get = AsyncMock(return_value=row)
         service = SandboxWorkspaceService(mock_db_session)
 
-        workspace = await service.open(_spec(), _identity())
+        workspace = await service.open(_spec(), identity=_identity())
 
         await service.close(workspace)
 
@@ -402,7 +422,7 @@ class TestOpeningAndClosing:
         service = SandboxWorkspaceService(mock_db_session)
 
         with pytest.raises(BadRequestError) as exc:
-            await service.open(_spec(session_scope="user"), _identity(user_id=None))
+            await service.open(_spec(session_scope="user"), identity=_identity(user_id=None))
 
         assert "no signed-in user" in exc.value.message
 
@@ -415,7 +435,7 @@ class TestOpeningAndClosing:
         service = SandboxWorkspaceService(mock_db_session)
 
         with pytest.raises(BadRequestError) as exc:
-            await service.open(_spec(backend="docker"), _identity())
+            await service.open(_spec(backend="docker"), identity=_identity())
 
         assert exc.value.details["setting"] == "SANDBOXD_URL"
 
@@ -467,7 +487,7 @@ class TestContainerBackedWorkspaces:
         identity = _identity()
 
         workspace = await SandboxWorkspaceService(mock_db_session).open(
-            _spec(backend="docker", runtime="python"), identity
+            _spec(backend="docker", runtime="python"), identity=identity
         )
 
         assert workspace is not None
@@ -479,25 +499,76 @@ class TestContainerBackedWorkspaces:
         # conversation can purge the sandbox rather than wait for a TTL.
         assert created.await_args.kwargs["session_id"] == workspace.scope_key
 
-    async def test_a_daytona_workspace_is_keyed_the_same_way(self, monkeypatch, mock_db_session):
+    async def test_a_daytona_workspace_uses_the_organizations_own_key(
+        self, monkeypatch, mock_db_session
+    ):
         import pydantic_ai_backends as backends_module
 
+        seen: dict[str, object] = {}
+
         class _Sandbox:
-            def __init__(self, sandbox_id=None):
-                self.sandbox_id = sandbox_id
+            def __init__(self, api_key=None, sandbox_id=None):
+                seen.update(api_key=api_key, sandbox_id=sandbox_id)
 
         monkeypatch.setattr(backends_module, "DaytonaSandbox", _Sandbox, raising=False)
         monkeypatch.setattr(workspace_repo, "get_by_key", AsyncMock(return_value=None))
         monkeypatch.setattr(
             workspace_repo, "create", AsyncMock(return_value=_row(backend="daytona"))
         )
+        spec, secrets = _daytona_spec()
 
         workspace = await SandboxWorkspaceService(mock_db_session).open(
-            _spec(backend="daytona"), _identity()
+            spec, identity=_identity(), secrets=secrets
         )
 
         assert workspace is not None
-        assert workspace.backend.sandbox_id == workspace.scope_key
+        assert seen["api_key"] == "dtn-live-key"
+        assert seen["sandbox_id"] == workspace.scope_key
+
+    async def test_a_key_belonging_to_another_capability_is_not_mistaken_for_this_one(
+        self, monkeypatch, mock_db_session
+    ):
+        """An agent can hold several secrets - a search key and a Daytona key -
+        and picking the wrong one would authenticate a sandbox with a Tavily
+        token and fail somewhere unhelpful."""
+        from pydantic_ai_backends import remote as remote_module
+
+        from app.core import config as config_module
+        from app.core.secret_kinds import ApiKeySecret
+
+        monkeypatch.setattr(config_module.settings, "SANDBOXD_URL", "http://sandboxd:8080")
+        monkeypatch.setattr(remote_module, "RemoteSandbox", lambda url, **kwargs: object())
+        monkeypatch.setattr(workspace_repo, "get_by_key", AsyncMock(return_value=None))
+        monkeypatch.setattr(
+            workspace_repo, "create", AsyncMock(return_value=_row(backend="docker"))
+        )
+        elsewhere = uuid4()
+        spec = AgentSpec(
+            name="Analyst",
+            capabilities=[
+                {"id": "sandbox", "config": {"backend": "docker"}},
+                {"id": "web_research", "config": {"method": "tavily"}, "secret_id": str(elsewhere)},
+            ],
+        )
+
+        workspace = await SandboxWorkspaceService(mock_db_session).open(
+            spec,
+            identity=_identity(),
+            secrets={elsewhere: ApiKeySecret(api_key="tvly-key")},
+        )
+
+        assert workspace is not None
+        assert workspace.kind == "docker"
+
+    async def test_a_daytona_workspace_whose_key_was_deleted_is_refused(self, mock_db_session):
+        """Rather than falling through to the SDK's environment variable, which
+        would bill this organization's sandboxes to somebody else's account."""
+        spec, _ = _daytona_spec()
+
+        with pytest.raises(BadRequestError) as exc:
+            await SandboxWorkspaceService(mock_db_session).open(spec, identity=_identity())
+
+        assert "Daytona key" in exc.value.message
 
     async def test_a_run_scoped_sandbox_is_released_when_the_run_ends(
         self, monkeypatch, mock_db_session
@@ -519,7 +590,9 @@ class TestContainerBackedWorkspaces:
         monkeypatch.setattr(remote_module, "RemoteSandbox", _Sandbox)
         service = SandboxWorkspaceService(mock_db_session)
 
-        workspace = await service.open(_spec(backend="docker", session_scope="run"), _identity())
+        workspace = await service.open(
+            _spec(backend="docker", session_scope="run"), identity=_identity()
+        )
         await service.close(workspace)
 
         assert stopped == {"purge": True}
@@ -549,7 +622,7 @@ class TestContainerBackedWorkspaces:
         )
         service = SandboxWorkspaceService(mock_db_session)
 
-        workspace = await service.open(_spec(backend="docker"), _identity())
+        workspace = await service.open(_spec(backend="docker"), identity=_identity())
         await service.close(workspace)
 
         assert stopped == []
@@ -561,13 +634,15 @@ class TestContainerBackedWorkspaces:
         import pydantic_ai_backends as backends_module
 
         class _Sandbox:
-            def __init__(self, sandbox_id=None):
+            def __init__(self, api_key=None, sandbox_id=None):
                 pass
 
         monkeypatch.setattr(backends_module, "DaytonaSandbox", _Sandbox, raising=False)
+        spec, secrets = _daytona_spec()
+        spec.capabilities[0].config["session_scope"] = "run"
         service = SandboxWorkspaceService(mock_db_session)
 
-        workspace = await service.open(_spec(backend="daytona", session_scope="run"), _identity())
+        workspace = await service.open(spec, identity=_identity(), secrets=secrets)
         await service.close(workspace)
 
 

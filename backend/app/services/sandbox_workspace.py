@@ -23,6 +23,7 @@ module exists rather than a helper on the capability:
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
@@ -42,6 +43,7 @@ from app.agents.capabilities.sandbox._identity import (
 from app.agents.spec import AgentSpec
 from app.core.config import settings
 from app.core.exceptions import BadRequestError
+from app.core.secret_kinds import ApiKeySecret, StorableSecret
 from app.db.models.agent_workspace import AgentWorkspace
 from app.repositories import agent_workspace as workspace_repo
 
@@ -82,8 +84,20 @@ class SandboxWorkspaceService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def open(self, spec: AgentSpec, identity: WorkspaceIdentity) -> OpenWorkspace | None:
+    async def open(
+        self,
+        spec: AgentSpec,
+        *,
+        identity: WorkspaceIdentity,
+        secrets: Mapping[UUID, StorableSecret] | None = None,
+    ) -> OpenWorkspace | None:
         """The workspace this run should use, or `None` when it has no sandbox.
+
+        `secrets` are the ones the runner already unsealed for this spec's
+        bindings. Daytona is billed to the organization's own account, so its key
+        has to come from the organization's vault rather than from a
+        deployment-wide environment variable - which is what the SDK would fall
+        back to, silently putting every tenant's sandboxes on one invoice.
 
         Raises:
             BadRequestError: If the spec asks for a backend this deployment
@@ -107,7 +121,19 @@ class SandboxWorkspaceService:
 
         if config.backend == "state":
             return await self._open_state(config, identity, key)
-        return await self._open_remote(config, identity, key)
+        return await self._open_remote(config, identity, key, self._secret(spec, secrets))
+
+    @staticmethod
+    def _secret(
+        spec: AgentSpec, secrets: Mapping[UUID, StorableSecret] | None
+    ) -> StorableSecret | None:
+        """The credential this spec's workspace binding names, if any."""
+        if not secrets:
+            return None
+        for binding in spec.capabilities:
+            if binding.id == SANDBOX_CAPABILITY_ID and binding.secret_id:
+                return secrets.get(binding.secret_id)
+        return None
 
     async def _open_state(
         self, config: SandboxConfig, identity: WorkspaceIdentity, key: str
@@ -129,7 +155,11 @@ class SandboxWorkspaceService:
         )
 
     async def _open_remote(
-        self, config: SandboxConfig, identity: WorkspaceIdentity, key: str
+        self,
+        config: SandboxConfig,
+        identity: WorkspaceIdentity,
+        key: str,
+        secret: StorableSecret | None,
     ) -> OpenWorkspace:
         """A container-backed workspace, opened lazily by the client.
 
@@ -140,7 +170,7 @@ class SandboxWorkspaceService:
         if config.backend == "docker":
             backend = self._sandboxd(config, identity, key)
         else:
-            backend = self._daytona(config, key)
+            backend = self._daytona(key, secret)
 
         row = await self._row(config, identity, key, session_id=key)
         return OpenWorkspace(
@@ -178,10 +208,23 @@ class SandboxWorkspaceService:
             reuse=True,
         )
 
-    def _daytona(self, config: SandboxConfig, key: str) -> Any:
+    def _daytona(self, key: str, secret: StorableSecret | None) -> Any:
         from pydantic_ai_backends import DaytonaSandbox
 
-        return DaytonaSandbox(sandbox_id=key)
+        if not isinstance(secret, ApiKeySecret):
+            # Publish demands the key for this backend, so arriving here without
+            # one means the secret was deleted after the agent was published.
+            # Refused rather than left to the SDK's `DAYTONA_API_KEY` fallback,
+            # which would put this organization's sandboxes on whichever account
+            # the deployment happens to have configured.
+            raise BadRequestError(
+                message=(
+                    "This agent's Daytona key is no longer available, so its "
+                    "workspace cannot be opened. Re-attach one in the Builder."
+                ),
+                details={"backend": "daytona"},
+            )
+        return DaytonaSandbox(api_key=secret.api_key.get_secret_value(), sandbox_id=key)
 
     async def _row(
         self,
