@@ -46,6 +46,19 @@ describe("useChanged", () => {
     expect(result.current.draft).toBe("edited");
   });
 
+  it("fires on the first render, where an effect with [key] deps would have run", () => {
+    // Load-bearing, and it was not: `?create=1` on /orgs stopped opening the
+    // create dialog, because the mount pass is the only render on which that
+    // parameter is ever seen and a changed-since-last-render hook sits it out.
+    const { result } = renderHook(() => {
+      const [opened, setOpened] = useState(false);
+      if (useChanged("create=1")) setOpened(true);
+      return opened;
+    });
+
+    expect(result.current).toBe(true);
+  });
+
   it("compares with Object.is, so an equal object still counts as a change", () => {
     // Reference equality, and the reason the docstring tells callers watching
     // several fields to build a string rather than an object.
@@ -60,6 +73,7 @@ describe("useChanged", () => {
 
     rerender({ config: { id: 1 } });
 
-    expect(result.current).toBe(1);
+    // Two: the mount pass, then the equal-but-distinct object.
+    expect(result.current).toBe(2);
   });
 });
