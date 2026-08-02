@@ -149,6 +149,26 @@ describe("signing in", () => {
     expect(useConversationStore.getState().currentConversationId).toBeNull();
   });
 
+  it("empties a cache nobody is recorded as owning", async () => {
+    // A refused token refresh calls the store's `logout` directly: no owner
+    // recorded, and the whole cache still there. "Nobody owns this" is not the
+    // same as "there is nothing here".
+    client.setQueryData(["sessions", "list", 0], { items: [{ ip_address: "10.0.0.1" }] });
+    expect(useAuthStore.getState().sessionOwnerId).toBeNull();
+    vi.mocked(apiClient.post).mockResolvedValue({
+      user: user({ id: "u-4" }),
+      access_token: "t-4",
+      message: "ok",
+    });
+    const { result } = renderHook(() => useAuth(), { wrapper });
+
+    await act(async () => {
+      await result.current.login({ email: "d@example.com", password: "pw" });
+    });
+
+    expect(client.getQueryData(["sessions", "list", 0])).toBeUndefined();
+  });
+
   it("leaves a transient auth failure alone", async () => {
     // `/auth/me` answering 502 nulls the user, which is not somebody else
     // arriving. Treating it as one would cost the person still signed in their

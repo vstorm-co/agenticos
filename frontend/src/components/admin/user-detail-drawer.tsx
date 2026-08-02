@@ -24,7 +24,7 @@ import {
 import type { AdminUserRead } from "@/hooks/use-admin-users";
 import { apiClient } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
-import { formatDateTime } from "@/lib/utils";
+import { formatDateTime, getErrorMessage } from "@/lib/utils";
 import { qk } from "@/lib/query-keys";
 
 interface UserDetailDrawerProps {
@@ -55,7 +55,11 @@ export function UserDetailDrawer({
   // says it lives. It was three pieces of state and an effect: a list, a loading
   // flag, and a reset when the drawer closed - all of which `useQuery` already
   // has, including not firing at all while `enabled` is false.
-  const { data: conversations = null, isPending: convsLoading } = useQuery({
+  const {
+    data: conversations = null,
+    isPending: convsLoading,
+    error: convsError,
+  } = useQuery({
     queryKey: qk.admin.conversations({ userId: user?.id, limit: 8 }),
     queryFn: () =>
       apiClient
@@ -142,6 +146,13 @@ export function UserDetailDrawer({
             </h3>
             {convsLoading ? (
               <LoadingState variant="skeleton-list" rows={3} />
+            ) : convsError ? (
+              // Not "No conversations." - a 502 and an account that has never
+              // opened a chat are the same sentence, and an admin acting on the
+              // second when it was the first is acting on nothing.
+              <p className="text-destructive text-xs">
+                {getErrorMessage(convsError, "Couldn't load conversations.")}
+              </p>
             ) : !conversations || conversations.length === 0 ? (
               <p className="text-foreground/55 text-xs">No conversations.</p>
             ) : (

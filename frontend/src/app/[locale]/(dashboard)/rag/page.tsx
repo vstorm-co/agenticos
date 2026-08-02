@@ -318,13 +318,18 @@ export default function RAGPage() {
   const handleCreate = async () => {
     const name = newName.trim().toLowerCase().replace(/\s+/g, "_");
     if (!name) return;
+    const startedIn = orgId;
     try {
       await createCollection(name);
       toast.success(`"${name}" created`);
       setNewName("");
       setShowCreate(false);
+      // The collection was created in the organization the request started in;
+      // selecting it after a switch would point the page at a collection the
+      // active tenant does not have.
+      if (!stillCurrent(startedIn)) return;
       await refetchCollections();
-      setChosen(name);
+      if (stillCurrent(startedIn)) setChosen(name);
     } catch {
       toast.error("Failed to create collection");
     }
