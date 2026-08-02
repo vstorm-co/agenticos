@@ -73,7 +73,6 @@ TRIGGERS: tuple[tuple[str, str], ...] = (
     # which nothing here can watch.
     (".pre-commit-config.yaml", "docs/branching.md"),
     (".github/dependabot.yml", "docs/branching.md"),
-    (".github/workflows/bun-lock-sync.yml", "docs/branching.md"),
 )
 
 # A change under any of these means the docs did move, so nothing is reported.
