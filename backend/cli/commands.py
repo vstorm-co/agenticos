@@ -9,6 +9,7 @@ from alembic import command
 from alembic.config import Config
 from tabulate import tabulate
 
+from app import __version__
 from app.commands import register_commands
 from app.main import app
 from app.core.exceptions import AlreadyExistsError
@@ -18,7 +19,7 @@ from app.services.user import UserService
 
 
 @click.group()
-@click.version_option(version="0.1.0", prog_name="agenticos")
+@click.version_option(version=__version__, prog_name="agenticos")
 def cli():
     """agenticos management CLI."""
 
