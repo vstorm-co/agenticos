@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { useKBDetail, useKnowledgeBases } from "./use-knowledge-bases";
 import { apiClient } from "@/lib/api-client";
+import { qk } from "@/lib/query-keys";
 import { useOrgStore } from "@/stores";
 import { DEFAULT_INGESTION_CONFIG } from "@/lib/ingestion-config";
 
@@ -117,7 +118,13 @@ async function sent(index = 0) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  client = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+  });
+  // Seeded rather than fetched: both hooks resolve the tenant through the
+  // organizations query now, and several of these tests assert on exactly
+  // which requests went out.
+  client.setQueryData(qk.organizations.list(), []);
   // The hook reads it, and a test that leaves one behind hands the next one an
   // organization it never chose - which, for the two switch tests below, is the
   // difference between asserting something and asserting nothing.

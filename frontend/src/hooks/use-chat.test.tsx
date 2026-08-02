@@ -1,7 +1,10 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useChat } from "./use-chat";
+import { qk } from "@/lib/query-keys";
 import {
   useAgentSelectionStore,
   useAuthStore,
@@ -25,6 +28,22 @@ const { sent, socket, connect, disconnect } = vi.hoisted(() => ({
     isConnected: true,
   },
 }));
+
+/**
+ * `useChat` resolves the tenant through the organizations query, so it needs a
+ * client - it clears a queued message when the organization moves, and a
+ * message queued in one organization must not be sent as another.
+ */
+function wrapper({ children }: { children: ReactNode }) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+  });
+  // Seeded rather than fetched: these tests count requests, and an
+  // organizations query going out for the tenant would be a request none of
+  // them made.
+  client.setQueryData(qk.organizations.list(), []);
+  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+}
 
 vi.mock("./use-websocket", () => ({
   useWebSocket: (options: {
@@ -84,7 +103,7 @@ describe("useChat - which agent a turn is addressed to", () => {
   it("names the selected agent so the backend runs it", () => {
     useAgentSelectionStore.getState().select("agent-1");
 
-    const { result } = renderHook(() => useChat());
+    const { result } = renderHook(() => useChat(), { wrapper });
     act(() => result.current.sendMessage("hello"));
 
     expect(lastFrame().agent_id).toBe("agent-1");
@@ -94,7 +113,7 @@ describe("useChat - which agent a turn is addressed to", () => {
     // Not `agent_id: null`, not an empty string: the backend refuses a frame
     // that names no agent, and it should refuse an honest frame - one that
     // omits the field - rather than parse a placeholder.
-    const { result } = renderHook(() => useChat());
+    const { result } = renderHook(() => useChat(), { wrapper });
     act(() => result.current.sendMessage("hello"));
 
     expect(lastFrame()).not.toHaveProperty("agent_id");
@@ -103,7 +122,7 @@ describe("useChat - which agent a turn is addressed to", () => {
   it("names whatever is selected when the frame leaves, not when the hook mounted", () => {
     // The pick happens after mount. A selection captured in the render closure
     // would keep addressing the assistant for the life of the page.
-    const { result } = renderHook(() => useChat());
+    const { result } = renderHook(() => useChat(), { wrapper });
     act(() => useAgentSelectionStore.getState().select("agent-2"));
     act(() => result.current.sendMessage("hello"));
 
@@ -115,7 +134,7 @@ describe("useChat - which agent a turn is addressed to", () => {
     // names a vault profile, and the run records which one answered.
     useAgentSelectionStore.getState().select("agent-1");
 
-    const { result } = renderHook(() => useChat());
+    const { result } = renderHook(() => useChat(), { wrapper });
     act(() => {
       result.current.setModelProfile("profile-1");
       result.current.sendMessage("hello");
@@ -133,7 +152,7 @@ describe("useChat - attributing the answer", () => {
   it("credits the answer to the agent the turn was sent to", () => {
     useAgentSelectionStore.getState().select("agent-1");
 
-    const { result } = renderHook(() => useChat());
+    const { result } = renderHook(() => useChat(), { wrapper });
     act(() => result.current.sendMessage("hello"));
     // Switching while the answer streams must not re-credit a run that is
     // already under way to the newly picked agent.
@@ -145,7 +164,7 @@ describe("useChat - attributing the answer", () => {
   });
 
   it("leaves an assistant turn unattributed", () => {
-    const { result } = renderHook(() => useChat());
+    const { result } = renderHook(() => useChat(), { wrapper });
     act(() => result.current.sendMessage("hello"));
     receive("model_request_start", {});
 
@@ -165,7 +184,7 @@ describe("useChat - attributing the answer", () => {
  */
 describe("useChat - the streamed answer", () => {
   it("opens an empty message when the model starts, and fills it as text arrives", () => {
-    renderHook(() => useChat());
+    renderHook(() => useChat(), { wrapper });
 
     receive("model_request_start", {});
     receive("text_delta", { index: 0, content: "Refunds " });
@@ -179,7 +198,7 @@ describe("useChat - the streamed answer", () => {
 
   it("ignores a delta that arrives before any message was opened", () => {
     // A frame from a turn that was already finished and cleared.
-    renderHook(() => useChat());
+    renderHook(() => useChat(), { wrapper });
 
     receive("text_delta", { index: 0, content: "orphan" });
 
@@ -189,7 +208,7 @@ describe("useChat - the streamed answer", () => {
   it("opens a message for reasoning that arrives first", () => {
     // A thinking model publishes its trace before any text, and there is nothing
     // to attach it to yet.
-    renderHook(() => useChat());
+    renderHook(() => useChat(), { wrapper });
 
     receive("thinking_delta", { index: 0, content: "Checking the policy." });
 
@@ -197,7 +216,7 @@ describe("useChat - the streamed answer", () => {
   });
 
   it("keeps reasoning on the message already open", () => {
-    renderHook(() => useChat());
+    renderHook(() => useChat(), { wrapper });
 
     receive("model_request_start", {});
     receive("thinking_delta", { index: 0, content: "Checking." });
@@ -209,7 +228,7 @@ describe("useChat - the streamed answer", () => {
   it("closes the previous message when a second one opens", () => {
     // One turn can produce several messages; the first must stop rendering as
     // still streaming.
-    renderHook(() => useChat());
+    renderHook(() => useChat(), { wrapper });
     receive("model_request_start", {});
     receive("text_delta", { index: 0, content: "first" });
 
@@ -221,7 +240,7 @@ describe("useChat - the streamed answer", () => {
   });
 
   it("shows a tool call and then its result, in the timeline", () => {
-    renderHook(() => useChat());
+    renderHook(() => useChat(), { wrapper });
     receive("model_request_start", {});
 
     receive("tool_call", { tool_call_id: "tc-1", tool_name: "search_documents", args: { q: "x" } });
@@ -235,7 +254,7 @@ describe("useChat - the streamed answer", () => {
   });
 
   it("ignores a tool frame with no message open", () => {
-    renderHook(() => useChat());
+    renderHook(() => useChat(), { wrapper });
 
     receive("tool_call", { tool_call_id: "tc-1", tool_name: "x", args: {} });
     receive("tool_result", { tool_call_id: "tc-1", content: "y" });
@@ -245,7 +264,7 @@ describe("useChat - the streamed answer", () => {
 
   it("takes the answer from the final frame when nothing was streamed", () => {
     // A model that answers in one piece sends no deltas at all.
-    renderHook(() => useChat());
+    renderHook(() => useChat(), { wrapper });
     receive("model_request_start", {});
 
     receive("final_result", { output: "Thirty days." });
@@ -254,7 +273,7 @@ describe("useChat - the streamed answer", () => {
   });
 
   it("does not repeat the answer that was already streamed", () => {
-    renderHook(() => useChat());
+    renderHook(() => useChat(), { wrapper });
     receive("model_request_start", {});
     receive("text_delta", { index: 0, content: "Thirty days." });
 
@@ -264,7 +283,7 @@ describe("useChat - the streamed answer", () => {
   });
 
   it("stops processing on the final frame even with nothing open", () => {
-    const { result } = renderHook(() => useChat());
+    const { result } = renderHook(() => useChat(), { wrapper });
 
     receive("final_result", { output: "" });
 
@@ -273,7 +292,7 @@ describe("useChat - the streamed answer", () => {
 
   it("ignores the model lifecycle frames", () => {
     // They exist for future status UI; today they must not open a message.
-    renderHook(() => useChat());
+    renderHook(() => useChat(), { wrapper });
 
     receive("llm_started", {});
     receive("llm_completed", {});
@@ -284,7 +303,7 @@ describe("useChat - the streamed answer", () => {
 
 describe("useChat - failures and interruptions", () => {
   it("writes the error into the message being streamed", () => {
-    renderHook(() => useChat());
+    renderHook(() => useChat(), { wrapper });
     receive("model_request_start", {});
     receive("text_delta", { index: 0, content: "Let me check." });
 
@@ -295,7 +314,7 @@ describe("useChat - failures and interruptions", () => {
   });
 
   it("says an error happened even when the server named no reason", () => {
-    renderHook(() => useChat());
+    renderHook(() => useChat(), { wrapper });
     receive("model_request_start", {});
 
     receive("error", { message: "" });
@@ -304,7 +323,7 @@ describe("useChat - failures and interruptions", () => {
   });
 
   it("stops processing on an error with nothing open", () => {
-    const { result } = renderHook(() => useChat());
+    const { result } = renderHook(() => useChat(), { wrapper });
 
     receive("error", { message: "Budget exceeded" });
 
@@ -313,7 +332,7 @@ describe("useChat - failures and interruptions", () => {
   });
 
   it("stops a turn on request and clears everything waiting on it", () => {
-    const { result } = renderHook(() => useChat());
+    const { result } = renderHook(() => useChat(), { wrapper });
     receive("model_request_start", {});
     receive("tool_approval_required", {
       action_requests: [{ id: "ar-1", tool_name: "send_email", args: {} }],
@@ -330,7 +349,7 @@ describe("useChat - failures and interruptions", () => {
   });
 
   it("stops cleanly with no turn in flight", () => {
-    const { result } = renderHook(() => useChat());
+    const { result } = renderHook(() => useChat(), { wrapper });
 
     act(() => result.current.stopGeneration());
 
@@ -342,7 +361,7 @@ describe("useChat - the conversation a turn belongs to", () => {
   it("adopts the conversation the backend created, and puts it in the address bar", () => {
     // So a refresh mid-turn lands back on the same thread.
     const onConversationCreated = vi.fn();
-    renderHook(() => useChat({ onConversationCreated }));
+    renderHook(() => useChat({ onConversationCreated }), { wrapper });
     receive("model_request_start", {});
 
     receive("conversation_created", { conversation_id: "c-new" });
@@ -355,7 +374,7 @@ describe("useChat - the conversation a turn belongs to", () => {
 
   it("stamps a new message with the conversation already open", () => {
     useConversationStore.getState().setCurrentConversationId("c-1");
-    renderHook(() => useChat());
+    renderHook(() => useChat(), { wrapper });
 
     receive("model_request_start", {});
 
@@ -363,7 +382,7 @@ describe("useChat - the conversation a turn belongs to", () => {
   });
 
   it("falls back to the conversation the caller passed", () => {
-    renderHook(() => useChat({ conversationId: "c-prop" }));
+    renderHook(() => useChat({ conversationId: "c-prop" }), { wrapper });
 
     receive("model_request_start", {});
 
@@ -372,7 +391,7 @@ describe("useChat - the conversation a turn belongs to", () => {
 
   it("swaps the temporary id for the one the database gave it", () => {
     // Every later action - a rating, a share - addresses the message by id.
-    renderHook(() => useChat());
+    renderHook(() => useChat(), { wrapper });
     receive("model_request_start", {});
 
     receive("message_saved", { message_id: "m-real" });
@@ -382,7 +401,7 @@ describe("useChat - the conversation a turn belongs to", () => {
 
   it("finds the message to rename when the turn has already completed", () => {
     // `complete` clears the id, and `message_saved` can arrive after it.
-    renderHook(() => useChat());
+    renderHook(() => useChat(), { wrapper });
     receive("model_request_start", {});
     receive("complete", {});
 
@@ -395,7 +414,7 @@ describe("useChat - the conversation a turn belongs to", () => {
   });
 
   it("renames nothing when there is no temporary message to rename", () => {
-    renderHook(() => useChat());
+    renderHook(() => useChat(), { wrapper });
     receive("complete", {});
 
     receive("message_saved", { message_id: "m-real" });
@@ -406,7 +425,7 @@ describe("useChat - the conversation a turn belongs to", () => {
   it("nudges the billing view when a turn completes, because it just spent money", () => {
     const listener = vi.fn();
     window.addEventListener("billing:refresh", listener);
-    const { result } = renderHook(() => useChat());
+    const { result } = renderHook(() => useChat(), { wrapper });
 
     receive("complete", {});
 
@@ -418,7 +437,7 @@ describe("useChat - the conversation a turn belongs to", () => {
 
 describe("useChat - approvals and questions", () => {
   it("surfaces the tools waiting on a person, and says so in the message", () => {
-    const { result } = renderHook(() => useChat());
+    const { result } = renderHook(() => useChat(), { wrapper });
     receive("model_request_start", {});
 
     receive("tool_approval_required", {
@@ -434,7 +453,7 @@ describe("useChat - approvals and questions", () => {
   });
 
   it("still surfaces an approval with no message open", () => {
-    const { result } = renderHook(() => useChat());
+    const { result } = renderHook(() => useChat(), { wrapper });
 
     receive("tool_approval_required", {
       action_requests: [{ id: "ar-1", tool_name: "send_email", args: {} }],
@@ -446,7 +465,7 @@ describe("useChat - approvals and questions", () => {
   });
 
   it("sends each decision, and replaces the waiting line with what was decided", () => {
-    const { result } = renderHook(() => useChat());
+    const { result } = renderHook(() => useChat(), { wrapper });
     receive("model_request_start", {});
     receive("tool_approval_required", {
       action_requests: [
@@ -486,7 +505,7 @@ describe("useChat - approvals and questions", () => {
   it("sends an edit with no edited action as a plain edit", () => {
     // Which is what the dialog produces when somebody opens the editor and
     // changes nothing.
-    const { result } = renderHook(() => useChat());
+    const { result } = renderHook(() => useChat(), { wrapper });
 
     act(() => result.current.sendResumeDecisions([{ type: "edit" }]));
 
@@ -494,7 +513,7 @@ describe("useChat - approvals and questions", () => {
   });
 
   it("surfaces the questions an agent asked, filling in what it left out", () => {
-    const { result } = renderHook(() => useChat());
+    const { result } = renderHook(() => useChat(), { wrapper });
 
     receive("ask_user", {
       questions: [{ question: "Which invoice?", allow_custom: true }],
@@ -506,7 +525,7 @@ describe("useChat - approvals and questions", () => {
   });
 
   it("surfaces an empty list rather than nothing when the frame carries none", () => {
-    const { result } = renderHook(() => useChat());
+    const { result } = renderHook(() => useChat(), { wrapper });
 
     receive("ask_user", {});
 
@@ -514,7 +533,7 @@ describe("useChat - approvals and questions", () => {
   });
 
   it("sends the answers and closes the prompt", () => {
-    const { result } = renderHook(() => useChat());
+    const { result } = renderHook(() => useChat(), { wrapper });
     receive("ask_user", {
       questions: [{ question: "Which?", options: ["a"], allow_custom: false }],
     });
@@ -531,7 +550,7 @@ describe("useChat - approvals and questions", () => {
   it("keeps the questions on screen when the socket is offline", () => {
     // Clearing them would lose the question with no way to answer it.
     socket.isConnected = false;
-    const { result } = renderHook(() => useChat());
+    const { result } = renderHook(() => useChat(), { wrapper });
     receive("ask_user", { questions: [{ question: "Which?", options: [], allow_custom: true }] });
 
     act(() => result.current.sendAskUserResponses([{ answer: "a", skipped: false }]));
@@ -543,7 +562,7 @@ describe("useChat - approvals and questions", () => {
 
 describe("useChat - what goes out with a turn", () => {
   it("adds the person's own message and marks the turn in flight", () => {
-    const { result } = renderHook(() => useChat({ conversationId: "c-1" }));
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
 
     act(() => result.current.sendMessage("How long?", ["f-1"], [{ id: "f-1" } as never]));
 
@@ -562,7 +581,7 @@ describe("useChat - what goes out with a turn", () => {
   });
 
   it("sends a null conversation id for the first turn of a new thread", () => {
-    const { result } = renderHook(() => useChat());
+    const { result } = renderHook(() => useChat(), { wrapper });
 
     act(() => result.current.sendMessage("hello"));
 
@@ -571,7 +590,7 @@ describe("useChat - what goes out with a turn", () => {
   });
 
   it("carries the per-turn model overrides, and only when they are set", () => {
-    const { result } = renderHook(() => useChat());
+    const { result } = renderHook(() => useChat(), { wrapper });
 
     act(() => result.current.sendMessage("first"));
     expect(frame(0)).not.toHaveProperty("model_profile_id");
@@ -592,7 +611,7 @@ describe("useChat - what goes out with a turn", () => {
   });
 
   it("keeps a temperature of zero, which is a deliberate setting", () => {
-    const { result } = renderHook(() => useChat());
+    const { result } = renderHook(() => useChat(), { wrapper });
     act(() => result.current.setTemperature(0));
 
     act(() => result.current.sendMessage("hello"));
@@ -604,7 +623,7 @@ describe("useChat - what goes out with a turn", () => {
 describe("useChat - the outbound queue", () => {
   it("queues what is typed while the agent is busy, and drains it when it is idle", async () => {
     vi.useFakeTimers();
-    const { result } = renderHook(() => useChat());
+    const { result } = renderHook(() => useChat(), { wrapper });
     act(() => result.current.sendMessage("first"));
     expect(result.current.isProcessing).toBe(true);
 
@@ -622,9 +641,28 @@ describe("useChat - the outbound queue", () => {
     vi.useRealTimers();
   });
 
+  it("throws away a queued message when the organization changes", () => {
+    // It waits in this hook's own state until the socket returns, so neither
+    // dropping the query cache nor resetting the stores reaches it - the
+    // message was typed in one organization and would have been sent as the
+    // next one, once their socket connected.
+    socket.isConnected = false;
+    useOrgStore.setState({ activeOrgId: "org-a" });
+    const { result, rerender } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("meant for org A"));
+    expect(result.current.queuedMessages).toHaveLength(1);
+
+    act(() => {
+      useOrgStore.setState({ activeOrgId: "org-b" });
+    });
+    rerender();
+
+    expect(result.current.queuedMessages).toEqual([]);
+  });
+
   it("queues what is typed while the socket is offline", () => {
     socket.isConnected = false;
-    const { result } = renderHook(() => useChat());
+    const { result } = renderHook(() => useChat(), { wrapper });
 
     act(() => result.current.sendMessage("offline"));
 
@@ -634,7 +672,7 @@ describe("useChat - the outbound queue", () => {
 
   it("cancels one queued message and keeps the rest", () => {
     socket.isConnected = false;
-    const { result } = renderHook(() => useChat());
+    const { result } = renderHook(() => useChat(), { wrapper });
     act(() => result.current.sendMessage("one"));
     act(() => result.current.sendMessage("two"));
 
@@ -645,7 +683,7 @@ describe("useChat - the outbound queue", () => {
 
   it("clears the whole queue", () => {
     socket.isConnected = false;
-    const { result } = renderHook(() => useChat());
+    const { result } = renderHook(() => useChat(), { wrapper });
     act(() => result.current.sendMessage("one"));
     act(() => result.current.sendMessage("two"));
 
@@ -658,7 +696,7 @@ describe("useChat - the outbound queue", () => {
 describe("useChat - the socket it opens", () => {
   it("authenticates through the subprotocol rather than the URL", () => {
     // A token in the query string ends up in access logs and Referer headers.
-    renderHook(() => useChat());
+    renderHook(() => useChat(), { wrapper });
 
     expect(socket.protocols).toEqual(["access_token.t-1", "chat"]);
     expect(socket.url).not.toContain("t-1");
@@ -669,7 +707,7 @@ describe("useChat - the socket it opens", () => {
     // reconnect storm on every page load.
     useAuthStore.setState({ accessToken: null });
 
-    renderHook(() => useChat());
+    renderHook(() => useChat(), { wrapper });
 
     expect(socket.protocols).toBeUndefined();
     expect(connect).not.toHaveBeenCalled();
@@ -678,7 +716,7 @@ describe("useChat - the socket it opens", () => {
   it("carries the active organization in the URL, because a handshake takes no headers", () => {
     useOrgStore.setState({ activeOrgId: "org 7" });
 
-    renderHook(() => useChat());
+    renderHook(() => useChat(), { wrapper });
 
     expect(socket.url).toContain("organization_id=org%207");
   });
@@ -690,7 +728,7 @@ describe("useChat - the socket it opens", () => {
       .fn()
       .mockResolvedValue({ ok: true, json: () => Promise.resolve({ access_token: "t-2" }) });
     vi.stubGlobal("fetch", fetchMock);
-    renderHook(() => useChat());
+    renderHook(() => useChat(), { wrapper });
 
     await act(async () => {
       socket.onClose?.();
@@ -705,7 +743,7 @@ describe("useChat - the socket it opens", () => {
 
   it("keeps the token it has when the refresh is refused", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 401 }));
-    renderHook(() => useChat());
+    renderHook(() => useChat(), { wrapper });
 
     await act(async () => {
       socket.onClose?.();
@@ -721,7 +759,7 @@ describe("useChat - the socket it opens", () => {
       "fetch",
       vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({}) }),
     );
-    renderHook(() => useChat());
+    renderHook(() => useChat(), { wrapper });
 
     await act(async () => {
       socket.onClose?.();
@@ -734,7 +772,7 @@ describe("useChat - the socket it opens", () => {
 
   it("survives a refresh that could not be made at all", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
-    renderHook(() => useChat());
+    renderHook(() => useChat(), { wrapper });
 
     await act(async () => {
       socket.onClose?.();
@@ -746,7 +784,7 @@ describe("useChat - the socket it opens", () => {
   });
 
   it("closes the socket when the chat goes away", () => {
-    const { unmount } = renderHook(() => useChat());
+    const { unmount } = renderHook(() => useChat(), { wrapper });
 
     unmount();
 

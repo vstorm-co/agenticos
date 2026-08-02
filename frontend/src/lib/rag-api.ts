@@ -102,8 +102,23 @@ export interface RAGTrackedDocument {
   completed_at: string | null;
 }
 
-export function getDocumentDownloadUrl(docId: string): string {
-  return `/api/rag/documents/${docId}/download`;
+/**
+ * Open a tracked document's original file in a new tab.
+ *
+ * Not an `<a href>`, which is what this replaced. A browser navigation sends
+ * whatever headers the browser feels like and none that we set, so an anchor to
+ * an org-scoped endpoint arrives with no `X-Organization-Id` - the backend then
+ * answers from the caller's personal organization and a document belonging to
+ * the organization on screen comes back 404. Fetching it and opening the blob
+ * is the same trick `downloadKBDocument` uses, for the same reason.
+ */
+export async function openTrackedDocument(docId: string): Promise<void> {
+  const response = await apiClient.raw(`/rag/documents/${docId}/download`);
+  const url = URL.createObjectURL(await response.blob());
+  window.open(url, "_blank", "noopener,noreferrer");
+  // Long enough for the new tab to have read it. Revoking at once closes the
+  // tab that was just opened; never revoking leaks it for the life of the page.
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 export async function downloadKBDocument(

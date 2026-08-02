@@ -15,7 +15,7 @@ import type {
 } from "@/lib/rag-api";
 import { overrideSize } from "@/lib/ingestion-config";
 import { useChanged } from "@/hooks/use-changed";
-import { useOrgStore } from "@/stores";
+import { useTenantGuard, useTenantId } from "@/hooks/use-organizations";
 import type {
   CreateKnowledgeBaseInput,
   IngestionConfig,
@@ -28,7 +28,8 @@ import type {
 
 export function useKnowledgeBases() {
   const queryClient = useQueryClient();
-  const listOrgId = useOrgStore((state) => state.activeOrgId);
+  const listOrgId = useTenantId();
+  const stillSameTenant = useTenantGuard();
 
   // React Query owns the list: cached across navigations, deduped, no refetch
   // storms. Mutations patch the cache directly so the UI stays instant.
@@ -48,10 +49,10 @@ export function useKnowledgeBases() {
    */
   const writeCache = useCallback(
     (updater: (prev: KnowledgeBase[]) => KnowledgeBase[], startedIn: string | null) => {
-      if (useOrgStore.getState().activeOrgId !== startedIn) return;
+      if (!stillSameTenant(startedIn)) return;
       queryClient.setQueryData<KnowledgeBase[]>(qk.kb.list(), (prev = []) => updater(prev));
     },
-    [queryClient],
+    [queryClient, stillSameTenant],
   );
 
   // Kept for API compatibility: the list auto-fetches on mount; this forces a
@@ -150,7 +151,7 @@ export function useKBDetail(id: string | null) {
   // stale rows are never painted under the new organization's name; `refresh`
   // takes the organization in its dependencies below, which is what sends the
   // page back to the server for whatever this id means here, if anything.
-  const activeOrgId = useOrgStore((state) => state.activeOrgId);
+  const activeOrgId = useTenantId();
   if (useChanged(activeOrgId)) {
     setKb(null);
     setDocuments([]);
@@ -169,9 +170,6 @@ export function useKBDetail(id: string | null) {
    * switch refills what was just emptied - the previous tenant's knowledge base
    * name and configuration, under the new tenant's.
    */
-  const stillSameTenant = (startedIn: string | null) =>
-    useOrgStore.getState().activeOrgId === startedIn;
-
   // An upload is in flight whenever there's at least one progress entry. Derived
   // rather than stored so sequential/concurrent uploads stay consistent.
   const isUploading = uploadProgress.length > 0;
@@ -179,6 +177,8 @@ export function useKBDetail(id: string | null) {
   // Tracks how many documents are loaded without putting `documents.length` in
   // the deps of `refresh`/`loadMoreDocuments` - keeping them stable so the
   // page's `useEffect([refresh])` runs once instead of looping after each fetch.
+  const stillSameTenant = useTenantGuard();
+
   const loadedDocCountRef = useRef(0);
   useEffect(() => {
     loadedDocCountRef.current = documents.length;
@@ -229,7 +229,7 @@ export function useKBDetail(id: string | null) {
     } finally {
       setIsLoading(false);
     }
-  }, [id, activeOrgId]);
+  }, [id, activeOrgId, stillSameTenant]);
 
   /** Append the next page of documents (server-side skip/limit pagination). */
   const loadMoreDocuments = useCallback(async () => {
@@ -252,7 +252,7 @@ export function useKBDetail(id: string | null) {
     } finally {
       setIsLoadingMoreDocs(false);
     }
-  }, [id, activeOrgId]);
+  }, [id, activeOrgId, stillSameTenant]);
 
   /**
    * Replace how this collection's documents are parsed, from now on.
@@ -276,7 +276,7 @@ export function useKBDetail(id: string | null) {
       }
       return updated;
     },
-    [id, activeOrgId],
+    [id, activeOrgId, stillSameTenant],
   );
 
   const uploadDocument = useCallback(
@@ -376,7 +376,7 @@ export function useKBDetail(id: string | null) {
         toast.error(e instanceof Error ? e.message : "Failed to delete document");
       }
     },
-    [id, activeOrgId],
+    [id, activeOrgId, stillSameTenant],
   );
 
   const createSyncSource = useCallback(
@@ -395,7 +395,7 @@ export function useKBDetail(id: string | null) {
         throw e;
       }
     },
-    [id, activeOrgId],
+    [id, activeOrgId, stillSameTenant],
   );
 
   const cloneSyncSource = useCallback(
@@ -418,7 +418,7 @@ export function useKBDetail(id: string | null) {
         throw e;
       }
     },
-    [id, activeOrgId],
+    [id, activeOrgId, stillSameTenant],
   );
 
   const triggerSyncSource = useCallback(
@@ -449,7 +449,7 @@ export function useKBDetail(id: string | null) {
         toast.error(e instanceof Error ? e.message : "Failed to remove sync source");
       }
     },
-    [id, activeOrgId],
+    [id, activeOrgId, stillSameTenant],
   );
 
   return {

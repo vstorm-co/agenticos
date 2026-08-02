@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
@@ -25,6 +25,45 @@ export function useOrganizationList() {
     queryKey: qk.organizations.list(),
     queryFn: async () => (await apiClient.get<OrganizationList>("/orgs")).items,
   });
+}
+
+/**
+ * The organization every request is actually made as.
+ *
+ * Not the same thing as the selection. `activeOrgId` is null until the list
+ * loads and the default is picked, and a request sent meanwhile carries no
+ * `X-Organization-Id` - which the backend reads as the caller's personal
+ * organization, not as no organization at all. Anything comparing "has the
+ * tenant changed?" has to compare this, or it reads a page finishing its first
+ * render as somebody switching organizations.
+ *
+ * Still null while nothing can answer the question: no selection, and no list
+ * to resolve the personal organization from. A caller deciding whether to throw
+ * work away should treat that as "cannot tell yet" and do nothing.
+ */
+export function useTenantId(): string | null {
+  const activeOrgId = useOrgStore((state) => state.activeOrgId);
+  const { data: orgs } = useOrganizationList();
+  return activeOrgId ?? orgs?.find((org) => org.is_personal)?.id ?? null;
+}
+
+/**
+ * "Is the tenant I started in still the current one?", for code after an await.
+ *
+ * Every hook that writes state or the query cache after a request needs this,
+ * and each one was reading `activeOrgId` straight from the store - which is
+ * null on a freshly loaded page and so reported a change that had not happened.
+ * The ref is what makes the current value readable outside render; it is
+ * written from an effect, because the compiler rules forbid writing a ref
+ * during one.
+ */
+export function useTenantGuard(): (startedIn: string | null) => boolean {
+  const tenant = useTenantId();
+  const current = useRef(tenant);
+  useEffect(() => {
+    current.current = tenant;
+  });
+  return useCallback((startedIn: string | null) => current.current === startedIn, []);
 }
 
 /**

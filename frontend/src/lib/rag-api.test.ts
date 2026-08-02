@@ -96,8 +96,37 @@ describe("collections and documents", () => {
     expect(apiClient.get).toHaveBeenCalledWith("/kb/kb-1/documents/doc-1/parsed");
   });
 
-  it("addresses the original bytes through this app's own route", () => {
-    expect(rag.getDocumentDownloadUrl("doc-1")).toBe("/api/rag/documents/doc-1/download");
+  it("opens the original from the organization on screen, not a bare anchor", async () => {
+    // It was an `<a href>`, and a browser navigation carries no
+    // `X-Organization-Id` - so an org-scoped document came back 404 from the
+    // caller's personal organization. Fetched and opened as a blob instead.
+    vi.useFakeTimers();
+    useOrgStore.getState().setActiveOrgId("org-b");
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    vi.stubGlobal("URL", { ...URL, createObjectURL: () => "blob:1", revokeObjectURL: vi.fn() });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, status: 200, blob: () => Promise.resolve(new Blob()) }),
+    );
+
+    await rag.openTrackedDocument("doc-1");
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(url).toBe("/api/rag/documents/doc-1/download");
+    expect((init as { headers: Record<string, string> }).headers["X-Organization-Id"]).toBe(
+      "org-b",
+    );
+    expect(open).toHaveBeenCalledWith("blob:1", "_blank", "noopener,noreferrer");
+
+    // Released on a timer: revoking at once closes the tab that was just
+    // opened, and never revoking leaks the blob for the life of the page.
+    const revoke = vi.mocked(URL.revokeObjectURL);
+    expect(revoke).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(60_000);
+    expect(revoke).toHaveBeenCalledWith("blob:1");
+
+    open.mockRestore();
+    vi.useRealTimers();
   });
 });
 
