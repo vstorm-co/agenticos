@@ -47,12 +47,16 @@ from app.db.base import Base
 class Notification(Base):
     __tablename__ = "notifications"
 
-    id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    id: Mapped[UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4
+    )
     title: Mapped[str] = mapped_column(String(255))
     body: Mapped[str] = mapped_column(String)
     channel: Mapped[str] = mapped_column(String(50), default="email")
     is_read: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 ```
 
 Don't forget to import it in `app/db/models/__init__.py`.
@@ -175,7 +179,9 @@ In `app/api/routes/v1/__init__.py`:
 ```python
 from app.api.routes.v1 import notifications
 
-v1_router.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
+v1_router.include_router(
+    notifications.router, prefix="/notifications", tags=["notifications"]
+)
 ```
 
 ### 8. Create and apply migration

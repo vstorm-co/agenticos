@@ -39,13 +39,11 @@ from prefect.client.schemas.schedules import CronSchedule
 
 from app.worker.tasks.notifications import send_notification_flow
 
-deployments.append(
-    await send_notification_flow.ato_deployment(
-        name="daily-digest",
-        parameters={"user_id": "broadcast", "message": "Daily digest"},
-        schedules=[CronSchedule(cron="0 9 * * *")],  # Daily at 9 AM
-    )
-)
+deployments.append(await send_notification_flow.ato_deployment(
+    name="daily-digest",
+    parameters={"user_id": "broadcast", "message": "Daily digest"},
+    schedules=[CronSchedule(cron="0 9 * * *")],  # Daily at 9 AM
+))
 ```
 
 ### 4. Run the worker

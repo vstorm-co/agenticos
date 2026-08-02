@@ -64,11 +64,11 @@ database:
 Minting one, in any language that can sign a JWT:
 
 ```python
-import time, jwt  # PyJWT
+import time, jwt   # PyJWT
 
 token = jwt.encode(
     {"sub": str(user.id), "iat": int(time.time())},
-    EMBED_SIGNING_SECRET,  # the secret you set on the embed
+    EMBED_SIGNING_SECRET,          # the secret you set on the embed
     algorithm="HS256",
 )
 ```

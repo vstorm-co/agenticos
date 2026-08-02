@@ -121,7 +121,6 @@ class NotionConnector(BaseSyncConnector):
 
     async def download_file(self, file: RemoteFile, dest_dir: Path) -> Path:
         """Export a Notion page as Markdown and save locally."""
-
         def _download():
             from notion_client import Client
 
@@ -147,7 +146,6 @@ class NotionConnector(BaseSyncConnector):
             return is_valid, err
 
         try:
-
             def _test():
                 from notion_client import Client
 
