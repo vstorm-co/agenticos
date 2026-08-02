@@ -216,7 +216,7 @@ Trigger map — what changed → which page:
 | `app/commands/**`, a new `make` target | `docs/commands.md` |
 | A new route, service or layering change | `docs/architecture.md` |
 | `.github/workflows/ai-review.yml`, `.github/codex/**` | `docs/code-review.md` |
-| `.github/workflows/branch-policy.yml`, the branch rulesets | `docs/branching.md` |
+| `.pre-commit-config.yaml`, the branch rulesets | `docs/branching.md` |
 | A capability, permission or setting that changes the first-run path | `docs/first-agent.md`, `docs/install.md` |
 
 **When updating a page:** keep its altitude — `docs/reference/*` is generated from
@@ -254,7 +254,7 @@ say so and move on. Run it yourself any time with
 | Adding a feature end to end | `docs/adding_features.md` |
 | Test layers and what belongs in each | `docs/testing.md` |
 | The automated pull request reviewer | `docs/code-review.md` |
-| Branches, rulesets and how a release reaches `main` | `docs/branching.md` |
+| Branches, rulesets and what protects `main` | `docs/branching.md` |
 | Recurring patterns | `docs/patterns.md` |
 | Settings and the production checklist | `docs/configuration.md` |
 
