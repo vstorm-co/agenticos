@@ -197,6 +197,23 @@ class CapabilityToolInfo(BaseModel):
 
     description: str
 
+    side_effecting: bool | None = None
+    """Whether *this tool* acts on the world, when the capability is not one answer.
+
+    `None` - the default - defers to `CapabilityDef.side_effecting`, so every
+    capability that declares nothing behaves exactly as it did.
+
+    It exists because a capability can genuinely be two things at once. One that
+    reads a filesystem *and* writes to it *and* runs a shell has no single
+    honest value: marking the capability side-effecting makes an agent ask
+    permission to list a directory, and not marking it lets a write run
+    unattended. The author would then hand-write a `tool_approval` override per
+    tool in every spec, and the one they forget is the dangerous one.
+
+    A binding still overrides this - `tool_approval` is the operator's decision
+    and beats the code's.
+    """
+
     @model_validator(mode="before")
     @classmethod
     def _name_defaults_to_id(cls, data: Any) -> Any:
@@ -264,6 +281,12 @@ class CapabilityDef:
                 id=tool.id,
                 name=override.name or tool.name,
                 description=override.description or tool.description,
+                # Carried, not defaulted. A rename that dropped it would put the
+                # tool back on the capability's answer - so renaming `execute`
+                # on a capability whose reads are free would silently ungate the
+                # one call worth gating, which is the exact failure `id` exists
+                # to prevent.
+                side_effecting=tool.side_effecting,
             )
             for tool in self.tools
         )
@@ -538,6 +561,7 @@ def load_builtins() -> None:
         clock,
         code_execution,
         knowledge,
+        sandbox,
         skills,
         thinking,
         web_research,

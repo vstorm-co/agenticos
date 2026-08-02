@@ -46,6 +46,12 @@ TOOLLESS = {
 EXTERNAL_TOOLSET = {
     # `pydantic_ai_skills.SkillsToolset`, filtered to the safe three.
     "skills",
+    # `pydantic_ai_backends.ConsoleCapability`. The tool *text* is still this
+    # repository's - `_capability.py` declares it once and hands the same
+    # descriptions to the library - so the reason `_toolset.py` exists is
+    # satisfied without a module that would only re-export somebody else's
+    # functions.
+    "sandbox",
 }
 
 

@@ -26,6 +26,7 @@ from app.agents.capabilities import TOOL_NAME_PATTERN, CapabilityDef
 from app.agents.capabilities import get as get_capability
 from app.agents.spec import AgentSpec, CapabilityBindingSpec
 from app.core.audit import record_audit
+from app.core.config import settings
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
@@ -48,6 +49,7 @@ from app.repositories import (
 from app.schemas.agent import AgentRead, AgentVersionRead
 from app.services.access import AGENT, COLLECTION, SECRET, resolve_access, visible_resource_ids
 from app.services.file_storage import IMAGE_MIME_TYPES, MAX_AVATAR_SIZE, get_file_storage
+from app.services.sandbox_workspace import sandbox_config
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +59,9 @@ _SLUG_TRIM = re.compile(r"-{2,}")
 # Scopes an organization grants by default. Real per-org scope management is a
 # later concern; hardcoding the safe set here keeps the check honest in the
 # meantime rather than disabling it and forgetting.
-DEFAULT_GRANTED_SCOPES = frozenset({"knowledge:read", "web:read", "code:execute"})
+DEFAULT_GRANTED_SCOPES = frozenset(
+    {"knowledge:read", "web:read", "code:execute", "sandbox:execute"}
+)
 
 # How far the clone naming loop counts before it lets the collision be reported.
 _MAX_COPIES = 50
@@ -71,6 +75,41 @@ def _copy_name(base: str, attempt: int) -> str:
     """What the nth copy of `base` is called."""
     suffix = " (copy)" if attempt == 1 else f" (copy {attempt})"
     return f"{base[: _NAME_LIMIT - len(suffix)].rstrip()}{suffix}"
+
+
+def _sandbox_problems(spec: AgentSpec) -> list[str]:
+    """Workspace configurations this deployment cannot honour.
+
+    Both of these fail at run time otherwise, and by then the author is not
+    looking at a form - they are looking at a conversation where an agent
+    stopped answering. Both are also things the spec cannot know on its own:
+    whether this deployment runs a sandbox service, and what a backend without
+    containers does with a container's runtime.
+
+    What is deliberately *not* refused here is `session_scope="user"` on an
+    agent that might be reached without one. Publishing cannot know which
+    surfaces an agent will be exposed to, and a web-only agent with a per-user
+    workspace is a perfectly good configuration. The run refuses instead, by
+    name, when it turns out there is nobody to attribute the workspace to -
+    which is the moment the answer is actually knowable.
+    """
+    config = sandbox_config(spec)
+    if config is None:
+        return []
+
+    problems: list[str] = []
+    if config.backend == "docker" and not settings.SANDBOXD_URL:
+        problems.append(
+            "This deployment runs no sandbox service, so a container-backed "
+            "workspace has nothing to talk to. Set SANDBOXD_URL, or choose the "
+            "'state' backend, which needs nothing."
+        )
+    if config.runtime is not None and config.backend == "state":
+        problems.append(
+            "The 'state' backend runs no container, so it has no runtime to "
+            "choose. Clear the runtime, or pick a container-backed backend."
+        )
+    return problems
 
 
 def _tool_override_problems(binding: CapabilityBindingSpec, definition: CapabilityDef) -> list[str]:
@@ -409,6 +448,8 @@ class AgentRegistryService:
                     "never a member's personal one - otherwise what it can reach would "
                     "depend on who happens to run it."
                 )
+
+        problems.extend(_sandbox_problems(spec))
 
         if problems:
             raise BadRequestError(

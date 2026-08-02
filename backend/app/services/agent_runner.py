@@ -51,6 +51,7 @@ from app.agents.capabilities.approval import (
     ApprovalRequest,
 )
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope, SpendEntry, metered_by
+from app.agents.capabilities.sandbox import WORKSPACE_BACKEND_RESOURCE, WorkspaceIdentity
 from app.agents.deps import AgentDeps
 from app.agents.factory import BuiltAgent, build_agent
 from app.agents.spec import AgentSpec, ObservabilitySpec
@@ -72,6 +73,7 @@ from app.services.model_profile import ModelProfileService
 from app.services.notifications import NotificationService
 from app.services.organization import OrganizationService
 from app.services.organization_secret import OrganizationSecretService
+from app.services.sandbox_workspace import OpenWorkspace, SandboxWorkspaceService
 from app.services.skills import SkillService
 from app.services.spend import month_start, organization_monthly_spend
 
@@ -147,6 +149,14 @@ class PreparedRun:
     spec: AgentSpec
     built: BuiltAgent
     approvals: ApprovalChannel
+    workspace: OpenWorkspace | None = None
+    """The sandbox this run writes to, when its spec asks for one.
+
+    Carried on the prepared run rather than hidden in the agent because it has
+    to be *closed*: a `state` workspace is only stored by the flush in
+    :meth:`AgentRunnerService.finish`, and nothing else in the process knows the
+    run is over.
+    """
 
     @property
     def deps(self) -> AgentDeps:
@@ -181,6 +191,7 @@ class AgentRunnerService:
         self.secrets = OrganizationSecretService(db)
         self.approvals = ApprovalService(db)
         self.organizations = OrganizationService(db)
+        self.workspaces = SandboxWorkspaceService(db)
 
     async def _collection_names(self, spec: AgentSpec, ctx: AuthContext) -> list[str]:
         """Vector-store collection names for the agent's bound collections.
@@ -310,7 +321,7 @@ class AgentRunnerService:
 
         # Everything a capability needs but must not fetch itself. Resolved once,
         # server-side, so the model cannot influence what an agent reaches.
-        resources = {
+        resources: dict[str, Any] = {
             "kb_collection_names": await self._collection_names(spec, ctx),
             "skills": await self.skills.resolve_for_agent(ctx, spec.skill_ids),
         }
@@ -364,6 +375,24 @@ class AgentRunnerService:
         async def org_period_spend() -> Decimal:
             return await self.monthly_spend(ctx)
 
+        # Opened after the run row, because a run-scoped workspace keys on it,
+        # and before the agent, because the capability reads the backend out of
+        # `resources`. Nothing starts here for a container-backed one: the
+        # client opens its session on the first tool call, so an agent granted a
+        # workspace it never touches costs nothing.
+        workspace = await self.workspaces.open(
+            spec,
+            WorkspaceIdentity(
+                organization_id=ctx.organization_id,
+                agent_id=agent.id,
+                run_id=run.id,
+                conversation_id=conversation_id,
+                user_id=None if ctx.user_id is None else str(ctx.user_id),
+            ),
+        )
+        if workspace is not None:
+            resources[WORKSPACE_BACKEND_RESOURCE] = workspace.backend
+
         channel = ApprovalChannel(
             approvals=self.approvals,
             organization_id=ctx.organization_id,
@@ -395,7 +424,14 @@ class AgentRunnerService:
             request_approval=channel,
         )
 
-        return PreparedRun(run=run, agent=agent, spec=spec, built=built, approvals=channel)
+        return PreparedRun(
+            run=run,
+            agent=agent,
+            spec=spec,
+            built=built,
+            approvals=channel,
+            workspace=workspace,
+        )
 
     async def finish(
         self,
@@ -422,6 +458,11 @@ class AgentRunnerService:
         error message - and it decides who gets mailed: an agent's cap is its
         author's to raise, the organization's is not.
         """
+        # Before the run row is written, so a workspace flush that fails cannot
+        # leave the run un-finished, and after the run has certainly stopped
+        # using it. `close` never raises; it logs.
+        await self.workspaces.close(prepared.workspace)
+
         ledger = prepared.built.ledger
         finished = await agent_run_repo.finish_run(
             self.db,

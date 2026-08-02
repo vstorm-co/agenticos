@@ -21,6 +21,7 @@ from app.db.models.mcp_connection import McpConnection
 from app.db.models.agent_embed import AgentEmbed
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
+from app.db.models.agent_workspace import AgentWorkspace
 from app.db.models.agent_exposure import AgentExposure, ExposureSurface
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, RunSurface, ToolApproval
 from app.db.models.ingestion_spend import IngestionSpend
@@ -56,6 +57,7 @@ __all__ = [
     "AgentStatus",
     "AgentVersion",
     "AgentEnvironment",
+    "AgentWorkspace",
     "AgentExposure",
     "ExposureSurface",
     "AgentRun",

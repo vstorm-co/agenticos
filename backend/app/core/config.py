@@ -148,6 +148,26 @@ class Settings(BaseSettings):
     # is per-collection configuration; these say only how to reach the tools.
     LLAMAPARSE_API_KEY: str = ""
     LITEPARSE_OCR_SERVER_URL: str = ""
+
+    # The sandbox service, which is the same shape of thing as the OCR sidecar
+    # above: something this deployment may or may not run. Empty means it does
+    # not, and publishing an agent that asks for a container-backed workspace is
+    # refused in the Builder rather than failing inside somebody's conversation.
+    #
+    # The token is on a par with the Docker socket the service holds: whoever
+    # has it can open a session, and a session runs commands on that host.
+    SANDBOXD_URL: str = ""
+    SANDBOXD_TOKEN: str = ""
+    # How much of an agent's `state` workspace the platform will store, per
+    # workspace. It lives in a JSONB column, so this is a real ceiling on a real
+    # row rather than a policy: past it, writes are refused with a message the
+    # model reads.
+    SANDBOX_STATE_MAX_BYTES: int = 4 * 1024 * 1024
+    # Above this, an attached image is written to the workspace and *not* also
+    # sent inline. Below it the model gets both: it should see the picture, and
+    # it should be able to run something over the file. The ceiling is where
+    # paying for the bytes twice stops being worth it.
+    SANDBOX_INLINE_IMAGE_MAX_BYTES: int = 5 * 1024 * 1024
     GOOGLE_DRIVE_CREDENTIALS_FILE: str = "credentials/google-drive-sa.json"
     S3_RAG_ENDPOINT: str | None = None
     S3_RAG_ACCESS_KEY: str = ""
