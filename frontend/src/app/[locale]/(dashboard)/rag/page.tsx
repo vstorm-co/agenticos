@@ -218,36 +218,50 @@ export default function RAGPage() {
     select: (data) => data.formats,
   });
 
+  /**
+   * Whether the organization the caller started in is still the active one.
+   *
+   * Clearing this page's state as the organization changes is not enough on its
+   * own: a request in flight across the switch resolves afterwards and writes
+   * the previous tenant's rows straight back into the state that was just
+   * emptied. Every imperative fetch below checks before it writes.
+   */
+  const stillCurrent = (startedIn: string) =>
+    (useOrgStore.getState().activeOrgId ?? "") === startedIn;
+
   const fetchSyncLogs = async () => {
+    const startedIn = orgId;
     setSyncLogsLoading(true);
     try {
       const data = await listSyncLogs(selected || undefined);
-      setSyncLogs(data.items || []);
+      if (stillCurrent(startedIn)) setSyncLogs(data.items || []);
     } catch {
-      setSyncLogs([]);
+      if (stillCurrent(startedIn)) setSyncLogs([]);
     } finally {
       setSyncLogsLoading(false);
     }
   };
 
   const fetchSyncSources = async () => {
+    const startedIn = orgId;
     setSyncSourcesLoading(true);
     try {
       const data = await listSyncSources();
-      setSyncSources(data.items || []);
+      if (stillCurrent(startedIn)) setSyncSources(data.items || []);
     } catch {
-      setSyncSources([]);
+      if (stillCurrent(startedIn)) setSyncSources([]);
     } finally {
       setSyncSourcesLoading(false);
     }
   };
 
   const fetchConnectors = async () => {
+    const startedIn = orgId;
     try {
       const data = await listConnectors();
-      setConnectors(data.items || []);
+      if (stillCurrent(startedIn)) setConnectors(data.items || []);
     } catch {
-      setConnectors([]);
+      if (stillCurrent(startedIn)) setConnectors([]);
     }
   };
 
@@ -416,6 +430,7 @@ export default function RAGPage() {
 
   const handleSearch = async () => {
     if (!searchQuery.trim() || !selected) return;
+    const startedIn = orgId;
     setSearching(true);
     try {
       const data = await searchDocuments({
@@ -423,6 +438,7 @@ export default function RAGPage() {
         collection_name: selected,
         limit: 10,
       });
+      if (!stillCurrent(startedIn)) return;
       setSearchResults(data.results);
       setSearchDone(true);
     } catch {

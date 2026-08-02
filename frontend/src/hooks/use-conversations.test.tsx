@@ -6,7 +6,7 @@ import { toast } from "sonner";
 
 import { useConversations } from "./use-conversations";
 import { apiClient } from "@/lib/api-client";
-import { useAgentSelectionStore, useChatStore, useConversationStore } from "@/stores";
+import { useAgentSelectionStore, useAuthStore, useChatStore, useConversationStore } from "@/stores";
 
 vi.mock("@/lib/api-client", () => ({
   apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
@@ -203,6 +203,35 @@ describe("the conversation named in the address bar", () => {
     expect(useConversationStore.getState().currentConversationId).toBeNull();
   });
 
+  it("drops a linked thread that arrives after somebody else has signed in", async () => {
+    // Same race as a select, through the other door: the address bar's `?id=`
+    // is read on every refresh, and its request can outlive the session too.
+    window.history.replaceState({}, "", "/chat?id=c-9");
+    useAuthStore.getState().setUser({ id: "u-a", email: "a@example.com" } as never);
+    const result = await hook();
+    let answer: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path.includes("/messages")) return new Promise((resolve) => (answer = resolve));
+      return { items: [], total: 0 };
+    });
+
+    let fetching: Promise<void>;
+    await act(async () => {
+      fetching = result.current.fetchConversations();
+      await waitFor(() =>
+        expect(apiClient.get).toHaveBeenCalledWith("/conversations/c-9/messages"),
+      );
+    });
+
+    await act(async () => {
+      useAuthStore.getState().setUser({ id: "u-b", email: "b@example.com" } as never);
+      answer({ items: [{ id: "m-private" }], total: 1 });
+      await fetching!;
+    });
+
+    expect(useConversationStore.getState().currentMessages).toEqual([]);
+  });
+
   it("does not re-read the messages of the conversation already open", async () => {
     window.history.replaceState({}, "", "/chat?id=c-1");
     useConversationStore.getState().setCurrentConversationId("c-1");
@@ -279,6 +308,30 @@ describe("opening a conversation", () => {
 
     expect(useConversationStore.getState().currentConversationId).toBe("c-2");
     expect(useConversationStore.getState().currentMessages).toEqual([{ id: "m-2" }]);
+  });
+
+  it("drops messages that arrive after somebody else has signed in", async () => {
+    // The abort controller settles two selects by the same person. It does not
+    // settle a request that outlives the session: A opens a thread, signs out,
+    // B signs in, and A's messages land in B's chat.
+    useAuthStore.getState().setUser({ id: "u-a", email: "a@example.com" } as never);
+    const result = await hook();
+    let answer: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.get).mockImplementation(() => new Promise((resolve) => (answer = resolve)));
+
+    let selecting: Promise<void>;
+    await act(async () => {
+      selecting = result.current.selectConversation("c-1");
+      await waitFor(() => expect(answer).not.toBe(undefined));
+    });
+
+    await act(async () => {
+      useAuthStore.getState().setUser({ id: "u-b", email: "b@example.com" } as never);
+      answer({ items: [{ id: "m-private" }], total: 1 });
+      await selecting!;
+    });
+
+    expect(useConversationStore.getState().currentMessages).toEqual([]);
   });
 
   it("says nothing about an aborted request, because it was not a failure", async () => {

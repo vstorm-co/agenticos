@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { resetSessionState, useAuthStore } from "@/stores";
@@ -47,6 +48,49 @@ function stopTokenRefresh(): void {
   }
 }
 
+/**
+ * Adopt a signed-in identity, emptying whatever the previous one left behind.
+ *
+ * Keyed on the account rather than on the act of signing in, because signing in
+ * is not one act: a password login, an OAuth callback and a magic link all
+ * establish a session by different routes, and hanging the cleanup off any one
+ * of them leaves the others handing the new account the previous one's data.
+ *
+ * The comparison is against the persisted user, so reloading a page is not
+ * mistaken for a change of account - a refresh keeps its cache, its selected
+ * organization and its selected agent, and only a different `id` clears them.
+ */
+function adoptUser(
+  queryClient: QueryClient,
+  setUser: (u: User | null) => void,
+  user: User | null,
+): void {
+  if (useAuthStore.getState().user?.id !== user?.id) {
+    queryClient.clear();
+    resetSessionState();
+  }
+  setUser(user);
+}
+
+/**
+ * Adopt a session established outside `login` - today, the OAuth callback.
+ *
+ * That page exchanges its code for a user and a token and had been writing both
+ * straight into the store, which skipped the cleanup and left the previous
+ * account's cache in place. Signing in through Google is still signing in.
+ */
+export function useAdoptSession(): (user: User, accessToken: string | null) => void {
+  const queryClient = useQueryClient();
+  const setUser = useAuthStore((state) => state.setUser);
+  return useCallback(
+    (user: User, accessToken: string | null) => {
+      adoptUser(queryClient, setUser, user);
+      useAuthStore.getState().setAccessToken(accessToken);
+    },
+    [queryClient, setUser],
+  );
+}
+
 function runAuthCheck(setUser: (u: User | null) => void): Promise<void> {
   if (authChecked) return Promise.resolve();
   if (authCheckPromise) return authCheckPromise;
@@ -75,9 +119,9 @@ export function useAuth() {
   // Check auth status once per session. /auth/me returns the access_token in
   // the body (httpOnly cookie isn't JS-readable) for WebSocket auth.
   useEffect(() => {
-    void runAuthCheck(setUser);
+    void runAuthCheck((u) => adoptUser(queryClient, setUser, u));
     ensureTokenRefresh();
-  }, [setUser]);
+  }, [setUser, queryClient]);
 
   const login = useCallback(
     async (credentials: LoginRequest) => {
@@ -88,15 +132,7 @@ export function useAuth() {
           access_token: string;
           message: string;
         }>("/auth/login", credentials);
-        // The cache and the stores belong to a session, not to the browser tab.
-        // Emptied as one begins rather than only as one ends, so a session that
-        // finished some other way - an expired cookie, a failed refresh, a
-        // closed laptop - cannot hand the previous account's data to this one.
-        // All of it is somebody's: their conversations, their agents, the device
-        // names and IP addresses on their profile.
-        queryClient.clear();
-        resetSessionState();
-        setUser(response.user);
+        adoptUser(queryClient, setUser, response.user);
         useAuthStore.getState().setAccessToken(response.access_token);
         authChecked = true; // login already populated user + token; skip /auth/me
         router.push(isAppAdmin(response.user) ? ROUTES.DASHBOARD : ROUTES.CHAT);
@@ -122,6 +158,9 @@ export function useAuth() {
       authChecked = false; // re-check on next login
       authCheckPromise = null;
       stopTokenRefresh();
+      // The cache and the stores belong to a session, not to the browser tab.
+      // Emptied here as well as on the next sign-in, so nothing of somebody's
+      // account is left sitting in memory after they have asked to leave.
       queryClient.clear();
       resetSessionState();
       logout();

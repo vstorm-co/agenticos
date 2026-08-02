@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import { getErrorMessage, setUrlParam } from "@/lib/utils";
-import { useAgentSelectionStore, useConversationStore, useChatStore } from "@/stores";
+import { useAgentSelectionStore, useAuthStore, useConversationStore, useChatStore } from "@/stores";
 import type { Conversation, ConversationMessage, ConversationListResponse } from "@/types";
 
 interface CreateConversationResponse {
@@ -55,6 +55,17 @@ export function useConversations() {
   // and overwrite the messages of the conversation the user actually selected.
   const messagesAbortRef = useRef<AbortController | null>(null);
 
+  /**
+   * Whether the account the caller started as is still the one signed in.
+   *
+   * Emptying the stores when a session ends does not stop a request that was
+   * already in flight: it resolves afterwards and writes the previous account's
+   * messages into the chat the next one is looking at. The abort controller
+   * above only settles races between two selects by the same person.
+   */
+  const stillSameAccount = (startedAs: string | undefined) =>
+    useAuthStore.getState().user?.id === startedAs;
+
   // React Query owns the list: cached across navigations, deduped, no refetch
   // storms (this replaces the old manual fetch + session-singleton guard).
   // Both active and archived are fetched in one call so the sidebar tabs can
@@ -89,6 +100,7 @@ export function useConversations() {
     await queryClient.invalidateQueries({ queryKey: qk.conversations.list() });
     // URL ?id= param always takes priority: select that conversation and load
     // its messages if it isn't already the current one.
+    const startedAs = useAuthStore.getState().user?.id;
     const urlId = new URLSearchParams(window.location.search).get("id");
     if (urlId && useConversationStore.getState().currentConversationId !== urlId) {
       setCurrentConversationId(urlId);
@@ -96,6 +108,7 @@ export function useConversations() {
       setCurrentMessages([]);
       try {
         const msgs = await apiClient.get<MessagesResponse>(`/conversations/${urlId}/messages`);
+        if (!stillSameAccount(startedAs)) return;
         setCurrentMessages(msgs.items);
       } catch {
         // Not accessible (deleted, no permission) - clear the stale id
@@ -163,6 +176,7 @@ export function useConversations() {
       messagesAbortRef.current?.abort();
       const controller = new AbortController();
       messagesAbortRef.current = controller;
+      const startedAs = useAuthStore.getState().user?.id;
 
       setCurrentConversationId(id);
       clearMessages();
@@ -174,7 +188,7 @@ export function useConversations() {
           signal: controller.signal,
         });
         // Guard against a superseded request resolving after a newer select.
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted || !stillSameAccount(startedAs)) return;
         setCurrentMessages(response.items);
       } catch (err) {
         // Ignore aborted/superseded requests - they're expected on rapid switch.

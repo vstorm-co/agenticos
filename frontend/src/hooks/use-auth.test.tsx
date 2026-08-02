@@ -3,7 +3,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
-import { useAuth } from "./use-auth";
+import { useAdoptSession, useAuth } from "./use-auth";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
 import { useAuthStore, useConversationStore } from "@/stores";
@@ -144,6 +144,40 @@ describe("signing in", () => {
 
     expect(client.getQueryData(["sessions", "list", 0])).toBeUndefined();
     expect(useConversationStore.getState().currentConversationId).toBeNull();
+  });
+
+  it("keeps the cache when the same account comes back", async () => {
+    // The other half of keying on identity: a page reload adopts the persisted
+    // user again, and treating that as a change of account would empty the
+    // selected organization and agent on every refresh.
+    vi.mocked(apiClient.post).mockResolvedValue({
+      user: user(),
+      access_token: "t-1",
+      message: "ok",
+    });
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await act(async () => {
+      await result.current.login({ email: "kacper@example.com", password: "pw" });
+    });
+    client.setQueryData(["sessions", "list", 0], { items: [] });
+
+    await act(async () => {
+      await result.current.login({ email: "kacper@example.com", password: "pw" });
+    });
+
+    expect(client.getQueryData(["sessions", "list", 0])).toEqual({ items: [] });
+  });
+
+  it("empties the previous account on a sign-in that never calls login", async () => {
+    // OAuth exchanges its code and adopts the session itself. Signing in
+    // through Google is still signing in, and used to skip the cleanup.
+    client.setQueryData(["sessions", "list", 0], { items: [{ ip_address: "10.0.0.1" }] });
+    const { result } = renderHook(() => useAdoptSession(), { wrapper });
+
+    act(() => result.current(user({ id: "u-3" }), "t-3"));
+
+    expect(client.getQueryData(["sessions", "list", 0])).toBeUndefined();
+    expect(useAuthStore.getState().user?.id).toBe("u-3");
   });
 
   it("adopts the user and the token the login answered with", async () => {
