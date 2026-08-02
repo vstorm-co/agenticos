@@ -343,3 +343,19 @@ Reverts 0f94fa4        with the reason it was reverted in the body
 
 `Closes` only when the change genuinely finishes it. A PR body opens with what
 changed and why, then how it was verified — and says plainly what is still red.
+
+### The `ai-review` label is expensive — twice per pull request
+
+The `ai-review` label runs Codex over the whole diff: minutes of wall clock and
+real money each time. **Add it twice: once when the pull request opens, once
+when it is ready to merge.** Not after every commit, and never as the loop for
+working through its own findings — seven runs on one branch is six too many.
+
+In between, review with the **`review-pr` skill**. It reads the same rules, runs
+locally, costs nothing, and can be pointed at a working tree that has not been
+pushed. Fix what it and the first Codex pass found, then spend the second label
+confirming the result.
+
+If the reviewer is wrong — and it is, sometimes; it does not always know what a
+file's surrounding code already does — say so in the commit body with the
+reason, rather than churning the code to silence it.

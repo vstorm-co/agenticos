@@ -34,6 +34,12 @@ Deliberately **not** on `synchronize`. Two developers, a dozen pushes per pull
 request: a review on every one of them is a review nobody reads. Ask for a
 re-run when the fixes are in.
 
+"When the fixes are in" means **once**, not once per fix. Each run reads the
+whole diff and costs minutes and money, so the label belongs at the two points
+where the answer changes something: the pull request opening, and the pull
+request being ready to merge. Working through the findings one label at a time
+is the loop this trigger was chosen to avoid — review those passes locally.
+
 Re-running is the label, and there is no `/review` comment trigger — that is a
 security property, not an omission. `issue_comment` is a **privileged** event:
 it runs from the default branch *with secrets*, for a comment on any pull
