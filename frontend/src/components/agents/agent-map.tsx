@@ -81,6 +81,7 @@ export function AgentMap({ agentName, instructions, nodes }: AgentMapProps) {
   const measure = useCallback(() => {
     const root = container.current;
     const centre = hub.current;
+    /* v8 ignore next -- React has attached both refs before any effect runs */
     if (!root || !centre) return;
 
     // Rects are in screen space, which the transform has already scaled; the
@@ -92,6 +93,7 @@ export function AgentMap({ agentName, instructions, nodes }: AgentMapProps) {
 
     for (const node of nodes) {
       const element = boxes.current.get(node.key);
+      /* v8 ignore next -- every node renders a box and registers it by key */
       if (!element) continue;
       const box = element.getBoundingClientRect();
       const anchor = {
@@ -112,6 +114,7 @@ export function AgentMap({ agentName, instructions, nodes }: AgentMapProps) {
 
   useEffect(() => {
     const root = container.current;
+    /* v8 ignore next -- as above: the ref is set before this effect */
     if (!root) return;
     const observer = new ResizeObserver(measure);
     observer.observe(root);
@@ -142,6 +145,7 @@ export function AgentMap({ agentName, instructions, nodes }: AgentMapProps) {
   // scrolling while somebody zooms.
   useEffect(() => {
     const element = viewport.current;
+    /* v8 ignore next -- as above: the ref is set before this effect */
     if (!element) return;
     const onWheel = (event: WheelEvent) => {
       event.preventDefault();

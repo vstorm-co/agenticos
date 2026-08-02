@@ -54,6 +54,7 @@ function preprocessCitations(content: string): string {
  */
 function textOf(node: React.ReactNode): string {
   if (typeof node === "string") return node;
+  /* v8 ignore next -- react-markdown hands children through as strings */
   if (typeof node === "number") return String(node);
   if (Array.isArray(node)) return node.map(textOf).join("");
   if (node && typeof node === "object" && "props" in node) {
