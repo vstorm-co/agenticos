@@ -350,8 +350,10 @@ export function useKBDetail(id: string | null) {
   const deleteDocument = useCallback(
     async (docId: string) => {
       if (!id) return;
+      const startedIn = activeOrgId;
       try {
         await apiClient.delete(`/kb/${id}/documents/${docId}`);
+        if (!stillSameTenant(startedIn)) return;
         setDocuments((prev) => prev.filter((d) => d.id !== docId));
         setDocumentsTotal((prev) => Math.max(0, prev - 1));
         toast.success("Document removed");
@@ -359,15 +361,18 @@ export function useKBDetail(id: string | null) {
         toast.error(e instanceof Error ? e.message : "Failed to delete document");
       }
     },
-    [id],
+    [id, activeOrgId],
   );
 
   const createSyncSource = useCallback(
     async (data: SyncSourceCreate) => {
       if (!id) return;
+      const startedIn = activeOrgId;
       try {
         const created = await apiClient.post<SyncSourceRead>(`/kb/${id}/sync-sources`, data);
-        setSyncSources((prev) => [created, ...prev]);
+        // An append, not a replace - so a late answer does not overwrite the
+        // new tenant's list, it adds the previous tenant's row to it.
+        if (stillSameTenant(startedIn)) setSyncSources((prev) => [created, ...prev]);
         toast.success("Sync source connected");
         return created;
       } catch (e) {
@@ -375,27 +380,30 @@ export function useKBDetail(id: string | null) {
         throw e;
       }
     },
-    [id],
+    [id, activeOrgId],
   );
 
   const cloneSyncSource = useCallback(
     async (sourceId: string, collectionName: string, name: string) => {
       if (!id) return;
+      const startedIn = activeOrgId;
       try {
         const created = await apiClient.post<SyncSourceRead>(
           `/kb/${id}/sync-sources/${sourceId}/clone`,
           { collection_name: collectionName, name },
         );
-        setSyncSources((prev) => [created, ...prev]);
-        setOrgIntegrations((prev) => prev.filter((s) => s.id !== sourceId));
-        toast.success("Integration cloned to this knowledge base");
+        if (stillSameTenant(startedIn)) {
+          setSyncSources((prev) => [created, ...prev]);
+          setOrgIntegrations((prev) => prev.filter((s) => s.id !== sourceId));
+          toast.success("Integration cloned to this knowledge base");
+        }
         return created;
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Failed to clone integration");
         throw e;
       }
     },
-    [id],
+    [id, activeOrgId],
   );
 
   const triggerSyncSource = useCallback(
@@ -416,15 +424,17 @@ export function useKBDetail(id: string | null) {
   const deleteSyncSource = useCallback(
     async (sourceId: string) => {
       if (!id) return;
+      const startedIn = activeOrgId;
       try {
         await apiClient.delete(`/kb/${id}/sync-sources/${sourceId}`);
+        if (!stillSameTenant(startedIn)) return;
         setSyncSources((prev) => prev.filter((s) => s.id !== sourceId));
         toast.success("Sync source removed");
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Failed to remove sync source");
       }
     },
-    [id],
+    [id, activeOrgId],
   );
 
   return {

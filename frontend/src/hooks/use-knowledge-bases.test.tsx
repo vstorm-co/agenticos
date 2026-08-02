@@ -352,6 +352,44 @@ describe("one collection's page", () => {
     expect(result.current.documents).toEqual([]);
   });
 
+  it("lets no deletion finished after the switch touch the next organization", async () => {
+    // Both are filters, so neither can show the previous tenant's rows - but
+    // the document one also decrements a total, and decrementing the count of
+    // a list belonging to somebody else is the same mistake wearing a number.
+    for (const remove of ["document", "sync source"] as const) {
+      useOrgStore.setState({ activeOrgId: "org-a" });
+      serveDetail({ documents: [document("d-1")], documentsTotal: 7 });
+      const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+      await act(async () => {
+        await result.current.refresh();
+      });
+      expect(result.current.documentsTotal).toBe(7);
+
+      let answer: () => void = () => {};
+      vi.mocked(apiClient.delete).mockImplementation(
+        () => new Promise((resolve) => (answer = () => resolve(undefined))),
+      );
+      let removing: Promise<void>;
+      await act(async () => {
+        removing =
+          remove === "document"
+            ? result.current.deleteDocument("d-1")
+            : result.current.deleteSyncSource("s-1");
+        await waitFor(() => expect(apiClient.delete).toHaveBeenCalled());
+      });
+
+      await act(async () => {
+        useOrgStore.setState({ activeOrgId: "org-b" });
+        answer();
+        await removing!;
+      });
+
+      expect(toast.success).not.toHaveBeenCalledWith("Document removed");
+      expect(toast.success).not.toHaveBeenCalledWith("Sync source removed");
+      vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+    }
+  });
+
   it("keeps a save that finished late off the next organization's page", async () => {
     // Save the ingestion settings, close the dialog, switch before the PATCH
     // returns. The caller still gets its row - it asked, and the save happened
