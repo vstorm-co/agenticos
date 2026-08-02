@@ -8,6 +8,7 @@ import { CopyButton } from "../copy-button";
  *  - plain non-JSON string → return as-is
  */
 function formatArgs(args: unknown): string {
+  /* v8 ignore next -- the caller checks for an empty args object first */
   if (args === null || args === undefined) return "";
   if (typeof args === "string") {
     try {

@@ -23,6 +23,7 @@ export function isAppAdmin(user: { is_app_admin?: boolean } | null | undefined):
 }
 
 export function setUrlParam(key: string, value: string | null): void {
+  /* v8 ignore next -- an SSR guard, and the test environment is jsdom */
   if (typeof window === "undefined") return;
   const url = new URL(window.location.href);
   if (value === null) {

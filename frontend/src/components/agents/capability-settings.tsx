@@ -949,6 +949,7 @@ function withoutToolOverride(
   field: ToolTextField,
 ): CapabilityBindingSpec {
   const existing = binding.tool_overrides[toolId];
+  /* v8 ignore next -- `bindings` is keyed by the ids this maps over */
   if (existing === undefined) return binding;
 
   const remaining: ToolOverride = { ...existing };

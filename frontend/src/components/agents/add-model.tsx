@@ -125,6 +125,7 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
     modelIdIsWellFormed(provider.id, model.trim());
 
   const submit = async () => {
+    /* v8 ignore next -- the id comes from the list this select was built from */
     if (provider === undefined) return;
     setFailure(null);
     try {

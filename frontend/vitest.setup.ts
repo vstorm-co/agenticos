@@ -84,19 +84,31 @@ if (inBrowser) {
   });
 }
 
-// Mock ResizeObserver
-global.ResizeObserver = vi.fn().mockImplementation(() => ({
-  observe: vi.fn(),
-  unobserve: vi.fn(),
-  disconnect: vi.fn(),
-}));
+// Observers jsdom does not implement.
+//
+// Classes rather than `vi.fn().mockImplementation(() => ({...}))`: an arrow
+// function is not a constructor, so `new ResizeObserver(...)` threw
+// "is not a constructor" the moment a dependency started constructing one
+// instead of calling it. Radix's popper and use-size both do, which failed 252
+// tests across 41 files on a dependency bump that had nothing to do with them.
+class MockResizeObserver implements ResizeObserver {
+  observe = vi.fn();
+  unobserve = vi.fn();
+  disconnect = vi.fn();
+}
 
-// Mock IntersectionObserver
-global.IntersectionObserver = vi.fn().mockImplementation(() => ({
-  observe: vi.fn(),
-  unobserve: vi.fn(),
-  disconnect: vi.fn(),
-}));
+class MockIntersectionObserver implements IntersectionObserver {
+  readonly root = null;
+  readonly rootMargin = "";
+  readonly thresholds: readonly number[] = [];
+  observe = vi.fn();
+  unobserve = vi.fn();
+  disconnect = vi.fn();
+  takeRecords = vi.fn(() => []);
+}
+
+global.ResizeObserver = MockResizeObserver;
+global.IntersectionObserver = MockIntersectionObserver;
 
 // Radix's Select drives its trigger with Pointer Events, which jsdom does not
 // implement. Without these it throws on the first click, so every test of a

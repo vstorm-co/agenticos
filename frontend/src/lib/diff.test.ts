@@ -85,6 +85,17 @@ describe("collapseUnchanged", () => {
     expect(gap).toEqual({ kind: "gap", hidden: 10 });
   });
 
+  it("reports the tail of a file that was truncated, not just the overlap", () => {
+    // The loop that walks both sides stops at the shorter one; everything left
+    // over on the old side is a removal nobody would otherwise see.
+    const removed = diffLines(text("a", "b", "c", "d"), text("a", "b"));
+
+    expect(removed.filter((line) => line.kind === "removed")).toEqual([
+      { kind: "removed", text: "c", before: 3 },
+      { kind: "removed", text: "d", before: 4 },
+    ]);
+  });
+
   it("leaves a diff with no changes entirely collapsed", () => {
     const collapsed = collapseUnchanged(diffLines(text("a", "b"), text("a", "b")));
 
