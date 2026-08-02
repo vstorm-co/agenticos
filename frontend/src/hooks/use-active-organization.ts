@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -80,6 +80,11 @@ export function refusesOrganization(failure: unknown, activeOrgId: string | null
  * previous tenant's names are still painted, just briefly. Between "briefly"
  * and "not at all", a multi-tenant product picks the second.
  *
+ * A **layout effect**, for the same reason. The switcher sets the id and React
+ * renders the new organization's name at once; a passive effect runs after that
+ * render has been painted, so the previous tenant's rows appear under the new
+ * name for a frame. A layout effect runs after the commit and before the paint.
+ *
  * It costs a refetch of the deployment-wide catalogs too - model profiles, the
  * capability catalog, the skill library - which are the same answer for every
  * tenant. That is the price of one guard instead of eleven key signatures,
@@ -101,7 +106,7 @@ function useTenantCacheReset(activeOrgId: string | null): void {
   const tenant = activeOrgId ?? personalId;
   const cacheBelongsTo = useRef<string | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     // Nothing has identified the tenant yet - no selection, and no list to
     // resolve the personal organization from. Anything cached now is cached
     // under whoever this turns out to be.

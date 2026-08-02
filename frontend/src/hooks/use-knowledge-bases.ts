@@ -146,6 +146,17 @@ export function useKBDetail(id: string | null) {
     setError(null);
   }
 
+  /**
+   * Whether the organization a request started in is still the active one.
+   *
+   * Clearing the state above is no use on its own: every read and every
+   * mutation here writes after an await, and an answer that lands past the
+   * switch refills what was just emptied - the previous tenant's knowledge base
+   * name and configuration, under the new tenant's.
+   */
+  const stillSameTenant = (startedIn: string | null) =>
+    useOrgStore.getState().activeOrgId === startedIn;
+
   // An upload is in flight whenever there's at least one progress entry. Derived
   // rather than stored so sequential/concurrent uploads stay consistent.
   const isUploading = uploadProgress.length > 0;
@@ -191,11 +202,7 @@ export function useKBDetail(id: string | null) {
           items: [] as ConnectorInfo[],
         })),
       ]);
-      // Five requests, and the organization can move while they are in the
-      // air. Writing them afterwards would put the tenant they were made as
-      // back on a page that has moved on - the same shape as clearing the
-      // cache and letting a late response refill it.
-      if (useOrgStore.getState().activeOrgId !== startedIn) return;
+      if (!stillSameTenant(startedIn)) return;
       setKb(kbData);
       setDocuments(docList.items);
       setDocumentsTotal(docList.total);
@@ -212,11 +219,13 @@ export function useKBDetail(id: string | null) {
   /** Append the next page of documents (server-side skip/limit pagination). */
   const loadMoreDocuments = useCallback(async () => {
     if (!id) return;
+    const startedIn = activeOrgId;
     setIsLoadingMoreDocs(true);
     try {
       const docList = await apiClient.get<KBDocumentList>(
         `/kb/${id}/documents?skip=${loadedDocCountRef.current}&limit=${DOCS_PAGE_SIZE}`,
       );
+      if (!stillSameTenant(startedIn)) return;
       // Dedupe in case a poll/refresh raced with the append.
       setDocuments((prev) => {
         const seen = new Set(prev.map((d) => d.id));
@@ -228,7 +237,7 @@ export function useKBDetail(id: string | null) {
     } finally {
       setIsLoadingMoreDocs(false);
     }
-  }, [id]);
+  }, [id, activeOrgId]);
 
   /**
    * Replace how this collection's documents are parsed, from now on.
@@ -240,19 +249,25 @@ export function useKBDetail(id: string | null) {
   const updateIngestion = useCallback(
     async (config: IngestionConfig): Promise<KnowledgeBase> => {
       if (!id) throw new Error("No knowledge base is open");
+      const startedIn = activeOrgId;
       const updated = await apiClient.patch<KnowledgeBase>(`/kb/${id}`, {
         ingestion_config: config,
       });
-      setKb(updated);
-      toast.success("Ingestion settings saved");
+      // The caller is handed the row either way - it asked for the save and the
+      // save happened - but it is not written into a page showing somebody else.
+      if (stillSameTenant(startedIn)) {
+        setKb(updated);
+        toast.success("Ingestion settings saved");
+      }
       return updated;
     },
-    [id],
+    [id, activeOrgId],
   );
 
   const uploadDocument = useCallback(
     async (file: File, override?: IngestionOverride) => {
       if (!id) return;
+      const startedIn = activeOrgId;
       const uploadId = `${uploadIdRef.current++}`;
       setUploadProgress((prev) => [...prev, { uploadId, filename: file.name, percent: 0 }]);
 
@@ -279,6 +294,13 @@ export function useKBDetail(id: string | null) {
           const xhr = new XMLHttpRequest();
           xhr.open("POST", `/api/kb/${id}/documents`);
           xhr.withCredentials = true;
+          // XHR is here for byte-level progress, which `fetch` cannot report -
+          // but going around `apiClient` means going around the header it
+          // attaches, and `/kb` is org-scoped. Without it the backend falls
+          // back to the personal organization, where this knowledge base does
+          // not exist, and the upload fails for a reason nothing on screen
+          // explains.
+          if (startedIn) xhr.setRequestHeader("X-Organization-Id", startedIn);
           xhr.upload.onprogress = (event) => {
             if (event.lengthComputable) {
               setPercent(Math.min(100, Math.round((event.loaded / event.total) * 100)));
@@ -322,7 +344,7 @@ export function useKBDetail(id: string | null) {
         clear();
       }
     },
-    [id, refresh],
+    [id, refresh, activeOrgId],
   );
 
   const deleteDocument = useCallback(

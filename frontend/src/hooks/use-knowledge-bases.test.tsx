@@ -68,6 +68,7 @@ function serveDetail({
 /** A fake `XMLHttpRequest`, since the upload reads byte-level progress off one. */
 interface FakeXhr {
   open: ReturnType<typeof vi.fn>;
+  setRequestHeader: ReturnType<typeof vi.fn>;
   send: ReturnType<typeof vi.fn>;
   withCredentials: boolean;
   status: number;
@@ -93,6 +94,7 @@ function stubXhr() {
   class FakeXhrImpl implements FakeXhr {
     open = vi.fn();
     send = vi.fn();
+    setRequestHeader = vi.fn();
     withCredentials = false;
     status = 201;
     responseText = "{}";
@@ -318,6 +320,63 @@ describe("one collection's page", () => {
       useOrgStore.setState({ activeOrgId: "org-b" });
       release();
       await refreshing!;
+    });
+
+    expect(result.current.kb).toBeNull();
+  });
+
+  it("stops paging in documents once the organization has moved", async () => {
+    // `loadMoreDocuments` appends, so a page that lands after the switch does
+    // not overwrite - it adds the previous tenant's documents to an empty list.
+    useOrgStore.setState({ activeOrgId: "org-a" });
+    serveDetail({ documents: [document("d-1")], documentsTotal: 40 });
+    const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+    await act(async () => {
+      await result.current.refresh();
+    });
+
+    let answer: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.get).mockImplementation(() => new Promise((resolve) => (answer = resolve)));
+    let paging: Promise<void>;
+    await act(async () => {
+      paging = result.current.loadMoreDocuments();
+      await waitFor(() => expect(apiClient.get).toHaveBeenCalled());
+    });
+
+    await act(async () => {
+      useOrgStore.setState({ activeOrgId: "org-b" });
+      answer({ items: [document("d-2")], total: 40 });
+      await paging!;
+    });
+
+    expect(result.current.documents).toEqual([]);
+  });
+
+  it("keeps a save that finished late off the next organization's page", async () => {
+    // Save the ingestion settings, close the dialog, switch before the PATCH
+    // returns. The caller still gets its row - it asked, and the save happened
+    // - but the page it would have been written onto belongs to somebody else.
+    useOrgStore.setState({ activeOrgId: "org-a" });
+    serveDetail();
+    const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+    await act(async () => {
+      await result.current.refresh();
+    });
+
+    let answer: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.patch).mockImplementation(
+      () => new Promise((resolve) => (answer = resolve)),
+    );
+    let saving: Promise<unknown>;
+    await act(async () => {
+      saving = result.current.updateIngestion(DEFAULT_INGESTION_CONFIG);
+      await waitFor(() => expect(apiClient.patch).toHaveBeenCalled());
+    });
+
+    await act(async () => {
+      useOrgStore.setState({ activeOrgId: "org-b" });
+      answer({ id: "kb-1", name: "Org A's handbook" });
+      await saving!;
     });
 
     expect(result.current.kb).toBeNull();
@@ -581,6 +640,25 @@ describe("uploading a document", () => {
     expect(xhr().open).toHaveBeenCalledWith("POST", "/api/kb/kb-1/documents");
     expect(xhr().withCredentials).toBe(true);
     expect(toast.success).toHaveBeenCalledWith("Uploaded a.pdf");
+  });
+
+  it("uploads into the organization on screen, which XHR does not do for free", async () => {
+    // The reason this is XHR at all is byte-level progress, which `fetch`
+    // cannot report - but going around `apiClient` goes around the header it
+    // attaches, and `/kb` is org-scoped. Without it the backend answers from
+    // the personal organization, where this knowledge base does not exist, and
+    // the upload fails for a reason nothing on screen explains.
+    useOrgStore.setState({ activeOrgId: "org-b" });
+    serveDetail();
+    const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+
+    await act(async () => {
+      const upload = result.current.uploadDocument(new File(["x"], "a.pdf"));
+      (await sent()).onload!();
+      await upload;
+    });
+
+    expect(xhr().setRequestHeader).toHaveBeenCalledWith("X-Organization-Id", "org-b");
   });
 
   it("reports progress as bytes go out, and clears it when the upload settles", async () => {
