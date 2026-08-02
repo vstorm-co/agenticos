@@ -100,6 +100,10 @@ class MockResizeObserver implements ResizeObserver {
 class MockIntersectionObserver implements IntersectionObserver {
   readonly root = null;
   readonly rootMargin = "";
+  // Added to the DOM lib in TypeScript 7's `lib.dom.d.ts`. Declared here rather
+  // than widened away, so the next field the spec adds fails the type check
+  // instead of being silently absent from the mock.
+  readonly scrollMargin = "";
   readonly thresholds: readonly number[] = [];
   observe = vi.fn();
   unobserve = vi.fn();
