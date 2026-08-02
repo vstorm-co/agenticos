@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { useAuth } from "./use-auth";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
-import { useAuthStore } from "@/stores";
+import { useAuthStore, useConversationStore } from "@/stores";
 import type { User } from "@/types";
 import type { ReactNode } from "react";
 
@@ -130,6 +130,7 @@ describe("signing in", () => {
     // that ended without a logout - an expired cookie, a failed refresh - would
     // otherwise leave all of it to be served to the account that signs in next.
     client.setQueryData(["sessions", "list", 0], { items: [{ ip_address: "10.0.0.1" }] });
+    useConversationStore.getState().setCurrentConversationId("c-1");
     vi.mocked(apiClient.post).mockResolvedValue({
       user: user({ id: "u-2" }),
       access_token: "t-2",
@@ -142,6 +143,7 @@ describe("signing in", () => {
     });
 
     expect(client.getQueryData(["sessions", "list", 0])).toBeUndefined();
+    expect(useConversationStore.getState().currentConversationId).toBeNull();
   });
 
   it("adopts the user and the token the login answered with", async () => {
@@ -246,8 +248,12 @@ describe("signing out", () => {
     expect(push).toHaveBeenCalledWith(ROUTES.LOGIN);
   });
 
-  it("leaves nothing of the session in the cache", async () => {
+  it("leaves nothing of the session behind", async () => {
+    // The stores outlive a sign-out the way the cache does - they are module
+    // scope, two of them `localStorage` - so the account signing in next was
+    // shown the previous one's open conversation.
     client.setQueryData(["sessions", "list", 0], { items: [{ ip_address: "10.0.0.1" }] });
+    useConversationStore.getState().setCurrentConversationId("c-1");
     const { result } = renderHook(() => useAuth(), { wrapper });
     await waitFor(() => expect(useAuthStore.getState().isAuthenticated).toBe(true));
 

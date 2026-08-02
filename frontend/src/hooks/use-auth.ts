@@ -4,7 +4,7 @@ import { useCallback, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { useAuthStore } from "@/stores";
+import { resetSessionState, useAuthStore } from "@/stores";
 import { apiClient, ApiError } from "@/lib/api-client";
 import type { User, LoginRequest, RegisterRequest } from "@/types";
 import { ROUTES } from "@/lib/constants";
@@ -88,13 +88,14 @@ export function useAuth() {
           access_token: string;
           message: string;
         }>("/auth/login", credentials);
-        // The query cache belongs to a session, not to the browser tab. Cleared
-        // as one begins rather than only as one ends, so a session that finished
-        // some other way - an expired cookie, a failed refresh, a closed laptop -
-        // cannot serve the previous account's data to this one. Everything held
-        // there is somebody's: their conversations, their agents, the device
+        // The cache and the stores belong to a session, not to the browser tab.
+        // Emptied as one begins rather than only as one ends, so a session that
+        // finished some other way - an expired cookie, a failed refresh, a
+        // closed laptop - cannot hand the previous account's data to this one.
+        // All of it is somebody's: their conversations, their agents, the device
         // names and IP addresses on their profile.
         queryClient.clear();
+        resetSessionState();
         setUser(response.user);
         useAuthStore.getState().setAccessToken(response.access_token);
         authChecked = true; // login already populated user + token; skip /auth/me
@@ -122,6 +123,7 @@ export function useAuth() {
       authCheckPromise = null;
       stopTokenRefresh();
       queryClient.clear();
+      resetSessionState();
       logout();
       toast.success("Logged out");
       router.push(ROUTES.LOGIN);

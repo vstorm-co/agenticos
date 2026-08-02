@@ -68,6 +68,7 @@ import { DragDropOverlay } from "@/components/rag/drag-drop-overlay";
 import { SyncSourceWizard } from "@/components/rag/sync-source-wizard";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
+import { ErrorState } from "@/components/states";
 import { useChanged } from "@/hooks/use-changed";
 import { useOrgStore } from "@/stores";
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -183,18 +184,26 @@ export default function RAGPage() {
 
   const selected = chosen || collections[0]?.name || "";
 
-  // The collection picked in one organization does not exist in the next, and
-  // neither do its search results. Cleared as the organization moves, so the
-  // page falls back to the first collection the new tenant actually has.
+  // Nothing on this page belongs to more than one tenant. The collection the
+  // user picked does not exist in the next organization, and neither do its
+  // documents, its search results, or the sync sources and history below -
+  // which are fetched imperatively and would otherwise keep rendering the
+  // previous organization's source names, collections and errors under the new
+  // one. Cleared as the organization moves, so the page falls back to whatever
+  // the new tenant actually has.
   if (useChanged(orgId)) {
     setChosen("");
     setSearchResults([]);
     setSearchDone(false);
+    setSyncLogs([]);
+    setSyncSources([]);
+    setConnectors([]);
   }
 
   const {
     data: docs = [],
     isPending: docsPending,
+    error: docsError,
     refetch: refetchDocs,
   } = useQuery({
     queryKey: qk.rag.documents(orgId, selected),
@@ -652,6 +661,15 @@ export default function RAGPage() {
                   <Skeleton key={i} className="h-16 w-full rounded-xl" />
                 ))}
               </div>
+            ) : docsError ? (
+              // Not the empty state: "this collection holds nothing" and "the
+              // request answered 502" are the same pixels, and only one of them
+              // is worth offering an upload button for.
+              <ErrorState
+                title="Couldn't load the documents"
+                description={getErrorMessage(docsError, "The document list request failed.")}
+                cta={{ label: "Try again", onClick: () => void refetchDocs() }}
+              />
             ) : docs.length === 0 ? (
               <div className="border-border bg-card flex flex-col items-center justify-center rounded-xl border py-16 text-center">
                 <FileText className="text-muted-foreground mb-3 h-8 w-8" />
