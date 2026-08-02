@@ -257,6 +257,36 @@ describe("the conversation named in the address bar", () => {
     expect(useConversationStore.getState().currentMessages).toEqual([]);
   });
 
+  it("keeps a refusal meant for one account out of the next one's screen", async () => {
+    // The failure belongs to whoever asked. A late 404 for A's link used to
+    // clear the conversation B had open by then.
+    window.history.replaceState({}, "", "/chat?id=c-9");
+    useAuthStore.getState().setUser({ id: "u-a", email: "a@example.com" } as never);
+    const result = await hook();
+    let refuse: (reason: unknown) => void = () => {};
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path.includes("/messages")) return new Promise((_, reject) => (refuse = reject));
+      return { items: [], total: 0 };
+    });
+
+    let fetching: Promise<void>;
+    await act(async () => {
+      fetching = result.current.fetchConversations();
+      await waitFor(() =>
+        expect(apiClient.get).toHaveBeenCalledWith("/conversations/c-9/messages"),
+      );
+    });
+
+    await act(async () => {
+      useAuthStore.getState().setUser({ id: "u-b", email: "b@example.com" } as never);
+      useConversationStore.getState().setCurrentConversationId("c-b");
+      refuse(new Error("404"));
+      await fetching!;
+    });
+
+    expect(useConversationStore.getState().currentConversationId).toBe("c-b");
+  });
+
   it("does not re-read the messages of the conversation already open", async () => {
     window.history.replaceState({}, "", "/chat?id=c-1");
     useConversationStore.getState().setCurrentConversationId("c-1");

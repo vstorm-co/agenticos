@@ -123,6 +123,10 @@ export function useConversations() {
         if (!stillSameAccount(startedAs)) return;
         setCurrentMessages(msgs.items);
       } catch {
+        // The failure belongs to whoever asked. A refusal answering after
+        // somebody else has signed in says nothing about the conversation they
+        // are looking at, and clearing the id would close it under them.
+        if (!stillSameAccount(startedAs)) return;
         // Not accessible (deleted, no permission) - clear the stale id
         setCurrentConversationId(null);
       }
@@ -212,7 +216,9 @@ export function useConversations() {
         // Ignore aborted/superseded requests - they're expected on rapid switch.
         if (
           controller.signal.aborted ||
-          (err instanceof DOMException && err.name === "AbortError")
+          (err instanceof DOMException && err.name === "AbortError") ||
+          // As above: one account's failure is not the next one's error banner.
+          !stillSameAccount(startedAs)
         ) {
           return;
         }

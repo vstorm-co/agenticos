@@ -344,18 +344,27 @@ Reverts 0f94fa4        with the reason it was reverted in the body
 `Closes` only when the change genuinely finishes it. A PR body opens with what
 changed and why, then how it was verified — and says plainly what is still red.
 
-### The `ai-review` label is expensive — twice per pull request
+### Ask the reviewer when you are done, not while you are working
 
 The `ai-review` label runs Codex over the whole diff: minutes of wall clock and
-real money each time. **Add it twice: once when the pull request opens, once
-when it is ready to merge.** Not after every commit, and never as the loop for
-working through its own findings — seven runs on one branch is six too many.
+real money every time. It answers "is this branch finished", so **ask it when
+you believe the branch is finished** — never once per commit, and never as the
+loop for working through its own findings one at a time.
 
-In between, review with the **`review-pr` skill**. It reads the same rules, runs
-locally, costs nothing, and can be pointed at a working tree that has not been
-pushed. Fix what it and the first Codex pass found, then spend the second label
-confirming the result.
+The cycle:
+
+1. The pull request opens and the reviewer runs on its own.
+2. Fix what it found, and keep going — read the surrounding files, sweep the
+   siblings of anything you changed, review your own diff as a maintainer would.
+   Subagents are good at this: give one the diff and a category to hunt in.
+3. When you are confident nothing is left, label it again.
+4. If it finds something, back to 2.
+
+Round-tripping until it comes back clean is right. Round-tripping *through* it,
+one finding per run, is not: the work between the labels is where most of the
+defects are actually found, and a reviewer that answers the same diff seven
+times has been asked the same question seven times.
 
 If the reviewer is wrong — and it is, sometimes; it does not always know what a
-file's surrounding code already does — say so in the commit body with the
-reason, rather than churning the code to silence it.
+file's surrounding code already does — say so in the commit body or the pull
+request, with the reason, rather than churning the code to silence it.
