@@ -48,7 +48,7 @@ import {
   deleteTrackedDocument,
   ingestFile,
   searchDocuments,
-  getDocumentDownloadUrl,
+  openTrackedDocument,
   listSyncLogs,
   cancelSync,
   listSyncSources,
@@ -350,6 +350,7 @@ export default function RAGPage() {
   const processFiles = useCallback(
     async (fileList: File[]) => {
       if (!selected || fileList.length === 0) return;
+      const startedIn = orgId;
       const allowedExts = supportedFormats.map((f) => f.toLowerCase());
       let successCount = 0;
       let errorCount = 0;
@@ -370,6 +371,15 @@ export default function RAGPage() {
           toast.error(`${file.name}: Too large (max ${MAX_UPLOAD_SIZE_MB}MB)`);
           errorCount++;
           continue;
+        }
+
+        // Each upload reads the organization as it goes out, so a switch part
+        // way through a batch would write the rest of the files into the new
+        // tenant. Stopping is the only honest answer: the remaining files were
+        // chosen for a collection this tenant does not have.
+        if (!stillCurrent(startedIn)) {
+          toast.error("Upload stopped: the organization changed");
+          break;
         }
 
         try {
@@ -393,7 +403,7 @@ export default function RAGPage() {
       await refetchDocs();
       await refetchCollections();
     },
-    [selected, supportedFormats, refetchDocs, refetchCollections],
+    [selected, supportedFormats, refetchDocs, refetchCollections, orgId],
   );
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -413,6 +423,15 @@ export default function RAGPage() {
     },
     [selected, processFiles],
   );
+
+  /** Open a document's original file, reporting a refusal rather than a blank tab. */
+  const openOriginal = async (docId: string) => {
+    try {
+      await openTrackedDocument(docId);
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Could not open the original"));
+    }
+  };
 
   const handleSearch = async () => {
     if (!searchQuery.trim() || !selected) return;
@@ -719,15 +738,14 @@ export default function RAGPage() {
                     </div>
                     <div className="flex shrink-0 items-center gap-0.5">
                       {doc.has_file && (
-                        <a
-                          href={getDocumentDownloadUrl(doc.id)}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                        <button
+                          type="button"
+                          onClick={() => void openOriginal(doc.id)}
                           className="text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg p-1.5 transition-colors"
                           title="View original"
                         >
                           <Eye className="h-3.5 w-3.5" />
-                        </a>
+                        </button>
                       )}
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
@@ -819,14 +837,13 @@ export default function RAGPage() {
                             {r.score.toFixed(3)}
                           </Badge>
                           {sourceDoc && (
-                            <a
-                              href={getDocumentDownloadUrl(sourceDoc.id)}
-                              target="_blank"
-                              rel="noopener noreferrer"
+                            <button
+                              type="button"
+                              onClick={() => void openOriginal(sourceDoc.id)}
                               className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-[10px] font-medium"
                             >
                               <Eye className="h-3 w-3" /> View source
-                            </a>
+                            </button>
                           )}
                         </div>
                         <p className="text-muted-foreground text-sm leading-relaxed">{r.content}</p>

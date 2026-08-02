@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { usePermissions } from "@/hooks/use-permissions";
 import { preferredOrg, useOrganizationList } from "@/hooks/use-organizations";
 import { ApiError } from "@/lib/api-client";
-import { useOrgStore } from "@/stores";
+import { resetTenantState, useOrgStore } from "@/stores";
 
 /**
  * Whether `failure` is the server saying it will not serve `activeOrgId`.
@@ -31,6 +31,69 @@ export function refusesOrganization(failure: unknown, activeOrgId: string | null
   if (activeOrgId === null) return false;
   if (!(failure instanceof ApiError) || failure.status !== 404) return false;
   return failure.details?.org_id === activeOrgId;
+}
+
+/**
+ * Drop everything read as the previous organization when the tenant changes.
+ *
+ * Most query keys do not name the organization - `agents.list()`,
+ * `kb.list()`, `skills.list()`, `secrets.list()` and the rest are the same key
+ * whichever tenant is active - so without this, switching organization changes
+ * a label in the header and nothing else. With `staleTime` at five minutes and
+ * `refetchOnWindowFocus` off, the previous tenant's agent names, knowledge
+ * bases and secrets stay on screen for as long as the cache holds them, with
+ * no request in flight to correct them.
+ *
+ * `removeQueries`, not `invalidateQueries`. Invalidating marks a query stale
+ * and refetches it, but React Query serves the cached rows meanwhile - so the
+ * previous tenant's names are still painted, just briefly. Between "briefly"
+ * and "not at all", a multi-tenant product picks the second.
+ *
+ * A **layout effect**, for the same reason. The switcher sets the id and React
+ * renders the new organization's name at once; a passive effect runs after that
+ * render has been painted, so the previous tenant's rows appear under the new
+ * name for a frame. A layout effect runs after the commit and before the paint.
+ *
+ * It costs a refetch of the deployment-wide catalogs too - model profiles, the
+ * capability catalog, the skill library - which are the same answer for every
+ * tenant. That is the price of one guard instead of eleven key signatures,
+ * each of which is a place the next key can forget.
+ *
+ * **The comparison is on the tenant, not on the selection.** `activeOrgId` is
+ * null until the list loads and the default is picked, and a request made
+ * meanwhile carries no `X-Organization-Id` - which the backend reads as the
+ * caller's personal organization, not as no organization at all. So null and
+ * the personal org's id are the same tenant, and treating the first resolution
+ * as a switch dropped the queries a freshly loaded page had just started. The
+ * seed's "a provider key is stored" caught that: the secret was created and
+ * the list that should have shown it never arrived.
+ */
+function useTenantCacheReset(activeOrgId: string | null): void {
+  const queryClient = useQueryClient();
+  const { data: orgs } = useOrganizationList();
+  const personalId = orgs?.find((org) => org.is_personal)?.id ?? null;
+  const tenant = activeOrgId ?? personalId;
+  const cacheBelongsTo = useRef<string | null>(null);
+
+  useLayoutEffect(() => {
+    // Nothing has identified the tenant yet - no selection, and no list to
+    // resolve the personal organization from. Anything cached now is cached
+    // under whoever this turns out to be.
+    if (tenant === null) return;
+    const previous = cacheBelongsTo.current;
+    cacheBelongsTo.current = tenant;
+    // The first tenant this page identifies is the one its cache already
+    // belongs to; there is nothing to drop, and dropping it would cancel the
+    // queries the page started before the organization list came back.
+    if (previous !== null && previous !== tenant) {
+      queryClient.removeQueries();
+      // The cache is not all of it. Conversations, the chat transcript, the
+      // open preview and the sources behind the last answer are module-scope
+      // stores, which `removeQueries` cannot reach - and every one of them
+      // belongs to the organization just left.
+      resetTenantState();
+    }
+  }, [tenant, queryClient]);
 }
 
 /**
@@ -73,6 +136,10 @@ export function useActiveOrganizationRecovery(): void {
   const { error } = usePermissions();
   const { data: orgs } = useOrganizationList();
 
+  // Whatever moved the selection - the switcher, the recovery below, or a
+  // path that does not exist yet - the cache follows it.
+  useTenantCacheReset(activeOrgId);
+
   useEffect(() => {
     if (activeOrgId === null || orgs === undefined) return;
     if (!refusesOrganization(error, activeOrgId)) return;
@@ -80,11 +147,6 @@ export function useActiveOrganizationRecovery(): void {
     markOrgRefused(activeOrgId);
     const replacement = preferredOrg(orgs, [...refusedOrgIds, activeOrgId]);
     setActiveOrgId(replacement?.id ?? null);
-
-    // Everything cached was read as the organization we just left. Refetching
-    // is not a nicety: leaving it would show one organization's agents under
-    // another's name until something happened to invalidate them.
-    queryClient.invalidateQueries();
 
     toast.error(
       replacement

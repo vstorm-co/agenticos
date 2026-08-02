@@ -11,8 +11,14 @@ import { ApiError } from "./api-client";
 describe("uploadFile", () => {
   afterEach(() => vi.unstubAllGlobals());
 
+  /** A stubbed response, with `text` derived from `json` as the client reads it. */
   function respond(response: Partial<Response> & { json: () => Promise<unknown> }) {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, ...response });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: () => response.json().then((body) => JSON.stringify(body)),
+      ...response,
+    });
     vi.stubGlobal("fetch", fetchMock);
     return fetchMock;
   }
@@ -45,13 +51,13 @@ describe("uploadFile", () => {
     // A proxy timeout answers with HTML, and `.json()` rejects.
     respond({ ok: false, status: 502, json: () => Promise.reject(new Error("not json")) });
 
-    await expect(uploadFile(new File(["x"], "a.pdf"))).rejects.toThrow("Upload failed");
+    await expect(uploadFile(new File(["x"], "a.pdf"))).rejects.toThrow("Request failed");
   });
 
   it("still fails loudly when the refusal names no reason", async () => {
     respond({ ok: false, status: 500, json: () => Promise.resolve({}) });
 
-    await expect(uploadFile(new File(["x"], "a.pdf"))).rejects.toThrow("Upload failed");
+    await expect(uploadFile(new File(["x"], "a.pdf"))).rejects.toThrow("Request failed");
   });
 });
 

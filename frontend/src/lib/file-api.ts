@@ -2,7 +2,7 @@
  * File upload API client for chat attachments.
  */
 
-import { ApiError } from "./api-client";
+import { apiClient } from "./api-client";
 
 export interface FileUploadResponse {
   id: string;
@@ -12,21 +12,16 @@ export interface FileUploadResponse {
   file_type: string;
 }
 
-export async function uploadFile(file: File): Promise<FileUploadResponse> {
-  const formData = new FormData();
-  formData.append("file", file);
-
-  const response = await fetch("/api/files/upload", {
-    method: "POST",
-    body: formData,
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: "Upload failed" }));
-    throw new ApiError(response.status, error.detail || "Upload failed", error);
-  }
-
-  return response.json();
+/**
+ * Upload a chat attachment.
+ *
+ * Through `apiClient.upload` rather than a bare `fetch`: not for the
+ * organization header - `/files` is scoped to the user, not the tenant - but
+ * for the one-shot 401 refresh and a single `ApiError` shape. This had its own
+ * copy of the error handling, which is one copy too many.
+ */
+export function uploadFile(file: File): Promise<FileUploadResponse> {
+  return apiClient.upload<FileUploadResponse>("/files/upload", file);
 }
 
 export function getFileUrl(fileId: string): string {

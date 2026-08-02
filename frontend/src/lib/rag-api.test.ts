@@ -2,12 +2,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as rag from "./rag-api";
 import { ApiError, apiClient } from "./api-client";
+import { useOrgStore } from "@/stores";
 
 vi.mock("./api-client", async () => {
   const actual = await vi.importActual<typeof import("./api-client")>("./api-client");
   return {
     ...actual,
-    apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
+    // `upload` and `raw` are the real ones, over a stubbed `fetch`. What they
+    // are being tested for is the request they build - the organization header
+    // above all - and a mock of them would assert only that they were called.
+    apiClient: {
+      get: vi.fn(),
+      post: vi.fn(),
+      patch: vi.fn(),
+      delete: vi.fn(),
+      upload: actual.apiClient.upload.bind(actual.apiClient),
+      raw: actual.apiClient.raw.bind(actual.apiClient),
+    },
   };
 });
 
@@ -85,8 +96,37 @@ describe("collections and documents", () => {
     expect(apiClient.get).toHaveBeenCalledWith("/kb/kb-1/documents/doc-1/parsed");
   });
 
-  it("addresses the original bytes through this app's own route", () => {
-    expect(rag.getDocumentDownloadUrl("doc-1")).toBe("/api/rag/documents/doc-1/download");
+  it("opens the original from the organization on screen, not a bare anchor", async () => {
+    // It was an `<a href>`, and a browser navigation carries no
+    // `X-Organization-Id` - so an org-scoped document came back 404 from the
+    // caller's personal organization. Fetched and opened as a blob instead.
+    vi.useFakeTimers();
+    useOrgStore.getState().setActiveOrgId("org-b");
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    vi.stubGlobal("URL", { ...URL, createObjectURL: () => "blob:1", revokeObjectURL: vi.fn() });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, status: 200, blob: () => Promise.resolve(new Blob()) }),
+    );
+
+    await rag.openTrackedDocument("doc-1");
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(url).toBe("/api/rag/documents/doc-1/download");
+    expect((init as { headers: Record<string, string> }).headers["X-Organization-Id"]).toBe(
+      "org-b",
+    );
+    expect(open).toHaveBeenCalledWith("blob:1", "_blank", "noopener,noreferrer");
+
+    // Released on a timer: revoking at once closes the tab that was just
+    // opened, and never revoking leaks the blob for the life of the page.
+    const revoke = vi.mocked(URL.revokeObjectURL);
+    expect(revoke).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(60_000);
+    expect(revoke).toHaveBeenCalledWith("blob:1");
+
+    open.mockRestore();
+    vi.useRealTimers();
   });
 });
 
@@ -168,15 +208,24 @@ describe("isRagEnabled", () => {
 });
 
 describe("ingesting a file", () => {
+  /**
+   * A stubbed response, with `text` derived from `json`.
+   *
+   * The real client reads the body as text and parses it, which is how it
+   * answers `null` to an empty 204 rather than throwing on `JSON.parse("")`.
+   */
   function respond(response: Partial<Response> & { json: () => Promise<unknown> }) {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, ...response });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: () => response.json().then((body) => JSON.stringify(body)),
+      ...response,
+    });
     vi.stubGlobal("fetch", fetchMock);
     return fetchMock;
   }
 
   it("posts the file as multipart, to the collection it belongs to", async () => {
-    // Not through `apiClient`: an ingest is a browser upload with the session
-    // cookie, and the boundary has to be the browser's own.
     const fetchMock = respond({ json: () => Promise.resolve({ id: "i-1", status: "processing" }) });
 
     await rag.ingestFile("handbook", new File(["x"], "a.pdf"));
@@ -185,6 +234,22 @@ describe("ingesting a file", () => {
     expect(url).toBe("/api/rag/collections/handbook/ingest");
     expect(init.method).toBe("POST");
     expect((init.body as FormData).get("file")).toBeInstanceOf(File);
+    // No `Content-Type`: only the browser knows the boundary it generated, and
+    // naming the type by hand drops it.
+    expect(init.headers).not.toHaveProperty("Content-Type");
+  });
+
+  it("ingests into the organization on screen, not the caller's personal one", async () => {
+    // The whole reason this goes through `apiClient`. A request with no
+    // `X-Organization-Id` is not tenant-less - the backend falls back to the
+    // personal organization - so a bare `fetch` wrote the file to a different
+    // tenant and reported success under this one.
+    useOrgStore.getState().setActiveOrgId("org-b");
+    const fetchMock = respond({ json: () => Promise.resolve({}) });
+
+    await rag.ingestFile("handbook", new File(["x"], "a.pdf"));
+
+    expect(fetchMock.mock.calls[0]![1].headers["X-Organization-Id"]).toBe("org-b");
   });
 
   it("asks for a replace explicitly, because the default must not overwrite", async () => {
@@ -200,6 +265,7 @@ describe("ingesting a file", () => {
     respond({
       ok: false,
       status: 415,
+      text: () => Promise.resolve(""),
       json: () => Promise.resolve({ detail: "Unsupported format: .heic" }),
     });
 
@@ -215,12 +281,12 @@ describe("ingesting a file", () => {
   it("still fails loudly when the refusal is not JSON, or names no reason", async () => {
     respond({ ok: false, status: 502, json: () => Promise.reject(new Error("not json")) });
     await expect(rag.ingestFile("handbook", new File(["x"], "a.pdf"))).rejects.toThrow(
-      "Upload failed",
+      "Request failed",
     );
 
     respond({ ok: false, status: 500, json: () => Promise.resolve({}) });
     await expect(rag.ingestFile("handbook", new File(["x"], "a.pdf"))).rejects.toThrow(
-      "Ingestion failed",
+      "Request failed",
     );
   });
 });
@@ -245,6 +311,7 @@ describe("downloading a knowledge-base document", () => {
       "fetch",
       vi.fn().mockResolvedValue({ ok: true, status: 200, blob: () => Promise.resolve(new Blob()) }),
     );
+    useOrgStore.getState().setActiveOrgId(null);
   });
 
   it("holds the viewing URL open for a minute, then releases it", async () => {
@@ -292,10 +359,33 @@ describe("downloading a knowledge-base document", () => {
   });
 
   it("says the download failed rather than saving an empty file", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 403 }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 403,
+        json: () => Promise.resolve({ detail: "Not your knowledge base" }),
+      }),
+    );
 
-    await expect(
-      rag.downloadKBDocument("kb-1", { id: "d-1", filename: "handbook.pdf" }),
-    ).rejects.toThrow("Download failed: 403");
+    const failure = await rag
+      .downloadKBDocument("kb-1", { id: "d-1", filename: "handbook.pdf" })
+      .catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(ApiError);
+    expect((failure as ApiError).status).toBe(403);
+  });
+
+  it("reads the document from the organization on screen", async () => {
+    // Same reason as the ingest: no header is not no tenant, it is the personal
+    // one, so this used to fetch a knowledge base the page was not showing.
+    useOrgStore.getState().setActiveOrgId("org-b");
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+
+    await rag.downloadKBDocument("kb-1", { id: "d-1", filename: "handbook.pdf" });
+
+    const init = vi.mocked(fetch).mock.calls[0]![1] as { headers: Record<string, string> };
+    expect(init.headers["X-Organization-Id"]).toBe("org-b");
+    click.mockRestore();
   });
 });

@@ -14,6 +14,8 @@ import type {
   SyncSourceRead,
 } from "@/lib/rag-api";
 import { overrideSize } from "@/lib/ingestion-config";
+import { useChanged } from "@/hooks/use-changed";
+import { useTenantGuard, useTenantId } from "@/hooks/use-organizations";
 import type {
   CreateKnowledgeBaseInput,
   IngestionConfig,
@@ -26,6 +28,8 @@ import type {
 
 export function useKnowledgeBases() {
   const queryClient = useQueryClient();
+  const listOrgId = useTenantId();
+  const stillSameTenant = useTenantGuard();
 
   // React Query owns the list: cached across navigations, deduped, no refetch
   // storms. Mutations patch the cache directly so the UI stays instant.
@@ -34,10 +38,21 @@ export function useKnowledgeBases() {
     queryFn: async () => (await apiClient.get<KnowledgeBaseList>("/kb")).items,
   });
 
+  /**
+   * Patch the cached list, unless the organization changed while we were away.
+   *
+   * `qk.kb.list()` names no tenant, and every caller writes after an await, so
+   * a creation started in one organization landed in the list the next one is
+   * reading - `setQueryData` recreates the key the switch had just dropped. The
+   * guard is here rather than at the three call sites because there is no
+   * fourth caller that should be allowed to forget it.
+   */
   const writeCache = useCallback(
-    (updater: (prev: KnowledgeBase[]) => KnowledgeBase[]) =>
-      queryClient.setQueryData<KnowledgeBase[]>(qk.kb.list(), (prev = []) => updater(prev)),
-    [queryClient],
+    (updater: (prev: KnowledgeBase[]) => KnowledgeBase[], startedIn: string | null) => {
+      if (!stillSameTenant(startedIn)) return;
+      queryClient.setQueryData<KnowledgeBase[]>(qk.kb.list(), (prev = []) => updater(prev));
+    },
+    [queryClient, stillSameTenant],
   );
 
   // Kept for API compatibility: the list auto-fetches on mount; this forces a
@@ -55,19 +70,21 @@ export function useKnowledgeBases() {
    */
   const createKB = useCallback(
     async (input: CreateKnowledgeBaseInput): Promise<KnowledgeBase> => {
+      const startedIn = listOrgId;
       const kb = await apiClient.post<KnowledgeBase>("/kb", input);
-      writeCache((prev) => [kb, ...prev]);
+      writeCache((prev) => [kb, ...prev], startedIn);
       toast.success("Knowledge base created");
       return kb;
     },
-    [writeCache],
+    [writeCache, listOrgId],
   );
 
   const patchKB = useCallback(
     async (id: string, patch: Partial<Pick<KnowledgeBase, "name" | "description">>) => {
+      const startedIn = listOrgId;
       try {
         const updated = await apiClient.patch<KnowledgeBase>(`/kb/${id}`, patch);
-        writeCache((prev) => prev.map((k) => (k.id === id ? updated : k)));
+        writeCache((prev) => prev.map((k) => (k.id === id ? updated : k)), startedIn);
         toast.success("Knowledge base updated");
         return updated;
       } catch {
@@ -75,20 +92,21 @@ export function useKnowledgeBases() {
         return null;
       }
     },
-    [writeCache],
+    [writeCache, listOrgId],
   );
 
   const deleteKB = useCallback(
     async (id: string) => {
+      const startedIn = listOrgId;
       try {
         await apiClient.delete(`/kb/${id}`);
-        writeCache((prev) => prev.filter((k) => k.id !== id));
+        writeCache((prev) => prev.filter((k) => k.id !== id), startedIn);
         toast.success("Knowledge base deleted");
       } catch {
         toast.error("Failed to delete knowledge base");
       }
     },
-    [writeCache],
+    [writeCache, listOrgId],
   );
 
   return { kbs, isLoading, fetchKBs, createKB, patchKB, deleteKB };
@@ -125,6 +143,33 @@ export function useKBDetail(id: string | null) {
   const [uploadProgress, setUploadProgress] = useState<UploadProgress[]>([]);
   const [error, setError] = useState<string | null>(null);
 
+  // A knowledge base belongs to one organization, and everything above is a
+  // response read as that one. Dropping the query cache on a tenant switch does
+  // not reach any of it - this hook keeps its data in `useState` - so without
+  // this the page went on showing the previous tenant's documents, and an open
+  // file viewer went on showing their file. Cleared during render, so the
+  // stale rows are never painted under the new organization's name; `refresh`
+  // takes the organization in its dependencies below, which is what sends the
+  // page back to the server for whatever this id means here, if anything.
+  const activeOrgId = useTenantId();
+  if (useChanged(activeOrgId)) {
+    setKb(null);
+    setDocuments([]);
+    setDocumentsTotal(0);
+    setSyncSources([]);
+    setOrgIntegrations([]);
+    setConnectors([]);
+    setError(null);
+  }
+
+  /**
+   * Whether the organization a request started in is still the active one.
+   *
+   * Clearing the state above is no use on its own: every read and every
+   * mutation here writes after an await, and an answer that lands past the
+   * switch refills what was just emptied - the previous tenant's knowledge base
+   * name and configuration, under the new tenant's.
+   */
   // An upload is in flight whenever there's at least one progress entry. Derived
   // rather than stored so sequential/concurrent uploads stay consistent.
   const isUploading = uploadProgress.length > 0;
@@ -132,6 +177,8 @@ export function useKBDetail(id: string | null) {
   // Tracks how many documents are loaded without putting `documents.length` in
   // the deps of `refresh`/`loadMoreDocuments` - keeping them stable so the
   // page's `useEffect([refresh])` runs once instead of looping after each fetch.
+  const stillSameTenant = useTenantGuard();
+
   const loadedDocCountRef = useRef(0);
   useEffect(() => {
     loadedDocCountRef.current = documents.length;
@@ -148,6 +195,7 @@ export function useKBDetail(id: string | null) {
    */
   const refresh = useCallback(async () => {
     if (!id) return;
+    const startedIn = activeOrgId;
     setIsLoading(true);
     setError(null);
     try {
@@ -169,6 +217,7 @@ export function useKBDetail(id: string | null) {
           items: [] as ConnectorInfo[],
         })),
       ]);
+      if (!stillSameTenant(startedIn)) return;
       setKb(kbData);
       setDocuments(docList.items);
       setDocumentsTotal(docList.total);
@@ -180,16 +229,18 @@ export function useKBDetail(id: string | null) {
     } finally {
       setIsLoading(false);
     }
-  }, [id]);
+  }, [id, activeOrgId, stillSameTenant]);
 
   /** Append the next page of documents (server-side skip/limit pagination). */
   const loadMoreDocuments = useCallback(async () => {
     if (!id) return;
+    const startedIn = activeOrgId;
     setIsLoadingMoreDocs(true);
     try {
       const docList = await apiClient.get<KBDocumentList>(
         `/kb/${id}/documents?skip=${loadedDocCountRef.current}&limit=${DOCS_PAGE_SIZE}`,
       );
+      if (!stillSameTenant(startedIn)) return;
       // Dedupe in case a poll/refresh raced with the append.
       setDocuments((prev) => {
         const seen = new Set(prev.map((d) => d.id));
@@ -201,7 +252,7 @@ export function useKBDetail(id: string | null) {
     } finally {
       setIsLoadingMoreDocs(false);
     }
-  }, [id]);
+  }, [id, activeOrgId, stillSameTenant]);
 
   /**
    * Replace how this collection's documents are parsed, from now on.
@@ -213,19 +264,25 @@ export function useKBDetail(id: string | null) {
   const updateIngestion = useCallback(
     async (config: IngestionConfig): Promise<KnowledgeBase> => {
       if (!id) throw new Error("No knowledge base is open");
+      const startedIn = activeOrgId;
       const updated = await apiClient.patch<KnowledgeBase>(`/kb/${id}`, {
         ingestion_config: config,
       });
-      setKb(updated);
-      toast.success("Ingestion settings saved");
+      // The caller is handed the row either way - it asked for the save and the
+      // save happened - but it is not written into a page showing somebody else.
+      if (stillSameTenant(startedIn)) {
+        setKb(updated);
+        toast.success("Ingestion settings saved");
+      }
       return updated;
     },
-    [id],
+    [id, activeOrgId, stillSameTenant],
   );
 
   const uploadDocument = useCallback(
     async (file: File, override?: IngestionOverride) => {
       if (!id) return;
+      const startedIn = activeOrgId;
       const uploadId = `${uploadIdRef.current++}`;
       setUploadProgress((prev) => [...prev, { uploadId, filename: file.name, percent: 0 }]);
 
@@ -252,6 +309,13 @@ export function useKBDetail(id: string | null) {
           const xhr = new XMLHttpRequest();
           xhr.open("POST", `/api/kb/${id}/documents`);
           xhr.withCredentials = true;
+          // XHR is here for byte-level progress, which `fetch` cannot report -
+          // but going around `apiClient` means going around the header it
+          // attaches, and `/kb` is org-scoped. Without it the backend falls
+          // back to the personal organization, where this knowledge base does
+          // not exist, and the upload fails for a reason nothing on screen
+          // explains.
+          if (startedIn) xhr.setRequestHeader("X-Organization-Id", startedIn);
           xhr.upload.onprogress = (event) => {
             if (event.lengthComputable) {
               setPercent(Math.min(100, Math.round((event.loaded / event.total) * 100)));
@@ -295,14 +359,16 @@ export function useKBDetail(id: string | null) {
         clear();
       }
     },
-    [id, refresh],
+    [id, refresh, activeOrgId],
   );
 
   const deleteDocument = useCallback(
     async (docId: string) => {
       if (!id) return;
+      const startedIn = activeOrgId;
       try {
         await apiClient.delete(`/kb/${id}/documents/${docId}`);
+        if (!stillSameTenant(startedIn)) return;
         setDocuments((prev) => prev.filter((d) => d.id !== docId));
         setDocumentsTotal((prev) => Math.max(0, prev - 1));
         toast.success("Document removed");
@@ -310,15 +376,18 @@ export function useKBDetail(id: string | null) {
         toast.error(e instanceof Error ? e.message : "Failed to delete document");
       }
     },
-    [id],
+    [id, activeOrgId, stillSameTenant],
   );
 
   const createSyncSource = useCallback(
     async (data: SyncSourceCreate) => {
       if (!id) return;
+      const startedIn = activeOrgId;
       try {
         const created = await apiClient.post<SyncSourceRead>(`/kb/${id}/sync-sources`, data);
-        setSyncSources((prev) => [created, ...prev]);
+        // An append, not a replace - so a late answer does not overwrite the
+        // new tenant's list, it adds the previous tenant's row to it.
+        if (stillSameTenant(startedIn)) setSyncSources((prev) => [created, ...prev]);
         toast.success("Sync source connected");
         return created;
       } catch (e) {
@@ -326,27 +395,30 @@ export function useKBDetail(id: string | null) {
         throw e;
       }
     },
-    [id],
+    [id, activeOrgId, stillSameTenant],
   );
 
   const cloneSyncSource = useCallback(
     async (sourceId: string, collectionName: string, name: string) => {
       if (!id) return;
+      const startedIn = activeOrgId;
       try {
         const created = await apiClient.post<SyncSourceRead>(
           `/kb/${id}/sync-sources/${sourceId}/clone`,
           { collection_name: collectionName, name },
         );
-        setSyncSources((prev) => [created, ...prev]);
-        setOrgIntegrations((prev) => prev.filter((s) => s.id !== sourceId));
-        toast.success("Integration cloned to this knowledge base");
+        if (stillSameTenant(startedIn)) {
+          setSyncSources((prev) => [created, ...prev]);
+          setOrgIntegrations((prev) => prev.filter((s) => s.id !== sourceId));
+          toast.success("Integration cloned to this knowledge base");
+        }
         return created;
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Failed to clone integration");
         throw e;
       }
     },
-    [id],
+    [id, activeOrgId, stillSameTenant],
   );
 
   const triggerSyncSource = useCallback(
@@ -367,15 +439,17 @@ export function useKBDetail(id: string | null) {
   const deleteSyncSource = useCallback(
     async (sourceId: string) => {
       if (!id) return;
+      const startedIn = activeOrgId;
       try {
         await apiClient.delete(`/kb/${id}/sync-sources/${sourceId}`);
+        if (!stillSameTenant(startedIn)) return;
         setSyncSources((prev) => prev.filter((s) => s.id !== sourceId));
         toast.success("Sync source removed");
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Failed to remove sync source");
       }
     },
-    [id],
+    [id, activeOrgId, stillSameTenant],
   );
 
   return {

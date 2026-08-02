@@ -6,6 +6,8 @@ import { toast } from "sonner";
 
 import { useKBDetail, useKnowledgeBases } from "./use-knowledge-bases";
 import { apiClient } from "@/lib/api-client";
+import { qk } from "@/lib/query-keys";
+import { useOrgStore } from "@/stores";
 import { DEFAULT_INGESTION_CONFIG } from "@/lib/ingestion-config";
 
 vi.mock("@/lib/api-client", async () => {
@@ -17,8 +19,10 @@ vi.mock("@/lib/api-client", async () => {
 });
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
+/** Hoisted so a test can read the cache directly, which is where the leak is. */
+let client: QueryClient;
+
 function wrapper({ children }: { children: ReactNode }) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 
@@ -67,6 +71,7 @@ function serveDetail({
 /** A fake `XMLHttpRequest`, since the upload reads byte-level progress off one. */
 interface FakeXhr {
   open: ReturnType<typeof vi.fn>;
+  setRequestHeader: ReturnType<typeof vi.fn>;
   send: ReturnType<typeof vi.fn>;
   withCredentials: boolean;
   status: number;
@@ -92,6 +97,7 @@ function stubXhr() {
   class FakeXhrImpl implements FakeXhr {
     open = vi.fn();
     send = vi.fn();
+    setRequestHeader = vi.fn();
     withCredentials = false;
     status = 201;
     responseText = "{}";
@@ -112,6 +118,17 @@ async function sent(index = 0) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  client = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+  });
+  // Seeded rather than fetched: both hooks resolve the tenant through the
+  // organizations query now, and several of these tests assert on exactly
+  // which requests went out.
+  client.setQueryData(qk.organizations.list(), []);
+  // The hook reads it, and a test that leaves one behind hands the next one an
+  // organization it never chose - which, for the two switch tests below, is the
+  // difference between asserting something and asserting nothing.
+  useOrgStore.setState({ activeOrgId: null });
   vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
   vi.mocked(apiClient.post).mockResolvedValue({ id: "x" });
   vi.mocked(apiClient.patch).mockResolvedValue({ id: "kb-1" });
@@ -132,6 +149,37 @@ describe("the list of knowledge bases", () => {
 
     await waitFor(() => expect(result.current.kbs).toHaveLength(1));
     expect(apiClient.get).toHaveBeenCalledWith("/kb");
+  });
+
+  it("keeps a collection created in one organization out of another's list", async () => {
+    // `qk.kb.list()` names no tenant, and `setQueryData` recreates a key the
+    // switch had just dropped - so a creation that finished late put the
+    // previous organization's collection into the list the new one is reading.
+    useOrgStore.setState({ activeOrgId: "org-a" });
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    const { result } = renderHook(() => useKnowledgeBases(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    let answer: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.post).mockImplementation(
+      () => new Promise((resolve) => (answer = resolve)),
+    );
+    let creating: Promise<unknown>;
+    await act(async () => {
+      creating = result.current.createKB({ name: "Org A's handbook", scope: "org" });
+      await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+    });
+
+    await act(async () => {
+      useOrgStore.setState({ activeOrgId: "org-b" });
+      answer({ id: "kb-private", name: "Org A's handbook" });
+      await creating!;
+    });
+
+    // Read from the cache, not from the hook: the leak is a key being written,
+    // and a render that has not flushed yet would report it absent either way.
+    const cached = client.getQueryData<Array<{ id: string }>>(["kb", "list"]) ?? [];
+    expect(cached.map((kb) => kb.id)).not.toContain("kb-private");
   });
 
   it("lets a refused creation through, because the dialog has fields to blame", async () => {
@@ -267,6 +315,150 @@ describe("one collection's page", () => {
     });
 
     expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
+  it("shows nothing of the organization the caller has just left", async () => {
+    // This hook keeps its data in `useState`, so dropping the query cache on a
+    // tenant switch does not reach it - the page went on showing the previous
+    // organization's documents, and an open file viewer their file.
+    useOrgStore.setState({ activeOrgId: "org-a" });
+    serveDetail();
+    const { result, rerender } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+    await act(async () => {
+      await result.current.refresh();
+    });
+    expect(result.current.kb).toMatchObject({ id: "kb-1" });
+
+    useOrgStore.setState({ activeOrgId: "org-b" });
+    rerender();
+
+    expect(result.current.kb).toBeNull();
+    expect(result.current.documents).toEqual([]);
+    expect(result.current.syncSources).toEqual([]);
+  });
+
+  it("drops a response that lands after the organization moved", async () => {
+    // Five requests, and the switch can happen while they are in the air.
+    // Clearing the state is no use if a late answer refills it.
+    useOrgStore.setState({ activeOrgId: "org-a" });
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    serveDetail();
+    const answering = vi.mocked(apiClient.get).getMockImplementation()!;
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      await gate;
+      return answering(path);
+    });
+    const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+
+    let refreshing: Promise<void>;
+    await act(async () => {
+      refreshing = result.current.refresh();
+      await waitFor(() => expect(apiClient.get).toHaveBeenCalled());
+    });
+
+    await act(async () => {
+      useOrgStore.setState({ activeOrgId: "org-b" });
+      release();
+      await refreshing!;
+    });
+
+    expect(result.current.kb).toBeNull();
+  });
+
+  it("stops paging in documents once the organization has moved", async () => {
+    // `loadMoreDocuments` appends, so a page that lands after the switch does
+    // not overwrite - it adds the previous tenant's documents to an empty list.
+    useOrgStore.setState({ activeOrgId: "org-a" });
+    serveDetail({ documents: [document("d-1")], documentsTotal: 40 });
+    const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+    await act(async () => {
+      await result.current.refresh();
+    });
+
+    let answer: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.get).mockImplementation(() => new Promise((resolve) => (answer = resolve)));
+    let paging: Promise<void>;
+    await act(async () => {
+      paging = result.current.loadMoreDocuments();
+      await waitFor(() => expect(apiClient.get).toHaveBeenCalled());
+    });
+
+    await act(async () => {
+      useOrgStore.setState({ activeOrgId: "org-b" });
+      answer({ items: [document("d-2")], total: 40 });
+      await paging!;
+    });
+
+    expect(result.current.documents).toEqual([]);
+  });
+
+  it("lets no deletion finished after the switch touch the next organization", async () => {
+    // Both are filters, so neither can show the previous tenant's rows - but
+    // the document one also decrements a total, and decrementing the count of
+    // a list belonging to somebody else is the same mistake wearing a number.
+    for (const remove of ["document", "sync source"] as const) {
+      useOrgStore.setState({ activeOrgId: "org-a" });
+      serveDetail({ documents: [document("d-1")], documentsTotal: 7 });
+      const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+      await act(async () => {
+        await result.current.refresh();
+      });
+      expect(result.current.documentsTotal).toBe(7);
+
+      let answer: () => void = () => {};
+      vi.mocked(apiClient.delete).mockImplementation(
+        () => new Promise((resolve) => (answer = () => resolve(undefined))),
+      );
+      let removing: Promise<void>;
+      await act(async () => {
+        removing =
+          remove === "document"
+            ? result.current.deleteDocument("d-1")
+            : result.current.deleteSyncSource("s-1");
+        await waitFor(() => expect(apiClient.delete).toHaveBeenCalled());
+      });
+
+      await act(async () => {
+        useOrgStore.setState({ activeOrgId: "org-b" });
+        answer();
+        await removing!;
+      });
+
+      expect(toast.success).not.toHaveBeenCalledWith("Document removed");
+      expect(toast.success).not.toHaveBeenCalledWith("Sync source removed");
+      vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+    }
+  });
+
+  it("keeps a save that finished late off the next organization's page", async () => {
+    // Save the ingestion settings, close the dialog, switch before the PATCH
+    // returns. The caller still gets its row - it asked, and the save happened
+    // - but the page it would have been written onto belongs to somebody else.
+    useOrgStore.setState({ activeOrgId: "org-a" });
+    serveDetail();
+    const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+    await act(async () => {
+      await result.current.refresh();
+    });
+
+    let answer: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.patch).mockImplementation(
+      () => new Promise((resolve) => (answer = resolve)),
+    );
+    let saving: Promise<unknown>;
+    await act(async () => {
+      saving = result.current.updateIngestion(DEFAULT_INGESTION_CONFIG);
+      await waitFor(() => expect(apiClient.patch).toHaveBeenCalled());
+    });
+
+    await act(async () => {
+      useOrgStore.setState({ activeOrgId: "org-b" });
+      answer({ id: "kb-1", name: "Org A's handbook" });
+      await saving!;
+    });
+
+    expect(result.current.kb).toBeNull();
   });
 
   it("reads the collection, its documents and its sources together", async () => {
@@ -527,6 +719,25 @@ describe("uploading a document", () => {
     expect(xhr().open).toHaveBeenCalledWith("POST", "/api/kb/kb-1/documents");
     expect(xhr().withCredentials).toBe(true);
     expect(toast.success).toHaveBeenCalledWith("Uploaded a.pdf");
+  });
+
+  it("uploads into the organization on screen, which XHR does not do for free", async () => {
+    // The reason this is XHR at all is byte-level progress, which `fetch`
+    // cannot report - but going around `apiClient` goes around the header it
+    // attaches, and `/kb` is org-scoped. Without it the backend answers from
+    // the personal organization, where this knowledge base does not exist, and
+    // the upload fails for a reason nothing on screen explains.
+    useOrgStore.setState({ activeOrgId: "org-b" });
+    serveDetail();
+    const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+
+    await act(async () => {
+      const upload = result.current.uploadDocument(new File(["x"], "a.pdf"));
+      (await sent()).onload!();
+      await upload;
+    });
+
+    expect(xhr().setRequestHeader).toHaveBeenCalledWith("X-Organization-Id", "org-b");
   });
 
   it("reports progress as bytes go out, and clears it when the upload settles", async () => {

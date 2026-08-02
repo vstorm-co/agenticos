@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { refusesOrganization, useActiveOrganizationRecovery } from "./use-active-organization";
 import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
-import { useOrgStore } from "@/stores";
+import { useAgentSelectionStore, useConversationStore, useOrgStore } from "@/stores";
 
 vi.mock("@/lib/api-client", async () => {
   const { ApiError } = await import("@/lib/api-error");
@@ -18,8 +18,9 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 const STALE = "11111111-1111-1111-1111-111111111111";
 const PERSONAL = "22222222-2222-2222-2222-222222222222";
 
+let client: QueryClient;
+
 function wrapper({ children }: { children: ReactNode }) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 
@@ -96,6 +97,123 @@ describe("useActiveOrganizationRecovery", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useOrgStore.setState({ activeOrgId: null, refusedOrgIds: [] });
+    client = new QueryClient({
+      // Matching `app/providers.tsx`. At the library default of 0 a switch
+      // refetches whether or not anything dropped the cache, which is the
+      // harness answering the question instead of the code.
+      defaultOptions: { queries: { retry: false, staleTime: 5 * 60 * 1000 } },
+    });
+  });
+
+  it("drops what one organization cached when the caller switches to another", async () => {
+    // Most keys do not name the organization, so without this the switch
+    // changes a label and nothing else: `agents.list()` is the same key in
+    // both, and at a five-minute `staleTime` nothing goes back to the server.
+    answerWith([{ id: PERSONAL, is_personal: true }], { permissions: [] });
+    useOrgStore.setState({ activeOrgId: PERSONAL });
+    const { rerender } = renderHook(() => useActiveOrganizationRecovery(), { wrapper });
+    client.setQueryData(["agents", "list", false], [{ id: "a-1", name: "Org A's agent" }]);
+
+    useOrgStore.setState({ activeOrgId: STALE });
+    rerender();
+
+    // Removed, not marked stale: an invalidated query still serves its rows
+    // while the refetch is in flight, which is the previous tenant on screen.
+    await waitFor(() => expect(client.getQueryData(["agents", "list", false])).toBeUndefined());
+  });
+
+  it("empties the stores the query cache cannot reach", async () => {
+    // A conversation, a chat transcript, an open preview and the sources
+    // behind the last answer all belong to a tenant and none of them live in
+    // the query cache - they are module-scope stores, so `removeQueries` goes
+    // straight past them and organization A's chat stayed on screen under B.
+    answerWith([{ id: PERSONAL, is_personal: true }], { permissions: [] });
+    useOrgStore.setState({ activeOrgId: PERSONAL });
+    const { rerender } = renderHook(() => useActiveOrganizationRecovery(), { wrapper });
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/orgs"));
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useAgentSelectionStore.getState().select("agent-1");
+
+    useOrgStore.setState({ activeOrgId: STALE });
+    rerender();
+
+    expect(useConversationStore.getState().currentConversationId).toBeNull();
+    expect(useAgentSelectionStore.getState().selectedAgentId).toBeNull();
+  });
+
+  it("leaves a mounted page asking again rather than showing nothing", async () => {
+    // Dropping the data is only half an answer if the page then sits empty.
+    // The claim is that every mounted query refetches, so this renders one.
+    answerWith([{ id: PERSONAL, is_personal: true }], { permissions: [] });
+    useOrgStore.setState({ activeOrgId: PERSONAL });
+    const agents = vi.fn().mockResolvedValue([{ id: "a-1" }]);
+    const { result, rerender } = renderHook(
+      () => {
+        useActiveOrganizationRecovery();
+        return useQuery({ queryKey: ["agents", "list", false], queryFn: agents });
+      },
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.data).toEqual([{ id: "a-1" }]));
+
+    useOrgStore.setState({ activeOrgId: STALE });
+    rerender();
+
+    await waitFor(() => expect(agents).toHaveBeenCalledTimes(2));
+  });
+
+  it("drops the cache when the selection falls back to no organization at all", async () => {
+    // The recovery sets `null` when there is no organization left to move to,
+    // and `null` is not "no tenant" - the requests that follow are read as the
+    // personal one. Without resolving it, this looked like "cannot tell yet"
+    // and the organization just left stayed on screen.
+    answerWith(
+      [
+        { id: PERSONAL, is_personal: true },
+        { id: STALE, is_personal: false },
+      ],
+      { permissions: [] },
+    );
+    useOrgStore.setState({ activeOrgId: STALE });
+    const { rerender } = renderHook(() => useActiveOrganizationRecovery(), { wrapper });
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/orgs"));
+    client.setQueryData(["agents", "list", false], [{ id: "a-1" }]);
+
+    useOrgStore.setState({ activeOrgId: null });
+    rerender();
+
+    await waitFor(() => expect(client.getQueryData(["agents", "list", false])).toBeUndefined());
+  });
+
+  it("leaves the cache alone on the first render, when nothing has moved", async () => {
+    // A page load starts with its own queries already in flight. Treating the
+    // mount as a switch would cancel the fetch the page just made.
+    answerWith([{ id: PERSONAL, is_personal: true }], { permissions: [] });
+    useOrgStore.setState({ activeOrgId: PERSONAL });
+    const { rerender } = renderHook(() => useActiveOrganizationRecovery(), { wrapper });
+    client.setQueryData(["agents", "list", false], [{ id: "a-1" }]);
+
+    rerender();
+
+    expect(client.getQueryData(["agents", "list", false])).toEqual([{ id: "a-1" }]);
+  });
+
+  it("treats no selection and the personal organization as the same tenant", async () => {
+    // Until the list loads there is no selection, and a request without
+    // `X-Organization-Id` is read as the personal organization - so adopting
+    // its id is a page finishing its first render, not a tenant switch. The
+    // e2e seed caught this: it dropped the queries a freshly loaded page had
+    // just started, and a secret that had been stored never appeared.
+    answerWith([{ id: PERSONAL, is_personal: true }], { permissions: [] });
+    useOrgStore.setState({ activeOrgId: null });
+    const { rerender } = renderHook(() => useActiveOrganizationRecovery(), { wrapper });
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/orgs"));
+    client.setQueryData(["secrets", "list"], [{ id: "s-1" }]);
+
+    useOrgStore.setState({ activeOrgId: PERSONAL });
+    rerender();
+
+    expect(client.getQueryData(["secrets", "list"])).toEqual([{ id: "s-1" }]);
   });
 
   it("falls back to an organization the caller belongs to", async () => {
