@@ -1,0 +1,259 @@
+"""Where an attached file goes, and what the model is told about it.
+
+The change these cover is easy to state and easy to get wrong: an agent with a
+workspace should be handed a *reference* to a file, and an agent without one
+should keep getting the paste it always got. Both halves matter. Pasting when
+there is a workspace throws away the point of having one; referencing when there
+is not leaves the model told about a file it has no tool to open.
+"""
+
+from __future__ import annotations
+
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
+from uuid import uuid4
+
+import pytest
+from pydantic_ai.messages import BinaryContent
+from pydantic_ai_backends import StateBackend
+
+from app.agents.capabilities.sandbox._capped import CappedStateBackend
+from app.services import attachments as attachments_module
+from app.services.attachments import AttachmentRouter, safe_name, workspace_path
+
+pytestmark = pytest.mark.anyio
+
+PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
+
+
+def _file(**overrides: object):
+    defaults: dict[str, object] = {
+        "id": uuid4(),
+        "filename": "raport.csv",
+        "mime_type": "text/csv",
+        "size": 2048,
+        "storage_path": "u/1/raport.csv",
+        "file_type": "text",
+        "parsed_content": "month,total\njan,10\nfeb,12",
+    }
+    return SimpleNamespace(**{**defaults, **overrides})
+
+
+@pytest.fixture
+def storage(monkeypatch):
+    """Whatever the router asks the file store for, it gets these bytes."""
+    loaded = AsyncMock(return_value=PNG)
+    monkeypatch.setattr(
+        attachments_module, "get_file_storage", lambda: SimpleNamespace(load=loaded)
+    )
+    return loaded
+
+
+def _workspace(max_bytes: int = 1024 * 1024) -> CappedStateBackend:
+    return CappedStateBackend(StateBackend(), max_bytes=max_bytes)
+
+
+class TestWithoutAWorkspace:
+    """The behaviour that already existed, kept exactly."""
+
+    async def test_a_parsed_file_is_pasted_whole(self, storage):
+        prompt = await AttachmentRouter().build_prompt("what changed?", [_file()])
+
+        assert "month,total" in prompt
+        assert "```" in prompt
+
+    async def test_an_image_is_sent_for_the_model_to_look_at(self, storage):
+        prompt = await AttachmentRouter().build_prompt(
+            "what is this?", [_file(file_type="image", mime_type="image/png")]
+        )
+
+        assert isinstance(prompt, list)
+        assert isinstance(prompt[1], BinaryContent)
+
+    async def test_a_file_nothing_could_parse_contributes_nothing(self, storage):
+        prompt = await AttachmentRouter().build_prompt(
+            "look", [_file(file_type="binary", parsed_content=None)]
+        )
+
+        assert prompt == "look"
+
+    async def test_no_attachments_is_the_message_unchanged(self):
+        assert await AttachmentRouter().build_prompt("hello", []) == "hello"
+
+
+class TestWithAWorkspace:
+    async def test_the_file_is_written_and_referenced_rather_than_pasted(self, storage):
+        """The whole point: a large file stops costing its weight every turn."""
+        backend = _workspace()
+        chat_file = _file(parsed_content="month,total\n" + "row\n" * 500)
+
+        prompt = await AttachmentRouter(backend).build_prompt("summarise", [chat_file])
+
+        assert workspace_path(chat_file) in prompt
+        assert backend.exists(workspace_path(chat_file))
+        assert prompt.count("row") < 100
+
+    async def test_the_reference_carries_a_head_the_model_can_judge_from(self, storage):
+        backend = _workspace()
+
+        prompt = await AttachmentRouter(backend).build_prompt("summarise", [_file()])
+
+        assert "month,total" in prompt
+        assert "First 20 lines" in prompt
+
+    async def test_an_image_is_both_seen_and_written(self, storage):
+        """A path is not a substitute for looking, and looking is not a
+        substitute for being able to resize it."""
+        backend = _workspace()
+        chat_file = _file(file_type="image", mime_type="image/png", parsed_content=None)
+
+        prompt = await AttachmentRouter(backend).build_prompt("crop this", [chat_file])
+
+        assert isinstance(prompt, list)
+        assert isinstance(prompt[1], BinaryContent)
+        assert backend.exists(workspace_path(chat_file))
+
+    async def test_a_large_image_is_written_and_not_also_inlined(self, storage, monkeypatch):
+        from app.core import config as config_module
+
+        monkeypatch.setattr(config_module.settings, "SANDBOX_INLINE_IMAGE_MAX_BYTES", 100)
+        backend = _workspace()
+        chat_file = _file(file_type="image", mime_type="image/png", parsed_content=None, size=5000)
+
+        prompt = await AttachmentRouter(backend).build_prompt("shrink it", [chat_file])
+
+        assert isinstance(prompt, str)
+        assert workspace_path(chat_file) in prompt
+
+    async def test_a_pdf_keeps_its_bytes_and_gains_its_text(self, storage):
+        """A shell has no tool for a PDF; the extracted text is the usable half."""
+        backend = _workspace()
+        chat_file = _file(
+            filename="contract.pdf",
+            file_type="pdf",
+            mime_type="application/pdf",
+            parsed_content="Clause 1. The parties agree.",
+        )
+
+        await AttachmentRouter(backend).build_prompt("summarise", [chat_file])
+
+        assert backend.exists(workspace_path(chat_file))
+        assert backend.exists(f"{workspace_path(chat_file)}.txt")
+
+    async def test_the_same_file_on_a_later_turn_is_not_written_again(self, storage):
+        """Otherwise an upload costs one write per turn for the whole chat."""
+        backend = _workspace()
+        chat_file = _file()
+        router = AttachmentRouter(backend)
+
+        await router.build_prompt("first", [chat_file])
+        await router.build_prompt("second", [chat_file])
+
+        assert storage.await_count == 1
+
+    async def test_two_files_of_the_same_name_do_not_overwrite_each_other(self, storage):
+        backend = _workspace()
+        first, second = _file(), _file()
+
+        await AttachmentRouter(backend).build_prompt("compare", [first, second])
+
+        assert workspace_path(first) != workspace_path(second)
+        assert backend.exists(workspace_path(first))
+        assert backend.exists(workspace_path(second))
+
+    async def test_a_full_workspace_falls_back_to_the_inline_path(self, storage):
+        """The file is still worth mentioning; it just cannot be stored."""
+        backend = _workspace(max_bytes=1)
+        chat_file = _file()
+
+        prompt = await AttachmentRouter(backend).build_prompt("summarise", [chat_file])
+
+        assert "month,total" in prompt
+        assert not backend.exists(workspace_path(chat_file))
+
+    async def test_a_file_the_store_cannot_load_is_skipped_rather_than_fatal(self, monkeypatch):
+        """The person asked a question; answering without the file beats not
+        answering at all."""
+        monkeypatch.setattr(
+            attachments_module,
+            "get_file_storage",
+            lambda: SimpleNamespace(load=AsyncMock(side_effect=OSError("gone"))),
+        )
+
+        prompt = await AttachmentRouter(_workspace()).build_prompt("summarise", [_file()])
+
+        assert prompt == "summarise"
+
+
+class TestFilenamesAreNotTrusted:
+    @pytest.mark.parametrize(
+        "hostile",
+        ["../../etc/passwd", "..\\..\\secrets.env", "-rf", "  ", "." * 5],
+    )
+    def test_a_name_cannot_escape_the_uploads_directory(self, hostile: str):
+        assert workspace_path(_file(filename=hostile)).startswith("/uploads/")
+        assert ".." not in safe_name(hostile)
+
+    def test_a_very_long_name_is_bounded(self):
+        assert len(safe_name("a" * 500)) <= 96
+
+    def test_a_name_of_nothing_usable_still_produces_one(self):
+        assert safe_name("   ") == "attachment"
+        assert safe_name("///")
+
+
+class TestTheReferenceReadsWell:
+    async def test_megabytes_are_shown_as_megabytes(self, storage):
+        prompt = await AttachmentRouter(_workspace()).build_prompt(
+            "x", [_file(size=3 * 1024 * 1024)]
+        )
+
+        assert "3.0 MB" in prompt
+
+    async def test_a_small_file_is_shown_in_kilobytes(self, storage):
+        prompt = await AttachmentRouter(_workspace()).build_prompt("x", [_file(size=10)])
+
+        assert "1 KB" in prompt
+
+    async def test_a_file_with_no_text_is_referenced_without_a_head(self, storage):
+        prompt = await AttachmentRouter(_workspace()).build_prompt(
+            "x", [_file(file_type="binary", parsed_content=None)]
+        )
+
+        assert "First 20 lines" not in prompt
+        assert "raport.csv" in prompt
+
+    async def test_one_enormous_line_is_still_bounded(self, storage):
+        prompt = await AttachmentRouter(_workspace()).build_prompt(
+            "x", [_file(parsed_content="a" * 50_000)]
+        )
+
+        assert len(prompt) < 5_000
+
+
+class TestASecondTurn:
+    async def test_an_image_already_in_the_workspace_is_still_shown(self, storage):
+        """The write is skipped on the second turn; the model still has to see
+        the picture, so the bytes are fetched for the inline half alone."""
+        backend = _workspace()
+        chat_file = _file(file_type="image", mime_type="image/png", parsed_content=None)
+        router = AttachmentRouter(backend)
+
+        await router.build_prompt("what is this?", [chat_file])
+        prompt = await router.build_prompt("and now?", [chat_file])
+
+        assert isinstance(prompt, list)
+        assert isinstance(prompt[1], BinaryContent)
+        assert storage.await_count == 2
+
+
+class TestLoadingTheRows:
+    async def test_the_ids_a_client_sent_are_resolved_through_the_conversation(self, monkeypatch):
+        from app.services import attachments as module
+
+        service = SimpleNamespace(list_attached_files=AsyncMock(return_value=["row"]))
+        monkeypatch.setattr(
+            "app.api.deps.get_conversation_service", lambda db: service, raising=True
+        )
+
+        assert await module.load_attached_files(object(), [uuid4()]) == ["row"]

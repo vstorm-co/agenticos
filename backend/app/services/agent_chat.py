@@ -39,9 +39,11 @@ from app.agents.deps import AgentDeps, AskUserCallback
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import AuthContext
 from app.db.models.agent_run import RunStatus, RunSurface
+from app.db.models.chat_file import ChatFile
 from app.db.models.user import User
 from app.repositories import member_repo
 from app.services.agent_runner import AgentRunnerService, PausedRunState
+from app.services.attachments import AttachmentRouter
 
 logger = logging.getLogger(__name__)
 
@@ -173,6 +175,18 @@ class ChatTurn:
     what actually happened."""
 
 
+def _as_text(user_input: str | Sequence[UserContent]) -> str:
+    """The text half of a prompt a surface may already have assembled.
+
+    Surfaces hand this a plain string today. The signature allows the richer
+    shape because Pydantic AI does, and a caller passing one would otherwise
+    have its attachments silently appended to a `repr`.
+    """
+    if isinstance(user_input, str):
+        return user_input
+    return "".join(part for part in user_input if isinstance(part, str))
+
+
 class ChatAgentRunner:
     """Runs a published agent for one turn of a streaming chat."""
 
@@ -188,6 +202,7 @@ class ChatAgentRunner:
         agent_id: UUID,
         user_input: str | Sequence[UserContent],
         message_history: list[ModelMessage],
+        attachments: list[ChatFile] | None = None,
         conversation_id: UUID | None,
         ask_user: AskUserCallback,
         stream: ChatStream,
@@ -201,8 +216,13 @@ class ChatAgentRunner:
             organization_id: The organization the socket is active in; the agent
                 is resolved here and nowhere else.
             agent_id: The published agent the frame named.
-            user_input: The prompt, images and file text already assembled by
-                the surface.
+            user_input: The prompt. Attachments are *not* folded in by the
+                surface - see `attachments`.
+            attachments: Files the user attached, routed once the workspace is
+                known. It has to happen here rather than in the surface: where a
+                file goes depends on whether this agent has a workspace, and
+                that is decided by `prepare`, which has not run yet when a
+                surface is assembling its prompt.
             message_history: The conversation so far, in Pydantic AI's format.
             conversation_id: The chat thread, so the run is findable from it.
             ask_user: How the agent puts a question to the person who is sitting
@@ -237,6 +257,12 @@ class ChatAgentRunner:
         # live surface can provide. Without it, an agent whose instructions tell
         # it to ask first has no way to ask.
         prepared.deps.ask_user = ask_user
+
+        if attachments:
+            router = AttachmentRouter(
+                prepared.workspace.backend if prepared.workspace is not None else None
+            )
+            user_input = await router.build_prompt(_as_text(user_input), attachments)
 
         status = RunStatus.FAILED
         error: str | None = None

@@ -17,15 +17,14 @@ from pydantic_ai import (
     ToolCallPartDelta,
 )
 from pydantic_ai.messages import (
-    BinaryContent,
     TextPart,
     ThinkingPart,
     ThinkingPartDelta,
 )
 
 from app.agents.capabilities.budget import BudgetExceeded
-from app.api.deps import get_conversation_service
 from app.core.exceptions import AppException, AuthorizationError
+from app.db.models.chat_file import ChatFile
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.db.session import get_db_context
@@ -42,7 +41,7 @@ from app.services.agent_chat import (
     requested_environment_id,
     requested_model_profile_id,
 )
-from app.services.file_storage import get_file_storage
+from app.services.attachments import load_attached_files
 
 logger = logging.getLogger(__name__)
 
@@ -179,7 +178,10 @@ class AgentSession:
 
         try:
             model_history = build_message_history(self.conversation_history)
-            user_input = await self._build_multimodal_input(user_message, file_ids)
+            # The files, not a prompt built from them. Where an attachment goes
+            # depends on whether the agent has a workspace, and only `prepare`
+            # knows that - so the routing happens one layer down.
+            attachments = await self._attached_files(file_ids)
 
             collected_tool_calls: list[dict[str, Any]] = []
             collected_thinking: list[str] = []
@@ -197,8 +199,9 @@ class AgentSession:
                     user=self.user,
                     organization_id=self.organization_id,
                     agent_id=agent_id,
-                    user_input=user_input,
+                    user_input=user_message,
                     message_history=model_history,
+                    attachments=attachments,
                     conversation_id=(
                         UUID(self.current_conversation_id) if self.current_conversation_id else None
                     ),
@@ -274,36 +277,17 @@ class AgentSession:
         finally:
             self._ask_user_future = None
 
-    async def _build_multimodal_input(
-        self, user_message: str, file_ids: list[Any]
-    ) -> str | list[Any]:
-        """Fold attached images and parsed file text into the user message."""
+    async def _attached_files(self, file_ids: list[Any]) -> list[ChatFile]:
+        """The rows for the files this frame attached.
+
+        Read on their own session: the turn's own session is opened later and
+        held for the run, and this is a lookup rather than part of that unit of
+        work.
+        """
         if not file_ids:
-            return user_message
-
-        storage = get_file_storage()
-        image_parts: list[BinaryContent] = []
-        file_context_parts: list[str] = []
+            return []
         async with get_db_context() as file_db:
-            attached_files = await get_conversation_service(file_db).list_attached_files(file_ids)
-            for chat_file in attached_files:
-                try:
-                    if chat_file.file_type == "image":
-                        file_data = await storage.load(chat_file.storage_path)
-                        image_parts.append(
-                            BinaryContent(data=file_data, media_type=chat_file.mime_type)
-                        )
-                    elif chat_file.parsed_content:
-                        file_context_parts.append(
-                            f"\n---\nAttached file: {chat_file.filename}\n```\n{chat_file.parsed_content}\n```"
-                        )
-                except Exception:
-                    logger.warning("Failed to load file %s", chat_file.id, exc_info=True)
-
-        full_text = user_message + "".join(file_context_parts)
-        if image_parts:
-            return [full_text, *image_parts]
-        return full_text
+            return await load_attached_files(file_db, file_ids)
 
     async def _stream_agent_run(
         self,
