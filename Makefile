@@ -1,4 +1,4 @@
-.PHONY: install format lint test run clean help deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build
+.PHONY: install format lint test run clean help sandbox-token deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build
 
 # === Environments ===========================================================
 # Three, one compose file each, with a matching frontend file beside it:
@@ -27,11 +27,30 @@ define _wait_for_db
 	echo "  ❌ DB not ready after 30s — check 'make dev-logs'"; exit 1
 endef
 
+# Which optional compose profiles `make dev` brings up. The sandbox service is
+# on by default so an agent can be given a container without anybody reading a
+# setup guide first — it is also the one service that mounts the Docker socket,
+# so a host that will not have that removes `sandbox` from here.
+COMPOSE_DEV_PROFILES ?= --profile sandbox
+
+# The sandbox service refuses to start without a token, deliberately: it can run
+# commands on this host, so an empty default would be a shared secret of "".
+# Generated into backend/.env once, and left alone afterwards — regenerating it
+# would orphan every workspace the service is currently holding.
+sandbox-token:
+	@if grep -q '^SANDBOXD_TOKEN=.' backend/.env 2>/dev/null; then \
+		echo "SANDBOXD_TOKEN already set in backend/.env"; \
+	else \
+		token=$$(python3 -c "import secrets; print(secrets.token_urlsafe(32))"); \
+		printf '\n# Authorises opening a sandbox session, and a session runs commands\n# on this host. Treat it like the Docker socket it sits in front of.\nSANDBOXD_TOKEN=%s\n' "$$token" >> backend/.env; \
+		echo "▶ Generated SANDBOXD_TOKEN in backend/.env"; \
+	fi
+
 # === Local dev: build → up → migrate ===
 # Idempotent — re-run anytime. Migrations are no-ops when already at head;
 # admin seeding is a separate target (`make seed`) so re-running `make dev`
 # doesn't keep retrying user creation.
-dev:
+dev: sandbox-token
 	@echo "▶ Building backend image…"
 	docker compose -f docker-compose.yml build app
 	@echo "▶ Starting services…"

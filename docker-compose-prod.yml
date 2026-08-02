@@ -43,6 +43,9 @@ services:
       - POSTGRES_HOST=db
       - REDIS_HOST=redis
       - PREFECT_API_URL=http://prefect-server:4200/api
+      # Empty unless the sandbox profile is up. Note what is absent from
+      # this service: the Docker socket.
+      - SANDBOXD_URL=${SANDBOXD_URL-}
     # --ws websockets-sansio: uvicorn's `auto` picks the legacy websockets impl,
     # which fails the handshake against websockets >=14. The chat WS needs it in
     # production exactly as much as it does locally.
@@ -130,6 +133,9 @@ services:
       - prefect_data:/root/.local/share/prefect/
     environment:
       - PREFECT_API_URL=http://prefect-server:4200/api
+      # Empty unless the sandbox profile is up. Note what is absent from
+      # this service: the Docker socket.
+      - SANDBOXD_URL=${SANDBOXD_URL-}
       - PREFECT_SERVER_API_HOST=0.0.0.0
     # No published port: the UI is reached through the reverse proxy or an SSH
     # tunnel, not from the internet.
@@ -160,6 +166,9 @@ services:
       - POSTGRES_HOST=db
       - REDIS_HOST=redis
       - PREFECT_API_URL=http://prefect-server:4200/api
+      # Empty unless the sandbox profile is up. Note what is absent from
+      # this service: the Docker socket.
+      - SANDBOXD_URL=${SANDBOXD_URL-}
     # Egress too: ingestion calls an embedding provider.
     networks:
       - data
@@ -178,6 +187,35 @@ services:
           cpus: "2"
           memory: 2G
 
+  # The only service holding the Docker socket. See docker-compose.yml for the
+  # reasoning; the differences here are that it is not on by default (mounting
+  # the socket on a shared host is a deliberate act) and that the image tag is
+  # pinned rather than tracking a minor.
+  sandboxd:
+    image: ghcr.io/vstorm-co/sandboxd:0.2
+    container_name: agenticos_sandboxd_prod
+    profiles: [sandbox]
+    environment:
+      SANDBOXD_TOKEN: ${SANDBOXD_TOKEN:?run `make sandbox-token` to generate one}
+      SANDBOXD_HOST: 0.0.0.0
+      SANDBOXD_PORT: "8080"
+      SANDBOXD_WORKSPACE_ROOT: /workspaces
+      SANDBOXD_PERSIST_CONTAINERS: "true"
+      SANDBOXD_MAX_SESSIONS_PER_TENANT: "5"
+      SANDBOXD_NETWORK_MODE: none
+      SANDBOXD_UI_ENABLED: "0"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - sandbox_workspaces:/workspaces
+    group_add:
+      - "${DOCKER_GID:-0}"
+    networks:
+      # `data` only. `edge` is where the reverse proxy reaches the application,
+      # and a service whose token can start containers on this host has no
+      # business on a network anything outside can route to.
+      - data
+    restart: unless-stopped
+
 networks:
   data:
     name: agenticos_data
@@ -188,6 +226,7 @@ networks:
     driver: bridge
 
 volumes:
+  sandbox_workspaces:
   media_data:
   postgres_data:
   redis_data:

@@ -90,6 +90,47 @@ def _vault_configured() -> tuple[str, str]:
     return "healthy", "a key is configured"
 
 
+async def _sandbox_service() -> tuple[str, str]:
+    """Whether a container-backed workspace has anything to talk to.
+
+    Unconfigured is not a failure: the `state` backend needs no service and is
+    what a default install runs on. What *is* a failure is a service that is
+    named and does not answer - an agent whose spec asks for a container then
+    fails on its first tool call, inside somebody's conversation, with a
+    connection error nobody was watching for.
+
+    The token is checked as well as the address. `/healthz` is deliberately
+    unauthenticated, so a probe that stopped there would report a healthy
+    service to a deployment holding the wrong secret, and every session would
+    still be refused.
+    """
+    if not settings.SANDBOXD_URL:
+        return "unconfigured", "no SANDBOXD_URL - only the 'state' workspace is available"
+
+    import httpx
+
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            health = await client.get(f"{settings.SANDBOXD_URL.rstrip('/')}/healthz")
+            health.raise_for_status()
+            policy = await client.get(
+                f"{settings.SANDBOXD_URL.rstrip('/')}/policy",
+                headers={"X-Sandbox-Token": settings.SANDBOXD_TOKEN},
+            )
+    except Exception as exc:
+        return "unhealthy", f"{settings.SANDBOXD_URL} did not answer: {exc}"
+
+    if policy.status_code == 401:
+        return "unhealthy", "the service answered but refused SANDBOXD_TOKEN"
+    if policy.status_code != 200:
+        return "unhealthy", f"/policy answered {policy.status_code}"
+
+    runtimes = [entry["alias"] for entry in policy.json().get("runtimes", [])]
+    if not runtimes:
+        return "unhealthy", "the service allows no runtime, so no sandbox can start"
+    return "healthy", f"{len(runtimes)} runtime(s): {', '.join(sorted(runtimes))}"
+
+
 async def _run() -> int:
     failures = 0
     async with get_db_context() as db:
@@ -114,6 +155,9 @@ async def _run() -> int:
 
     status, detail = _vault_configured()
     failures += _report("vault", status, detail)
+
+    status, detail = await _sandbox_service()
+    failures += _report("sandbox service", status, detail)
 
     return failures
 

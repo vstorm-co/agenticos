@@ -43,6 +43,10 @@ services:
       - POSTGRES_HOST=db
       - REDIS_HOST=redis
       - PREFECT_API_URL=http://prefect-server:4200/api
+      # Empty outside compose, so a bare `uvicorn` run degrades to "no container
+      # workspace available" rather than erroring. Note what is absent here:
+      # no docker.sock, which is the whole point of the service below.
+      - SANDBOXD_URL=${SANDBOXD_URL-http://sandboxd:8080}
     # --ws websockets-sansio: uvicorn's `auto` picks the legacy websockets impl,
     # which is broken with websockets >=14 (handshake → HTTP 500). The sansio
     # implementation is the modern, compatible one. Required for the chat WS.
@@ -144,6 +148,45 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # The only service that holds the Docker socket, and the reason an agent can
+  # be given a container without this application ever having Docker access.
+  # Behind a profile so a host that will not have the socket mounted turns it
+  # off by editing one variable rather than deleting a service.
+  #
+  # The socket is an unauthenticated API for root on the host. Read-only does
+  # not help: the API alone is enough. So the service is never published, and
+  # its token is worth exactly as much as the socket is.
+  sandboxd:
+    image: ghcr.io/vstorm-co/sandboxd:0.2
+    container_name: agenticos_sandboxd
+    profiles: [sandbox]
+    environment:
+      SANDBOXD_TOKEN: ${SANDBOXD_TOKEN:?run `make sandbox-token` to generate one}
+      SANDBOXD_HOST: 0.0.0.0
+      SANDBOXD_PORT: "8080"
+      # Files survive an idle reaping; without it a conversation's workspace
+      # silently empties between turns and the agent references a file that is
+      # gone.
+      SANDBOXD_WORKSPACE_ROOT: /workspaces
+      SANDBOXD_PERSIST_CONTAINERS: "true"
+      # One organization cannot occupy the pool of the whole installation.
+      SANDBOXD_MAX_SESSIONS_PER_TENANT: "5"
+      SANDBOXD_NETWORK_MODE: none
+      # Its own dashboard asks a human to paste a root-equivalent token into a
+      # browser. AgenticOS proxies the same data behind its own authorization.
+      SANDBOXD_UI_ENABLED: "0"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - sandbox_workspaces:/workspaces
+    # Reaches the daemon by supplementary group rather than by running as root.
+    # `stat -c '%g' /var/run/docker.sock` on the host; 0 on Docker Desktop,
+    # where the socket is proxied and already reachable.
+    group_add:
+      - "${DOCKER_GID:-0}"
+    networks:
+      - backend
+    restart: unless-stopped
+
 networks:
   backend:
     # Named explicitly so the frontend compose file can join it as an external
@@ -153,6 +196,7 @@ networks:
 
 volumes:
   media_data:
+  sandbox_workspaces:
   postgres_data:
   redis_data:
   prefect_data:
