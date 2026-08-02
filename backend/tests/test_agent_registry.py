@@ -1471,3 +1471,53 @@ class TestAvatar:
 
         assert path == "/data/avatars/agents/x/logo.png"
         assert storage.get_full_path.call_args.args == ("avatars/agents/x/logo.png",)
+
+
+class TestWorkspaceConfigurationsRefusedAtPublish:
+    """The two a spec cannot judge for itself.
+
+    Both otherwise fail inside a conversation, where the author is no longer
+    looking at a form and the message reaches a user instead of them.
+    """
+
+    @pytest.mark.anyio
+    async def test_a_container_workspace_needs_a_sandbox_service(self, monkeypatch):
+        from app.core import config as config_module
+
+        monkeypatch.setattr(config_module.settings, "SANDBOXD_URL", "")
+        spec = _spec(capabilities=[{"id": "sandbox", "config": {"backend": "docker"}}])
+
+        with pytest.raises(BadRequestError) as refused:
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+        assert any("SANDBOXD_URL" in problem for problem in refused.value.details["problems"])
+
+    @pytest.mark.anyio
+    async def test_a_runtime_on_a_backend_with_no_container_is_refused(self):
+        """Silently ignoring it would leave an author believing they chose one."""
+        spec = _spec(
+            capabilities=[{"id": "sandbox", "config": {"backend": "state", "runtime": "python"}}]
+        )
+
+        with pytest.raises(BadRequestError) as refused:
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+        assert any(
+            "no runtime to choose" in problem for problem in refused.value.details["problems"]
+        )
+
+    @pytest.mark.anyio
+    async def test_a_per_user_workspace_publishes_and_is_judged_at_run_time(self, monkeypatch):
+        """Publishing cannot know which surfaces an agent will be reached from,
+        and a web-only agent with a per-user workspace is a good configuration.
+        """
+        profile = MagicMock(id=uuid.uuid4())
+        spec = _spec(
+            capabilities=[{"id": "sandbox", "config": {"session_scope": "user"}}],
+            model_profile_id=profile.id,
+        )
+
+        with patch(
+            f"{REGISTRY_PATH}.credential_repo.get_profile", new=AsyncMock(return_value=profile)
+        ):
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)

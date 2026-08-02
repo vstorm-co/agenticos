@@ -1239,3 +1239,68 @@ class TestTracingSecret:
             await service.prepare(ctx, agent.id)
 
         assert resolve_secrets.call_args.args[1] == [token_secret]
+
+
+class TestTheWorkspaceReachesTheAgent:
+    """The capability cannot open its own workspace, so the runner hands it one.
+
+    Opening reads the database - a stored document, the row saying which session
+    belongs to which conversation - and capabilities are built inside
+    `build_agent`, which holds no session. So the seam is `resources`, the same
+    way collection names travel, and if it breaks the agent silently gets a
+    scratch workspace that evaporates instead of the one holding its files.
+    """
+
+    @staticmethod
+    async def _prepare(spec):
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        opened = MagicMock(id=uuid.uuid4(), exposure_id=None)
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=opened),
+            ),
+            # The workspace row is the only database access `prepare` gained;
+            # everything else about the workspace is in-process.
+            patch(
+                "app.services.sandbox_workspace.workspace_repo.get_by_key",
+                new=AsyncMock(return_value=None),
+            ),
+            patch(
+                "app.services.sandbox_workspace.workspace_repo.create",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch("app.services.agent_runner.build_agent") as build,
+        ):
+            prepared = await service.prepare(_ctx(), agent.id, conversation_id=uuid.uuid4())
+
+        return prepared, build.call_args.kwargs["resources"]
+
+    @pytest.mark.anyio
+    async def test_a_workspace_backend_is_handed_to_the_capability(self):
+        spec = AgentSpec(name="Analyst", capabilities=[{"id": "sandbox", "config": {}}])
+
+        prepared, resources = await self._prepare(spec)
+
+        assert prepared.workspace is not None
+        assert resources["workspace_backend"] is prepared.workspace.backend
+
+    @pytest.mark.anyio
+    async def test_an_agent_without_one_is_handed_nothing(self):
+        """A resource key present-but-empty would make the capability build a
+        workspace it thinks is real."""
+        prepared, resources = await self._prepare(AgentSpec(name="Plain"))
+
+        assert prepared.workspace is None
+        assert "workspace_backend" not in resources
