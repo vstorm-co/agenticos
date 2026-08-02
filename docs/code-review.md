@@ -8,8 +8,19 @@ It is not a linter with a language model attached: the prompt in
 does an old stored spec still load. A reviewer that has not read those produces
 "consider adding error handling", and nobody needs that.
 
-It posts as a comment. It is **not** a required status check, and it never
-requests changes. A model does not block a human's merge.
+It posts as a comment. It is **not** a required status check and it never
+requests changes — but that does not mean it cannot hold up a merge, and the
+distinction is worth being precise about.
+
+`main`'s ruleset requires review threads to be resolved. An inline finding *is* a
+review thread, so a pull request with an unposted-to finding on it will not
+merge until somebody resolves the thread. That is deliberate: a finding you can
+dismiss by clicking merge is a finding nobody reads. What the reviewer cannot do
+is fail a check or request changes — the decision stays a human's, it just has
+to be made rather than skipped.
+
+(Found the hard way, on the first pull request to run under that ruleset: the
+reviewer left one comment and the merge button went grey.)
 
 ## When it runs
 
