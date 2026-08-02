@@ -86,6 +86,24 @@ updates:
         applies-to: version-updates
         patterns: ["*"]
         exclude-patterns: [next, react, react-dom, "@types/react", "@types/react-dom"]
+    # Two majors nothing here can accept yet, and a grouped pull request lands
+    # whole or not at all - so proposing either one holds every other frontend
+    # bump behind it. Both blockers are somebody else's peer range, not a
+    # setting we can change:
+    #
+    #   typescript-eslint  peers `typescript: >=4.8.4 <6.1.0`, and refuses to
+    #                      load against 7 outright
+    #   eslint-plugin-react  peers `eslint: ^3 ... ^9.7`, and calls a context
+    #                      API that 10 removed
+    #
+    # Both arrive through eslint-config-next, so neither can be pinned around.
+    # #109 tracks them, and says how to re-test; drop the entry that unblocks
+    # first rather than both at once.
+    ignore:
+      - dependency-name: typescript
+        versions: [">=7.0.0"]
+      - dependency-name: eslint
+        versions: [">=10.0.0"]
     cooldown:
       default-days: 7
 
