@@ -65,16 +65,22 @@ def custom_icon(name: str) -> Path | None:
     if not _ICON_NAME.fullmatch(name):
         return None
 
-    # Resolved and checked for containment, on top of the grammar above.
+    # Matched against the directory listing rather than concatenated onto it.
     #
-    # The grammar already makes traversal impossible, so this is belt and
-    # braces - but it is not decorative. `resolve()` follows symlinks, and an
-    # icons directory is a place an operator drops files into: a link named
-    # `brand.svg` pointing at `/etc/passwd` satisfies every rule above and is
-    # the one way bytes from outside this directory could be served. It also
-    # states the invariant in a form a reader - and a static analyser - can
-    # check without reasoning about a regular expression.
-    path = (ICONS_DIR / f"{name}.svg").resolve()
-    if not path.is_relative_to(ICONS_DIR.resolve()):
-        return None
-    return path if path.is_file() else None
+    # `ICONS_DIR / f"{name}.svg"` would be safe - the grammar above admits no
+    # dot and no slash - but it builds a path *out of* a request parameter, and
+    # nothing downstream can tell that by looking. Selecting from what is
+    # already there means the path this returns never derives from user input
+    # at all, which is a property a reader can check in one line instead of
+    # reasoning about a regular expression.
+    icons_dir = ICONS_DIR.resolve()
+    for candidate in icons_dir.glob("*.svg"):
+        if candidate.stem != name:
+            continue
+        # An icons directory is a place an operator drops files into, and
+        # `resolve()` follows symlinks: a link named `brand.svg` pointing at
+        # `/etc/passwd` passes every rule above and is the one way bytes from
+        # outside this directory could be served.
+        resolved = candidate.resolve()
+        return resolved if resolved.is_relative_to(icons_dir) else None
+    return None

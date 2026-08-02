@@ -52,6 +52,14 @@ class TestCustomIcons:
         (icons_dir / "acme.svg").write_text("<svg/>")
         assert catalog.custom_icon("acme") == icons_dir / "acme.svg"
 
+    def test_picks_the_asked_for_mark_out_of_several(self, icons_dir: Path):
+        """The lookup walks the directory rather than building a path, so it has
+        to pass over the marks it was not asked for."""
+        for stem in ("acme", "beta", "gamma"):
+            (icons_dir / f"{stem}.svg").write_text(f"<svg>{stem}</svg>")
+
+        assert catalog.custom_icon("gamma") == icons_dir / "gamma.svg"
+
     def test_a_missing_icon_resolves_to_none(self, icons_dir: Path):
         assert catalog.custom_icon("ghost") is None
 
