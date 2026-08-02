@@ -34,6 +34,14 @@ Deliberately **not** on `synchronize`. Two developers, a dozen pushes per pull
 request: a review on every one of them is a review nobody reads. Ask for a
 re-run when the fixes are in.
 
+"When the fixes are in" means **all of them**, not one at a time. Each run reads
+the whole diff and costs minutes and money, and the question it answers is "is
+this branch finished" — so ask it when you believe the branch is finished. It is
+fine to go round more than once: label, fix everything it found plus whatever
+reviewing your own work turns up, label again, until it comes back clean. What
+is not fine is a label per finding, which asks the same question of the same
+diff over and over.
+
 Re-running is the label, and there is no `/review` comment trigger — that is a
 security property, not an omission. `issue_comment` is a **privileged** event:
 it runs from the default branch *with secrets*, for a comment on any pull

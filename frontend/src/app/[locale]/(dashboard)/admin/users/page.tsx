@@ -28,6 +28,7 @@ import {
 import { useAdminUsers } from "@/hooks";
 import type { AdminUserRead } from "@/hooks/use-admin-users";
 import { cn, formatDate } from "@/lib/utils";
+import { useChanged } from "@/hooks/use-changed";
 
 const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
 type SortDir = "asc" | "desc";
@@ -53,12 +54,18 @@ export default function AdminUsersPage() {
     by: "created_at",
     dir: "desc",
   });
-  const [drawerUser, setDrawerUser] = useState<AdminUserRead | null>(null);
+  // The id, not the row. Holding the object meant it went stale the moment the
+  // list refetched, which an effect then copied back over - a second render
+  // every time, to arrive where deriving it gets in one.
+  const [drawerUserId, setDrawerUserId] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const drawerUser = users.find((u) => u.id === drawerUserId) ?? null;
 
-  useEffect(() => {
+  // Back to the first page whenever the filters move - see the conversations
+  // page for the same reasoning.
+  if (useChanged(`${search}|${pageSize}|${sort.by}|${sort.dir}`)) {
     setPage(0);
-  }, [search, pageSize, sort.by, sort.dir]);
+  }
 
   const load = useCallback(
     (pg: number, q: string, ps: number, sortBy: SortKey, sortDir: SortDir) => {
@@ -81,16 +88,8 @@ export default function AdminUsersPage() {
     return () => clearTimeout(timer);
   }, [load, page, search, pageSize, sort.by, sort.dir]);
 
-  // Keep the drawer's user object in sync with updates from the hook.
-  useEffect(() => {
-    if (drawerUser) {
-      const fresh = users.find((u) => u.id === drawerUser.id);
-      if (fresh && fresh !== drawerUser) setDrawerUser(fresh);
-    }
-  }, [users, drawerUser]);
-
   const handleOpenUser = useCallback((user: AdminUserRead) => {
-    setDrawerUser(user);
+    setDrawerUserId(user.id);
     setDrawerOpen(true);
   }, []);
 

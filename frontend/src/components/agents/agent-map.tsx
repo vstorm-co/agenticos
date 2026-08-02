@@ -74,8 +74,17 @@ export function AgentMap({ agentName, instructions, nodes }: AgentMapProps) {
   // the content's own coordinates, so the same transform carries them along
   // and nothing has to be re-measured while somebody drags.
   const [view, setView] = useState({ x: 0, y: 0, scale: 1 });
+  // Mirrored into a ref so `measure` can read the newest scale without listing
+  // `view` as a dependency - it does, and re-creating it would re-subscribe the
+  // ResizeObserver on every step of a pinch.
+  //
+  // Written in a layout effect rather than during render, and declared above
+  // the effect that calls `measure`: effects run in order, so the ref holds
+  // this render's scale by the time anything measures with it.
   const viewRef = useRef(view);
-  viewRef.current = view;
+  useLayoutEffect(() => {
+    viewRef.current = view;
+  }, [view]);
   const drag = useRef<{ pointerId: number; startX: number; startY: number } | null>(null);
 
   const measure = useCallback(() => {

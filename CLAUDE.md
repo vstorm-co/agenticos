@@ -343,3 +343,46 @@ Reverts 0f94fa4        with the reason it was reverted in the body
 
 `Closes` only when the change genuinely finishes it. A PR body opens with what
 changed and why, then how it was verified — and says plainly what is still red.
+
+### Ask the reviewer when you are done, not while you are working
+
+The `ai-review` label runs Codex over the whole diff: minutes of wall clock and
+real money every time. It answers "is this branch finished", so **ask it when
+you believe the branch is finished** — never once per commit, and never as the
+loop for working through its own findings one at a time.
+
+The cycle:
+
+1. The pull request opens and the reviewer runs on its own.
+2. Fix what it found, and keep going — read the surrounding files, sweep the
+   siblings of anything you changed, review your own diff as a maintainer would.
+   Subagents are good at this: give one the diff and a category to hunt in.
+3. When you are confident nothing is left, label it again.
+4. If it finds something, back to 2.
+
+Round-tripping until it comes back clean is right. Round-tripping *through* it,
+one finding per run, is not: the work between the labels is where most of the
+defects are actually found, and a reviewer that answers the same diff seven
+times has been asked the same question seven times.
+
+If the reviewer is wrong — and it is, sometimes; it does not always know what a
+file's surrounding code already does — say so in the commit body or the pull
+request, with the reason, rather than churning the code to silence it.
+
+### A bug you find is a bug you file
+
+**Every defect found along the way gets a GitHub issue** — `gh issue create`,
+straight away, whoever or whatever found it: the reviewer, a subagent, you
+reading a neighbouring file, a test that failed for the wrong reason.
+
+- **In scope for what you are doing?** Fix it in the same change, and the issue
+  is unnecessary — the commit body carries the story.
+- **Out of scope?** File it and keep going. Do not fold an unrelated fix into a
+  branch about something else, and do not drop it either. Mentioning a bug in a
+  pull request comment is not recording it: the comment is closed with the pull
+  request and the bug outlives both.
+
+An issue says what breaks, the sequence that triggers it, the `file:line`, and
+how you would know it was fixed. Say plainly whether the current branch caused
+it or merely found it — "pre-existing, found reviewing #105" is information the
+next reader needs. `#106` is the shape to copy.

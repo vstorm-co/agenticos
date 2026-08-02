@@ -127,7 +127,24 @@ export const qk = {
   },
   rag: {
     stats: () => ["rag", "stats"] as const,
-    collections: () => ["rag", "collections"] as const,
+    // Keyed on the organization. Collection names and document titles belong to
+    // one tenant, and a cache that outlived an org switch would paint the
+    // previous tenant's names onto the new one's page for as long as the
+    // refetch took - the names being the part worth not leaking.
+    collections: (orgId: string) => ["rag", "collections", orgId] as const,
+    documents: (orgId: string, collection: string) =>
+      ["rag", "documents", orgId, collection] as const,
+    // The sync tab, under one prefix so a mutation on any of it refreshes all
+    // of it: creating a source changes the source list, triggering a sync
+    // changes the history, and the two are read side by side.
+    sync: (orgId: string) => ["rag", "sync", orgId] as const,
+    syncSources: (orgId: string) => ["rag", "sync", orgId, "sources"] as const,
+    syncLogs: (orgId: string, collection: string) =>
+      ["rag", "sync", orgId, "logs", collection] as const,
+    connectors: (orgId: string) => ["rag", "sync", orgId, "connectors"] as const,
+    // Not keyed on the organization: what the deployment's parsers accept is a
+    // property of the deployment, the same answer for every tenant.
+    supportedFormats: () => ["rag", "supported-formats"] as const,
   },
   integrations: {
     all: () => ["integrations"] as const,
@@ -156,10 +173,19 @@ export const qk = {
     // discard a catalog that only changes on redeploy.
     catalog: () => ["mcp-servers", "catalog"] as const,
   },
+  sessions: {
+    // The namespace, for invalidating every page at once: a revocation shifts
+    // rows across all of them, so refreshing only the page on screen leaves
+    // revoked sessions cached on the others.
+    all: () => ["sessions"] as const,
+    list: (page: number) => ["sessions", "list", page] as const,
+  },
   admin: {
     stats: () => ["admin", "stats"] as const,
     events: () => ["admin", "events"] as const,
     users: (params?: unknown) => ["admin", "users", params] as const,
     conversations: (params?: unknown) => ["admin", "conversations", params] as const,
+    system: () => ["admin", "system"] as const,
+    ratings: (params?: unknown) => ["admin", "ratings", params] as const,
   },
 } as const;

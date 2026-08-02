@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -11,6 +11,7 @@ import { useOrganizations, usePermissions, useSpend } from "@/hooks";
 import { submitFailure } from "@/lib/api-error";
 import { Perm } from "@/types/permissions";
 import type { Organization } from "@/types";
+import { useChanged } from "@/hooks/use-changed";
 
 /** The field the server names in a refusal, so a message lands under the input. */
 const FIELD = "monthly_budget_usd";
@@ -53,9 +54,10 @@ function SpendingLimitForm({ org }: { org: Organization }) {
 
   // Re-seed when the stored value changes underneath - another tab, or the
   // request this form just made coming back with what the server settled on.
-  useEffect(() => {
+  // During render: an effect would show the old figure for a frame first.
+  if (useChanged(`${org.id}|${org.monthly_budget_usd}`)) {
     setValue(asInputValue(org.monthly_budget_usd));
-  }, [org.id, org.monthly_budget_usd]);
+  }
 
   const trimmed = value.trim();
   const parsed = trimmed === "" ? null : Number(trimmed);

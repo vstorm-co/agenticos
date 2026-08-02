@@ -13,6 +13,7 @@ import {
 } from "./dialog";
 import { Input } from "./input";
 import { Label } from "./label";
+import { useChanged } from "@/hooks/use-changed";
 
 export interface ConfirmDialogProps {
   open: boolean;
@@ -52,9 +53,9 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   const [typed, setTyped] = React.useState("");
 
-  React.useEffect(() => {
-    if (!open) setTyped("");
-  }, [open]);
+  // Cleared as the dialog closes, during render rather than in an effect: an
+  // effect commits the typed value once more before clearing it.
+  if (useChanged(open) && !open) setTyped("");
 
   const canConfirm = !loading && (!confirmText || typed.trim() === confirmText);
 

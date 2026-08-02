@@ -1,12 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { AlertCircle, CheckCircle2, Cpu, Database, HardDrive, RefreshCw, Zap } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { LoadingState } from "@/components/states";
 import { Button } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
+import { qk } from "@/lib/query-keys";
 import { cn, getErrorMessage } from "@/lib/utils";
 
 /**
@@ -63,32 +65,24 @@ const STATUS_TEXT: Record<CheckStatus, string> = {
 };
 
 export default function SystemHealthPage() {
-  const [health, setHealth] = useState<SystemHealth | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [auto, setAuto] = useState(true);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      setHealth(await apiClient.get<SystemHealth>("/admin/system"));
-    } catch (err) {
-      setError(getErrorMessage(err, "Failed to fetch health"));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Through the query layer, where server data belongs. `refetchInterval` is
+  // the auto-refresh the second effect hand-rolled with `setInterval`, and it
+  // stops while the tab is hidden - which the interval did not, so a backgrounded
+  // dashboard was polling the health endpoint every thirty seconds all day.
+  const {
+    data: health = null,
+    isPending: loading,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: qk.admin.system(),
+    queryFn: () => apiClient.get<SystemHealth>("/admin/system"),
+    refetchInterval: auto ? REFRESH_INTERVAL_MS : false,
+  });
 
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  useEffect(() => {
-    if (!auto) return;
-    const id = window.setInterval(load, REFRESH_INTERVAL_MS);
-    return () => window.clearInterval(id);
-  }, [auto, load]);
+  const load = () => void refetch();
 
   const checks = health?.checks ?? [];
 
@@ -170,7 +164,9 @@ export default function SystemHealthPage() {
         <div className="border-border bg-card rounded-xl border p-8 text-center">
           <AlertCircle className="text-destructive mx-auto h-6 w-6" />
           <p className="text-foreground mt-3 text-sm font-medium">Couldn&apos;t fetch health</p>
-          <p className="text-muted-foreground mt-1 text-xs">{error}</p>
+          <p className="text-muted-foreground mt-1 text-xs">
+            {getErrorMessage(error, "Failed to fetch health")}
+          </p>
         </div>
       ) : (
         <section className="border-border bg-card rounded-xl border">

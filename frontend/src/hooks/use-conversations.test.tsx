@@ -6,7 +6,7 @@ import { toast } from "sonner";
 
 import { useConversations } from "./use-conversations";
 import { apiClient } from "@/lib/api-client";
-import { useAgentSelectionStore, useChatStore, useConversationStore } from "@/stores";
+import { useAgentSelectionStore, useAuthStore, useChatStore, useConversationStore } from "@/stores";
 
 vi.mock("@/lib/api-client", () => ({
   apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
@@ -161,6 +161,35 @@ describe("the conversation list", () => {
     expect(result.current.conversations).toHaveLength(30);
   });
 
+  it("drops a next page that arrives after somebody else has signed in", async () => {
+    // Writing the cache is not the same as reading it: the sign-in that emptied
+    // it has already happened, so this would put one page of A's titles back
+    // under the key B is reading.
+    useAuthStore.getState().setUser({ id: "u-a", email: "a@example.com" } as never);
+    serve({ items: Array.from({ length: 30 }, (_, index) => conversation(`c-${index}`)) });
+    const result = await hook();
+
+    let answer: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.get).mockImplementation(() => new Promise((resolve) => (answer = resolve)));
+    let loading: Promise<void>;
+    await act(async () => {
+      loading = result.current.fetchMoreConversations();
+      await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(2));
+    });
+
+    await act(async () => {
+      useAuthStore.getState().setUser({ id: "u-b", email: "b@example.com" } as never);
+      answer({ items: [conversation("c-private")], total: 31 });
+      await loading!;
+    });
+
+    expect(result.current.conversations.map((c) => c.id)).not.toContain("c-private");
+    // And the pagination the page answered with. `writeCache` holds the list on
+    // its own; this is the other half, and it is the reason the early return is
+    // there rather than only the guard inside the write.
+    expect(result.current.hasMore).toBe(true);
+  });
+
   it("refreshes the list on demand", async () => {
     const result = await hook();
 
@@ -201,6 +230,65 @@ describe("the conversation named in the address bar", () => {
     });
 
     expect(useConversationStore.getState().currentConversationId).toBeNull();
+  });
+
+  it("drops a linked thread that arrives after somebody else has signed in", async () => {
+    // Same race as a select, through the other door: the address bar's `?id=`
+    // is read on every refresh, and its request can outlive the session too.
+    window.history.replaceState({}, "", "/chat?id=c-9");
+    useAuthStore.getState().setUser({ id: "u-a", email: "a@example.com" } as never);
+    const result = await hook();
+    let answer: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path.includes("/messages")) return new Promise((resolve) => (answer = resolve));
+      return { items: [], total: 0 };
+    });
+
+    let fetching: Promise<void>;
+    await act(async () => {
+      fetching = result.current.fetchConversations();
+      await waitFor(() =>
+        expect(apiClient.get).toHaveBeenCalledWith("/conversations/c-9/messages"),
+      );
+    });
+
+    await act(async () => {
+      useAuthStore.getState().setUser({ id: "u-b", email: "b@example.com" } as never);
+      answer({ items: [{ id: "m-private" }], total: 1 });
+      await fetching!;
+    });
+
+    expect(useConversationStore.getState().currentMessages).toEqual([]);
+  });
+
+  it("keeps a refusal meant for one account out of the next one's screen", async () => {
+    // The failure belongs to whoever asked. A late 404 for A's link used to
+    // clear the conversation B had open by then.
+    window.history.replaceState({}, "", "/chat?id=c-9");
+    useAuthStore.getState().setUser({ id: "u-a", email: "a@example.com" } as never);
+    const result = await hook();
+    let refuse: (reason: unknown) => void = () => {};
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path.includes("/messages")) return new Promise((_, reject) => (refuse = reject));
+      return { items: [], total: 0 };
+    });
+
+    let fetching: Promise<void>;
+    await act(async () => {
+      fetching = result.current.fetchConversations();
+      await waitFor(() =>
+        expect(apiClient.get).toHaveBeenCalledWith("/conversations/c-9/messages"),
+      );
+    });
+
+    await act(async () => {
+      useAuthStore.getState().setUser({ id: "u-b", email: "b@example.com" } as never);
+      useConversationStore.getState().setCurrentConversationId("c-b");
+      refuse(new Error("404"));
+      await fetching!;
+    });
+
+    expect(useConversationStore.getState().currentConversationId).toBe("c-b");
   });
 
   it("does not re-read the messages of the conversation already open", async () => {
@@ -281,6 +369,56 @@ describe("opening a conversation", () => {
     expect(useConversationStore.getState().currentMessages).toEqual([{ id: "m-2" }]);
   });
 
+  it("drops messages that arrive after somebody else has signed in", async () => {
+    // The abort controller settles two selects by the same person. It does not
+    // settle a request that outlives the session: A opens a thread, signs out,
+    // B signs in, and A's messages land in B's chat.
+    useAuthStore.getState().setUser({ id: "u-a", email: "a@example.com" } as never);
+    const result = await hook();
+    let answer: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.get).mockImplementation(() => new Promise((resolve) => (answer = resolve)));
+
+    let selecting: Promise<void>;
+    await act(async () => {
+      selecting = result.current.selectConversation("c-1");
+      await waitFor(() => expect(answer).not.toBe(undefined));
+    });
+
+    await act(async () => {
+      useAuthStore.getState().setUser({ id: "u-b", email: "b@example.com" } as never);
+      answer({ items: [{ id: "m-private" }], total: 1 });
+      await selecting!;
+    });
+
+    expect(useConversationStore.getState().currentMessages).toEqual([]);
+  });
+
+  it("keeps a failed select from writing an error onto the next account's screen", async () => {
+    // The matrix cell the other tests miss: select *fails*, and the account has
+    // changed by the time it does. The refusal was A's; B is looking at the
+    // chat that shows it.
+    useAuthStore.getState().setUser({ id: "u-a", email: "a@example.com" } as never);
+    const result = await hook();
+    let refuse: (reason: unknown) => void = () => {};
+    vi.mocked(apiClient.get).mockImplementation(
+      () => new Promise((_, reject) => (refuse = reject)),
+    );
+
+    let selecting: Promise<void>;
+    await act(async () => {
+      selecting = result.current.selectConversation("c-1");
+      await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(2));
+    });
+
+    await act(async () => {
+      useAuthStore.getState().setUser({ id: "u-b", email: "b@example.com" } as never);
+      refuse(new Error("boom"));
+      await selecting!;
+    });
+
+    expect(useConversationStore.getState().error).toBeNull();
+  });
+
   it("says nothing about an aborted request, because it was not a failure", async () => {
     const result = await hook();
     vi.mocked(apiClient.get).mockRejectedValue(
@@ -359,6 +497,9 @@ describe("creating, renaming and removing a conversation", () => {
   });
 
   it("archives and restores in place, so the row moves tab without a refetch", async () => {
+    // Two rows, so the `map`'s other branch is taken: a patch that returned a
+    // whole new list, or one that touched every row, would pass against one.
+    serve({ items: [conversation("c-1"), conversation("c-2")] });
     const result = await hook();
 
     await act(async () => {
@@ -366,6 +507,7 @@ describe("creating, renaming and removing a conversation", () => {
     });
     expect(apiClient.patch).toHaveBeenCalledWith("/conversations/c-1", { is_archived: true });
     await waitFor(() => expect(result.current.conversations[0]?.is_archived).toBe(true));
+    expect(result.current.conversations[1]?.is_archived).toBe(false);
 
     await act(async () => {
       await result.current.unarchiveConversation("c-1");
@@ -389,7 +531,8 @@ describe("creating, renaming and removing a conversation", () => {
     expect(toast.error).toHaveBeenCalledWith("Failed to restore conversation");
   });
 
-  it("renames in place", async () => {
+  it("renames in place, and leaves the others alone", async () => {
+    serve({ items: [conversation("c-1"), conversation("c-2")] });
     const result = await hook();
 
     await act(async () => {
@@ -398,6 +541,7 @@ describe("creating, renaming and removing a conversation", () => {
 
     expect(apiClient.patch).toHaveBeenCalledWith("/conversations/c-1", { title: "Refund policy" });
     await waitFor(() => expect(result.current.conversations[0]?.title).toBe("Refund policy"));
+    expect(result.current.conversations[1]?.title).toBe("Conversation c-2");
   });
 
   it("reports a refused rename", async () => {
@@ -445,6 +589,39 @@ describe("creating, renaming and removing a conversation", () => {
     });
 
     expect(toast.error).toHaveBeenCalledWith("Failed to delete conversation");
+  });
+});
+
+describe("a request that outlives the account that made it", () => {
+  it("keeps a conversation created by one account out of the next one's list", async () => {
+    // The one write that adds a row rather than mapping over the rows already
+    // there, so it is the one that can put A's conversation in B's sidebar.
+    useAuthStore.getState().setUser({ id: "u-a", email: "a@example.com" } as never);
+    const result = await hook();
+
+    let answer: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.post).mockImplementation(
+      () => new Promise((resolve) => (answer = resolve)),
+    );
+    let creating: Promise<unknown>;
+    await act(async () => {
+      creating = result.current.createConversation("A's thread");
+      await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+    });
+
+    await act(async () => {
+      useAuthStore.getState().setUser({ id: "u-b", email: "b@example.com" } as never);
+      answer({
+        id: "c-private",
+        title: "A's thread",
+        created_at: "2026-07-01T00:00:00Z",
+        updated_at: null,
+        is_archived: false,
+      });
+      await creating!;
+    });
+
+    expect(result.current.conversations.map((c) => c.id)).not.toContain("c-private");
   });
 });
 

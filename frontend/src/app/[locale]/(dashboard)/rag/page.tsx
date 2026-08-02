@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks";
@@ -58,14 +59,15 @@ import {
   type RAGCollectionInfo,
   type RAGTrackedDocument,
   type RAGSearchResult,
-  type RAGSyncLog,
-  type SyncSourceRead,
   type SyncSourceCreate,
-  type ConnectorInfo,
 } from "@/lib/rag-api";
 import { DragDropOverlay } from "@/components/rag/drag-drop-overlay";
 import { SyncSourceWizard } from "@/components/rag/sync-source-wizard";
 import { apiClient } from "@/lib/api-client";
+import { qk } from "@/lib/query-keys";
+import { ErrorState } from "@/components/states";
+import { useChanged } from "@/hooks/use-changed";
+import { useOrgStore } from "@/stores";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { usePollWhileIngesting } from "@/hooks";
 
@@ -89,6 +91,21 @@ function StatusIcon({ status }: { status: string }) {
   );
 }
 
+/**
+ * Whether the organization the caller started in is still the active one.
+ *
+ * Clearing this page's state as the organization changes is not enough on its
+ * own: a request in flight across the switch resolves afterwards and writes the
+ * previous tenant's rows straight back into the state that was just emptied.
+ * Every imperative fetch below checks before it writes. Read from the store
+ * rather than from a render, so the fetchers that call it can stay stable.
+ */
+function stillCurrent(startedIn: string): boolean {
+  return (useOrgStore.getState().activeOrgId ?? "") === startedIn;
+}
+
+const DEFAULT_FORMATS = [".pdf", ".docx", ".txt", ".md"];
+
 export default function RAGPage() {
   const { user } = useAuth();
   const router = useRouter();
@@ -99,13 +116,16 @@ export default function RAGPage() {
     }
   }, [user, router]);
 
-  const [collections, setCollections] = useState<CollectionWithInfo[]>([]);
-  const [selected, setSelected] = useState<string>("");
-  const [docs, setDocs] = useState<RAGTrackedDocument[]>([]);
+  // The collection the user picked, falling back to the first one the server
+  // returned. Derived rather than written back after the fetch: the effect that
+  // did that ran a second render pass, and it could only default once - a
+  // collection list arriving after a failed first load left the page with
+  // nothing selected and no way to notice.
+  const queryClient = useQueryClient();
+  const orgId = useOrgStore((state) => state.activeOrgId) ?? "";
+  const [chosen, setChosen] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<RAGSearchResult[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [docsLoading, setDocsLoading] = useState(false);
   const [searching, setSearching] = useState(false);
   const [searchDone, setSearchDone] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -130,90 +150,102 @@ export default function RAGPage() {
     else url.searchParams.set("tab", t);
     window.history.replaceState({}, "", url.toString());
   };
-  const [syncLogs, setSyncLogs] = useState<RAGSyncLog[]>([]);
-  const [syncLogsLoading, setSyncLogsLoading] = useState(false);
-  const [syncSources, setSyncSources] = useState<SyncSourceRead[]>([]);
-  const [syncSourcesLoading, setSyncSourcesLoading] = useState(false);
-  const [connectors, setConnectors] = useState<ConnectorInfo[]>([]);
   const [addSourceOpen, setAddSourceOpen] = useState(false);
   const [addSourceSubmitting, setAddSourceSubmitting] = useState(false);
-  const [supportedFormats, setSupportedFormats] = useState<string[]>([
-    ".pdf",
-    ".docx",
-    ".txt",
-    ".md",
-  ]);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const fetchCollections = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await listCollections();
-      const items: CollectionWithInfo[] = [];
-      for (const name of data.items) {
-        try {
-          items.push({ name, info: await getCollectionInfo(name) });
-        } catch {
-          items.push({ name, info: null });
+  // Server data through the query layer, which is where `.claude/rules/frontend.md`
+  // says it lives. Both fetchers set their loading flag synchronously before
+  // the first await, so an effect calling either of them wrote state during the
+  // effect and forced a cascading render.
+  const {
+    data: collections = [],
+    isPending: loading,
+    refetch: refetchCollections,
+  } = useQuery({
+    queryKey: qk.rag.collections(orgId),
+    // One toast, so the failure is visible on a page whose empty state cannot
+    // tell "no collections" from "the request failed" - and no retry, so it
+    // stays one.
+    retry: false,
+    queryFn: async (): Promise<CollectionWithInfo[]> => {
+      try {
+        const data = await listCollections();
+        const items: CollectionWithInfo[] = [];
+        for (const name of data.items) {
+          try {
+            items.push({ name, info: await getCollectionInfo(name) });
+          } catch {
+            items.push({ name, info: null });
+          }
         }
+        return items;
+      } catch (err) {
+        toast.error("Failed to load collections");
+        throw err;
       }
-      setCollections(items);
-      setSelected((prev) => (items.length > 0 && !prev ? (items[0]?.name ?? "") : prev));
-    } catch {
-      toast.error("Failed to load collections");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    },
+  });
 
-  const fetchDocs = useCallback(async (col: string) => {
-    if (!col) {
-      setDocs([]);
-      return;
-    }
-    setDocsLoading(true);
-    try {
-      const data = await listTrackedDocuments(col);
-      setDocs(data.items || []);
-    } catch {
-      setDocs([]);
-    } finally {
-      setDocsLoading(false);
-    }
-  }, []);
+  const selected = chosen || collections[0]?.name || "";
 
-  const fetchSyncLogs = async () => {
-    setSyncLogsLoading(true);
-    try {
-      const data = await listSyncLogs(selected || undefined);
-      setSyncLogs(data.items || []);
-    } catch {
-      setSyncLogs([]);
-    } finally {
-      setSyncLogsLoading(false);
-    }
-  };
+  // The collection the user picked does not exist in the next organization, and
+  // neither do the results of a search inside it. Everything else the page
+  // holds is a query keyed on the organization, so it answers for itself.
+  if (useChanged(orgId)) {
+    setChosen("");
+    setSearchResults([]);
+    setSearchDone(false);
+  }
 
-  const fetchSyncSources = async () => {
-    setSyncSourcesLoading(true);
-    try {
-      const data = await listSyncSources();
-      setSyncSources(data.items || []);
-    } catch {
-      setSyncSources([]);
-    } finally {
-      setSyncSourcesLoading(false);
-    }
-  };
+  const {
+    data: docs = [],
+    isPending: docsPending,
+    error: docsError,
+    refetch: refetchDocs,
+  } = useQuery({
+    queryKey: qk.rag.documents(orgId, selected),
+    queryFn: () => listTrackedDocuments(selected).then((d) => d.items || []),
+    enabled: Boolean(selected),
+  });
+  const docsLoading = Boolean(selected) && docsPending;
 
-  const fetchConnectors = async () => {
-    try {
-      const data = await listConnectors();
-      setConnectors(data.items || []);
-    } catch {
-      setConnectors([]);
-    }
-  };
+  const { data: supportedFormats = DEFAULT_FORMATS } = useQuery({
+    queryKey: qk.rag.supportedFormats(),
+    queryFn: () => apiClient.get<{ formats: string[] }>("/rag/supported-formats"),
+    select: (data) => data.formats,
+  });
+
+  // The sync tab, through the query layer like everything else on this page.
+  // These were three imperative fetchers writing their own loading flags before
+  // their first await, loaded from the tab's `onClick` alone - so switching
+  // organization while already on the tab left all three lists showing the
+  // previous tenant's rows, and clearing them left the tab blank until the user
+  // clicked away and back. Keyed on the organization and enabled by the tab,
+  // both answer themselves.
+  const syncEnabled = tab === "sync";
+
+  const { data: syncSources = [], isPending: syncSourcesPending } = useQuery({
+    queryKey: qk.rag.syncSources(orgId),
+    queryFn: () => listSyncSources().then((d) => d.items || []),
+    enabled: syncEnabled,
+  });
+  const syncSourcesLoading = syncEnabled && syncSourcesPending;
+
+  const { data: syncLogs = [], isPending: syncLogsPending } = useQuery({
+    queryKey: qk.rag.syncLogs(orgId, selected),
+    queryFn: () => listSyncLogs(selected || undefined).then((d) => d.items || []),
+    enabled: syncEnabled,
+  });
+  const syncLogsLoading = syncEnabled && syncLogsPending;
+
+  const { data: connectors = [] } = useQuery({
+    queryKey: qk.rag.connectors(orgId),
+    queryFn: () => listConnectors().then((d) => d.items || []),
+    enabled: syncEnabled,
+  });
+
+  const refreshSync = () => void queryClient.invalidateQueries({ queryKey: qk.rag.sync(orgId) });
 
   const handleAddSource = async (data: SyncSourceCreate) => {
     if (!data.name || !data.connector_type || !data.collection_name) {
@@ -225,7 +257,7 @@ export default function RAGPage() {
       await createSyncSource(data);
       toast.success(`Source "${data.name}" created`);
       setAddSourceOpen(false);
-      fetchSyncSources();
+      refreshSync();
     } catch (err) {
       toast.error(getErrorMessage(err, "Failed to create source"));
     } finally {
@@ -237,7 +269,7 @@ export default function RAGPage() {
     try {
       await deleteSyncSource(sourceId);
       toast.success("Source deleted");
-      setSyncSources((prev) => prev.filter((s) => s.id !== sourceId));
+      refreshSync();
     } catch {
       toast.error("Failed to delete source");
     }
@@ -247,47 +279,38 @@ export default function RAGPage() {
     try {
       await triggerSyncSource(sourceId);
       toast.success("Sync triggered");
-      fetchSyncLogs();
-      fetchSyncSources();
+      refreshSync();
     } catch {
       toast.error("Failed to trigger sync");
     }
   };
 
-  useEffect(() => {
-    fetchCollections();
-    apiClient
-      .get<{ formats: string[] }>("/rag/supported-formats")
-      .then((data) => {
-        if (data?.formats) setSupportedFormats(data.formats);
-      })
-      .catch(() => {});
-  }, [fetchCollections]);
-  useEffect(() => {
-    if (selected) fetchDocs(selected);
-  }, [selected, fetchDocs]);
-
-  usePollWhileIngesting(docs, () => fetchDocs(selected));
+  usePollWhileIngesting(docs, () => void refetchDocs());
 
   // A finished ingest changes the collection's vector count, so refresh the
   // sidebar once the last document settles rather than on every poll tick.
   const wasIngestingRef = useRef(false);
   useEffect(() => {
     const ingesting = docs.some((d) => d.status === "processing");
-    if (wasIngestingRef.current && !ingesting) fetchCollections();
+    if (wasIngestingRef.current && !ingesting) void refetchCollections();
     wasIngestingRef.current = ingesting;
-  }, [docs, fetchCollections]);
+  }, [docs, refetchCollections]);
 
   const handleCreate = async () => {
     const name = newName.trim().toLowerCase().replace(/\s+/g, "_");
     if (!name) return;
+    const startedIn = orgId;
     try {
       await createCollection(name);
       toast.success(`"${name}" created`);
       setNewName("");
       setShowCreate(false);
-      await fetchCollections();
-      setSelected(name);
+      // The collection was created in the organization the request started in;
+      // selecting it after a switch would point the page at a collection the
+      // active tenant does not have.
+      if (!stillCurrent(startedIn)) return;
+      await refetchCollections();
+      if (stillCurrent(startedIn)) setChosen(name);
     } catch {
       toast.error("Failed to create collection");
     }
@@ -297,10 +320,12 @@ export default function RAGPage() {
     try {
       await deleteCollection(name);
       toast.success(`"${name}" deleted`);
-      setCollections((prev) => prev.filter((c) => c.name !== name));
+      queryClient.setQueryData<CollectionWithInfo[]>(qk.rag.collections(orgId), (prev = []) =>
+        prev.filter((c) => c.name !== name),
+      );
       if (selected === name) {
-        setSelected("");
-        setDocs([]);
+        setChosen("");
+        queryClient.removeQueries({ queryKey: qk.rag.documents(orgId, name) });
         setSearchResults([]);
       }
     } catch {
@@ -312,8 +337,11 @@ export default function RAGPage() {
     try {
       await deleteTrackedDocument(docId);
       toast.success("Document deleted");
-      setDocs((prev) => prev.filter((d) => d.id !== docId));
-      fetchCollections();
+      queryClient.setQueryData<RAGTrackedDocument[]>(
+        qk.rag.documents(orgId, selected),
+        (prev = []) => prev.filter((d) => d.id !== docId),
+      );
+      void refetchCollections();
     } catch {
       toast.error("Failed to delete");
     }
@@ -362,10 +390,10 @@ export default function RAGPage() {
         );
       }
 
-      await fetchDocs(selected);
-      await fetchCollections();
+      await refetchDocs();
+      await refetchCollections();
     },
-    [selected, supportedFormats, fetchDocs, fetchCollections],
+    [selected, supportedFormats, refetchDocs, refetchCollections],
   );
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -388,6 +416,7 @@ export default function RAGPage() {
 
   const handleSearch = async () => {
     if (!searchQuery.trim() || !selected) return;
+    const startedIn = orgId;
     setSearching(true);
     try {
       const data = await searchDocuments({
@@ -395,6 +424,7 @@ export default function RAGPage() {
         collection_name: selected,
         limit: 10,
       });
+      if (!stillCurrent(startedIn)) return;
       setSearchResults(data.results);
       setSearchDone(true);
     } catch {
@@ -457,7 +487,7 @@ export default function RAGPage() {
               <Select
                 value={selected}
                 onValueChange={(v) => {
-                  setSelected(v);
+                  setChosen(v);
                   setSearchResults([]);
                   setSearchDone(false);
                   setTab("documents");
@@ -607,14 +637,7 @@ export default function RAGPage() {
             {tabs.map((t) => (
               <button
                 key={t.key}
-                onClick={() => {
-                  if (t.key === "sync") {
-                    fetchSyncSources();
-                    fetchConnectors();
-                    if (syncLogs.length === 0 && !syncLogsLoading) fetchSyncLogs();
-                  }
-                  setTab(t.key);
-                }}
+                onClick={() => setTab(t.key)}
                 className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
                   tab === t.key
                     ? "border-foreground text-foreground"
@@ -633,6 +656,15 @@ export default function RAGPage() {
                   <Skeleton key={i} className="h-16 w-full rounded-xl" />
                 ))}
               </div>
+            ) : docsError ? (
+              // Not the empty state: "this collection holds nothing" and "the
+              // request answered 502" are the same pixels, and only one of them
+              // is worth offering an upload button for.
+              <ErrorState
+                title="Couldn't load the documents"
+                description={getErrorMessage(docsError, "The document list request failed.")}
+                cta={{ label: "Try again", onClick: () => void refetchDocs() }}
+              />
             ) : docs.length === 0 ? (
               <div className="border-border bg-card flex flex-col items-center justify-center rounded-xl border py-16 text-center">
                 <FileText className="text-muted-foreground mb-3 h-8 w-8" />
@@ -817,7 +849,6 @@ export default function RAGPage() {
                     className="rounded-xl"
                     onClick={() => {
                       setAddSourceOpen(true);
-                      if (connectors.length === 0) fetchConnectors();
                     }}
                   >
                     <Plus className="mr-1 h-3.5 w-3.5" /> Add source
@@ -966,7 +997,7 @@ export default function RAGPage() {
                                   try {
                                     await cancelSync(log.id);
                                     toast.success("Sync cancelled");
-                                    fetchSyncLogs();
+                                    refreshSync();
                                   } catch {
                                     toast.error("Failed to cancel");
                                   }

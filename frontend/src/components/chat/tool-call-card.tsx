@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState, type MouseEvent } from "react";
+import { useMemo, useState, type MouseEvent } from "react";
 import { Card, CardContent, Button } from "@/components/ui";
 import type { ToolCall } from "@/types";
 import {
@@ -27,6 +27,7 @@ import { AskUserResult } from "./tool-results/ask-user";
 import { GenericToolResult, RawToolView } from "./tool-results/generic";
 import { RunPythonResult } from "./tool-results/run-python";
 import { FetchUrlResult } from "./tool-results/fetch-url";
+import { useChanged } from "@/hooks/use-changed";
 
 interface ToolCallCardProps {
   toolCall: ToolCall;
@@ -94,11 +95,10 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
     [toolCall.name, toolCall.status, toolCall.result],
   );
   const isChart = chartSpec !== null;
-  // A chart that finishes after this card mounted (live streaming) won't
-  // have triggered the initial-state default - expand it on transition.
-  useEffect(() => {
-    if (isChart) setExpanded(true);
-  }, [isChart]);
+  // A chart that finishes after this card mounted (live streaming) won't have
+  // triggered the initial-state default - expand it on the transition. During
+  // render, so the collapsed card is not shown for a frame first.
+  if (useChanged(isChart) && isChart) setExpanded(true);
 
   const hasSpecialRenderer =
     isDateTime || isRAGSearch || isWebSearch || isAskUser || isFetch || isChart || isRunPython;

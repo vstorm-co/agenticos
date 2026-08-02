@@ -5,13 +5,20 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import { Spinner } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
-import { useAuthStore } from "@/stores";
+import { useAdoptSession } from "@/hooks/use-auth";
 import type { User } from "@/types";
 
 export default function AuthCallbackPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [error, setError] = useState<string | null>(null);
+  // Two sources, one derived value. What the provider sent is already in the
+  // URL and needs no state at all; the exchange failing later does, but only as
+  // a flag - keeping the message here means neither is written from an effect
+  // synchronously, and the URL case is shown a render earlier than it was.
+  const [exchangeFailed, setExchangeFailed] = useState(false);
+  const error = searchParams.get("error") ?? (exchangeFailed ? "Sign-in failed" : null);
+
+  const adoptSession = useAdoptSession();
 
   useEffect(() => {
     const accessToken = searchParams.get("access_token");
@@ -19,7 +26,6 @@ export default function AuthCallbackPage() {
     const errParam = searchParams.get("error");
 
     if (errParam) {
-      setError(errParam);
       const t = setTimeout(
         () => router.replace(`/login?error=${encodeURIComponent(errParam)}`),
         1500,
@@ -39,12 +45,11 @@ export default function AuthCallbackPage() {
           { access_token: accessToken, refresh_token: refreshToken },
         );
         if (cancelled) return;
-        useAuthStore.getState().setUser(data.user);
-        useAuthStore.getState().setAccessToken(data.access_token);
+        adoptSession(data.user, data.access_token);
         router.replace("/dashboard");
       } catch {
         if (!cancelled) {
-          setError("Sign-in failed");
+          setExchangeFailed(true);
           router.replace("/login?error=oauth_failed");
         }
       }
@@ -52,7 +57,7 @@ export default function AuthCallbackPage() {
     return () => {
       cancelled = true;
     };
-  }, [router, searchParams]);
+  }, [router, searchParams, adoptSession]);
 
   return (
     <div className="flex min-h-[50vh] items-center justify-center">

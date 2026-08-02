@@ -19,6 +19,7 @@ import {
 } from "@/components/ui";
 import { useOrganizations } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
+import { useChanged } from "@/hooks/use-changed";
 
 /** How many workspaces the account belongs to, in words rather than a bare digit. */
 function storedCount(count: number): string {
@@ -55,13 +56,18 @@ export default function OrgsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  // `?create=1` opens the dialog. Read during render rather than written from
+  // an effect: it is a value the URL already carries, not a thing to sync.
+  if (useChanged(searchParams.get("create")) && searchParams.get("create") === "1") {
+    setCreateOpen(true);
+  }
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
       await fetchOrgs();
       if (!cancelled) setIsLoading(false);
     })();
-    if (searchParams.get("create") === "1") setCreateOpen(true);
     return () => {
       cancelled = true;
     };

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
  * Refresh a document list while the worker is still ingesting into it.
@@ -42,6 +42,14 @@ export function usePollWhileIngesting(
 ): void {
   const delayRef = useRef(POLL_MIN_MS);
   const signatureRef = useRef("");
+  // Each poll bumps this, and the effect below depends on it, which is what
+  // arms the next one. The schedule cannot key on the identity of `documents`:
+  // a caller holding its list in React Query gets the *same* array back when a
+  // poll finds nothing changed - structural sharing is the point of it - so the
+  // effect never re-ran and a document stuck at `processing` was polled exactly
+  // once. A caller holding it in `useState` happened to survive that, because
+  // `setDocuments(data.items)` builds a fresh array every time.
+  const [polls, setPolls] = useState(0);
 
   // The poll schedule depends on the documents and on nothing else. Holding the
   // callback in a ref keeps it out of the effect's dependencies, so a caller
@@ -70,7 +78,8 @@ export function usePollWhileIngesting(
     const timeout = setTimeout(() => {
       delayRef.current = Math.min(Math.round(delayRef.current * POLL_FACTOR), POLL_MAX_MS);
       refreshRef.current();
+      setPolls((count) => count + 1);
     }, delayRef.current);
     return () => clearTimeout(timeout);
-  }, [documents]);
+  }, [documents, polls]);
 }

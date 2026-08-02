@@ -1,4 +1,5 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render as renderBare, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -13,6 +14,24 @@ vi.mock("@/lib/api-client", async () => {
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const PAGE_SIZE = 5;
+
+/**
+ * The component reads its sessions through the query layer now, so it needs a
+ * client. A fresh one per render, with retries off: a test that retries a
+ * deliberate failure three times is a test that takes three seconds to say the
+ * same thing.
+ *
+ * `staleTime` matches `src/app/providers.tsx`, and it is load-bearing. At the
+ * library default of 0 every remount refetches, so a page served from cache
+ * looks identical to a page that was invalidated - and a test written against
+ * that harness passes whether or not the invalidation it is checking exists.
+ */
+function render(ui: React.ReactElement) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: 5 * 60 * 1000 } },
+  });
+  return renderBare(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+}
 
 function session(n: number): Session {
   return {
@@ -44,6 +63,14 @@ function server(count: number) {
     return { items: rows.slice(skip, skip + Number(params.limit)), total: rows.length };
   });
   vi.mocked(apiClient.delete).mockImplementation(async (url) => {
+    // Two endpoints, and they are not the same shape: `/sessions/{id}` drops
+    // one row, `/sessions` drops every device except the one asking. Splicing
+    // by a trailing path segment served both and quietly turned "revoke all"
+    // into "revoke the last one".
+    if (url === "/sessions") {
+      rows.splice(0, rows.length, ...rows.filter((row) => row.is_current));
+      return undefined;
+    }
     const id = url.split("/").pop();
     rows.splice(
       rows.findIndex((row) => row.id === id),
@@ -121,6 +148,23 @@ describe("ActiveSessions", () => {
     await screen.findByText("Device 1");
     expect(lastRequest().skip).toBe("0");
     expect(screen.queryByLabelText("Next page")).not.toBeInTheDocument();
+  });
+
+  it("shows no revoked device after revoking every other one from a later page", async () => {
+    // "Revoke all others" from page two steps back to page one, which is
+    // already cached. Refreshing only the page on screen left the five devices
+    // it had just revoked listed there for as long as the cache held them.
+    server(6);
+    render(<ActiveSessions />);
+    await screen.findByText("Device 1");
+    await userEvent.click(screen.getByLabelText("Next page"));
+    await screen.findByText("Device 6");
+
+    await userEvent.click(screen.getByRole("button", { name: "Revoke all others" }));
+    await userEvent.click(screen.getByRole("button", { name: "Revoke all" }));
+
+    await waitFor(() => expect(apiClient.delete).toHaveBeenCalledWith("/sessions"));
+    await waitFor(() => expect(screen.queryByText("Device 1")).not.toBeInTheDocument());
   });
 
   it("hides itself when the deployment has no session endpoint", async () => {

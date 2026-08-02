@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { IngestionSettings } from "@/components/kb/ingestion-settings";
@@ -16,6 +16,7 @@ import {
 import { submitFailure } from "@/lib/api-error";
 import { INGESTION_FORM_FIELDS, ingestionProblems, sameIngestion } from "@/lib/ingestion-config";
 import type { IngestionConfig } from "@/types";
+import { useChanged } from "@/hooks/use-changed";
 
 interface IngestionDialogProps {
   open: boolean;
@@ -48,12 +49,16 @@ export function IngestionDialog({
   // Reopening shows what the server holds, not what was abandoned last time -
   // and a save elsewhere (or by somebody else) must not leave a stale draft
   // behind to be posted back over it.
-  useEffect(() => {
+  // Both called unconditionally, combined after - `||` would skip the second
+  // hook on the render where the first is true.
+  const opened = useChanged(open);
+  const configMoved = useChanged(config);
+  if (opened || configMoved) {
     if (open) {
       setDraft(config);
       setErrors({});
     }
-  }, [open, config]);
+  }
 
   const problems = ingestionProblems(draft);
   const changed = !sameIngestion(draft, config);

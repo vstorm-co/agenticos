@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { IngestionSettings } from "@/components/kb/ingestion-settings";
 import {
@@ -14,6 +14,7 @@ import {
 } from "@/components/ui";
 import { ingestionOverride, ingestionProblems, overrideSize } from "@/lib/ingestion-config";
 import type { IngestionConfig, IngestionOverride } from "@/types";
+import { useChanged } from "@/hooks/use-changed";
 
 interface UploadOverrideDialogProps {
   open: boolean;
@@ -46,9 +47,17 @@ export function UploadOverrideDialog({
 }: UploadOverrideDialogProps) {
   const [draft, setDraft] = useState<IngestionConfig>(config);
 
-  useEffect(() => {
+  // Seeded as the dialog opens, and re-seeded if what it is editing moves
+  // underneath. During render, so the previous draft is never rendered.
+  // Each `useChanged` is called unconditionally and the results combined
+  // after: `a() || b()` would skip the second hook on the render where the
+  // first is true, which is a conditional hook call.
+  const opened = useChanged(open);
+  const configMoved = useChanged(config);
+  const overrideMoved = useChanged(override);
+  if (opened || configMoved || overrideMoved) {
     if (open) setDraft(applied(config, override));
-  }, [open, config, override]);
+  }
 
   const problems = ingestionProblems(draft);
   const pending = ingestionOverride(config, draft);

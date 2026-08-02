@@ -129,13 +129,17 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const [avatarVersion, setAvatarVersion] = useState(0);
   const avatarInput = useRef<HTMLInputElement>(null);
 
-  // Adopt the server's draft once, not on every refetch: every autosave
-  // invalidates the agent query, and re-adopting the answer would overwrite
-  // whatever was typed while the save was in flight. `setSpec(null)` is how a
-  // flow that really does replace the draft (rollback) asks to adopt again.
-  useEffect(() => {
-    if (agent?.draft_spec && spec === null) setSpec(agent.draft_spec);
-  }, [agent?.draft_spec, spec]);
+  // Adopt the server's draft whenever there is nothing local, and not
+  // otherwise: every autosave invalidates the agent query, and re-adopting the
+  // answer would overwrite whatever was typed while the save was in flight.
+  // `setSpec(null)` is how a flow that really does replace the draft (rollback)
+  // asks to adopt again - so the condition is the absent spec, not a changed
+  // draft. Rolling back to a version structurally equal to the current draft
+  // leaves React Query holding the same reference, and gating on the reference
+  // moving left the page on its skeleton with no way out.
+  if (agent?.draft_spec && spec === null) {
+    setSpec(agent.draft_spec);
+  }
 
   const canEdit = can(Perm.agentsEdit);
   const canPublish = can(Perm.agentsPublish);
