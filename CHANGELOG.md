@@ -19,6 +19,92 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.3] — 2026-08-02
+
+A frontend release, and almost all of it is about one thing: what a browser is
+still holding when the account or the organization changes underneath it.
+
+### Security
+
+**One tenant's data could reach another tenant's screen, and one account's could
+reach another account's.** Nothing here crossed a server-side boundary - every
+refusal the backend makes it still made - but the browser kept and re-showed
+answers it had already been given, which for a multi-tenant product is the same
+outcome by a different route.
+
+- **Uploads went to the wrong organization.** `ingestFile` sent no
+  `X-Organization-Id`, and the backend reads a request without it as the
+  caller's personal organization - so uploading into a collection whose name
+  exists in both wrote the file to the wrong tenant and reported success under
+  the right one. The one *write* across the boundary in this list.
+- **Switching organization changed a label and nothing else.** Most query keys
+  name no organization, so with `staleTime` at five minutes one tenant's agent
+  names, knowledge bases, secrets and conversations stayed on screen under
+  another's. Everything cached is dropped on a switch now - dropped rather than
+  marked stale, and before the paint rather than after it.
+- **Signing out left the previous account's data in memory.** The query cache
+  and the Zustand stores both survived a sign-out, so the next account signing
+  in on the same browser could be served the previous one's conversations,
+  agents, and the device names and IP addresses on their profile. Emptied when
+  the signed-in account changes, keyed on the account rather than on the act of
+  signing in - a password login, an OAuth callback, a magic link and the
+  dashboard's own auth check are four different doors, and only one of them was
+  covered.
+- **A request already in flight could refill what had just been emptied.** A
+  conversation's messages, a page of the list, a knowledge base's documents, a
+  chat message queued while the socket was down: each now checks the account and
+  the organization it started in before writing anything.
+
+### Added
+
+- `apiClient.raw()` — the `Response` without the JSON parse, for downloads and
+  previews, so reaching for bytes no longer means giving up the organization
+  header, the 401 refresh and `ApiError`.
+- `useChanged` — one tested hook for "adjusting state when a prop changes",
+  replacing the effects that wrote state after rendering the stale value once.
+
+### Changed
+
+- **`eslint-config-next` 15 → 16**, which turns on the React Compiler's hook
+  rules; the frontend broke them in 31 places and no longer does. Server reads
+  moved to the query layer where they belonged, and the flat config is imported
+  directly - through `FlatCompat` the plugin graph is self-referential and
+  ESLint dies serializing it.
+- `admin/ratings` fetched its fixed thirty-day summary again for every page of
+  results, and rendered a failed half as zeroes beside a full table. Two
+  queries, two error states.
+- `admin/system` polled health on an interval that kept running in a hidden tab.
+- The RAG document list, the ratings page and the admin user drawer rendered a
+  502 as "nothing here". They say what happened, and offer a retry.
+
+### Fixed
+
+- `/rag` polled a document's ingestion status exactly once. It armed the next
+  poll from the identity of an array React Query deliberately keeps stable, so
+  a document stuck at `processing` never updated without a reload.
+- The `/rag` sync tab emptied itself on an organization switch and stayed empty
+  until the user clicked away and back.
+- The sync wizard discarded a half-filled form when a background refetch
+  reordered the collection list.
+- The admin user drawer vanished instead of closing when its row was deleted.
+- "Revoke all others" from the second page of sessions listed the devices it
+  had just revoked.
+- The agent builder could sit on its skeleton after a rollback to a version
+  structurally equal to the current draft.
+
+### Removed
+
+- `MANUAL_STEPS.md`, a generator leftover in which nearly every variable name
+  was wrong. `docs/configuration.md` has it correctly, and now has the two
+  external click-paths that file was the only place to carry.
+
+### Notes for operators
+
+Nothing to do. No migration, no configuration change, no API change. A signed-in
+user is signed out of nothing; the first page load after deploying refetches
+more than usual, because a browser holding a cache from before this version
+identifies its tenant and starts again.
+
 ## [0.0.2] — 2026-08-02
 
 A dependency patch, and the first release cut through the path 0.0.1 built.
@@ -201,6 +287,7 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.2...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.3...HEAD
+[0.0.3]: https://github.com/vstorm-co/agenticos/compare/v0.0.2...v0.0.3
 [0.0.2]: https://github.com/vstorm-co/agenticos/compare/v0.0.1...v0.0.2
 [0.0.1]: https://github.com/vstorm-co/agenticos/releases/tag/v0.0.1
