@@ -149,6 +149,10 @@ describe("the rest of the session state", () => {
 
     expect(persisted).toHaveProperty("isAuthenticated");
     expect(persisted).not.toHaveProperty("accessToken");
+    // And the owner id, which has to survive a reload or the mount-time
+    // adoption reads the same account as a new one and empties the persisted
+    // organization and agent selection on every refresh.
+    expect(persisted).toHaveProperty("sessionOwnerId");
   });
 
   it("stops loading as soon as it knows there is nobody signed in", () => {

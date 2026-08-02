@@ -2,7 +2,8 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { FilePreviewCard, extOf, iconFor, previewKind } from "./file-preview-card";
+import { FileKindIcon, FilePreviewCard, extOf, previewKind } from "./file-preview-card";
+import type { PreviewKind } from "./file-preview-card";
 import { FilePreviewPanel } from "./file-preview-panel";
 import { useFilePreviewStore } from "@/stores";
 import type { ChatMessageFile } from "@/types";
@@ -111,17 +112,18 @@ describe("deciding which viewer to open", () => {
   });
 
   it("picks an icon that says what kind of file it is", () => {
-    // Four icons across eleven kinds: the point is a glance, not a taxonomy, so
-    // the three media kinds are distinct and everything textual shares one.
-    const distinct = new Set([iconFor("image"), iconFor("audio"), iconFor("video")]);
-    expect(distinct.size).toBe(3);
+    // Asserted on the rendered mark, which is what a reader actually sees -
+    // grouping and distinctness, not which lucide component came back.
+    const mark = (kind: PreviewKind) => render(<FileKindIcon kind={kind} />).container.innerHTML;
 
-    expect(iconFor("code")).toBe(iconFor("json"));
-    expect(iconFor("code")).toBe(iconFor("html"));
-    expect(iconFor("binary")).toBe(iconFor("text"));
-    expect(iconFor("pdf")).toBe(iconFor("text"));
-    expect(iconFor("csv")).toBe(iconFor("text"));
-    expect(iconFor("markdown")).toBe(iconFor("text"));
+    expect(new Set([mark("image"), mark("audio"), mark("video")]).size).toBe(3);
+
+    expect(mark("json")).toBe(mark("code"));
+    expect(mark("html")).toBe(mark("code"));
+    for (const kind of ["binary", "pdf", "csv", "markdown"] as const) {
+      expect(mark(kind)).toBe(mark("text"));
+    }
+    expect(mark("text")).not.toBe(mark("code"));
   });
 });
 

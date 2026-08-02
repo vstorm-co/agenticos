@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
@@ -30,6 +31,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { apiClient } from "@/lib/api-client";
+import { qk } from "@/lib/query-keys";
+import { getErrorMessage } from "@/lib/utils";
+import { ErrorState } from "@/components/states";
 import { ROUTES } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
 import type { MessageRatingListResponse, MessageRatingWithDetails, RatingSummary } from "@/types";
@@ -38,41 +42,46 @@ const PAGE_SIZE = 50;
 type RatingFilter = "all" | "positive" | "negative";
 
 export default function AdminRatingsPage() {
-  const [summary, setSummary] = useState<RatingSummary | null>(null);
-  const [ratings, setRatings] = useState<MessageRatingListResponse | null>(null);
   const [filter, setFilter] = useState<RatingFilter>("all");
   const [commentsOnly, setCommentsOnly] = useState(false);
   const [page, setPage] = useState(0);
-  const [loading, setLoading] = useState(true);
   const [exportFormat, setExportFormat] = useState<"json" | "csv">("csv");
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const ratingsParams = new URLSearchParams({
+  // Two queries, not one `Promise.all` behind an effect. The summary is a fixed
+  // thirty-day window - it does not depend on the page, the filter or the
+  // comments toggle, and refetching it on every page step was work nobody asked
+  // for. Split, it is fetched once and served from the cache thereafter.
+  const {
+    data: summary = null,
+    isPending: summaryPending,
+    error: summaryError,
+    refetch: refetchSummary,
+  } = useQuery({
+    queryKey: qk.admin.ratings({ summary: 30 }),
+    queryFn: () => apiClient.get<RatingSummary>("/admin/ratings/summary?days=30"),
+  });
+
+  const {
+    data: ratings = null,
+    isPending: ratingsPending,
+    error: ratingsError,
+    refetch: refetchRatings,
+  } = useQuery({
+    queryKey: qk.admin.ratings({ page, filter, commentsOnly }),
+    queryFn: () => {
+      const params = new URLSearchParams({
         skip: String(page * PAGE_SIZE),
         limit: String(PAGE_SIZE),
         with_comments_only: String(commentsOnly),
       });
-      if (filter !== "all") {
-        ratingsParams.set("rating_filter", filter === "positive" ? "1" : "-1");
-      }
-      const [summaryData, ratingsData] = await Promise.all([
-        apiClient.get<RatingSummary>("/admin/ratings/summary?days=30"),
-        apiClient.get<MessageRatingListResponse>(`/admin/ratings?${ratingsParams}`),
-      ]);
-      setSummary(summaryData);
-      setRatings(ratingsData);
-    } catch {
-      /* ignore - empty state handles errors */
-    } finally {
-      setLoading(false);
-    }
-  }, [page, filter, commentsOnly]);
+      if (filter !== "all") params.set("rating_filter", filter === "positive" ? "1" : "-1");
+      return apiClient.get<MessageRatingListResponse>(`/admin/ratings?${params}`);
+    },
+  });
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  // Separate flags, because they are separate requests: the summary is a
+  // fixed window that is fetched once, and making its cards wait for every
+  // page of results would undo the split.
 
   const handleExport = () => {
     const params = new URLSearchParams({ export_format: exportFormat });
@@ -182,33 +191,44 @@ export default function AdminRatingsPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          label="Total ratings"
-          value={loading ? "-" : (summary?.total_ratings ?? 0).toLocaleString()}
-          loading={loading}
+      {/* Two independent requests, so one can fail while the other answers.
+          Saying so beats the alternative: four zeroed cards above a table full
+          of rows, each contradicting the other and neither admitting why. */}
+      {summaryError ? (
+        <ErrorState
+          title="Couldn't load the summary"
+          description={getErrorMessage(summaryError, "The ratings summary request failed.")}
+          cta={{ label: "Try again", onClick: () => void refetchSummary() }}
         />
-        <StatCard
-          label="Likes"
-          value={loading ? "-" : (summary?.like_count ?? 0).toLocaleString()}
-          icon={ThumbsUp}
-          loading={loading}
-        />
-        <StatCard
-          label="Dislikes"
-          value={loading ? "-" : (summary?.dislike_count ?? 0).toLocaleString()}
-          icon={ThumbsDown}
-          loading={loading}
-        />
-        <StatCard
-          label="Approval rate"
-          value={loading ? "-" : approvalRate !== null ? `${approvalRate}%` : "-"}
-          icon={TrendingUp}
-          loading={loading}
-        />
-      </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            label="Total ratings"
+            value={summaryPending ? "-" : (summary?.total_ratings ?? 0).toLocaleString()}
+            loading={summaryPending}
+          />
+          <StatCard
+            label="Likes"
+            value={summaryPending ? "-" : (summary?.like_count ?? 0).toLocaleString()}
+            icon={ThumbsUp}
+            loading={summaryPending}
+          />
+          <StatCard
+            label="Dislikes"
+            value={summaryPending ? "-" : (summary?.dislike_count ?? 0).toLocaleString()}
+            icon={ThumbsDown}
+            loading={summaryPending}
+          />
+          <StatCard
+            label="Approval rate"
+            value={summaryPending ? "-" : approvalRate !== null ? `${approvalRate}%` : "-"}
+            icon={TrendingUp}
+            loading={summaryPending}
+          />
+        </div>
+      )}
 
-      {!loading && summary && summary.ratings_by_day.length > 0 && (
+      {!summaryError && !summaryPending && summary && summary.ratings_by_day.length > 0 && (
         <section className="border-border bg-card rounded-xl border p-6">
           <h2 className="text-foreground text-sm font-semibold">Ratings per day</h2>
           <p className="text-muted-foreground text-xs">Likes and dislikes over the last 30 days.</p>
@@ -261,7 +281,7 @@ export default function AdminRatingsPage() {
             <span className="text-muted-foreground">With comments only</span>
           </label>
         </div>
-        {ratings && !loading && (
+        {ratings && !ratingsPending && (
           <span className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
             {ratings.total.toLocaleString()} result{ratings.total === 1 ? "" : "s"}
           </span>
@@ -272,14 +292,22 @@ export default function AdminRatingsPage() {
         columns={columns}
         rows={ratings?.items}
         getRowKey={(r) => r.id}
-        loading={loading}
+        loading={ratingsPending}
         skeletonRows={8}
         empty={
-          <div className="py-8">
-            <MessageSquare className="text-muted-foreground mx-auto mb-3 h-8 w-8" />
-            <p className="text-foreground text-sm">No ratings found.</p>
-            <p className="text-muted-foreground mt-1 text-xs">Try adjusting the filters above.</p>
-          </div>
+          ratingsError ? (
+            <ErrorState
+              title="Couldn't load the ratings"
+              description={getErrorMessage(ratingsError, "The ratings request failed.")}
+              cta={{ label: "Try again", onClick: () => void refetchRatings() }}
+            />
+          ) : (
+            <div className="py-8">
+              <MessageSquare className="text-muted-foreground mx-auto mb-3 h-8 w-8" />
+              <p className="text-foreground text-sm">No ratings found.</p>
+              <p className="text-muted-foreground mt-1 text-xs">Try adjusting the filters above.</p>
+            </div>
+          )
         }
       />
 

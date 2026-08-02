@@ -14,6 +14,7 @@ import {
   type SlashCommandContext,
 } from "./slash-commands";
 import { SlashCommandPalette } from "./slash-command-palette";
+import { useChanged } from "@/hooks/use-changed";
 
 interface ChatInputProps {
   onSend: (message: string, fileIds?: string[], files?: FileUploadResponse[]) => void;
@@ -53,9 +54,9 @@ export function ChatInput({
     [showPalette, message, allCommands],
   );
 
-  useEffect(() => {
-    setPaletteIndex(0);
-  }, [filteredCommands.length, message]);
+  // Back to the first suggestion whenever the list underneath the cursor
+  // changes, during render - an effect would highlight the old row for a frame.
+  if (useChanged(`${filteredCommands.length}|${message}`)) setPaletteIndex(0);
 
   useEffect(() => {
     if (!isProcessing && !isUploading && textareaRef.current) {

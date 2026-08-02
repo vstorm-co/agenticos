@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { ArrowUpRight, Copy, KeyRound, Mail, Shield, ShieldOff, Trash2, UserX } from "lucide-react";
 import { toast } from "sonner";
 
@@ -24,7 +24,8 @@ import {
 import type { AdminUserRead } from "@/hooks/use-admin-users";
 import { apiClient } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
-import { formatDateTime } from "@/lib/utils";
+import { formatDateTime, getErrorMessage } from "@/lib/utils";
+import { qk } from "@/lib/query-keys";
 
 interface UserDetailDrawerProps {
   user: AdminUserRead | null;
@@ -50,21 +51,22 @@ export function UserDetailDrawer({
   onDelete,
   onImpersonate,
 }: UserDetailDrawerProps) {
-  const [conversations, setConversations] = useState<ConversationStub[] | null>(null);
-  const [convsLoading, setConvsLoading] = useState(false);
-
-  useEffect(() => {
-    if (!open || !user) {
-      setConversations(null);
-      return;
-    }
-    setConvsLoading(true);
-    apiClient
-      .get<{ items: ConversationStub[] }>(`/admin/conversations?user_id=${user.id}&limit=8`)
-      .then((d) => setConversations(d.items))
-      .catch(() => setConversations([]))
-      .finally(() => setConvsLoading(false));
-  }, [open, user]);
+  // Server data through the query layer, which is where `.claude/rules/frontend.md`
+  // says it lives. It was three pieces of state and an effect: a list, a loading
+  // flag, and a reset when the drawer closed - all of which `useQuery` already
+  // has, including not firing at all while `enabled` is false.
+  const {
+    data: conversations = null,
+    isPending: convsLoading,
+    error: convsError,
+  } = useQuery({
+    queryKey: qk.admin.conversations({ userId: user?.id, limit: 8 }),
+    queryFn: () =>
+      apiClient
+        .get<{ items: ConversationStub[] }>(`/admin/conversations?user_id=${user!.id}&limit=8`)
+        .then((d) => d.items),
+    enabled: open && Boolean(user),
+  });
 
   if (!user) return null;
 
@@ -144,6 +146,13 @@ export function UserDetailDrawer({
             </h3>
             {convsLoading ? (
               <LoadingState variant="skeleton-list" rows={3} />
+            ) : convsError ? (
+              // Not "No conversations." - a 502 and an account that has never
+              // opened a chat are the same sentence, and an admin acting on the
+              // second when it was the first is acting on nothing.
+              <p className="text-destructive text-xs">
+                {getErrorMessage(convsError, "Couldn't load conversations.")}
+              </p>
             ) : !conversations || conversations.length === 0 ? (
               <p className="text-foreground/55 text-xs">No conversations.</p>
             ) : (

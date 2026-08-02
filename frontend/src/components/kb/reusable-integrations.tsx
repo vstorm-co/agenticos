@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Copy, Database, Plug, Trash2 } from "lucide-react";
 
 import { BrandIcon, connectorBrand } from "@/components/icons/brand-icon";
@@ -36,6 +36,7 @@ import { useOrgStore } from "@/stores";
 import type { SyncSourceCreate, SyncSourceRead } from "@/lib/rag-api";
 import type { KnowledgeBase } from "@/types";
 import { Perm } from "@/types/permissions";
+import { useChanged } from "@/hooks/use-changed";
 
 interface ReusableIntegrationsProps {
   /** Collections an integration can be cloned into - the page's own list. */
@@ -227,10 +228,12 @@ function CloneIntoDialog({
   const [name, setName] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
+  // A different source is a different form. Cleared during render, so the
+  // previous source's answers are never shown against the new one.
+  if (useChanged(source)) {
     setTargetId("");
     setName("");
-  }, [source]);
+  }
 
   if (!source) return null;
 

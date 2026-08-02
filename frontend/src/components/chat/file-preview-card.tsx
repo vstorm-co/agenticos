@@ -116,20 +116,31 @@ export function previewKind(mime: string | undefined, ext: string | null): Previ
   return "binary";
 }
 
-export function iconFor(kind: PreviewKind) {
+/**
+ * The mark for a file kind, as an element.
+ *
+ * Four marks across eleven kinds: the point is a glance, not a taxonomy, so the
+ * three media kinds are distinct and everything textual shares one.
+ *
+ * A switch returning elements rather than a helper returning the component to
+ * render. Nothing is created per render either way, but a static analyser
+ * cannot see that through a function call, and "component created during
+ * render" is a real hazard worth the rule being strict about.
+ */
+export function FileKindIcon({ kind, className }: { kind: PreviewKind; className?: string }) {
   switch (kind) {
     case "image":
-      return FileImage;
+      return <FileImage className={className} />;
     case "audio":
-      return FileAudio;
+      return <FileAudio className={className} />;
     case "video":
-      return FileVideo;
+      return <FileVideo className={className} />;
     case "code":
     case "json":
     case "html":
-      return FileCode;
+      return <FileCode className={className} />;
     default:
-      return FileText;
+      return <FileText className={className} />;
   }
 }
 

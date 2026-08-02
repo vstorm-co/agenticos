@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, Globe, Monitor, Smartphone, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -18,8 +19,9 @@ import {
 } from "@/components/ui";
 import { SectionCard } from "@/components/settings/settings-section";
 import { apiClient, ApiError } from "@/lib/api-client";
+import { qk } from "@/lib/query-keys";
 import { cn, getErrorMessage, timeAgo } from "@/lib/utils";
-import type { Session, SessionListResponse } from "@/types";
+import type { SessionListResponse } from "@/types";
 
 const PAGE_SIZE = 5;
 
@@ -42,55 +44,53 @@ function DeviceIcon({ type }: { type?: string | null }) {
  * emptied and step back to the one before it rather than showing a blank card.
  */
 export function ActiveSessions() {
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
-  const [loading, setLoading] = useState(true);
-  // The backend may not expose sessions at all when the deployment was
-  // generated without session management. Track that so the whole section is
-  // hidden instead of showing a misleading "no data" placeholder.
-  const [available, setAvailable] = useState(true);
-  // A request that failed must not read as "you have no other devices". They
-  // are opposite facts, and one of them is a reason to change your password.
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
-  const load = useCallback(async (which: number) => {
-    setLoading(true);
-    try {
-      const data = await apiClient.get<SessionListResponse>("/sessions", {
-        params: { skip: String(which * PAGE_SIZE), limit: String(PAGE_SIZE) },
-      });
-      setSessions(data.items);
-      setTotal(data.total);
-      setAvailable(true);
-      setError(null);
-    } catch (err) {
-      // 404 = endpoint not exposed (session management disabled at gen time).
-      if (err instanceof ApiError && err.status === 404) {
-        setAvailable(false);
-        return;
+  // Through the query layer, which is where `.claude/rules/frontend.md` says
+  // server data lives. It was five pieces of state and a `useCallback` fetch
+  // driven by an effect; `useQuery` already has the list, the loading flag and
+  // the refetch, and it does not write state synchronously from an effect.
+  //
+  // The one thing it does not have is the 404: a deployment generated without
+  // session management does not expose this endpoint at all, and "hide the
+  // section" is a different answer from "you have no other devices". That
+  // stays an explicit shape rather than an error string somebody has to parse.
+  const { data, isPending, error } = useQuery({
+    queryKey: qk.sessions.list(page),
+    queryFn: async (): Promise<SessionListResponse | "unavailable"> => {
+      try {
+        return await apiClient.get<SessionListResponse>("/sessions", {
+          params: { skip: String(page * PAGE_SIZE), limit: String(PAGE_SIZE) },
+        });
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 404) return "unavailable";
+        throw err;
       }
-      setError(getErrorMessage(err, "Couldn't load your sessions"));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    },
+  });
 
-  useEffect(() => {
-    load(page);
-  }, [load, page]);
+  const available = data !== "unavailable";
+  const sessions = data && data !== "unavailable" ? data.items : [];
+  const total = data && data !== "unavailable" ? data.total : 0;
+  const loading = isPending;
+
+  /**
+   * Reload after a revocation, stepping back when the page it emptied was the
+   * last one.
+   *
+   * Every page is invalidated, not just the one on screen. A revocation shifts
+   * the rows across all of them, and "revoke all others" from page two used to
+   * step back to a page one that was still cached - listing, for the next five
+   * minutes, the sessions it had just revoked.
+   */
+  const reload = (remaining: number) => {
+    void queryClient.invalidateQueries({ queryKey: qk.sessions.all() });
+    const lastPage = Math.max(0, Math.ceil(remaining / PAGE_SIZE) - 1);
+    if (page > lastPage) setPage(lastPage);
+  };
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-
-  /** Reload after a revocation, stepping back when the page it emptied was the last one. */
-  const reload = (remaining: number) => {
-    const lastPage = Math.max(0, Math.ceil(remaining / PAGE_SIZE) - 1);
-    if (page > lastPage) {
-      setPage(lastPage);
-      return;
-    }
-    load(page);
-  };
 
   const handleRevoke = async (sessionId: string) => {
     try {
@@ -149,7 +149,9 @@ export function ActiveSessions() {
           ))}
         </div>
       ) : error ? (
-        <p className="text-destructive text-sm">{error}</p>
+        <p className="text-destructive text-sm">
+          {getErrorMessage(error, "Couldn't load your sessions")}
+        </p>
       ) : sessions.length === 0 ? (
         <p className="text-muted-foreground text-sm">No session data available.</p>
       ) : (

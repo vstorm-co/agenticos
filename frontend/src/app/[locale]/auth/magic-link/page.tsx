@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 
 import { apiClient, ApiError } from "@/lib/api-client";
+import { useReauthenticate } from "@/hooks/use-auth";
 import { ROUTES } from "@/lib/constants";
 
 /**
@@ -21,19 +22,24 @@ export default function MagicLinkVerifyPage() {
   const router = useRouter();
   const params = useSearchParams();
   const token = params.get("token");
-  const [state, setState] = useState<"verifying" | "success" | "error">("verifying");
-  const [error, setError] = useState<string>("");
+  // A link with no token is an error before anything runs, so it is the initial
+  // state rather than something an effect corrects a render later.
+  const [state, setState] = useState<"verifying" | "success" | "error">(
+    token ? "verifying" : "error",
+  );
+  const [error, setError] = useState<string>(token ? "" : t("errorMissingToken"));
+
+  const reauthenticate = useReauthenticate();
 
   useEffect(() => {
-    if (!token) {
-      setState("error");
-      setError(t("errorMissingToken"));
-      return;
-    }
+    if (!token) return;
     let active = true;
     apiClient
       .post("/auth/magic-link/verify", { token })
-      .then(() => {
+      .then(async () => {
+        if (!active) return;
+        // The link may be for a different account than the tab already had.
+        await reauthenticate();
         if (!active) return;
         setState("success");
         router.replace(ROUTES.CHAT);
@@ -46,7 +52,7 @@ export default function MagicLinkVerifyPage() {
     return () => {
       active = false;
     };
-  }, [token, router, t]);
+  }, [token, router, t, reauthenticate]);
 
   return (
     <main

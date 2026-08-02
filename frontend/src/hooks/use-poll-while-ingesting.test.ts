@@ -83,6 +83,24 @@ describe("usePollWhileIngesting", () => {
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps polling when the caller hands back the very same array", () => {
+    // What a caller holding the list in React Query does: structural sharing
+    // returns the previous `data` reference when a poll finds nothing changed.
+    // The schedule used to be armed by that reference moving, so a document
+    // stuck at `processing` was polled exactly once and then never again.
+    const refresh = vi.fn();
+    const documents = ingesting();
+    const { rerender } = renderHook(() => usePollWhileIngesting(documents, refresh));
+
+    vi.advanceTimersByTime(2_000);
+    expect(refresh).toHaveBeenCalledTimes(1);
+
+    rerender();
+    vi.advanceTimersByTime(3_000);
+
+    expect(refresh).toHaveBeenCalledTimes(2);
+  });
+
   it("backs off while nothing changes, and speeds up again when something does", () => {
     // A large PDF can take minutes; a fixed 2s interval is hundreds of requests
     // for one document. The reset matters just as much: the tick after a status

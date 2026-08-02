@@ -10,6 +10,7 @@ import { DialogOverlay, DialogPortal } from "@/components/ui/dialog";
 import { getParsedKBDocument } from "@/lib/rag-api";
 import { cn } from "@/lib/utils";
 import type { KBParsedContent } from "@/types";
+import { useChanged } from "@/hooks/use-changed";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Viewer type detection
@@ -131,20 +132,27 @@ export function FileViewer({ kbId, doc, open, onClose }: FileViewerProps) {
     };
   }, []);
 
+  // Cleared during render, revoked in the effect below. The two halves are
+  // different things: emptying the panel is state, and releasing the object URL
+  // is a side effect on the browser. Doing the first in an effect meant the
+  // previous document's bytes were rendered once more before it closed.
+  if (useChanged(`${open}|${doc?.id ?? ""}`) && (!open || !doc)) {
+    setBlobUrl(null);
+    setTextContent(null);
+    setError(null);
+    setLoading(false);
+    setTab("original");
+    setParsed(null);
+    setParsedError(null);
+    setParsedLoading(false);
+  }
+
   useEffect(() => {
     if (!open || !doc) {
       if (blobUrlRef.current) {
         URL.revokeObjectURL(blobUrlRef.current);
         blobUrlRef.current = null;
       }
-      setBlobUrl(null);
-      setTextContent(null);
-      setError(null);
-      setLoading(false);
-      setTab("original");
-      setParsed(null);
-      setParsedError(null);
-      setParsedLoading(false);
       return;
     }
 

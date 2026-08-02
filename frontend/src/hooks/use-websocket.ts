@@ -82,6 +82,16 @@ export function useWebSocket({
     onErrorRef.current = onError;
   }, [onMessage, onOpen, onClose, onError]);
 
+  // `connect` reconnects by calling itself from a timeout, and a `useCallback`
+  // cannot reference its own binding before it exists. Held in a ref, kept
+  // current by the effect below: the timeout fires long after render, so it
+  // reads whichever `connect` is newest rather than the one captured when the
+  // socket dropped. Seeding the ref with `connect` instead of a placeholder
+  // would read better, but the compiler then treats the ref as derived from a
+  // memo and refuses the write that keeps it current.
+  /* v8 ignore next -- a reconnect can only be scheduled by a socket `connect` opened, so the effect has run */
+  const connectRef = useRef<() => void>(() => {});
+
   const connect = useCallback(() => {
     // A pending deferred close means we're mid-teardown; cancel it - we're
     // (re)connecting again, so don't drop the socket out from under ourselves.
@@ -146,7 +156,7 @@ export function useWebSocket({
         const delay = Math.min(reconnectInterval * 2 ** reconnectAttemptsRef.current, 15000);
         reconnectTimeoutRef.current = setTimeout(() => {
           reconnectAttemptsRef.current += 1;
-          connect();
+          connectRef.current();
         }, delay);
       }
     };
@@ -155,6 +165,10 @@ export function useWebSocket({
       onErrorRef.current?.(error);
     };
   }, [url, protocols, reconnect, reconnectInterval, maxReconnectAttempts]);
+
+  useEffect(() => {
+    connectRef.current = connect;
+  }, [connect]);
 
   const disconnect = useCallback(() => {
     shouldReconnectRef.current = false;
