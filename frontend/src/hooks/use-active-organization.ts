@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -64,6 +64,43 @@ export function refusesOrganization(failure: unknown, activeOrgId: string | null
  * that every page already runs, and does nothing at all until that query is
  * refused for this organization specifically.
  */
+/**
+ * Drop everything read as the previous organization when the active one moves.
+ *
+ * Most query keys do not name the organization - `agents.list()`,
+ * `kb.list()`, `skills.list()`, `secrets.list()` and the rest are the same
+ * key whichever tenant is active - so without this, switching organization
+ * changes a label in the header and nothing else. With `staleTime` at five
+ * minutes and `refetchOnWindowFocus` off, the previous tenant's agent names,
+ * knowledge bases and secrets stay on screen for as long as the cache holds
+ * them, with no request in flight to correct them.
+ *
+ * `removeQueries`, not `invalidateQueries`. Invalidating marks a query stale
+ * and refetches it, but React Query serves the cached rows meanwhile - so the
+ * previous tenant's names are still painted, just briefly. Between "briefly"
+ * and "not at all", a multi-tenant product picks the second: a switch drops
+ * the data and every mounted page asks again from scratch.
+ *
+ * It costs a refetch of the deployment-wide catalogs too - model profiles, the
+ * capability catalog, the skill library - which are the same answer for every
+ * tenant. That is the price of one guard instead of eleven key signatures,
+ * each of which is a place the next key can forget.
+ *
+ * The ref starts at the mounted value so the first pass does nothing. A page
+ * load has an empty cache and queries already in flight; dropping those would
+ * cancel the page's own first fetch.
+ */
+function useOrganizationCacheReset(activeOrgId: string | null): void {
+  const queryClient = useQueryClient();
+  const cacheBelongsTo = useRef(activeOrgId);
+
+  useEffect(() => {
+    if (cacheBelongsTo.current === activeOrgId) return;
+    cacheBelongsTo.current = activeOrgId;
+    queryClient.removeQueries();
+  }, [activeOrgId, queryClient]);
+}
+
 export function useActiveOrganizationRecovery(): void {
   const queryClient = useQueryClient();
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
@@ -73,6 +110,10 @@ export function useActiveOrganizationRecovery(): void {
   const { error } = usePermissions();
   const { data: orgs } = useOrganizationList();
 
+  // Whatever moved the selection - the switcher, the recovery below, or a
+  // path that does not exist yet - the cache follows it.
+  useOrganizationCacheReset(activeOrgId);
+
   useEffect(() => {
     if (activeOrgId === null || orgs === undefined) return;
     if (!refusesOrganization(error, activeOrgId)) return;
@@ -80,11 +121,6 @@ export function useActiveOrganizationRecovery(): void {
     markOrgRefused(activeOrgId);
     const replacement = preferredOrg(orgs, [...refusedOrgIds, activeOrgId]);
     setActiveOrgId(replacement?.id ?? null);
-
-    // Everything cached was read as the organization we just left. Refetching
-    // is not a nicety: leaving it would show one organization's agents under
-    // another's name until something happened to invalidate them.
-    queryClient.invalidateQueries();
 
     toast.error(
       replacement
