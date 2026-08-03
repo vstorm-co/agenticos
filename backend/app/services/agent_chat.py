@@ -381,11 +381,24 @@ class ChatAgentRunner:
                 prepared.run,
                 period_spend_usd=await self.runner.monthly_spend(ctx),
                 budget_usd=await self._budget(ctx),
+                # The agent's own cap as well: it is the one whoever is looking at
+                # this agent can actually raise, and reporting only the
+                # organization's tells an author nothing they can act on.
+                agent_spend_usd=await self.runner.monthly_spend(ctx, agent_id=prepared.agent.id),
+                agent_budget_usd=(
+                    None
+                    if prepared.spec.budget is None
+                    else self._as_decimal(prepared.spec.budget.monthly_usd)
+                ),
                 include_sandbox=True,
             )
         except Exception:
             logger.warning("chat_usage_report_failed", extra={"run_id": str(prepared.run.id)})
             return None
+
+    @staticmethod
+    def _as_decimal(value: float | None) -> Decimal | None:
+        return None if value is None else Decimal(str(value))
 
     async def _budget(self, ctx: AuthContext) -> Decimal | None:
         organization = await self.db.get(Organization, ctx.organization_id)

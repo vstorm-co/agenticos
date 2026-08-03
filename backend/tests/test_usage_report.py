@@ -99,6 +99,24 @@ class TestHowMuchOfTheMonthIsGone:
     def test_a_cap_with_nothing_spent_yet_reads_as_zero(self):
         assert _report(budget_usd=Decimal("100")).budget_percent == 0
 
+    def test_the_agents_own_cap_is_reported_beside_the_organizations(self):
+        """The two answer different questions. The organization's stops every agent
+        at once; the agent's own is the one its author can raise."""
+        report = _report(
+            period_spend_usd=Decimal("40"),
+            budget_usd=Decimal("100"),
+            agent_spend_usd=Decimal("6"),
+            agent_budget_usd=Decimal("20"),
+        )
+
+        assert (report.budget_percent, report.agent_budget_percent) == (40, 30)
+
+    def test_an_agent_with_no_cap_of_its_own_has_no_percentage(self):
+        assert _report(agent_spend_usd=Decimal("6")).agent_budget_percent is None
+
+    def test_an_agent_cap_of_zero_is_not_divided_by(self):
+        assert _report(agent_budget_usd=Decimal("0")).agent_budget_percent is None
+
 
 class TestWhenAChannelSaysIt:
     def test_off_never_speaks(self):
@@ -337,6 +355,12 @@ class TestTheFrameAChatReads:
 
         assert frame is not None
         assert frame["budget_percent"] == 40
+
+    def test_the_agents_own_share_travels_with_it_too(self):
+        frame = usage_frame(_report(agent_spend_usd=Decimal("6"), agent_budget_usd=Decimal("20")))
+
+        assert frame is not None
+        assert frame["agent_budget_percent"] == 30
 
     def test_a_stored_workspace_carries_its_bytes_as_well_as_its_percentage(self):
         """The percentage is what a bar needs; the bytes are what a tooltip says,

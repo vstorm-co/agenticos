@@ -86,6 +86,62 @@ class TestWhatTheTurnCost:
 
         assert await runner._budget(_MagicMock()) is None
 
+    @pytest.mark.anyio
+    async def test_the_agents_own_spend_and_cap_reach_the_report(self):
+        """The organization's cap is the one that stops every agent at once; the
+        agent's own is the one whoever is looking at this agent can raise. A chat
+        that reported only the first tells its reader nothing they can act on."""
+        from decimal import Decimal as _Decimal
+        from unittest.mock import AsyncMock as _AsyncMock
+        from unittest.mock import MagicMock as _MagicMock
+
+        from app.services.agent_chat import ChatAgentRunner
+
+        runner = ChatAgentRunner(_MagicMock(get=_AsyncMock(return_value=None)))
+        runner.usage = _MagicMock(for_run=_AsyncMock(return_value="the report"))
+        runner.runner = _MagicMock(monthly_spend=_AsyncMock(return_value=_Decimal("6")))
+        prepared = _MagicMock()
+        prepared.spec.budget.monthly_usd = 20.0
+
+        assert await runner._usage(_MagicMock(), prepared) == "the report"
+        called = runner.usage.for_run.await_args.kwargs
+        assert called["agent_spend_usd"] == _Decimal("6")
+        assert called["agent_budget_usd"] == _Decimal("20.0")
+
+    @pytest.mark.anyio
+    async def test_an_agent_with_no_budget_block_reports_no_cap_of_its_own(self):
+        from unittest.mock import AsyncMock as _AsyncMock
+        from unittest.mock import MagicMock as _MagicMock
+
+        from app.services.agent_chat import ChatAgentRunner
+
+        runner = ChatAgentRunner(_MagicMock(get=_AsyncMock(return_value=None)))
+        runner.usage = _MagicMock(for_run=_AsyncMock(return_value="the report"))
+        runner.runner = _MagicMock(monthly_spend=_AsyncMock(return_value=None))
+        prepared = _MagicMock()
+        prepared.spec.budget = None
+
+        await runner._usage(_MagicMock(), prepared)
+
+        assert runner.usage.for_run.await_args.kwargs["agent_budget_usd"] is None
+
+    @pytest.mark.anyio
+    async def test_an_agent_whose_budget_block_names_no_amount_has_no_cap(self):
+        from unittest.mock import AsyncMock as _AsyncMock
+        from unittest.mock import MagicMock as _MagicMock
+
+        from app.services.agent_chat import ChatAgentRunner
+
+        runner = ChatAgentRunner(_MagicMock(get=_AsyncMock(return_value=None)))
+        runner.usage = _MagicMock(for_run=_AsyncMock(return_value="the report"))
+        runner.runner = _MagicMock(monthly_spend=_AsyncMock(return_value=None))
+        prepared = _MagicMock()
+        prepared.spec.budget.monthly_usd = None
+
+        await runner._usage(_MagicMock(), prepared)
+
+        assert runner.usage.for_run.await_args.kwargs["agent_budget_usd"] is None
+
 
 class _Iteration:
     """Stands in for `agent.iter` - an async context manager over one run."""

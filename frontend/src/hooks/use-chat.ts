@@ -322,7 +322,16 @@ export function useChat(options: UseChatOptions = {}) {
           // turn legitimately reported: the strip would flicker to nothing.
           {
             const { usage } = wsEvent.data as { usage?: TurnUsage | null };
-            if (usage) setLastUsage(usage);
+            if (usage) {
+              setLastUsage(usage);
+              // Also on the message itself. The strip under the input only ever
+              // describes the last turn, so in a long conversation there is no
+              // way to see which answer was the expensive one - and "the one
+              // that read four documents" is exactly the question somebody
+              // watching a budget is asking.
+              if (currentMessageIdRef.current)
+                updateMessage(currentMessageIdRef.current, (msg) => ({ ...msg, usage }));
+            }
           }
           // Clear currentMessageId after complete (message_saved should have handled ID mapping)
           setCurrentMessageId(null);

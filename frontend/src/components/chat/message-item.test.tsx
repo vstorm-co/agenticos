@@ -541,3 +541,35 @@ describe("a turn split across several messages", () => {
     expect(container.querySelector(".ring-2")).toBeNull();
   });
 });
+
+describe("what a turn cost, under the turn", () => {
+  const usage = {
+    input_tokens: 1200,
+    output_tokens: 300,
+    cost_usd: 0.0125,
+    budget_percent: null,
+    agent_budget_percent: null,
+    sandbox: null,
+  };
+
+  it("prices an assistant answer where the answer is", () => {
+    item({ usage });
+
+    expect(screen.getByText(/\u21931,200/)).toBeVisible();
+    expect(screen.getByText(/\$0\.0125/)).toBeVisible();
+  });
+
+  it("says nothing on a reloaded turn, which carries no measurement", () => {
+    // Usage is measured when a run finishes and is not stored per message, so
+    // absent means "not recorded" - and zeroes would be a claim.
+    item({});
+
+    expect(screen.queryByText(/\u2193/)).toBeNull();
+  });
+
+  it("never prices a person's own message", () => {
+    item({ role: "user", content: "How long do refunds take?", usage });
+
+    expect(screen.queryByText(/\u2193/)).toBeNull();
+  });
+});

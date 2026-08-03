@@ -7,6 +7,7 @@ import type { Agent } from "@/types/agents";
 import { ToolCallCard } from "./tool-call-card";
 import { MarkdownContent } from "./markdown-content";
 import { CopyButton } from "./copy-button";
+import { MessageCost } from "./message-cost";
 import { RatingButtons } from "./rating-buttons";
 import { useChatStore, useFilePreviewStore } from "@/stores";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
@@ -351,6 +352,7 @@ export function MessageItem({ message, agent, groupPosition, onRegenerate }: Mes
                 })}
               </span>
             )}
+            {!isUser && message.usage && <MessageCost usage={message.usage} />}
             <CopyButton
               text={message.content}
               className={cn(

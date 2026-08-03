@@ -55,6 +55,12 @@ export interface ChatMessage {
    *  correctly. `content`/`thinking`/`toolCalls` are kept in sync as
    *  flat aggregates for copy/persist/rating. */
   parts?: MessagePart[];
+  /** What this turn cost, on the turn that cost it.
+   *
+   *  Live turns only, and deliberately: it is measured when the run finishes and
+   *  is not persisted per message, so a reloaded conversation has none. Absent
+   *  therefore means "not recorded", never "free". */
+  usage?: TurnUsage;
 }
 
 export interface ToolCall {
@@ -155,6 +161,8 @@ export interface TurnUsage {
   output_tokens: number;
   cost_usd: number;
   budget_percent: number | null;
+  /** This agent's own monthly cap, which is the one an author can raise. */
+  agent_budget_percent: number | null;
   sandbox: {
     kind: string;
     percent: number | null;

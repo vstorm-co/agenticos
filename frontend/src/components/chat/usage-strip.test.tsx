@@ -10,6 +10,7 @@ function usage(overrides: Partial<TurnUsage> = {}): TurnUsage {
     output_tokens: 300,
     cost_usd: 0.0125,
     budget_percent: null,
+    agent_budget_percent: null,
     sandbox: null,
     ...overrides,
   };
@@ -31,16 +32,34 @@ describe("UsageStrip", () => {
     expect(screen.getByText(/\$0\.0125/)).toBeVisible();
   });
 
-  it("names the share of the month once there is a cap to compare against", () => {
-    render(<UsageStrip usage={usage({ budget_percent: 40 })} />);
+  it("names the agent's own share, because that is the cap an author can raise", () => {
+    render(<UsageStrip usage={usage({ agent_budget_percent: 40 })} />);
 
-    expect(screen.getByText(/40% of this month/)).toBeVisible();
+    expect(screen.getByText(/40% of this agent's month/)).toBeVisible();
   });
 
-  it("says nothing about a budget the organization did not set", () => {
+  it("keeps the organization's cap out of the way until it is close", () => {
+    // It stops every agent at once and is somebody else's to change, so it is not
+    // worth the space in a line this small until it matters.
+    render(<UsageStrip usage={usage({ budget_percent: 40 })} />);
+    expect(screen.queryByText(/organization/)).toBeNull();
+
+    render(<UsageStrip usage={usage({ budget_percent: 92 })} />);
+    expect(screen.getByText(/92% of the organization's/)).toBeVisible();
+  });
+
+  it("says nothing about a budget nobody set", () => {
     render(<UsageStrip usage={usage()} />);
 
-    expect(screen.queryByText(/this month/)).toBeNull();
+    expect(screen.queryByText(/month/)).toBeNull();
+  });
+
+  it("splits input from output where somebody can look for it", () => {
+    // They price differently by an order of magnitude, so one total hides whether
+    // a turn was expensive because of a long context or a long answer.
+    render(<UsageStrip usage={usage({ input_tokens: 1200, output_tokens: 300 })} />);
+
+    expect(screen.getByTitle("1,200 in · 300 out")).toBeVisible();
   });
 
   it("draws a bar as well as the number, because 84% and 8% read alike in grey", () => {

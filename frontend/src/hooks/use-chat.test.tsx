@@ -427,6 +427,26 @@ describe("useChat - the conversation a turn belongs to", () => {
     expect(result.current.lastUsage).toMatchObject({ input_tokens: 1200 });
   });
 
+  it("records the cost on the answer that cost it, not only under the input", () => {
+    // The strip only ever describes the last turn, so in a long conversation
+    // there is no way to see which answer was the expensive one.
+    renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+
+    receive("complete", {
+      usage: {
+        input_tokens: 1200,
+        output_tokens: 300,
+        cost_usd: 0.0125,
+        budget_percent: null,
+        agent_budget_percent: null,
+        sandbox: null,
+      },
+    });
+
+    expect(streaming()?.usage).toMatchObject({ input_tokens: 1200, output_tokens: 300 });
+  });
+
   it("finds the message to rename when the turn has already completed", () => {
     // `complete` clears the id, and `message_saved` can arrive after it.
     renderHook(() => useChat(), { wrapper });

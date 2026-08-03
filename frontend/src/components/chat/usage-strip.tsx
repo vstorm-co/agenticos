@@ -50,12 +50,24 @@ export function UsageStrip({ usage }: UsageStripProps) {
 
   return (
     <div className="text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-xs">
-      <span className="flex items-center gap-1.5" title="Tokens and cost for the last turn">
+      <span
+        className="flex items-center gap-1.5"
+        title={`${usage.input_tokens.toLocaleString()} in · ${usage.output_tokens.toLocaleString()} out`}
+      >
         <Coins className="h-3 w-3" aria-hidden />
         {tokens.toLocaleString()} tokens · ${usage.cost_usd.toFixed(4)}
-        {usage.budget_percent !== null && (
-          <span className={cn(usage.budget_percent >= 80 && "text-amber-600")}>
-            · {usage.budget_percent}% of this month
+        {/* The agent's own cap first: it is the one whoever is looking at this
+            agent can raise. The organization's stops every agent at once and is
+            somebody else's to change, so it is only worth the space once it is
+            close. */}
+        {usage.agent_budget_percent !== null && (
+          <span className={cn(usage.agent_budget_percent >= 80 && "text-amber-600")}>
+            · {usage.agent_budget_percent}% of this agent&apos;s month
+          </span>
+        )}
+        {usage.budget_percent !== null && usage.budget_percent >= 80 && (
+          <span className="text-amber-600">
+            · {usage.budget_percent}% of the organization&apos;s
           </span>
         )}
       </span>

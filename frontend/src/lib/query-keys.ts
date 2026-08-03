@@ -167,6 +167,12 @@ export const qk = {
     // other's data with rows it has no business showing.
     org: () => ["mcp-connections", "org"] as const,
   },
+  conversationWorkspace: {
+    all: () => ["conversation-workspace"] as const,
+    files: (conversationId: string) => ["conversation-workspace", conversationId] as const,
+    file: (conversationId: string, path: string) =>
+      ["conversation-workspace", conversationId, path] as const,
+  },
   sandboxWorkspaces: {
     all: () => ["sandbox-workspaces"] as const,
     list: () => ["sandbox-workspaces", "list"] as const,

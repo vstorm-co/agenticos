@@ -3,6 +3,7 @@ export { useCopyToClipboard } from "./use-copy-to-clipboard";
 export { useAdminUsers } from "./use-admin-users";
 export { useWebSocket } from "./use-websocket";
 export { useChat } from "./use-chat";
+export { useConversationFile, useConversationWorkspace } from "./use-conversation-workspace";
 export { useConversations } from "./use-conversations";
 export { useConversationShares } from "./use-conversation-shares";
 export { useAdminConversations } from "./use-admin-conversations";

@@ -83,10 +83,12 @@ class SandboxUsage:
 class UsageReport:
     """What one turn spent, and what it has left.
 
-    `period_spend_usd` and `budget_usd` are the organization's, not the agent's.
-    An agent's own cap is its author's to raise; the organization's is the one
-    that stops every agent at once, which is the one worth warning a channel
-    about.
+    Both caps are carried, because they answer different questions to different
+    people. The organization's is the one that stops every agent at once, which is
+    what a channel needs warning about. The agent's own is the one an *author* can
+    act on - raising it is their decision - and reporting only the organization's
+    to somebody looking at their agent in the Builder tells them nothing they can
+    do anything about.
     """
 
     input_tokens: int
@@ -94,15 +96,26 @@ class UsageReport:
     cost_usd: Decimal
     period_spend_usd: Decimal | None = None
     budget_usd: Decimal | None = None
+    agent_spend_usd: Decimal | None = None
+    agent_budget_usd: Decimal | None = None
     sandbox: SandboxUsage | None = None
 
     @property
     def budget_percent(self) -> int | None:
         """How much of the organization's month is gone, if it capped one."""
-        if self.budget_usd is None or self.budget_usd <= 0:
-            return None
-        spend = self.period_spend_usd or Decimal(0)
-        return round(float(spend) * 100 / float(self.budget_usd))
+        return _share(self.period_spend_usd, self.budget_usd)
+
+    @property
+    def agent_budget_percent(self) -> int | None:
+        """How much of this agent's own month is gone, if it has a cap."""
+        return _share(self.agent_spend_usd, self.agent_budget_usd)
+
+
+def _share(spend: Decimal | None, budget: Decimal | None) -> int | None:
+    """Spend as a percentage of a cap, or `None` when there is no cap to be near."""
+    if budget is None or budget <= 0:
+        return None
+    return round(float(spend or Decimal(0)) * 100 / float(budget))
 
 
 def should_report(policy: dict[str, Any] | None, report: UsageReport, *, turn: int) -> bool:
@@ -185,6 +198,8 @@ class UsageReportService:
         *,
         period_spend_usd: Decimal | None = None,
         budget_usd: Decimal | None = None,
+        agent_spend_usd: Decimal | None = None,
+        agent_budget_usd: Decimal | None = None,
         include_sandbox: bool = False,
     ) -> UsageReport:
         """What this run spent, and how full its workspace is.
@@ -206,6 +221,8 @@ class UsageReportService:
             cost_usd=run.cost_usd,
             period_spend_usd=period_spend_usd,
             budget_usd=budget_usd,
+            agent_spend_usd=agent_spend_usd,
+            agent_budget_usd=agent_budget_usd,
             sandbox=sandbox,
         )
 
@@ -266,6 +283,7 @@ def usage_frame(report: UsageReport | None) -> dict[str, Any] | None:
         "output_tokens": report.output_tokens,
         "cost_usd": float(report.cost_usd),
         "budget_percent": report.budget_percent,
+        "agent_budget_percent": report.agent_budget_percent,
         "sandbox": None,
     }
     if report.sandbox is not None:

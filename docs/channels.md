@@ -301,7 +301,24 @@ per sandbox. So `log only` never asks, and every other mode asks about one sessi
 rather than listing them all.
 
 In `/chat` there is no noise argument, so the numbers are always sent — the client
-draws them under the input and decides what to show.
+draws them under the input and decides what to show. Three things it shows that a
+channel footer does not:
+
+- **The agent's own cap first**, and the organization's only past 80%. The
+  organization's stops every agent at once and belongs to somebody else; the
+  agent's own is the one whoever is looking at it can raise.
+- **Input and output separately**, under each answer as well as under the input.
+  They are priced an order of magnitude apart, so a total cannot say whether a turn
+  was expensive because of a long context or a long answer — and the strip only ever
+  describes the *last* turn, which in a long conversation hides which answer cost
+  the money. Live turns only: usage is measured when a run finishes and is not
+  stored per message, so a reloaded conversation shows none.
+- **The files themselves**, in a panel beside the transcript reading
+  `GET /conversations/{id}/workspace`. It re-reads when a turn ends rather than on a
+  timer, and it is absent entirely — not empty — for an agent that keeps no files,
+  which is most of them. It names whose files these are, because under `agent` scope
+  one workspace is shared and finding a file you never created reads as a leak until
+  something on screen explains it.
 
 ### Overriding who shares the workspace
 

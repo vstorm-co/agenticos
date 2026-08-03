@@ -8,6 +8,7 @@ import { ChatControls } from "./chat-controls";
 import { ChatEmptyState } from "./chat-empty-state";
 import { ChatInput } from "./chat-input";
 import { UsageStrip } from "./usage-strip";
+import { WorkspaceFiles } from "./workspace-files";
 import { FilePreviewPanel } from "./file-preview-panel";
 import { SourcesPanel } from "./sources-panel";
 import { MessageList } from "./message-list";
@@ -64,6 +65,13 @@ export function ChatContainer() {
     conversationId: currentConversationId,
     onConversationCreated: handleConversationCreated,
   });
+
+  // What the file panel watches, rather than a timer. Counted from the transcript
+  // rather than kept as state: a finished assistant message *is* a finished turn,
+  // and a second counter would be a second answer to the same question.
+  const turns = messages.filter(
+    (message) => message.role === "assistant" && !message.isStreaming,
+  ).length;
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -196,6 +204,8 @@ export function ChatContainer() {
       isConnected={isConnected}
       isProcessing={isProcessing}
       lastUsage={lastUsage}
+      conversationId={currentConversationId}
+      turns={turns}
       isLoadingConversation={
         currentConversationId !== null && isConversationLoading && messages.length === 0
       }
@@ -226,6 +236,14 @@ interface ChatUIProps {
   isProcessing: boolean;
   /** What the last turn cost, drawn under the input. Null until one has run. */
   lastUsage: TurnUsage | null;
+  /** The conversation the file panel reads, or null before one exists. */
+  conversationId: string | null;
+  /**
+   * How many turns have finished. Bumped so the file panel re-reads when the
+   * files could have changed, rather than polling for a change it can be told
+   * about.
+   */
+  turns: number;
   /** True while a saved conversation is being loaded - show a skeleton, not empty state. */
   isLoadingConversation?: boolean;
   /** True for an archived conversation - the composer is closed with a notice. */
@@ -257,6 +275,8 @@ function ChatUI({
   isConnected,
   isProcessing,
   lastUsage,
+  conversationId,
+  turns,
   isLoadingConversation,
   isArchived,
   sendMessage,
@@ -375,6 +395,14 @@ function ChatUI({
       </div>
       <FilePreviewPanel />
       <SourcesPanel />
+      {/* Beside the transcript rather than under it: what the agent is holding is
+          something you glance at while reading, and a list that pushed the input
+          down would move the box you are typing in. Hidden on a narrow screen,
+          where there is no room for a third column, and absent entirely for an
+          agent with no workspace - which is most of them. */}
+      <div className="hidden lg:block">
+        <WorkspaceFiles conversationId={conversationId} revision={turns} />
+      </div>
     </div>
   );
 }
