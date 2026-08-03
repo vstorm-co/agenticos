@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Spinner } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
 import { useAdoptSession } from "@/hooks/use-auth";
+import { postSignInDestination } from "@/lib/auth-landing";
 import type { User } from "@/types";
 import { useTranslations } from "next-intl";
 
@@ -48,7 +49,9 @@ export default function AuthCallbackPage() {
         );
         if (cancelled) return;
         adoptSession(data.user, data.access_token);
-        router.replace("/dashboard");
+        // No deep link here: carrying one through the provider round trip
+        // needs the OAuth `state` parameter, which this flow does not use yet.
+        router.replace(postSignInDestination());
       } catch {
         if (!cancelled) {
           setExchangeFailed(true);

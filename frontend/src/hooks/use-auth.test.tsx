@@ -255,7 +255,7 @@ describe("signing in", () => {
     expect(useAuthStore.getState().accessToken).toBe("t-1");
   });
 
-  it("sends an app admin to the dashboard and everybody else to the chat", async () => {
+  it("lands an app admin and an ordinary member on the same dashboard", async () => {
     vi.mocked(apiClient.post).mockResolvedValue({
       user: user({ is_app_admin: true } as Partial<User>),
       access_token: "t-1",
@@ -272,7 +272,31 @@ describe("signing in", () => {
     await act(async () => {
       await result.current.login({ email: "b@example.com", password: "x" });
     });
-    expect(push).toHaveBeenLastCalledWith(ROUTES.CHAT);
+    expect(push).toHaveBeenLastCalledWith(ROUTES.DASHBOARD);
+  });
+
+  it("resumes the deep link the visitor was headed to", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ user: user(), access_token: "t", message: "ok" });
+    const { result } = renderHook(() => useAuth(), { wrapper });
+
+    await act(async () => {
+      await result.current.login({ email: "a@example.com", password: "x" }, "/agents/a-1?tab=spec");
+    });
+
+    expect(push).toHaveBeenLastCalledWith("/agents/a-1?tab=spec");
+  });
+
+  it("refuses a returnTo that leaves the origin", async () => {
+    // ?returnTo= arrives in the URL, so anybody can mint a login link with it;
+    // honouring an off-origin value would turn the form into an open redirect.
+    vi.mocked(apiClient.post).mockResolvedValue({ user: user(), access_token: "t", message: "ok" });
+    const { result } = renderHook(() => useAuth(), { wrapper });
+
+    await act(async () => {
+      await result.current.login({ email: "a@example.com", password: "x" }, "//evil.example/a");
+    });
+
+    expect(push).toHaveBeenLastCalledWith(ROUTES.DASHBOARD);
   });
 
   it("does not ask who is signed in after a login that just said so", async () => {

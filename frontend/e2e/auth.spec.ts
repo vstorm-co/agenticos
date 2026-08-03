@@ -42,6 +42,21 @@ test.describe("Authentication", () => {
     await expect(page).toHaveURL(/\/pl\/login$/);
   });
 
+  test("a deep link survives the login round trip", async ({ page }) => {
+    await page.context().clearCookies();
+    await page.goto("/agents");
+
+    // Landing on the default page after signing in would mean the link the
+    // visitor followed - from an email, a doc - was silently swallowed.
+    await expect(page).toHaveURL(/\/login\?returnTo=%2Fagents/, { timeout: 30_000 });
+
+    await page.getByLabel("Email").fill(OWNER_EMAIL);
+    await page.getByLabel("Password").fill(OWNER_PASSWORD);
+    await page.getByRole("button", { name: "Login" }).click();
+
+    await expect(page).toHaveURL(/\/agents(\?.*)?$/, { timeout: 30_000 });
+  });
+
   test.describe("Login Page", () => {
     test("displays the sign-in form", async ({ page }) => {
       await page.goto("/login");
@@ -172,6 +187,6 @@ test("the bootstrapped owner can sign in", async ({ page }) => {
   await page.getByLabel("Password").fill(OWNER_PASSWORD);
   await page.getByRole("button", { name: "Login" }).click();
 
-  await expect(page).toHaveURL(/\/(chat|dashboard)(\?.*)?$/);
+  await expect(page).toHaveURL(/\/dashboard(\?.*)?$/);
   await expect(page.getByRole("navigation", { name: "Primary" })).toBeVisible();
 });

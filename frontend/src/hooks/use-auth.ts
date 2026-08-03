@@ -8,8 +8,8 @@ import { toast } from "sonner";
 import { resetSessionState, useAuthStore } from "@/stores";
 import { apiClient, ApiError } from "@/lib/api-client";
 import type { User, LoginRequest, RegisterRequest } from "@/types";
+import { postSignInDestination } from "@/lib/auth-landing";
 import { ROUTES } from "@/lib/constants";
-import { isAppAdmin } from "@/lib/utils";
 
 // Session-level singletons so /auth/me runs ONCE per page load no matter how
 // many components mount useAuth(). Concurrent mounts share the in-flight
@@ -165,7 +165,7 @@ export function useAuth() {
   }, [setUser, queryClient]);
 
   const login = useCallback(
-    async (credentials: LoginRequest) => {
+    async (credentials: LoginRequest, returnTo?: string | null) => {
       setLoading(true);
       try {
         const response = await apiClient.post<{
@@ -176,7 +176,7 @@ export function useAuth() {
         adoptUser(queryClient, setUser, response.user);
         useAuthStore.getState().setAccessToken(response.access_token);
         authChecked = true; // login already populated user + token; skip /auth/me
-        router.push(isAppAdmin(response.user) ? ROUTES.DASHBOARD : ROUTES.CHAT);
+        router.push(postSignInDestination(returnTo));
         return response;
       } finally {
         setLoading(false);
