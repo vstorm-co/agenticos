@@ -188,7 +188,6 @@ export function WorkspaceBrowser() {
           )}
         </CardContent>
       </Card>
-
     </div>
   );
 }
@@ -223,7 +222,10 @@ function FlatFiles() {
         {listing.items.map((file) => (
           <li key={`${file.workspace_id}${file.path}`} className="border-border rounded-lg border">
             <div className="flex items-start gap-2 p-3">
-              <FileIcon path={file.path} className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" />
+              <FileIcon
+                path={file.path}
+                className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0"
+              />
               <div className="min-w-0 flex-1 space-y-1">
                 <Link
                   href={ROUTES.WORKSPACE_DETAIL(file.workspace_id)}

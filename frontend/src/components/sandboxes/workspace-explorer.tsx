@@ -5,7 +5,12 @@ import { AlertTriangle, ChevronRight, Download, Folder, Info, Search } from "luc
 
 import { FileIcon, isPreviewable } from "./file-tile";
 import { Button, Input, Skeleton } from "@/components/ui";
-import { downloadWorkspaceFile, useWorkspaceBytes, useWorkspaceFile, useWorkspaceFiles } from "@/hooks";
+import {
+  downloadWorkspaceFile,
+  useWorkspaceBytes,
+  useWorkspaceFile,
+  useWorkspaceFiles,
+} from "@/hooks";
 import { cn } from "@/lib/utils";
 import type { WorkspaceFile } from "@/lib/sandbox-workspaces-api";
 
@@ -83,7 +88,9 @@ export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
   const matches = useMemo(
     () =>
       all
-        .filter((file) => !file.is_dir && file.path.toLowerCase().includes(query.trim().toLowerCase()))
+        .filter(
+          (file) => !file.is_dir && file.path.toLowerCase().includes(query.trim().toLowerCase()),
+        )
         .sort((left, right) => left.path.localeCompare(right.path)),
     [all, query],
   );

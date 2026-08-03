@@ -262,9 +262,7 @@ describe("WorkspaceBrowser", () => {
         "href",
         "/workspaces/w-1",
       );
-      expect(
-        screen.getByText(/Analyst · Everybody who talks to this agent/),
-      ).toBeVisible();
+      expect(screen.getByText(/Analyst · Everybody who talks to this agent/)).toBeVisible();
     });
 
     it("reads a file's size in the units a person uses, or says it is unmeasured", async () => {
