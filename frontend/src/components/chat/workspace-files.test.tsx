@@ -18,7 +18,7 @@ function draw(node: ReactNode) {
 
 /** The panel is closed by default; every test about its contents opens it. */
 async function openPanel() {
-  await userEvent.click(await screen.findByRole("button", { name: /^Files/ }));
+  await userEvent.click(await screen.findByRole("button", { name: /^Show the files/ }));
 }
 
 function workspace(overrides: Record<string, unknown> = {}) {
@@ -245,14 +245,24 @@ describe("the workspace panel", () => {
     // ones where the agent keeps nothing worth looking at.
     draw(<WorkspaceFiles conversationId="c1" revision={0} />);
 
-    expect(await screen.findByRole("button", { name: /^Files/ })).toBeVisible();
+    expect(await screen.findByRole("button", { name: /^Show the files/ })).toBeVisible();
     expect(screen.queryByText("/report.csv")).toBeNull();
   });
 
   it("says on the button how many files there are to see", async () => {
     draw(<WorkspaceFiles conversationId="c1" revision={0} />);
 
-    expect(await screen.findByRole("button", { name: /Files\s*1/ })).toBeVisible();
+    expect(await screen.findByRole("button", { name: "Show the files (1)" })).toBeVisible();
+  });
+
+  it("still offers to open when the workspace is empty", async () => {
+    // The count is what says there is something to look at; its absence must not
+    // take the control away, or a workspace that fills up later is unreachable.
+    vi.mocked(apiClient.get).mockResolvedValue(workspace({ items: [], total: 0 }));
+
+    draw(<WorkspaceFiles conversationId="c1" revision={0} />);
+
+    expect(await screen.findByRole("button", { name: "Show the files" })).toBeVisible();
   });
 
   it("closes again", async () => {

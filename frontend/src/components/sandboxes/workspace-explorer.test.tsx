@@ -93,6 +93,25 @@ describe("the workspace explorer", () => {
     expect(screen.queryByText("SKILL.md")).toBeNull();
   });
 
+  it("says whose files these are, and what they weigh", () => {
+    // Under `agent` scope one workspace is shared, so somebody opens this and finds
+    // a file they never created; a tree of paths with no statement of who can see
+    // them is the wrong thing to hand somebody auditing it.
+    render(<WorkspaceExplorer workspaceId="w-1" />);
+
+    expect(screen.getByText(/This conversation/)).toBeVisible();
+    expect(screen.getByText(/4 KiB stored/)).toBeVisible();
+  });
+
+  it("says nothing about size for a workspace kept on a host", () => {
+    // `bytes_total` is the stored document's size; for a container it is zero and
+    // would read as an empty workspace.
+    state.files = listing([file("/report.md")], { backend: "service", bytes_total: 0 });
+    render(<WorkspaceExplorer workspaceId="w-1" />);
+
+    expect(screen.queryByText(/stored/)).toBeNull();
+  });
+
   it("walks into a folder", async () => {
     render(<WorkspaceExplorer workspaceId="w-1" />);
 

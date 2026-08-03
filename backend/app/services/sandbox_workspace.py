@@ -570,7 +570,16 @@ class SandboxWorkspaceService:
             BadRequestError: If the host cannot be read, or cannot serve this file
                 as bytes.
         """
-        row, _contents = await self.files_of(ctx, workspace_id)
+        row, contents = await self.files_of(ctx, workspace_id)
+        # Answered from the listing rather than from the read that follows. A
+        # container-backed host raises the same way for "no such file" as for "this
+        # host cannot be read", so without this a missing file is reported as a
+        # configuration problem - and 400 is the wrong answer to a typo in a path.
+        if _absent(contents, path):
+            raise NotFoundError(
+                message="No such file",
+                details={"workspace_id": str(workspace_id), "path": path},
+            )
         if row.backend == "state":
             from pydantic_ai_backends import StateBackend
 
@@ -600,7 +609,9 @@ class SandboxWorkspaceService:
 
     async def read_file_of(self, ctx: AuthContext, workspace_id: UUID, *, path: str) -> str | None:
         """One file's text from a workspace addressed by its own id."""
-        row, _ = await self.files_of(ctx, workspace_id)
+        row, contents = await self.files_of(ctx, workspace_id)
+        if _absent(contents, path):
+            return None
         return await self._read_from(ctx, row, path)
 
     async def listing(
@@ -771,6 +782,17 @@ the case where guessing wrong is silent. `.svg` is here because it *is* text -
 whether it may be *displayed* inline is a separate decision the route makes, and
 the answer there is no.
 """
+
+
+def _absent(contents: WorkspaceContents, path: str) -> bool:
+    """Whether a listing that could be read says this path is not in it.
+
+    An unreadable listing answers `False`: it knows nothing, and reporting "no such
+    file" on the strength of a listing that failed would be a confident wrong answer.
+    """
+    if contents.unreadable_reason is not None or not contents.entries:
+        return False
+    return all(str(entry.get("path")) != path for entry in contents.entries)
 
 
 def _is_textual(path: str) -> bool:

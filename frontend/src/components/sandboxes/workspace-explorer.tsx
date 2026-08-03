@@ -149,6 +149,20 @@ export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
         </div>
       </div>
 
+      {/* Whose files these are, said on the page rather than only in the table that
+          linked here. Under `agent` scope one workspace is shared by everybody who
+          talks to that agent, so somebody opens this and finds a file they never
+          created - and a tree of paths with no statement of who can see them is the
+          wrong thing to hand somebody auditing it. */}
+      {files !== null && (
+        <p className="text-muted-foreground text-xs">
+          {files.owner_label}
+          {files.backend === "state" && files.bytes_total > 0 && (
+            <> · {size(files.bytes_total)} stored</>
+          )}
+        </p>
+      )}
+
       {files?.unreadable_reason != null && (
         <div className="text-muted-foreground flex items-start gap-2 text-xs">
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />

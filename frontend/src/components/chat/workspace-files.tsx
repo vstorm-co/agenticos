@@ -26,8 +26,8 @@ function size(bytes: number | null): string {
  *
  * **Closed by default, and that is the change.** A permanent third column took
  * space from the transcript in every conversation, including the ones where the
- * agent keeps nothing — so it is a toggle in the corner now, and the count on it is
- * what tells somebody there is anything to open.
+ * agent keeps nothing — so closed it is a strip holding one icon, and the count on
+ * that icon is what says there is something to open.
  *
  * `owner_label` is shown and is not decoration. Under `agent` scope one workspace is
  * shared by everybody who talks to that agent, so somebody opens a chat and finds a
@@ -57,12 +57,23 @@ export function WorkspaceFiles({ conversationId, revision }: WorkspaceFilesProps
 
   if (!open)
     return (
-      <div className="absolute top-3 right-3 z-10">
-        <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
-          <FolderOpen className="h-4 w-4" aria-hidden />
-          Files
-          {files.length > 0 && <span className="text-muted-foreground">{files.length}</span>}
-        </Button>
+      // A strip in the flow rather than something absolutely positioned over the
+      // row: the sources and file-preview panels are columns on this same right
+      // edge, and a floating button would sit on top of whichever one was open.
+      <div className="border-border flex w-11 shrink-0 flex-col items-center border-l pt-3">
+        <button
+          type="button"
+          aria-label={files.length === 0 ? "Show the files" : `Show the files (${files.length})`}
+          onClick={() => setOpen(true)}
+          className="text-muted-foreground hover:text-foreground hover:bg-accent/60 relative rounded-md p-2"
+        >
+          <FolderOpen className="h-4 w-4" />
+          {files.length > 0 && (
+            <span className="bg-foreground text-background absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px]">
+              {files.length}
+            </span>
+          )}
+        </button>
       </div>
     );
 
@@ -156,9 +167,11 @@ interface FileContentsProps {
 /**
  * One file, as text.
  *
- * Text only, which is the API's limit rather than this component's: a workspace can
- * hold a PNG an agent produced, and serving that would mean deciding content types
- * and disposition headers — a download path with its own threat model.
+ * Text only, which is this route's limit rather than this component's: a
+ * conversation's workspace is served as text, and the bytes of a chart an agent
+ * produced come from the Workspaces page instead — `GET
+ * /sandbox-workspaces/{id}/raw`, where the content-type and disposition rules live.
+ * Duplicating those here would mean a second place to get them wrong.
  */
 function FileContents({ conversationId, path }: FileContentsProps) {
   const { file, isLoading, error } = useConversationFile(conversationId, path);

@@ -720,6 +720,63 @@ class TestServingAFileAsBytes:
                 _member_ctx(), row.id, path="/a.txt"
             )
 
+    async def test_a_path_the_listing_does_not_have_is_missing_rather_than_a_refusal(
+        self, monkeypatch, mock_db_session
+    ):
+        """A container-backed host raises the same way for "no such file" as for
+        "this host cannot be read", so the listing answers first - 400 is the wrong
+        reply to a typo in a path."""
+        from pydantic_ai_backends import remote as remote_module
+
+        class _Archive:
+            def __init__(self, url, token=""):
+                pass
+
+            def ls(self, session_id):
+                return [{"path": "/run.py", "size": 8, "is_dir": False}]
+
+            def read(self, session_id, path):
+                raise AssertionError("the listing should have answered first")
+
+        monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
+        _serve(monkeypatch, _resolved())
+        row = _row(backend="service", session_id="dc-1", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "get", AsyncMock(return_value=row))
+
+        with pytest.raises(NotFoundError):
+            await SandboxWorkspaceService(mock_db_session).read_bytes_of(
+                _ctx(), row.id, path="/typo.py"
+            )
+
+    async def test_a_listing_that_could_not_be_read_does_not_claim_a_file_is_missing(
+        self, monkeypatch, mock_db_session
+    ):
+        """It knows nothing, and "no such file" on the strength of a failed listing
+        is a confident wrong answer."""
+        from pydantic_ai_backends import remote as remote_module
+
+        class _Archive:
+            def __init__(self, url, token=""):
+                pass
+
+            def ls(self, session_id):
+                raise RuntimeError("This service keeps no workspaces on disk.")
+
+            def read(self, session_id, path):
+                raise RuntimeError("This service keeps no workspaces on disk.")
+
+        monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
+        _serve(monkeypatch, _resolved())
+        row = _row(backend="service", session_id="dc-1", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "get", AsyncMock(return_value=row))
+
+        with pytest.raises(BadRequestError) as refused:
+            await SandboxWorkspaceService(mock_db_session).read_bytes_of(
+                _ctx(), row.id, path="/run.py"
+            )
+
+        assert "could not be read" in refused.value.message
+
     def test_a_file_with_no_suffix_is_not_assumed_to_be_text(self):
         """Guessing wrong here is silent, and the file that has no suffix is exactly
         where a guess is least informed."""
@@ -1246,6 +1303,22 @@ class TestShowingTheFilesToAPerson:
 
         assert text is not None
         assert "month,total" in text
+
+    async def test_reading_by_id_a_path_the_listing_does_not_have_is_nothing(
+        self, monkeypatch, mock_db_session
+    ):
+        """The text path answers the same way the byte path does, from the listing."""
+        stored = StateBackend()
+        stored.write("/report.csv", "month,total")
+        row = _row(files=dict(stored.files))
+        monkeypatch.setattr(workspace_repo, "get", AsyncMock(return_value=row))
+
+        assert (
+            await SandboxWorkspaceService(mock_db_session).read_file_of(
+                _ctx(), row.id, path="/typo.csv"
+            )
+            is None
+        )
 
     async def test_a_path_that_is_not_there_reads_as_nothing(self, monkeypatch, mock_db_session):
         monkeypatch.setattr(
