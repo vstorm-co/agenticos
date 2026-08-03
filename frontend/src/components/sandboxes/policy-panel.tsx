@@ -19,6 +19,7 @@ import {
 } from "@/components/ui";
 import { useSandboxPolicy } from "@/hooks";
 import type { SandboxConnectionRecord } from "@/lib/sandbox-connections-api";
+import { useTranslations } from "next-intl";
 
 interface PolicyPanelProps {
   /** The connection to ask, or `null` while the panel is closed. */
@@ -45,6 +46,7 @@ function timeout(seconds: number | null): string {
  * in the service's own environment.
  */
 export function PolicyPanel({ connection, onOpenChange }: PolicyPanelProps) {
+  const t = useTranslations("sandboxes.policy");
   const { policy, isLoading, error } = useSandboxPolicy(connection?.id ?? null);
 
   return (
@@ -78,19 +80,19 @@ export function PolicyPanel({ connection, onOpenChange }: PolicyPanelProps) {
                 between a dead end and a one-line edit in a compose file. */}
             <dl className="text-muted-foreground grid gap-x-6 gap-y-2 text-xs sm:grid-cols-3">
               <div>
-                <dt>Sandboxes per organization</dt>
+                <dt>{t("perOrganization")}</dt>
                 <dd className="text-foreground font-medium">
                   {policy.max_sessions_per_tenant ?? "—"}
                 </dd>
                 <dd className="font-mono text-[10px]">SANDBOXD_MAX_SESSIONS_PER_TENANT</dd>
               </div>
               <div>
-                <dt>Idle timeout</dt>
+                <dt>{t("idleTimeout")}</dt>
                 <dd className="text-foreground font-medium">{timeout(policy.idle_timeout)}</dd>
                 <dd className="font-mono text-[10px]">SANDBOXD_IDLE_TIMEOUT</dd>
               </div>
               <div>
-                <dt>Kept between turns</dt>
+                <dt>{t("keptBetweenTurns")}</dt>
                 <dd className="text-foreground font-medium">
                   {policy.persist_containers === false ? "no" : "yes"}
                 </dd>
@@ -116,11 +118,11 @@ export function PolicyPanel({ connection, onOpenChange }: PolicyPanelProps) {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Alias</TableHead>
-                      <TableHead>Image</TableHead>
-                      <TableHead>Memory</TableHead>
-                      <TableHead>CPUs</TableHead>
-                      <TableHead>Network</TableHead>
+                      <TableHead>{t("alias")}</TableHead>
+                      <TableHead>{t("image")}</TableHead>
+                      <TableHead>{t("memory")}</TableHead>
+                      <TableHead>{t("cpus")}</TableHead>
+                      <TableHead>{t("network")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -130,7 +132,7 @@ export function PolicyPanel({ connection, onOpenChange }: PolicyPanelProps) {
                           <div className="flex items-center gap-2">
                             <span className="font-mono text-xs">{runtime.alias}</span>
                             {runtime.alias === policy.default_runtime && (
-                              <Badge variant="secondary">Default</Badge>
+                              <Badge variant="secondary">{t("default")}</Badge>
                             )}
                           </div>
                         </TableCell>

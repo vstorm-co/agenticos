@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import { ROUTES } from "@/lib/constants";
+import { useTranslations } from "next-intl";
 
 const ROUTE_LABELS: Record<string, string> = {
   [ROUTES.DASHBOARD]: "Dashboard",
@@ -14,6 +15,7 @@ const ROUTE_LABELS: Record<string, string> = {
 };
 
 export function Breadcrumb() {
+  const t = useTranslations("layout");
   const pathname = usePathname();
 
   const segments = pathname?.split("/").filter(Boolean) || [];
@@ -30,7 +32,7 @@ export function Breadcrumb() {
   });
 
   return (
-    <nav aria-label="Breadcrumb" className="mb-4 flex items-center gap-1 text-sm">
+    <nav aria-label={t("breadcrumb")} className="mb-4 flex items-center gap-1 text-sm">
       {crumbs.map((crumb, i) => (
         <span key={crumb.path} className="flex items-center gap-1">
           {i > 0 && <ChevronRight className="text-muted-foreground h-3 w-3" />}

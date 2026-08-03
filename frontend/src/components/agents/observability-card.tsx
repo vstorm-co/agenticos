@@ -17,6 +17,7 @@ import {
 import { InlineSecret } from "@/components/vault/inline-secret";
 import { useSecrets } from "@/hooks";
 import type { ObservabilitySpec } from "@/types/agents";
+import { useTranslations } from "next-intl";
 
 /**
  * The vault purpose a Logfire write token is stored under. Offering only these
@@ -54,6 +55,7 @@ export function ObservabilityCard({
   disabled,
   agentName,
 }: ObservabilityCardProps) {
+  const t = useTranslations("agents");
   const { secrets } = useSecrets();
   const tokens = secrets.filter((secret) => secret.purpose === TOKEN_PURPOSE);
   const selected = value?.token_secret_id ?? null;
@@ -69,7 +71,7 @@ export function ObservabilityCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Tracing</CardTitle>
+        <CardTitle>{t("tracing")}</CardTitle>
         <CardDescription>
           Every run is already traced into the Logfire project this deployment is configured with.
           Pick a write token to send this agent&apos;s runs to a project of its own instead - an
@@ -79,7 +81,7 @@ export function ObservabilityCard({
       </CardHeader>
       <CardContent className="grid gap-4 sm:grid-cols-3">
         <div className="space-y-2">
-          <Label htmlFor="logfire-token">Write token</Label>
+          <Label htmlFor="logfire-token">{t("writeToken")}</Label>
           <Select
             value={tokens.find((secret) => secret.id === selected)?.id ?? NONE}
             disabled={disabled}
@@ -88,10 +90,10 @@ export function ObservabilityCard({
             }
           >
             <SelectTrigger id="logfire-token">
-              <SelectValue placeholder="The deployment's project" />
+              <SelectValue placeholder={t("deploymentSProject")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={NONE}>The deployment&apos;s project</SelectItem>
+              <SelectItem value={NONE}>{t("deploymentSProject")}</SelectItem>
               {tokens.map((secret) => (
                 <SelectItem key={secret.id} value={secret.id}>
                   {secret.name} <span className="font-mono">····{secret.hint}</span>
@@ -116,7 +118,7 @@ export function ObservabilityCard({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="logfire-service">Service name</Label>
+          <Label htmlFor="logfire-service">{t("serviceName")}</Label>
           <Input
             id="logfire-service"
             value={value?.service_name ?? ""}
@@ -124,16 +126,16 @@ export function ObservabilityCard({
             placeholder={agentName}
             onChange={(event) => update({ service_name: event.target.value || null })}
           />
-          <p className="text-muted-foreground text-xs">What the agent is called in Logfire.</p>
+          <p className="text-muted-foreground text-xs">{t("whatAgentCalledLogfire")}</p>
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="logfire-environment">Environment</Label>
+          <Label htmlFor="logfire-environment">{t("environment")}</Label>
           <Input
             id="logfire-environment"
             value={value?.environment ?? ""}
             disabled={disabled || selected === null}
-            placeholder="production"
+            placeholder={t("production")}
             onChange={(event) => update({ environment: event.target.value || null })}
           />
           <p className="text-muted-foreground text-xs">

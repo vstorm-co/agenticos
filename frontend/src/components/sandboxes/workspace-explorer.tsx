@@ -10,6 +10,7 @@ import { downloadWorkspaceFile, useWorkspaceFiles } from "@/hooks";
 import { cn } from "@/lib/utils";
 import type { FileSource } from "@/lib/workspace-files";
 import type { WorkspaceFile } from "@/lib/sandbox-workspaces-api";
+import { useTranslations } from "next-intl";
 
 interface WorkspaceExplorerProps {
   workspaceId: string;
@@ -73,6 +74,7 @@ export function levelAt(files: WorkspaceFile[], prefix: string[]): Level {
  * matches on the path, so a folder name narrows to its contents for free.
  */
 export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
+  const t = useTranslations("sandboxes.workspaces");
   const { files, isLoading, error } = useWorkspaceFiles(workspaceId);
   const [prefix, setPrefix] = useState<string[]>([]);
   const [query, setQuery] = useState("");
@@ -110,7 +112,10 @@ export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
         {/* A breadcrumb rather than a back button: a workspace nests three deep at
             most, and the useful move is usually to the root or to the folder above
             it, both of which a breadcrumb offers in one click. */}
-        <nav aria-label="Folders" className="flex min-w-0 flex-wrap items-center gap-1 text-sm">
+        <nav
+          aria-label={t("folders")}
+          className="flex min-w-0 flex-wrap items-center gap-1 text-sm"
+        >
           <button
             type="button"
             onClick={() => setPrefix([])}
@@ -139,8 +144,8 @@ export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
           />
           <Input
             value={query}
-            aria-label="Search files by name"
-            placeholder="Search every folder"
+            aria-label={t("searchLabel")}
+            placeholder={t("searchPlaceholder")}
             onChange={(event) => setQuery(event.target.value)}
             className="pl-7"
           />
@@ -180,9 +185,7 @@ export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
         <>
           {level.folders.length === 0 && level.files.length === 0 && (
             <p className="text-muted-foreground py-8 text-center text-sm">
-              {files?.unreadable_reason == null
-                ? "This folder is empty."
-                : "Nothing could be listed here."}
+              {files?.unreadable_reason == null ? t("folderEmpty") : t("nothingListed")}
             </p>
           )}
 

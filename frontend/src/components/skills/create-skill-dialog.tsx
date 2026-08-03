@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils";
 import { useSkills } from "@/hooks";
 import { apiClient } from "@/lib/api-client";
 import { submitFailure } from "@/lib/api-error";
+import { useTranslations } from "next-intl";
 
 /** What the backend accepts, so an over-long value is refused before it is sent. */
 const MAX_NAME = 64;
@@ -76,6 +77,7 @@ interface CreateSkillDialogProps {
  * the skill exists to attach them to.
  */
 export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps) {
+  const t = useTranslations("skills");
   const { create, categories, suggestedCategories } = useSkills();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -172,7 +174,7 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex h-[92vh] flex-col sm:max-w-[92rem]">
         <DialogHeader>
-          <DialogTitle>New skill</DialogTitle>
+          <DialogTitle>{t("newSkill")}</DialogTitle>
           <DialogDescription>
             It is available to every agent in this organization the moment you create it.
           </DialogDescription>
@@ -181,7 +183,7 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
         <div className="flex min-h-0 flex-1 flex-col gap-3">
           <div className="flex flex-wrap items-start gap-4 rounded-md border p-3">
             <div className="w-56 shrink-0 space-y-1.5">
-              <Label htmlFor="new-skill-name">Name</Label>
+              <Label htmlFor="new-skill-name">{t("name")}</Label>
               <Input
                 id="new-skill-name"
                 value={name}
@@ -196,12 +198,12 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
               </FieldNote>
             </div>
             <div className="min-w-0 flex-1 basis-72 space-y-1.5">
-              <Label htmlFor="new-skill-description">Description</Label>
+              <Label htmlFor="new-skill-description">{t("description")}</Label>
               <Input
                 id="new-skill-description"
                 value={description}
                 onChange={(event) => edit("description", event.target.value)}
-                placeholder="How refunds and their exceptions are handled."
+                placeholder={t("howRefundsTheirExceptions")}
                 maxLength={MAX_DESCRIPTION}
                 aria-invalid={errors.description ? true : undefined}
               />
@@ -211,7 +213,7 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
               </FieldNote>
             </div>
             <div className="w-56 shrink-0 space-y-1.5">
-              <Label htmlFor="new-skill-category">Category</Label>
+              <Label htmlFor="new-skill-category">{t("category")}</Label>
               <CategoryInput
                 id="new-skill-category"
                 value={category}
@@ -240,11 +242,11 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
                   <FilePlus className="h-3.5 w-3.5" />
                   New
                 </Button>
-                <UploadButton icon={Upload} label="Files" onPick={addFiles} />
+                <UploadButton icon={Upload} label={t("files")} onPick={addFiles} />
                 {/* A directory picker sends every file with its relative path,
                     which is exactly the name a resource takes - so a dropped
                     folder arrives as a folder with nothing to reconstruct. */}
-                <UploadButton icon={Upload} label="Folder" directory onPick={addFiles} />
+                <UploadButton icon={Upload} label={t("folder")} directory onPick={addFiles} />
               </div>
 
               <div className="min-h-0 flex-1 overflow-auto rounded-md border p-1">

@@ -5,6 +5,7 @@ import { FileText, Tag, Trash2 } from "lucide-react";
 import { Badge, Button, Card, CardContent } from "@/components/ui";
 import { categoryLabel } from "@/components/skills/category-input";
 import type { SkillSummary } from "@/types/providers";
+import { useTranslations } from "next-intl";
 
 interface SkillCardProps {
   skill: SkillSummary;
@@ -29,6 +30,7 @@ function fileCount(count: number): string {
  * unbadged, so the exceptions can be found at a glance.
  */
 export function SkillCard({ skill, canEdit, onOpen, onDelete }: SkillCardProps) {
+  const t = useTranslations("skills");
   return (
     <Card className="hover:border-foreground/20 h-full transition-colors">
       <CardContent className="flex items-start justify-between gap-3 p-5">
@@ -38,7 +40,7 @@ export function SkillCard({ skill, canEdit, onOpen, onDelete }: SkillCardProps) 
               {skill.name}
             </span>
             {skill.built_in && <Badge variant="secondary">built-in</Badge>}
-            {!skill.enabled && <Badge variant="outline">disabled</Badge>}
+            {!skill.enabled && <Badge variant="outline">{t("disabled")}</Badge>}
           </span>
           <span className="text-muted-foreground line-clamp-2 block text-sm">
             {skill.description}

@@ -26,6 +26,7 @@ import { WorkspaceFileViewer } from "./file-viewer";
 import { downloadWorkspaceFile, useAllWorkspaceFiles, useSandboxWorkspaces } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import type { FlatFile } from "@/lib/sandbox-workspaces-api";
+import { useTranslations } from "next-intl";
 
 /** Bytes as a person reads them. */
 function size(bytes: number | null): string {
@@ -67,6 +68,7 @@ function used(when: string | null): string {
  * statement of who can see them is the wrong thing to hand somebody auditing this.
  */
 export function WorkspaceBrowser() {
+  const t = useTranslations("sandboxes.workspaces");
   const { workspaces, isLoading, error } = useSandboxWorkspaces();
   const [flat, setFlat] = useState(false);
 
@@ -132,13 +134,13 @@ export function WorkspaceBrowser() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Agent</TableHead>
-                    <TableHead>Conversation</TableHead>
-                    <TableHead>Who can see it</TableHead>
-                    <TableHead>Backend</TableHead>
-                    <TableHead>Size</TableHead>
-                    <TableHead>Last used</TableHead>
-                    <TableHead className="text-right">Files</TableHead>
+                    <TableHead>{t("agent")}</TableHead>
+                    <TableHead>{t("conversation")}</TableHead>
+                    <TableHead>{t("whoCanSeeIt")}</TableHead>
+                    <TableHead>{t("backend")}</TableHead>
+                    <TableHead>{t("size")}</TableHead>
+                    <TableHead>{t("lastUsed")}</TableHead>
+                    <TableHead className="text-right">{t("files")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

@@ -6,6 +6,7 @@ import { Check, ChevronsUpDown, Pencil } from "lucide-react";
 
 import { Badge, Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
 import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 
 /** One entry as the picker needs it - the shape `useProviderModels` returns. */
 export interface ModelOption {
@@ -64,6 +65,7 @@ export function ModelCombobox({
   placeholder,
   id,
 }: ModelComboboxProps) {
+  const t = useTranslations("agents");
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const listId = useId();
@@ -118,7 +120,7 @@ export function ModelCombobox({
             <Command.Input
               value={search}
               onValueChange={setSearch}
-              placeholder="Search models…"
+              placeholder={t("searchModels")}
               className="placeholder:text-muted-foreground w-full bg-transparent text-sm outline-none"
             />
           </div>
@@ -149,7 +151,7 @@ export function ModelCombobox({
                 <span className="min-w-0 flex-1 truncate">
                   Use <span className="font-mono">{custom}</span>
                 </span>
-                <Badge variant="outline">not in the list</Badge>
+                <Badge variant="outline">{t("notList")}</Badge>
               </Command.Item>
             )}
 

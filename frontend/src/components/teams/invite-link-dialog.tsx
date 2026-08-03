@@ -22,6 +22,7 @@ import {
 import { useAssignableRoles, useInvitations } from "@/hooks";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import type { OrgRole } from "@/types";
+import { useTranslations } from "next-intl";
 
 interface InviteLinkDialogProps {
   open: boolean;
@@ -43,6 +44,7 @@ interface InviteLinkDialogProps {
  * dialog says so instead of leaving it to be worked out later.
  */
 export function InviteLinkDialog({ open, onOpenChange, orgId }: InviteLinkDialogProps) {
+  const t = useTranslations("teams");
   const { createLink } = useInvitations(orgId);
   const { copy, copied } = useCopyToClipboard();
   const assignable = useAssignableRoles();
@@ -90,7 +92,7 @@ export function InviteLinkDialog({ open, onOpenChange, orgId }: InviteLinkDialog
         {link === null ? (
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="link-role">Join as</Label>
+              <Label htmlFor="link-role">{t("joinAs")}</Label>
               <Select value={role} onValueChange={(value) => setRole(value as OrgRole)}>
                 <SelectTrigger id="link-role" className="capitalize">
                   <SelectValue />
@@ -107,7 +109,7 @@ export function InviteLinkDialog({ open, onOpenChange, orgId }: InviteLinkDialog
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="link-uses">How many people</Label>
+                <Label htmlFor="link-uses">{t("howManyPeople")}</Label>
                 <Input
                   id="link-uses"
                   type="number"
@@ -115,20 +117,20 @@ export function InviteLinkDialog({ open, onOpenChange, orgId }: InviteLinkDialog
                   max="500"
                   value={maxUses}
                   onChange={(event) => setMaxUses(event.target.value)}
-                  placeholder="Unlimited"
+                  placeholder={t("unlimited")}
                 />
-                <p className="text-muted-foreground text-xs">Empty means unlimited.</p>
+                <p className="text-muted-foreground text-xs">{t("emptyMeansUnlimited")}</p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="link-domain">Only this email domain</Label>
+                <Label htmlFor="link-domain">{t("onlyEmailDomain")}</Label>
                 <Input
                   id="link-domain"
                   value={domain}
                   onChange={(event) => setDomain(event.target.value)}
-                  placeholder="acme.com"
+                  placeholder={t("acmeCom")}
                   className="font-mono"
                 />
-                <p className="text-muted-foreground text-xs">Optional, and worth setting.</p>
+                <p className="text-muted-foreground text-xs">{t("optionalWorthSetting")}</p>
               </div>
             </div>
 
@@ -167,7 +169,7 @@ export function InviteLinkDialog({ open, onOpenChange, orgId }: InviteLinkDialog
               </Button>
             </>
           ) : (
-            <Button onClick={close}>Done</Button>
+            <Button onClick={close}>{t("done")}</Button>
           )}
         </DialogFooter>
       </DialogContent>

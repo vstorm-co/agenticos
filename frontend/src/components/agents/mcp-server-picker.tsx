@@ -16,6 +16,7 @@ import {
 } from "@/lib/mcp-servers";
 import { cn } from "@/lib/utils";
 import type { McpCatalogEntry } from "@/types/mcp";
+import { useTranslations } from "next-intl";
 
 interface McpServerPickerProps {
   /** The organization's servers - the only ones an agent may be bound to. */
@@ -70,6 +71,7 @@ export function McpServerPicker({
   onToggle,
   disabled,
 }: McpServerPickerProps) {
+  const t = useTranslations("agents");
   const [connectedOnly, setConnectedOnly] = useState(false);
   const chosen = new Set(selectedIds);
   const known = new Set(connections.map((connection) => connection.id));
@@ -115,7 +117,7 @@ export function McpServerPicker({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <SearchInput value={list.query} onChange={list.setQuery} placeholder="Search servers…" />
+        <SearchInput value={list.query} onChange={list.setQuery} placeholder={t("searchServers")} />
         {/* The catalog is mostly servers nobody has connected, and only a
             connected one can be bound - so "hide the rest" is the filter this
             picker actually needs. */}
@@ -187,6 +189,7 @@ function ServerCard({
   onToggle: (connectionId: string) => void;
   disabled?: boolean;
 }) {
+  const t = useTranslations("agents");
   const state = connectionState(connection);
   const isOn = connection !== null && selected(connection.id);
   const bindable = connection !== null;
@@ -231,7 +234,7 @@ function ServerCard({
       >
         {body}
         <Plug className="text-muted-foreground mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-        <span className="sr-only">Connect this server first</span>
+        <span className="sr-only">{t("connectServerFirst")}</span>
       </Link>
     );
   }

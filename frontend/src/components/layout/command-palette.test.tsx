@@ -15,8 +15,8 @@ const currentUser = vi.fn<() => { is_app_admin?: boolean } | null>(() => ({
 }));
 const push = vi.fn();
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can }) }));
 vi.mock("@/hooks", () => ({ useAuth: () => ({ user: currentUser(), logout: vi.fn() }) }));
 vi.mock("@/lib/api-client", () => ({ apiClient: { get: vi.fn() } }));
@@ -36,7 +36,7 @@ function wrapper({ children }: { children: ReactNode }) {
 async function openPalette() {
   render(<CommandPalette />, { wrapper });
   act(() => window.dispatchEvent(new CustomEvent("command-palette:open")));
-  await screen.findByRole("dialog", { name: "Command palette" });
+  await screen.findByRole("dialog", { name: "commandPalette" });
 }
 
 beforeEach(() => {

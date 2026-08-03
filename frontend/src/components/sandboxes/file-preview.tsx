@@ -6,6 +6,7 @@ import { Button, Skeleton } from "@/components/ui";
 import { MarkdownContent } from "@/components/chat/markdown-content";
 import { useFileDownload, useWorkspaceFileBytes, useWorkspaceFileText } from "@/hooks";
 import { isMarkdown, isTextual, type FileSource } from "@/lib/workspace-files";
+import { useTranslations } from "next-intl";
 
 interface FilePreviewProps {
   source: FileSource;
@@ -29,6 +30,7 @@ export function FilePreview({ source, path, asSource = false }: FilePreviewProps
 }
 
 function BytesBody({ source, path }: { source: FileSource; path: string }) {
+  const t = useTranslations("sandboxes.workspaces");
   const { url, mediaType, isLoading, error } = useWorkspaceFileBytes(source, path);
 
   if (isLoading) return <Skeleton className="h-64 w-full" />;
@@ -54,13 +56,7 @@ function BytesBody({ source, path }: { source: FileSource; path: string }) {
   // The server did not serve it as something displayable, whatever the suffix
   // suggested. A broken `<img>` with nothing saying why is the worst of the three
   // answers; the download is the one that works.
-  return (
-    <Unshowable
-      source={source}
-      path={path}
-      reason="This one cannot be shown here — the server serves it as a file."
-    />
-  );
+  return <Unshowable source={source} path={path} reason={t("servedAsFile")} />;
 }
 
 function TextBody({ source, path, asSource }: Required<FilePreviewProps>) {

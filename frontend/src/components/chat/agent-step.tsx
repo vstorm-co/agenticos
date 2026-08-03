@@ -1,6 +1,7 @@
 "use client";
 
 import { Children, useState, type ReactNode } from "react";
+import { useTranslations } from "next-intl";
 import {
   BarChart3,
   BookOpen,
@@ -76,6 +77,7 @@ interface AgentStepsProps {
  * a line saves nothing.
  */
 export function AgentSteps({ children, showAll = false, done = false }: AgentStepsProps) {
+  const t = useTranslations("chat.steps");
   const [opened, setOpened] = useState(false);
   const steps = Children.toArray(children);
   const earlier = steps.slice(0, -1);
@@ -92,7 +94,7 @@ export function AgentSteps({ children, showAll = false, done = false }: AgentSte
           className="text-muted-foreground/70 hover:text-foreground flex items-center gap-2 py-1 text-[13px]"
         >
           <ChevronRight className="h-3.5 w-3.5 shrink-0" aria-hidden />
-          {earlier.length} earlier steps
+          {t("earlierSteps", { count: earlier.length })}
         </button>
       ) : (
         earlier
@@ -144,6 +146,7 @@ export function AgentStep({
   actions,
   children,
 }: AgentStepProps) {
+  const t = useTranslations("chat.steps");
   const Icon = state === "parked" ? PauseCircle : ICONS[kind];
   const openable = onToggle !== undefined;
   // The server's brand, where there is one, and the generic plug where there is not.
@@ -190,11 +193,13 @@ export function AgentStep({
         </span>
       )}
       {state === "parked" && (
-        <span className="shrink-0 text-[11px] text-amber-600">waiting for approval</span>
+        <span className="shrink-0 text-[11px] text-amber-600">{t("awaitingApproval")}</span>
       )}
-      {state === "error" && <X className="text-destructive h-3 w-3 shrink-0" aria-label="Failed" />}
+      {state === "error" && (
+        <X className="text-destructive h-3 w-3 shrink-0" aria-label={t("failed")} />
+      )}
       {state === "running" && (
-        <span className="flex shrink-0 gap-0.5" aria-label="Running">
+        <span className="flex shrink-0 gap-0.5" aria-label={t("running")}>
           <span className="bg-brand/60 h-1 w-1 animate-bounce rounded-full [animation-delay:0ms]" />
           <span className="bg-brand/60 h-1 w-1 animate-bounce rounded-full [animation-delay:150ms]" />
           <span className="bg-brand/60 h-1 w-1 animate-bounce rounded-full [animation-delay:300ms]" />
@@ -245,10 +250,11 @@ export function AgentStep({
  * working and started answering - which a run ending on "Ran pytest" does not.
  */
 function StepsDone() {
+  const t = useTranslations("chat.steps");
   return (
     <div className="flex items-center gap-2 py-1">
       <Check className="text-muted-foreground/70 h-3.5 w-3.5 shrink-0" aria-hidden />
-      <span className="text-muted-foreground text-[13px]">Done</span>
+      <span className="text-muted-foreground text-[13px]">{t("done")}</span>
     </div>
   );
 }

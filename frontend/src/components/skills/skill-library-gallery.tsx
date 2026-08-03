@@ -6,6 +6,7 @@ import { useSkillLibrary } from "@/hooks";
 import { Button, Pager, SearchInput, useListControls } from "@/components/ui";
 import { LoadingState } from "@/components/states";
 import { formatSize } from "@/components/skills/skill-files";
+import { useTranslations } from "next-intl";
 
 /**
  * The skills this deployment ships with, ready to copy in.
@@ -20,6 +21,7 @@ import { formatSize } from "@/components/skills/skill-files";
  * at it. What that costs is that adding one is a deploy.
  */
 export function SkillLibraryGallery({ canInstall }: { canInstall: boolean }) {
+  const t = useTranslations("skills");
   const { library, isLoading, install } = useSkillLibrary();
   // Only what is not already here. The section answers "what else could I
   // have", and a card for something the organization installed last week
@@ -40,7 +42,7 @@ export function SkillLibraryGallery({ canInstall }: { canInstall: boolean }) {
   return (
     <div className="space-y-3">
       <div>
-        <p className="text-sm font-medium">Ready-made skills</p>
+        <p className="text-sm font-medium">{t("readyMadeSkills")}</p>
         <p className="text-muted-foreground text-xs">
           Written for this platform and copied into your organization - yours to edit from the
           moment you install one.
@@ -50,7 +52,7 @@ export function SkillLibraryGallery({ canInstall }: { canInstall: boolean }) {
       {/* Only once the shelf is long enough to be worth searching - a box over
           three cards is a control that reads as a missing list. */}
       {available.length > 8 && (
-        <SearchInput value={list.query} onChange={list.setQuery} placeholder="Search library…" />
+        <SearchInput value={list.query} onChange={list.setQuery} placeholder={t("searchLibrary")} />
       )}
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">

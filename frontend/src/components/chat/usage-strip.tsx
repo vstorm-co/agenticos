@@ -1,6 +1,7 @@
 "use client";
 
 import { Coins, HardDrive } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import { cn } from "@/lib/utils";
 import type { ConversationWorkspace } from "@/lib/conversation-workspace-api";
@@ -72,6 +73,7 @@ function reportedDetail(sandbox: NonNullable<TurnUsage["sandbox"]>): string | nu
  * make yet.
  */
 export function UsageStrip({ usage, workspace = null }: UsageStripProps) {
+  const t = useTranslations("chat.usage");
   if (usage === null) return null;
 
   const tokens = usage.input_tokens + usage.output_tokens;
@@ -107,7 +109,7 @@ export function UsageStrip({ usage, workspace = null }: UsageStripProps) {
         <span className="flex items-center gap-1.5" title={detail ?? undefined}>
           <HardDrive className="h-3 w-3" aria-hidden />
           {percent === null ? (
-            <span>workspace in use</span>
+            <span>{t("workspaceInUse")}</span>
           ) : (
             <>
               <span
@@ -116,7 +118,7 @@ export function UsageStrip({ usage, workspace = null }: UsageStripProps) {
                   percent >= 80 && percent < 90 && "text-amber-600",
                 )}
               >
-                workspace {percent}% full
+                {t("workspaceFull", { percent })}
               </span>
               {/* A bar as well as the number: 84% and 8% read the same at a
                   glance in a line of small grey text, and the whole point of
@@ -127,7 +129,7 @@ export function UsageStrip({ usage, workspace = null }: UsageStripProps) {
                 aria-valuenow={percent}
                 aria-valuemin={0}
                 aria-valuemax={100}
-                aria-label="Workspace used"
+                aria-label={t("workspaceUsed")}
               >
                 <span
                   className={cn(

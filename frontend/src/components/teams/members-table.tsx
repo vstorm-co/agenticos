@@ -21,6 +21,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Trash2 } from "lucide-react";
 import { useAssignableRoles } from "@/hooks";
 import type { OrganizationMember, OrgRole } from "@/types";
+import { useTranslations } from "next-intl";
 
 interface MembersTableProps {
   members: OrganizationMember[];
@@ -63,15 +64,16 @@ export function MembersTable({
   onRoleChange,
   onRemove,
 }: MembersTableProps) {
+  const t = useTranslations("teams");
   const assignable = useAssignableRoles();
 
   return (
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>Member</TableHead>
-          <TableHead>Role</TableHead>
-          <TableHead>Joined</TableHead>
+          <TableHead>{t("member")}</TableHead>
+          <TableHead>{t("role2")}</TableHead>
+          <TableHead>{t("joined")}</TableHead>
           {canManage && <TableHead className="w-12" />}
         </TableRow>
       </TableHeader>

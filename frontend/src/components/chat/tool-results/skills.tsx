@@ -1,4 +1,5 @@
 "use client";
+import { useTranslations } from "next-intl";
 
 /** "market_data" -> "Market Data", "fire" -> "Fire". */
 // One implementation, in `lib/tool-steps.ts`, because the step label above a
@@ -16,10 +17,11 @@ export function parseLoadSkillResult(result: string): { description: string } | 
 
 /** Clean card for a loaded skill - just the description, no raw XML. */
 export function LoadSkillResult({ resultText, status }: { resultText: string; status: string }) {
+  const t = useTranslations("chat.tools");
   if (!resultText || status !== "completed") {
     return (
       <p className="text-muted-foreground py-2 text-xs italic">
-        {status === "error" ? "Failed to load skill." : "Loading…"}
+        {status === "error" ? t("failedToLoadSkill") : t("loading")}
       </p>
     );
   }

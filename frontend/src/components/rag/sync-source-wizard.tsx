@@ -33,6 +33,7 @@ import { BrandIcon, connectorBrand } from "@/components/icons/brand-icon";
 import type { ConnectorInfo, SyncSourceCreate, SyncSourceRead } from "@/lib/rag-api";
 import { cn } from "@/lib/utils";
 import { useChanged } from "@/hooks/use-changed";
+import { useTranslations } from "next-intl";
 
 interface SyncSourceWizardProps {
   open: boolean;
@@ -89,6 +90,7 @@ export function SyncSourceWizard({
   onClone,
   submitting,
 }: SyncSourceWizardProps) {
+  const t = useTranslations("rag");
   const [mode, setMode] = useState<Mode>("new");
   const [step, setStep] = useState<Step>("source");
   const [form, setForm] = useState<SyncSourceCreate>({
@@ -178,7 +180,7 @@ export function SyncSourceWizard({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-hidden p-0 sm:max-w-2xl">
         <DialogHeader className="border-foreground/10 border-b px-6 py-4">
-          <DialogTitle className="text-base font-semibold">Add sync source</DialogTitle>
+          <DialogTitle className="text-base font-semibold">{t("addSyncSource")}</DialogTitle>
 
           {/* Mode toggle - visible on the first step so user can switch between new/clone */}
           {hasOrgIntegrations && step === "source" && (
@@ -345,6 +347,7 @@ function CloneStep({
   cloneName: string;
   setCloneName: (name: string) => void;
 }) {
+  const t = useTranslations("rag");
   return (
     <div className="space-y-5">
       <p className="text-foreground/65 text-sm">
@@ -409,7 +412,7 @@ function CloneStep({
           </Label>
           <Input
             id="clone-name"
-            placeholder="Leave empty to auto-generate"
+            placeholder={t("leaveEmptyAutoGenerate")}
             value={cloneName}
             onChange={(e) => setCloneName(e.target.value)}
             className="h-10 rounded-xl"
@@ -429,6 +432,7 @@ function ConnectorStep({
   form: SyncSourceCreate;
   setForm: React.Dispatch<React.SetStateAction<SyncSourceCreate>>;
 }) {
+  const t = useTranslations("rag");
   return (
     <div className="space-y-5">
       <div className="space-y-1.5">
@@ -440,7 +444,7 @@ function ConnectorStep({
         </Label>
         <Input
           id="source-name"
-          placeholder="e.g. Engineering docs (S3)"
+          placeholder={t("eGEngineeringDocs")}
           value={form.name}
           onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
           className="h-10 rounded-xl"
@@ -613,6 +617,7 @@ function ScheduleStep({
   setForm: React.Dispatch<React.SetStateAction<SyncSourceCreate>>;
   defaultCollection?: string;
 }) {
+  const t = useTranslations("rag");
   return (
     <div className="space-y-5">
       {/* The picker appears only when there is a choice to make: a KB context
@@ -629,7 +634,7 @@ function ScheduleStep({
             onValueChange={(val) => setForm((f) => ({ ...f, collection_name: val || null }))}
           >
             <SelectTrigger className="h-10 rounded-xl">
-              <SelectValue placeholder="Select collection… (optional)" />
+              <SelectValue placeholder={t("selectCollectionOptional")} />
             </SelectTrigger>
             <SelectContent>
               {collections.map((c) => (
@@ -715,7 +720,7 @@ function ScheduleStep({
             id="custom-schedule"
             type="number"
             min={0}
-            placeholder="0 = manual"
+            placeholder={t("n0Manual")}
             value={form.schedule_minutes ?? ""}
             onChange={(e) =>
               setForm((f) => ({

@@ -49,6 +49,7 @@ import {
   connectionState,
 } from "@/lib/mcp-servers";
 import type { McpServerRow } from "@/lib/mcp-servers";
+import { useTranslations } from "next-intl";
 
 const NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/;
 
@@ -133,11 +134,12 @@ function serverCount(count: number): string {
  * what is inside it changes.
  */
 export function ServersCard({ count, children }: { count: number | null; children: ReactNode }) {
+  const t = useTranslations("mcp");
   return (
     <Card>
       <CardHeader className="flex-row items-center justify-between space-y-0 border-b px-5 py-4">
         <div className="space-y-1">
-          <CardTitle className="text-sm">Servers</CardTitle>
+          <CardTitle className="text-sm">{t("servers")}</CardTitle>
           <CardDescription className="text-xs">
             {/* `null` is "the request has not answered". Rendering "0 servers"
                 there would state something nothing has said yet. */}
@@ -173,6 +175,7 @@ export function ServersCard({ count, children }: { count: number | null; childre
  * so the row says why rather than showing a button that cannot work.
  */
 export function McpServerList({ canManageOrganization }: McpServerListProps) {
+  const t = useTranslations("mcp");
   const { rows, organization, personal, recordTools } = useMcpServers();
   const [category, setCategory] = useState<string>("all");
   const [state, setState] = useState<StateFilter>("all");
@@ -397,13 +400,13 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <SearchInput value={list.query} onChange={list.setQuery} placeholder="Search servers…" />
+        <SearchInput value={list.query} onChange={list.setQuery} placeholder={t("searchServers")} />
         <Select value={category} onValueChange={setCategory}>
-          <SelectTrigger className="w-auto min-w-40" aria-label="Category">
+          <SelectTrigger className="w-auto min-w-40" aria-label={t("category")}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All categories</SelectItem>
+            <SelectItem value="all">{t("allCategories")}</SelectItem>
             {categories.map((entry) => (
               <SelectItem key={entry} value={entry}>
                 {categoryLabel(entry)}
@@ -412,13 +415,13 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
           </SelectContent>
         </Select>
         <Select value={state} onValueChange={(value) => setState(value as StateFilter)}>
-          <SelectTrigger className="w-auto min-w-36" aria-label="Connection state">
+          <SelectTrigger className="w-auto min-w-36" aria-label={t("connectionState")}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Any state</SelectItem>
-            <SelectItem value="connected">Connected</SelectItem>
-            <SelectItem value="not-connected">Not connected</SelectItem>
+            <SelectItem value="all">{t("anyState")}</SelectItem>
+            <SelectItem value="connected">{t("connected")}</SelectItem>
+            <SelectItem value="not-connected">{t("notConnected")}</SelectItem>
           </SelectContent>
         </Select>
         <div className="flex-1" />
@@ -620,12 +623,12 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="mcp-name">Name</Label>
+              <Label htmlFor="mcp-name">{t("name")}</Label>
               <Input
                 id="mcp-name"
                 value={draftName}
                 onChange={(event) => setDraftName(event.target.value.toLowerCase())}
-                placeholder="github"
+                placeholder={t("github")}
                 maxLength={32}
                 className="mt-1.5"
               />
@@ -636,7 +639,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
               </p>
             </div>
             <div>
-              <Label htmlFor="mcp-url">Server URL</Label>
+              <Label htmlFor="mcp-url">{t("serverUrl")}</Label>
               <Input
                 id="mcp-url"
                 value={draftUrl}
@@ -647,11 +650,11 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
               />
             </div>
             <div>
-              <Label>Connect for</Label>
+              <Label>{t("connect")}</Label>
               <div
                 className="mt-1.5 flex flex-wrap gap-1.5"
                 role="radiogroup"
-                aria-label="Connect for"
+                aria-label={t("connect2")}
               >
                 {(["organization", "personal"] as const)
                   .filter((scope) => scope !== "organization" || canManageOrganization)
@@ -697,11 +700,11 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
             </div>
 
             <div>
-              <Label>Authentication</Label>
+              <Label>{t("authentication")}</Label>
               <div
                 className="mt-1.5 flex flex-wrap gap-1.5"
                 role="radiogroup"
-                aria-label="Authentication"
+                aria-label={t("authentication2")}
               >
                 {AUTH_CHOICES.map((choice) => (
                   <button
@@ -739,7 +742,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
             </div>
 
             <div className={cn(draftAuth !== "token" && "hidden")}>
-              <Label htmlFor="mcp-token">Access token</Label>
+              <Label htmlFor="mcp-token">{t("accessToken")}</Label>
               {/* The catalog's own advice for *this* server, which used to sit on
                   the card. It is instructions for filling in the field below it,
                   so it belongs next to the field and not in a list somebody is
@@ -933,6 +936,7 @@ function ConnectionMenu({
   onDisconnect: (connection: McpConnectionRecord) => void;
   onOAuth: () => void;
 }) {
+  const t = useTranslations("mcp");
   const state = connectionState(connection);
   const busy = busyId === connection.id || busyId === row.key;
   const owner = SCOPE_LABEL[scope];
@@ -972,7 +976,7 @@ function ConnectionMenu({
             working: an unauthorized connection is the one state where every
             other verb here is premature. */}
         {state === "needs-authorization" && (
-          <DropdownMenuItem onSelect={onOAuth}>Finish sign-in</DropdownMenuItem>
+          <DropdownMenuItem onSelect={onOAuth}>{t("finishSign")}</DropdownMenuItem>
         )}
         <DropdownMenuItem onSelect={() => onTools(connection)}>Check connection</DropdownMenuItem>
         <DropdownMenuItem onSelect={() => onEdit(connection)}>Settings</DropdownMenuItem>

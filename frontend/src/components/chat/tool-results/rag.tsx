@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { ChevronDown, FileText, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 
 interface RAGResultItem {
   index: number;
@@ -34,6 +35,7 @@ export function parseRAGResults(result: string): RAGResultItem[] {
 }
 
 export function RAGSearchResults({ result }: { result: string }) {
+  const t = useTranslations("chat.tools");
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
   const items = parseRAGResults(result);
 
@@ -42,7 +44,7 @@ export function RAGSearchResults({ result }: { result: string }) {
       return (
         <div className="text-muted-foreground flex items-center gap-2 py-2 text-sm">
           <Search className="h-4 w-4" />
-          No relevant documents found
+          {t("noRelevantDocuments")}
         </div>
       );
     }

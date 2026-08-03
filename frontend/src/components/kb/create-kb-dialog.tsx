@@ -35,6 +35,7 @@ import {
   sameIngestion,
 } from "@/lib/ingestion-config";
 import type { CreateKnowledgeBaseInput, IngestionConfig, KBScope } from "@/types";
+import { useTranslations } from "next-intl";
 
 /** What the backend accepts, so an over-long value is refused before it is sent. */
 const MAX_NAME = 128;
@@ -58,6 +59,7 @@ interface CreateKBDialogProps {
 }
 
 export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialogProps) {
+  const t = useTranslations("kb");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [scope, setScope] = useState<KBScope>("personal");
@@ -142,22 +144,22 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
           pushes Create off the bottom of the screen. */}
       <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Create knowledge base</DialogTitle>
+          <DialogTitle>{t("createKnowledgeBase")}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-4">
           <div className="-mx-1 min-h-0 flex-1 space-y-4 overflow-y-auto px-1">
-            <FormField label="Name" htmlFor="kb-name" error={errors.name}>
+            <FormField label={t("name")} htmlFor="kb-name" error={errors.name}>
               <Input
                 id="kb-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Product docs"
+                placeholder={t("productDocs")}
                 maxLength={MAX_NAME}
                 autoFocus
               />
             </FormField>
             <FormField
-              label="Description (optional)"
+              label={t("descriptionOptional")}
               htmlFor="kb-description"
               error={errors.description}
             >
@@ -165,20 +167,20 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                 id="kb-description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="What documents will this KB contain?"
+                placeholder={t("whatDocumentsWillKb")}
                 maxLength={MAX_DESCRIPTION}
                 rows={2}
               />
             </FormField>
             <div className="space-y-1.5">
-              <Label htmlFor="kb-scope">Scope</Label>
+              <Label htmlFor="kb-scope">{t("scope")}</Label>
               <Select value={scope} onValueChange={(v) => setScope(v as KBScope)}>
                 <SelectTrigger id="kb-scope">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="personal">Personal - only you</SelectItem>
-                  <SelectItem value="org">Organization - all members</SelectItem>
+                  <SelectItem value="personal">{t("personalOnlyYou")}</SelectItem>
+                  <SelectItem value="org">{t("organizationAllMembers")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -205,14 +207,14 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                   for embedding.
                 </p>
                 <div className="space-y-1.5">
-                  <Label htmlFor="kb-embedding-model">Model</Label>
+                  <Label htmlFor="kb-embedding-model">{t("model")}</Label>
                   <Select
                     value={embeddingModel ?? embeddingModels?.default ?? ""}
                     onValueChange={setEmbeddingModel}
                     disabled={!embeddingModels}
                   >
                     <SelectTrigger id="kb-embedding-model">
-                      <SelectValue placeholder="Loading models…" />
+                      <SelectValue placeholder={t("loadingModels")} />
                     </SelectTrigger>
                     <SelectContent>
                       {(embeddingModels?.models ?? []).map((entry) => (
@@ -225,7 +227,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="kb-embedding-key">Key</Label>
+                  <Label htmlFor="kb-embedding-key">{t("key")}</Label>
                   <Select
                     value={embeddingSecretId ?? DEPLOYMENT_KEY}
                     onValueChange={(v) => setEmbeddingSecretId(v === DEPLOYMENT_KEY ? null : v)}
@@ -234,7 +236,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={DEPLOYMENT_KEY}>Deployment key</SelectItem>
+                      <SelectItem value={DEPLOYMENT_KEY}>{t("deploymentKey")}</SelectItem>
                       {embeddingKeys.map((secret) => (
                         <SelectItem key={secret.id} value={secret.id}>
                           {secret.name}

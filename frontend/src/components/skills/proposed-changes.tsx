@@ -15,6 +15,7 @@ import {
 import { useSkillChanges } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import type { SkillChangeRecord } from "@/lib/skill-changes-api";
+import { useTranslations } from "next-intl";
 
 interface ProposedChangesProps {
   /**
@@ -93,6 +94,7 @@ interface ChangeRowProps {
  * rows, and expanded on demand because the body is what the decision is about.
  */
 function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
+  const t = useTranslations("skills");
   const [open, setOpen] = useState(false);
   const resources = Object.keys(change.resources);
 
@@ -103,9 +105,9 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
           <div className="flex items-center gap-2">
             <span className="font-mono text-sm">{change.name}</span>
             {change.skill_id === null ? (
-              <Badge variant="secondary">New skill</Badge>
+              <Badge variant="secondary">{t("newSkill2")}</Badge>
             ) : (
-              <Badge variant="outline">Edit</Badge>
+              <Badge variant="outline">{t("edit")}</Badge>
             )}
           </div>
           <p className="text-muted-foreground text-xs">
@@ -160,7 +162,7 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
           </pre>
           {resources.length > 0 && (
             <div className="space-y-1">
-              <p className="text-xs font-medium">Files</p>
+              <p className="text-xs font-medium">{t("files2")}</p>
               <ul className="text-muted-foreground space-y-0.5 text-xs">
                 {resources.map((name) => (
                   <li key={name} className="font-mono">

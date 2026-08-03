@@ -19,6 +19,7 @@ import {
 import { useModelProviders, useProviderModels, useSecretPurposes, useSecrets } from "@/hooks";
 import { getErrorMessage } from "@/lib/utils";
 import type { ModelProfile } from "@/types/providers";
+import { useTranslations } from "next-intl";
 
 interface AddModelProps {
   /** Called with the new model once it exists, so the picker can select it. */
@@ -79,6 +80,7 @@ export function modelIdIsWellFormed(providerId: string, model: string): boolean 
 }
 
 export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
+  const t = useTranslations("agents");
   const { createProfile, catalog } = useModelProviders();
   const { purposes } = useSecretPurposes();
   const { secrets } = useSecrets();
@@ -155,7 +157,7 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
     <div className="border-border bg-muted/20 space-y-4 rounded-xl border p-4">
       <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
         <div className="space-y-1.5">
-          <Label htmlFor="add-model-provider">Provider</Label>
+          <Label htmlFor="add-model-provider">{t("provider")}</Label>
           <Select
             value={providerId}
             onValueChange={(value) => {
@@ -167,7 +169,7 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
             }}
           >
             <SelectTrigger id="add-model-provider">
-              <SelectValue placeholder="Choose a provider" />
+              <SelectValue placeholder={t("chooseProvider")} />
             </SelectTrigger>
             <SelectContent className="max-h-80">
               {providers.map((entry) => {
@@ -187,7 +189,7 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="add-model-id">Model</Label>
+          <Label htmlFor="add-model-id">{t("model")}</Label>
           {/*
             The provider's catalog, searchable, and still able to carry an id
             that is not in it. The list is never authoritative - providers ship
@@ -229,7 +231,7 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
 
           {keys.length > 1 && (
             <>
-              <Label htmlFor="add-model-key">Key</Label>
+              <Label htmlFor="add-model-key">{t("key")}</Label>
               <Select value={chosenKey} onValueChange={setSecretId}>
                 <SelectTrigger id="add-model-key">
                   <SelectValue />
@@ -269,7 +271,7 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
           it - which is the right refusal and a pointless one to walk into. */}
       {provider !== undefined && acceptsEndpoint && (
         <div className="space-y-1.5">
-          <Label htmlFor="add-model-endpoint">Endpoint</Label>
+          <Label htmlFor="add-model-endpoint">{t("endpoint")}</Label>
           <Input
             id="add-model-endpoint"
             value={baseUrl}
@@ -298,7 +300,7 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
           apart. Behind a disclosure rather than in the way. */}
       {naming ? (
         <div className="space-y-1.5">
-          <Label htmlFor="add-model-label">Name</Label>
+          <Label htmlFor="add-model-label">{t("name")}</Label>
           <Input
             id="add-model-label"
             value={label}

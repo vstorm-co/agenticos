@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { useSkill } from "@/hooks";
 import type { SkillEdit } from "@/hooks/use-skills";
 import type { Skill } from "@/types/providers";
+import { useTranslations } from "next-intl";
 
 /** The body's place in the tree. A skill is a folder, and this is its manifest. */
 const BODY = "SKILL.md";
@@ -65,6 +66,7 @@ export function SkillWorkbench({
   onSave,
   onCancel,
 }: SkillWorkbenchProps) {
+  const t = useTranslations("skills");
   const { addResource, saveResource, removeResource, uploadResources } = useSkill(skill.id);
 
   const [description, setDescription] = useState(skill.description);
@@ -103,7 +105,7 @@ export function SkillWorkbench({
           category box at whatever height its wrapped helper left it. */}
       <div className="flex flex-wrap items-start gap-4 rounded-md border p-3">
         <div className="min-w-0 flex-1 basis-72 space-y-1.5">
-          <Label htmlFor="skill-description">Description</Label>
+          <Label htmlFor="skill-description">{t("description3")}</Label>
           <Input
             id="skill-description"
             value={description}
@@ -116,7 +118,7 @@ export function SkillWorkbench({
           </p>
         </div>
         <div className="w-56 shrink-0 space-y-1.5">
-          <Label htmlFor="skill-category">Category</Label>
+          <Label htmlFor="skill-category">{t("category2")}</Label>
           <CategoryInput
             id="skill-category"
             value={category}
@@ -130,7 +132,7 @@ export function SkillWorkbench({
           </p>
         </div>
         <div className="shrink-0 space-y-1.5">
-          <Label htmlFor="skill-enabled">Enabled</Label>
+          <Label htmlFor="skill-enabled">{t("enabled")}</Label>
           {/* Centered on the input row: the switch is shorter than an input,
               and sitting on the row's top edge it reads as misplaced. */}
           <div className="flex h-9 items-center">
@@ -162,11 +164,11 @@ export function SkillWorkbench({
                 <FilePlus className="h-3.5 w-3.5" />
                 New
               </Button>
-              <UploadButton icon={Upload} label="Files" onPick={upload} />
+              <UploadButton icon={Upload} label={t("files3")} onPick={upload} />
               {/* A directory picker sends every file with its relative path,
                   which is exactly the name a resource takes - so a dropped
                   folder arrives as a folder with nothing to reconstruct. */}
-              <UploadButton icon={Upload} label="Folder" directory onPick={upload} />
+              <UploadButton icon={Upload} label={t("folder2")} directory onPick={upload} />
             </div>
           )}
 

@@ -18,6 +18,7 @@ import {
 import { InlineSecret } from "@/components/vault/inline-secret";
 import { useModelProviders, useProviderModels, useSecretPurposes, useSecrets } from "@/hooks";
 import { getErrorMessage } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 
 interface ChatModelPickerProps {
   /** The model profile this conversation runs on, or null for the agent's own. */
@@ -37,6 +38,7 @@ interface ChatModelPickerProps {
  * answer, and the refusal says so here rather than after the first message.
  */
 export function ChatModelPicker({ value, onChange }: ChatModelPickerProps) {
+  const t = useTranslations("chat.modelPicker");
   const { profiles, createProfile } = useModelProviders();
   const { purposes } = useSecretPurposes();
   const { secrets } = useSecrets();
@@ -110,7 +112,7 @@ export function ChatModelPicker({ value, onChange }: ChatModelPickerProps) {
       )}
 
       <div className="space-y-1.5">
-        <Label htmlFor="chat-model-provider">Provider</Label>
+        <Label htmlFor="chat-model-provider">{t("provider")}</Label>
         <Select
           value={providerId}
           onValueChange={(next) => {
@@ -120,7 +122,7 @@ export function ChatModelPicker({ value, onChange }: ChatModelPickerProps) {
           }}
         >
           <SelectTrigger id="chat-model-provider">
-            <SelectValue placeholder="Choose a provider" />
+            <SelectValue placeholder={t("chooseProvider")} />
           </SelectTrigger>
           <SelectContent className="max-h-80">
             {providers.map((entry) => {
@@ -140,7 +142,7 @@ export function ChatModelPicker({ value, onChange }: ChatModelPickerProps) {
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="chat-model-id">Model</Label>
+        <Label htmlFor="chat-model-id">{t("model")}</Label>
         {/* A list where the provider publishes one, and a plain field where it
             does not - the same control either way, because the list is never
             authoritative. */}

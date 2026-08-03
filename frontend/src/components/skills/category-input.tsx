@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui";
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 
 /**
  * The picker's options: the shelves this organization already uses first -
@@ -83,6 +84,7 @@ export function CategoryInput({
   maxLength,
   readOnly,
 }: CategoryInputProps) {
+  const t = useTranslations("skills");
   const [naming, setNaming] = useState(false);
 
   if (readOnly) {
@@ -101,7 +103,7 @@ export function CategoryInput({
         ref={(node) => node?.focus()}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        placeholder="support"
+        placeholder={t("support")}
         maxLength={maxLength}
         onBlur={() => setNaming(false)}
         onKeyDown={(event) => {
@@ -131,7 +133,7 @@ export function CategoryInput({
       </SelectTrigger>
       <SelectContent>
         <SelectItem value={NONE}>
-          <span className="text-muted-foreground">No category</span>
+          <span className="text-muted-foreground">{t("noCategory")}</span>
         </SelectItem>
         {options.map((suggestion) => (
           <SelectItem key={suggestion} value={suggestion}>
@@ -139,7 +141,7 @@ export function CategoryInput({
           </SelectItem>
         ))}
         <SelectSeparator />
-        <SelectItem value={NEW}>New category…</SelectItem>
+        <SelectItem value={NEW}>{t("newCategory")}</SelectItem>
       </SelectContent>
     </Select>
   );

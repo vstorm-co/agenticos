@@ -41,6 +41,7 @@ import type {
   SecretVisibility,
 } from "@/types/secrets";
 import type { StorableSecretKind } from "@/types/secrets";
+import { useTranslations } from "next-intl";
 
 /** What the backend accepts, so an over-long value is refused before it is sent. */
 const MAX_NAME = 128;
@@ -85,6 +86,7 @@ export function AddSecretDialog({
   onSubmit,
   isPending,
 }: AddSecretDialogProps) {
+  const t = useTranslations("vault");
   const { purposes } = useSecretPurposes();
   const [category, setCategory] = useState<PurposeCategory>("model_provider");
   const [purpose, setPurpose] = useState("");
@@ -183,7 +185,7 @@ export function AddSecretDialog({
           belong together sit on one line and the whole thing fits on a screen. */}
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Add a secret</DialogTitle>
+          <DialogTitle>{t("addSecret")}</DialogTitle>
           <DialogDescription>
             Encrypted and bound to this organization. An agent names it by id, never by value - so
             it can be rotated without touching a single agent, and it cannot be read back.
@@ -275,7 +277,7 @@ export function AddSecretDialog({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="secret-visibility">Who can use it</Label>
+              <Label htmlFor="secret-visibility">{t("whoCanUse")}</Label>
               <Select
                 value={visibility}
                 onValueChange={(next) => setVisibility(next as SecretVisibility)}
@@ -284,8 +286,8 @@ export function AddSecretDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="org">Everyone in this organization</SelectItem>
-                  <SelectItem value="private">Only me</SelectItem>
+                  <SelectItem value="org">{t("everyoneOrganization")}</SelectItem>
+                  <SelectItem value="private">{t("onlyMe")}</SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-muted-foreground text-xs">
@@ -300,10 +302,10 @@ export function AddSecretDialog({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField
-              label="Name"
+              label={t("name")}
               htmlFor="secret-name"
               error={errors.name}
-              description="How you will recognise it later. Unique in this organization."
+              description={t("howYouWillRecognise")}
               // Full width unless the Kind select is beside it: a lone half-width
               // input with empty space to its right reads as a field that failed
               // to render its neighbour.
@@ -312,7 +314,7 @@ export function AddSecretDialog({
               <Input
                 value={shownName}
                 onChange={(event) => setName(event.target.value)}
-                placeholder="Zendesk API token"
+                placeholder={t("zendeskApiToken")}
                 maxLength={MAX_NAME}
               />
             </FormField>
@@ -322,7 +324,7 @@ export function AddSecretDialog({
                 server. */}
             {isCustom && (
               <div className="space-y-2">
-                <Label htmlFor="secret-kind">Kind</Label>
+                <Label htmlFor="secret-kind">{t("kind")}</Label>
                 <Select value={kind} onValueChange={chooseKind}>
                   <SelectTrigger id="secret-kind">
                     <SelectValue />
@@ -340,10 +342,10 @@ export function AddSecretDialog({
           </div>
 
           <FormField
-            label="Note (optional)"
+            label={t("noteOptional")}
             htmlFor="secret-description"
             error={errors.description}
-            description="Shown next to the picker - which account this is, whose it is, anything the next person needs."
+            description={t("shownNextPickerWhich")}
           >
             <Textarea
               value={description}

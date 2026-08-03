@@ -8,8 +8,10 @@ import { useAdoptSession } from "@/hooks/use-auth";
 import { ROUTES } from "@/lib/constants";
 import type { User } from "@/types";
 import { Spinner } from "@/components/ui";
+import { useTranslations } from "next-intl";
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
+  const t = useTranslations("layout");
   const router = useRouter();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   // Through the same door as every other sign-in. This guard wraps the whole
@@ -43,7 +45,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     return (
       <div className="flex h-screen items-center justify-center" role="status" aria-live="polite">
         <Spinner className="text-muted-foreground h-6 w-6" />
-        <span className="sr-only">Checking authentication...</span>
+        <span className="sr-only">{t("checkingAuthentication")}</span>
       </div>
     );
   }

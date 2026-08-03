@@ -1,6 +1,7 @@
 "use client";
 
 import { Clock, Paperclip, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import type { QueuedMessage } from "@/hooks/use-chat";
 import { cn } from "@/lib/utils";
@@ -18,6 +19,7 @@ interface PendingMessagesProps {
  * drainer auto-sends each entry as soon as the agent goes idle.
  */
 export function PendingMessages({ messages, onCancel }: PendingMessagesProps) {
+  const t = useTranslations("chat");
   if (messages.length === 0) return null;
 
   return (
@@ -51,8 +53,8 @@ export function PendingMessages({ messages, onCancel }: PendingMessagesProps) {
               type="button"
               onClick={() => onCancel(m.id)}
               className="text-foreground/45 hover:bg-foreground/10 hover:text-destructive inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors"
-              title="Remove from queue"
-              aria-label="Remove from queue"
+              title={t("removeFromQueue")}
+              aria-label={t("removeFromQueue")}
             >
               <X className="h-3.5 w-3.5" />
             </button>

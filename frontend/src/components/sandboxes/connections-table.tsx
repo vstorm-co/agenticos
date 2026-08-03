@@ -13,6 +13,7 @@ import {
   TableRow,
 } from "@/components/ui";
 import type { SandboxConnectionRecord } from "@/lib/sandbox-connections-api";
+import { useTranslations } from "next-intl";
 
 interface ConnectionsTableProps {
   connections: readonly SandboxConnectionRecord[];
@@ -51,16 +52,17 @@ export function ConnectionsTable({
   onInspect,
   onDelete,
 }: ConnectionsTableProps) {
+  const t = useTranslations("sandboxes.table");
   return (
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>Name</TableHead>
-          <TableHead>Kind</TableHead>
-          <TableHead>Address</TableHead>
-          <TableHead>Credential</TableHead>
-          <TableHead>Default runtime</TableHead>
-          <TableHead className="text-right">Actions</TableHead>
+          <TableHead>{t("name")}</TableHead>
+          <TableHead>{t("kind")}</TableHead>
+          <TableHead>{t("address")}</TableHead>
+          <TableHead>{t("credential")}</TableHead>
+          <TableHead>{t("defaultRuntime")}</TableHead>
+          <TableHead className="text-right">{t("actions")}</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -80,7 +82,7 @@ export function ConnectionsTable({
                     Default
                   </Badge>
                 )}
-                {!connection.is_active && <Badge variant="outline">Off</Badge>}
+                {!connection.is_active && <Badge variant="outline">{t("off")}</Badge>}
               </div>
             </TableCell>
             <TableCell className="text-muted-foreground">{kindLabel(connection.kind)}</TableCell>
@@ -92,9 +94,9 @@ export function ConnectionsTable({
                 // Not cosmetic: a connection with no credential resolves and
                 // then refuses every session, which surfaces inside somebody's
                 // conversation rather than here.
-                <Badge variant="destructive">Missing</Badge>
+                <Badge variant="destructive">{t("missing")}</Badge>
               ) : (
-                <Badge variant="secondary">In the vault</Badge>
+                <Badge variant="secondary">{t("inTheVault")}</Badge>
               )}
             </TableCell>
             <TableCell className="text-muted-foreground font-mono text-xs">

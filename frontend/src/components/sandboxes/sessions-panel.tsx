@@ -22,6 +22,7 @@ import {
 } from "@/components/ui";
 import { useSandboxEvents, useSandboxSessions } from "@/hooks";
 import type { SandboxConnectionRecord, SandboxSession } from "@/lib/sandbox-connections-api";
+import { useTranslations } from "next-intl";
 
 interface SessionsPanelProps {
   /** The connection to watch, or `null` for a deployment with none registered. */
@@ -66,6 +67,7 @@ function belongsTo(session: SandboxSession): string {
  * round trips to load.
  */
 export function SessionsPanel({ connection }: SessionsPanelProps) {
+  const t = useTranslations("sandboxes.sessions");
   const [usage, setUsage] = useState(false);
   const [watching, setWatching] = useState<string | null>(null);
   const { listing, isLoading, error } = useSandboxSessions(connection?.id ?? null, usage);
@@ -89,8 +91,8 @@ export function SessionsPanel({ connection }: SessionsPanelProps) {
           </CardDescription>
         </div>
         <label className="flex items-center gap-2 text-xs">
-          <span className="text-muted-foreground">Sample memory</span>
-          <Switch checked={usage} onCheckedChange={setUsage} aria-label="Sample memory and CPU" />
+          <span className="text-muted-foreground">{t("sampleMemory")}</span>
+          <Switch checked={usage} onCheckedChange={setUsage} aria-label={t("sampleMemoryAndCpu")} />
         </label>
       </CardHeader>
       <CardContent className="space-y-3 p-5">
@@ -115,13 +117,13 @@ export function SessionsPanel({ connection }: SessionsPanelProps) {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Session</TableHead>
-                  <TableHead>Runtime</TableHead>
-                  <TableHead>Shared by</TableHead>
-                  <TableHead>State</TableHead>
-                  <TableHead>Idle</TableHead>
-                  <TableHead>Memory</TableHead>
-                  <TableHead className="text-right">Activity</TableHead>
+                  <TableHead>{t("session")}</TableHead>
+                  <TableHead>{t("runtime")}</TableHead>
+                  <TableHead>{t("sharedBy")}</TableHead>
+                  <TableHead>{t("state")}</TableHead>
+                  <TableHead>{t("idle")}</TableHead>
+                  <TableHead>{t("memory")}</TableHead>
+                  <TableHead className="text-right">{t("activity")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

@@ -27,6 +27,7 @@ import { useEmbeds } from "@/hooks";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { cn } from "@/lib/utils";
 import { DEFAULT_EMBED_THEME, type Embed, type EmbedAuthMode } from "@/types/embeds";
+import { useTranslations } from "next-intl";
 
 interface EmbedsPanelProps {
   agentId: string;
@@ -54,6 +55,7 @@ function parseOrigins(value: string): string[] {
  * rather than discovered when it silently refuses to open.
  */
 export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
+  const t = useTranslations("agents");
   const { embeds, isLoading, create, update, remove } = useEmbeds(agentId);
   const [creating, setCreating] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Embed | null>(null);
@@ -108,7 +110,7 @@ export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
         {isLoading ? (
           <LoadingState variant="skeleton-panel" rows={1} />
         ) : embeds.length === 0 && !creating ? (
-          <p className="text-muted-foreground text-sm">Not published to any site yet.</p>
+          <p className="text-muted-foreground text-sm">{t("notPublishedAnySite")}</p>
         ) : (
           <div className="space-y-3">
             {embeds.map((embed) => (
@@ -127,19 +129,19 @@ export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
           <div className="border-border space-y-4 rounded-lg border border-dashed p-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="embed-name">Name</Label>
+                <Label htmlFor="embed-name">{t("name5")}</Label>
                 <Input
                   id="embed-name"
                   value={name}
                   onChange={(event) => setName(event.target.value)}
-                  placeholder="Website widget"
+                  placeholder={t("websiteWidget")}
                 />
                 <p className="text-muted-foreground text-xs">
                   For you, not for visitors - which placement this is.
                 </p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="embed-accent">Accent colour</Label>
+                <Label htmlFor="embed-accent">{t("accentColour")}</Label>
                 <div className="flex items-center gap-2">
                   <input
                     id="embed-accent"
@@ -158,7 +160,7 @@ export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="embed-origins">Allowed sites</Label>
+              <Label htmlFor="embed-origins">{t("allowedSites")}</Label>
               <Textarea
                 id="embed-origins"
                 value={origins}
@@ -175,7 +177,7 @@ export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="embed-auth">Who can use it</Label>
+                <Label htmlFor="embed-auth">{t("whoCanUse")}</Label>
                 <Select
                   value={authMode}
                   onValueChange={(value) => setAuthMode(value as EmbedAuthMode)}
@@ -186,7 +188,7 @@ export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
                   <SelectContent>
                     <SelectItem value="public">
                       <span className="flex flex-col">
-                        <span>Anyone on those sites</span>
+                        <span>{t("anyoneThoseSites")}</span>
                         <span className="text-muted-foreground text-xs">
                           No sign-in - a marketing page
                         </span>
@@ -194,7 +196,7 @@ export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
                     </SelectItem>
                     <SelectItem value="jwt">
                       <span className="flex flex-col">
-                        <span>Signed-in users only</span>
+                        <span>{t("signedUsersOnly")}</span>
                         <span className="text-muted-foreground text-xs">
                           Your backend signs a token we verify
                         </span>
@@ -205,12 +207,12 @@ export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
               </div>
               {authMode === "jwt" && (
                 <div className="space-y-2">
-                  <Label htmlFor="embed-secret">Signing secret</Label>
+                  <Label htmlFor="embed-secret">{t("signingSecret2")}</Label>
                   <Input
                     id="embed-secret"
                     value={secret}
                     onChange={(event) => setSecret(event.target.value)}
-                    placeholder="At least 16 characters"
+                    placeholder={t("atLeast16Characters")}
                     className="font-mono"
                   />
                   <p className="text-muted-foreground text-xs">
@@ -222,12 +224,12 @@ export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="embed-context">Context for this placement</Label>
+              <Label htmlFor="embed-context">{t("contextPlacement")}</Label>
               <Textarea
                 id="embed-context"
                 value={context}
                 onChange={(event) => setContext(event.target.value)}
-                placeholder="You are on the pricing page. Answer in German."
+                placeholder={t("youArePricingPage")}
                 rows={2}
               />
               <p className="text-muted-foreground text-xs">
@@ -268,8 +270,8 @@ export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
           open
           onOpenChange={() => setPendingDelete(null)}
           title={`Remove ${pendingDelete.name}?`}
-          description="Every page carrying its key stops working immediately. The key cannot be reissued - a new widget gets a new one."
-          confirmLabel="Remove"
+          description={t("everyPageCarryingIts")}
+          confirmLabel={t("remove")}
           destructive
           loading={remove.isPending}
           onConfirm={async () => {
@@ -293,6 +295,7 @@ function EmbedRow({
   onToggle: (active: boolean) => void;
   onDelete: () => void;
 }) {
+  const t = useTranslations("agents");
   const { copy, copied } = useCopyToClipboard();
 
   return (
@@ -302,7 +305,7 @@ function EmbedRow({
         <Badge variant={embed.auth_mode === "jwt" ? "secondary" : "outline"}>
           {embed.auth_mode === "jwt" ? "signed-in users" : "public"}
         </Badge>
-        {!embed.is_active && <Badge variant="outline">paused</Badge>}
+        {!embed.is_active && <Badge variant="outline">{t("paused")}</Badge>}
         <div className="flex-1" />
         {canManage && (
           <>
@@ -332,7 +335,7 @@ function EmbedRow({
           variant="outline"
           size="sm"
           onClick={() => copy(embed.snippet)}
-          aria-label="Copy the snippet"
+          aria-label={t("copySnippet")}
         >
           {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
         </Button>

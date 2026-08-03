@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui";
 import type { ActionRequest, ReviewConfig, Decision } from "@/types";
 import { Wrench, AlertTriangle } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
 interface ToolApprovalDialogProps {
@@ -18,6 +19,7 @@ export function ToolApprovalDialog({
   onDecisions,
   disabled = false,
 }: ToolApprovalDialogProps) {
+  const t = useTranslations("chat");
   const [editedArgs, setEditedArgs] = useState<Record<string, string>>(() =>
     Object.fromEntries(actionRequests.map((a) => [a.id, JSON.stringify(a.args, null, 2)])),
   );
@@ -71,7 +73,7 @@ export function ToolApprovalDialog({
     <div className="border-warning/50 bg-warning/[0.06] space-y-3 rounded-lg border p-3">
       <div className="text-warning flex items-center gap-2 text-sm">
         <AlertTriangle className="h-4 w-4" />
-        <span className="font-medium">Tool approval required</span>
+        <span className="font-medium">{t("toolApprovalRequired")}</span>
       </div>
 
       {actionRequests.map((action) => (

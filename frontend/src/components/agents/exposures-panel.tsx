@@ -20,6 +20,7 @@ import {
 } from "@/components/ui";
 import { useAgentEnvironments, useExposures } from "@/hooks";
 import type { ExposureSurface, SessionScope } from "@/types/exposures";
+import { useTranslations } from "next-intl";
 
 interface ExposuresPanelProps {
   agentId: string;
@@ -83,6 +84,7 @@ const SCOPE_LABEL: Record<SessionScope, string> = {
 };
 
 export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPanelProps) {
+  const t = useTranslations("agents");
   const {
     exposures,
     isLoading,
@@ -109,7 +111,7 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Where this agent is available</CardTitle>
+        <CardTitle>{t("whereAgentAvailable")}</CardTitle>
         <CardDescription>
           A published agent answers in the dashboard and through the API. To reach it from a chat
           platform, add the bot here - an agent is mentionable by <code>@handle</code> only on the
@@ -127,7 +129,7 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
       </CardHeader>
       <CardContent className="space-y-3">
         {exposures.length === 0 && (
-          <p className="text-muted-foreground text-sm">Not available on any channel yet.</p>
+          <p className="text-muted-foreground text-sm">{t("notAvailableAnyChannel")}</p>
         )}
 
         {exposures.map((exposure) => (
@@ -161,7 +163,7 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={DEFAULT_ENV}>default</SelectItem>
+                    <SelectItem value={DEFAULT_ENV}>{t("default3")}</SelectItem>
                     {namedEnvironments.map((environment) => (
                       <SelectItem key={environment.id} value={environment.id}>
                         {environment.name} (v{environment.version})
@@ -191,7 +193,7 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={SPEC_SCOPE}>as the agent says</SelectItem>
+                    <SelectItem value={SPEC_SCOPE}>{t("asAgentSays")}</SelectItem>
                     {(Object.keys(SCOPE_LABEL) as SessionScope[]).map((scope) => (
                       <SelectItem key={scope} value={scope}>
                         {SCOPE_LABEL[scope]}
@@ -232,10 +234,10 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
           (available.length > 0 ? (
             <div className="flex items-end gap-3 border-t pt-3">
               <div className="flex-1 space-y-1">
-                <Label htmlFor="exposure-bot">Add a channel</Label>
+                <Label htmlFor="exposure-bot">{t("addChannel")}</Label>
                 <Select value={selectedBotId} onValueChange={setSelectedBotId}>
                   <SelectTrigger id="exposure-bot">
-                    <SelectValue placeholder="Choose a bot" />
+                    <SelectValue placeholder={t("chooseBot")} />
                   </SelectTrigger>
                   <SelectContent>
                     {available.map((target) => (

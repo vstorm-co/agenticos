@@ -12,6 +12,7 @@ import { getParsedKBDocument } from "@/lib/rag-api";
 import { cn } from "@/lib/utils";
 import type { KBParsedContent } from "@/types";
 import { useChanged } from "@/hooks/use-changed";
+import { useTranslations } from "next-intl";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Viewer type detection
@@ -111,6 +112,7 @@ interface FileViewerProps {
 }
 
 export function FileViewer({ kbId, doc, open, onClose }: FileViewerProps) {
+  const t = useTranslations("kb");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
@@ -304,7 +306,7 @@ export function FileViewer({ kbId, doc, open, onClose }: FileViewerProps) {
                     size="sm"
                     className="text-muted-foreground hover:text-foreground h-7 w-7 p-0"
                     onClick={handleOpenExternal}
-                    title="Open in new browser tab"
+                    title={t("openNewBrowserTab")}
                   >
                     <ExternalLink className="h-3.5 w-3.5" />
                   </Button>
@@ -313,7 +315,7 @@ export function FileViewer({ kbId, doc, open, onClose }: FileViewerProps) {
                     size="sm"
                     className="text-muted-foreground hover:text-foreground h-7 w-7 p-0"
                     onClick={handleDownload}
-                    title="Download file"
+                    title={t("downloadFile")}
                   >
                     <Download className="h-3.5 w-3.5" />
                   </Button>
@@ -324,7 +326,7 @@ export function FileViewer({ kbId, doc, open, onClose }: FileViewerProps) {
                   variant="ghost"
                   size="sm"
                   className="text-muted-foreground hover:text-foreground h-7 w-7 p-0"
-                  title="Close"
+                  title={t("close")}
                 >
                   <X className="h-3.5 w-3.5" />
                 </Button>
@@ -457,6 +459,7 @@ function ParsedView({
   loading: boolean;
   error: string | null;
 }) {
+  const t = useTranslations("kb");
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -470,7 +473,7 @@ function ParsedView({
     // ingestion failed. A refusal to show a parse is not a broken screen.
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 px-8 text-center">
-        <p className="text-foreground text-sm font-medium">No parsed content to show</p>
+        <p className="text-foreground text-sm font-medium">{t("noParsedContentShow")}</p>
         <p className="text-muted-foreground max-w-md text-xs">{error}</p>
       </div>
     );

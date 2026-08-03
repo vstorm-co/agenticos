@@ -12,6 +12,7 @@ import { submitFailure } from "@/lib/api-error";
 import { Perm } from "@/types/permissions";
 import type { Organization } from "@/types";
 import { useChanged } from "@/hooks/use-changed";
+import { useTranslations } from "next-intl";
 
 /** The field the server names in a refusal, so a message lands under the input. */
 const FIELD = "monthly_budget_usd";
@@ -45,6 +46,7 @@ export function OrgSpendingLimit({ org }: { org: Organization }) {
 }
 
 function SpendingLimitForm({ org }: { org: Organization }) {
+  const t = useTranslations("teams");
   const { setMonthlyBudget } = useOrganizations();
   const { spend } = useSpend();
 
@@ -88,7 +90,7 @@ function SpendingLimitForm({ org }: { org: Organization }) {
 
   return (
     <SettingsSection
-      title="Monthly spending limit"
+      title={t("monthlySpendingLimit")}
       description={
         "The ceiling on what every agent in this workspace can spend between the first of the " +
         "month and the next. An agent's own limit can tighten it, never loosen it. Leave it " +
@@ -96,7 +98,7 @@ function SpendingLimitForm({ org }: { org: Organization }) {
       }
     >
       <div className="flex flex-wrap items-start gap-3">
-        <FormField label="Limit (USD)" htmlFor="org-monthly-budget" error={error}>
+        <FormField label={t("limitUsd")} htmlFor="org-monthly-budget" error={error}>
           <Input
             id="org-monthly-budget"
             type="number"
@@ -108,7 +110,7 @@ function SpendingLimitForm({ org }: { org: Organization }) {
               setValue(event.target.value);
               setError(null);
             }}
-            placeholder="No limit"
+            placeholder={t("noLimit")}
           />
         </FormField>
         {changed && (

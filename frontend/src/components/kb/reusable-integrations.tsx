@@ -37,6 +37,7 @@ import type { SyncSourceCreate, SyncSourceRead } from "@/lib/rag-api";
 import type { KnowledgeBase } from "@/types";
 import { Perm } from "@/types/permissions";
 import { useChanged } from "@/hooks/use-changed";
+import { useTranslations } from "next-intl";
 
 interface ReusableIntegrationsProps {
   /** Collections an integration can be cloned into - the page's own list. */
@@ -61,6 +62,7 @@ interface ReusableIntegrationsProps {
  * own pages regardless.
  */
 export function ReusableIntegrations({ targets }: ReusableIntegrationsProps) {
+  const t = useTranslations("kb");
   const { can } = usePermissions();
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const mayManage = can(Perm.connectionsManage);
@@ -92,7 +94,7 @@ export function ReusableIntegrations({ targets }: ReusableIntegrationsProps) {
     <section className="space-y-3">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
-          <h2 className="text-foreground text-sm font-semibold">Reusable integrations</h2>
+          <h2 className="text-foreground text-sm font-semibold">{t("reusableIntegrations")}</h2>
           <p className="text-muted-foreground mt-0.5 text-xs">
             Configured once, used in as many knowledge bases as you like. Each copy syncs on its own
             schedule.
@@ -109,7 +111,7 @@ export function ReusableIntegrations({ targets }: ReusableIntegrationsProps) {
       {error ? (
         <p className="text-destructive text-xs">{error}</p>
       ) : isLoading ? (
-        <p className="text-muted-foreground text-xs">Loading integrations…</p>
+        <p className="text-muted-foreground text-xs">{t("loadingIntegrations")}</p>
       ) : integrations.length === 0 ? (
         <p className="text-muted-foreground border-border rounded-xl border border-dashed px-4 py-3 text-xs">
           Nothing here yet. Add one to connect a source before you know which knowledge bases will
@@ -162,6 +164,7 @@ function IntegrationRow({
   onClone: () => void;
   onDelete: () => void;
 }) {
+  const t = useTranslations("kb");
   const brand = connectorBrand(source.connector_type);
   return (
     <li className="hover:bg-accent flex items-center gap-3 px-4 py-3 transition-colors">
@@ -199,7 +202,7 @@ function IntegrationRow({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={onDelete}
@@ -224,6 +227,7 @@ function CloneIntoDialog({
   onOpenChange: (open: boolean) => void;
   onClone: (sourceId: string, target: KnowledgeBase, name: string) => Promise<void>;
 }) {
+  const t = useTranslations("kb");
   const [targetId, setTargetId] = useState("");
   const [name, setName] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -269,8 +273,8 @@ function CloneIntoDialog({
               Knowledge base
             </Label>
             <Select value={targetId} onValueChange={setTargetId}>
-              <SelectTrigger className="h-10 rounded-xl" aria-label="Knowledge base">
-                <SelectValue placeholder="Select a knowledge base…" />
+              <SelectTrigger className="h-10 rounded-xl" aria-label={t("knowledgeBase")}>
+                <SelectValue placeholder={t("selectKnowledgeBase")} />
               </SelectTrigger>
               <SelectContent>
                 {targets.map((kb) => (
@@ -291,7 +295,7 @@ function CloneIntoDialog({
             </Label>
             <Input
               id="clone-target-name"
-              placeholder="Leave empty to auto-generate"
+              placeholder={t("leaveEmptyAutoGenerate")}
               value={name}
               onChange={(event) => setName(event.target.value)}
               className="h-10 rounded-xl"

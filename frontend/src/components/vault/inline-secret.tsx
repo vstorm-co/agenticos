@@ -7,6 +7,7 @@ import { Button, Input, Label } from "@/components/ui";
 import { useSecrets } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import type { StorableSecretKind } from "@/types/secrets";
+import { useTranslations } from "next-intl";
 
 interface InlineSecretProps {
   /** What shape the caller needs. Almost always `api_key`. */
@@ -57,6 +58,7 @@ export function InlineSecret({
   onCreated,
   disabled,
 }: InlineSecretProps) {
+  const t = useTranslations("vault");
   const { create } = useSecrets();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(suggestedName);
@@ -142,7 +144,7 @@ export function InlineSecret({
               type={revealed ? "text" : "password"}
               value={value}
               onChange={(event) => setValue(event.target.value)}
-              placeholder="Paste it here"
+              placeholder={t("pasteHere")}
               autoComplete="off"
               className="pr-10 font-mono"
             />

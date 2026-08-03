@@ -162,7 +162,7 @@ export function CommandPalette() {
     <Command.Dialog
       open={open}
       onOpenChange={setOpen}
-      label="Command palette"
+      label={t("commandPalette")}
       shouldFilter
       overlayClassName="bg-background/50 fixed inset-0 z-[60] backdrop-blur-sm"
       contentClassName="border-foreground/15 bg-card text-foreground fixed left-1/2 top-[12vh] z-[61] w-[min(92vw,640px)] -translate-x-1/2 overflow-hidden rounded-2xl border shadow-2xl"
@@ -173,7 +173,7 @@ export function CommandPalette() {
           autoFocus
           value={search}
           onValueChange={setSearch}
-          placeholder="Search or jump to…"
+          placeholder={t("searchJump")}
           className="text-foreground placeholder:text-foreground/45 flex-1 bg-transparent text-sm outline-none"
         />
         <kbd className="border-foreground/15 text-foreground/55 hidden rounded-md border px-1.5 py-0.5 font-mono text-[10px] sm:inline-block">
@@ -186,7 +186,7 @@ export function CommandPalette() {
           No matches.
         </Command.Empty>
 
-        <Group heading="Quick actions">
+        <Group heading={t("quickActions")}>
           <PaletteItem icon={Plus} label="Start new chat" onSelect={() => go(ROUTES.CHAT)} />
           <PaletteItem
             icon={BookOpen}

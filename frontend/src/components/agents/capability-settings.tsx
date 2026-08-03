@@ -35,6 +35,7 @@ import type {
 } from "@/types/agents";
 import { secretIsRequired } from "@/types/secrets";
 import type { Secret, SecretRequirement } from "@/types/secrets";
+import { useTranslations } from "next-intl";
 
 interface CapabilitySettingsProps {
   catalog: CapabilityCatalogEntry[];
@@ -191,6 +192,7 @@ export function CapabilityDetail({
   disabled,
   hideConfigForm,
 }: CapabilityDetailProps) {
+  const t = useTranslations("agents");
   return (
     // Grouped and named, so the tool rows below are read as belonging to
     // this capability rather than to the page.
@@ -238,7 +240,7 @@ export function CapabilityDetail({
         )}
 
         <div className="space-y-2">
-          <Label htmlFor={`${binding.id}-approval`}>Human approval</Label>
+          <Label htmlFor={`${binding.id}-approval`}>{t("humanApproval")}</Label>
           <Select
             value={binding.approval}
             disabled={disabled}
@@ -399,6 +401,7 @@ function fitsPurpose(secret: Secret, purpose: string | null, selectedId: string 
  * by choosing, so offering it would be offering a way to break the agent.
  */
 function SecretField({ binding, requirement, onChange, disabled }: SecretFieldProps) {
+  const t = useTranslations("agents");
   const { secrets, isLoading, listError } = useSecrets();
   const fieldId = `${binding.id}-secret`;
   const errorId = `${fieldId}-error`;
@@ -421,7 +424,7 @@ function SecretField({ binding, requirement, onChange, disabled }: SecretFieldPr
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
-        <Label htmlFor={fieldId}>Secret</Label>
+        <Label htmlFor={fieldId}>{t("secret")}</Label>
         <span className="text-muted-foreground font-mono text-xs">{requirement.kind}</span>
       </div>
 
@@ -603,12 +606,15 @@ interface ToolListProps {
  * them stopped following it.
  */
 function ToolList({ binding, tools, contracts, sideEffecting, onChange, disabled }: ToolListProps) {
+  const t = useTranslations("agents");
   const changed = tools.filter((tool) => isToolOverridden(binding, tool.id));
 
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Tools</p>
+        <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+          {t("tools")}
+        </p>
         {changed.length > 0 && (
           <Button
             variant="ghost"
@@ -623,9 +629,9 @@ function ToolList({ binding, tools, contracts, sideEffecting, onChange, disabled
 
       <p className="text-muted-foreground text-xs">
         A tool&apos;s name and description are the prompt the model reads before it decides to call
-        it, so both steer it: <span className="font-mono">search_refund_policy</span> is reached for
-        on questions <span className="font-mono">search_documents</span> is passed over for. Edits
-        here apply to this agent alone.
+        it, so both steer it: <span className="font-mono">{t("searchRefundPolicy")}</span> is
+        reached for on questions <span className="font-mono">{t("searchDocuments")}</span> is passed
+        over for. Edits here apply to this agent alone.
       </p>
 
       <ul className="divide-y rounded-md border">
@@ -656,6 +662,7 @@ interface ToolRowProps {
 }
 
 function ToolRow({ binding, tool, contract, sideEffecting, onChange, disabled }: ToolRowProps) {
+  const t = useTranslations("agents");
   const fieldId = (suffix: string) => `${binding.id}-tool-${tool.id}-${suffix}`;
   const approval = overrideFor(binding, tool.id);
   const name = effectiveText(binding, tool, "name");
@@ -686,13 +693,13 @@ function ToolRow({ binding, tool, contract, sideEffecting, onChange, disabled }:
     >
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-muted-foreground font-mono text-xs">{tool.id}</span>
-        {changed && <Badge variant="secondary">overridden</Badge>}
+        {changed && <Badge variant="secondary">{t("overridden")}</Badge>}
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <ToolField
           htmlFor={fieldId("name")}
-          label="Name"
+          label={t("name2")}
           reset={resetFor("name", "Reset name")}
           error={nameError}
           disabled={disabled}
@@ -709,7 +716,7 @@ function ToolRow({ binding, tool, contract, sideEffecting, onChange, disabled }:
           />
         </ToolField>
 
-        <ToolField htmlFor={fieldId("approval")} label="Approval" disabled={disabled}>
+        <ToolField htmlFor={fieldId("approval")} label={t("approval")} disabled={disabled}>
           <Select
             value={approval ?? "default"}
             disabled={disabled}
@@ -738,7 +745,7 @@ function ToolRow({ binding, tool, contract, sideEffecting, onChange, disabled }:
 
       <ToolField
         htmlFor={fieldId("description")}
-        label="Description the model reads"
+        label={t("descriptionModelReads")}
         reset={resetFor("description", "Reset description")}
         disabled={disabled}
       >
@@ -776,6 +783,7 @@ function ToolRow({ binding, tool, contract, sideEffecting, onChange, disabled }:
  * cannot rename them.
  */
 function ToolContract({ contract }: { contract: CapabilityToolContract }) {
+  const t = useTranslations("agents");
   const properties = contract.parameters.properties ?? {};
   const names = Object.keys(properties);
   const required = new Set(contract.parameters.required ?? []);
@@ -795,7 +803,9 @@ function ToolContract({ contract }: { contract: CapabilityToolContract }) {
                 <span className="text-muted-foreground font-mono">
                   {jsonSchemaType(properties[name])}
                 </span>
-                {required.has(name) && <span className="text-muted-foreground">required</span>}
+                {required.has(name) && (
+                  <span className="text-muted-foreground">{t("required")}</span>
+                )}
               </li>
             ))}
           </ul>

@@ -29,6 +29,7 @@ import type {
   SandboxRuntime,
 } from "@/lib/sandbox-connections-api";
 import { RuntimeField } from "./runtime-field";
+import { useTranslations } from "next-intl";
 
 interface ConnectionDialogProps {
   /**
@@ -57,8 +58,8 @@ const PURPOSE: Record<SandboxConnectionKind, string> = {
 };
 
 const SUGGESTED_NAME: Record<SandboxConnectionKind, string> = {
-  docker: "Sandbox service token",
-  daytona: "Daytona API key",
+  docker: "secretNameDocker",
+  daytona: "secretNameDaytona",
 };
 
 interface FormState {
@@ -108,6 +109,7 @@ function isComplete(form: FormState, baseUrl: string): boolean {
  * this component's props.
  */
 export function ConnectionDialog({ editing, onOpenChange, onSubmit }: ConnectionDialogProps) {
+  const t = useTranslations("sandboxes.connection");
   const { secrets } = useSecrets();
   // Only asked for a new connection. An operator editing an existing row has
   // already decided which host it points at, and probing on their behalf would be
@@ -158,9 +160,7 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
     <Dialog open onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>
-            {editing ? "Edit sandbox connection" : "Add sandbox connection"}
-          </DialogTitle>
+          <DialogTitle>{editing ? t("editTitle") : t("addTitle")}</DialogTitle>
           <DialogDescription>
             Where this organization&apos;s agents run shell commands and keep files. The token is
             stored in the vault and never shown again.
@@ -169,11 +169,11 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="connection-name">Name</Label>
+            <Label htmlFor="connection-name">{t("name")}</Label>
             <Input
               id="connection-name"
               value={form.name}
-              placeholder="Local Docker"
+              placeholder={t("namePlaceholder")}
               onChange={(event) => setForm({ ...form, name: event.target.value })}
             />
             <p className="text-muted-foreground text-xs">
@@ -182,7 +182,7 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="connection-kind">Kind</Label>
+            <Label htmlFor="connection-kind">{t("kind")}</Label>
             <Select
               value={form.kind}
               onValueChange={(kind) =>
@@ -193,15 +193,15 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="docker">Container service — a sandboxd you run</SelectItem>
-                <SelectItem value="daytona">Daytona — cloud sandboxes on your account</SelectItem>
+                <SelectItem value="docker">{t("kindDocker")}</SelectItem>
+                <SelectItem value="daytona">{t("kindDaytona")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           {form.kind === "docker" && (
             <div className="space-y-2">
-              <Label htmlFor="connection-url">Address</Label>
+              <Label htmlFor="connection-url">{t("address")}</Label>
               <Input
                 id="connection-url"
                 value={baseUrl}
@@ -225,13 +225,13 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="connection-secret">Credential</Label>
+            <Label htmlFor="connection-secret">{t("credential")}</Label>
             <Select
               value={usable.find((secret) => secret.id === form.secretId)?.id ?? ""}
               onValueChange={(secretId) => setForm({ ...form, secretId })}
             >
               <SelectTrigger id="connection-secret">
-                <SelectValue placeholder="Pick a key from the vault" />
+                <SelectValue placeholder={t("pickFromVault")} />
               </SelectTrigger>
               <SelectContent>
                 {usable.map((secret) => (
@@ -242,9 +242,7 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
               </SelectContent>
             </Select>
             <p className="text-muted-foreground text-xs">
-              {form.kind === "docker"
-                ? "The service token. Whoever holds it can open a session, and a session runs commands on that host."
-                : "Your Daytona API key. Sandboxes are billed to the account it belongs to."}
+              {form.kind === "docker" ? t("dockerTokenHint") : t("daytonaKeyHint")}
             </p>
             {/* The token is not something to go and find: `make sandbox-token`
                 generated it into `backend/.env`, and that is the file the service
@@ -275,14 +273,14 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
                     }
                   }}
                 >
-                  {storing ? "Storing…" : "Store it in the vault and use it"}
+                  {storing ? t("storing") : t("storeInVault")}
                 </Button>
               </div>
             )}
             <InlineSecret
               kind="api_key"
               purpose={PURPOSE[form.kind]}
-              suggestedName={SUGGESTED_NAME[form.kind]}
+              suggestedName={t(SUGGESTED_NAME[form.kind])}
               onCreated={(secretId) => setForm({ ...form, secretId })}
             />
           </div>
@@ -332,7 +330,7 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
 
           <div className="flex items-center justify-between">
             <div>
-              <Label htmlFor="connection-default">Use this by default</Label>
+              <Label htmlFor="connection-default">{t("useByDefault")}</Label>
               <p className="text-muted-foreground text-xs">
                 Agents that name no connection run here. Only one can hold this.
               </p>
@@ -347,7 +345,7 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
           {editing && (
             <div className="flex items-center justify-between">
               <div>
-                <Label htmlFor="connection-active">Switched on</Label>
+                <Label htmlFor="connection-active">{t("switchedOn")}</Label>
                 <p className="text-muted-foreground text-xs">
                   Turning it off refuses new sandboxes here without deleting the record of what
                   agents did on it.
@@ -369,7 +367,7 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
             Cancel
           </Button>
           <Button onClick={submit} disabled={saving || !isComplete(form, baseUrl)}>
-            {editing ? "Save" : "Add connection"}
+            {editing ? t("save") : t("add")}
           </Button>
         </DialogFooter>
       </DialogContent>

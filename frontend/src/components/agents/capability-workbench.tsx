@@ -9,6 +9,7 @@ import { SearchInput, Switch } from "@/components/ui";
 import { SANDBOX_ID } from "@/lib/agent-spec";
 import { cn } from "@/lib/utils";
 import type { CapabilityBindingSpec, CapabilityCatalogEntry } from "@/types/agents";
+import { useTranslations } from "next-intl";
 
 interface CapabilityWorkbenchProps {
   catalog: CapabilityCatalogEntry[];
@@ -68,6 +69,7 @@ export function CapabilityWorkbench({
   onChange,
   disabled,
 }: CapabilityWorkbenchProps) {
+  const t = useTranslations("agents");
   const enabled = new Set(selected.filter((binding) => binding.enabled).map((b) => b.id));
   const [focusedId, setFocusedId] = useState<string | null>(null);
 
@@ -117,7 +119,7 @@ export function CapabilityWorkbench({
           <SearchInput
             value={query}
             onChange={setQuery}
-            placeholder="Search capabilities…"
+            placeholder={t("searchCapabilities")}
             className="w-full sm:w-full"
           />
         )}
@@ -255,6 +257,7 @@ function CapabilityRow({
   onFocus: () => void;
   onToggle: () => void;
 }) {
+  const t = useTranslations("agents");
   return (
     <div
       className={cn(
@@ -271,7 +274,7 @@ function CapabilityRow({
         <span className="flex flex-wrap items-center gap-1.5">
           <span className="text-sm font-medium">{entry.name}</span>
           {entry.side_effecting && (
-            <ShieldAlert className="text-muted-foreground h-3 w-3" aria-label="acts on the world" />
+            <ShieldAlert className="text-muted-foreground h-3 w-3" aria-label={t("actsWorld")} />
           )}
         </span>
         <span className="text-muted-foreground mt-0.5 block text-xs">

@@ -1,4 +1,5 @@
 "use client";
+import { useTranslations } from "next-intl";
 
 /** Pull the question texts out of an `ask_user` tool's args (object or
  *  JSON-string). Handles the `questions` list. Returns [] when none found. */
@@ -23,6 +24,7 @@ function extractQuestions(args: unknown): string[] {
  *  "Q: …/A: …" transcript, so render it as-is; while waiting, list the
  *  questions that were asked. */
 export function AskUserResult({ args, resultText }: { args: unknown; resultText: string }) {
+  const t = useTranslations("chat.tools");
   if (resultText) {
     return (
       <p className="text-foreground/85 py-1 text-sm leading-relaxed break-words whitespace-pre-wrap">
@@ -44,11 +46,11 @@ export function AskUserResult({ args, resultText }: { args: unknown; resultText:
             ))}
           </ul>
         ) : (
-          <p className="text-muted-foreground mt-0.5 text-xs italic">Waiting for the user…</p>
+          <p className="text-muted-foreground mt-0.5 text-xs italic">{t("waitingForUser")}</p>
         )}
       </div>
       {questions.length > 0 && (
-        <p className="text-muted-foreground text-xs italic">Waiting for the user…</p>
+        <p className="text-muted-foreground text-xs italic">{t("waitingForUser")}</p>
       )}
     </div>
   );

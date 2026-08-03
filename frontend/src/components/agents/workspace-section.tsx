@@ -16,6 +16,7 @@ import { useSandboxConnections, useSandboxPolicy } from "@/hooks";
 import { cn } from "@/lib/utils";
 import type { SandboxConnectionRecord } from "@/lib/sandbox-connections-api";
 import type { CapabilityBindingSpec, CapabilityCatalogEntry } from "@/types/agents";
+import { useTranslations } from "next-intl";
 
 export const SANDBOX_CAPABILITY_ID = "sandbox";
 
@@ -112,6 +113,7 @@ export function WorkspaceSection({
   onChange,
   disabled,
 }: WorkspaceSectionProps) {
+  const t = useTranslations("agents");
   const { connections, error: connectionsError } = useSandboxConnections();
 
   // A deployment that did not register the capability has nothing to configure,
@@ -154,7 +156,7 @@ export function WorkspaceSection({
   return (
     <div className="space-y-4">
       <fieldset disabled={disabled} className="space-y-2">
-        <legend className="sr-only">Workspace</legend>
+        <legend className="sr-only">{t("workspace")}</legend>
         <div className="grid gap-2 sm:grid-cols-2">
           {BACKENDS.map((option) => (
             <button
@@ -184,7 +186,7 @@ export function WorkspaceSection({
         <div className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="workspace-scope">Who shares it by default</Label>
+              <Label htmlFor="workspace-scope">{t("whoSharesByDefault")}</Label>
               <Select
                 value={scope}
                 disabled={disabled}
@@ -244,7 +246,7 @@ export function WorkspaceSection({
 
           <div className="border-border flex flex-wrap items-center justify-between gap-3 rounded-lg border px-3 py-2.5">
             <div className="min-w-0">
-              <p className="text-sm font-medium">Shell commands</p>
+              <p className="text-sm font-medium">{t("shellCommands")}</p>
               <p className="text-muted-foreground text-xs">
                 {backend === "state"
                   ? "The Files workspace has no shell — pair it with Run Python to compute."
@@ -254,7 +256,7 @@ export function WorkspaceSection({
             <Switch
               checked={config.include_execute !== false}
               disabled={disabled || backend === "state"}
-              aria-label="Allow shell commands"
+              aria-label={t("allowShellCommands")}
               onCheckedChange={(checked) => setConfig({ include_execute: checked })}
             />
           </div>
@@ -301,21 +303,22 @@ function ConnectionField({
   disabled,
   onChange,
 }: ConnectionFieldProps) {
+  const t = useTranslations("agents");
   const usable = connections.filter((connection) => connection.is_active);
 
   return (
     <div className="space-y-1.5">
-      <Label htmlFor="workspace-connection">Runs on</Label>
+      <Label htmlFor="workspace-connection">{t("runs2")}</Label>
       <Select
         value={connectionId ?? "default"}
         disabled={disabled || usable.length === 0}
         onValueChange={(value) => onChange(value === "default" ? null : value)}
       >
         <SelectTrigger id="workspace-connection">
-          <SelectValue placeholder="No sandbox connection registered" />
+          <SelectValue placeholder={t("noSandboxConnectionRegistered")} />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="default">Whichever is default</SelectItem>
+          <SelectItem value="default">{t("whicheverDefault")}</SelectItem>
           {usable.map((connection) => (
             <SelectItem key={connection.id} value={connection.id}>
               {connection.name}
@@ -358,13 +361,14 @@ interface RuntimeFieldProps {
  * the author's.
  */
 function RuntimeField({ connection, runtime, disabled, onChange }: RuntimeFieldProps) {
+  const t = useTranslations("agents");
   const { policy, isLoading, error } = useSandboxPolicy(connection?.id ?? null);
   const runtimes = policy?.runtimes ?? [];
   const known = runtimes.some((entry) => entry.alias === runtime);
 
   return (
     <div className="max-w-sm space-y-1.5">
-      <Label htmlFor="workspace-runtime">Runtime</Label>
+      <Label htmlFor="workspace-runtime">{t("runtime")}</Label>
       <Select
         value={runtime ?? "default"}
         disabled={disabled || runtimes.length === 0}

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { FileText, Globe, Link, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 import type { SourceItem } from "@/lib/chat-sources";
 import { cn } from "@/lib/utils";
@@ -113,6 +114,7 @@ function WebSourceRow({ item, highlighted }: { item: SourceItem; highlighted: bo
 }
 
 export function SourcesPanel() {
+  const t = useTranslations("chat");
   const { isOpen, sources, highlightedIndex, close } = useSourcesPanelStore();
 
   useEffect(() => {
@@ -140,7 +142,7 @@ export function SourcesPanel() {
         <button
           type="button"
           onClick={close}
-          aria-label="Close sources panel"
+          aria-label={t("closeSourcesPanel")}
           className="text-foreground/50 hover:text-foreground hover:bg-foreground/8 rounded-md p-1 transition-colors"
         >
           <X className="h-4 w-4" />

@@ -7,6 +7,7 @@ import { RunStatusBadge } from "@/components/agents/status-badge";
 import { ROUTES } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
 import type { AgentRun } from "@/types/runs";
+import { useTranslations } from "next-intl";
 
 interface RunSummaryProps {
   agentId: string;
@@ -57,6 +58,7 @@ function tally(runs: AgentRun[]): Tally {
  * the summary question and hands over.
  */
 export function RunSummary({ agentId, runs }: RunSummaryProps) {
+  const t = useTranslations("agents");
   const stats = tally(runs);
   const activityHref = `${ROUTES.RUNS}?agent=${agentId}`;
 
@@ -74,16 +76,16 @@ export function RunSummary({ agentId, runs }: RunSummaryProps) {
   return (
     <div className="space-y-3">
       <div className="grid gap-2 sm:grid-cols-3">
-        <Figure label="Runs" value={String(stats.total)} />
+        <Figure label={t("runs")} value={String(stats.total)} />
         <Figure
-          label="Failed"
+          label={t("failed")}
           value={String(stats.failed)}
           // Only when there are any. A red zero is an alarm about nothing, and a
           // panel that always looks slightly alarmed is one nobody reads.
           tone={stats.failed > 0 ? "bad" : "plain"}
         />
         <Figure
-          label="Spent"
+          label={t("spent")}
           value={`$${stats.spent.toFixed(2)}${stats.partial ? "+" : ""}`}
           hint={
             stats.partial ? "A model in these runs had no price, so this is a floor." : undefined

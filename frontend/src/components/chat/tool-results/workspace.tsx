@@ -11,6 +11,7 @@ import { useConversationWorkspace, useFileDownload } from "@/hooks";
 import { basename, contentArg, pathArg } from "@/lib/tool-steps";
 import type { FileSource } from "@/lib/workspace-files";
 import type { ToolCall } from "@/types";
+import { useTranslations } from "next-intl";
 
 export { isWorkspaceTool } from "@/lib/tool-steps";
 
@@ -143,6 +144,7 @@ export function WorkspaceToolResult({
   resultText: string;
   conversationId?: string;
 }) {
+  const t = useTranslations("chat.tools");
   const path = pathArg(toolCall.args);
   const written = contentArg(toolCall.args);
   const listed = lines(toolCall.name, resultText);
@@ -179,7 +181,7 @@ export function WorkspaceToolResult({
         <TextPanel text={resultText} />
       )}
 
-      {isRunning && <p className="text-muted-foreground text-xs italic">Running…</p>}
+      {isRunning && <p className="text-muted-foreground text-xs italic">{t("running")}</p>}
 
       {/* A listing is a list. Fifty paths in a `pre` is a wall; fifty rows is
           something an eye can scan for the one it wanted. */}

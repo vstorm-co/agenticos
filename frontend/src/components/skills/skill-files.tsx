@@ -32,6 +32,7 @@ import { useSkillResource } from "@/hooks";
 import { previewKind, type Preview, type TreeNode } from "@/lib/file-tree";
 import { cn } from "@/lib/utils";
 import type { SkillResourceSummary } from "@/types/providers";
+import { useTranslations } from "next-intl";
 
 /** The tree itself, so a caller can put its own things above it. */
 export function FileTree({
@@ -235,6 +236,7 @@ export function FileViewer({
   /** Anything the owner wants above the content - the body's own fields. */
   header?: React.ReactNode;
 }) {
+  const t = useTranslations("skills");
   const [mode, setMode] = useState<"preview" | "source">("preview");
 
   return (
@@ -244,13 +246,13 @@ export function FileViewer({
         <div className="flex items-center gap-0.5 rounded-md border p-0.5">
           <ModeButton
             icon={Eye}
-            label="Preview"
+            label={t("preview")}
             active={mode === "preview"}
             onClick={() => setMode("preview")}
           />
           <ModeButton
             icon={Code2}
-            label="Source"
+            label={t("source")}
             active={mode === "source"}
             onClick={() => setMode("source")}
           />
@@ -266,7 +268,7 @@ export function FileViewer({
 
       <div className="min-h-0 flex-1 overflow-auto p-3">
         {loading ? (
-          <p className="text-muted-foreground text-xs">Loading…</p>
+          <p className="text-muted-foreground text-xs">{t("loading")}</p>
         ) : mode === "source" ? (
           // Fills the pane rather than sitting in it: a fixed-row box inside a
           // tall panel leaves the text in a letterbox with dead space under it.
@@ -289,8 +291,9 @@ export function FileViewer({
 
 /** What a file looks like when it is not being edited. */
 function FilePreview({ kind, name, content }: { kind: Preview; name: string; content: string }) {
+  const t = useTranslations("skills");
   if (content.trim() === "") {
-    return <p className="text-muted-foreground text-xs">This file is empty.</p>;
+    return <p className="text-muted-foreground text-xs">{t("fileEmpty")}</p>;
   }
 
   if (kind === "markdown") return <MarkdownContent content={content} />;
@@ -389,6 +392,7 @@ export function NewFileForm({
   onCancel: () => void;
   onSubmit: (draft: { name: string; description: string | null; content: string }) => void;
 }) {
+  const t = useTranslations("skills");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [content, setContent] = useState("");
@@ -403,7 +407,7 @@ export function NewFileForm({
     >
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <Label htmlFor="resource-name">Path</Label>
+          <Label htmlFor="resource-name">{t("path")}</Label>
           <Input
             id="resource-name"
             value={name}
@@ -418,12 +422,12 @@ export function NewFileForm({
           </p>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="resource-description">Description</Label>
+          <Label htmlFor="resource-description">{t("description2")}</Label>
           <Input
             id="resource-description"
             value={description}
             onChange={(event) => setDescription(event.target.value)}
-            placeholder="What is in it, so the model can decide without loading it"
+            placeholder={t("whatSoModelCan")}
           />
         </div>
       </div>
@@ -431,8 +435,8 @@ export function NewFileForm({
         value={content}
         onChange={(event) => setContent(event.target.value)}
         rows={10}
-        placeholder="The file body"
-        aria-label="File contents"
+        placeholder={t("fileBody")}
+        aria-label={t("fileContents")}
         className="font-mono text-xs"
       />
       <div className="flex items-center gap-2">

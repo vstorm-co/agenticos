@@ -18,6 +18,7 @@ import {
 } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import type { Secret, SecretPurpose } from "@/types/secrets";
+import { useTranslations } from "next-intl";
 
 interface SecretsTableProps {
   secrets: readonly Secret[];
@@ -75,6 +76,7 @@ export function SecretsTable({
   onRotate,
   onDelete,
 }: SecretsTableProps) {
+  const t = useTranslations("vault");
   return (
     <Table
       className={cn(
@@ -91,12 +93,12 @@ export function SecretsTable({
     >
       <TableHeader>
         <TableRow>
-          <TableHead>Key</TableHead>
-          <TableHead>For</TableHead>
-          <TableHead>Access</TableHead>
-          <TableHead>Added by</TableHead>
-          <TableHead>Used by</TableHead>
-          {canManage && <TableHead className="w-32 text-right">Actions</TableHead>}
+          <TableHead>{t("key")}</TableHead>
+          <TableHead>{t("for")}</TableHead>
+          <TableHead>{t("access")}</TableHead>
+          <TableHead>{t("addedBy")}</TableHead>
+          <TableHead>{t("usedBy")}</TableHead>
+          {canManage && <TableHead className="w-32 text-right">{t("actions")}</TableHead>}
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -152,7 +154,7 @@ export function SecretsTable({
                 ) : (
                   // The key outlives the person, which is itself worth seeing:
                   // it is the one nobody is going to rotate.
-                  <span className="text-muted-foreground text-xs">no longer here</span>
+                  <span className="text-muted-foreground text-xs">{t("noLongerHere")}</span>
                 )}
               </TableCell>
 

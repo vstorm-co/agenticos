@@ -65,7 +65,7 @@ export function MobileTabBar() {
   return (
     <nav
       role="navigation"
-      aria-label="Primary"
+      aria-label={t("primary")}
       className="border-foreground/10 bg-background/95 supports-[backdrop-filter]:bg-background/85 fixed inset-x-0 bottom-0 z-40 flex items-stretch justify-around border-t pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden"
     >
       {items.map((item) => {

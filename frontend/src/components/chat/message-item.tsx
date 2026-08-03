@@ -13,6 +13,7 @@ import { RatingButtons } from "./rating-buttons";
 import { useChatStore, useFilePreviewStore } from "@/stores";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 import { Bot, FileText, Globe, Paperclip, RefreshCw, Sparkles, User } from "lucide-react";
+import { useTranslations } from "next-intl";
 import Image from "next/image";
 import { useAuthStore } from "@/stores";
 import { getFileUrl } from "@/lib/file-api";
@@ -180,6 +181,7 @@ export function MessageItem({
   openLastStep = false,
   onRegenerate,
 }: MessageItemProps) {
+  const t = useTranslations("chat");
   const isUser = message.role === "user";
   const updateMessage = useChatStore((state) => state.updateMessage);
   const openPreview = useFilePreviewStore((s) => s.open);
@@ -298,7 +300,7 @@ export function MessageItem({
                       onClick={() => openPreview(att.file)}
                     />
                   ) : (
-                    <FileChip key={att.id} filename="Attached file" href={getFileUrl(att.id)} />
+                    <FileChip key={att.id} filename={t("attachedFile")} href={getFileUrl(att.id)} />
                   ),
                 )}
               </div>
@@ -327,7 +329,7 @@ export function MessageItem({
                     <span className="bg-muted-foreground/40 h-1.5 w-1.5 animate-bounce rounded-full [animation-delay:150ms]" />
                     <span className="bg-muted-foreground/40 h-1.5 w-1.5 animate-bounce rounded-full [animation-delay:300ms]" />
                   </div>
-                  <span className="text-muted-foreground text-xs">Thinking...</span>
+                  <span className="text-muted-foreground text-xs">{t("thinking")}</span>
                 </div>
               )}
 
@@ -445,8 +447,8 @@ export function MessageItem({
               <button
                 type="button"
                 onClick={onRegenerate}
-                title="Regenerate response"
-                aria-label="Regenerate response"
+                title={t("regenerate")}
+                aria-label={t("regenerate")}
                 className="bg-muted hover:bg-muted/80 text-foreground/70 hover:text-foreground inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors sm:opacity-0 sm:group-hover:opacity-100"
               >
                 <RefreshCw className="h-3 w-3" />

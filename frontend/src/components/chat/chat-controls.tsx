@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { ChevronDown, Cpu, Settings2, Sliders } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import { ChatModelPicker } from "./chat-model-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
@@ -13,11 +14,12 @@ import { cn } from "@/lib/utils";
 type ThinkingEffort = "off" | "low" | "medium" | "high";
 type Tab = "model" | "settings";
 
-const EFFORT_OPTIONS: { label: string; value: ThinkingEffort; hint: string }[] = [
-  { label: "Off", value: "off", hint: "Direct answer, no reasoning" },
-  { label: "Low", value: "low", hint: "Quick reasoning" },
-  { label: "Medium", value: "medium", hint: "Balanced" },
-  { label: "High", value: "high", hint: "Deep, slower" },
+/** The four efforts, in order. Their words live in the catalog under `effort<Level>`. */
+const EFFORT_OPTIONS: { value: ThinkingEffort; key: string }[] = [
+  { value: "off", key: "Off" },
+  { value: "low", key: "Low" },
+  { value: "medium", key: "Medium" },
+  { value: "high", key: "High" },
 ];
 
 interface ChatControlsProps {
@@ -53,6 +55,7 @@ export function ChatControls({
   onTemperatureChange,
   onThinkingEffortChange,
 }: ChatControlsProps) {
+  const t = useTranslations("chat.controls");
   const [tab, setTab] = useState<Tab>("model");
   const currentConversationId = useConversationStore((state) => state.currentConversationId);
   const { profiles } = useModelProviders();
@@ -78,7 +81,7 @@ export function ChatControls({
       <PopoverTrigger asChild>
         <button
           type="button"
-          aria-label="Chat controls"
+          aria-label={t("label")}
           // The /settings slash command opens this popover by clicking the
           // trigger through this attribute - see ChatContainer's slashContext.
           data-chat-settings-trigger
@@ -105,7 +108,7 @@ export function ChatControls({
           {onModelProfileChange && (
             <TabButton
               icon={Cpu}
-              label="Model"
+              label={t("model")}
               active={tab === "model"}
               onClick={() => setTab("model")}
             />
@@ -113,7 +116,7 @@ export function ChatControls({
           {onTemperatureChange && onThinkingEffortChange && (
             <TabButton
               icon={Settings2}
-              label="Settings"
+              label={t("settings")}
               active={tab === "settings"}
               onClick={() => setTab("settings")}
             />
@@ -177,9 +180,9 @@ export function ChatControls({
               aria-hidden
               className="bg-foreground inline-block h-1 w-1 animate-pulse rounded-full"
             />
-            {currentConversationId ? "Saved for this chat" : "Saves on send"}
+            {currentConversationId ? t("savedForChat") : t("savesOnSend")}
           </span>
-          <span>esc to close</span>
+          <span>{t("escToClose")}</span>
         </div>
       </PopoverContent>
     </Popover>
@@ -226,16 +229,17 @@ function SettingsPanel({
   onTemperatureChange: (v: number | null) => void;
   onEffortChange: (v: ThinkingEffort) => void;
 }) {
+  const t = useTranslations("chat.controls");
   return (
     <div className="space-y-6">
       <div className="space-y-2.5">
         <div className="flex items-baseline justify-between">
           <label htmlFor="chat-temp" className="text-foreground text-sm font-semibold">
-            Temperature
+            {t("temperature")}
           </label>
           <span className="text-foreground font-mono text-xs tabular-nums">
             {temperature === null ? (
-              <span className="text-foreground/55">default</span>
+              <span className="text-foreground/55">{t("temperatureDefault")}</span>
             ) : (
               temperature.toFixed(2)
             )}
@@ -252,8 +256,8 @@ function SettingsPanel({
           className="bg-foreground/15 h-1.5 w-full cursor-pointer appearance-none rounded-full accent-[var(--color-brand)]"
         />
         <div className="text-foreground/45 flex justify-between font-mono text-[10px] tracking-wider uppercase">
-          <span>focused</span>
-          <span>creative</span>
+          <span>{t("focused")}</span>
+          <span>{t("creative")}</span>
         </div>
         {temperature !== null && (
           <button
@@ -261,15 +265,15 @@ function SettingsPanel({
             onClick={() => onTemperatureChange(null)}
             className="text-foreground/55 hover:text-foreground text-[11px] underline-offset-2 hover:underline"
           >
-            Reset to server default
+            {t("resetToServerDefault")}
           </button>
         )}
       </div>
 
       <div className="space-y-2.5">
         <div className="flex items-baseline justify-between">
-          <span className="text-foreground text-sm font-semibold">Thinking effort</span>
-          <span className="text-foreground/45 text-[10px]">model-dependent</span>
+          <span className="text-foreground text-sm font-semibold">{t("thinkingEffort")}</span>
+          <span className="text-foreground/45 text-[10px]">{t("modelDependent")}</span>
         </div>
         <div className="grid grid-cols-4 gap-1">
           {EFFORT_OPTIONS.map((opt) => (
@@ -284,12 +288,12 @@ function SettingsPanel({
                   : "border-foreground/15 text-foreground/55 hover:text-foreground border",
               )}
             >
-              {opt.label}
+              {t(`effort${opt.key}`)}
             </button>
           ))}
         </div>
         <p className="text-foreground/55 text-[11px]">
-          {EFFORT_OPTIONS.find((o) => o.value === effort)?.hint}
+          {t(`effort${EFFORT_OPTIONS.find((o) => o.value === effort)?.key ?? "Off"}Hint`)}
         </p>
       </div>
 

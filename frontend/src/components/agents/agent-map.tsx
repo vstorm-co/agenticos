@@ -17,6 +17,7 @@ import type { LucideIcon } from "lucide-react";
 
 import { Button } from "@/components/ui";
 import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 
 /** One box on the map. `items` empty means "nothing configured", said out loud. */
 export interface MapNode {
@@ -64,6 +65,7 @@ const MIN_SCALE = 0.4;
 const MAX_SCALE = 2.5;
 
 export function AgentMap({ agentName, instructions, nodes }: AgentMapProps) {
+  const t = useTranslations("agents");
   const viewport = useRef<HTMLDivElement>(null);
   const container = useRef<HTMLDivElement>(null);
   const hub = useRef<HTMLDivElement>(null);
@@ -178,7 +180,7 @@ export function AgentMap({ agentName, instructions, nodes }: AgentMapProps) {
           type="button"
           variant="outline"
           size="icon"
-          aria-label="Zoom in"
+          aria-label={t("zoom")}
           onClick={() => zoomFromCentre(1.25)}
         >
           <ZoomIn className="h-4 w-4" />
@@ -187,7 +189,7 @@ export function AgentMap({ agentName, instructions, nodes }: AgentMapProps) {
           type="button"
           variant="outline"
           size="icon"
-          aria-label="Zoom out"
+          aria-label={t("zoomOut")}
           onClick={() => zoomFromCentre(1 / 1.25)}
         >
           <ZoomOut className="h-4 w-4" />
@@ -196,7 +198,7 @@ export function AgentMap({ agentName, instructions, nodes }: AgentMapProps) {
           type="button"
           variant="outline"
           size="icon"
-          aria-label="Reset view"
+          aria-label={t("resetView")}
           onClick={() => setView({ x: 0, y: 0, scale: 1 })}
         >
           <Maximize className="h-4 w-4" />
@@ -283,7 +285,9 @@ export function AgentMap({ agentName, instructions, nodes }: AgentMapProps) {
                   {instructions}
                 </p>
               ) : (
-                <p className="text-muted-foreground mt-1 text-sm italic">No instructions written</p>
+                <p className="text-muted-foreground mt-1 text-sm italic">
+                  {t("noInstructionsWritten")}
+                </p>
               )}
             </div>
 

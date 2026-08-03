@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui";
 import type { SandboxRuntime, SandboxRuntimeOption } from "@/lib/sandbox-connections-api";
+import { useTranslations } from "next-intl";
 
 interface RuntimeFieldProps {
   value: string;
@@ -55,6 +56,7 @@ export function RuntimeField({
   onTest,
   testing,
 }: RuntimeFieldProps) {
+  const t = useTranslations("sandboxes.runtime");
   const [typing, setTyping] = useState(false);
   const allowedAliases = allowed === null ? null : new Set(allowed.map((one) => one.alias));
 
@@ -75,7 +77,7 @@ export function RuntimeField({
 
   return (
     <div className="min-w-0 space-y-2">
-      <Label htmlFor="connection-runtime">Default runtime</Label>
+      <Label htmlFor="connection-runtime">{t("label")}</Label>
 
       {options.length > 0 && !typing ? (
         <Select
@@ -90,17 +92,21 @@ export function RuntimeField({
             <SelectValue className="truncate" />
           </SelectTrigger>
           <SelectContent className="max-w-[min(30rem,90vw)]">
-            <SelectItem value={SERVICE_DEFAULT}>Whatever the service defaults to</SelectItem>
+            <SelectItem value={SERVICE_DEFAULT}>{t("serviceDefault")}</SelectItem>
             {options.map((runtime) => (
               <SelectItem key={runtime.alias} value={runtime.alias}>
                 <span className="flex min-w-0 flex-col">
                   <span className="flex items-center gap-2">
                     <span className="font-mono text-xs">{runtime.alias}</span>
                     {runtime.builds && (
-                      <span className="text-muted-foreground text-[10px] uppercase">builds</span>
+                      <span className="text-muted-foreground text-[10px] uppercase">
+                        {t("builds")}
+                      </span>
                     )}
                     {allowedAliases !== null && !allowedAliases.has(runtime.alias) && (
-                      <span className="text-[10px] text-amber-600 uppercase">not on this host</span>
+                      <span className="text-[10px] text-amber-600 uppercase">
+                        {t("notOnThisHost")}
+                      </span>
                     )}
                   </span>
                   {runtime.description !== "" && (
@@ -122,7 +128,7 @@ export function RuntimeField({
         <Input
           id="connection-runtime"
           value={value}
-          placeholder="the service's own"
+          placeholder={t("placeholder")}
           onChange={(event) => onChange(event.target.value)}
         />
       )}
@@ -132,19 +138,13 @@ export function RuntimeField({
         service defaults to.
       </p>
       <p className="text-muted-foreground text-xs">
-        {allowed === null
-          ? "These are the runtimes the sandbox library ships. Test the connection to see which ones this host allows."
-          : `This host allows ${allowed.length} of them.`}
+        {allowed === null ? t("shipped") : t("allowedCount", { count: allowed.length })}
       </p>
 
       <div className="flex items-center gap-3">
         {onTest !== null && (
           <Button variant="outline" size="sm" onClick={() => void onTest()} disabled={testing}>
-            {testing
-              ? "Asking the service…"
-              : allowed !== null
-                ? "Ask again"
-                : "Test and check this host"}
+            {testing ? t("asking") : allowed !== null ? t("askAgain") : t("test")}
           </Button>
         )}
         {options.length > 0 && (
@@ -153,7 +153,7 @@ export function RuntimeField({
             className="text-muted-foreground hover:text-foreground text-xs underline"
             onClick={() => setTyping(!typing)}
           >
-            {typing ? "Pick from the list" : "Type an alias instead"}
+            {typing ? t("pickFromList") : t("typeAlias")}
           </button>
         )}
       </div>

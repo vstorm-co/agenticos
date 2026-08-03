@@ -69,7 +69,7 @@ export function RegisterForm() {
       <div className="space-y-2">
         <span className="eyebrow text-foreground/55">{t("getStarted")}</span>
         <h1 className="text-display-md text-foreground [&_em]:font-normal [&_em]:italic">
-          Create your <em>workspace.</em>
+          Create your <em>{t("workspace")}</em>
         </h1>
         <p className="text-foreground/65 text-sm">
           {t("hasAccount")}{" "}
@@ -136,7 +136,7 @@ export function RegisterForm() {
           <Input
             id="password"
             type="password"
-            placeholder="At least 8 characters"
+            placeholder={t("atLeast8Characters")}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
@@ -188,7 +188,7 @@ export function RegisterForm() {
           <Input
             id="confirmPassword"
             type="password"
-            placeholder="Repeat the password"
+            placeholder={t("repeatPassword")}
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             required

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { useTranslations } from "next-intl";
 import { Bot, Check, ChevronDown, Star } from "lucide-react";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
@@ -38,6 +39,7 @@ export const isRunnable = (agent: Agent): boolean => agent.status === "published
  * than relabelling everything above it.
  */
 export function AgentPicker() {
+  const t = useTranslations("chat.agentPicker");
   // Archived agents included so a conversation that was had with one still
   // resolves its name; `isRunnable` is what decides who can be picked.
   const { agents, isLoading, isFetching } = useAgents({ includeArchived: true });
@@ -74,7 +76,7 @@ export function AgentPicker() {
       <PopoverTrigger asChild>
         <button
           type="button"
-          aria-label={`Agent: ${selected?.name ?? "none selected"}`}
+          aria-label={t("current", { name: selected?.name ?? t("noneSelected") })}
           className="border-foreground/10 bg-card hover:border-foreground/25 hover:bg-foreground/[0.04] text-foreground inline-flex items-center gap-1.5 rounded-full border py-1 pr-2 pl-1 transition-colors"
         >
           {selected ? (
@@ -90,7 +92,7 @@ export function AgentPicker() {
             </span>
           )}
           <span className="max-w-[160px] truncate font-mono text-[11px] tracking-wider uppercase">
-            {selected?.name ?? "Choose agent"}
+            {selected?.name ?? t("none")}
           </span>
           <ChevronDown className="text-foreground/45 h-3 w-3" />
         </button>
@@ -105,12 +107,10 @@ export function AgentPicker() {
             change takes effect; at twelve pixels over two lines it was the loudest
             thing in a list of agents. */}
         <p className="text-muted-foreground border-foreground/8 mb-1 border-b px-2 pt-1 pb-2 text-[11px] leading-snug">
-          {currentConversationId
-            ? "Applies from your next message — earlier answers keep their agent."
-            : "Who answers this conversation."}
+          {currentConversationId ? t("appliesNext") : t("whoAnswers")}
         </p>
 
-        <div role="radiogroup" aria-label="Agent" className="space-y-px">
+        <div role="radiogroup" aria-label={t("label")} className="space-y-px">
           {runnable.map((agent) => (
             <AgentOption
               key={agent.id}
@@ -124,11 +124,11 @@ export function AgentPicker() {
         </div>
 
         {isLoading && runnable.length === 0 ? (
-          <p className="text-foreground/55 px-2 py-3 text-xs">Loading…</p>
+          <p className="text-foreground/55 px-2 py-3 text-xs">{t("loading")}</p>
         ) : (
           runnable.length === 0 && (
             <p className="text-foreground/45 px-2 py-3 text-[11px] leading-relaxed">
-              No published agents yet. Publish one from the Agents page and it will appear here.
+              {t("nonePublished")}
             </p>
           )
         )}
@@ -150,6 +150,7 @@ function AgentOption({
   onSelect: () => void;
   onToggleDefault: () => void;
 }) {
+  const t = useTranslations("chat.agentPicker");
   // Two buttons that read as one row: a button cannot contain a button, and starring an
   // agent must not also select it - so the *wrapper* carries the fill and the rounding,
   // and the star lives inside it rather than in an orphaned column beside it. What this
@@ -174,7 +175,7 @@ function AgentOption({
           <span className="flex items-center gap-1.5">
             <span className="truncate text-[13px] font-medium">{agent.name}</span>
             {isDefault && (
-              <span className="text-muted-foreground shrink-0 text-[10px]">Default</span>
+              <span className="text-muted-foreground shrink-0 text-[10px]">{t("default")}</span>
             )}
           </span>
           {/* One line, truncated. Wrapped to two, a description made every row a
@@ -191,9 +192,11 @@ function AgentOption({
         type="button"
         aria-pressed={isDefault}
         aria-label={
-          isDefault ? `Unset ${agent.name} as default agent` : `Set ${agent.name} as default agent`
+          isDefault
+            ? t("unsetDefault", { name: agent.name })
+            : t("setDefault", { name: agent.name })
         }
-        title={isDefault ? "Default agent for new chats" : "Set as default for new chats"}
+        title={isDefault ? t("defaultForNewChats") : t("makeDefaultForNewChats")}
         onClick={onToggleDefault}
         className={cn(
           "shrink-0 rounded-md p-1.5 transition-colors",

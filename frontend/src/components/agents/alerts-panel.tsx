@@ -23,6 +23,7 @@ import { ROUTES } from "@/lib/constants";
 import { DEFAULT_NOTIFICATIONS } from "@/lib/agent-spec";
 import { useOrgStore } from "@/stores";
 import type { AlertAudience, AlertSpec, NotificationSpec } from "@/types/agents";
+import { useTranslations } from "next-intl";
 
 interface AlertsPanelProps {
   value: NotificationSpec | undefined;
@@ -106,6 +107,7 @@ const ALERTS: readonly AlertKindMeta[] = [
  * people who can, and no agent can redirect or silence it.
  */
 export function AlertsPanel({ value, onChange, disabled }: AlertsPanelProps) {
+  const t = useTranslations("agents");
   /* v8 ignore next -- the selector never runs: every test here mocks the store */
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const { members } = useMembers(activeOrgId ?? "");
@@ -119,7 +121,7 @@ export function AlertsPanel({ value, onChange, disabled }: AlertsPanelProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Alerts</CardTitle>
+        <CardTitle>{t("alerts")}</CardTitle>
         <CardDescription>
           Who hears about this agent when nobody is watching it. A run started from chat says what
           happened on screen; the same run started by a schedule, a channel or the API stops
@@ -165,6 +167,7 @@ function AlertRow({
   disabled?: boolean;
   onChange: (alert: AlertSpec) => void;
 }) {
+  const t = useTranslations("agents");
   const toggleAudience = (audience: AlertAudience) => {
     const on = alert.to.includes(audience);
     const to = on ? alert.to.filter((entry) => entry !== audience) : [...alert.to, audience];
@@ -316,7 +319,7 @@ function AlertRow({
             // `div` inside a `p` is invalid HTML that React resolves by
             // restructuring the DOM - which shows up as a hydration error.
             <p className="text-destructive text-xs">
-              <span className="mr-1.5 font-medium">Refused at save -</span>
+              <span className="mr-1.5 font-medium">{t("refusedAtSave")}</span>
               {problem}
             </p>
           )}

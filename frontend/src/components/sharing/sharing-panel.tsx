@@ -21,6 +21,7 @@ import {
 import { useMembers, useSharing } from "@/hooks";
 import { useOrgStore } from "@/stores";
 import type { GrantLevel, ResourceGrant, SharingResourceType, Visibility } from "@/types/sharing";
+import { useTranslations } from "next-intl";
 
 interface SharingPanelProps {
   resourceType: SharingResourceType;
@@ -129,6 +130,7 @@ function subjectLabel(grant: ResourceGrant): string {
  * would drift from the first the day either one is fixed.
  */
 export function SharingPanel({ resourceType, resourceId, canManage }: SharingPanelProps) {
+  const t = useTranslations("sharing");
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const { members } = useMembers(activeOrgId ?? "");
   const { sharing, isLoading, share, revoke, setVisibility } = useSharing(resourceType, resourceId);
@@ -163,7 +165,7 @@ export function SharingPanel({ resourceType, resourceId, canManage }: SharingPan
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Visibility</CardTitle>
+          <CardTitle>{t("visibility")}</CardTitle>
           <CardDescription>
             Who reaches this {noun} without being named. Sharing adds people on top of this; it
             never takes access away.
@@ -197,7 +199,7 @@ export function SharingPanel({ resourceType, resourceId, canManage }: SharingPan
 
       <Card>
         <CardHeader>
-          <CardTitle>People</CardTitle>
+          <CardTitle>{t("people")}</CardTitle>
           <CardDescription>
             A share lifts one person&apos;s access to this {noun} without changing their role
             anywhere else. Can view sees the configuration, can use also runs it, can edit also
@@ -213,7 +215,7 @@ export function SharingPanel({ resourceType, resourceId, canManage }: SharingPan
           {ownerEmail && <p className="text-muted-foreground text-sm">Owned by {ownerEmail}</p>}
 
           {sharing.grants.length === 0 && (
-            <p className="text-muted-foreground text-sm">Not shared with anyone yet.</p>
+            <p className="text-muted-foreground text-sm">{t("notSharedWithAnyone")}</p>
           )}
 
           {sharing.grants.map((grant) => {
@@ -264,7 +266,7 @@ export function SharingPanel({ resourceType, resourceId, canManage }: SharingPan
           {canManage && (
             <div className="flex flex-wrap items-end gap-3 border-t pt-4">
               <div className="min-w-56 flex-1 space-y-2">
-                <Label htmlFor="share-with">Add someone</Label>
+                <Label htmlFor="share-with">{t("addSomeone")}</Label>
                 <Select
                   value={subjectUserId}
                   onValueChange={setSubjectUserId}
@@ -287,7 +289,7 @@ export function SharingPanel({ resourceType, resourceId, canManage }: SharingPan
                 </Select>
               </div>
               <div className="w-40 space-y-2">
-                <Label htmlFor="share-level">Access</Label>
+                <Label htmlFor="share-level">{t("access")}</Label>
                 <Select value={level} onValueChange={(value) => setLevel(toLevel(value))}>
                   <SelectTrigger id="share-level">
                     <SelectValue />

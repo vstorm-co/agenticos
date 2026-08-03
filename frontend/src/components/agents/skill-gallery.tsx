@@ -7,6 +7,7 @@ import { Badge, Pager, SearchInput, useListControls } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type { SkillSummary } from "@/types/providers";
+import { useTranslations } from "next-intl";
 
 interface SkillGalleryProps {
   skills: SkillSummary[];
@@ -41,6 +42,7 @@ export function SkillGallery({
   onToggle,
   disabled,
 }: SkillGalleryProps) {
+  const t = useTranslations("agents");
   const chosen = new Set(selectedIds);
   const known = new Set(skills.map((skill) => skill.id));
   // Only when this is the whole set. Against a page of it, every skill the
@@ -75,7 +77,7 @@ export function SkillGallery({
   return (
     <div className="space-y-3">
       {skills.length > 8 && (
-        <SearchInput value={list.query} onChange={list.setQuery} placeholder="Search skills…" />
+        <SearchInput value={list.query} onChange={list.setQuery} placeholder={t("searchSkills")} />
       )}
 
       <div className="grid gap-2 sm:grid-cols-2">
@@ -107,7 +109,7 @@ export function SkillGallery({
               <span className="min-w-0 flex-1">
                 <span className="flex flex-wrap items-center gap-2">
                   <span className="font-mono text-sm font-medium">{skill.name}</span>
-                  {!skill.enabled && <Badge variant="outline">disabled</Badge>}
+                  {!skill.enabled && <Badge variant="outline">{t("disabled")}</Badge>}
                 </span>
                 <span className="text-muted-foreground mt-1 block text-sm">
                   {skill.description}

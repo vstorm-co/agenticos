@@ -8,6 +8,7 @@ import { MemberIdentity, displayName } from "./member-identity";
 import type { IdentifiedMember } from "./member-identity";
 import { Button, Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
 import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 
 interface MemberPickerProps {
   members: IdentifiedMember[];
@@ -49,6 +50,7 @@ export function MemberPicker({
   scope,
   disabled,
 }: MemberPickerProps) {
+  const t = useTranslations("orgs");
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
 
@@ -73,7 +75,7 @@ export function MemberPicker({
             <Command.Input
               value={search}
               onValueChange={setSearch}
-              placeholder="Search people…"
+              placeholder={t("searchPeople")}
               className="placeholder:text-muted-foreground w-full bg-transparent text-sm outline-none"
             />
           </div>

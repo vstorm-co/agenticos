@@ -18,6 +18,7 @@ import {
 import { useFileDownload } from "@/hooks";
 import { cn } from "@/lib/utils";
 import { isMarkdown, type FileSource } from "@/lib/workspace-files";
+import { useTranslations } from "next-intl";
 
 interface WorkspaceFileViewerProps {
   source: FileSource;
@@ -43,6 +44,7 @@ interface WorkspaceFileViewerProps {
  * offered, including for what cannot be shown at all.
  */
 export function WorkspaceFileViewer({ source, path, onClose }: WorkspaceFileViewerProps) {
+  const t = useTranslations("sandboxes.workspaces");
   const [view, setView] = useState<"preview" | "source">("preview");
   const { download, error } = useFileDownload(source);
   const name = path.split("/").filter(Boolean).pop() ?? path;
@@ -68,8 +70,8 @@ export function WorkspaceFileViewer({ source, path, onClose }: WorkspaceFileView
           {isMarkdown(path) && (
             <Tabs value={view} onValueChange={(next) => setView(next as "preview" | "source")}>
               <TabsList>
-                <TabsTrigger value="preview">Preview</TabsTrigger>
-                <TabsTrigger value="source">Source</TabsTrigger>
+                <TabsTrigger value="preview">{t("preview")}</TabsTrigger>
+                <TabsTrigger value="source">{t("source")}</TabsTrigger>
               </TabsList>
             </Tabs>
           )}

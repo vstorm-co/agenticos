@@ -224,6 +224,7 @@ function ConversationList({
   onLoadMore,
 }: ConversationListProps) {
   const t = useTranslations("chat");
+  const ts = useTranslations("chat.sidebar");
   const [view, setView] = useState<ConversationView>("active");
   const [shareConversationId, setShareConversationId] = useState<string | null>(null);
 
@@ -260,13 +261,13 @@ function ConversationList({
       <div className="px-3 pb-2">
         <div className="bg-secondary/50 flex rounded-lg p-0.5">
           <ViewTab
-            label="Active"
+            label={ts("active")}
             count={activeCount}
             active={view === "active"}
             onClick={() => setView("active")}
           />
           <ViewTab
-            label="Archived"
+            label={ts("archived")}
             count={archivedCount}
             active={view === "archived"}
             onClick={() => setView("archived")}
@@ -302,10 +303,10 @@ function ConversationList({
               )}
             </span>
             <p className="text-foreground text-sm font-medium">
-              {isArchivedView ? "No archived conversations" : t("noConversations")}
+              {isArchivedView ? ts("noArchived") : t("noConversations")}
             </p>
             <p className="text-muted-foreground mt-1 text-xs">
-              {isArchivedView ? "Conversations you archive will appear here." : t("startNewChat")}
+              {isArchivedView ? ts("archivedHint") : t("startNewChat")}
             </p>
           </div>
         ) : (
@@ -345,6 +346,7 @@ interface ConversationSidebarProps {
 
 export function ConversationSidebar({ className }: ConversationSidebarProps) {
   const t = useTranslations("chat");
+  const ts = useTranslations("chat.sidebar");
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { isOpen, close } = useChatSidebarStore();
   const {
@@ -391,7 +393,7 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
           size="sm"
           className="mb-4 h-10 w-10 p-0"
           onClick={() => setIsCollapsed(false)}
-          aria-label="Expand conversations sidebar"
+          aria-label={ts("expand")}
         >
           <ChevronRight className="h-4 w-4" aria-hidden />
         </Button>
@@ -400,8 +402,8 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
           size="sm"
           className="h-10 w-10 p-0"
           onClick={startNewChat}
-          title="New Chat"
-          aria-label="New chat"
+          title={ts("newChat")}
+          aria-label={ts("newChatLabel")}
         >
           <SquarePen className="h-4 w-4" aria-hidden />
         </Button>
@@ -421,7 +423,7 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
             size="sm"
             className="h-8 w-8 p-0"
             onClick={() => setIsCollapsed(true)}
-            aria-label="Collapse conversations sidebar"
+            aria-label={ts("collapse")}
           >
             <ChevronLeft className="h-4 w-4" aria-hidden />
           </Button>

@@ -50,9 +50,9 @@ export function ForgotPasswordForm() {
           <Mail className="text-foreground h-6 w-6" />
         </div>
         <div className="space-y-2">
-          <span className="eyebrow text-foreground/55">Check your inbox</span>
+          <span className="eyebrow text-foreground/55">{t("checkYourInbox")}</span>
           <h1 className="text-display-md text-foreground [&_em]:font-normal [&_em]:italic">
-            Link sent. <em>On its way.</em>
+            Link sent. <em>{t("itsWay")}</em>
           </h1>
           <p className="text-foreground/70 text-sm">
             If an account exists for <span className="text-foreground font-medium">{email}</span>,
@@ -73,9 +73,9 @@ export function ForgotPasswordForm() {
   return (
     <div className="space-y-8">
       <div className="space-y-2">
-        <span className="eyebrow text-foreground/55">Forgot password?</span>
+        <span className="eyebrow text-foreground/55">{t("forgotPasswordPrompt")}</span>
         <h1 className="text-display-md text-foreground [&_em]:font-normal [&_em]:italic">
-          Happens to the <em>best of us.</em>
+          Happens to the <em>{t("bestUs")}</em>
         </h1>
         <p className="text-foreground/65 text-sm">
           Drop your email below - we&apos;ll send you a one-time link to set a new password.

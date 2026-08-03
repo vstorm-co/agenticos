@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { useAssignableRoles, useInvitations } from "@/hooks";
 import type { OrgRole } from "@/types";
+import { useTranslations } from "next-intl";
 
 interface InviteMemberDialogProps {
   open: boolean;
@@ -29,6 +30,7 @@ interface InviteMemberDialogProps {
 }
 
 export function InviteMemberDialog({ open, onOpenChange, orgId }: InviteMemberDialogProps) {
+  const t = useTranslations("teams");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<OrgRole>("member");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -52,21 +54,21 @@ export function InviteMemberDialog({ open, onOpenChange, orgId }: InviteMemberDi
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Invite member</DialogTitle>
+          <DialogTitle>{t("inviteMember")}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <FormField label="Email address" htmlFor="invite-email">
+          <FormField label={t("emailAddress")} htmlFor="invite-email">
             <Input
               id="invite-email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="colleague@example.com"
+              placeholder={t("colleagueExampleCom")}
               autoFocus
             />
           </FormField>
           <div className="space-y-1.5">
-            <Label htmlFor="invite-role">Role</Label>
+            <Label htmlFor="invite-role">{t("role")}</Label>
             <Select value={role} onValueChange={(v) => setRole(v as OrgRole)}>
               <SelectTrigger id="invite-role" className="capitalize">
                 <SelectValue />

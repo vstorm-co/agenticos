@@ -16,6 +16,7 @@ import { RunPythonResult } from "./tool-results/run-python";
 import { WorkspaceToolResult } from "./tool-results/workspace";
 import { FetchUrlResult } from "./tool-results/fetch-url";
 import { useMcpToolServers } from "@/hooks";
+import { useTranslations } from "next-intl";
 
 interface ToolCallCardProps {
   toolCall: ToolCall;
@@ -53,6 +54,7 @@ interface ToolCallCardProps {
  * question waiting on an answer, code that ran, and a file that was written.
  */
 export function ToolCallCard({ toolCall, conversationId, startOpen = false }: ToolCallCardProps) {
+  const t = useTranslations("chat.tools");
   const isRunPython = toolCall.name === "run_python";
   const isWorkspaceCall = isWorkspaceTool(toolCall.name);
   const isWrite = toolCall.name === "write_file" || toolCall.name === "edit_file";
@@ -161,8 +163,8 @@ export function ToolCallCard({ toolCall, conversationId, startOpen = false }: To
               event.stopPropagation();
               setShowRaw((raw) => !raw);
             }}
-            title={showRaw ? "Show the formatted view" : "Show arguments and raw output"}
-            aria-label={showRaw ? "Show the formatted view" : "Show arguments and raw output"}
+            title={showRaw ? t("showFormatted") : t("showRaw")}
+            aria-label={showRaw ? t("showFormatted") : t("showRaw")}
             className={cn(
               "text-muted-foreground/60 hover:text-foreground shrink-0 rounded-md p-1",
               showRaw && "text-foreground",

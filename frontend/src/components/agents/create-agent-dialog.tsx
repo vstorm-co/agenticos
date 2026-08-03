@@ -18,6 +18,7 @@ import {
 import { useAgents } from "@/hooks";
 import { submitFailure } from "@/lib/api-error";
 import type { Agent } from "@/types/agents";
+import { useTranslations } from "next-intl";
 
 /** What the backend will accept, so a longer name is refused before it is sent. */
 const MAX_NAME = 128;
@@ -58,6 +59,7 @@ interface CreateAgentDialogProps {
  * taken"; one who has not is being told about a value they never entered.
  */
 export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgentDialogProps) {
+  const t = useTranslations("agents");
   const { create } = useAgents();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -107,14 +109,14 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>New agent</DialogTitle>
+          <DialogTitle>{t("newAgent")}</DialogTitle>
           <DialogDescription>
             It starts as a draft. Nothing runs until you publish it.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <FormField
-            label="Name"
+            label={t("name4")}
             htmlFor="agent-name"
             error={errors.name}
             description={
@@ -128,15 +130,19 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
             <Input
               value={name}
               onChange={(event) => edit("name", event.target.value)}
-              placeholder="Support Copilot"
+              placeholder={t("supportCopilot")}
               maxLength={MAX_NAME}
             />
           </FormField>
-          <FormField label="Description" htmlFor="agent-description" error={errors.description}>
+          <FormField
+            label={t("description")}
+            htmlFor="agent-description"
+            error={errors.description}
+          >
             <Textarea
               value={description}
               onChange={(event) => edit("description", event.target.value)}
-              placeholder="Answers customer questions from the product wiki."
+              placeholder={t("answersCustomerQuestionsFrom")}
               maxLength={MAX_DESCRIPTION}
               rows={2}
             />

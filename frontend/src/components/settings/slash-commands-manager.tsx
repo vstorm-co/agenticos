@@ -20,10 +20,12 @@ import { EmptyState } from "@/components/states";
 import { ApiError } from "@/lib/api-client";
 import { BUILTIN_COMMAND_LIST, isBuiltinEnabled, useSlashCommands } from "@/hooks";
 import type { UserSlashCommandRecord } from "@/lib/slash-commands-api";
+import { useTranslations } from "next-intl";
 
 const NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/;
 
 export function SlashCommandsManager() {
+  const t = useTranslations("settings");
   const {
     records,
     isLoading,
@@ -136,7 +138,7 @@ export function SlashCommandsManager() {
       <section className="space-y-3">
         <div className="flex items-baseline justify-between gap-3">
           <div>
-            <h3 className="text-foreground text-sm font-semibold">Built-in commands</h3>
+            <h3 className="text-foreground text-sm font-semibold">{t("builtCommands")}</h3>
             <p className="text-foreground/55 mt-0.5 text-xs">
               Disable any you don&apos;t want to see in the palette.
             </p>
@@ -175,7 +177,7 @@ export function SlashCommandsManager() {
       <section className="space-y-3">
         <div className="flex items-baseline justify-between gap-3">
           <div>
-            <h3 className="text-foreground text-sm font-semibold">Your custom commands</h3>
+            <h3 className="text-foreground text-sm font-semibold">{t("yourCustomCommands")}</h3>
             <p className="text-foreground/55 mt-0.5 text-xs">
               Slash shortcuts for prompts you type often. Typing <code>/name</code> in chat sends
               the stored prompt.
@@ -188,10 +190,7 @@ export function SlashCommandsManager() {
         </div>
 
         {customs.length === 0 ? (
-          <EmptyState
-            title="No custom commands yet"
-            description="Create one to send a long prompt with a few keystrokes."
-          />
+          <EmptyState title={t("noCustomCommandsYet")} description={t("createOneSendLong")} />
         ) : (
           <ul className="border-foreground/10 divide-foreground/8 divide-y rounded-xl border">
             {customs.map((record) => (
@@ -213,8 +212,8 @@ export function SlashCommandsManager() {
                   type="button"
                   onClick={() => openEdit(record)}
                   className="text-foreground/55 hover:bg-foreground/5 hover:text-foreground inline-flex h-7 w-7 items-center justify-center rounded-md transition-colors"
-                  title="Edit"
-                  aria-label="Edit"
+                  title={t("edit")}
+                  aria-label={t("edit2")}
                 >
                   <Pencil className="h-3.5 w-3.5" />
                 </button>
@@ -222,8 +221,8 @@ export function SlashCommandsManager() {
                   type="button"
                   onClick={() => handleDelete(record)}
                   className="text-foreground/55 hover:bg-destructive/10 hover:text-destructive inline-flex h-7 w-7 items-center justify-center rounded-md transition-colors"
-                  title="Delete"
-                  aria-label="Delete"
+                  title={t("delete")}
+                  aria-label={t("delete2")}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
@@ -242,14 +241,14 @@ export function SlashCommandsManager() {
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="cmd-name">Name</Label>
+              <Label htmlFor="cmd-name">{t("name")}</Label>
               <div className="mt-1.5 flex items-center gap-2">
                 <span className="text-foreground/45 font-mono text-sm">/</span>
                 <Input
                   id="cmd-name"
                   value={draftName}
                   onChange={(e) => setDraftName(e.target.value.toLowerCase())}
-                  placeholder="todo"
+                  placeholder={t("todo")}
                   maxLength={32}
                   autoFocus
                 />
@@ -259,12 +258,12 @@ export function SlashCommandsManager() {
               </p>
             </div>
             <div>
-              <Label htmlFor="cmd-prompt">Prompt</Label>
+              <Label htmlFor="cmd-prompt">{t("prompt")}</Label>
               <Textarea
                 id="cmd-prompt"
                 value={draftPrompt}
                 onChange={(e) => setDraftPrompt(e.target.value)}
-                placeholder="Summarize the conversation as a checklist of action items."
+                placeholder={t("summarizeConversationAsChecklist")}
                 rows={6}
                 maxLength={10_000}
                 className="mt-1.5 font-mono text-sm"

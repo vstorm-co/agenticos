@@ -7,6 +7,7 @@ import { Badge, Pager, SearchInput, useListControls } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type { KnowledgeBase } from "@/types/knowledge-base";
+import { useTranslations } from "next-intl";
 
 interface CollectionPickerProps {
   collections: KnowledgeBase[];
@@ -43,6 +44,7 @@ export function CollectionPicker({
   onToggle,
   disabled,
 }: CollectionPickerProps) {
+  const t = useTranslations("agents");
   const chosen = new Set(selectedIds);
   const known = new Set(collections.map((collection) => collection.id));
   // Named rather than dropped, for the same reason the skill gallery names them:
@@ -81,7 +83,7 @@ export function CollectionPicker({
         <SearchInput
           value={list.query}
           onChange={list.setQuery}
-          placeholder="Search collections…"
+          placeholder={t("searchCollections")}
         />
       )}
 
@@ -115,7 +117,7 @@ export function CollectionPicker({
               <span className="min-w-0 flex-1">
                 <span className="flex flex-wrap items-center gap-2">
                   <span className="truncate text-sm font-medium">{collection.name}</span>
-                  {collection.is_default && <Badge variant="outline">default</Badge>}
+                  {collection.is_default && <Badge variant="outline">{t("default")}</Badge>}
                 </span>
 
                 {collection.description && (

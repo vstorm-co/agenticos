@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import { AlertTriangle, FolderOpen, Info, X } from "lucide-react";
 
 import { FileIcon } from "@/components/sandboxes/file-tile";
@@ -42,6 +43,7 @@ function size(bytes: number | null): string {
  * characters of a line.
  */
 export function WorkspaceFiles({ conversationId, revision }: WorkspaceFilesProps) {
+  const t = useTranslations("chat.files");
   const { workspace, isLoading, error, refresh } = useConversationWorkspace(conversationId);
   const [open, setOpen] = useState(false);
   const [reading, setReading] = useState<string | null>(null);
@@ -77,7 +79,7 @@ export function WorkspaceFiles({ conversationId, revision }: WorkspaceFilesProps
       <div className="border-border flex w-11 shrink-0 flex-col items-center border-l pt-3">
         <button
           type="button"
-          aria-label={files.length === 0 ? "Show the files" : `Show the files (${files.length})`}
+          aria-label={files.length === 0 ? t("show") : t("showWithCount", { count: files.length })}
           onClick={() => setOpen(true)}
           className="text-muted-foreground hover:text-foreground hover:bg-accent/60 relative rounded-md p-2"
         >
@@ -97,11 +99,11 @@ export function WorkspaceFiles({ conversationId, revision }: WorkspaceFilesProps
         <div className="flex items-center justify-between gap-2">
           <p className="flex items-center gap-2 text-sm font-medium">
             <FolderOpen className="h-4 w-4" aria-hidden />
-            Files
+            {t("title")}
           </p>
           <button
             type="button"
-            aria-label="Close the file panel"
+            aria-label={t("close")}
             onClick={() => setOpen(false)}
             className="text-muted-foreground hover:text-foreground rounded-md p-1"
           >
@@ -112,7 +114,7 @@ export function WorkspaceFiles({ conversationId, revision }: WorkspaceFilesProps
           <p className="text-muted-foreground text-xs">
             {workspace.owner_label}
             {workspace.backend === "state" && workspace.bytes_total > 0 && (
-              <> · {size(workspace.bytes_total)} stored</>
+              <> · {t("storedSuffix", { size: size(workspace.bytes_total) })}</>
             )}
           </p>
         )}
@@ -138,9 +140,7 @@ export function WorkspaceFiles({ conversationId, revision }: WorkspaceFilesProps
       )}
 
       {workspace !== null && workspace.unreadable_reason == null && files.length === 0 && (
-        <p className="text-muted-foreground text-xs">
-          Nothing yet. Files the agent writes, and anything you attach, appear here.
-        </p>
+        <p className="text-muted-foreground text-xs">{t("empty")}</p>
       )}
 
       {/* Tiles rather than rows. The name is what somebody scans for and the icon
