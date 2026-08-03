@@ -28,12 +28,12 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
 from app.core.permissions import AuthContext
 from app.db.models.agent_run import AgentRun
 from app.repositories import agent_workspace_repo
 from app.services.channels.base import DEFAULT_USAGE_REPORTING
 from app.services.sandbox_connection import SandboxConnectionService
+from app.services.sandbox_workspace import stored_ceiling
 
 logger = logging.getLogger(__name__)
 
@@ -237,7 +237,7 @@ class UsageReportService:
             return SandboxUsage(
                 kind="state",
                 bytes_used=row.bytes_total,
-                bytes_limit=settings.SANDBOX_STATE_MAX_BYTES,
+                bytes_limit=stored_ceiling(row),
             )
         return await self._container(ctx, row)
 

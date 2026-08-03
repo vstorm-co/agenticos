@@ -363,6 +363,7 @@ include = [
     "app/api/routes/v1/sandbox_connections.py",
     "app/api/routes/v1/skill_changes.py",
     "app/api/routes/v1/workspaces.py",
+    "app/api/routes/v1/_workspace_bytes.py",
     "app/api/routes/v1/sharing.py",
 ]
 # Mirrors `[tool.coverage.run] omit` - one definition of "ours", asserted equal
@@ -488,6 +489,7 @@ include = [
     "app/api/routes/v1/sandbox_connections.py",
     "app/api/routes/v1/skill_changes.py",
     "app/api/routes/v1/workspaces.py",
+    "app/api/routes/v1/_workspace_bytes.py",
     "app/api/routes/v1/sharing.py",
 ]
 branch = true

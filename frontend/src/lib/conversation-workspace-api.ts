@@ -33,6 +33,17 @@ export interface ConversationWorkspace {
   total: number;
   bytes_total: number;
   /**
+   * What this workspace fills up against, or null when this platform is not what holds
+   * the ceiling.
+   *
+   * A stored workspace runs out against a deployment-wide cap and then *refuses
+   * writes*, which the agent reports as a tool error mid-task rather than as "you are
+   * out of room" - so the fill is worth showing before it gets there. A container's
+   * ceiling is its host's, and knowing it means sampling the session, which a listing
+   * does not pay for.
+   */
+  bytes_limit: number | null;
+  /**
    * Why this listing may be empty despite the workspace holding files.
    *
    * Not an error to render red. A service started with no `workspace_root` keeps
@@ -62,4 +73,25 @@ export async function readConversationFile(
   return apiClient.get<ConversationFileContent>(
     `/conversations/${conversationId}/workspace/file?path=${encodeURIComponent(path)}`,
   );
+}
+
+/**
+ * One file's bytes: an image, a PDF, or a download.
+ *
+ * Through `apiClient.raw` rather than as an `<img>` or `<iframe>` source, and that
+ * is not a preference: a bare browser request carries no `X-Organization-Id`, so the
+ * backend would answer for the caller's personal organization rather than the one on
+ * screen. The caller turns the blob into a URL.
+ */
+export async function readConversationFileBytes(
+  conversationId: string,
+  path: string,
+  { download = false }: { download?: boolean } = {},
+): Promise<Blob> {
+  const response = await apiClient.raw(
+    `/conversations/${conversationId}/workspace/raw?path=${encodeURIComponent(path)}${
+      download ? "&download=true" : ""
+    }`,
+  );
+  return response.blob();
 }

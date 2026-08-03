@@ -22,9 +22,10 @@ import {
 import Link from "next/link";
 
 import { FileIcon } from "./file-tile";
-import { FilePreview } from "./file-preview";
+import { WorkspaceFileViewer } from "./file-viewer";
 import { downloadWorkspaceFile, useAllWorkspaceFiles, useSandboxWorkspaces } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
+import type { FlatFile } from "@/lib/sandbox-workspaces-api";
 
 /** Bytes as a person reads them. */
 function size(bytes: number | null): string {
@@ -207,7 +208,7 @@ export function WorkspaceBrowser() {
  */
 function FlatFiles() {
   const { listing, isLoading, error } = useAllWorkspaceFiles(true);
-  const [opened, setOpened] = useState<string | null>(null);
+  const [opened, setOpened] = useState<FlatFile | null>(null);
 
   if (isLoading) return <Skeleton className="m-5 h-24" />;
   if (error !== null) return <p className="text-destructive px-5 py-4 text-sm">{error}</p>;
@@ -240,8 +241,7 @@ function FlatFiles() {
                     away on the line below, for the times it is not. */}
                 <button
                   type="button"
-                  onClick={() => setOpened(opened === key(file) ? null : key(file))}
-                  aria-expanded={opened === key(file)}
+                  onClick={() => setOpened(file)}
                   className="block w-full truncate text-left font-mono text-xs hover:underline"
                   title={file.path}
                 >
@@ -260,18 +260,27 @@ function FlatFiles() {
               <button
                 type="button"
                 aria-label={`Download ${file.path}`}
-                onClick={() => void downloadWorkspaceFile(file.workspace_id, file.path)}
+                onClick={() =>
+                  void downloadWorkspaceFile(
+                    { kind: "workspace", id: file.workspace_id },
+                    file.path,
+                  )
+                }
                 className="text-muted-foreground hover:text-foreground shrink-0 rounded-md p-1"
               >
                 <Download className="h-3.5 w-3.5" />
               </button>
             </div>
-            {opened === key(file) && (
-              <FilePreview workspaceId={file.workspace_id} path={file.path} />
-            )}
           </li>
         ))}
       </ul>
+      {opened !== null && (
+        <WorkspaceFileViewer
+          source={{ kind: "workspace", id: opened.workspace_id }}
+          path={opened.path}
+          onClose={() => setOpened(null)}
+        />
+      )}
       {(listing.truncated || listing.unreadable > 0) && (
         <p className="text-muted-foreground text-xs">
           {listing.truncated && `Read ${listing.workspaces_read} workspaces — there are more. `}

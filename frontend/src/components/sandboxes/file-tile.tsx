@@ -9,6 +9,8 @@ import {
   FileType,
 } from "lucide-react";
 
+import { suffixOf } from "@/lib/workspace-files";
+
 /** What kind of file this is, as far as an icon is concerned. */
 export type FileKind = "image" | "code" | "sheet" | "doc" | "archive" | "text";
 
@@ -53,26 +55,8 @@ const ICONS: Record<FileKind, typeof FileText> = {
   text: FileText,
 };
 
-/** The suffix, lowercased, without the dot. Empty for a file that has none. */
-export function suffixOf(path: string): string {
-  const name = path.split("/").pop() ?? "";
-  const dot = name.lastIndexOf(".");
-  return dot <= 0 ? "" : name.slice(dot + 1).toLowerCase();
-}
-
 export function kindOf(path: string): FileKind {
   return BY_SUFFIX[suffixOf(path)] ?? "text";
-}
-
-/**
- * Whether a preview can show this in place.
- *
- * Raster only, and SVG deliberately absent: it carries script, and the API refuses
- * to serve one inline for that reason - so offering a preview would be a promise the
- * server will not keep.
- */
-export function isPreviewable(path: string): boolean {
-  return ["png", "jpg", "jpeg", "gif", "webp"].includes(suffixOf(path));
 }
 
 /** The icon for a path, so a listing is scannable by shape rather than by reading. */

@@ -207,6 +207,93 @@ class TestReadingOneFile:
         workspaces.read_text.assert_not_called()
 
 
+class TestReadingOneFileAsBytes:
+    """The route the panel's viewer uses for anything that is not a string.
+
+    It exists beside `/sandbox-workspaces/{id}/raw` rather than instead of it, and
+    the reason is authorisation: this one authorises by fetching the conversation, so
+    somebody a chat was *shared with* reaches these files. The id-addressed route
+    matches conversations a caller owns, and pointing the panel at it showed a share
+    recipient files it then refused to open.
+    """
+
+    async def test_a_pdf_is_served_for_display(self, client: AsyncClient):
+        _override(
+            conversation=MagicMock(get_conversation=AsyncMock()),
+            workspaces=MagicMock(read_bytes=AsyncMock(return_value=b"%PDF-1.7")),
+        )
+
+        response = await client.get(
+            f"/api/v1/conversations/{CONVERSATION_ID}/workspace/raw",
+            params={"path": "/report.pdf"},
+        )
+
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "application/pdf"
+        assert response.headers["content-disposition"].startswith("inline")
+        assert response.content == b"%PDF-1.7"
+
+    async def test_the_same_disposition_rule_applies_here(self, client: AsyncClient):
+        """Decided in one module for both routes. The second copy is where `.svg`
+        would have stayed displayable."""
+        _override(
+            conversation=MagicMock(get_conversation=AsyncMock()),
+            workspaces=MagicMock(read_bytes=AsyncMock(return_value=b"<svg onload=alert(1)>")),
+        )
+
+        response = await client.get(
+            f"/api/v1/conversations/{CONVERSATION_ID}/workspace/raw",
+            params={"path": "/x.svg"},
+        )
+
+        assert response.headers["content-type"] == "application/octet-stream"
+        assert response.headers["content-disposition"].startswith("attachment")
+        assert response.headers["x-content-type-options"] == "nosniff"
+
+    async def test_a_download_is_forced_when_asked_even_for_a_pdf(self, client: AsyncClient):
+        _override(
+            conversation=MagicMock(get_conversation=AsyncMock()),
+            workspaces=MagicMock(read_bytes=AsyncMock(return_value=b"%PDF-1.7")),
+        )
+
+        response = await client.get(
+            f"/api/v1/conversations/{CONVERSATION_ID}/workspace/raw",
+            params={"path": "/report.pdf", "download": "true"},
+        )
+
+        assert response.headers["content-disposition"].startswith("attachment")
+
+    async def test_a_conversation_that_is_not_the_callers_reads_no_bytes(self, client: AsyncClient):
+        """And the workspace is never asked, so its token is not used on the way to
+        finding out."""
+        workspaces = MagicMock(read_bytes=AsyncMock())
+        _override(
+            conversation=MagicMock(
+                get_conversation=AsyncMock(
+                    side_effect=NotFoundError(message="Conversation not found")
+                )
+            ),
+            workspaces=workspaces,
+        )
+
+        response = await client.get(
+            f"/api/v1/conversations/{CONVERSATION_ID}/workspace/raw",
+            params={"path": "/report.pdf"},
+        )
+
+        assert response.status_code == 404
+        workspaces.read_bytes.assert_not_called()
+
+    async def test_asking_for_bytes_without_naming_a_file_is_refused(self, client: AsyncClient):
+        workspaces = MagicMock(read_bytes=AsyncMock())
+        _override(conversation=MagicMock(get_conversation=AsyncMock()), workspaces=workspaces)
+
+        response = await client.get(f"/api/v1/conversations/{CONVERSATION_ID}/workspace/raw")
+
+        assert response.status_code == 422
+        workspaces.read_bytes.assert_not_called()
+
+
 class TestDeletingTheConversation:
     async def test_the_workspace_is_purged_with_it(self, client: AsyncClient):
         """The row cascades; a container on the host does not."""

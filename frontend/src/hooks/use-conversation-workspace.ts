@@ -5,9 +5,7 @@ import { useCallback } from "react";
 
 import { qk } from "@/lib/query-keys";
 import {
-  readConversationFile,
   readConversationWorkspace,
-  type ConversationFileContent,
   type ConversationWorkspace,
 } from "@/lib/conversation-workspace-api";
 
@@ -56,31 +54,7 @@ export function useConversationWorkspace(
   };
 }
 
-interface UseConversationFileResult {
-  file: ConversationFileContent | null;
-  isLoading: boolean;
-  error: string | null;
-}
-
-/** One file's text, fetched when somebody opens it and not before. */
-export function useConversationFile(
-  conversationId: string | null,
-  path: string | null,
-): UseConversationFileResult {
-  const {
-    data: file = null,
-    isLoading,
-    error,
-  } = useQuery({
-    queryKey: qk.conversationWorkspace.file(conversationId ?? "none", path ?? "none"),
-    queryFn: () => readConversationFile(conversationId as string, path as string),
-    enabled: conversationId !== null && path !== null,
-    retry: false,
-  });
-
-  return {
-    file,
-    isLoading: conversationId !== null && path !== null && isLoading,
-    error: error === null ? null : error.message,
-  };
-}
+// Reading one of these files - as text, as bytes, or onto the caller's disk - is
+// `use-workspace-file.ts`, which takes a source naming this conversation. One
+// implementation, because the viewer it feeds is shared with the Workspaces screen
+// and a file has to mean the same thing in both.

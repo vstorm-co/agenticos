@@ -172,6 +172,10 @@ export const qk = {
     files: (conversationId: string) => ["conversation-workspace", conversationId] as const,
     file: (conversationId: string, path: string) =>
       ["conversation-workspace", conversationId, path] as const,
+    // The same file's bytes, keyed apart from its text: two different bodies, and
+    // a viewer showing a PDF must not read a cached string for it.
+    bytes: (conversationId: string, path: string) =>
+      ["conversation-workspace", "bytes", conversationId, path] as const,
   },
   sandboxWorkspaces: {
     all: () => ["sandbox-workspaces"] as const,

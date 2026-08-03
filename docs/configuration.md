@@ -270,20 +270,34 @@ Sandboxes, which is about *hosts*. Each row names the agent, the conversation th
 files belong to (or how many chats reach them, for a workspace no single
 conversation owns), who can see them, how big it is and when it was last used.
 **Open** goes to that workspace's own page: folders walked one at a time, a search
-box over the whole tree rather than the folder on screen, a text file or an image
-previewed in place, and every file downloadable. A second view on the listing
-flattens every file the reader can see into one grid — the "who is holding a copy of
-that CSV" question the per-workspace page cannot answer.
+box over the whole tree rather than the folder on screen, tiles for the files, and
+every file downloadable. A second view on the listing flattens every file the reader
+can see into one grid — the "who is holding a copy of that CSV" question the
+per-workspace page cannot answer.
 
-A download and an image preview go through `GET
-/sandbox-workspaces/{id}/raw?path=…`, which serves **bytes**: a chart is the
-commonest thing a workspace holds that nobody can read as a string, and a PNG
-decoded as UTF-8 and re-encoded is a corrupt PNG. Almost everything is served as an
-attachment; only the raster image types are served for display. **SVG and HTML are
-downloadable and never displayable** — an SVG served inline from this origin is
+**Clicking a file opens it in a viewer, and it is the same viewer in the chat panel.**
+An image is a picture, a PDF is the browser's own PDF view, markdown offers *Preview*
+and *Source* — both are the file, and a `#` that silently became large type is how
+somebody fails to notice their agent is writing markdown into something nothing reads
+as markdown — and anything else is its text. Download is always there, including for
+what cannot be shown at all. One component, because "open this file" meaning two
+different things on two screens is how the second one ends up missing a case.
+
+Bytes come from `GET /sandbox-workspaces/{id}/raw?path=…`, or from `GET
+/conversations/{id}/workspace/raw?path=…` for the panel beside a chat. Two routes
+rather than one because they authorise different callers — the conversation route is
+reached by fetching the conversation, so somebody a chat was *shared with* keeps
+access — and one module deciding what may be displayed, so the answer cannot differ
+by surface. Almost everything is served as an attachment; **raster images and PDFs**
+are served for display, a raster because it cannot execute and a PDF because the
+browser renders it in its own viewer, which never gets the page's DOM. **SVG and HTML
+are downloadable and never displayable** — an SVG served inline from this origin is
 stored cross-site scripting written by whatever the agent decided to save, and "the
-agent wrote it" is not a trust boundary. The filename travels as `filename*` only,
-because a workspace path can hold any UTF-8 and the bare form has no way to say so.
+agent wrote it" is not a trust boundary. Everything else is typed
+`application/octet-stream` with `X-Content-Type-Options: nosniff`, so a browser
+cannot decide such a body is HTML after all. The filename travels as `filename*`
+only, because a workspace path can hold any UTF-8 and the bare form has no way to
+say so.
 
 Only a **stored** workspace can serve arbitrary bytes. A container-backed one is read
 through the workspace archive, whose only reader is textual, so a text file is served
@@ -321,10 +335,22 @@ sandbox service serves those files from `SANDBOXD_WORKSPACE_ROOT`, and that is w
 lets a conversation from last month list its files after its session was reaped —
 no container is started to answer. A service configured *without* one keeps nothing
 on disk, so its files exist only while a sandbox is running and cannot be read
-without starting one. **The local compose file is that case**, deliberately: the
-daemon resolves the path on the host, so a workspace root has to be one host path
-mounted at the same location on both sides, which is a decision belonging to whoever
-runs one (`docker-compose-prod.yml` shows the shape).
+without starting one: the Files panel could then only say so, for a file the agent
+had demonstrably just written.
+
+Every compose file therefore sets one, overridable with `SANDBOX_WORKSPACE_ROOT` (an
+environment variable where compose interpolates it — the project root, not
+`backend/.env`, except on the `dev` and `prod` targets which pass that file
+explicitly) — one host path,
+bind-mounted at the same location on both sides, because the service creates the
+directory and then asks the *daemon* to mount it and the daemon resolves the path on
+the host. A named volume, or any path existing only inside the service's container,
+is refused with "mounts denied". Local dev defaults to
+`/tmp/agenticos-sandbox-workspaces`, which Docker Desktop shares and anybody can
+write to, so a laptop needs no setup; the server files default to
+`/var/lib/agenticos/sandbox-workspaces`, which has to exist and be writable by uid
+10001 (`install -d -o 10001` once) and belongs on storage somebody backs up. A
+reboot sweeps `/tmp`, which is the one reason not to point a real deployment there.
 
 That is reported rather than raised. Every listing carries `unreadable_reason`, and
 a client shows it as an explanation instead of an error, because neither cause is a

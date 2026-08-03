@@ -3,7 +3,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useConversationFile, useConversationWorkspace } from "./use-conversation-workspace";
+import { useConversationWorkspace } from "./use-conversation-workspace";
 import { apiClient } from "@/lib/api-client";
 
 vi.mock("@/lib/api-client", () => ({
@@ -28,11 +28,11 @@ beforeEach(() => {
 });
 
 /**
- * The client half of the conversation workspace routes.
+ * The client half of the conversation's workspace listing.
  *
- * The property worth holding is that neither hook asks for anything before it has
- * something to ask about: a new chat has no conversation id, and a file is read
- * when somebody opens it rather than when the list is drawn.
+ * The property worth holding is that it asks for nothing before there is something to
+ * ask about: a new chat has no conversation id. Reading one of these *files* is
+ * `use-workspace-file.test.tsx`, which covers both addresses a file can have.
  */
 describe("the files one conversation is keeping", () => {
   it("does not ask before a conversation exists", () => {
@@ -80,43 +80,5 @@ describe("the files one conversation is keeping", () => {
 
     await waitFor(() => expect(result.current.error).toBe("Not permitted"));
     expect(result.current.workspace).toBeNull();
-  });
-});
-
-describe("one file's text", () => {
-  it("is not fetched until somebody opens it", () => {
-    renderHook(() => useConversationFile("c1", null), { wrapper });
-
-    expect(apiClient.get).not.toHaveBeenCalled();
-  });
-
-  it("escapes the path, which contains slashes by definition", async () => {
-    vi.mocked(apiClient.get).mockResolvedValue({
-      path: "/out/report.csv",
-      content: "a,b",
-      truncated: false,
-    });
-
-    const { result } = renderHook(() => useConversationFile("c1", "/out/report.csv"), { wrapper });
-
-    await waitFor(() => expect(result.current.file).not.toBeNull());
-    expect(apiClient.get).toHaveBeenCalledWith(
-      "/conversations/c1/workspace/file?path=%2Fout%2Freport.csv",
-    );
-  });
-
-  it("says a file could not be read instead of showing it as empty", async () => {
-    vi.mocked(apiClient.get).mockRejectedValue(new Error("That file is binary"));
-
-    const { result } = renderHook(() => useConversationFile("c1", "/logo.png"), { wrapper });
-
-    await waitFor(() => expect(result.current.error).toBe("That file is binary"));
-  });
-
-  it("waits without a spinner before there is anything to wait for", () => {
-    const { result } = renderHook(() => useConversationFile(null, null), { wrapper });
-
-    expect(result.current.isLoading).toBe(false);
-    expect(result.current.error).toBeNull();
   });
 });

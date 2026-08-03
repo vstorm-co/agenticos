@@ -13,10 +13,11 @@ const state = vi.hoisted(() => ({
   fileLoading: false,
   fileError: null as string | null,
   bytesUrl: null as string | null,
-  bytesIsImage: true,
+  bytesMediaType: "image/png" as string | null,
   bytesLoading: false,
   bytesError: null as string | null,
   downloaded: [] as [string, string][],
+  downloadError: null as string | null,
 }));
 
 vi.mock("@/hooks", () => ({
@@ -25,21 +26,31 @@ vi.mock("@/hooks", () => ({
     isLoading: state.filesLoading,
     error: state.filesError,
   }),
-  useWorkspaceFile: () => ({
+  useWorkspaceFileText: () => ({
     file: state.file,
     isLoading: state.fileLoading,
     error: state.fileError,
   }),
-  useWorkspaceBytes: () => ({
+  useWorkspaceFileBytes: () => ({
     url: state.bytesUrl,
-    isImage: state.bytesIsImage,
+    mediaType: state.bytesMediaType,
     isLoading: state.bytesLoading,
     error: state.bytesError,
   }),
-  downloadWorkspaceFile: (id: string, path: string) => {
-    state.downloaded.push([id, path]);
+  downloadWorkspaceFile: (source: { kind: string; id: string }, path: string) => {
+    state.downloaded.push([source.id, path]);
     return Promise.resolve();
   },
+  useFileDownload: (source: { kind: string; id: string }) => ({
+    download: (path: string) => state.downloaded.push([source.id, path]),
+    error: state.downloadError,
+  }),
+}));
+
+vi.mock("@/components/chat/markdown-content", () => ({
+  MarkdownContent: ({ content }: { content: string }) => (
+    <div data-testid="rendered">{content}</div>
+  ),
 }));
 
 function file(path: string, overrides: Partial<WorkspaceFile> = {}): WorkspaceFile {
@@ -72,10 +83,11 @@ beforeEach(() => {
   state.fileLoading = false;
   state.fileError = null;
   state.bytesUrl = "blob:chart";
-  state.bytesIsImage = true;
+  state.bytesMediaType = "image/png";
   state.bytesLoading = false;
   state.bytesError = null;
   state.downloaded = [];
+  state.downloadError = null;
 });
 
 /**
@@ -166,21 +178,36 @@ describe("the workspace explorer", () => {
     expect(screen.getByText(/Nothing in this workspace matches/)).toBeVisible();
   });
 
-  it("opens a text file in place", async () => {
+  it("opens a file into the viewer, named by its whole path", async () => {
     render(<WorkspaceExplorer workspaceId="w-1" />);
 
     await userEvent.click(screen.getByRole("button", { name: "report.md" }));
 
-    expect(await screen.findByText("# Report")).toBeVisible();
+    expect(await screen.findByRole("dialog")).toBeVisible();
+    expect(screen.getByTestId("rendered")).toHaveTextContent("# Report");
+    expect(screen.getByText("/report.md")).toBeVisible();
+  });
+
+  it("shows markdown as source when that is what somebody wants", async () => {
+    // Both are the file: the prose is what a report means, and the characters are
+    // what a prompt or a spec means.
+    render(<WorkspaceExplorer workspaceId="w-1" />);
+    await userEvent.click(screen.getByRole("button", { name: "report.md" }));
+
+    await userEvent.click(await screen.findByRole("tab", { name: "Source" }));
+
+    expect(screen.queryByTestId("rendered")).toBeNull();
+    expect(screen.getByText("# Report")).toBeVisible();
   });
 
   it("closes it again", async () => {
     render(<WorkspaceExplorer workspaceId="w-1" />);
     await userEvent.click(screen.getByRole("button", { name: "report.md" }));
+    await screen.findByRole("dialog");
 
-    await userEvent.click(screen.getByRole("button", { name: "report.md" }));
+    await userEvent.click(screen.getByRole("button", { name: "Close" }));
 
-    expect(screen.queryByText("# Report")).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
   it("previews an image as a picture", async () => {
@@ -194,10 +221,10 @@ describe("the workspace explorer", () => {
     );
   });
 
-  it("offers the download when the server did not serve it as an image", async () => {
+  it("offers the download when the server did not serve it as something showable", async () => {
     // Whatever the suffix suggested. A broken `<img>` with nothing saying why is the
     // worst of the three answers.
-    state.bytesIsImage = false;
+    state.bytesMediaType = "application/octet-stream";
     render(<WorkspaceExplorer workspaceId="w-1" />);
 
     await userEvent.click(screen.getByRole("button", { name: "chart.png" }));
@@ -222,7 +249,16 @@ describe("the workspace explorer", () => {
     render(<WorkspaceExplorer workspaceId="w-1" />);
 
     await userEvent.click(screen.getByRole("button", { name: "report.md" }));
-    await userEvent.click(screen.getByRole("button", { name: /Download it instead/ }));
+    await userEvent.click(await screen.findByRole("button", { name: /Download it$/ }));
+
+    expect(state.downloaded).toEqual([["w-1", "/report.md"]]);
+  });
+
+  it("offers the download from the viewer for a file it is already showing", async () => {
+    render(<WorkspaceExplorer workspaceId="w-1" />);
+    await userEvent.click(screen.getByRole("button", { name: "report.md" }));
+
+    await userEvent.click(await screen.findByRole("button", { name: "Download" }));
 
     expect(state.downloaded).toEqual([["w-1", "/report.md"]]);
   });
@@ -293,7 +329,8 @@ describe("the workspace explorer", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "report.md" }));
 
-    expect(screen.queryByRole("figure")).toBeNull();
+    await screen.findByRole("dialog");
+    expect(screen.queryByTestId("rendered")).toBeNull();
   });
 
   it("waits without claiming a text file is empty", async () => {
@@ -303,7 +340,8 @@ describe("the workspace explorer", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "report.md" }));
 
-    expect(screen.queryByText("# Report")).toBeNull();
+    await screen.findByRole("dialog");
+    expect(screen.queryByTestId("rendered")).toBeNull();
   });
 
   it("reads a file with no measured size as unmeasured", () => {

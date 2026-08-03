@@ -150,12 +150,13 @@ class TestListing:
 
 
 class TestServingBytes:
-    """A download and an image preview, and the disposition rule behind both.
+    """A download and a preview, and the disposition rule behind both.
 
-    Almost everything is an attachment. Only raster images are served for display,
-    because an SVG served inline from this origin is stored cross-site scripting
-    written by whatever the agent decided to save - and "the agent wrote it" is not
-    a trust boundary.
+    Almost everything is an attachment. Raster images and PDFs are served for
+    display - a raster cannot execute, and a PDF is rendered by the browser's own
+    viewer, which never gets the embedding page's DOM. An SVG served inline from
+    this origin is stored cross-site scripting written by whatever the agent decided
+    to save, and "the agent wrote it" is not a trust boundary.
     """
 
     async def test_a_png_is_served_for_display(self, client, service) -> None:
@@ -170,6 +171,30 @@ class TestServingBytes:
         assert response.headers["content-type"] == "image/png"
         assert response.headers["content-disposition"].startswith("inline")
         assert response.content == b"\x89PNG\r\n"
+
+    async def test_a_pdf_is_served_for_display(self, client, service) -> None:
+        """The one format people already read in a browser. Without this the viewer
+        could only offer to download a report the agent had just written."""
+        service.read_bytes_of = AsyncMock(return_value=b"%PDF-1.7")
+
+        async with client() as opened:
+            response = await opened.get(
+                _url(f"/{_WORKSPACE_ID}/raw"), params={"path": "/report.pdf"}
+            )
+
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "application/pdf"
+        assert response.headers["content-disposition"].startswith("inline")
+
+    async def test_nothing_is_left_for_a_browser_to_sniff(self, client, service) -> None:
+        """Everything off the inline list is typed `application/octet-stream`, and
+        sniffing would hand back the inline-script hole that list refuses."""
+        service.read_bytes_of = AsyncMock(return_value=b"<script>alert(1)</script>")
+
+        async with client() as opened:
+            response = await opened.get(_url(f"/{_WORKSPACE_ID}/raw"), params={"path": "/x.html"})
+
+        assert response.headers["x-content-type-options"] == "nosniff"
 
     async def test_an_svg_is_downloadable_and_never_displayable(self, client, service) -> None:
         """It carries script. Inline, from this origin, that is a hole with the

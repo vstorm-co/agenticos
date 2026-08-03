@@ -571,24 +571,55 @@ class SandboxWorkspaceService:
                 as bytes.
         """
         row, contents = await self.files_of(ctx, workspace_id)
+        return await self._bytes_from(ctx, row, contents, path)
+
+    async def read_bytes(self, ctx: AuthContext, *, conversation_id: UUID, path: str) -> bytes:
+        """One file as bytes, addressed through the conversation that holds it.
+
+        The sibling of :meth:`read_bytes_of`, and both exist for the reason the two
+        listings do: the route above this one authorises by fetching the
+        conversation, which somebody a chat was *shared with* passes and
+        `_may_read` does not - it matches conversations a caller owns. Sending the
+        chat panel at the id-addressed route instead would have shown a share
+        recipient files it then refused to open.
+
+        Raises:
+            NotFoundError: If the conversation keeps no workspace, or it holds no
+                such file.
+            BadRequestError: If the host cannot be read, or cannot serve this file
+                as bytes.
+        """
+        found = await self.listing(ctx, conversation_id=conversation_id)
+        if found is None:
+            raise NotFoundError(
+                message="This conversation keeps no files",
+                details={"conversation_id": str(conversation_id)},
+            )
+        row, contents = found
+        return await self._bytes_from(ctx, row, contents, path)
+
+    async def _bytes_from(
+        self, ctx: AuthContext, row: AgentWorkspace, contents: WorkspaceContents, path: str
+    ) -> bytes:
+        """One file's bytes out of a workspace already resolved and authorised.
+
+        Shared by the two ways a workspace is addressed, so a file that downloads
+        one way cannot be refused the other - and so the container-backed limit
+        below is stated once.
+        """
+        details = {"workspace_id": str(row.id), "path": path}
         # Answered from the listing rather than from the read that follows. A
         # container-backed host raises the same way for "no such file" as for "this
         # host cannot be read", so without this a missing file is reported as a
         # configuration problem - and 400 is the wrong answer to a typo in a path.
         if _absent(row, contents, path):
-            raise NotFoundError(
-                message="No such file",
-                details={"workspace_id": str(workspace_id), "path": path},
-            )
+            raise NotFoundError(message="No such file", details=details)
         if row.backend == "state":
             from pydantic_ai_backends import StateBackend
 
             backend = StateBackend(files=dict(row.files or {}))
             if not backend.exists(path):
-                raise NotFoundError(
-                    message="No such file",
-                    details={"workspace_id": str(workspace_id), "path": path},
-                )
+                raise NotFoundError(message="No such file", details=details)
             return backend.read_bytes(path)
 
         if not _is_textual(path):
@@ -598,13 +629,11 @@ class SandboxWorkspaceService:
                     "archive can only read text - so this file cannot be downloaded "
                     "from here. A stored workspace serves any file."
                 ),
-                details={"workspace_id": str(workspace_id), "path": path},
+                details=details,
             )
         text = await self._read_from(ctx, row, path)
         if text is None:
-            raise NotFoundError(
-                message="No such file", details={"workspace_id": str(workspace_id), "path": path}
-            )
+            raise NotFoundError(message="No such file", details=details)
         return text.encode()
 
     async def read_file_of(self, ctx: AuthContext, workspace_id: UUID, *, path: str) -> str | None:
@@ -837,6 +866,23 @@ def _reason(exc: Exception) -> str:
     """
     detail = str(exc).strip() or exc.__class__.__name__
     return f"This host's files could not be read. {detail}"
+
+
+def stored_ceiling(row: AgentWorkspace) -> int | None:
+    """What this workspace fills up against, or `None` when this platform is not the
+    one holding the ceiling.
+
+    A stored workspace is bytes in a JSONB column against a deployment-wide cap, and
+    running out of it *refuses writes* - which the agent reports as a tool error in the
+    middle of doing something, so a client that can show the fill approaching is worth
+    the field. A container's ceiling belongs to its host and is only knowable by
+    sampling the session, which is a round trip and therefore not something a listing
+    answers; reporting the stored cap for one would name a limit that does not apply.
+
+    Here rather than at each caller because two of them read it - the per-turn usage
+    report and the workspace listings - and a second copy of "how full is it" drifts.
+    """
+    return settings.SANDBOX_STATE_MAX_BYTES if row.backend == "state" else None
 
 
 def access_label(row: AgentWorkspace) -> str:

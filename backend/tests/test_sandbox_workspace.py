@@ -854,6 +854,54 @@ class TestServingAFileAsBytes:
         assert _is_textual("/chart.PNG") is False
 
 
+class TestServingAConversationsFileAsBytes:
+    """The same bytes, addressed through the chat rather than the workspace row.
+
+    Both entry points exist because they admit different callers: this one is reached
+    after the conversation has been fetched, which somebody the chat was *shared*
+    with passes, and `read_bytes_of` matches the workspaces a caller owns. Everything
+    after the address is shared, so a file that downloads from the Workspaces screen
+    cannot be refused in the chat panel.
+    """
+
+    async def test_the_bytes_come_back(self, monkeypatch, mock_db_session):
+        stored = StateBackend()
+        stored.write("/report.csv", "month,total")
+        row = _row(files=dict(stored.files))
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+
+        data = await SandboxWorkspaceService(mock_db_session).read_bytes(
+            _ctx(), conversation_id=uuid4(), path="/report.csv"
+        )
+
+        assert data == b"month,total"
+
+    async def test_a_chat_with_no_workspace_is_missing_rather_than_empty_bytes(
+        self, monkeypatch, mock_db_session
+    ):
+        """An empty body would be indistinguishable from a file the agent wrote and
+        left empty."""
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[]))
+
+        with pytest.raises(NotFoundError):
+            await SandboxWorkspaceService(mock_db_session).read_bytes(
+                _ctx(), conversation_id=uuid4(), path="/report.csv"
+            )
+
+    async def test_the_container_limit_is_the_same_one(self, monkeypatch, mock_db_session):
+        """Stated once, in the shared half: the archive reads text only, whichever
+        way the workspace was addressed."""
+        row = _row(backend="service", session_id="dc-1", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+        service = SandboxWorkspaceService(mock_db_session)
+        service.connections = MagicMock(resolve=AsyncMock(return_value=_resolved()))
+
+        with pytest.raises(BadRequestError) as refused:
+            await service.read_bytes(_ctx(), conversation_id=uuid4(), path="/chart.png")
+
+        assert "can only read text" in refused.value.message
+
+
 class TestOneFlatListOfFiles:
     """The "which agent is holding a copy of that CSV" view.
 

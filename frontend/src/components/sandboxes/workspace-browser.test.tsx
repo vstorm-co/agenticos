@@ -27,6 +27,7 @@ const state = vi.hoisted(() => ({
   flatError: null as string | null,
   flatAsked: [] as boolean[],
   downloaded: [] as [string, string][],
+  downloadError: null as string | null,
 }));
 
 vi.mock("@/hooks", () => ({
@@ -43,14 +44,30 @@ vi.mock("@/hooks", () => ({
     state.opened.push(id);
     return { files: state.files, isLoading: state.filesLoading, error: state.filesError };
   },
-  downloadWorkspaceFile: (id: string, path: string) => {
-    state.downloaded.push([id, path]);
+  downloadWorkspaceFile: (source: { kind: string; id: string }, path: string) => {
+    state.downloaded.push([source.id, path]);
     return Promise.resolve();
   },
-  useWorkspaceFile: (_id: string | null, path: string | null) => {
+  useFileDownload: (source: { kind: string; id: string }) => ({
+    download: (path: string) => state.downloaded.push([source.id, path]),
+    error: state.downloadError,
+  }),
+  useWorkspaceFileText: (_source: unknown, path: string) => {
     state.read.push(path);
     return { file: state.file, isLoading: state.fileLoading, error: state.fileError };
   },
+  useWorkspaceFileBytes: () => ({
+    url: null,
+    mediaType: null,
+    isLoading: false,
+    error: null,
+  }),
+}));
+
+vi.mock("@/components/chat/markdown-content", () => ({
+  MarkdownContent: ({ content }: { content: string }) => (
+    <div data-testid="rendered">{content}</div>
+  ),
 }));
 
 function workspace(overrides: Partial<WorkspaceSummary> = {}): WorkspaceSummary {
@@ -103,6 +120,7 @@ beforeEach(() => {
   state.flatError = null;
   state.flatAsked = [];
   state.downloaded = [];
+  state.downloadError = null;
 });
 
 describe("WorkspaceBrowser", () => {
@@ -265,16 +283,14 @@ describe("WorkspaceBrowser", () => {
       expect(screen.getByText(/Everybody who talks to this agent/)).toBeVisible();
     });
 
-    it("opens a file in place, because the next question is what is in it", async () => {
+    it("opens a file into the viewer, because the next question is what is in it", async () => {
       render(<WorkspaceBrowser />);
       await userEvent.click(screen.getByRole("button", { name: "All files" }));
 
       await userEvent.click(screen.getByRole("button", { name: "/report.csv" }));
 
-      expect(screen.getByRole("button", { name: "/report.csv" })).toHaveAttribute(
-        "aria-expanded",
-        "true",
-      );
+      expect(await screen.findByRole("dialog")).toBeVisible();
+      expect(state.read).toContain("/report.csv");
     });
 
     it("reads a file's size in the units a person uses, or says it is unmeasured", async () => {

@@ -12,6 +12,7 @@ from app.api.deps import (
     MessageRatingSvc,
     WorkspaceSvc,
 )
+from app.api.routes.v1._workspace_bytes import file_response
 from app.core.exceptions import NotFoundError
 from app.schemas.conversation import (
     ConversationCreate,
@@ -37,7 +38,7 @@ from app.schemas.workspace import (
     WorkspaceFileRead,
     WorkspaceListing,
 )
-from app.services.sandbox_workspace import owner_label
+from app.services.sandbox_workspace import owner_label, stored_ceiling
 
 router = APIRouter()
 
@@ -377,6 +378,10 @@ async def list_workspace_files(
         items=items,
         total=len(items),
         bytes_total=row.bytes_total,
+        # So the strip under the composer can show the fill when a conversation is
+        # *opened*, rather than only after the next turn reports one. How full a
+        # workspace is is a fact about now, not about what a turn cost.
+        bytes_limit=stored_ceiling(row),
         unreadable_reason=contents.unreadable_reason,
     )
 
@@ -411,3 +416,40 @@ async def read_workspace_file(
             details={"path": path},
         )
     return WorkspaceFileContent(path=path, content=content)
+
+
+@router.get("/{conversation_id}/workspace/raw", response_model=None)
+async def read_workspace_bytes(
+    conversation_id: UUID,
+    conversation_service: ConversationSvc,
+    workspaces: WorkspaceSvc,
+    current_user: CurrentUser,
+    active_org: ActiveOrg,
+    ctx: Auth,
+    path: str = Query(description="Path inside the workspace, as the listing gives it"),
+    download: bool = Query(False, description="Force a download rather than a preview"),
+) -> Response:
+    """One file as bytes, so the panel beside the chat can show it and save it.
+
+    The sibling of `/file`, which answers with text in JSON: a chart or a PDF an
+    agent produced is not a string, and decoding one as UTF-8 to re-encode it is a
+    corrupt file.
+
+    Addressed through the conversation rather than through the workspace's own id,
+    which is not a duplicate of `/sandbox-workspaces/{id}/raw` but the reason both
+    exist: this authorises by fetching the conversation, so somebody a chat was
+    *shared with* reaches these files, and the id-addressed route matches
+    conversations a caller owns. Pointing the panel at that one showed a share
+    recipient files it then refused to open.
+
+    What may be displayed rather than downloaded is decided once, in
+    `_workspace_bytes.INLINE_TYPES`, so the answer cannot differ by surface.
+    """
+    await conversation_service.get_conversation(
+        conversation_id,
+        organization_id=active_org.id,
+        include_messages=False,
+        user_id=current_user.id,
+    )
+    data = await workspaces.read_bytes(ctx, conversation_id=conversation_id, path=path)
+    return file_response(data, path=path, download=download)

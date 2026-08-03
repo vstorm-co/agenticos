@@ -33,6 +33,16 @@ class WorkspaceListing(BaseSchema):
     items: list[WorkspaceFileRead]
     total: int
     bytes_total: int = 0
+    bytes_limit: int | None = Field(
+        default=None,
+        description=(
+            "What this workspace fills up against, when this platform is what holds the "
+            "ceiling. A stored workspace runs out against a deployment-wide cap and "
+            "starts refusing writes, so a client can warn before that happens. Null for "
+            "a container: its ceiling belongs to its host and is only knowable by "
+            "sampling the session, which a listing does not pay for."
+        ),
+    )
     unreadable_reason: str | None = Field(
         default=None,
         description=(

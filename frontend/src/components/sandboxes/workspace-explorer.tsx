@@ -4,10 +4,11 @@ import { useMemo, useState } from "react";
 import { AlertTriangle, ChevronRight, Download, Folder, Info, Search } from "lucide-react";
 
 import { FileIcon } from "./file-tile";
-import { FilePreview } from "./file-preview";
+import { WorkspaceFileViewer } from "./file-viewer";
 import { Input, Skeleton } from "@/components/ui";
 import { downloadWorkspaceFile, useWorkspaceFiles } from "@/hooks";
 import { cn } from "@/lib/utils";
+import type { FileSource } from "@/lib/workspace-files";
 import type { WorkspaceFile } from "@/lib/sandbox-workspaces-api";
 
 interface WorkspaceExplorerProps {
@@ -76,6 +77,7 @@ export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
   const [prefix, setPrefix] = useState<string[]>([]);
   const [query, setQuery] = useState("");
   const [opened, setOpened] = useState<string | null>(null);
+  const source = useMemo<FileSource>(() => ({ kind: "workspace", id: workspaceId }), [workspaceId]);
 
   // Memoised, because it is the dependency of the two memos below: `?? []` builds a
   // fresh array on every render, which would recompute both of them every time.
@@ -172,13 +174,7 @@ export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
             Nothing in this workspace matches “{query.trim()}”.
           </p>
         ) : (
-          <FileList
-            files={matches}
-            workspaceId={workspaceId}
-            opened={opened}
-            onOpen={setOpened}
-            showFullPath
-          />
+          <FileList source={source} files={matches} onOpen={setOpened} showFullPath />
         )
       ) : (
         <>
@@ -208,29 +204,27 @@ export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
           )}
 
           {level.files.length > 0 && (
-            <FileList
-              files={level.files}
-              workspaceId={workspaceId}
-              opened={opened}
-              onOpen={setOpened}
-            />
+            <FileList source={source} files={level.files} onOpen={setOpened} />
           )}
         </>
+      )}
+
+      {opened !== null && (
+        <WorkspaceFileViewer source={source} path={opened} onClose={() => setOpened(null)} />
       )}
     </div>
   );
 }
 
 interface FileListProps {
+  source: FileSource;
   files: WorkspaceFile[];
-  workspaceId: string;
-  opened: string | null;
-  onOpen: (path: string | null) => void;
+  onOpen: (path: string) => void;
   showFullPath?: boolean;
 }
 
 /** The files at one level, as tiles, each openable and downloadable. */
-function FileList({ files, workspaceId, opened, onOpen, showFullPath }: FileListProps) {
+function FileList({ source, files, onOpen, showFullPath }: FileListProps) {
   return (
     <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
       {files.map((file) => (
@@ -239,8 +233,7 @@ function FileList({ files, workspaceId, opened, onOpen, showFullPath }: FileList
             <FileIcon path={file.path} className="text-muted-foreground h-4 w-4 shrink-0" />
             <button
               type="button"
-              onClick={() => onOpen(opened === file.path ? null : file.path)}
-              aria-expanded={opened === file.path}
+              onClick={() => onOpen(file.path)}
               className="min-w-0 flex-1 truncate text-left font-mono text-xs hover:underline"
               title={file.path}
             >
@@ -250,13 +243,12 @@ function FileList({ files, workspaceId, opened, onOpen, showFullPath }: FileList
             <button
               type="button"
               aria-label={`Download ${file.path}`}
-              onClick={() => void downloadWorkspaceFile(workspaceId, file.path)}
+              onClick={() => void downloadWorkspaceFile(source, file.path)}
               className="text-muted-foreground hover:text-foreground shrink-0 rounded-md p-1"
             >
               <Download className="h-3.5 w-3.5" />
             </button>
           </div>
-          {opened === file.path && <FilePreview workspaceId={workspaceId} path={file.path} />}
         </li>
       ))}
     </ul>
