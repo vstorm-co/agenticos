@@ -13,7 +13,12 @@ interface Secret {
   kind: string;
 }
 
-const state = { secrets: [] as Secret[] };
+const state = {
+  secrets: [] as Secret[],
+  // The inline form writes through `useSecrets().create`, and what this card owes
+  // it is the callback: a key added there is the key selected here.
+  create: { mutate: vi.fn(), isPending: false },
+};
 
 vi.mock("@/hooks", () => ({ useSecrets: () => state }));
 
@@ -35,7 +40,9 @@ function mount(value: ObservabilitySpec | null = null) {
 }
 
 beforeEach(() => {
+  vi.clearAllMocks();
   state.secrets = [secret()];
+  state.create = { mutate: vi.fn(), isPending: false };
 });
 
 describe("the tracing card", () => {
@@ -58,13 +65,29 @@ describe("the tracing card", () => {
     });
   });
 
-  it("says where to put a token when the vault has none", () => {
-    // Rather than an empty picker, which reads as a broken control.
+  it("lets a token be added here when the vault has none", () => {
+    // Rather than an empty picker and a sentence pointing somewhere else: the
+    // answer to "no tokens stored yet" is a form, and a picker with nothing in it
+    // and nowhere to go is a dead end.
     state.secrets = [];
     mount();
 
-    expect(screen.getByText(/No Logfire tokens stored yet/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Vault" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Add a key/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Open the Vault/ })).toBeInTheDocument();
+  });
+
+  it("stores a token added inline rather than sending somebody to another page", async () => {
+    state.secrets = [];
+    mount();
+
+    await userEvent.click(screen.getByRole("button", { name: /Add a key/ }));
+    await userEvent.type(screen.getByLabelText("Key"), "pylf_v1_x");
+    await userEvent.click(screen.getByRole("button", { name: "Save key" }));
+
+    expect(state.create.mutate).toHaveBeenCalledWith(
+      expect.objectContaining({ purpose: "logfire" }),
+      expect.anything(),
+    );
   });
 
   it("says the spec keeps a reference once there is something to pick", () => {

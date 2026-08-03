@@ -112,12 +112,12 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
   // Only asked for a new connection. An operator editing an existing row has
   // already decided which host it points at, and probing on their behalf would be
   // offering to change it.
-  const { local, storeCredential, probe } = useLocalSandboxService(editing === null);
+  const { local, runtimes, storeCredential, probe } = useLocalSandboxService(editing === null);
   const [form, setForm] = useState<FormState>(() => initialState(editing));
   const [saving, setSaving] = useState(false);
   const [storing, setStoring] = useState(false);
   const [testing, setTesting] = useState(false);
-  const [runtimes, setRuntimes] = useState<SandboxRuntime[] | null>(null);
+  const [allowed, setAllowed] = useState<SandboxRuntime[] | null>(null);
   const [refusal, setRefusal] = useState<string | null>(null);
 
   // Derived rather than written into state by an effect: what a service answered
@@ -291,7 +291,8 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
             <RuntimeField
               value={form.defaultRuntime}
               onChange={(defaultRuntime) => setForm({ ...form, defaultRuntime })}
-              runtimes={runtimes}
+              catalog={runtimes}
+              allowed={allowed}
               // Nothing to ask with until there is an address and a key, and a
               // button that answers "fill both in first" is a button that wasted
               // somebody's click.
@@ -302,7 +303,7 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
                       setRefusal(null);
                       try {
                         const policy = await probe(baseUrl.trim(), form.secretId);
-                        setRuntimes(policy.runtimes);
+                        setAllowed(policy.runtimes);
                       } catch (error) {
                         setRefusal(getErrorMessage(error));
                       } finally {

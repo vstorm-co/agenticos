@@ -1,7 +1,5 @@
 "use client";
 
-import Link from "next/link";
-
 import {
   Card,
   CardContent,
@@ -16,8 +14,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
+import { InlineSecret } from "@/components/vault/inline-secret";
 import { useSecrets } from "@/hooks";
-import { ROUTES } from "@/lib/constants";
 import type { ObservabilitySpec } from "@/types/agents";
 
 /**
@@ -101,19 +99,20 @@ export function ObservabilityCard({
               ))}
             </SelectContent>
           </Select>
-          {tokens.length === 0 ? (
-            <p className="text-muted-foreground text-xs">
-              No Logfire tokens stored yet - add one in the{" "}
-              <Link href={ROUTES.VAULT} className="underline underline-offset-2">
-                Vault
-              </Link>{" "}
-              under Tracing.
-            </p>
-          ) : (
-            <p className="text-muted-foreground text-xs">
-              Stored in the vault under Tracing. The spec keeps the reference, never the token.
-            </p>
-          )}
+          <p className="text-muted-foreground text-xs">
+            Stored in the vault under Tracing. The spec keeps the reference, never the token.
+          </p>
+          {/* Here rather than as a sentence pointing at the Vault: the answer to
+              "no tokens stored yet" is a form, and a picker with nothing in it and
+              nowhere to go is a dead end. */}
+          <InlineSecret
+            kind="api_key"
+            purpose={TOKEN_PURPOSE}
+            suggestedName="Logfire write token"
+            helpUrl="https://logfire.pydantic.dev/docs/how-to-guides/create-write-tokens/"
+            disabled={disabled}
+            onCreated={(secretId) => update({ token_secret_id: secretId })}
+          />
         </div>
 
         <div className="space-y-2">

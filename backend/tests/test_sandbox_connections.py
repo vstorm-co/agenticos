@@ -538,6 +538,40 @@ class TestWhatThisDeploymentCanAlreadySee:
         assert (await service.local_service(_ctx()))["registered_connection_id"] is None
 
 
+class TestTheRuntimeCatalog:
+    """Read from the library rather than listed here.
+
+    A copy would drift the first time `pydantic-ai-backends` added a runtime, and
+    the failure is invisible: a form offering twelve of fifteen looks complete.
+    """
+
+    def test_every_runtime_the_library_ships_is_offered(self):
+        from pydantic_ai_backends import BUILTIN_RUNTIMES
+
+        catalog = SandboxConnectionService.runtime_catalog()
+
+        assert {entry["alias"] for entry in catalog} == set(BUILTIN_RUNTIMES)
+
+    def test_a_ready_made_image_is_named_and_marked_as_not_building(self):
+        catalog = {entry["alias"]: entry for entry in SandboxConnectionService.runtime_catalog()}
+
+        node = catalog["node-minimal"]
+
+        assert node["image"] == "node:20-slim"
+        assert node["builds"] is False
+
+    def test_a_built_runtime_says_what_it_starts_from_and_that_it_builds(self):
+        """The first session pays for the build, so "coding" and "node-minimal" are
+        not the same promise about how long the first message takes."""
+        catalog = {entry["alias"]: entry for entry in SandboxConnectionService.runtime_catalog()}
+
+        coding = catalog["coding"]
+
+        assert coding["image"] == "python:3.12-slim"
+        assert coding["builds"] is True
+        assert "git" in coding["description"]
+
+
 class TestStoringTheLocalToken:
     async def test_the_token_this_deployment_started_the_service_with_is_stored(self, monkeypatch):
         """The friction this removes: `make sandbox-token` wrote it to

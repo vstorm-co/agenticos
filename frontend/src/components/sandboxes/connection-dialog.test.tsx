@@ -14,12 +14,22 @@ const state = vi.hoisted(() => ({
   } | null,
   storeCredential: vi.fn(async () => "s-local"),
   probe: vi.fn(async () => ({ runtimes: [{ alias: "python", description: "Python 3.12" }] })),
+  runtimes: [
+    { alias: "coding", description: "Python with git", image: "python:3.12-slim", builds: true },
+    {
+      alias: "python-minimal",
+      description: "stdlib only",
+      image: "python:3.12-slim",
+      builds: true,
+    },
+  ],
 }));
 
 vi.mock("@/hooks", () => ({
   useSecrets: () => ({ secrets: state.secrets }),
   useLocalSandboxService: () => ({
     local: state.local,
+    runtimes: state.runtimes,
     isLoading: false,
     storeCredential: state.storeCredential,
     probe: state.probe,
@@ -169,13 +179,15 @@ describe("ConnectionDialog", () => {
   });
 
   it("records the runtime an agent gets when its own spec names none", async () => {
+    // Picked from the catalog, which is populated the moment the form opens.
     const { onSubmit } = mount(connection({ default_runtime: null }));
 
-    await userEvent.type(screen.getByLabelText("Default runtime"), "data-science");
+    await userEvent.click(screen.getByRole("combobox", { name: "Default runtime" }));
+    await userEvent.click(await screen.findByRole("option", { name: /python-minimal/ }));
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
 
     expect(onSubmit).toHaveBeenCalledWith(
-      expect.objectContaining({ default_runtime: "data-science" }),
+      expect.objectContaining({ default_runtime: "python-minimal" }),
     );
   });
 
@@ -352,21 +364,31 @@ describe("ConnectionDialog", () => {
   });
 
   describe("the runtime the service will actually accept", () => {
-    it("asks the service and offers what it named", async () => {
-      // A typo in free text is stored happily and refused at the first tool call,
-      // in somebody's conversation rather than in this form.
+    it("is a populated list before anything has been asked of a host", async () => {
+      // A select that only filled in after pressing a button was a select nobody
+      // would find, and a typo in free text is stored happily and refused at the
+      // first tool call inside somebody's conversation.
+      mount();
+
+      await userEvent.click(screen.getByRole("combobox", { name: "Default runtime" }));
+
+      expect(await screen.findByRole("option", { name: /coding/ })).toBeVisible();
+      expect(state.probe).not.toHaveBeenCalled();
+    });
+
+    it("asks the service which of them this host allows", async () => {
       mount(connection());
 
-      await userEvent.click(screen.getByRole("button", { name: /Test and list runtimes/ }));
+      await userEvent.click(screen.getByRole("button", { name: /Test and check this host/ }));
 
       expect(state.probe).toHaveBeenCalledWith("http://sandboxd:8080", "s-1");
-      expect(await screen.findByRole("combobox", { name: "Default runtime" })).toBeVisible();
+      expect(await screen.findByText(/This host allows 1 of them/)).toBeVisible();
     });
 
     it("cannot be asked before there is an address and a key to ask with", () => {
       mount();
 
-      expect(screen.queryByRole("button", { name: /Test and list runtimes/ })).toBeNull();
+      expect(screen.queryByRole("button", { name: /Test and check this host/ })).toBeNull();
     });
 
     it("reports a service that refused the key where the form can see it", async () => {
@@ -375,7 +397,7 @@ describe("ConnectionDialog", () => {
       });
       mount(connection());
 
-      await userEvent.click(screen.getByRole("button", { name: /Test and list runtimes/ }));
+      await userEvent.click(screen.getByRole("button", { name: /Test and check this host/ }));
 
       expect(
         await screen.findByText("The sandbox service refused this connection's credential"),

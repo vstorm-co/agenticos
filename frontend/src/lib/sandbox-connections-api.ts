@@ -147,6 +147,23 @@ export interface SandboxEventList {
  * it. `token_available` is a boolean and never the token - a form that received
  * one would have had it in a browser.
  */
+/**
+ * One runtime the sandbox library ships.
+ *
+ * The catalog, not the allowlist: every `sandboxd` is built from these, so a form
+ * can offer them with no address and no credential. Whether a particular service
+ * permits one is a separate question only that service answers, and
+ * `probeSandboxService` is what asks it.
+ */
+export interface SandboxRuntimeOption {
+  alias: string;
+  description: string;
+  /** What it runs, or the base image a built runtime starts from. */
+  image: string | null;
+  /** Whether the first session builds an image - slower once, cached after. */
+  builds: boolean;
+}
+
 export interface SandboxLocalService {
   url: string | null;
   token_available: boolean;
@@ -182,6 +199,14 @@ export async function updateSandboxConnection(
 
 export async function deleteSandboxConnection(id: string): Promise<void> {
   await apiClient.delete(`${ROOT}/${id}`);
+}
+
+/** Every runtime the library ships. Static — nothing is contacted to answer it. */
+export async function listSandboxRuntimes(): Promise<SandboxRuntimeOption[]> {
+  const data = await apiClient.get<{ items: SandboxRuntimeOption[]; total: number }>(
+    `${ROOT}/runtimes`,
+  );
+  return data.items;
 }
 
 /** What this deployment can already see. Never throws for "nothing there". */

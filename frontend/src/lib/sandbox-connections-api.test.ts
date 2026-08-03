@@ -118,4 +118,14 @@ describe("the sandbox connections client", () => {
       secret_id: "s-1",
     });
   });
+
+  it("asks for the library's runtime catalog, which contacts no host", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: [{ alias: "coding", description: "", image: "python:3.12-slim", builds: true }],
+      total: 1,
+    });
+
+    await expect(api.listSandboxRuntimes()).resolves.toHaveLength(1);
+    expect(apiClient.get).toHaveBeenCalledWith("/sandbox-connections/runtimes");
+  });
 });

@@ -3,17 +3,31 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { RuntimeField } from "./runtime-field";
-import type { SandboxRuntime } from "@/lib/sandbox-connections-api";
+import type { SandboxRuntime, SandboxRuntimeOption } from "@/lib/sandbox-connections-api";
 
-function runtime(alias: string, description = ""): SandboxRuntime {
+function option(
+  alias: string,
+  overrides: Partial<SandboxRuntimeOption> = {},
+): SandboxRuntimeOption {
   return {
     alias,
-    image: `ghcr.io/example/${alias}`,
-    description,
+    description: `what ${alias} is for`,
+    image: "python:3.12-slim",
+    builds: false,
+    ...overrides,
+  };
+}
+
+function allowed(alias: string, overrides: Partial<SandboxRuntime> = {}): SandboxRuntime {
+  return {
+    alias,
+    image: "python:3.12-slim",
+    description: `what ${alias} is for`,
     builds: false,
     mem_limit: null,
     cpus: null,
     network_mode: null,
+    ...overrides,
   };
 }
 
@@ -24,7 +38,8 @@ function field(props: Partial<React.ComponentProps<typeof RuntimeField>> = {}) {
     <RuntimeField
       value=""
       onChange={onChange}
-      runtimes={null}
+      catalog={[option("coding", { builds: true }), option("node-minimal")]}
+      allowed={null}
       onTest={onTest}
       testing={false}
       {...props}
@@ -34,32 +49,66 @@ function field(props: Partial<React.ComponentProps<typeof RuntimeField>> = {}) {
 }
 
 /**
- * Which image an agent gets by default, and why it stopped being free text.
+ * Which image an agent gets by default.
  *
- * An alias is the service's own configuration, so a typo cannot be caught here -
- * only by asking. Before anybody has asked, this is a text field; afterwards it is
- * the list the service gave, with the text field still reachable because that list
- * is a snapshot of a service somebody may have just reconfigured.
+ * The list is the sandbox library's own catalog and is complete before anything is
+ * probed - a select that only filled in after pressing a button was a select nobody
+ * would find. Probing then answers the narrower question: this host may have been
+ * started with a shorter allowlist, and the options it did not name are marked
+ * rather than removed.
  */
 describe("the default runtime", () => {
-  it("is a text field before anybody has asked the service", () => {
+  it("offers the whole catalog with no host asked", async () => {
     field();
-
-    expect(screen.getByLabelText("Default runtime")).toHaveValue("");
-    expect(screen.queryByRole("combobox")).toBeNull();
-  });
-
-  it("becomes a list of what the service named", async () => {
-    field({ runtimes: [runtime("python", "Python 3.12"), runtime("node")] });
 
     await userEvent.click(screen.getByRole("combobox", { name: "Default runtime" }));
 
-    expect(await screen.findByRole("option", { name: /python — Python 3.12/ })).toBeVisible();
-    expect(screen.getByRole("option", { name: "node" })).toBeVisible();
+    expect(await screen.findByRole("option", { name: /coding/ })).toBeVisible();
+    expect(screen.getByRole("option", { name: /node-minimal/ })).toBeVisible();
+  });
+
+  it("says plainly that no host has been checked yet", () => {
+    // Offering fifteen aliases as though all fifteen will work is a promise this
+    // cannot make until the service has answered.
+    field();
+
+    expect(
+      screen.getByText(/Test the connection to see which ones this host allows/),
+    ).toBeVisible();
+  });
+
+  it("marks what this host does not allow rather than dropping it", async () => {
+    // Dropping it would leave somebody wondering where a runtime they have read
+    // about went; marking it says which of the two things is wrong.
+    field({ allowed: [allowed("coding")] });
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Default runtime" }));
+
+    expect(
+      await screen.findByRole("option", { name: /node-minimal[\s\S]*not on this host/ }),
+    ).toBeVisible();
+    expect(screen.getByText("This host allows 1 of them.")).toBeVisible();
+  });
+
+  it("keeps a runtime the host named that the library does not ship", async () => {
+    // A runtime built for that deployment is exactly the case worth not dropping.
+    field({ allowed: [allowed("in-house-cuda")] });
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Default runtime" }));
+
+    expect(await screen.findByRole("option", { name: /in-house-cuda/ })).toBeVisible();
+  });
+
+  it("says which runtimes pay for a build on first use", async () => {
+    field();
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Default runtime" }));
+
+    expect(await screen.findByRole("option", { name: /coding[\s\S]*builds/ })).toBeVisible();
   });
 
   it("offers taking whatever the service defaults to", async () => {
-    const { onChange } = field({ value: "python", runtimes: [runtime("python")] });
+    const { onChange } = field({ value: "coding" });
 
     await userEvent.click(screen.getByRole("combobox", { name: "Default runtime" }));
     await userEvent.click(screen.getByRole("option", { name: /Whatever the service defaults to/ }));
@@ -67,20 +116,18 @@ describe("the default runtime", () => {
     expect(onChange).toHaveBeenCalledWith("");
   });
 
-  it("keeps an alias the service did not name rather than silently clearing it", async () => {
+  it("keeps an alias nobody recognises rather than silently clearing it", async () => {
     // A stored value dropped while somebody edits an unrelated field is a
     // connection changing runtime with nobody deciding to.
-    field({ value: "custom-image", runtimes: [runtime("python")] });
+    field({ value: "custom-image" });
 
     await userEvent.click(screen.getByRole("combobox", { name: "Default runtime" }));
 
     expect(screen.getByRole("option", { name: "custom-image" })).toBeVisible();
   });
 
-  it("lets somebody type an alias the list does not have yet", async () => {
-    // An operator who has just added one to the service's configuration and not
-    // restarted it is describing something true this cannot see.
-    field({ runtimes: [runtime("python")] });
+  it("lets somebody type an alias built since this list was fetched", async () => {
+    field();
 
     await userEvent.click(screen.getByRole("button", { name: "Type an alias instead" }));
 
@@ -90,17 +137,25 @@ describe("the default runtime", () => {
   });
 
   it("passes what was typed straight up", async () => {
-    const { onChange } = field();
+    const { onChange } = field({ catalog: [] });
 
     await userEvent.type(screen.getByLabelText("Default runtime"), "p");
 
     expect(onChange).toHaveBeenCalledWith("p");
   });
 
+  it("is a text field when the catalog could not be read at all", () => {
+    // A failed catalog request must not leave the field unusable.
+    field({ catalog: [] });
+
+    expect(screen.getByLabelText("Default runtime")).toBeVisible();
+    expect(screen.queryByRole("combobox")).toBeNull();
+  });
+
   it("asks the service when told to", async () => {
     const { onTest } = field();
 
-    await userEvent.click(screen.getByRole("button", { name: "Test and list runtimes" }));
+    await userEvent.click(screen.getByRole("button", { name: "Test and check this host" }));
 
     expect(onTest).toHaveBeenCalled();
   });
@@ -112,7 +167,7 @@ describe("the default runtime", () => {
   });
 
   it("offers to ask again once it has an answer", () => {
-    field({ runtimes: [runtime("python")] });
+    field({ allowed: [allowed("coding")] });
 
     expect(screen.getByRole("button", { name: "Ask again" })).toBeVisible();
   });
@@ -120,15 +175,15 @@ describe("the default runtime", () => {
   it("offers no button when there is nothing to ask with", () => {
     field({ onTest: null });
 
-    expect(screen.queryByRole("button", { name: /Test and list/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Test and check/ })).toBeNull();
   });
 
-  it("stays a text field when the service allows nothing at all", () => {
-    // "No runtimes" is a real answer and a real problem, and an empty list is not
-    // a list worth switching a form over to.
-    field({ runtimes: [] });
+  it("keeps the trigger inside its container, whatever the label says", () => {
+    // An option label is a sentence, and a trigger that grew to fit one pushed the
+    // dialog wider than the viewport.
+    field({ value: "coding" });
 
-    expect(screen.getByLabelText("Default runtime")).toBeVisible();
-    expect(screen.queryByRole("combobox")).toBeNull();
+    const trigger = screen.getByRole("combobox", { name: "Default runtime" });
+    expect(trigger.className).toContain("min-w-0");
   });
 });

@@ -111,7 +111,7 @@ export function SessionsPanel({ connection }: SessionsPanelProps) {
         )}
 
         {sessions.length > 0 && (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto px-5 pb-2">
             <Table>
               <TableHeader>
                 <TableRow>

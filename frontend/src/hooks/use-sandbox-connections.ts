@@ -8,6 +8,7 @@ import {
   createSandboxConnection,
   deleteSandboxConnection,
   listSandboxConnections,
+  listSandboxRuntimes,
   listSandboxSessions,
   probeSandboxService,
   readLocalSandboxService,
@@ -21,6 +22,7 @@ import {
   type SandboxEventList,
   type SandboxLocalService,
   type SandboxPolicy,
+  type SandboxRuntimeOption,
   type SandboxSessionList,
 } from "@/lib/sandbox-connections-api";
 
@@ -139,6 +141,8 @@ export function useSandboxPolicy(connectionId: string | null): UseSandboxPolicyR
 
 interface UseLocalSandboxServiceResult {
   local: SandboxLocalService | null;
+  /** Every runtime the library ships, offered before anything has been probed. */
+  runtimes: SandboxRuntimeOption[];
   isLoading: boolean;
   /** Store this deployment's own token in the vault, and answer with its id. */
   storeCredential: () => Promise<string>;
@@ -164,6 +168,17 @@ export function useLocalSandboxService(enabled: boolean): UseLocalSandboxService
     staleTime: 30_000,
   });
 
+  // The catalog, not an allowlist, and static for the life of the deployment - so
+  // it is fetched whenever the form is open rather than only for a new connection,
+  // and never refetched. It is what makes the runtime field a populated select
+  // instead of a text box waiting for somebody to press a test button.
+  const { data: runtimes = [] } = useQuery({
+    queryKey: qk.sandboxConnections.runtimes(),
+    queryFn: listSandboxRuntimes,
+    staleTime: Infinity,
+    retry: false,
+  });
+
   const storeCredential = useCallback(async () => {
     const created = await storeLocalSandboxCredential();
     // The vault list is what the credential picker reads, and the entry has to be
@@ -174,6 +189,7 @@ export function useLocalSandboxService(enabled: boolean): UseLocalSandboxService
 
   return {
     local,
+    runtimes,
     isLoading: enabled && isLoading,
     storeCredential,
     probe: probeSandboxService,

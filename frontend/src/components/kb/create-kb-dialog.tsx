@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { useQuery } from "@tanstack/react-query";
 import { IngestionSettings } from "@/components/kb/ingestion-settings";
+import { InlineSecret } from "@/components/vault/inline-secret";
 import { useKnowledgeBases, useSecrets } from "@/hooks";
 import { apiClient } from "@/lib/api-client";
 import { submitFailure } from "@/lib/api-error";
@@ -241,11 +242,20 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                       ))}
                     </SelectContent>
                   </Select>
-                  {embeddingKeys.length === 0 && (
-                    <p className="text-muted-foreground text-xs">
-                      Add an OpenRouter key in the vault to bill embeddings to this organization.
-                    </p>
-                  )}
+                  <p className="text-muted-foreground text-xs">
+                    A key here bills embeddings to this organization instead of using the
+                    deployment&apos;s.
+                  </p>
+                  {/* Rather than only telling somebody to go and add one: a picker
+                      with nothing in it and no way to fill it is a dead end, and
+                      the answer to "add a key in the vault" is a form, not a
+                      sentence. */}
+                  <InlineSecret
+                    kind="api_key"
+                    purpose={EMBEDDING_KEY_PURPOSE}
+                    suggestedName="OpenRouter (embeddings)"
+                    onCreated={setEmbeddingSecretId}
+                  />
                 </div>
               </div>
             </details>

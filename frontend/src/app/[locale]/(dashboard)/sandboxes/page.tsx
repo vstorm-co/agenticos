@@ -125,7 +125,7 @@ export default function SandboxesPage() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto px-5 pb-2">
             <ConnectionsTable
               connections={connections}
               onEdit={(connection) => {

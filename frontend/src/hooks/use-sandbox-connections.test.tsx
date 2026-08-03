@@ -24,6 +24,7 @@ vi.mock("@/lib/sandbox-connections-api", () => ({
   readLocalSandboxService: vi.fn(),
   storeLocalSandboxCredential: vi.fn(),
   probeSandboxService: vi.fn(),
+  listSandboxRuntimes: vi.fn(),
 }));
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -76,6 +77,9 @@ beforeEach(() => {
   vi.mocked(api.updateSandboxConnection).mockResolvedValue(connection());
   vi.mocked(api.deleteSandboxConnection).mockResolvedValue(undefined);
   vi.mocked(api.readSandboxPolicy).mockResolvedValue(POLICY);
+  vi.mocked(api.listSandboxRuntimes).mockResolvedValue([
+    { alias: "coding", description: "Python with git", image: "python:3.12-slim", builds: true },
+  ]);
   vi.mocked(api.listSandboxSessions).mockResolvedValue({
     sessions: [],
     limit: 20,
@@ -330,5 +334,26 @@ describe("what this deployment can already see", () => {
 
     await expect(result.current.probe("http://s:8080", "s-1")).resolves.toEqual(POLICY);
     expect(api.probeSandboxService).toHaveBeenCalledWith("http://s:8080", "s-1");
+  });
+});
+
+describe("the runtime catalog", () => {
+  it("is fetched whenever the form is open, not only for a new connection", async () => {
+    // It is static for the life of the deployment and asks no host anything, so
+    // there is nothing to save by withholding it from an edit.
+    const { result } = renderHook(() => useLocalSandboxService(false), { wrapper });
+
+    await waitFor(() => expect(result.current.runtimes).toHaveLength(1));
+    expect(api.listSandboxRuntimes).toHaveBeenCalled();
+  });
+
+  it("answers with an empty list rather than failing the form", async () => {
+    // A catalog request that failed must leave a usable text field behind, not an
+    // unusable select.
+    vi.mocked(api.listSandboxRuntimes).mockRejectedValue(new Error("nope"));
+
+    const { result } = renderHook(() => useLocalSandboxService(true), { wrapper });
+
+    await waitFor(() => expect(result.current.runtimes).toEqual([]));
   });
 });

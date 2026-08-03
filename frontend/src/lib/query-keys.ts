@@ -199,6 +199,9 @@ export const qk = {
     // Whether this deployment runs a service of its own. One entry: it is a fact
     // about the deployment rather than about any connection.
     local: () => ["sandbox-connections", "local"] as const,
+    // The library's runtime catalog. Static for the life of the deployment, so it
+    // is keyed once and never invalidated.
+    runtimes: () => ["sandbox-connections", "runtimes"] as const,
     // Live state on a host, keyed per connection for the same reason the policy
     // is: two hosts must not share a cache entry one of them cannot fill.
     sessions: (id: string) => ["sandbox-connections", "sessions", id] as const,

@@ -329,6 +329,9 @@ CALLS: tuple[Call, ...] = (
     # row exists for it, are the same authority as registering one: both reach a
     # host, and the second unseals a credential to do it.
     Call("GET", "/sandbox-connections/local", Perm.CONNECTIONS_MANAGE),
+    # The runtime catalog contacts nothing, but it is read by the same form and
+    # names what this deployment's images are built from.
+    Call("GET", "/sandbox-connections/runtimes", Perm.CONNECTIONS_MANAGE),
     Call("POST", "/sandbox-connections/local/credential", Perm.CONNECTIONS_MANAGE),
     Call(
         "POST",

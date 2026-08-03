@@ -222,6 +222,36 @@ class SandboxConnectionService:
 
     # -- what this deployment can already see ---------------------------
 
+    @staticmethod
+    def runtime_catalog() -> list[dict[str, Any]]:
+        """Every runtime the sandbox library ships, read from the library.
+
+        Read rather than copied. `BUILTIN_RUNTIMES` is what a `sandboxd` is built
+        from, so a list of aliases maintained here would drift the first time the
+        library added one - and the failure is invisible: a form offering fewer
+        runtimes than exist looks complete.
+
+        This is not the same question as `policy`. A service can be started with a
+        narrower allowlist, so what it *permits* is only knowable by asking it. What
+        this answers is the earlier and cheaper question - which aliases exist at
+        all - so the form has a populated select before anybody has typed an
+        address or picked a key.
+        """
+        from pydantic_ai_backends import BUILTIN_RUNTIMES
+
+        return [
+            {
+                "alias": alias,
+                "description": runtime.description,
+                # A ready-made image names `image`; a built one names the base its
+                # build starts from. Both are worth showing - "python:3.12-slim"
+                # tells somebody more about the runtime than its alias does.
+                "image": runtime.image or runtime.base_image,
+                "builds": runtime.image is None,
+            }
+            for alias, runtime in BUILTIN_RUNTIMES.items()
+        ]
+
     async def local_service(self, ctx: AuthContext) -> dict[str, Any]:
         """Whether a sandbox service is already running where this stack puts one.
 

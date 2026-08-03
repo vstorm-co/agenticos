@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Eye, EyeOff, KeyRound, Plus } from "lucide-react";
+import { ExternalLink, Eye, EyeOff, KeyRound, Plus } from "lucide-react";
 
 import { Button, Input, Label } from "@/components/ui";
 import { useSecrets } from "@/hooks";
+import { ROUTES } from "@/lib/constants";
 import type { StorableSecretKind } from "@/types/secrets";
 
 interface InlineSecretProps {
@@ -42,8 +43,11 @@ interface InlineSecretProps {
  * sitting in a React state somewhere.
  *
  * Only `api_key` is offered here. The other shapes - an AWS pair, a Google
- * service-account JSON - are multi-field forms with their own validation, and
- * the honest place for those is the vault, which this links to.
+ * service-account JSON, an Azure deployment - are multi-field forms with their own
+ * validation, and the honest place for those is the Vault. Which is why the link to
+ * it is not conditional: a picker that offers only the keys already stored, with
+ * nowhere to go when the shape needed is not an opaque token, is a dead end. It
+ * opens in a new tab so the half-filled form behind it survives.
  */
 export function InlineSecret({
   kind,
@@ -61,19 +65,35 @@ export function InlineSecret({
 
   if (!open) {
     return (
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        disabled={disabled}
-        onClick={() => {
-          setName(suggestedName);
-          setOpen(true);
-        }}
-      >
-        <Plus className="h-3.5 w-3.5" />
-        Add a key
-      </Button>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={disabled}
+          onClick={() => {
+            setName(suggestedName);
+            setOpen(true);
+          }}
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Add a key
+        </Button>
+        {/* Beside it, always. This form takes one shape - an opaque `api_key` -
+            and the vault takes every other: an AWS pair, a service-account JSON,
+            an Azure deployment. A picker offering only what is already stored,
+            with nowhere to go when the needed shape is not one of them, is a dead
+            end; a new tab is what keeps the half-filled form on this page. */}
+        <a
+          href={ROUTES.VAULT}
+          target="_blank"
+          rel="noreferrer noopener"
+          className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs underline underline-offset-4"
+        >
+          <ExternalLink className="h-3 w-3" aria-hidden />
+          Open the Vault
+        </a>
+      </div>
     );
   }
 
@@ -154,6 +174,15 @@ export function InlineSecret({
         <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)}>
           Cancel
         </Button>
+        <a
+          href={ROUTES.VAULT}
+          target="_blank"
+          rel="noreferrer noopener"
+          className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs underline underline-offset-4"
+        >
+          <ExternalLink className="h-3 w-3" aria-hidden />
+          Open the Vault
+        </a>
         {helpUrl && (
           <a
             href={helpUrl}

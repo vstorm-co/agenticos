@@ -153,4 +153,21 @@ describe("PolicyPanel", () => {
 
     expect(document.querySelector(".h-32")).not.toBeNull();
   });
+
+  it("names the variable behind each ceiling it cannot change", async () => {
+    // "Idle timeout: 30 min" with no control and no source reads as a limit this
+    // application chose. It is the service's boot configuration, and naming the
+    // variable is the difference between a dead end and a one-line edit.
+    render(<PolicyPanel connection={connection()} onOpenChange={vi.fn()} />);
+
+    expect(await screen.findByText("SANDBOXD_MAX_SESSIONS_PER_TENANT")).toBeVisible();
+    expect(screen.getByText("SANDBOXD_IDLE_TIMEOUT")).toBeVisible();
+    expect(screen.getByText("SANDBOXD_PERSIST_CONTAINERS")).toBeVisible();
+  });
+
+  it("says why there is no way to write them from here", async () => {
+    render(<PolicyPanel connection={connection()} onOpenChange={vi.fn()} />);
+
+    expect(await screen.findByText(/would own the host/)).toBeVisible();
+  });
 });

@@ -71,18 +71,40 @@ export function PolicyPanel({ connection, onOpenChange }: PolicyPanelProps) {
 
         {policy !== null && (
           <div className="space-y-4">
-            <div className="text-muted-foreground flex flex-wrap gap-x-6 gap-y-1 text-xs">
-              <span>
-                Sandboxes per organization: <strong>{policy.max_sessions_per_tenant ?? "—"}</strong>
-              </span>
-              <span>
-                Idle timeout: <strong>{timeout(policy.idle_timeout)}</strong>
-              </span>
-              <span>
-                Kept between turns:{" "}
-                <strong>{policy.persist_containers === false ? "no" : "yes"}</strong>
-              </span>
-            </div>
+            {/* Each one names the variable that sets it. "Idle timeout: 30 min"
+                with no way to change it and nothing saying where it comes from
+                reads as a limit this application chose; it is the service's own
+                boot configuration, and naming the variable is the difference
+                between a dead end and a one-line edit in a compose file. */}
+            <dl className="text-muted-foreground grid gap-x-6 gap-y-2 text-xs sm:grid-cols-3">
+              <div>
+                <dt>Sandboxes per organization</dt>
+                <dd className="text-foreground font-medium">
+                  {policy.max_sessions_per_tenant ?? "—"}
+                </dd>
+                <dd className="font-mono text-[10px]">SANDBOXD_MAX_SESSIONS_PER_TENANT</dd>
+              </div>
+              <div>
+                <dt>Idle timeout</dt>
+                <dd className="text-foreground font-medium">{timeout(policy.idle_timeout)}</dd>
+                <dd className="font-mono text-[10px]">SANDBOXD_IDLE_TIMEOUT</dd>
+              </div>
+              <div>
+                <dt>Kept between turns</dt>
+                <dd className="text-foreground font-medium">
+                  {policy.persist_containers === false ? "no" : "yes"}
+                </dd>
+                <dd className="font-mono text-[10px]">SANDBOXD_PERSIST_CONTAINERS</dd>
+              </div>
+            </dl>
+
+            <p className="text-muted-foreground text-xs">
+              These are the sandbox service&apos;s own environment, set where it starts — the
+              <span className="font-mono"> sandboxd </span>
+              service in your compose file. There is deliberately no endpoint to write them: an
+              application that could reconfigure the process holding the Docker socket would own the
+              host.
+            </p>
 
             {policy.runtimes.length === 0 ? (
               <p className="text-destructive text-sm">

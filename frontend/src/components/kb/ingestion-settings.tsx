@@ -16,6 +16,7 @@ import {
   Switch,
   Textarea,
 } from "@/components/ui";
+import { InlineSecret } from "@/components/vault/inline-secret";
 import { useModelProviders, useSecrets } from "@/hooks";
 import {
   CHUNKING_STRATEGIES,
@@ -182,6 +183,18 @@ export function IngestionSettings({
                   ))}
                 </SelectContent>
               </Select>
+              {/* A key can be added here rather than in another tab: the choice
+                  being made is "whose account is billed", and being told to go
+                  and store one somewhere else is the same dead end every other
+                  picker had. */}
+              <InlineSecret
+                kind="api_key"
+                purpose="llamaparse"
+                suggestedName="LlamaParse"
+                helpUrl="https://cloud.llamaindex.ai/api-key"
+                disabled={disabled}
+                onCreated={(secretId) => set("llamaparse_secret_id", secretId)}
+              />
             </OptionalSetting>
           )}
         </div>

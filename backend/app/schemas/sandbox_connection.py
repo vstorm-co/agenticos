@@ -116,6 +116,34 @@ class SandboxLocalCredentialRead(BaseSchema):
     hint: str
 
 
+class SandboxRuntimeOption(BaseSchema):
+    """One runtime the sandbox library ships, offered before anything is asked.
+
+    Separate from `SandboxRuntimeRead`, which is what a *service* says it allows.
+    This is the catalog every `sandboxd` is built from, so a form can offer it with
+    no address, no credential and no round trip - and `allowed` is left for the
+    probe to fill in, because whether a particular service permits an alias is a
+    question only that service answers.
+    """
+
+    alias: str
+    description: str = ""
+    image: str | None = Field(
+        default=None, description="What it runs, ready-made or the base a build starts from"
+    )
+    builds: bool = Field(
+        default=False,
+        description="Whether the first session builds an image, which is slower once and cached after",
+    )
+
+
+class SandboxRuntimeCatalog(BaseSchema):
+    """Every runtime the library ships. Static - no host is contacted to answer."""
+
+    items: list[SandboxRuntimeOption] = Field(default_factory=list)
+    total: int = 0
+
+
 class SandboxProbeRequest(BaseSchema):
     """Ask a service what it allows, before a connection exists to name it.
 

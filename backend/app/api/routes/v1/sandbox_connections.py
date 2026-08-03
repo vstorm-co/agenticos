@@ -28,6 +28,8 @@ from app.schemas.sandbox_connection import (
     SandboxLocalServiceRead,
     SandboxPolicyRead,
     SandboxProbeRequest,
+    SandboxRuntimeCatalog,
+    SandboxRuntimeOption,
     SandboxSessionList,
 )
 
@@ -92,6 +94,28 @@ async def store_local_credential(service: SandboxConnectionSvc, ctx: Auth) -> An
     out of a file.
     """
     return await service.store_local_credential(ctx)
+
+
+@router.get(
+    "/runtimes",
+    response_model=SandboxRuntimeCatalog,
+    dependencies=[Depends(require(Perm.CONNECTIONS_MANAGE))],
+)
+async def list_runtimes(service: SandboxConnectionSvc, ctx: Auth) -> Any:
+    """Every runtime the sandbox library ships.
+
+    Declared before `/{connection_id}` so `runtimes` is not read as an id.
+
+    Static, and answered without contacting anything: this is the catalog a
+    `sandboxd` is built from, which is what lets the connection form offer a
+    populated select before an address or a key exists. What a *particular* service
+    permits is narrower and only that service can say - `POST /probe` and
+    `GET /{id}/policy` are the two ways to ask it.
+    """
+    return SandboxRuntimeCatalog(
+        items=[SandboxRuntimeOption(**entry) for entry in service.runtime_catalog()],
+        total=len(service.runtime_catalog()),
+    )
 
 
 @router.post(
