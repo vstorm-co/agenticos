@@ -9,6 +9,7 @@ import { ConnectionDialog } from "@/components/sandboxes/connection-dialog";
 import { ConnectionsTable } from "@/components/sandboxes/connections-table";
 import { PolicyPanel } from "@/components/sandboxes/policy-panel";
 import { SessionsPanel } from "@/components/sandboxes/sessions-panel";
+import { WorkspaceBrowser } from "@/components/sandboxes/workspace-browser";
 import {
   Button,
   Card,
@@ -159,6 +160,12 @@ export default function SandboxesPage() {
           registered at all" - and it is live, so it belongs on the page rather
           than behind a click. */}
       <SessionsPanel connection={watching} />
+
+      {/* Below what is running, because the two answer different questions: that
+          one is "what is live on this host", this one is "what are the agents
+          holding" - including workspaces no host has a session for, which is
+          every stored one and every container reaped since. */}
+      <WorkspaceBrowser />
 
       <PolicyPanel
         connection={inspecting}

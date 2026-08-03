@@ -76,6 +76,13 @@ class TestListing:
         assert body["items"][0]["path"] == "/uploads/report.csv"
         assert body["owner_label"] == "Shared by everyone who uses this agent"
         assert body["total"] == 1
+        # The caller's context, positionally, because reading a container-backed
+        # workspace resolves a connection and unseals its credential. A stub
+        # accepts any keyword, so asserting the *shape* of the call is what keeps
+        # a signature change from passing here and 500ing in production - which
+        # is exactly what happened once.
+        assert workspaces.listing.await_args.args[0].organization_id is not None
+        assert set(workspaces.listing.await_args.kwargs) == {"conversation_id"}
 
     async def test_a_conversation_with_no_workspace_is_empty_rather_than_an_error(
         self, client: AsyncClient

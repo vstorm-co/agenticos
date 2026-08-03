@@ -26,6 +26,7 @@ import asyncio
 import logging
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -40,10 +41,12 @@ from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import AuthContext
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.db.models.chat_file import ChatFile
+from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.repositories import member_repo
-from app.services.agent_runner import AgentRunnerService, PausedRunState
+from app.services.agent_runner import AgentRunnerService, PausedRunState, PreparedRun
 from app.services.attachments import AttachmentRouter
+from app.services.usage_report import UsageReport, UsageReportService
 
 logger = logging.getLogger(__name__)
 
@@ -174,6 +177,15 @@ class ChatTurn:
     which cannot run - carried rather than assumed so the transcript records
     what actually happened."""
 
+    usage: UsageReport | None = None
+    """What the turn cost, and how full its workspace is.
+
+    Built after `finish`, because that is what writes the tokens and the cost to
+    the run row - reading it earlier would report a turn as free. `None` only when
+    assembling it failed, which is deliberately not allowed to lose an answer
+    somebody is waiting for.
+    """
+
 
 def _as_text(user_input: str | Sequence[UserContent]) -> str:
     """The text half of a prompt a surface may already have assembled.
@@ -193,6 +205,7 @@ class ChatAgentRunner:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
         self.runner = AgentRunnerService(db)
+        self.usage = UsageReportService(db)
 
     async def run(
         self,
@@ -329,7 +342,35 @@ class ChatAgentRunner:
             model_label=prepared.built.model_label,
             agent_id=prepared.agent.id,
             agent_version_id=prepared.run.agent_version_id,
+            usage=await self._usage(ctx, prepared),
         )
+
+    async def _usage(self, ctx: AuthContext, prepared: PreparedRun) -> UsageReport | None:
+        """What this turn cost, for the chat to show.
+
+        Always includes the workspace: a person watching an agent work is exactly
+        who wants to know the scratch space is nearly full, and unlike a channel
+        there is no noise argument against saying so - the client decides whether
+        to draw it.
+
+        Never raises. The answer has already been produced and committed; losing
+        it to a failed accounting read would be the worst possible trade.
+        """
+        try:
+            return await self.usage.for_run(
+                ctx,
+                prepared.run,
+                period_spend_usd=await self.runner.monthly_spend(ctx),
+                budget_usd=await self._budget(ctx),
+                include_sandbox=True,
+            )
+        except Exception:
+            logger.warning("chat_usage_report_failed", extra={"run_id": str(prepared.run.id)})
+            return None
+
+    async def _budget(self, ctx: AuthContext) -> Decimal | None:
+        organization = await self.db.get(Organization, ctx.organization_id)
+        return None if organization is None else organization.monthly_budget_usd
 
     async def _context(self, user: User, organization_id: UUID) -> AuthContext:
         """The connected user's standing in the organization they are chatting in.

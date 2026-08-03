@@ -33,6 +33,11 @@ export {
 } from "./use-sandbox-connections";
 export { useSecrets, useSecretPurposes, kindInfo } from "./use-secrets";
 export { useApprovals, useRuns, useSpend } from "./use-runs";
+export {
+  useSandboxWorkspaces,
+  useWorkspaceFile,
+  useWorkspaceFiles,
+} from "./use-sandbox-workspaces";
 export { useSkillChanges } from "./use-skill-changes";
 export { useSkill, useSkillLibrary, useSkillResource, useSkills } from "./use-skills";
 export { useSharing } from "./use-sharing";

@@ -32,8 +32,10 @@ handle typed into a public channel is a name, not a key.
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -42,8 +44,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
 from app.db.models.agent_run import RunSurface
+from app.db.models.organization import Organization
 from app.repositories import agent_exposure_repo, agent_repo, member_repo
 from app.services.agent_runner import AgentRunnerService
+from app.services.usage_report import (
+    UsageReportService,
+    format_footer,
+    needs_sandbox_sample,
+    should_report,
+)
 
 # Matches a leading handle and keeps everything after it as the prompt. Anchored
 # at the start on purpose: a slug appearing mid-sentence is someone talking
@@ -120,12 +129,16 @@ class UnaddressedMessage(Exception):
     """The message names no agent, so the caller should handle it itself."""
 
 
+logger = logging.getLogger(__name__)
+
+
 class ChannelAgentRouter:
     """Answers channel messages that name a published agent."""
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
         self.runner = AgentRunnerService(db)
+        self.usage = UsageReportService(db)
 
     @staticmethod
     def _channel_key(platform_chat_id: str) -> str:
@@ -148,6 +161,8 @@ class ChannelAgentRouter:
         user_id: UUID | None,
         conversation_id: UUID | None = None,
         platform_chat_id: str | None = None,
+        usage_reporting: dict[str, Any] | None = None,
+        turn: int = 0,
     ) -> str:
         """Run the agent named in `text` and return what it said.
 
@@ -207,7 +222,7 @@ class ChannelAgentRouter:
                 details={"slug": mention.slug, "agent_id": str(agent.id)},
             )
 
-        answer, _run = await self.runner.execute(
+        answer, run = await self.runner.execute(
             ctx,
             agent.id,
             mention.prompt,
@@ -220,7 +235,7 @@ class ChannelAgentRouter:
             # enforcing nothing.
             exposure=exposure,
         )
-        return answer
+        return await self._with_usage(ctx, answer, run, usage_reporting=usage_reporting, turn=turn)
 
     async def answer_default(
         self,
@@ -232,6 +247,8 @@ class ChannelAgentRouter:
         user_id: UUID | None,
         conversation_id: UUID | None = None,
         platform_chat_id: str | None = None,
+        usage_reporting: dict[str, Any] | None = None,
+        turn: int = 0,
         message_history: list[Any] | None = None,
     ) -> str:
         """Run the only agent this bot serves and return what it said.
@@ -268,7 +285,7 @@ class ChannelAgentRouter:
 
         exposure, agent = exposed[0]
         ctx = await self._context(organization_id, user_id, slug=agent.slug)
-        answer, _run = await self.runner.execute(
+        answer, run = await self.runner.execute(
             ctx,
             agent.id,
             text,
@@ -278,7 +295,57 @@ class ChannelAgentRouter:
             message_history=message_history,
             exposure=exposure,
         )
-        return answer
+        return await self._with_usage(ctx, answer, run, usage_reporting=usage_reporting, turn=turn)
+
+    async def _with_usage(
+        self,
+        ctx: AuthContext,
+        answer: str,
+        run: Any,
+        *,
+        usage_reporting: dict[str, Any] | None,
+        turn: int,
+    ) -> str:
+        """The answer, with what the turn cost under it when the bot says so.
+
+        Recorded whichever way the bot is configured, and only *spoken* when its
+        mode says to. "The bot went quiet" is a question somebody asks days later,
+        and a report that was never written is no help then.
+
+        An empty answer is left empty. That is the parked-approval contract - the
+        caller turns it into "this needs approval" - and appending an accounting
+        line to nothing would make a footer look like the reply.
+
+        Never raises. This hangs off an answer somebody is waiting for; a
+        workspace that cannot be measured must not turn a good turn into an error.
+        """
+        try:
+            report = await self.usage.for_run(
+                ctx,
+                run,
+                period_spend_usd=await self.runner.monthly_spend(ctx),
+                budget_usd=await self._budget(ctx),
+                include_sandbox=needs_sandbox_sample(usage_reporting),
+            )
+        except Exception:
+            logger.warning("usage_report_failed", extra={"run_id": str(run.id)}, exc_info=True)
+            return answer
+
+        line = format_footer(report)
+        logger.info("channel_turn_usage", extra={"run_id": str(run.id), "usage": line})
+        if not answer or not should_report(usage_reporting, report, turn=turn):
+            return answer
+        return f"{answer}\n\n_{line}_"
+
+    async def _budget(self, ctx: AuthContext) -> Decimal | None:
+        """This organization's monthly cap, or `None` if it set none.
+
+        The organization's rather than the agent's: an agent's cap is its author's
+        to raise, while this one stops every agent at once - which is the one worth
+        warning a channel about before it happens.
+        """
+        organization = await self.db.get(Organization, ctx.organization_id)
+        return None if organization is None else organization.monthly_budget_usd
 
     async def _context(
         self, organization_id: UUID, user_id: UUID | None, *, slug: str

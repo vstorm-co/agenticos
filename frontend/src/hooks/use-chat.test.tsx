@@ -399,6 +399,27 @@ describe("useChat - the conversation a turn belongs to", () => {
     expect(streaming()).toMatchObject({ id: "m-real", isTemporaryId: false });
   });
 
+  it("keeps what the last turn cost, and does not clear it when a turn reports none", () => {
+    // A turn the server could not measure must not blank a number the previous
+    // one legitimately reported - the strip would flicker to nothing mid-chat.
+    const { result } = renderHook(() => useChat(), { wrapper });
+    expect(result.current.lastUsage).toBeNull();
+
+    receive("complete", {
+      usage: {
+        input_tokens: 1200,
+        output_tokens: 300,
+        cost_usd: 0.0125,
+        budget_percent: null,
+        sandbox: null,
+      },
+    });
+    expect(result.current.lastUsage).toMatchObject({ input_tokens: 1200 });
+
+    receive("complete", {});
+    expect(result.current.lastUsage).toMatchObject({ input_tokens: 1200 });
+  });
+
   it("finds the message to rename when the turn has already completed", () => {
     // `complete` clears the id, and `message_saved` can arrive after it.
     renderHook(() => useChat(), { wrapper });

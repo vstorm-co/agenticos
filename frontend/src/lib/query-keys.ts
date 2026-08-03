@@ -167,6 +167,12 @@ export const qk = {
     // other's data with rows it has no business showing.
     org: () => ["mcp-connections", "org"] as const,
   },
+  sandboxWorkspaces: {
+    all: () => ["sandbox-workspaces"] as const,
+    list: () => ["sandbox-workspaces", "list"] as const,
+    files: (id: string) => ["sandbox-workspaces", "files", id] as const,
+    file: (id: string, path: string) => ["sandbox-workspaces", "file", id, path] as const,
+  },
   skillChanges: {
     all: () => ["skill-changes"] as const,
     // Keyed by filter: the reviewer's list is the pending ones, and a page

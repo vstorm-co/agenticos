@@ -17,6 +17,22 @@ DEFAULT_ACCESS_POLICY: dict[str, Any] = {
     "denied_message": "You are not authorised to use this bot.",
 }
 
+# When a bot says what a turn cost, and when it only records it. Here beside the
+# access policy for the same reason that one is: the literal is imported by the
+# model, the repository and the service, and `app/db/models/**` cannot import a
+# service without a cycle.
+#
+# `near_limit` rather than `off`: a bot that stops answering because an
+# organization hit its cap looks broken, and the difference between "broken" and
+# "out of budget" is somebody having said so beforehand. Rather than `always`,
+# because a footer under every reply in a busy channel is the other way to make a
+# warning useless.
+DEFAULT_USAGE_REPORTING: dict[str, Any] = {
+    "mode": "near_limit",
+    "near_limit_percent": 80,
+    "every_n": 10,
+}
+
 # JSON-serialised form used by SQLite model defaults (stored as TEXT).
 DEFAULT_ACCESS_POLICY_JSON: str = (
     '{"mode":"open","whitelist":[],"allowed_groups":[],'

@@ -353,7 +353,7 @@ async def list_workspace_files(
         include_messages=False,
         user_id=current_user.id,
     )
-    found = await workspaces.listing(organization_id=active_org.id, conversation_id=conversation_id)
+    found = await workspaces.listing(ctx, conversation_id=conversation_id)
     if found is None:
         # No workspace is not an error. An agent without one is the default, and
         # an empty listing is the honest answer for a chat that never had files.

@@ -13,6 +13,7 @@ import type {
   Decision,
   PendingApproval,
   ToolCall,
+  TurnUsage,
   WSEvent,
 } from "@/types";
 import { WS_URL } from "@/lib/constants";
@@ -48,6 +49,10 @@ export function useChat(options: UseChatOptions = {}) {
   } = useChatStore();
 
   const [isProcessing, setIsProcessing] = useState(false);
+  // What the last turn cost. Replaced rather than accumulated: the strip says
+  // "that turn", and a running total would be a second, disagreeing answer to a
+  // question the billing pages already own.
+  const [lastUsage, setLastUsage] = useState<TurnUsage | null>(null);
   // Held in a ref instead of state because the WS handler reads it
   // synchronously: events arriving in the same tick (e.g. model_request_start
   // + text_delta in one server flush) need to see the just-created message id
@@ -304,6 +309,16 @@ export function useChat(options: UseChatOptions = {}) {
 
         case "complete": {
           setIsProcessing(false);
+          // `wsEvent.data`, not `event.data`: the latter is the raw JSON string
+          // this handler parsed, and reading a field off it silently yields
+          // `undefined` - which looked exactly like a turn nobody measured.
+          //
+          // Absent is left absent, rather than clearing a number the previous
+          // turn legitimately reported: the strip would flicker to nothing.
+          {
+            const { usage } = wsEvent.data as { usage?: TurnUsage | null };
+            if (usage) setLastUsage(usage);
+          }
           // Clear currentMessageId after complete (message_saved should have handled ID mapping)
           setCurrentMessageId(null);
           // The turn just debited credits server-side - nudge any mounted
@@ -558,6 +573,7 @@ export function useChat(options: UseChatOptions = {}) {
     messages,
     isConnected,
     isProcessing,
+    lastUsage,
     connect,
     disconnect,
     sendMessage: sendChatMessage,

@@ -103,6 +103,23 @@ async def list_for_conversation(
     return list(result.scalars().all())
 
 
+async def get(
+    db: AsyncSession, workspace_id: UUID, *, organization_id: UUID
+) -> AgentWorkspace | None:
+    """One workspace, inside its organization.
+
+    Scoped for the reason every lookup here is: the files in it are whatever
+    somebody uploaded to a chat, and an unguessable id is not an access control.
+    """
+    result = await db.execute(
+        select(AgentWorkspace).where(
+            AgentWorkspace.id == workspace_id,
+            AgentWorkspace.organization_id == organization_id,
+        )
+    )
+    return result.scalar_one_or_none()
+
+
 async def list_for_organization(db: AsyncSession, *, organization_id: UUID) -> list[AgentWorkspace]:
     result = await db.execute(
         select(AgentWorkspace)

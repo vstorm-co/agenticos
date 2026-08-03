@@ -42,6 +42,7 @@ from app.services.agent_chat import (
     requested_model_profile_id,
 )
 from app.services.attachments import load_attached_files
+from app.services.usage_report import usage_frame
 
 logger = logging.getLogger(__name__)
 
@@ -246,7 +247,13 @@ class AgentSession:
             await send_event(
                 self.websocket,
                 "complete",
-                {"conversation_id": self.current_conversation_id},
+                {
+                    "conversation_id": self.current_conversation_id,
+                    # What the turn cost, on the frame that says it is over.
+                    # Its own event would be one the client could receive after
+                    # `complete` and draw against the next turn.
+                    "usage": usage_frame(turn.usage),
+                },
             )
         except WebSocketDisconnect:
             raise

@@ -182,6 +182,8 @@ class Call:
     permission: Perm
     body: dict[str, Any] | None = None
     query: str = ""
+    """Appended verbatim, so it carries its own `?` - there is no route here that
+    needs one twice and no reason for this to guess."""
 
     def __str__(self) -> str:
         return f"{self.method} {self.path}"
@@ -311,6 +313,48 @@ CALLS: tuple[Call, ...] = (
             "value": {"kind": "api_key", "api_key": "not-a-real-key"},
         },
     ),
+    # Where sandboxes run. `connections:manage`, the same permission the vault
+    # carries, because whoever edits these decides which host an agent's shell
+    # runs on and the credential behind one can start containers there. Every
+    # route including the per-resource ones: a connection has no grants, so a
+    # gate here cannot refuse somebody a grant would have admitted.
+    Call("GET", "/sandbox-connections", Perm.CONNECTIONS_MANAGE),
+    Call(
+        "POST",
+        "/sandbox-connections",
+        Perm.CONNECTIONS_MANAGE,
+        body={"name": "Local Docker", "kind": "docker", "base_url": "http://sandboxd:8080"},
+    ),
+    Call("PATCH", "/sandbox-connections/{connection_id}", Perm.CONNECTIONS_MANAGE, body={}),
+    Call("DELETE", "/sandbox-connections/{connection_id}", Perm.CONNECTIONS_MANAGE),
+    Call("GET", "/sandbox-connections/{connection_id}/policy", Perm.CONNECTIONS_MANAGE),
+    Call("GET", "/sandbox-connections/{connection_id}/sessions", Perm.CONNECTIONS_MANAGE),
+    Call(
+        "GET",
+        "/sandbox-connections/{connection_id}/sessions/{session_id}/events",
+        Perm.CONNECTIONS_MANAGE,
+    ),
+    # The workspaces themselves. The same permission rather than a softer one:
+    # this lists files across every conversation in the organization, including
+    # chats that are not the caller's, so it is an operator surface and not a
+    # nicer file browser for a member.
+    Call("GET", "/sandbox-workspaces", Perm.CONNECTIONS_MANAGE),
+    Call("GET", "/sandbox-workspaces/{workspace_id}/files", Perm.CONNECTIONS_MANAGE),
+    # `path` is required, and a 422 for a missing one is indistinguishable from a
+    # refusal in the sweep below - so it is supplied.
+    Call(
+        "GET",
+        "/sandbox-workspaces/{workspace_id}/file",
+        Perm.CONNECTIONS_MANAGE,
+        query="?path=/run.py",
+    ),
+    # What an agent proposed changing about a skill. Reading one is reading a
+    # candidate version of the organization's own instructions, so whoever may
+    # read it is exactly whoever may accept it.
+    Call("GET", "/skill-changes", Perm.SKILLS_EDIT),
+    Call("GET", "/skill-changes/{proposal_id}", Perm.SKILLS_EDIT),
+    Call("POST", "/skill-changes/{proposal_id}/apply", Perm.SKILLS_EDIT),
+    Call("POST", "/skill-changes/{proposal_id}/discard", Perm.SKILLS_EDIT),
 )
 
 WRITE_CALLS: tuple[Call, ...] = tuple(call for call in CALLS if call.method != "GET")
@@ -429,6 +473,13 @@ _PLATFORM_PREFIXES = (
     # what notices the next /kb route that resolves neither.
     "/kb",
     "/org/integrations",
+    # Where sandboxes run, what is running on them, and the files agents kept.
+    # Every one of these is an operator surface holding a credential or another
+    # tenant's work; without the prefixes here the sweep passed over them and the
+    # claim that it proves their gates was simply untrue.
+    "/sandbox-connections",
+    "/sandbox-workspaces",
+    "/skill-changes",
 )
 
 

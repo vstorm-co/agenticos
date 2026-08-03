@@ -396,6 +396,31 @@ class SandboxConnectionService:
             resolved, f"/sessions/{session_id}/events?after={after}", connection_id
         )
 
+    async def session_usage(
+        self, ctx: AuthContext, connection_id: UUID, session_id: str
+    ) -> dict[str, Any]:
+        """Resident memory and CPU for one sandbox.
+
+        One session rather than the listing, because the service samples each
+        sandbox individually: asking for all of them to find one costs a round
+        trip per sandbox the organization has open. This is what a per-turn usage
+        report can afford and a listing cannot.
+
+        The tenant is checked, as it is for the activity log - what a sandbox is
+        using is a fact about somebody's work.
+        """
+        resolved = await self.resolve(ctx, connection_id)
+        if resolved.kind != "docker":
+            return {}
+
+        described = await self._read(resolved, f"/sessions/{session_id}?usage=true", connection_id)
+        if described.get("tenant") != str(ctx.organization_id):
+            raise NotFoundError(
+                message="Sandbox session not found", details={"session_id": session_id}
+            )
+        usage: dict[str, Any] = described.get("usage") or {}
+        return usage
+
     async def _attributed(
         self, ctx: AuthContext, sessions: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:

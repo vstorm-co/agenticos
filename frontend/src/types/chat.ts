@@ -138,6 +138,28 @@ export type WSEventType =
   | "llm_started"
   | "llm_completed";
 
+/**
+ * What one turn cost, and how full the workspace behind it is.
+ *
+ * Numbers rather than a formatted line: the chat draws a bar and a tooltip, and a
+ * server-composed string would have to be parsed back apart. `null` is "nothing
+ * was measured", which is a different thing to draw from zero.
+ */
+export interface TurnUsage {
+  input_tokens: number;
+  output_tokens: number;
+  cost_usd: number;
+  budget_percent: number | null;
+  sandbox: {
+    kind: string;
+    percent: number | null;
+    bytes_used: number | null;
+    bytes_limit: number | null;
+    memory_bytes: number | null;
+    memory_limit_bytes: number | null;
+  } | null;
+}
+
 export interface WSEvent {
   type: WSEventType;
   data?: unknown;

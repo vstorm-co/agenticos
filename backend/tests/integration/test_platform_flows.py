@@ -2745,7 +2745,17 @@ class TestMentioningAnAgentFromAChannel:
     @staticmethod
     def _router(db) -> tuple[ChannelAgentRouter, AsyncMock]:
         router = ChannelAgentRouter(db)
-        execute = AsyncMock(return_value=("answered", None))
+        # A run row, not `None`: the answer now carries what the turn cost, and
+        # the real `execute` always returns one. A stub that did not would be
+        # testing a state this platform cannot reach.
+        run = MagicMock(
+            id=uuid.uuid4(),
+            conversation_id=None,
+            input_tokens=120,
+            output_tokens=40,
+            cost_usd=Decimal("0.0012"),
+        )
+        execute = AsyncMock(return_value=("answered", run))
         router.runner.execute = execute
         return router, execute
 

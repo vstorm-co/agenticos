@@ -209,9 +209,43 @@ it is about to wait.
   organization's.
 - **Charts render as images** where the platform supports them, and fall back to
   a text table where it does not.
+- **What a turn cost**, said or only recorded — see below.
 - **Who shares a workspace, per surface.** An agent's spec sets the default; each
   binding may override it, because a web chat and a Slack channel are not the same
   sharing question.
+
+### Saying what a turn cost
+
+A bot that stops answering because its organization hit its monthly cap looks
+broken. The only difference between "broken" and "out of budget" is somebody
+having said so beforehand, so a bot can report what a turn spent: tokens, cost,
+how much of the month is gone, and how full the workspace behind it is.
+
+Per bot, in the channel bots panel:
+
+| Mode | |
+|---|---|
+| `log only` | Recorded and not said. Unspoken is not unmeasured — "the bot went quiet" is a question somebody asks days later |
+| `near a limit` | Said once the budget or the workspace passes a threshold (80% by default). **The default** |
+| `every n messages` | Said every n-th turn *of that chat*, not of the bot |
+| `every reply` | Said every turn |
+
+`near a limit` is the default rather than `log only`, because defaulting to
+silence would leave every already-registered bot in exactly the state this exists
+to prevent. And rather than `every reply`, because a footer under every message in
+a busy channel is the other way to make a warning useless.
+
+The workspace counts as well as the money. A stored workspace that fills up starts
+*refusing writes*, which the agent reports as a tool error in the middle of doing
+something — a bot that only watched the budget would go quiet on the other limit
+with nothing said.
+
+Measuring costs something for a container: its memory is a round trip to the host
+per sandbox. So `log only` never asks, and every other mode asks about one session
+rather than listing them all.
+
+In `/chat` there is no noise argument, so the numbers are always sent — the client
+draws them under the input and decides what to show.
 
 ### Overriding who shares the workspace
 

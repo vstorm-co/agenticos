@@ -26,6 +26,7 @@ from app.api.routes.v1 import model_providers
 from app.api.routes.v1 import secrets
 from app.api.routes.v1 import runs as agent_runs
 from app.api.routes.v1 import skill_changes
+from app.api.routes.v1 import workspaces as agent_workspaces
 from app.api.routes.v1 import skills as agent_skills
 from app.api.routes.v1 import permissions
 from app.api.routes.v1 import telegram_webhook
@@ -82,6 +83,9 @@ v1_router.include_router(
 )
 v1_router.include_router(
     sandbox_connections.router, prefix="/sandbox-connections", tags=["sandbox-connections"]
+)
+v1_router.include_router(
+    agent_workspaces.router, prefix="/sandbox-workspaces", tags=["sandbox-workspaces"]
 )
 
 v1_router.include_router(

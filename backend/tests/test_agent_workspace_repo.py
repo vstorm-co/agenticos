@@ -88,6 +88,17 @@ class TestReading:
 
         assert set(_filters(session).values()) >= {organization_id, "sc-1234"}
 
+    async def test_a_workspace_is_looked_up_by_id_inside_its_organization(self):
+        """The browser addresses a workspace by its own id - a run-scoped one has
+        no conversation and an agent-scoped one belongs to all of them - and an
+        unguessable id is not an access control."""
+        organization_id, workspace_id = uuid.uuid4(), uuid.uuid4()
+        session = _RecordingSession(_scalar(None))
+
+        await agent_workspace_repo.get(session, workspace_id, organization_id=organization_id)
+
+        assert set(_filters(session).values()) >= {organization_id, workspace_id}
+
     async def test_a_conversation_listing_is_scoped_to_the_tenant_too(self):
         organization_id, conversation_id = uuid.uuid4(), uuid.uuid4()
         session = _RecordingSession(_scalars([]))

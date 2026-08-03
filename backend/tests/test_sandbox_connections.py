@@ -571,6 +571,64 @@ class TestReadingTheSessions:
         assert "did not answer" in refused.value.message
 
 
+class TestSamplingOneSandbox:
+    """What a usage report can afford: one session, not the listing.
+
+    The service samples each sandbox individually, so asking for all of them to
+    find the one a turn used would cost a round trip per sandbox the organization
+    has open - on every turn.
+    """
+
+    async def test_the_memory_of_one_session_comes_back(self, monkeypatch):
+        row = _row()
+        service = _service(monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok")))
+        monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
+        ctx = _ctx()
+        seen = _serve(
+            monkeypatch,
+            _Response(
+                200,
+                {
+                    "session_id": "xc-1",
+                    "tenant": str(ctx.organization_id),
+                    "usage": {"memory_bytes": 512, "memory_limit_bytes": 2048},
+                },
+            ),
+        )
+
+        usage = await service.session_usage(ctx, row.id, "xc-1")
+
+        assert usage == {"memory_bytes": 512, "memory_limit_bytes": 2048}
+        assert seen["url"].endswith("/sessions/xc-1?usage=true")
+
+    async def test_another_organizations_sandbox_reads_as_missing(self, monkeypatch):
+        row = _row()
+        service = _service(monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok")))
+        monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
+        _serve(monkeypatch, _Response(200, {"session_id": "theirs", "tenant": str(uuid.uuid4())}))
+
+        with pytest.raises(NotFoundError):
+            await service.session_usage(_ctx(), row.id, "theirs")
+
+    async def test_a_session_that_reported_nothing_is_an_empty_answer(self, monkeypatch):
+        row = _row()
+        service = _service(monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok")))
+        monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
+        ctx = _ctx()
+        _serve(
+            monkeypatch, _Response(200, {"session_id": "xc-1", "tenant": str(ctx.organization_id)})
+        )
+
+        assert await service.session_usage(ctx, row.id, "xc-1") == {}
+
+    async def test_daytona_reports_no_memory_of_ours(self, monkeypatch):
+        row = _row(kind="daytona", base_url=None)
+        service = _service(monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok")))
+        monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
+
+        assert await service.session_usage(_ctx(), row.id, "any") == {}
+
+
 class TestReadingOneSessionsActivity:
     async def test_another_organizations_session_reads_as_missing(self, monkeypatch):
         """The log names every path read and command run. That is a description of

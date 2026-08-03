@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui";
 import { useChannelBots } from "@/hooks";
-import type { ChannelPlatform } from "@/types/channels";
+import type { ChannelBot, ChannelPlatform } from "@/types/channels";
 
 const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
   telegram: "Telegram",
@@ -48,7 +48,8 @@ const TOKEN_HINT: Record<ChannelPlatform, string> = {
  * read back - the same bargain as the Vault.
  */
 export function ChannelBotsPanel({ canManage }: { canManage: boolean }) {
-  const { bots, isLoading, create, setActive, remove } = useChannelBots(canManage);
+  const { bots, isLoading, create, setActive, setUsageReporting, remove } =
+    useChannelBots(canManage);
   const [platform, setPlatform] = useState<ChannelPlatform>("telegram");
   const [name, setName] = useState("");
   const [token, setToken] = useState("");
@@ -110,6 +111,38 @@ export function ChannelBotsPanel({ canManage }: { canManage: boolean }) {
               <Badge variant="secondary">no signing secret</Badge>
             )}
             {!bot.is_active && <Badge variant="secondary">inactive</Badge>}
+            {/* How talkative this bot is about what a turn cost. A bot that stops
+                answering because the organization hit its cap looks broken, and
+                the difference between "broken" and "out of budget" is somebody
+                having said so beforehand. */}
+            <Select
+              value={bot.usage_reporting.mode}
+              // Not `!canManage ||`: the panel renders nothing at all for
+              // somebody who may not manage bots, so that half could never be
+              // false here.
+              disabled={setUsageReporting.isPending}
+              onValueChange={(mode) =>
+                setUsageReporting.mutate({
+                  botId: bot.id,
+                  usageReporting: {
+                    ...bot.usage_reporting,
+                    mode: mode as ChannelBot["usage_reporting"]["mode"],
+                  },
+                })
+              }
+            >
+              <SelectTrigger className="w-44" aria-label={`Usage reporting on ${bot.name}`}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="off">usage: log only</SelectItem>
+                <SelectItem value="near_limit">usage: near a limit</SelectItem>
+                <SelectItem value="every_n">
+                  usage: every {bot.usage_reporting.every_n} messages
+                </SelectItem>
+                <SelectItem value="always">usage: every reply</SelectItem>
+              </SelectContent>
+            </Select>
             <Button
               variant="ghost"
               size="sm"

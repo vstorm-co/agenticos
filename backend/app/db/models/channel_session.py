@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -41,6 +41,16 @@ class ChannelSession(Base, TimestampMixin):
     chat_type: Mapped[str] = mapped_column(String(20), nullable=False, default="private")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     last_message_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    turn_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    """How many turns this chat has had, for "report usage every n messages".
+
+    Counted here rather than by counting rows in `messages`: "every tenth
+    message" is a question about *this* chat, the answer is needed on every turn
+    of it, and a `COUNT(*)` per turn on a table that grows forever is a cost that
+    only goes up. Incremented in the same `UPDATE` that already records the
+    activity, so it costs nothing extra.
+    """
 
     def __repr__(self) -> str:
         return f"<ChannelSession(id={self.id}, bot_id={self.bot_id}, platform_chat_id={self.platform_chat_id})>"

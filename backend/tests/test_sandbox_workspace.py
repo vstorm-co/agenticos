@@ -31,7 +31,7 @@ from app.agents.capabilities.sandbox._identity import (
     scope_key,
 )
 from app.agents.spec import AgentSpec
-from app.core.exceptions import BadRequestError
+from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.repositories import agent_workspace as workspace_repo
 from app.services.sandbox_connection import ResolvedConnection, SandboxConnectionService
@@ -1054,6 +1054,107 @@ class TestShowingTheFilesToAPerson:
         assert found is not None
         assert found[1] == []
         assert await service.read_text(_ctx(), conversation_id=uuid4(), path="/a.txt") is None
+
+
+class TestBrowsingEveryWorkspace:
+    """The operator view, which addresses a workspace by its own id.
+
+    Not through a conversation, because two of the four scopes have none to be
+    addressed through: a `run` workspace never had one and an `agent` one belongs
+    to every conversation the agent ever answered.
+    """
+
+    async def test_a_listing_names_the_agent_rather_than_its_id(self, monkeypatch, mock_db_session):
+        """A table of hex strings would make the client fetch the agents to render
+        it, which is a round trip per page to say something we already know."""
+        from app.repositories import agent as agent_repo
+
+        row = _row()
+        agent = MagicMock(id=row.agent_id)
+        agent.name = "Analyst"
+        monkeypatch.setattr(workspace_repo, "list_for_organization", AsyncMock(return_value=[row]))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={row.agent_id: agent}))
+
+        [(found, name)] = await SandboxWorkspaceService(mock_db_session).all_for_organization(
+            _ctx()
+        )
+
+        assert found is row
+        assert name == "Analyst"
+
+    async def test_a_workspace_of_a_deleted_agent_still_lists(self, monkeypatch, mock_db_session):
+        """`SET NULL` is not used on `agent_id` - it cascades - but a row can
+        outlive the lookup by a moment, and a listing that raised over it would
+        hide every other workspace in the organization."""
+        from app.repositories import agent as agent_repo
+
+        monkeypatch.setattr(
+            workspace_repo, "list_for_organization", AsyncMock(return_value=[_row()])
+        )
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+
+        [(_, name)] = await SandboxWorkspaceService(mock_db_session).all_for_organization(_ctx())
+
+        assert name == "a deleted agent"
+
+    async def test_an_organization_with_no_workspaces_asks_for_no_agents(
+        self, monkeypatch, mock_db_session
+    ):
+        from app.repositories import agent as agent_repo
+
+        monkeypatch.setattr(workspace_repo, "list_for_organization", AsyncMock(return_value=[]))
+        looked_up = AsyncMock()
+        monkeypatch.setattr(agent_repo, "get_many", looked_up)
+
+        assert await SandboxWorkspaceService(mock_db_session).all_for_organization(_ctx()) == []
+        looked_up.assert_not_called()
+
+    async def test_the_files_of_one_workspace_come_back_with_its_row(
+        self, monkeypatch, mock_db_session
+    ):
+        stored = StateBackend()
+        stored.write("/uploads/report.csv", "month,total")
+        row = _row(files=dict(stored.files))
+        monkeypatch.setattr(workspace_repo, "get", AsyncMock(return_value=row))
+
+        found, entries = await SandboxWorkspaceService(mock_db_session).files_of(_ctx(), row.id)
+
+        assert found is row
+        assert [entry["path"] for entry in entries] == ["/uploads/report.csv"]
+
+    async def test_another_organizations_workspace_reads_as_missing(
+        self, monkeypatch, mock_db_session
+    ):
+        """Not "forbidden": a probeable id is how somebody maps which workspaces
+        exist in the organizations they are not in."""
+        monkeypatch.setattr(workspace_repo, "get", AsyncMock(return_value=None))
+
+        with pytest.raises(NotFoundError):
+            await SandboxWorkspaceService(mock_db_session).files_of(_ctx(), uuid4())
+
+    async def test_one_file_is_read_out_of_it(self, monkeypatch, mock_db_session):
+        stored = StateBackend()
+        stored.write("/uploads/report.csv", "month,total")
+        row = _row(files=dict(stored.files))
+        monkeypatch.setattr(workspace_repo, "get", AsyncMock(return_value=row))
+
+        text = await SandboxWorkspaceService(mock_db_session).read_file_of(
+            _ctx(), row.id, path="/uploads/report.csv"
+        )
+
+        assert text is not None
+        assert "month,total" in text
+
+    async def test_a_path_that_is_not_in_it_reads_as_nothing(self, monkeypatch, mock_db_session):
+        row = _row(files={})
+        monkeypatch.setattr(workspace_repo, "get", AsyncMock(return_value=row))
+
+        assert (
+            await SandboxWorkspaceService(mock_db_session).read_file_of(
+                _ctx(), row.id, path="/nope.txt"
+            )
+            is None
+        )
 
 
 class TestWhoseWorkspaceItIs:

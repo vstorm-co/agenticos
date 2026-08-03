@@ -41,9 +41,10 @@ from app.agents.capabilities.sandbox._identity import (
 )
 from app.agents.spec import AgentSpec
 from app.core.config import settings
-from app.core.exceptions import BadRequestError
+from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
 from app.db.models.agent_workspace import AgentWorkspace
+from app.repositories import agent as agent_repo
 from app.repositories import agent_workspace as workspace_repo
 from app.services.sandbox_connection import ResolvedConnection, SandboxConnectionService
 
@@ -346,6 +347,59 @@ class SandboxWorkspaceService:
                 "workspace_purge_failed", extra={"scope_key": row.scope_key}, exc_info=True
             )
 
+    async def all_for_organization(self, ctx: AuthContext) -> list[tuple[AgentWorkspace, str]]:
+        """Every workspace this organization holds, with the agent behind each.
+
+        Rows only, no files: a deployment can hold a workspace per warm
+        conversation, and reading each one would be a query or a round trip per
+        row for a page nobody has asked a question of yet.
+
+        The agent's name is resolved here rather than left to the caller, because
+        the alternative is a listing that renders a table of hex ids and a client
+        that has to fetch the agents to make it readable.
+        """
+        rows = await workspace_repo.list_for_organization(
+            self.db, organization_id=ctx.organization_id
+        )
+        if not rows:
+            return []
+        agents = await agent_repo.get_many(
+            self.db, [row.agent_id for row in rows], organization_id=ctx.organization_id
+        )
+        return [
+            (row, agents[row.agent_id].name if row.agent_id in agents else "a deleted agent")
+            for row in rows
+        ]
+
+    async def files_of(
+        self, ctx: AuthContext, workspace_id: UUID
+    ) -> tuple[AgentWorkspace, list[FileInfo]]:
+        """One workspace's files, addressed by its own id.
+
+        The sibling of :meth:`listing`, which addresses a workspace through the
+        conversation that owns it. Both exist because they answer different
+        questions: a chat asks "what is in *this* thread", and an operator
+        browsing every workspace has a row in hand and no conversation at all -
+        a `run`-scoped one never had one, and an `agent`-scoped one belongs to
+        all of them.
+
+        Raises:
+            NotFoundError: If it is not this organization's. Reported as missing
+                rather than refused, so an id cannot be used to find out which
+                workspaces exist in an organization somebody is not in.
+        """
+        row = await workspace_repo.get(self.db, workspace_id, organization_id=ctx.organization_id)
+        if row is None:
+            raise NotFoundError(
+                message="Workspace not found", details={"workspace_id": str(workspace_id)}
+            )
+        return row, await self._entries(ctx, row)
+
+    async def read_file_of(self, ctx: AuthContext, workspace_id: UUID, *, path: str) -> str | None:
+        """One file's text from a workspace addressed by its own id."""
+        row, _ = await self.files_of(ctx, workspace_id)
+        return await self._read_from(ctx, row, path)
+
     async def listing(
         self, ctx: AuthContext, *, conversation_id: UUID
     ) -> tuple[AgentWorkspace, list[FileInfo]] | None:
@@ -397,6 +451,15 @@ class SandboxWorkspaceService:
         if found is None:
             return None
         row, _ = found
+        return await self._read_from(ctx, row, path)
+
+    async def _read_from(self, ctx: AuthContext, row: AgentWorkspace, path: str) -> str | None:
+        """One file out of one workspace, whichever backend holds it.
+
+        Shared by the two ways a workspace is addressed - through its conversation
+        and by its own id - so a path that is refused one way cannot be readable
+        the other.
+        """
         if row.backend == "state":
             from pydantic_ai_backends import StateBackend
 

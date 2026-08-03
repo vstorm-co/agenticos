@@ -40,6 +40,53 @@ from app.services.agent_chat import (
 pytestmark = pytest.mark.anyio
 
 
+class TestWhatTheTurnCost:
+    """Reported to the chat, and never at the cost of the answer.
+
+    Built after `finish`, because that is what writes the tokens and the cost to
+    the run row - reading it earlier would report every turn as free.
+    """
+
+    @pytest.mark.anyio
+    async def test_a_failed_accounting_read_does_not_lose_the_answer(self):
+        """The output has already been produced and committed. Losing it to a
+        failed usage query would be the worst possible trade."""
+        from unittest.mock import AsyncMock as _AsyncMock
+        from unittest.mock import MagicMock as _MagicMock
+
+        from app.services.agent_chat import ChatAgentRunner
+
+        runner = ChatAgentRunner(_MagicMock())
+        runner.usage = _MagicMock(for_run=_AsyncMock(side_effect=RuntimeError("no")))
+        runner.runner = _MagicMock(monthly_spend=_AsyncMock(return_value=None))
+
+        assert await runner._usage(_MagicMock(), _MagicMock()) is None
+
+    @pytest.mark.anyio
+    async def test_the_organizations_cap_is_what_the_share_is_measured_against(self):
+        from decimal import Decimal as _Decimal
+        from unittest.mock import AsyncMock as _AsyncMock
+        from unittest.mock import MagicMock as _MagicMock
+
+        from app.services.agent_chat import ChatAgentRunner
+
+        organization = _MagicMock(monthly_budget_usd=_Decimal("100"))
+        runner = ChatAgentRunner(_MagicMock(get=_AsyncMock(return_value=organization)))
+
+        assert await runner._budget(_MagicMock()) == _Decimal("100")
+
+    @pytest.mark.anyio
+    async def test_an_organization_that_vanished_has_no_cap(self):
+        from unittest.mock import AsyncMock as _AsyncMock
+        from unittest.mock import MagicMock as _MagicMock
+
+        from app.services.agent_chat import ChatAgentRunner
+
+        runner = ChatAgentRunner(_MagicMock(get=_AsyncMock(return_value=None)))
+
+        assert await runner._budget(_MagicMock()) is None
+
+
 class _Iteration:
     """Stands in for `agent.iter` - an async context manager over one run."""
 

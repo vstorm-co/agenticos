@@ -1,0 +1,140 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { renderHook, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import {
+  useSandboxWorkspaces,
+  useWorkspaceFile,
+  useWorkspaceFiles,
+} from "./use-sandbox-workspaces";
+import * as api from "@/lib/sandbox-workspaces-api";
+import type { WorkspaceSummary } from "@/lib/sandbox-workspaces-api";
+
+vi.mock("@/lib/sandbox-workspaces-api", () => ({
+  listWorkspaces: vi.fn(),
+  readWorkspaceFiles: vi.fn(),
+  readWorkspaceFile: vi.fn(),
+}));
+
+function wrapper({ children }: { children: ReactNode }) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+}
+
+const WORKSPACE: WorkspaceSummary = {
+  id: "w-1",
+  agent_id: "a-1",
+  agent_name: "Analyst",
+  conversation_id: "c-1",
+  scope: "conversation",
+  backend: "state",
+  owner_label: "This conversation",
+  bytes_total: 2048,
+  version: 1,
+  last_used_at: null,
+  created_at: null,
+};
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.mocked(api.listWorkspaces).mockResolvedValue([WORKSPACE]);
+  vi.mocked(api.readWorkspaceFiles).mockResolvedValue({
+    scope: "conversation",
+    backend: "state",
+    owner_label: "This conversation",
+    items: [],
+    total: 0,
+    bytes_total: 2048,
+  });
+  vi.mocked(api.readWorkspaceFile).mockResolvedValue({
+    path: "/a.txt",
+    content: "hello",
+    truncated: false,
+  });
+});
+
+describe("useSandboxWorkspaces", () => {
+  it("lists what the organization's agents are keeping", async () => {
+    const { result } = renderHook(() => useSandboxWorkspaces(), { wrapper });
+
+    await waitFor(() => expect(result.current.workspaces).toHaveLength(1));
+    expect(result.current.error).toBeNull();
+  });
+
+  it("says why the list is empty rather than looking like nothing is kept", async () => {
+    vi.mocked(api.listWorkspaces).mockRejectedValue(new Error("403 Forbidden"));
+    const { result } = renderHook(() => useSandboxWorkspaces(), { wrapper });
+
+    await waitFor(() => expect(result.current.error).toBe("403 Forbidden"));
+  });
+
+  it("falls back to a sentence when the failure is not an Error", async () => {
+    vi.mocked(api.listWorkspaces).mockRejectedValue("nope");
+    const { result } = renderHook(() => useSandboxWorkspaces(), { wrapper });
+
+    await waitFor(() => expect(result.current.error).toBe("Failed to load workspaces"));
+  });
+});
+
+describe("useWorkspaceFiles", () => {
+  it("reads the workspace it was given", async () => {
+    const { result } = renderHook(() => useWorkspaceFiles("w-1"), { wrapper });
+
+    await waitFor(() => expect(result.current.files).not.toBeNull());
+    expect(api.readWorkspaceFiles).toHaveBeenCalledWith("w-1");
+  });
+
+  it("reads nothing until one is opened", () => {
+    // Which is the whole reason the listing carries no files: this is a request
+    // per workspace, and for a container-backed one it reads the host volume.
+    const { result } = renderHook(() => useWorkspaceFiles(null), { wrapper });
+
+    expect(api.readWorkspaceFiles).not.toHaveBeenCalled();
+    expect(result.current.isLoading).toBe(false);
+  });
+
+  it("reports one that could not be read", async () => {
+    vi.mocked(api.readWorkspaceFiles).mockRejectedValue(new Error("did not answer"));
+    const { result } = renderHook(() => useWorkspaceFiles("w-1"), { wrapper });
+
+    await waitFor(() => expect(result.current.error).toBe("did not answer"));
+  });
+
+  it("falls back to a sentence when the failure is not an Error", async () => {
+    vi.mocked(api.readWorkspaceFiles).mockRejectedValue("nope");
+    const { result } = renderHook(() => useWorkspaceFiles("w-1"), { wrapper });
+
+    await waitFor(() => expect(result.current.error).toBe("That workspace could not be read"));
+  });
+});
+
+describe("useWorkspaceFile", () => {
+  it("reads the file it was given", async () => {
+    const { result } = renderHook(() => useWorkspaceFile("w-1", "/a.txt"), { wrapper });
+
+    await waitFor(() => expect(result.current.file?.content).toBe("hello"));
+    expect(api.readWorkspaceFile).toHaveBeenCalledWith("w-1", "/a.txt");
+  });
+
+  it("reads nothing until a file is opened", () => {
+    const { result } = renderHook(() => useWorkspaceFile("w-1", null), { wrapper });
+
+    expect(api.readWorkspaceFile).not.toHaveBeenCalled();
+    expect(result.current.isLoading).toBe(false);
+  });
+
+  it("reports one that could not be read", async () => {
+    vi.mocked(api.readWorkspaceFile).mockRejectedValue(new Error("404 Not Found"));
+    const { result } = renderHook(() => useWorkspaceFile("w-1", "/a.txt"), { wrapper });
+
+    await waitFor(() => expect(result.current.error).toBe("404 Not Found"));
+  });
+
+  it("falls back to a sentence when the failure is not an Error", async () => {
+    vi.mocked(api.readWorkspaceFile).mockRejectedValue("nope");
+    const { result } = renderHook(() => useWorkspaceFile("w-1", "/a.txt"), { wrapper });
+
+    await waitFor(() => expect(result.current.error).toBe("That file could not be read"));
+  });
+});

@@ -27,6 +27,7 @@ export default defineConfig({
         "src/hooks/**",
         "src/components/agents/**/*.tsx",
         "src/components/sandboxes/**/*.tsx",
+        "src/components/chat/usage-strip.tsx",
         "src/components/chat/tool-results/**/*.tsx",
         "src/components/chat/chart-message.tsx",
         "src/components/chat/chat-controls.tsx",

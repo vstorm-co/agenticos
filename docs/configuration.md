@@ -252,6 +252,18 @@ connection: whether it answers, whether it accepts its credential, and whether i
 allows any runtime at all. No connection registered is a warning, not a failure —
 the `state` workspace needs none.
 
+**Browsing what the agents kept.** Sandboxes lists every workspace in the
+organization — which agent, who shares it, how big, when it was last used — and
+the files inside one on demand. Files are read only when a workspace is opened: a
+deployment can hold one per warm conversation, so reading each to render the table
+would be a request per row for a page nobody has asked a question of yet.
+
+That listing is gated on `connections:manage` rather than something softer. It
+crosses every conversation in the organization, including chats that are not the
+reader's, which makes it an operator surface and not a nicer file browser for a
+member. A conversation's own files stay where they belong: on the conversation,
+authorised by fetching it first.
+
 **What is running is read from the service too.** The Sandboxes screen lists this
 organization's open sandboxes on its default host — runtime, what shares each one,
 idle time, and memory against its own ceiling when asked — plus the activity log

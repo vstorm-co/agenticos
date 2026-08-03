@@ -7,13 +7,14 @@ import { AgentPicker } from "./agent-picker";
 import { ChatControls } from "./chat-controls";
 import { ChatEmptyState } from "./chat-empty-state";
 import { ChatInput } from "./chat-input";
+import { UsageStrip } from "./usage-strip";
 import { FilePreviewPanel } from "./file-preview-panel";
 import { SourcesPanel } from "./sources-panel";
 import { MessageList } from "./message-list";
 import { PendingMessages } from "./pending-messages";
 import { ToolApprovalDialog } from "./tool-approval-dialog";
 import { QuestionPrompt } from "@/components/ui";
-import type { PendingApproval, AskUserQuestion, AskUserAnswer, Decision } from "@/types";
+import type { PendingApproval, AskUserQuestion, AskUserAnswer, Decision, TurnUsage } from "@/types";
 import { buildAssistantParts } from "@/lib/conversation-to-chat";
 import { useConversationStore, useChatStore } from "@/stores";
 import { useConversations } from "@/hooks";
@@ -45,6 +46,7 @@ export function ChatContainer() {
     messages,
     isConnected,
     isProcessing,
+    lastUsage,
     sendMessage,
     stopGeneration,
     clearMessages,
@@ -193,6 +195,7 @@ export function ChatContainer() {
       messages={messages}
       isConnected={isConnected}
       isProcessing={isProcessing}
+      lastUsage={lastUsage}
       isLoadingConversation={
         currentConversationId !== null && isConversationLoading && messages.length === 0
       }
@@ -221,6 +224,8 @@ interface ChatUIProps {
   messages: import("@/types").ChatMessage[];
   isConnected: boolean;
   isProcessing: boolean;
+  /** What the last turn cost, drawn under the input. Null until one has run. */
+  lastUsage: TurnUsage | null;
   /** True while a saved conversation is being loaded - show a skeleton, not empty state. */
   isLoadingConversation?: boolean;
   /** True for an archived conversation - the composer is closed with a notice. */
@@ -251,6 +256,7 @@ function ChatUI({
   messages,
   isConnected,
   isProcessing,
+  lastUsage,
   isLoadingConversation,
   isArchived,
   sendMessage,
@@ -319,6 +325,10 @@ function ChatUI({
                   This conversation is archived
                 </p>
               )}
+              {/* Under the input rather than over the transcript: it is about
+                  the turn that just finished, and a strip above the messages
+                  would move the conversation every time a number changed. */}
+              <UsageStrip usage={lastUsage} />
               <ChatInput
                 onSend={sendMessage}
                 disabled={

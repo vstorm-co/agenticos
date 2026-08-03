@@ -120,6 +120,12 @@ class ChannelMessageRouter:
                 user_id=identity.user_id,
                 conversation_id=session.conversation_id,
                 platform_chat_id=incoming.platform_chat_id,
+                # What this bot says about what a turn cost, and how many turns
+                # this chat has had - `every_n` counts per chat, because "every
+                # tenth message" is a question about this conversation and not
+                # about whichever channel happened to be tenth across the bot.
+                usage_reporting=bot.usage_reporting,
+                turn=session.turn_count,
                 message_history=build_message_history(history),
             )
         except AppException as exc:
@@ -170,6 +176,8 @@ class ChannelMessageRouter:
                 user_id=identity.user_id,
                 conversation_id=session.conversation_id,
                 platform_chat_id=incoming.platform_chat_id,
+                usage_reporting=bot.usage_reporting,
+                turn=session.turn_count,
             )
         except UnaddressedMessage:
             return False
@@ -370,7 +378,11 @@ class ChannelMessageRouter:
                 platform_chat_id=incoming.platform_chat_id,
                 conversation_id=conv.id,
             )
-        return session
+        # Records that this chat had a turn, which is what "report usage every n
+        # messages" counts. Here rather than after the answer, because a turn that
+        # failed still happened - a counter that only advanced on success would
+        # drift quietly against the messages people actually sent.
+        return await channel_session_repo.touch(db, session)
 
     def _check_rate_limit(self, bot: Any, identity_id: str) -> None:
         """In-memory token-bucket rate limiter.
