@@ -488,7 +488,7 @@ class TestAnswer:
 
         assert execute.call_args.args[2] == "what is the refund window"
         assert execute.call_args.kwargs["conversation_id"] == conversation_id
-        assert answer == "42 days"
+        assert answer.text == "42 days"
 
 
 def _serving(*slugs: str) -> AsyncMock:
@@ -604,4 +604,4 @@ class TestAnswerDefault:
         assert execute.call_args.kwargs["conversation_id"] == conversation_id
         assert execute.call_args.kwargs["message_history"] is history
         assert execute.call_args.kwargs["exposure"] is exposure
-        assert answer == "42 days"
+        assert answer.text == "42 days"

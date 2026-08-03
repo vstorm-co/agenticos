@@ -1,0 +1,229 @@
+"""Files across a channel, in both directions.
+
+Giving an agent a filesystem while the two surfaces where people actually share
+files could not put anything into it was half a feature: `IncomingMessage` had no
+attachment field at all, so a spreadsheet dropped into Slack was discarded and the
+agent answered about a document it never received.
+
+**Inbound is the web upload path, reached differently.** The bytes arrive from a
+platform instead of a browser, and then go through exactly what
+`FileUploadService.upload` applies: the MIME allowlist, `MAX_UPLOAD_SIZE`, the
+parser, storage, and a `ChatFile` row. A bot is the most permissive edge this
+platform has - anyone in a Slack channel can drop a file on it - so it must not
+also become the lenient one.
+
+The size is checked twice, deliberately. Once against what the platform *claims*
+before anything is fetched, because downloading a gigabyte to then reject it is
+the attack; and once against the bytes, because a claim is not a measurement.
+
+**Outbound is what the agent wrote this turn.** Not a diff of the whole workspace:
+`/uploads` is what the *user* sent - posting it back is quoting somebody their own
+file - and `/skills` is materialised know-how the platform put there, not the
+agent's work. What is left is what the turn produced, capped, with anything too
+large named in the reply rather than silently dropped: an agent told its file was
+delivered when it was not will confidently tell the user the same.
+"""
+
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass
+from typing import Any
+from uuid import UUID
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.models.chat_file import ChatFile
+from app.services.channels.base import (
+    ChannelAdapter,
+    IncomingAttachment,
+    OutgoingAttachment,
+)
+from app.services.file_upload import FileUploadService
+
+logger = logging.getLogger(__name__)
+
+MAX_OUTBOUND_FILES = 3
+"""How many files one reply may carry.
+
+A turn that writes twelve intermediate CSVs should not post twelve of them into a
+channel. Three is enough for "the report, the chart and the log" and few enough
+that the reply is still a reply; the rest stay in the workspace, which the reply
+says.
+"""
+
+MAX_OUTBOUND_BYTES = 8 * 1024 * 1024
+"""Below every one of these platforms' own limits, so the refusal is ours and can
+be explained. Telegram's is 50 MB, Slack's depends on the workspace plan, and a
+platform-side rejection arrives as an opaque API error the agent cannot act on."""
+
+# Where the platform itself put things. Neither is the agent's work, and neither
+# should come back out: `/uploads` is the user's own file, and `/skills` is
+# organizational know-how materialised for the run.
+_NOT_THE_AGENTS = ("/uploads/", "/skills/")
+
+
+@dataclass(frozen=True)
+class DeliveredFiles:
+    """What a reply can carry, and what it has to explain instead."""
+
+    attachments: list[OutgoingAttachment]
+    refused: list[str]
+    """Files named in the reply because they could not be posted - too large, or
+    past the per-reply cap. Named rather than dropped: an agent told its file was
+    delivered will tell the user the same."""
+
+    def note(self) -> str:
+        """One line for the reply about what did not make it, or nothing."""
+        if not self.refused:
+            return ""
+        names = ", ".join(self.refused)
+        return (
+            f"({names} stayed in the workspace - too large to post here, "
+            "or past the file limit for one reply.)"
+        )
+
+
+class ChannelAttachmentService:
+    """Fetches what somebody sent, and picks what to send back."""
+
+    def __init__(self, db: AsyncSession) -> None:
+        self.db = db
+        self.uploads = FileUploadService(db)
+
+    async def receive(
+        self,
+        adapter: ChannelAdapter,
+        bot_token: str,
+        attachments: list[IncomingAttachment],
+        *,
+        user_id: UUID,
+    ) -> tuple[list[ChatFile], list[str]]:
+        """Fetch, validate and store what arrived with a message.
+
+        Returns the rows that made it and a message per file that did not, for the
+        reply to carry. A refusal is reported rather than raised: one unsupported
+        file among three should not lose the other two or the question that came
+        with them.
+
+        `user_id` is the sender's **linked account**, which a channel run already
+        requires - the mention router refuses an unlinked sender before this is
+        reached - so a stored file belongs to the person who sent it rather than
+        to nobody.
+        """
+        stored: list[ChatFile] = []
+        refusals: list[str] = []
+
+        for attachment in attachments:
+            # Checked against the claim first: fetching a gigabyte in order to
+            # reject it is the thing worth not doing.
+            valid, error = self.uploads.validate_upload(attachment.mime_type, attachment.size)
+            if not valid:
+                refusals.append(f"{attachment.filename}: {error}")
+                continue
+            try:
+                data = await adapter.download_attachment(bot_token, attachment)
+            except NotImplementedError:
+                refusals.append(
+                    f"{attachment.filename}: this build cannot fetch files from "
+                    f"{adapter.platform} yet."
+                )
+                continue
+            except Exception:
+                logger.warning(
+                    "channel_attachment_download_failed",
+                    # `attachment_name`, not `filename`: that key belongs to
+                    # `LogRecord` and overwriting it renames the source file in
+                    # every formatter that prints one.
+                    extra={"platform": adapter.platform, "attachment_name": attachment.filename},
+                    exc_info=True,
+                )
+                refusals.append(f"{attachment.filename}: could not be downloaded.")
+                continue
+
+            # Again, against the bytes. A platform that under-reported the size,
+            # or a handle that resolved to something else, gets caught here.
+            valid, error = self.uploads.validate_upload(attachment.mime_type, len(data))
+            if not valid:
+                refusals.append(f"{attachment.filename}: {error}")
+                continue
+
+            stored.append(
+                await self.uploads.upload(
+                    user_id=user_id,
+                    file_data=data,
+                    filename=attachment.filename,
+                    content_type=attachment.mime_type,
+                )
+            )
+
+        return stored, refusals
+
+
+def files_written(backend: Any, before: set[str]) -> DeliveredFiles:
+    """What the agent produced this turn, ready to post.
+
+    `before` is the set of paths the workspace held when the turn started, so this
+    is what the turn *added*. Compared against a snapshot rather than against
+    modification times: a state backend has none, and a container's clock is not
+    ours to trust.
+
+    A file the agent overwrote is deliberately not included. Rewriting a file it
+    already had is ordinary work - a script it is iterating on - and posting it on
+    every turn would fill the channel with the same attachment.
+
+    Never raises. This runs after an answer somebody is waiting for; a workspace
+    that cannot be listed means a reply with no attachments, not a lost reply.
+    """
+    try:
+        paths = _workspace_paths(backend)
+    except Exception:
+        logger.warning("outbound_attachment_scan_failed", exc_info=True)
+        return DeliveredFiles(attachments=[], refused=[])
+
+    new = sorted(paths - before)
+    attachments: list[OutgoingAttachment] = []
+    refused: list[str] = []
+
+    for path in new:
+        if path.startswith(_NOT_THE_AGENTS):
+            continue
+        if len(attachments) >= MAX_OUTBOUND_FILES:
+            refused.append(path)
+            continue
+        try:
+            data = backend.read_bytes(path)
+        except Exception:
+            logger.info("outbound_attachment_unreadable", extra={"path": path})
+            continue
+        if len(data) > MAX_OUTBOUND_BYTES:
+            refused.append(path)
+            continue
+        attachments.append(
+            OutgoingAttachment(
+                filename=path.rsplit("/", 1)[-1],
+                content=data,
+                mime_type="application/octet-stream",
+            )
+        )
+
+    return DeliveredFiles(attachments=attachments, refused=refused)
+
+
+def workspace_snapshot(backend: Any) -> set[str]:
+    """Every path the workspace holds right now.
+
+    Taken before the turn so what it added can be told from what it already had.
+    An unreadable workspace answers with an empty set, which makes the turn's
+    output look entirely new - the safe direction, because the alternative is
+    posting nothing at all.
+    """
+    try:
+        return _workspace_paths(backend)
+    except Exception:
+        logger.warning("workspace_snapshot_failed", exc_info=True)
+        return set()
+
+
+def _workspace_paths(backend: Any) -> set[str]:
+    return {str(entry["path"]) for entry in backend.glob_info("**/*") if not entry.get("is_dir")}

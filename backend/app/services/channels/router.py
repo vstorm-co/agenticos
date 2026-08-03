@@ -16,7 +16,8 @@ from app.repositories import (
 from app.services.agent import build_message_history
 from app.services.channel_bot import unseal_bot_token
 from app.services.channels import get_adapter
-from app.services.channels.base import IncomingMessage, OutgoingMessage
+from app.services.channels.attachments import ChannelAttachmentService
+from app.services.channels.base import IncomingMessage, OutgoingAttachment, OutgoingMessage
 from app.services.channels.mentions import ChannelAgentRouter, UnaddressedMessage
 
 logger = logging.getLogger(__name__)
@@ -38,6 +39,21 @@ def _get_chat_lock(bot_id: str, chat_id: str) -> asyncio.Lock:
     if key not in _chat_locks:
         _chat_locks[key] = asyncio.Lock()
     return _chat_locks[key]
+
+
+def _kept_back(paths: list[str]) -> list[str]:
+    """What the agent produced and the reply could not carry, as one sentence.
+
+    A bare list of workspace paths under an answer reads as output. This says why
+    they are there and where they still are, which is the difference between an
+    explanation and a puzzle.
+    """
+    if not paths:
+        return []
+    return [
+        f"({', '.join(paths)} stayed in the workspace - too large to post here, "
+        "or past the file limit for one reply.)"
+    ]
 
 
 class ChannelMessageRouter:
@@ -101,6 +117,8 @@ class ChannelMessageRouter:
         if await self._answer_mention(incoming, bot, identity, session, db):
             return
 
+        files, file_refusals = await self._receive_files(db, bot, incoming, identity)
+
         # Loaded before the user message is persisted, so the turn being run is
         # the prompt and everything before it is the history - persisting first
         # would put the same message in both.
@@ -112,7 +130,7 @@ class ChannelMessageRouter:
             content=incoming.text,
         )
         try:
-            answer = await ChannelAgentRouter(db).answer_default(
+            answered = await ChannelAgentRouter(db).answer_default(
                 incoming.text,
                 platform=incoming.platform,
                 organization_id=bot.organization_id,
@@ -126,6 +144,7 @@ class ChannelMessageRouter:
                 # about whichever channel happened to be tenth across the bot.
                 usage_reporting=bot.usage_reporting,
                 turn=session.turn_count,
+                attachments=files,
                 message_history=build_message_history(history),
             )
         except AppException as exc:
@@ -139,6 +158,7 @@ class ChannelMessageRouter:
             await self._send_reply(bot, incoming, "Sorry, something went wrong. Please try again.")
             return
 
+        answer = self._with_notes(answered.text, file_refusals, _kept_back(answered.refused))
         if answer:
             await conversation_repo.create_message(
                 db,
@@ -150,6 +170,7 @@ class ChannelMessageRouter:
             bot,
             incoming,
             answer or "That needs approval before it can run - check the approvals queue.",
+            answered.attachments,
         )
 
     async def _answer_mention(
@@ -167,8 +188,9 @@ class ChannelMessageRouter:
         counts as handled. Falling through to the default assistant would answer
         a question that was not asked.
         """
+        files, file_refusals = await self._receive_files(db, bot, incoming, identity)
         try:
-            answer = await ChannelAgentRouter(db).answer(
+            answered = await ChannelAgentRouter(db).answer(
                 incoming.text,
                 platform=incoming.platform,
                 organization_id=bot.organization_id,
@@ -178,6 +200,7 @@ class ChannelMessageRouter:
                 platform_chat_id=incoming.platform_chat_id,
                 usage_reporting=bot.usage_reporting,
                 turn=session.turn_count,
+                attachments=files,
             )
         except UnaddressedMessage:
             return False
@@ -185,12 +208,53 @@ class ChannelMessageRouter:
             await self._send_reply(bot, incoming, exc.message)
             return True
 
+        answer = self._with_notes(answered.text, file_refusals, _kept_back(answered.refused))
         await self._send_reply(
             bot,
             incoming,
             answer or "That needs approval before it can run - check the approvals queue.",
+            answered.attachments,
         )
         return True
+
+    async def _receive_files(
+        self, db: Any, bot: Any, incoming: IncomingMessage, identity: Any
+    ) -> tuple[list[Any], list[str]]:
+        """Fetch, validate and store what arrived with the message.
+
+        Returns the rows and a line per file that did not make it, for the reply to
+        carry. A message with no attachments costs nothing here - not even a token
+        decryption - which is the common case.
+
+        An unlinked sender is not handled specially: a stored file belongs to a
+        user row, and the agent router refuses an unlinked sender anyway. Without
+        the check this would raise where the refusal reads better.
+        """
+        if not incoming.attachments:
+            return [], []
+        if identity.user_id is None:
+            return [], ["Files can only be accepted once you have run /link."]
+
+        adapter = get_adapter(incoming.platform)
+        return await ChannelAttachmentService(db).receive(
+            adapter,
+            unseal_bot_token(bot),
+            incoming.attachments,
+            user_id=identity.user_id,
+        )
+
+    @staticmethod
+    def _with_notes(answer: str, *notes: list[str]) -> str:
+        """The answer, with what could not be delivered said out loud under it.
+
+        Said rather than logged: a file the platform refused and a file the agent
+        never wrote look identical to whoever asked for it, and an agent that
+        believes its attachment was delivered will tell them it was.
+        """
+        lines = [line for group in notes for line in group]
+        if not lines or not answer:
+            return answer
+        return answer + "\n\n" + "\n".join(lines)
 
     @staticmethod
     def _parse_policy(bot: Any) -> dict[str, Any]:
@@ -412,7 +476,13 @@ class ChannelMessageRouter:
         else:
             _rate_buckets[key] = (1, now)
 
-    async def _send_reply(self, bot: Any, incoming: IncomingMessage, text: str) -> None:
+    async def _send_reply(
+        self,
+        bot: Any,
+        incoming: IncomingMessage,
+        text: str,
+        attachments: list[OutgoingAttachment] | None = None,
+    ) -> None:
         """Decrypt the bot token and send a reply via the appropriate adapter."""
         try:
             adapter = get_adapter(incoming.platform)
@@ -423,6 +493,7 @@ class ChannelMessageRouter:
                 parse_mode="Markdown",
                 reply_to_message_id=incoming.message_id,
                 api_base_url=getattr(bot, "api_base_url", None),
+                attachments=attachments or [],
             )
             await adapter.send_message(decrypted_token, out)
         except Exception:

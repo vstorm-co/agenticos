@@ -281,3 +281,14 @@ describe images using LLM vision capabilities. Image description is a
 per-collection setting: turn it on in the knowledge base's ingestion
 configuration and pick a vision-capable model profile there. The generated
 descriptions are included in the document text for better semantic search.
+
+## From a channel
+
+A file sent to a Slack, Telegram or Mattermost bot enters here, not beside here.
+The adapter fetches it with the bot's own credential, it goes through the same
+validation a browser upload does, and it becomes the same `ChatFile` row — so the
+routing above applies unchanged and a channel cannot become the lenient path.
+
+What differs is only what a refusal looks like: there is no form to show an error
+in, so a file that was too large or of an unsupported type is named in the bot's
+reply. See [Channels](channels.md#files).

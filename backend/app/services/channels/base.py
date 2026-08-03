@@ -41,6 +41,41 @@ DEFAULT_ACCESS_POLICY_JSON: str = (
 )
 
 
+@dataclass(frozen=True)
+class IncomingAttachment:
+    """A file somebody sent a bot, before it has been fetched.
+
+    Metadata and a **handle**, not bytes. Every platform makes the file
+    available behind a second authenticated request - Slack needs its private
+    download URL fetched with the bot token, Telegram needs `getFile` to turn a
+    `file_id` into a path, Mattermost needs `/files/{id}` - so parsing a webhook
+    cannot produce the contents, and pretending otherwise would put an HTTP call
+    inside a synchronous parser.
+
+    The handle is whatever that platform's adapter needs to fetch it, and is only
+    ever read by the adapter that produced it.
+    """
+
+    filename: str
+    mime_type: str
+    size: int
+    """What the platform claims, which is what the size check is applied to
+    before anything is downloaded. Re-checked against the bytes afterwards,
+    because a claim is not a measurement."""
+
+    handle: str
+    """Opaque to everything but the adapter that made it."""
+
+
+@dataclass(frozen=True)
+class OutgoingAttachment:
+    """A file to post back, already in hand."""
+
+    filename: str
+    content: bytes
+    mime_type: str = "application/octet-stream"
+
+
 @dataclass
 class IncomingMessage:
     """Normalised message from any messaging platform."""
@@ -55,6 +90,15 @@ class IncomingMessage:
     platform_username: str | None = None
     platform_display_name: str | None = None
     message_id: str | None = None
+    attachments: list[IncomingAttachment] = field(default_factory=list)
+    """Files sent with this message, unfetched.
+
+    A message with attachments and no text is a real message - somebody dropping
+    a spreadsheet in with nothing to say about it - so the adapters no longer
+    treat empty text as nothing to do. That was the previous behaviour and it
+    meant a file sent to a bot was silently dropped and the agent answered about
+    a document it never received.
+    """
 
 
 @dataclass
@@ -71,6 +115,15 @@ class OutgoingMessage:
     reply_to_message_id: str | None = None
     image_png: bytes | None = None
     image_filename: str = "chart.png"
+    attachments: list[OutgoingAttachment] = field(default_factory=list)
+    """Files to post with the reply.
+
+    `image_png` is kept beside this rather than folded into it. A chart is not an
+    attachment on any of these platforms - it is a *photo*, rendered inline, which
+    is the whole reason `charts` produces one - and every adapter sends it through
+    a different call. Collapsing the two would make every chart arrive as a
+    downloadable file.
+    """
     # Where the platform lives, for the ones that are not a single SaaS host.
     # Slack and Telegram ignore it; a Mattermost bot cannot send without it,
     # because every deployment is somebody's own server.
@@ -85,6 +138,20 @@ class ChannelAdapter(ABC):
     @abstractmethod
     async def send_message(self, bot_token: str, msg: OutgoingMessage) -> None:
         """Send a reply back to the platform."""
+
+    async def download_attachment(self, bot_token: str, attachment: IncomingAttachment) -> bytes:
+        """Fetch what somebody sent, using this platform's own second request.
+
+        Not abstract: a platform this build cannot fetch files from is better off
+        saying so than forcing every adapter to implement a stub. A surface that
+        never produces attachments never calls this.
+
+        Raises:
+            NotImplementedError: If this platform's adapter cannot fetch files.
+                Reported to the sender rather than swallowed - a bot that ignores
+                an attachment looks like a bot that read it.
+        """
+        raise NotImplementedError(f"{self.platform} attachments cannot be downloaded yet")
 
     @abstractmethod
     async def start_polling(self, bot_id: str, bot_token: str) -> None:

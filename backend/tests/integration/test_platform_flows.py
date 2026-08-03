@@ -2779,7 +2779,7 @@ class TestMentioningAnAgentFromAChannel:
             user_id=tenant.user.id,
         )
 
-        assert answer == "answered"
+        assert answer.text == "answered"
         assert execute.call_args.args[1] == agent.id
         assert execute.call_args.args[2] == "what is the refund window"
 

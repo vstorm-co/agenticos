@@ -9,6 +9,7 @@ it was parked on, with the spend it had already booked.
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -432,6 +433,116 @@ class TestSpendReporting:
         assert breakdown.call_args.kwargs["organization_id"] == ctx.organization_id
         looked_back = datetime.now(UTC) - breakdown.call_args.kwargs["since"]
         assert timedelta(days=7) <= looked_back < timedelta(days=7, seconds=30)
+
+
+class TestFilesAcrossOneTurn:
+    """What arrived with the message, and what the turn produced.
+
+    Both are routed by `execute` rather than by its caller, and for the same
+    reason: where an attachment goes depends on whether the agent has a workspace,
+    and the workspace is closed before the call returns.
+    """
+
+    @pytest.mark.anyio
+    async def test_an_attachment_is_routed_against_the_workspace_the_run_opened(self):
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.outbound = []
+        prepared.outbound_refused = []
+        service.prepare = AsyncMock(return_value=prepared)
+        service._run = AsyncMock(return_value=("answered", prepared.run))
+        built = AsyncMock(return_value="a prompt with a reference")
+
+        with patch("app.services.agent_runner.AttachmentRouter") as router:
+            router.return_value.build_prompt = built
+            await service.execute(
+                MagicMock(), uuid.uuid4(), "look at this", attachments=[MagicMock()]
+            )
+
+        # The backend, not the conversation: the router writes the file where the
+        # agent can read it, and only `prepare` knows whether there is one.
+        assert router.call_args.args[0] is prepared.workspace.backend
+        assert service._run.await_args.kwargs["user_prompt"] == "a prompt with a reference"
+
+    @pytest.mark.anyio
+    async def test_a_turn_with_no_attachments_builds_no_prompt(self):
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.outbound = []
+        prepared.outbound_refused = []
+        service.prepare = AsyncMock(return_value=prepared)
+        service._run = AsyncMock(return_value=("answered", prepared.run))
+
+        with patch("app.services.agent_runner.AttachmentRouter") as router:
+            await service.execute(MagicMock(), uuid.uuid4(), "hello")
+
+        router.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_what_the_turn_produced_reaches_the_caller(self):
+        """Through a list it passes in, because the workspace is closed before this
+        returns - a run-scoped one is released outright."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        produced = MagicMock()
+        prepared.outbound = [produced]
+        prepared.outbound_refused = ["/huge.csv"]
+        service.prepare = AsyncMock(return_value=prepared)
+        service._run = AsyncMock(return_value=("answered", prepared.run))
+
+        outbound: list[Any] = []
+        refused: list[str] = []
+        await service.execute(
+            MagicMock(),
+            uuid.uuid4(),
+            "make me a report",
+            outbound=outbound,
+            outbound_refused=refused,
+        )
+
+        assert outbound == [produced]
+        assert refused == ["/huge.csv"]
+
+    @pytest.mark.anyio
+    async def test_a_caller_that_cannot_deliver_files_asks_for_none(self):
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.outbound = [MagicMock()]
+        prepared.outbound_refused = []
+        service.prepare = AsyncMock(return_value=prepared)
+        service._run = AsyncMock(return_value=("answered", prepared.run))
+
+        answer, _run = await service.execute(MagicMock(), uuid.uuid4(), "hello")
+
+        assert answer == "answered"
+
+    @pytest.mark.anyio
+    async def test_a_run_with_no_workspace_produces_nothing_to_send(self):
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.workspace = None
+        prepared.outbound = []
+        prepared.outbound_refused = []
+
+        service._collect_outbound(prepared)
+
+        assert prepared.outbound == []
+
+    @pytest.mark.anyio
+    async def test_what_the_workspace_gained_is_read_before_it_closes(self):
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.outbound = []
+        prepared.outbound_refused = []
+        prepared.workspace_at_start = {"/run.py"}
+
+        with patch("app.services.agent_runner.files_written") as written:
+            written.return_value = MagicMock(attachments=["a file"], refused=["/huge.csv"])
+            service._collect_outbound(prepared)
+
+        assert written.call_args.args[1] == {"/run.py"}
+        assert prepared.outbound == ["a file"]
+        assert prepared.outbound_refused == ["/huge.csv"]
 
 
 class TestSkillChangesARunProposed:

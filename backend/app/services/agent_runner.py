@@ -61,6 +61,7 @@ from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent
 from app.db.models.agent_exposure import AgentExposure
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, RunSurface
+from app.db.models.chat_file import ChatFile
 from app.repositories import (
     agent_environment_repo,
     agent_repo,
@@ -69,6 +70,9 @@ from app.repositories import (
 )
 from app.services.agent_registry import DEFAULT_GRANTED_SCOPES, AgentRegistryService
 from app.services.approvals import ApprovalService
+from app.services.attachments import AttachmentRouter
+from app.services.channels.attachments import files_written, workspace_snapshot
+from app.services.channels.base import OutgoingAttachment
 from app.services.mcp_connection import build_toolsets_for_agent
 from app.services.model_profile import ModelProfileService
 from app.services.notifications import NotificationService
@@ -169,6 +173,28 @@ class PreparedRun:
     Diffing against the database instead would re-propose every change a reviewer
     already discarded, on every turn of a conversation whose workspace outlives
     the run.
+    """
+
+    workspace_at_start: set[str] = field(default_factory=set)
+    """Every path the workspace held before the turn ran.
+
+    What the turn *added* is the difference against this. Compared against a
+    snapshot rather than modification times: a `state` workspace has none, and a
+    container's clock is not ours to trust.
+    """
+
+    outbound: list[OutgoingAttachment] = field(default_factory=list)
+    """Files the turn produced, read in `finish` before the workspace closes.
+
+    Filled there rather than returned by the run, because a `run`-scoped workspace
+    is released by `close` and a caller reading it afterwards would find nothing.
+    """
+
+    outbound_refused: list[str] = field(default_factory=list)
+    """Produced files a reply cannot carry - too large, or past the per-reply cap.
+
+    Named rather than dropped: an agent told its file was delivered will tell the
+    user the same.
     """
 
     ctx: AuthContext | None = None
@@ -427,6 +453,7 @@ class AgentRunnerService:
             ),
         )
         materialised: MaterialisedSkills | None = None
+        started_with: set[str] = set()
         if workspace is not None:
             resources[WORKSPACE_BACKEND_RESOURCE] = workspace.backend
             # Skills as files, beside the shell that can run them. A skill whose
@@ -434,6 +461,9 @@ class AgentRunnerService:
             # could quote and not execute, while the same agent had `execute` one
             # tool call away.
             materialised = materialise_skills(workspace.backend, resources["skills"])
+            # After the skills are written, so materialising them does not read as
+            # the turn's own output.
+            started_with = workspace_snapshot(workspace.backend)
 
         channel = ApprovalChannel(
             approvals=self.approvals,
@@ -474,8 +504,25 @@ class AgentRunnerService:
             approvals=channel,
             workspace=workspace,
             materialised_skills=materialised,
+            workspace_at_start=started_with,
             ctx=ctx,
         )
+
+    @staticmethod
+    def _collect_outbound(prepared: PreparedRun) -> None:
+        """Read what the turn wrote, for a surface that can deliver it.
+
+        Read for every run rather than only for the channels that use it, because
+        the alternative is a flag threaded from three surfaces into `prepare` to
+        decide whether a glob happens - and a glob of a workspace the process is
+        already holding is cheaper than that plumbing. A surface with nowhere to
+        put a file simply ignores the list.
+        """
+        if prepared.workspace is None:
+            return
+        delivered = files_written(prepared.workspace.backend, prepared.workspace_at_start)
+        prepared.outbound.extend(delivered.attachments)
+        prepared.outbound_refused.extend(delivered.refused)
 
     async def _propose_skill_changes(self, prepared: PreparedRun) -> None:
         """Record what this run wrote to its skills, as something a person decides.
@@ -531,8 +578,9 @@ class AgentRunnerService:
         error message - and it decides who gets mailed: an agent's cap is its
         author's to raise, the organization's is not.
         """
-        # Before the workspace closes, because a run-scoped one is released by
-        # `close` and its files are gone afterwards.
+        # Both before the workspace closes, because a run-scoped one is released
+        # by `close` and its files are gone afterwards.
+        self._collect_outbound(prepared)
         await self._propose_skill_changes(prepared)
 
         # Before the run row is written, so a workspace flush that fails cannot
@@ -630,6 +678,9 @@ class AgentRunnerService:
         message_history: list[Any] | None = None,
         exposure: AgentExposure | None = None,
         environment_id: UUID | None = None,
+        attachments: list[ChatFile] | None = None,
+        outbound: list[OutgoingAttachment] | None = None,
+        outbound_refused: list[str] | None = None,
     ) -> tuple[str, AgentRun]:
         """Run an agent to completion and return its answer.
 
@@ -638,6 +689,19 @@ class AgentRunnerService:
 
         `environment_id` runs the version that environment pins - the API's way
         of exercising a dev environment before promoting it.
+
+        `attachments` are files that arrived with the message. They are routed
+        here rather than by the caller because where an attachment *goes* depends
+        on whether the agent has a workspace, and only `prepare` knows that - the
+        same reason the streaming path routes them after preparing rather than
+        before.
+
+        `outbound` and `outbound_refused` are filled with what the agent produced
+        and what a reply cannot carry. Lists the caller passes in rather than a
+        third return value: the workspace is closed before this returns - a
+        run-scoped one is released outright - so a caller cannot read it
+        afterwards, and every other caller of this method would have to unpack a
+        tuple it has no use for.
 
         An empty answer with the run in `awaiting_approval` means a tool call
         is parked; the caller shows the queue rather than an answer.
@@ -651,12 +715,25 @@ class AgentRunnerService:
             exposure=exposure,
             environment_id=environment_id,
         )
-        return await self._run(
+        # `str | list[Any]`, not `str`: an attached image is folded in as
+        # `BinaryContent` beside the text, and narrowing that back to a string
+        # would hand the model a path where it should have been handed a picture.
+        assembled: str | list[Any] = prompt
+        if attachments:
+            assembled = await AttachmentRouter(
+                prepared.workspace.backend if prepared.workspace is not None else None
+            ).build_prompt(prompt, attachments)
+        answered = await self._run(
             prepared,
-            user_prompt=prompt,
+            user_prompt=assembled,
             message_history=message_history,
             deferred_tool_results=None,
         )
+        if outbound is not None:
+            outbound.extend(prepared.outbound)
+        if outbound_refused is not None:
+            outbound_refused.extend(prepared.outbound_refused)
+        return answered
 
     async def resume(self, ctx: AuthContext, run_id: UUID) -> tuple[str, AgentRun]:
         """Continue a parked run now that its tool calls have been decided.
@@ -824,7 +901,7 @@ class AgentRunnerService:
         self,
         prepared: PreparedRun,
         *,
-        user_prompt: str | None,
+        user_prompt: str | list[Any] | None,
         message_history: list[Any] | None,
         deferred_tool_results: DeferredToolResults | None,
     ) -> tuple[str, AgentRun]:

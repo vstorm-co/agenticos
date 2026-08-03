@@ -210,9 +210,58 @@ it is about to wait.
 - **Charts render as images** where the platform supports them, and fall back to
   a text table where it does not.
 - **What a turn cost**, said or only recorded — see below.
+- **Files, both directions** — see below.
 - **Who shares a workspace, per surface.** An agent's spec sets the default; each
   binding may override it, because a web chat and a Slack channel are not the same
   sharing question.
+
+### Files
+
+Somebody dropping a spreadsheet on a bot used to have it discarded: `IncomingMessage`
+had no attachment field, so no adapter parsed one and the agent answered about a
+document it never received. Now a message with a file — with or without a caption —
+reaches the agent the same way a web upload does.
+
+**Inbound** is the web upload path reached differently. The bytes come from a
+platform instead of a browser and then go through exactly what a web upload gets:
+the MIME allowlist, `MAX_UPLOAD_SIZE`, the parser, storage, and a `ChatFile` row.
+A bot is the most permissive edge this platform has — anyone in a channel can drop
+a file on it — so it must not also be the lenient one. From there the file follows
+the routing in [File processing](file-processing.md): pasted inline for an agent
+with no workspace, written to `/uploads` with a reference for one that has it.
+
+The size is checked twice on purpose: against what the platform *claims* before
+anything is fetched, because downloading a gigabyte to then reject it is the
+attack, and against the bytes afterwards, because a claim is not a measurement.
+
+Fetching a file needs a second authenticated request on every platform, which is
+why an attachment arrives as a handle rather than as content:
+
+| | |
+|---|---|
+| Slack | The private URL on the event, fetched with the bot token. Slack answers **200 with a sign-in page** rather than 401 when the token cannot read a file, so the content type is checked — otherwise a login page would be stored as the user's spreadsheet |
+| Telegram | `getFile` resolves a `file_id` to a path that expires, then the file API. A photo arrives as several sizes; the largest is the one kept |
+| Mattermost | `/files/{id}` on that bot's own server. A bot whose server is not recorded says so rather than guessing which company's server to send a token to |
+
+A file that is refused — unsupported type, too large, a download that failed — is
+**named in the reply**. One bad file among three does not lose the other two or the
+question that came with them, and a bot that silently ignores an attachment looks
+exactly like a bot that read it.
+
+**Outbound** is what the agent wrote this turn, compared against a snapshot taken
+when the workspace opened. Not a diff of everything: `/uploads` is the user's own
+file — posting it back is quoting somebody their own attachment — and `/skills` is
+know-how the platform materialised, not the agent's work. A file it *overwrote* is
+not sent either: rewriting a script it is iterating on is ordinary, and posting it
+every turn would fill the channel with the same attachment.
+
+Capped at 3 files and 8 MB each, below every platform's own limit so the refusal is
+ours and can be explained rather than arriving as an opaque API error. Anything past
+the cap is named in the reply and stays in the workspace.
+
+A chart stays separate from all of this. It is a *photo* on these platforms,
+rendered inline, which is the whole point of the `charts` capability — folding it
+into the attachment list would make every chart arrive as a download.
 
 ### Saying what a turn cost
 
