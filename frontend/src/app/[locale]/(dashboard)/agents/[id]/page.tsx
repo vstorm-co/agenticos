@@ -24,7 +24,6 @@ import { AgentMap, MAP_ICONS, type MapNode } from "@/components/agents/agent-map
 import { AgentStatusBadge } from "@/components/agents/status-badge";
 import { AlertsPanel } from "@/components/agents/alerts-panel";
 import { CapabilityWorkbench } from "@/components/agents/capability-workbench";
-import { WorkspaceSection } from "@/components/agents/workspace-section";
 import { ChannelBotsPanel } from "@/components/agents/channel-bots-panel";
 import { CollectionPicker } from "@/components/agents/collection-picker";
 import { EmbedsPanel } from "@/components/agents/embeds-panel";
@@ -83,7 +82,7 @@ import {
   useRuns,
   useSkills,
 } from "@/hooks";
-import { SANDBOX_ID, SKILLS_ID, THINKING_ID, withCapability, withSkills } from "@/lib/agent-spec";
+import { SKILLS_ID, THINKING_ID, withCapability, withSkills } from "@/lib/agent-spec";
 import { ROUTES } from "@/lib/constants";
 import { useAgentSelectionStore, useConversationStore } from "@/stores";
 import { cn } from "@/lib/utils";
@@ -273,14 +272,11 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // first. Thinking sits with the model settings: it contributes no tools and
   // changes how the model runs, not what the agent can do. Skills sits in its
   // own section, which owns both halves of a decision that used to be split -
-  // see `setSkills`. The workspace has one too: it is a choice between four
-  // backends rather than a switch, and one of its scopes shares files between
-  // people.
+  // see `setSkills`. The workspace stays in the picker: it is a row like the
+  // rest, and the detail panel gives it the controls a switch cannot - see
+  // `CapabilityWorkbench`.
   const grantable = useMemo(
-    () =>
-      capabilities.filter(
-        (entry) => entry.id !== THINKING_ID && entry.id !== SKILLS_ID && entry.id !== SANDBOX_ID,
-      ),
+    () => capabilities.filter((entry) => entry.id !== THINKING_ID && entry.id !== SKILLS_ID),
     [capabilities],
   );
 
@@ -660,41 +656,14 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 the outside world needs a human approval before it runs.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Above the picker, and inside the same card: the workspace is
-                  where the tools below put things, so reading it first is the
-                  order somebody configures in. It keeps its own controls rather
-                  than becoming a row - four backends with different
-                  infrastructure behind them, one of which shares files between
-                  people, is not the same kind of decision as switching on a
-                  chart tool. */}
-              <div className="space-y-3">
-                <div className="space-y-1">
-                  <h3 className="text-sm font-medium">Workspace</h3>
-                  <p className="text-muted-foreground text-sm">
-                    Where this agent keeps files between turns, and who else can read them.
-                    Attachments land here too, so a large file stops being pasted into every
-                    message.
-                  </p>
-                </div>
-                <WorkspaceSection
-                  definition={capabilities.find((entry) => entry.id === SANDBOX_ID)}
-                  binding={spec.capabilities.find((binding) => binding.id === SANDBOX_ID)}
-                  onToggle={toggleCapability}
-                  onChange={updateCapability}
-                  disabled={!canEdit}
-                />
-              </div>
-
-              <div className="border-border border-t pt-6">
-                <CapabilityWorkbench
-                  catalog={grantable}
-                  selected={spec.capabilities}
-                  onToggle={toggleCapability}
-                  onChange={updateCapability}
-                  disabled={!canEdit}
-                />
-              </div>
+            <CardContent>
+              <CapabilityWorkbench
+                catalog={grantable}
+                selected={spec.capabilities}
+                onToggle={toggleCapability}
+                onChange={updateCapability}
+                disabled={!canEdit}
+              />
             </CardContent>
           </Card>
 

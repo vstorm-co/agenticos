@@ -278,3 +278,76 @@ describe("jsonSchemaType", () => {
     expect(jsonSchemaType(undefined)).toBe("unknown");
   });
 });
+
+describe("the workspace, which is a row like the rest and a detail unlike it", () => {
+  const SANDBOX: CapabilityCatalogEntry = {
+    ...CHARTS,
+    id: "sandbox",
+    name: "Files & shell",
+    description: "Read, write and run things in a workspace that persists between turns.",
+    side_effecting: true,
+    scopes: ["sandbox:execute"],
+    tools: [
+      { id: "read_file", name: "read_file", description: "Read a file from the workspace." },
+      { id: "execute", name: "execute", description: "Run a shell command in the workspace." },
+    ],
+    contracts: [],
+    config_schema: {
+      type: "object",
+      properties: { backend: { type: "string", enum: ["state", "docker", "daytona"] } },
+    },
+  };
+
+  function renderSandbox(selected: CapabilityBindingSpec[] = []) {
+    return render(
+      <CapabilityWorkbench
+        catalog={[SANDBOX, CHARTS]}
+        selected={selected}
+        onToggle={vi.fn()}
+        onChange={vi.fn()}
+      />,
+    );
+  }
+
+  it("says which backend it runs, not how many tools it has", async () => {
+    // "2 tools" is the least useful thing to say about it in a list; which
+    // backend is running is what somebody is scanning for.
+    renderSandbox([binding("sandbox", { config: { backend: "docker" } })]);
+
+    expect(await screen.findByText("a container")).toBeInTheDocument();
+  });
+
+  it("says so when the agent has no workspace at all", async () => {
+    renderSandbox();
+
+    expect(await screen.findByText("no workspace")).toBeInTheDocument();
+  });
+
+  it.each([
+    [{ backend: "state" }, "files, no shell"],
+    [{ backend: "daytona" }, "a cloud sandbox"],
+    [{}, "files, no shell"],
+  ])("names the backend in the row (%o)", async (config, expected) => {
+    renderSandbox([binding("sandbox", { config })]);
+
+    expect(await screen.findByText(expected)).toBeInTheDocument();
+  });
+
+  it("offers the four backends instead of an on/off switch", async () => {
+    // The objection this answers: "which of four backends, and who shares it" is
+    // not the same kind of decision as switching on a chart tool.
+    renderSandbox([binding("sandbox", { config: { backend: "state" } })]);
+
+    expect(await screen.findByRole("button", { name: /^Container/ })).toBeVisible();
+    expect(screen.getByRole("combobox", { name: "Who shares it" })).toBeVisible();
+    expect(screen.queryByText("Files & shell is on")).toBeNull();
+  });
+
+  it("keeps the header switch for every other capability", async () => {
+    renderSandbox();
+
+    await userEvent.click(screen.getByRole("button", { name: /Charts/ }));
+
+    expect(screen.getByText(/Give this agent Charts/)).toBeVisible();
+  });
+});

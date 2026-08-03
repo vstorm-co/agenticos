@@ -4,7 +4,9 @@ import { useMemo, useState } from "react";
 import { ShieldAlert } from "lucide-react";
 
 import { CapabilityDetail } from "@/components/agents/capability-settings";
+import { WorkspaceSection } from "@/components/agents/workspace-section";
 import { SearchInput, Switch } from "@/components/ui";
+import { SANDBOX_ID } from "@/lib/agent-spec";
 import { cn } from "@/lib/utils";
 import type { CapabilityBindingSpec, CapabilityCatalogEntry } from "@/types/agents";
 
@@ -132,6 +134,18 @@ export function CapabilityWorkbench({
                   enabled={enabled.has(entry.id)}
                   focused={focused?.id === entry.id}
                   disabled={disabled}
+                  // "7 tools" is the least useful thing to say about the
+                  // workspace in a list: which backend it runs is what somebody
+                  // is scanning for, and it is the only capability whose row can
+                  // answer that.
+                  subtitle={
+                    entry.id === SANDBOX_ID
+                      ? backendLabel(
+                          selected.find((binding) => binding.id === entry.id),
+                          enabled.has(entry.id),
+                        )
+                      : undefined
+                  }
                   onFocus={() => setFocusedId(entry.id)}
                   onToggle={() => onToggle(entry.id)}
                 />
@@ -142,7 +156,22 @@ export function CapabilityWorkbench({
       </div>
 
       <div className="min-w-0">
-        {focused && (
+        {/* The workspace is a row like any other, and its detail is not: "which
+            of four backends, and who shares it" is not an on/off switch, and one
+            of the scopes shares files between people in a way a generated form
+            cannot warn about. So the panel gives it its own controls while the
+            list keeps treating it as one entry among the rest. */}
+        {focused?.id === SANDBOX_ID && (
+          <WorkspaceSection
+            definition={focused}
+            binding={bound}
+            onToggle={onToggle}
+            onChange={onChange}
+            disabled={disabled}
+          />
+        )}
+
+        {focused && focused.id !== SANDBOX_ID && (
           <div className="space-y-3">
             {/* The switch travels with the panel as well as sitting in the row.
                 The list scrolls independently, so the capability being read can
@@ -188,11 +217,21 @@ export function CapabilityWorkbench({
   );
 }
 
+/** What the workspace row says it is, rather than how many tools it has. */
+function backendLabel(binding: CapabilityBindingSpec | undefined, enabled: boolean): string {
+  if (!enabled) return "no workspace";
+  const backend = (binding?.config as { backend?: string } | undefined)?.backend ?? "state";
+  if (backend === "docker") return "a container";
+  if (backend === "daytona") return "a cloud sandbox";
+  return "files, no shell";
+}
+
 function CapabilityRow({
   entry,
   enabled,
   focused,
   disabled,
+  subtitle,
   onFocus,
   onToggle,
 }: {
@@ -200,6 +239,7 @@ function CapabilityRow({
   enabled: boolean;
   focused: boolean;
   disabled?: boolean;
+  subtitle?: string;
   onFocus: () => void;
   onToggle: () => void;
 }) {
@@ -223,11 +263,12 @@ function CapabilityRow({
           )}
         </span>
         <span className="text-muted-foreground mt-0.5 block text-xs">
-          {entry.tools.length === 0
-            ? "no tools - changes how it runs"
-            : entry.tools.length === 1
-              ? "1 tool"
-              : `${entry.tools.length} tools`}
+          {subtitle ??
+            (entry.tools.length === 0
+              ? "no tools - changes how it runs"
+              : entry.tools.length === 1
+                ? "1 tool"
+                : `${entry.tools.length} tools`)}
         </span>
       </button>
 
