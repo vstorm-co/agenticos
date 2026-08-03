@@ -160,14 +160,34 @@ services:
     image: ghcr.io/vstorm-co/sandboxd:0.2
     container_name: agenticos_sandboxd
     profiles: [sandbox]
+    # The token comes from the same file every other secret in this stack comes
+    # from, rather than through compose interpolation. Interpolation reads the
+    # project root, not `backend/.env`, so a token generated where the
+    # application reads it would have been invisible here - and every other
+    # variable in this file carries a default precisely so the stack starts with
+    # no env file at all. The service exits naming the variable when it is
+    # missing, which `docker compose logs sandboxd` shows.
+    env_file:
+      - ./backend/.env
     environment:
-      SANDBOXD_TOKEN: ${SANDBOXD_TOKEN:?run `make sandbox-token` to generate one}
       SANDBOXD_HOST: 0.0.0.0
       SANDBOXD_PORT: "8080"
-      # Files survive an idle reaping; without it a conversation's workspace
-      # silently empties between turns and the agent references a file that is
-      # gone.
-      SANDBOXD_WORKSPACE_ROOT: /workspaces
+      # Deliberately no SANDBOXD_WORKSPACE_ROOT here, and it is not an omission.
+      # The service asks the *daemon* to bind-mount the workspace directory it
+      # created, and the daemon resolves that path on the host - so a named
+      # volume or any path that exists only inside this container is refused
+      # with "mounts denied: the path is not shared from the host". Making it
+      # work means one host path mounted at the same location on both sides,
+      # which is a decision about the host and belongs to whoever runs one; see
+      # docker-compose-prod.yml.
+      #
+      # Files still survive a reaping locally, because the container does:
+      # `persist_containers` stops a session's container instead of discarding
+      # it, and the next attach restarts the same filesystem.
+      # Empty means "no host-backed workspace root", which the image cannot
+      # default to safely: it ships one, and any path that exists only inside
+      # this container is refused by the daemon.
+      SANDBOXD_WORKSPACE_ROOT: ""
       SANDBOXD_PERSIST_CONTAINERS: "true"
       # One organization cannot occupy the pool of the whole installation.
       SANDBOXD_MAX_SESSIONS_PER_TENANT: "5"
@@ -177,7 +197,6 @@ services:
       SANDBOXD_UI_ENABLED: "0"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - sandbox_workspaces:/workspaces
     # Reaches the daemon by supplementary group rather than by running as root.
     # `stat -c '%g' /var/run/docker.sock` on the host; 0 on Docker Desktop,
     # where the socket is proxied and already reachable.
@@ -196,7 +215,6 @@ networks:
 
 volumes:
   media_data:
-  sandbox_workspaces:
   postgres_data:
   redis_data:
   prefect_data:

@@ -195,18 +195,35 @@ services:
     image: ghcr.io/vstorm-co/sandboxd:0.2
     container_name: agenticos_sandboxd_prod
     profiles: [sandbox]
+    # The token comes from the same file every other secret in this stack comes
+    # from, rather than through compose interpolation. Interpolation reads the
+    # project root, not `backend/.env`, so a token generated where the
+    # application reads it would have been invisible here - and every other
+    # variable in this file carries a default precisely so the stack starts with
+    # no env file at all. The service exits naming the variable when it is
+    # missing, which `docker compose logs sandboxd` shows.
+    env_file:
+      - ./backend/.env
     environment:
-      SANDBOXD_TOKEN: ${SANDBOXD_TOKEN:?run `make sandbox-token` to generate one}
       SANDBOXD_HOST: 0.0.0.0
       SANDBOXD_PORT: "8080"
-      SANDBOXD_WORKSPACE_ROOT: /workspaces
+      # Mounted at the same path on both sides, which is the only arrangement
+      # that works: this service creates the directory and then asks the daemon
+      # to bind-mount it, and the daemon resolves the path on the host. A named
+      # volume, or any path that exists only in this container, is refused with
+      # "mounts denied".
+      #
+      # The directory has to be writable by uid 10001 - `install -d -o 10001`
+      # once, on the host - and it is where a conversation's files live, so it
+      # belongs on storage somebody backs up.
+      SANDBOXD_WORKSPACE_ROOT: ${SANDBOX_WORKSPACE_ROOT:-/var/lib/agenticos/sandbox-workspaces}
       SANDBOXD_PERSIST_CONTAINERS: "true"
       SANDBOXD_MAX_SESSIONS_PER_TENANT: "5"
       SANDBOXD_NETWORK_MODE: none
       SANDBOXD_UI_ENABLED: "0"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - sandbox_workspaces:/workspaces
+      - ${SANDBOX_WORKSPACE_ROOT:-/var/lib/agenticos/sandbox-workspaces}:${SANDBOX_WORKSPACE_ROOT:-/var/lib/agenticos/sandbox-workspaces}
     group_add:
       - "${DOCKER_GID:-0}"
     networks:
@@ -226,7 +243,6 @@ networks:
     driver: bridge
 
 volumes:
-  sandbox_workspaces:
   media_data:
   postgres_data:
   redis_data:
