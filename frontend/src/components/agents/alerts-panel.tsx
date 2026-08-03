@@ -1,21 +1,40 @@
 "use client";
 
 import Link from "next/link";
-import { CircleDollarSign, Hand, PieChart } from "lucide-react";
+import { ChevronDown, CircleDollarSign, Hand, PieChart, UserPlus, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, Switch } from "@/components/ui";
+import {
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  Checkbox,
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+  Label,
+  Switch,
+} from "@/components/ui";
 import { useMembers } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import { DEFAULT_NOTIFICATIONS } from "@/lib/agent-spec";
 import { useOrgStore } from "@/stores";
-import { cn } from "@/lib/utils";
 import type { AlertAudience, AlertSpec, NotificationSpec } from "@/types/agents";
 
 interface AlertsPanelProps {
   value: NotificationSpec | undefined;
   onChange: (notifications: NotificationSpec) => void;
   disabled?: boolean;
+}
+
+/** How many people are named, in words rather than a bare digit. */
+function chosenCount(count: number): string {
+  if (count === 0) return "Choose people";
+  return count === 1 ? "1 person" : `${count} people`;
 }
 
 /** Which alert, and everything that has to be said about it in the UI. */
@@ -207,69 +226,101 @@ function AlertRow({
       </div>
 
       {alert.enabled && (
-        <div className="mt-4 space-y-3 pl-12">
-          <div className="flex flex-wrap gap-1.5">
+        <div className="mt-4 space-y-4 pl-12">
+          {/* Checkboxes with real labels rather than a row of pills. Four pills
+              with their hints hidden in `title` attributes was the odd one out in
+              this app - nothing else picks several things that way - and a
+              `title` is invisible on a touch screen and to a keyboard. */}
+          <fieldset disabled={disabled} className="space-y-2">
+            <legend className="text-muted-foreground text-xs font-medium">
+              Who hears about it
+            </legend>
             {meta.audiences.map((audience) => {
-              const on = alert.to.includes(audience);
+              const id = `${meta.key}-${audience}`;
               return (
-                <button
-                  key={audience}
-                  type="button"
-                  role="checkbox"
-                  aria-checked={on}
-                  aria-label={`${meta.label}: ${AUDIENCE_LABEL[audience]}`}
-                  title={AUDIENCE_HINT[audience]}
-                  disabled={disabled}
-                  onClick={() => toggleAudience(audience)}
-                  className={cn(
-                    "rounded-full border px-3 py-1 text-xs transition-colors",
-                    on
-                      ? "border-brand bg-brand/10 text-foreground"
-                      : "border-border text-muted-foreground hover:border-foreground/20",
-                    disabled && "cursor-not-allowed opacity-60",
-                  )}
-                >
-                  {AUDIENCE_LABEL[audience]}
-                </button>
+                <div key={audience} className="flex items-start gap-2.5">
+                  <Checkbox
+                    id={id}
+                    checked={alert.to.includes(audience)}
+                    disabled={disabled}
+                    // Named with the alert as well as the audience. Three alerts
+                    // offer the same four audiences, so the label alone is not a
+                    // unique name - a screen reader would announce four identical
+                    // "Specific people" and none of them would say which alert.
+                    aria-label={`${meta.label}: ${AUDIENCE_LABEL[audience]}`}
+                    onCheckedChange={() => toggleAudience(audience)}
+                  />
+                  <div className="-mt-0.5 min-w-0">
+                    <Label htmlFor={id} className="text-sm font-normal">
+                      {AUDIENCE_LABEL[audience]}
+                    </Label>
+                    <p className="text-muted-foreground text-xs">{AUDIENCE_HINT[audience]}</p>
+                  </div>
+                </div>
               );
             })}
-          </div>
+          </fieldset>
 
-          {alert.to.includes("chosen") && (
-            <div className="space-y-1.5">
-              {members.length === 0 ? (
-                <p className="text-muted-foreground text-xs">
-                  No members to choose from - this organization is just you.
-                </p>
-              ) : (
-                <div className="flex flex-wrap gap-1.5">
-                  {members.map((member) => {
-                    const on = alert.user_ids.includes(member.user_id);
-                    return (
-                      <button
+          {alert.to.includes("chosen") &&
+            (members.length === 0 ? (
+              <p className="text-muted-foreground text-xs">
+                No members to choose from - this organization is just you.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {/* A menu rather than every member as a pill: an organization of
+                    forty rendered forty of them inside a settings card. The names
+                    that were picked are listed below it, so who is on the list is
+                    readable without opening anything. */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" disabled={disabled}>
+                      <UserPlus className="h-3.5 w-3.5" />
+                      {chosenCount(alert.user_ids.length)}
+                      <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto">
+                    {members.map((member) => (
+                      <DropdownMenuCheckboxItem
                         key={member.user_id}
-                        type="button"
-                        role="checkbox"
-                        aria-checked={on}
+                        checked={alert.user_ids.includes(member.user_id)}
                         aria-label={`${meta.label}: ${member.label}`}
-                        disabled={disabled}
-                        onClick={() => toggleMember(member.user_id)}
-                        className={cn(
-                          "rounded-full border px-3 py-1 text-xs transition-colors",
-                          on
-                            ? "border-brand bg-brand/10 text-foreground"
-                            : "border-border text-muted-foreground hover:border-foreground/20",
-                          disabled && "cursor-not-allowed opacity-60",
-                        )}
+                        onCheckedChange={() => toggleMember(member.user_id)}
                       >
                         {member.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
+                      </DropdownMenuCheckboxItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                {alert.user_ids.length > 0 && (
+                  <ul className="space-y-1.5">
+                    {alert.user_ids.map((userId) => {
+                      const label =
+                        members.find((member) => member.user_id === userId)?.label ?? userId;
+                      return (
+                        <li
+                          key={userId}
+                          className="border-border flex items-center gap-2 rounded-md border px-3 py-1.5"
+                        >
+                          <span className="min-w-0 flex-1 truncate text-sm">{label}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={disabled}
+                            aria-label={`${meta.label}: remove ${label}`}
+                            onClick={() => toggleMember(userId)}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            ))}
 
           {problem && (
             // A span rather than a `Badge`: that component renders a `div`, and a

@@ -22,6 +22,7 @@ import pytest
 from pydantic import BaseModel
 
 from app.agents.capabilities import REGISTRY, CapabilityToolInfo, load_builtins, register
+from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
 from app.agents.spec import AgentSpec
 from app.core.exceptions import (
     AlreadyExistsError,
@@ -315,7 +316,13 @@ class TestCreate:
         assert written["slug"] == "support-bot"
         assert written["name"] == "Support Bot"
         assert written["description"] == "Answers customers"
-        assert written["draft_spec"] == spec.model_dump(mode="json")
+        # The submitted spec, with one substitution: a new agent opens with a
+        # starting prompt rather than an empty box. `TestWhatANewAgentOpensWith`
+        # below is where that behaviour is pinned.
+        assert written["draft_spec"] == {
+            **spec.model_dump(mode="json"),
+            "instructions": DEFAULT_INSTRUCTIONS,
+        }
         assert written["owner_user_id"] == ctx.user_id
         assert audit.call_args.kwargs["action"] == "agent.created"
 
@@ -1472,6 +1479,54 @@ class TestAvatar:
 
         assert path == "/data/avatars/agents/x/logo.png"
         assert storage.get_full_path.call_args.args == ("avatars/agents/x/logo.png",)
+
+
+class TestWhatANewAgentOpensWith:
+    """A prompt, not an empty box.
+
+    An agent with no instructions still answers - as whatever the underlying model
+    is by default, which is a different product on every provider and changes when
+    the model is upgraded.
+    """
+
+    @pytest.mark.anyio
+    async def test_a_new_agent_is_given_a_starting_prompt(self):
+        created = MagicMock()
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get_by_slug", new=AsyncMock(return_value=None)),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.create", new=AsyncMock(return_value=created)
+            ) as create,
+        ):
+            await AgentRegistryService(_db()).create(_ctx(), _spec("Support"))
+
+        assert create.call_args.kwargs["draft_spec"]["instructions"] == DEFAULT_INSTRUCTIONS
+
+    @pytest.mark.anyio
+    async def test_a_prompt_somebody_wrote_is_left_alone(self):
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get_by_slug", new=AsyncMock(return_value=None)),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.create", new=AsyncMock(return_value=MagicMock())
+            ) as create,
+        ):
+            await AgentRegistryService(_db()).create(
+                _ctx(), _spec("Support", instructions="Answer only in Polish.")
+            )
+
+        assert create.call_args.kwargs["draft_spec"]["instructions"] == "Answer only in Polish."
+
+    @pytest.mark.anyio
+    async def test_a_prompt_of_only_whitespace_is_not_a_prompt(self):
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get_by_slug", new=AsyncMock(return_value=None)),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.create", new=AsyncMock(return_value=MagicMock())
+            ) as create,
+        ):
+            await AgentRegistryService(_db()).create(_ctx(), _spec("Support", instructions="   \n"))
+
+        assert create.call_args.kwargs["draft_spec"]["instructions"] == DEFAULT_INSTRUCTIONS
 
 
 class TestWorkspaceConfigurationsRefusedAtPublish:

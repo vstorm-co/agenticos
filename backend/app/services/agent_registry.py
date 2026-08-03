@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities import TOOL_NAME_PATTERN, CapabilityDef
 from app.agents.capabilities import get as get_capability
+from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
 from app.agents.spec import AgentSpec, CapabilityBindingSpec
 from app.core.audit import record_audit
 from app.core.exceptions import (
@@ -284,6 +285,14 @@ class AgentRegistryService:
                 mentioned in Slack, so silently disambiguating one would route
                 messages to the wrong agent.
         """
+        # A new agent opens with a prompt rather than an empty box. An agent with
+        # no instructions still answers - as whatever the underlying model is by
+        # default, which is a different product on every provider and changes when
+        # the model is upgraded. Applied here rather than as a field default,
+        # because a spec imported with an empty prompt means an empty prompt.
+        if not spec.instructions.strip():
+            spec = spec.model_copy(update={"instructions": DEFAULT_INSTRUCTIONS})
+
         slug = slugify(spec.name)
         if await agent_repo.get_by_slug(self.db, slug, organization_id=ctx.organization_id):
             raise AlreadyExistsError(

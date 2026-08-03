@@ -1714,7 +1714,11 @@ class TestPublishAndRollback:
 
         assert agent.current_version_id == published.id
         stored = await db.get(AgentVersion, published.id)
-        assert stored.spec["instructions"] == ""
+        # The published version keeps what it was published with - which is the
+        # starting prompt a new agent is created with, not the rewrite that only
+        # ever reached the draft.
+        assert stored.spec["instructions"] != "rewritten"
+        assert stored.spec["instructions"].startswith("You are a helpful assistant.")
 
     async def test_rolling_back_writes_a_new_version_instead_of_moving_the_pointer(
         self, db

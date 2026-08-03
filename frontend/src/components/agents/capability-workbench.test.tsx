@@ -202,6 +202,38 @@ describe("the capability workbench", () => {
   });
 });
 
+describe("the frame the two panes sit in", () => {
+  it("is one height whichever capability is showing", () => {
+    // The page used to be as tall as whatever was selected: opening the
+    // workspace - the tallest panel by far - and then clicking a short one left
+    // the document scrolled past its own content, with hundreds of pixels of
+    // nothing below the section beneath it.
+    const { container } = render(
+      <CapabilityWorkbench
+        catalog={[CHARTS]}
+        selected={[]}
+        onToggle={vi.fn()}
+        onChange={vi.fn()}
+      />,
+    );
+
+    expect(container.querySelector(".grid")?.className).toContain("lg:h-[36rem]");
+  });
+
+  it("scrolls each pane rather than the page", () => {
+    const { container } = render(
+      <CapabilityWorkbench
+        catalog={[CHARTS]}
+        selected={[]}
+        onToggle={vi.fn()}
+        onChange={vi.fn()}
+      />,
+    );
+
+    expect(container.querySelectorAll('[class*="overflow-y-auto"]').length).toBe(2);
+  });
+});
+
 describe("jsonSchemaType", () => {
   it("searches the tools too, because that is what somebody is looking for", async () => {
     // Nobody knows which capability owns `create_chart`, and the search box only

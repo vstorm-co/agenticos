@@ -105,8 +105,14 @@ export function CapabilityWorkbench({
   if (catalog.length === 0) return null;
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
-      <div className="space-y-3">
+    // One frame, one height, whichever capability is showing. The page used to be
+    // as tall as whatever was selected: opening the workspace - the tallest panel
+    // by far - and then clicking a short one left the document scrolled past its
+    // own content, hundreds of pixels of nothing below the MCP section. Both
+    // columns now scroll inside a fixed pane, so choosing a capability moves
+    // nothing on the page around it.
+    <div className="grid gap-4 lg:h-[36rem] lg:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
+      <div className="flex min-h-0 flex-col gap-3">
         {catalog.length > 8 && (
           <SearchInput
             value={query}
@@ -116,7 +122,7 @@ export function CapabilityWorkbench({
           />
         )}
 
-        <div className="space-y-4 lg:max-h-[36rem] lg:overflow-y-auto lg:pr-1">
+        <div className="min-h-0 space-y-4 lg:flex-1 lg:overflow-y-auto lg:pr-1">
           {categories.length === 0 && (
             <p className="text-muted-foreground px-1 py-6 text-sm">
               No capability or tool matches “{query}”.
@@ -155,7 +161,11 @@ export function CapabilityWorkbench({
         </div>
       </div>
 
-      <div className="min-w-0">
+      {/* Scrolls in its own pane rather than lengthening the page. Without this
+          the workspace panel - the one capability with tiles, two selects, a
+          warning and a nested settings form - set the height of the whole
+          Builder. */}
+      <div className="min-h-0 min-w-0 lg:overflow-y-auto lg:pr-1">
         {focused && (
           <div className="space-y-3">
             {/* The switch travels with the panel as well as sitting in the row.
