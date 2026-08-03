@@ -3,11 +3,43 @@
 import { Coins, HardDrive } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import type { ConversationWorkspace } from "@/lib/conversation-workspace-api";
 import type { TurnUsage } from "@/types";
 
 interface UsageStripProps {
   /** The last turn's usage, or `null` before one has been measured. */
   usage: TurnUsage | null;
+  /**
+   * The workspace as it stands *now*, which is not what a turn cost.
+   *
+   * Two sources for one line, on purpose. A live turn reports the workspace it just
+   * used, including a container's resident memory - which only its host can answer. A
+   * conversation somebody has just *opened* has no turn to report anything, and the
+   * fill was therefore missing until they sent a message: the one moment it is least
+   * useful. The listing answers it for a stored workspace at no extra cost, because
+   * the panel beside the transcript has already asked.
+   */
+  workspace?: ConversationWorkspace | null;
+}
+
+interface Fill {
+  percent: number | null;
+  detail: string | null;
+}
+
+/** How full the workspace is, from whichever source can say. */
+function fillOf(usage: TurnUsage, workspace: ConversationWorkspace | null): Fill | null {
+  const sandbox = usage.sandbox;
+  if (sandbox !== null) return { percent: sandbox.percent, detail: reportedDetail(sandbox) };
+  // No turn has reported one - a reopened conversation. A stored workspace can still
+  // be measured from the listing; a container cannot, and "in use" would claim a
+  // sandbox is running when the last one may have been reaped weeks ago.
+  if (workspace === null || workspace.backend !== "state" || workspace.bytes_limit === null)
+    return null;
+  return {
+    percent: Math.round((workspace.bytes_total * 100) / workspace.bytes_limit),
+    detail: `${size(workspace.bytes_total)} of ${size(workspace.bytes_limit)} stored`,
+  };
 }
 
 /** Bytes as a person reads them. */
@@ -18,9 +50,7 @@ function size(bytes: number): string {
 }
 
 /** What the workspace half is measuring, and how much of it is gone. */
-function workspaceDetail(usage: TurnUsage): string | null {
-  const sandbox = usage.sandbox;
-  if (sandbox === null) return null;
+function reportedDetail(sandbox: NonNullable<TurnUsage["sandbox"]>): string | null {
   if (sandbox.bytes_used !== null && sandbox.bytes_limit !== null)
     return `${size(sandbox.bytes_used)} of ${size(sandbox.bytes_limit)} stored`;
   if (sandbox.memory_bytes !== null && sandbox.memory_limit_bytes !== null)
@@ -41,12 +71,13 @@ function workspaceDetail(usage: TurnUsage): string | null {
  * under a conversation that has not run anything is a claim, and this has none to
  * make yet.
  */
-export function UsageStrip({ usage }: UsageStripProps) {
+export function UsageStrip({ usage, workspace = null }: UsageStripProps) {
   if (usage === null) return null;
 
   const tokens = usage.input_tokens + usage.output_tokens;
-  const percent = usage.sandbox?.percent ?? null;
-  const detail = workspaceDetail(usage);
+  const fill = fillOf(usage, workspace);
+  const percent = fill?.percent ?? null;
+  const detail = fill?.detail ?? null;
 
   return (
     <div className="text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-xs">
@@ -72,7 +103,7 @@ export function UsageStrip({ usage }: UsageStripProps) {
         )}
       </span>
 
-      {usage.sandbox !== null && (
+      {fill !== null && (
         <span className="flex items-center gap-1.5" title={detail ?? undefined}>
           <HardDrive className="h-3 w-3" aria-hidden />
           {percent === null ? (

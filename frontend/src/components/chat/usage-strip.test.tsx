@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { UsageStrip } from "./usage-strip";
+import type { ConversationWorkspace } from "@/lib/conversation-workspace-api";
 import type { TurnUsage } from "@/types";
 
 function usage(overrides: Partial<TurnUsage> = {}): TurnUsage {
@@ -12,6 +13,20 @@ function usage(overrides: Partial<TurnUsage> = {}): TurnUsage {
     budget_percent: null,
     agent_budget_percent: null,
     sandbox: null,
+    ...overrides,
+  };
+}
+
+function workspace(overrides: Partial<ConversationWorkspace> = {}): ConversationWorkspace {
+  return {
+    scope: "conversation",
+    backend: "state",
+    owner_label: "This conversation",
+    items: [],
+    total: 0,
+    bytes_total: 1024,
+    bytes_limit: 4096,
+    unreadable_reason: null,
     ...overrides,
   };
 }
@@ -168,5 +183,57 @@ describe("UsageStrip", () => {
     );
 
     expect(screen.getByTitle("2 KiB of 4.0 MiB stored")).toBeVisible();
+  });
+
+  /**
+   * The fill on a conversation nobody has sent to yet.
+   *
+   * Two sources for one line, because they measure at different times: a live turn
+   * reports the workspace it used, and a *reopened* conversation has no turn to report
+   * anything - which is how "workspace 0% full" came to appear only after somebody sent
+   * a message, the one moment it is least useful.
+   */
+  it("measures a stored workspace from the listing when no turn has reported one", () => {
+    render(<UsageStrip usage={usage()} workspace={workspace()} />);
+
+    expect(screen.getByText("workspace 25% full")).toBeVisible();
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "25");
+  });
+
+  it("prefers what the turn reported, which is the only source a container has", () => {
+    render(
+      <UsageStrip
+        usage={usage({
+          sandbox: {
+            kind: "service",
+            // The percentage is the server's arithmetic, not the client's: a container
+            // is memory against a ceiling its host set, and a stored workspace is bytes
+            // against ours.
+            percent: 90,
+            bytes_used: null,
+            bytes_limit: null,
+            memory_bytes: 90,
+            memory_limit_bytes: 100,
+          },
+        })}
+        workspace={workspace()}
+      />,
+    );
+
+    expect(screen.getByText("workspace 90% full")).toBeVisible();
+  });
+
+  it("says nothing about a container nothing has measured", () => {
+    // The listing cannot answer for one, and "in use" would claim a sandbox is running
+    // when the last one may have been reaped weeks ago.
+    render(<UsageStrip usage={usage()} workspace={workspace({ backend: "service" })} />);
+
+    expect(screen.queryByText(/workspace/)).toBeNull();
+  });
+
+  it("says nothing about a workspace with no ceiling to fill", () => {
+    render(<UsageStrip usage={usage()} workspace={workspace({ bytes_limit: null })} />);
+
+    expect(screen.queryByText(/workspace/)).toBeNull();
   });
 });
