@@ -1,5 +1,12 @@
 import type { ConversationMessage, TurnUsage } from "@/types";
 
+/** The fields a cost is read from, on whichever shape the message arrived as. */
+interface Measured {
+  input_tokens?: number | null;
+  output_tokens?: number | null;
+  cost_usd?: string | null;
+}
+
 /**
  * What a stored message says it cost, or `null` when it says nothing.
  *
@@ -14,7 +21,7 @@ import type { ConversationMessage, TurnUsage } from "@/types";
  * showing last month's percentage-of-budget under an old message would be a number
  * that was never true.
  */
-export function storedUsage(message: ConversationMessage): TurnUsage | null {
+export function storedUsage(message: Measured): TurnUsage | null {
   if (message.input_tokens == null || message.output_tokens == null) return null;
   return {
     input_tokens: message.input_tokens,

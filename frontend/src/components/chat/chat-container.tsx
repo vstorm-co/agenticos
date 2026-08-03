@@ -16,8 +16,8 @@ import { PendingMessages } from "./pending-messages";
 import { ToolApprovalDialog } from "./tool-approval-dialog";
 import { QuestionPrompt } from "@/components/ui";
 import type { PendingApproval, AskUserQuestion, AskUserAnswer, Decision, TurnUsage } from "@/types";
-import { buildAssistantParts } from "@/lib/conversation-to-chat";
-import { latestUsage, storedUsage } from "@/lib/message-usage";
+import { conversationMessageToChatMessage } from "@/lib/conversation-to-chat";
+import { latestUsage } from "@/lib/message-usage";
 import { useConversationStore, useChatStore } from "@/stores";
 import { useConversations } from "@/hooks";
 import { useSlashCommands } from "@/hooks";
@@ -39,6 +39,13 @@ export function ChatContainer() {
   const isArchived =
     conversations.find((conversation) => conversation.id === currentConversationId)?.is_archived ??
     false;
+
+  // The one agent a conversation used, when it used exactly one. Recovered from the
+  // conversation rather than the message, which is the only source history has left.
+  const conversationAgents = conversations.find(
+    (conversation) => conversation.id === currentConversationId,
+  )?.agents;
+  const soleAgentId = conversationAgents?.length === 1 ? conversationAgents[0]?.id : undefined;
 
   const handleConversationCreated = useCallback(() => {
     fetchConversations();
@@ -114,38 +121,15 @@ export function ChatContainer() {
     if (currentMessages.length > 0) {
       clearMessages();
       currentMessages.forEach((msg) => {
-        const toolCalls = msg.tool_calls?.map((tc) => ({
-          id: tc.tool_call_id,
-          name: tc.tool_name,
-          args: tc.args,
-          result: tc.result,
-          status: (tc.status === "failed" ? "error" : tc.status) as
-            "pending" | "running" | "completed" | "error",
-        }));
-        // Reconstruct an ordered timeline for assistant turns via the shared builder
-        // (same one the demo replay uses), so thinking + reconstructed research +
-        // tool/text parts render consistently across the chat and the demo.
-        const parts =
-          msg.role === "assistant"
-            ? buildAssistantParts(toolCalls ?? [], msg.content, msg.id, msg.thinking)
-            : undefined;
+        const message = conversationMessageToChatMessage(msg);
         addChatMessage({
-          id: msg.id,
-          role: msg.role,
-          content: msg.content,
-          thinking: msg.thinking ?? undefined,
-          timestamp: new Date(msg.created_at),
-          conversationId: msg.conversation_id,
-          toolCalls,
-          parts,
-          user_rating: msg.user_rating ?? undefined,
-          rating_count: msg.rating_count ?? undefined,
-          files: msg.files,
-          fileIds: msg.files?.map((f) => f.id),
-          // What the turn cost, from the row rather than from a WebSocket frame this
-          // page never saw: a reopened conversation used to show no cost anywhere
-          // until somebody sent a new message.
-          usage: storedUsage(msg) ?? undefined,
+          ...message,
+          // The row is what says which agent produced a turn. When it says nothing -
+          // every message written before the API recorded it - and the conversation
+          // had exactly *one* agent, that agent answered every turn in it, and the
+          // transcript can show its face instead of a generic robot. With two the
+          // guess would relabel half the thread, so it is not made.
+          agentId: message.agentId ?? soleAgentId,
         });
       });
     }
