@@ -232,6 +232,7 @@ class AgentSession:
                     thinking="".join(collected_thinking) or None,
                     agent_id=agent_id,
                     agent_version_id=agent_version_id,
+                    usage=turn.usage,
                 )
 
             if assistant_msg_id:

@@ -17,6 +17,7 @@ import { ToolApprovalDialog } from "./tool-approval-dialog";
 import { QuestionPrompt } from "@/components/ui";
 import type { PendingApproval, AskUserQuestion, AskUserAnswer, Decision, TurnUsage } from "@/types";
 import { buildAssistantParts } from "@/lib/conversation-to-chat";
+import { latestUsage, storedUsage } from "@/lib/message-usage";
 import { useConversationStore, useChatStore } from "@/stores";
 import { useConversations } from "@/hooks";
 import { useSlashCommands } from "@/hooks";
@@ -141,6 +142,10 @@ export function ChatContainer() {
           rating_count: msg.rating_count ?? undefined,
           files: msg.files,
           fileIds: msg.files?.map((f) => f.id),
+          // What the turn cost, from the row rather than from a WebSocket frame this
+          // page never saw: a reopened conversation used to show no cost anywhere
+          // until somebody sent a new message.
+          usage: storedUsage(msg) ?? undefined,
         });
       });
     }
@@ -203,7 +208,10 @@ export function ChatContainer() {
       messages={messages}
       isConnected={isConnected}
       isProcessing={isProcessing}
-      lastUsage={lastUsage}
+      // The live turn's cost while there is one, and the newest measured answer in
+      // the transcript otherwise - which is what makes the strip appear on a
+      // conversation somebody has just reopened instead of after their next message.
+      lastUsage={lastUsage ?? latestUsage(currentMessages)}
       conversationId={currentConversationId}
       turns={turns}
       isLoadingConversation={

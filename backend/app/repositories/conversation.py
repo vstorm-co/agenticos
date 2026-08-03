@@ -1,6 +1,7 @@
 """Conversation repository."""
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -358,6 +359,9 @@ async def create_message(
     thinking: str | None = None,
     model_name: str | None = None,
     tokens_used: int | None = None,
+    input_tokens: int | None = None,
+    output_tokens: int | None = None,
+    cost_usd: Decimal | None = None,
     agent_id: UUID | None = None,
     agent_version_id: UUID | None = None,
 ) -> Message:
@@ -369,6 +373,9 @@ async def create_message(
         thinking=thinking,
         model_name=model_name,
         tokens_used=tokens_used,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        cost_usd=cost_usd,
         agent_id=agent_id,
         agent_version_id=agent_version_id,
     )
