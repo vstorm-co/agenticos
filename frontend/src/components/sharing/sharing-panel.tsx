@@ -55,29 +55,15 @@ const NOUN: Record<SharingResourceType, string> = {
  */
 const VISIBILITY_OPTIONS: {
   value: Visibility;
-  label: string;
-  reaches: (noun: string) => string;
+  /** Catalog key for this visibility's name; `<key>Reaches` says who it reaches. */
+  words: string;
 }[] = [
-  {
-    value: "private",
-    label: "Private",
-    reaches: (noun) =>
-      `Only you and the people listed below. Nobody else finds this ${noun} in their list - and if it has no owner yet, it becomes yours.`,
-  },
-  {
-    value: "org",
-    label: "Organization",
-    reaches: (noun) => `Everyone in the organization who can view ${noun}s at all.`,
-  },
+  { value: "private", words: "visibilityPrivate" },
+  { value: "org", words: "visibilityOrg" },
 ];
 
 /** Shown only for a row already set to it, so it can be seen and moved off. */
-const LEGACY_TEAM = {
-  value: "team" as Visibility,
-  label: "Team (no longer offered)",
-  reaches: (noun: string) =>
-    `Anyone whose role reaches team ${noun}s. This organization has no teams - pick one of the two above.`,
-};
+const LEGACY_TEAM = { value: "team" as Visibility, words: "visibilityTeam" };
 
 /**
  * What a share actually reaches, per resource type.
@@ -92,10 +78,8 @@ const LEGACY_TEAM = {
  * get wrong, so it is written down where the decision is made.
  */
 const RUNTIME_NOTE: Partial<Record<SharingResourceType, string>> = {
-  secret:
-    "Sharing controls who can bind this key to an agent and who can rotate it - not who benefits from it. Once an agent uses this key, it runs with it for everyone who can run that agent, including people who cannot see the key here.",
-  collection:
-    "Sharing controls who can pick this collection in the Builder and who can change it. An agent connected to it searches it for everyone who can run that agent, including people who cannot open the collection themselves.",
+  secret: "secretRuntimeNote",
+  collection: "collectionRuntimeNote",
 };
 
 /** Each level's word is in the catalog; `words` names the key. */
@@ -188,8 +172,10 @@ export function SharingPanel({ resourceType, resourceId, canManage }: SharingPan
                     onChange={() => setVisibility.mutate(option.value)}
                   />
                   <div className="space-y-1">
-                    <Label htmlFor={id}>{option.label}</Label>
-                    <p className="text-muted-foreground text-sm">{option.reaches(noun)}</p>
+                    <Label htmlFor={id}>{t(option.words)}</Label>
+                    <p className="text-muted-foreground text-sm">
+                      {t(`${option.words}Reaches`, { noun })}
+                    </p>
                   </div>
                 </div>
               );
@@ -208,7 +194,7 @@ export function SharingPanel({ resourceType, resourceId, canManage }: SharingPan
           </CardDescription>
           {RUNTIME_NOTE[resourceType] && (
             <p className="text-muted-foreground border-border mt-2 border-l-2 pl-3 text-sm">
-              {RUNTIME_NOTE[resourceType]}
+              {t(RUNTIME_NOTE[resourceType]!)}
             </p>
           )}
         </CardHeader>

@@ -31,10 +31,7 @@ import { useTranslations } from "next-intl";
  * One sentence, in one place, so the skeleton and the page cannot disagree -
  * a header that changes text when the data lands is a flicker nobody asked for.
  */
-const VAULT_DESCRIPTION =
-  "Every key this organization has stored. Encrypted, bound to this organization, and never " +
-  "readable back - not through the API, and not here. An agent names a key by id, so rotating " +
-  "one replaces the value everywhere at once.";
+const VAULT_DESCRIPTION = "pageDescription";
 
 /** How many keys are in there, in words rather than a bare digit. */
 function storedCount(count: number): string {
@@ -96,7 +93,7 @@ export default function VaultPage() {
   if (secretsLoading)
     return (
       <div className="space-y-6">
-        <PageHeader title={t("vault")} description={VAULT_DESCRIPTION} />
+        <PageHeader title={t("vault")} description={t(VAULT_DESCRIPTION)} />
         <KeysCard count={null}>
           {[0, 1, 2].map((row) => (
             <div
@@ -118,7 +115,7 @@ export default function VaultPage() {
     <div className="space-y-6">
       <PageHeader
         title={t("vault2")}
-        description={VAULT_DESCRIPTION}
+        description={t(VAULT_DESCRIPTION)}
         actions={
           canManage ? (
             <Button onClick={() => setSecretOpen(true)}>

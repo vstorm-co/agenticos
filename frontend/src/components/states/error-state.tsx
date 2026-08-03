@@ -22,8 +22,12 @@ export function ErrorState({ title, description, cta, className }: ErrorStatePro
       <div className="bg-destructive/10 text-destructive mb-4 flex h-11 w-11 items-center justify-center rounded-full">
         <AlertCircle className="h-5 w-5" />
       </div>
-      <h3 className="text-foreground text-base font-semibold">{title}</h3>
-      <p className="text-foreground/60 mt-1.5 max-w-sm text-sm">{description}</p>
+      <h3 className="text-foreground text-base font-semibold">
+        {title ?? t("somethingWentWrong")}
+      </h3>
+      <p className="text-foreground/60 mt-1.5 max-w-sm text-sm">
+        {description ?? t("checkConnection")}
+      </p>
       {cta && (
         <button
           type="button"

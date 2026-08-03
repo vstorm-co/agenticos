@@ -256,6 +256,7 @@ function HtmlViewer({ url }: { url: string }) {
 }
 
 function CsvViewer({ url }: { url: string }) {
+  const t = useTranslations("chat");
   const [rows, setRows] = useState<string[][] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -267,7 +268,7 @@ function CsvViewer({ url }: { url: string }) {
         if (!cancelled) setRows(parseCsv(text));
       })
       .catch((e) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load");
+        if (!cancelled) setError(e instanceof Error ? e.message : t("preview.failedToLoad"));
       });
     return () => {
       cancelled = true;
@@ -276,7 +277,7 @@ function CsvViewer({ url }: { url: string }) {
 
   if (error) return <ErrorState message={error} />;
   if (rows === null) return <LoadingState />;
-  if (rows.length === 0) return <EmptyState message="Empty file" />;
+  if (rows.length === 0) return <EmptyState message={t("preview.emptyFile")} />;
 
   const [header, ...body] = rows;
   const MAX_ROWS = 500;
@@ -388,6 +389,7 @@ interface TextViewerProps {
 }
 
 function TextViewer({ url, mode, lang }: TextViewerProps) {
+  const t = useTranslations("chat");
   const [text, setText] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -408,7 +410,7 @@ function TextViewer({ url, mode, lang }: TextViewerProps) {
         }
       })
       .catch((e) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load");
+        if (!cancelled) setError(e instanceof Error ? e.message : t("preview.failedToLoad"));
       });
     return () => {
       cancelled = true;

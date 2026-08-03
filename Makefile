@@ -247,6 +247,7 @@ lint:
 	uv run --directory backend ruff format app tests cli --check
 	uv run --directory backend ty check
 	python3 scripts/check_backticks.py
+	python3 scripts/check_i18n.py
 
 # === Testing ===
 # `test` is the gate: it fails if platform-layer coverage drops below 100%.

@@ -61,7 +61,7 @@ export function IngestionPanel({ kb, onEdit }: IngestionPanelProps) {
           {config.pdf_parser === "liteparse" && ` · ${config.ocr_language.trim()}`}
         </Fact>
 
-        <Fact term="Scanned pages">{config.ocr ? t("readAsImages") : t("notRead")}</Fact>
+        <Fact term={t("scannedPages")}>{config.ocr ? t("readAsImages") : t("notRead")}</Fact>
 
         <Fact term="Chunking">
           {config.chunk_size.toLocaleString()} characters, {config.chunk_overlap.toLocaleString()}{" "}
@@ -78,10 +78,7 @@ export function IngestionPanel({ kb, onEdit }: IngestionPanelProps) {
           collection is made; two models of the same width write into different
           spaces that search would go on comparing and go on answering from.
         */}
-        <Fact
-          term="Embeddings"
-          note="What this collection was indexed with, recorded when it was created. It cannot be changed - vectors written by two different models are not comparable, so a collection that needs another one is a new collection."
-        >
+        <Fact term="Embeddings" note={t("ingestionRecordedNote")}>
           <span className="inline-flex items-center gap-1.5">
             <Lock className="text-muted-foreground h-3 w-3 shrink-0" aria-hidden />
             <span className="font-mono text-xs">{kb.embedding_model}</span>

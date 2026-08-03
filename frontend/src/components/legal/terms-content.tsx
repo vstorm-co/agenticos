@@ -91,7 +91,7 @@ export function TermsBodyEn() {
 }
 
 export function TermsBodyPl() {
-  const t = useTranslations("legal");
+  const t = useTranslations("legal.pl");
   return (
     <>
       <p>
@@ -118,7 +118,7 @@ export function TermsBodyPl() {
       <h2>{t("n3AkceptowalneUYcie")}</h2>
       <p>{t("nieBDzieszKorzysta")}</p>
       <ul>
-        <li>łamać prawo lub naruszać praw osób trzecich;</li>
+        <li>{t("amaPrawoLubNarusza")}</li>
         <li>{t("generowaTreCiNielegalnych")}</li>
         <li>{t("sondowaSkanowaLubTestowa")}</li>
         <li>{t("reverseEngineerowaUsUgi")}</li>

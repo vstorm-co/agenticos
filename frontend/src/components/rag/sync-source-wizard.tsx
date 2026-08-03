@@ -51,23 +51,24 @@ interface SyncSourceWizardProps {
 type Mode = "new" | "clone";
 type Step = "source" | "configure" | "schedule";
 
-const STEPS: { id: Step; label: string; icon: typeof Plug }[] = [
-  { id: "source", label: "Pick source", icon: Plug },
-  { id: "configure", label: "Configure", icon: Cog },
-  { id: "schedule", label: "Schedule", icon: Calendar },
+/** Each step's word is in the catalog; `words` names the key. */
+const STEPS: { id: Step; words: string; icon: typeof Plug }[] = [
+  { id: "source", words: "stepSource", icon: Plug },
+  { id: "configure", words: "stepConfigure", icon: Cog },
+  { id: "schedule", words: "stepSchedule", icon: Calendar },
 ];
 
 const SYNC_MODES = [
-  { value: "full", label: "Full", description: "Reprocess everything every run" },
-  { value: "new_only", label: "New only", description: "Only ingest files added since last sync" },
-  { value: "update_only", label: "Update only", description: "Re-ingest files that changed" },
+  { value: "full", words: "modeFull" },
+  { value: "new_only", words: "modeNewOnly" },
+  { value: "update_only", words: "modeUpdateOnly" },
 ];
 
 const SCHEDULE_PRESETS = [
-  { value: 0, label: "Manual" },
-  { value: 60, label: "Every hour" },
-  { value: 360, label: "Every 6h" },
-  { value: 1440, label: "Daily" },
+  { value: 0, words: "cadenceManual" },
+  { value: 60, words: "everyHour" },
+  { value: 360, words: "everySixHours" },
+  { value: 1440, words: "cadenceDaily" },
 ];
 
 const EMPTY_FORM: SyncSourceCreate = {
@@ -238,7 +239,7 @@ export function SyncSourceWizard({
                         active || done ? "text-foreground" : "text-foreground/45",
                       )}
                     >
-                      {s.label}
+                      {t(s.words)}
                     </span>
                     {i < STEPS.length - 1 && (
                       <span
@@ -673,8 +674,8 @@ function ScheduleStep({
                     : "border-foreground/10 bg-card hover:border-foreground/30",
                 )}
               >
-                <p className="text-foreground text-sm font-semibold">{mode.label}</p>
-                <p className="text-foreground/55 mt-0.5 text-xs">{mode.description}</p>
+                <p className="text-foreground text-sm font-semibold">{t(mode.words)}</p>
+                <p className="text-foreground/55 mt-0.5 text-xs">{t(`${mode.words}Detail`)}</p>
               </button>
             );
           })}
@@ -702,7 +703,7 @@ function ScheduleStep({
                     : "text-foreground/65 hover:text-foreground hover:border-foreground/40",
                 )}
               >
-                {p.label}
+                {t(p.words)}
               </button>
             );
           })}

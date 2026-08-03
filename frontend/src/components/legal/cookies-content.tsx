@@ -61,7 +61,7 @@ export function CookiesBodyEn() {
 }
 
 export function CookiesBodyPl() {
-  const t = useTranslations("legal");
+  const t = useTranslations("legal.pl");
   return (
     <>
       <p>{t("uYwamyPlikW")}</p>

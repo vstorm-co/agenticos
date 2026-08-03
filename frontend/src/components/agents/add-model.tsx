@@ -63,7 +63,7 @@ interface AddModelProps {
  */
 /** Catalog key for the placeholder, so the caller translates it. */
 export function modelPlaceholder(providerId: string | undefined): string {
-  if (providerId === undefined) return "Pick a provider first";
+  if (providerId === undefined) return "pickProviderFirst";
   if (providerId === "openrouter") return "openai/gpt-5";
   return "gpt-5, claude-opus-5, gemini-3-pro…";
 }
@@ -71,7 +71,7 @@ export function modelPlaceholder(providerId: string | undefined): string {
 /** Catalog key for the hint under the field. */
 export function modelHint(providerId: string | undefined): string {
   if (providerId === "openrouter") {
-    return "Namespaced by origin, as OpenRouter lists it - openai/gpt-5, anthropic/claude-opus-5.";
+    return "modelIdOpenRouterHint";
   }
   return "modelIdProviderHint";
 }

@@ -14,9 +14,10 @@ export async function generateMetadata({
 }: {
   params: Promise<{ locale: Locale }>;
 }): Promise<Metadata> {
+  const t = await getTranslations("pages.meta");
   const { locale } = await params;
   return pageMetadata({
-    title: "Cookie Policy",
+    title: t("cookiePolicy"),
     description: `How ${APP_NAME} uses cookies and similar technologies.`,
     path: "/legal/cookies",
     locale,

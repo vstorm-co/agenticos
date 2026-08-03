@@ -35,7 +35,16 @@ There is no `(marketing)` route group.
   in a component.
 - **Register query keys** in `query-keys.ts` so invalidation stays consistent.
 - **Stores hold UI/ephemeral state only.** Server data lives in the query layer.
-- **Every user-facing string through `next-intl`.** Never hardcode copy.
+- **Every user-facing string through `next-intl`**, and `make lint` enforces it:
+  `scripts/check_i18n.py` fails on a string a person would read sitting in a
+  component - a text node, a readable attribute, a toast, a sentence in a ternary -
+  and on the reverse, a key a component reads that `messages/en.json` does not hold.
+  A genuine non-string takes `i18n-exempt: <reason>`; the reason is required.
+- **English is the source language, and `pl.json` holds only what is translated.**
+  `src/i18n.ts` merges `en.json` underneath every locale, so a missing translation
+  renders English instead of the key. A module-level table of labels cannot call a
+  translator, so it holds *keys* and the component translates at the point of use;
+  a pure helper either answers with a key or takes `t`.
 - Keep components under ~100 lines; extract when they grow.
 - Do not hand-edit `src/lib/mcp-logos.generated.ts` — run `bun run gen:mcp-logos`.
 

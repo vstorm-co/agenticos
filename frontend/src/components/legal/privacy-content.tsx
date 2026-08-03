@@ -112,7 +112,7 @@ export function PrivacyBodyEn() {
 }
 
 export function PrivacyBodyPl() {
-  const t = useTranslations("legal");
+  const t = useTranslations("legal.pl");
   return (
     <>
       <p>

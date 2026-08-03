@@ -14,9 +14,10 @@ export async function generateMetadata({
 }: {
   params: Promise<{ locale: Locale }>;
 }): Promise<Metadata> {
+  const t = await getTranslations("pages.meta");
   const { locale } = await params;
   return pageMetadata({
-    title: "Privacy Policy",
+    title: t("privacyPolicy"),
     description: `How ${APP_NAME} collects, uses, and protects your data.`,
     path: "/legal/privacy",
     locale,

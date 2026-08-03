@@ -23,8 +23,8 @@ interface ConnectionsTableProps {
 }
 
 /** What kind of host this is, in words and an icon rather than a stored string. */
-function kindLabel(kind: string): string {
-  return kind === "daytona" ? "Daytona cloud" : "Container service";
+function kindLabel(kind: string, t: (key: string) => string): string {
+  return kind === "daytona" ? t("daytonaCloud") : t("containerService");
 }
 
 /**
@@ -85,7 +85,7 @@ export function ConnectionsTable({
                 {!connection.is_active && <Badge variant="outline">{t("off")}</Badge>}
               </div>
             </TableCell>
-            <TableCell className="text-muted-foreground">{kindLabel(connection.kind)}</TableCell>
+            <TableCell className="text-muted-foreground">{kindLabel(connection.kind, t)}</TableCell>
             <TableCell className="text-muted-foreground font-mono text-xs">
               {addressLabel(connection)}
             </TableCell>

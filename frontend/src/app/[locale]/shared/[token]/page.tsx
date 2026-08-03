@@ -1,6 +1,7 @@
 import { MessageSquare } from "lucide-react";
 
 import { formatDateTime } from "@/lib/utils";
+import { getTranslations } from "next-intl/server";
 
 interface SharedConversationPageProps {
   params: Promise<{ token: string; locale: string }>;
@@ -18,6 +19,7 @@ async function fetchSharedConversation(token: string) {
 }
 
 export default async function SharedConversationPage({ params }: SharedConversationPageProps) {
+  const t = await getTranslations("pages.root");
   const { token } = await params;
   const data = await fetchSharedConversation(token);
 
@@ -26,7 +28,7 @@ export default async function SharedConversationPage({ params }: SharedConversat
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">
           <MessageSquare className="text-muted-foreground mx-auto h-12 w-12" />
-          <h1 className="mt-4 text-xl font-semibold">Share link not found</h1>
+          <h1 className="mt-4 text-xl font-semibold">{t("shareLinkNotFound")}</h1>
           <p className="text-muted-foreground mt-2">
             This share link may have expired or been revoked.
           </p>

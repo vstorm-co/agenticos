@@ -7,8 +7,10 @@ import { Spinner } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
 import { useAdoptSession } from "@/hooks/use-auth";
 import type { User } from "@/types";
+import { useTranslations } from "next-intl";
 
 export default function AuthCallbackPage() {
+  const t = useTranslations("pages.root");
   const router = useRouter();
   const searchParams = useSearchParams();
   // Two sources, one derived value. What the provider sent is already in the
@@ -62,7 +64,7 @@ export default function AuthCallbackPage() {
   return (
     <div className="flex min-h-[50vh] items-center justify-center">
       {error ? (
-        <p className="text-foreground/65 text-sm">Sign-in failed. Redirecting…</p>
+        <p className="text-foreground/65 text-sm">{t("signInFailedRedirecting")}</p>
       ) : (
         // A token exchange and a redirect. There is no layout to promise here,
         // so this is a spinner rather than a skeleton of a page nobody stays on.

@@ -3,11 +3,7 @@ import { Sparkles } from "lucide-react";
 import { APP_NAME } from "@/lib/constants";
 import { useTranslations } from "next-intl";
 
-const HIGHLIGHTS = [
-  "Agents built in a UI, versioned on publish",
-  "Knowledge, skills and tools switched on per agent",
-  "Budgets, approvals and an audit trail on every run",
-];
+const HIGHLIGHTS = ["pitchAgents", "pitchKnowledge", "pitchGovernance"];
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   const t = useTranslations("pages.auth");
@@ -57,10 +53,10 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
             </p>
 
             <ul className="mt-10 space-y-3">
-              {HIGHLIGHTS.map((line) => (
-                <li key={line} className="text-foreground/85 flex items-center gap-3 text-sm">
+              {HIGHLIGHTS.map((key) => (
+                <li key={key} className="text-foreground/85 flex items-center gap-3 text-sm">
                   <span aria-hidden className="bg-brand h-1.5 w-1.5 shrink-0 rounded-full" />
-                  {line}
+                  {t(key)}
                 </li>
               ))}
             </ul>

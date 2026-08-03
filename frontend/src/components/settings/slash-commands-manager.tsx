@@ -173,7 +173,7 @@ export function SlashCommandsManager() {
           <div>
             <h3 className="text-foreground text-sm font-semibold">{t("yourCustomCommands")}</h3>
             <p className="text-foreground/55 mt-0.5 text-xs">
-              Slash shortcuts for prompts you type often. Typing <code>/name</code>
+              {t("slashShortcutsLead")}
               {t("chatSendsStoredPrompt")}
             </p>
           </div>

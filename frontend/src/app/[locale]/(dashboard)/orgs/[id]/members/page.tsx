@@ -158,7 +158,7 @@ export default function OrgMembersPage({ params }: PageProps) {
               <div className="min-w-0">
                 <p className="text-foreground truncate text-sm font-medium">
                   {m.full_name || m.email.split("@")[0]}
-                  {isSelf && <span className="text-muted-foreground font-normal"> (you)</span>}
+                  {isSelf && <span className="text-muted-foreground font-normal"> {t("you")}</span>}
                 </p>
                 <p className="text-muted-foreground truncate text-xs">{m.email}</p>
               </div>
@@ -364,7 +364,7 @@ export default function OrgMembersPage({ params }: PageProps) {
           loading={isLoading}
           skeletonRows={4}
           getRowKey={(m) => m.id}
-          empty="No members yet."
+          empty={t("noMembersYet")}
         />
       )}
 

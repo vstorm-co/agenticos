@@ -113,9 +113,7 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
       <CardHeader>
         <CardTitle>{t("whereAgentAvailable")}</CardTitle>
         <CardDescription>
-          A published agent answers in the dashboard and through the API. To reach it from a chat
-          platform, add the bot here - an agent is mentionable by <code>@handle</code> only on the
-          bots it is bound to.
+          {t("mentionableOnBoundBots")}
           {hasWorkspace && (
             <>
               {" "}

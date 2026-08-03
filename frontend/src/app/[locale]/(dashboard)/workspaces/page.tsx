@@ -2,12 +2,7 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { WorkspaceBrowser } from "@/components/sandboxes/workspace-browser";
 import { useTranslations } from "next-intl";
 
-const WORKSPACES_DESCRIPTION =
-  "The files agents are keeping for you. A workspace is scratch space — it is deleted with the " +
-  "conversation it belongs to and is not a place to store anything durable. Which workspaces " +
-  "appear depends on who you are: your own, the ones your conversations own, and the shared " +
-  "workspace of an agent you have talked to. Whoever manages sandbox connections sees the " +
-  "organization's.";
+const WORKSPACES_DESCRIPTION = "pageDescription";
 
 /**
  * Its own page, rather than a card at the bottom of the Sandboxes screen.
@@ -25,7 +20,7 @@ export default function WorkspacesPage() {
   const t = useTranslations("pages.workspaces");
   return (
     <div className="space-y-6">
-      <PageHeader title={t("workspaces")} description={WORKSPACES_DESCRIPTION} />
+      <PageHeader title={t("workspaces")} description={t(WORKSPACES_DESCRIPTION)} />
       <WorkspaceBrowser />
     </div>
   );

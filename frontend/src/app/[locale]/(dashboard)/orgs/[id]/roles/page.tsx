@@ -135,7 +135,7 @@ export default function RolesPage({ params }: PageProps) {
                     <td className="py-2 pr-4 font-mono text-xs">
                       {permission}
                       {resourcePerms.has(permission) ? (
-                        <span className="text-muted-foreground"> (scoped)</span>
+                        <span className="text-muted-foreground"> {t("scoped")}</span>
                       ) : null}
                     </td>
                     {catalog.roles.map((role) => {

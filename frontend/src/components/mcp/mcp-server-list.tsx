@@ -74,17 +74,17 @@ const AUTH_CHOICES: { value: DraftAuth; label: string; hint: string }[] = [
   {
     value: "none",
     label: "None",
-    hint: "The server is open, or it is on a network only you can reach.",
+    hint: "authNoneHint",
   },
   {
     value: "token",
     label: "API token",
-    hint: "A static credential, sent as `Authorization: Bearer`.",
+    hint: "authTokenHint",
   },
   {
     value: "oauth",
     label: "OAuth",
-    hint: "Sign in at the provider. Discovered from the server's own metadata - nothing to configure here.",
+    hint: "authOauthHint",
   },
 ];
 

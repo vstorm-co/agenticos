@@ -27,11 +27,7 @@ import { useTranslations } from "next-intl";
  * One sentence, in one place, so the skeleton and the loaded page cannot
  * disagree - a header whose text changes when the data lands is a flicker.
  */
-const SANDBOXES_DESCRIPTION =
-  "Where this organization's agents run shell commands and keep files. An agent names a " +
-  "connection by id, so moving to another host is one edit here rather than a republish of " +
-  "every agent. The token stays in the vault; nothing on this page can read it back. The files " +
-  "themselves are on Workspaces, which is not an operator screen — everybody sees their own.";
+const SANDBOXES_DESCRIPTION = "pageDescription";
 
 function registeredCount(count: number): string {
   return count === 1 ? "1 connection" : `${count} connections`;
@@ -80,7 +76,7 @@ export default function SandboxesPage() {
   if (isLoading)
     return (
       <div className="space-y-6">
-        <PageHeader title={t("sandboxes")} description={SANDBOXES_DESCRIPTION} />
+        <PageHeader title={t("sandboxes")} description={t(SANDBOXES_DESCRIPTION)} />
         <ConnectionsCard count={null}>
           <div className="space-y-3 p-5">
             {[0, 1].map((row) => (
@@ -95,7 +91,7 @@ export default function SandboxesPage() {
     <div className="space-y-6">
       <PageHeader
         title={t("sandboxes2")}
-        description={SANDBOXES_DESCRIPTION}
+        description={t(SANDBOXES_DESCRIPTION)}
         actions={
           canManage ? (
             <Button

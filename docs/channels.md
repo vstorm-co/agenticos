@@ -257,6 +257,13 @@ The assistant's answer is **not** in a bubble; only the person's message is. An 
 is prose with headings, code and tables in it, and a rounded fill around that fights
 every one of them.
 
+**Every word on any of these screens comes from `frontend/messages/en.json`.** English
+is the source language and `pl.json` holds only what has actually been translated -
+`src/i18n.ts` merges English underneath every locale, so a missing translation renders
+English rather than the key. `make lint` runs `scripts/check_i18n.py`, which fails both
+ways: on copy left in a component, and on a key a component reads that the catalog does
+not hold.
+
 ### Files
 
 Somebody dropping a spreadsheet on a bot used to have it discarded: `IncomingMessage`
