@@ -241,8 +241,21 @@ shipped compose file for the same reason: it asks a human to paste this value in
 a browser.
 
 `SANDBOXD_TOKEN` in `backend/.env` is the *service's* own — what the daemon in the
-compose file will accept. `make sandbox-token` generates it, and you paste the same
-value into the vault when registering the connection.
+compose file will accept. `make sandbox-token` generates it, and the connection
+form stores the same value in the vault for you: the API reads this setting for
+exactly one purpose, offering it to the vault, and asking somebody to copy a secret
+out of a file their own stack is already reading is friction with nothing behind
+it. It is never used to reach a host — resolving a connection unseals the vault
+entry that connection names, and that stays the only path — so a deployment that
+leaves it unset loses one button and nothing else, and pastes the token instead.
+
+The same form asks whether a service is already answering, rather than making an
+operator know that a `make dev` sandbox service lives at `http://sandboxd:8080`.
+That address is not configuration and deliberately so — it is a row, because a
+deployment can hold several hosts — so the API probes the unauthenticated
+`/healthz` at the address this project's compose file uses and prefills what
+answered. Nothing is decided by asking: no service means an empty field, and a
+connection already pointing there is named so nobody registers one host twice.
 
 The service runs behind the `sandbox` compose profile, which is on by default in
 local dev and off elsewhere until an operator opts in — mounting the Docker socket

@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  useLocalSandboxService,
   useSandboxConnections,
   useSandboxEvents,
   useSandboxPolicy,
@@ -20,6 +21,9 @@ vi.mock("@/lib/sandbox-connections-api", () => ({
   readSandboxPolicy: vi.fn(),
   listSandboxSessions: vi.fn(),
   readSandboxEvents: vi.fn(),
+  readLocalSandboxService: vi.fn(),
+  storeLocalSandboxCredential: vi.fn(),
+  probeSandboxService: vi.fn(),
 }));
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -262,5 +266,69 @@ describe("useSandboxEvents", () => {
     const { result } = renderHook(() => useSandboxEvents("c-1", "xc-1"), { wrapper });
 
     await waitFor(() => expect(result.current.error).toBe("That activity log could not be read"));
+  });
+});
+
+describe("what this deployment can already see", () => {
+  it("asks nothing until a form that would use the answer is open", () => {
+    // Editing an existing connection does not need it, and a probe is a round trip
+    // to an address that usually is not there.
+    renderHook(() => useLocalSandboxService(false), { wrapper });
+
+    expect(api.readLocalSandboxService).not.toHaveBeenCalled();
+  });
+
+  it("reports what answered", async () => {
+    vi.mocked(api.readLocalSandboxService).mockResolvedValue({
+      url: "http://sandboxd:8080",
+      token_available: true,
+      registered_connection_id: null,
+    });
+
+    const { result } = renderHook(() => useLocalSandboxService(true), { wrapper });
+
+    await waitFor(() => expect(result.current.local?.url).toBe("http://sandboxd:8080"));
+  });
+
+  it("treats nothing answering as an answer rather than an error", async () => {
+    // A deployment running no sandbox service is the common case, and a red line
+    // every time somebody opens the form would report a problem nobody has.
+    vi.mocked(api.readLocalSandboxService).mockResolvedValue({
+      url: null,
+      token_available: false,
+      registered_connection_id: null,
+    });
+
+    const { result } = renderHook(() => useLocalSandboxService(true), { wrapper });
+
+    await waitFor(() => expect(result.current.local).not.toBeNull());
+    expect(result.current.local?.url).toBeNull();
+  });
+
+  it("answers with the id of the stored token, and refreshes the vault list", async () => {
+    // The credential picker reads that list, so the id it returns has to be
+    // selectable in it.
+    vi.mocked(api.readLocalSandboxService).mockResolvedValue({
+      url: null,
+      token_available: true,
+      registered_connection_id: null,
+    });
+    vi.mocked(api.storeLocalSandboxCredential).mockResolvedValue({
+      secret_id: "s-local",
+      name: "Sandbox service token (this deployment)",
+      hint: "4242",
+    });
+
+    const { result } = renderHook(() => useLocalSandboxService(true), { wrapper });
+
+    await expect(result.current.storeCredential()).resolves.toBe("s-local");
+  });
+
+  it("passes a probe straight through, address and key", async () => {
+    const { result } = renderHook(() => useLocalSandboxService(true), { wrapper });
+    vi.mocked(api.probeSandboxService).mockResolvedValue(POLICY);
+
+    await expect(result.current.probe("http://s:8080", "s-1")).resolves.toEqual(POLICY);
+    expect(api.probeSandboxService).toHaveBeenCalledWith("http://s:8080", "s-1");
   });
 });

@@ -76,6 +76,60 @@ class SandboxConnectionList(BaseSchema):
     total: int
 
 
+class SandboxLocalServiceRead(BaseSchema):
+    """Whether this deployment is already running a sandbox service of its own.
+
+    Answered by asking, not by configuration: the address a container service
+    answers on is a row per organization rather than a setting, so the only honest
+    way to offer one is to try the address this project's own compose file gives it
+    and report what happened.
+    """
+
+    url: str | None = Field(
+        default=None,
+        description="Where a service answered, or null if none did. Prefill, not a decision.",
+    )
+    token_available: bool = Field(
+        default=False,
+        description=(
+            "Whether this deployment's environment carries the token that service "
+            "was started with, so it can be stored in the vault without anybody "
+            "having to find it."
+        ),
+    )
+    registered_connection_id: UUID | None = Field(
+        default=None,
+        description="The connection already pointing at that address, if this organization has one",
+    )
+
+
+class SandboxLocalCredentialRead(BaseSchema):
+    """The vault entry holding this deployment's own service token.
+
+    An id and four characters, like every other answer about a stored secret. The
+    token itself was already in this deployment's environment and stays there; what
+    this reports is that it now also lives where a connection can name it.
+    """
+
+    secret_id: UUID
+    name: str
+    hint: str
+
+
+class SandboxProbeRequest(BaseSchema):
+    """Ask a service what it allows, before a connection exists to name it.
+
+    The pair of fields the answer depends on, and nothing else: an address that has
+    not been saved yet and a vault entry that has. Never a token - a form that
+    posted one would have had it in a browser.
+    """
+
+    base_url: str = Field(min_length=1, max_length=512)
+    secret_id: UUID | None = Field(
+        default=None, description="The vault entry holding the service token"
+    )
+
+
 class SandboxRuntimeRead(BaseSchema):
     """One runtime the service allows, with the ceilings actually in force.
 

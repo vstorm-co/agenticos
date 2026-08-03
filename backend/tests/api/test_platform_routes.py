@@ -325,6 +325,17 @@ CALLS: tuple[Call, ...] = (
         Perm.CONNECTIONS_MANAGE,
         body={"name": "Local Docker", "kind": "docker", "base_url": "http://sandboxd:8080"},
     ),
+    # Asking what this deployment can already see, and testing an address before a
+    # row exists for it, are the same authority as registering one: both reach a
+    # host, and the second unseals a credential to do it.
+    Call("GET", "/sandbox-connections/local", Perm.CONNECTIONS_MANAGE),
+    Call("POST", "/sandbox-connections/local/credential", Perm.CONNECTIONS_MANAGE),
+    Call(
+        "POST",
+        "/sandbox-connections/probe",
+        Perm.CONNECTIONS_MANAGE,
+        body={"base_url": "http://sandboxd:8080"},
+    ),
     Call("PATCH", "/sandbox-connections/{connection_id}", Perm.CONNECTIONS_MANAGE, body={}),
     Call("DELETE", "/sandbox-connections/{connection_id}", Perm.CONNECTIONS_MANAGE),
     Call("GET", "/sandbox-connections/{connection_id}/policy", Perm.CONNECTIONS_MANAGE),

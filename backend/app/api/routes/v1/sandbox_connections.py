@@ -24,7 +24,10 @@ from app.schemas.sandbox_connection import (
     SandboxConnectionRead,
     SandboxConnectionUpdate,
     SandboxEventList,
+    SandboxLocalCredentialRead,
+    SandboxLocalServiceRead,
     SandboxPolicyRead,
+    SandboxProbeRequest,
     SandboxSessionList,
 )
 
@@ -53,6 +56,62 @@ async def create_connection(
 ) -> Any:
     """Register one. The first an organization registers becomes its default."""
     return await service.create(ctx, data)
+
+
+@router.get(
+    "/local",
+    response_model=SandboxLocalServiceRead,
+    dependencies=[Depends(require(Perm.CONNECTIONS_MANAGE))],
+)
+async def read_local_service(service: SandboxConnectionSvc, ctx: Auth) -> Any:
+    """Whether this deployment is already running a sandbox service of its own.
+
+    Declared before `/{connection_id}` so `local` is not read as an id.
+
+    A prefill, not a decision: an operator registering the service their own
+    `make dev` started should not have to know that it answers at
+    `http://sandboxd:8080` and that the token is in `backend/.env`. Nothing is
+    changed by asking, and a deployment running no sandbox service gets `url: null`
+    and a form exactly as it was.
+    """
+    return await service.local_service(ctx)
+
+
+@router.post(
+    "/local/credential",
+    response_model=SandboxLocalCredentialRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require(Perm.CONNECTIONS_MANAGE))],
+)
+async def store_local_credential(service: SandboxConnectionSvc, ctx: Auth) -> Any:
+    """Store this deployment's own service token in the vault, and name its id.
+
+    A POST because it writes a vault entry. The value comes from this process's
+    environment and never from the request, which is the point - it is already
+    here, and a form that asked for it was asking somebody to go and copy a secret
+    out of a file.
+    """
+    return await service.store_local_credential(ctx)
+
+
+@router.post(
+    "/probe",
+    response_model=SandboxPolicyRead,
+    dependencies=[Depends(require(Perm.CONNECTIONS_MANAGE))],
+)
+async def probe_service(data: SandboxProbeRequest, service: SandboxConnectionSvc, ctx: Auth) -> Any:
+    """Test an address and a key, and read what that service allows.
+
+    The same read as `/{id}/policy`, one step earlier: a form has an address and a
+    vault entry but no row yet, and this is what makes `Default runtime` a list of
+    aliases the service will accept rather than free text where a typo is stored
+    happily and refused at the first tool call.
+
+    A POST despite being a read. The address and the key are the input, a query
+    string is where URLs end up in access logs, and `secret_id` in one is a
+    reference to a credential that opens a host.
+    """
+    return await service.probe_policy(ctx, data)
 
 
 @router.patch(

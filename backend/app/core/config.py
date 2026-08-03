@@ -156,6 +156,15 @@ class Settings(BaseSettings):
     # is expressible in an environment variable. See
     # `app/db/models/sandbox_connection.py`.
     #
+    # The token `make sandbox-token` generated, read here for exactly one purpose:
+    # offering it to the vault. The service it belongs to was started with it from
+    # this same file, so asking an operator to find and paste a value this process
+    # can already see is friction with nothing behind it. It is never used to reach
+    # a host - `resolve` unseals the vault entry a connection names, and that stays
+    # the only path - so a deployment that leaves this unset loses a convenience and
+    # nothing else.
+    SANDBOXD_TOKEN: str = ""
+
     # How much of an agent's `state` workspace the platform will store, per
     # workspace. It lives in a JSONB column, so this is a real ceiling on a real
     # row rather than a policy: past it, writes are refused with a message the

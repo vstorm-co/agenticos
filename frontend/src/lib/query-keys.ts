@@ -192,6 +192,9 @@ export const qk = {
     // round trip to a host that may be down, and two connections must not share
     // a cache entry that one of them cannot fill.
     policy: (id: string) => ["sandbox-connections", "policy", id] as const,
+    // Whether this deployment runs a service of its own. One entry: it is a fact
+    // about the deployment rather than about any connection.
+    local: () => ["sandbox-connections", "local"] as const,
     // Live state on a host, keyed per connection for the same reason the policy
     // is: two hosts must not share a cache entry one of them cannot fill.
     sessions: (id: string) => ["sandbox-connections", "sessions", id] as const,

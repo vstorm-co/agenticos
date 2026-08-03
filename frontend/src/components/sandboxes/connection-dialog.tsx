@@ -20,13 +20,15 @@ import {
   Switch,
 } from "@/components/ui";
 import { InlineSecret } from "@/components/vault/inline-secret";
-import { useSecrets } from "@/hooks";
+import { useLocalSandboxService, useSecrets } from "@/hooks";
 import { getErrorMessage } from "@/lib/utils";
 import type {
   SandboxConnectionInput,
   SandboxConnectionKind,
   SandboxConnectionRecord,
+  SandboxRuntime,
 } from "@/lib/sandbox-connections-api";
+import { RuntimeField } from "./runtime-field";
 
 interface ConnectionDialogProps {
   /**
@@ -63,6 +65,8 @@ interface FormState {
   name: string;
   kind: SandboxConnectionKind;
   baseUrl: string;
+  /** Whether somebody has typed in the address, which stops it being prefilled. */
+  urlTouched: boolean;
   secretId: string | null;
   defaultRuntime: string;
   isDefault: boolean;
@@ -74,6 +78,7 @@ function initialState(editing: SandboxConnectionRecord | null): FormState {
     name: editing?.name ?? "",
     kind: editing?.kind ?? "docker",
     baseUrl: editing?.base_url ?? "",
+    urlTouched: editing !== null,
     secretId: editing?.secret_id ?? null,
     defaultRuntime: editing?.default_runtime ?? "",
     isDefault: editing?.is_default ?? false,
@@ -89,9 +94,9 @@ function initialState(editing: SandboxConnectionRecord | null): FormState {
  * container connection with no address resolves and then fails to connect on
  * every session; that is not a state worth being able to save.
  */
-function isComplete(form: FormState): boolean {
+function isComplete(form: FormState, baseUrl: string): boolean {
   if (form.name.trim().length === 0) return false;
-  return form.kind !== "docker" || form.baseUrl.trim().length > 0;
+  return form.kind !== "docker" || baseUrl.trim().length > 0;
 }
 
 /**
@@ -104,9 +109,22 @@ function isComplete(form: FormState): boolean {
  */
 export function ConnectionDialog({ editing, onOpenChange, onSubmit }: ConnectionDialogProps) {
   const { secrets } = useSecrets();
+  // Only asked for a new connection. An operator editing an existing row has
+  // already decided which host it points at, and probing on their behalf would be
+  // offering to change it.
+  const { local, storeCredential, probe } = useLocalSandboxService(editing === null);
   const [form, setForm] = useState<FormState>(() => initialState(editing));
   const [saving, setSaving] = useState(false);
+  const [storing, setStoring] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [runtimes, setRuntimes] = useState<SandboxRuntime[] | null>(null);
   const [refusal, setRefusal] = useState<string | null>(null);
+
+  // Derived rather than written into state by an effect: what a service answered
+  // is a default for a field nobody has touched, and an effect that filled the box
+  // would refill it every time somebody cleared it to type another host. `touched`
+  // is what separates "not filled in yet" from "deliberately empty".
+  const baseUrl = form.urlTouched ? form.baseUrl : form.baseUrl || (local?.url ?? "");
 
   const usable = secrets.filter((secret) => secret.kind === "api_key");
 
@@ -119,7 +137,7 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
         kind: form.kind,
         // Daytona has an address of its own, so ours is deliberately cleared
         // rather than left holding whatever was typed before the kind changed.
-        base_url: form.kind === "docker" ? form.baseUrl.trim() : null,
+        base_url: form.kind === "docker" ? baseUrl.trim() : null,
         secret_id: form.secretId,
         default_runtime: form.defaultRuntime.trim() || null,
         is_default: form.isDefault,
@@ -186,14 +204,23 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
               <Label htmlFor="connection-url">Address</Label>
               <Input
                 id="connection-url"
-                value={form.baseUrl}
+                value={baseUrl}
                 placeholder="http://sandboxd:8080"
-                onChange={(event) => setForm({ ...form, baseUrl: event.target.value })}
+                onChange={(event) =>
+                  setForm({ ...form, baseUrl: event.target.value, urlTouched: true })
+                }
               />
               <p className="text-muted-foreground text-xs">
                 Where the sandbox service answers. It holds the Docker socket, so it should not be
                 reachable from outside your network.
               </p>
+              {local?.url != null && (
+                <p className="text-muted-foreground text-xs">
+                  {local.registered_connection_id === null
+                    ? `A sandbox service answered at ${local.url}, so that is filled in above.`
+                    : `A sandbox service answered at ${local.url}, and this organization already has a connection pointing there.`}
+                </p>
+              )}
             </div>
           )}
 
@@ -219,6 +246,39 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
                 ? "The service token. Whoever holds it can open a session, and a session runs commands on that host."
                 : "Your Daytona API key. Sandboxes are billed to the account it belongs to."}
             </p>
+            {/* The token is not something to go and find: `make sandbox-token`
+                generated it into `backend/.env`, and that is the file the service
+                was started from. This stores the value this deployment already
+                holds, so nobody has to copy a secret out of a file to describe a
+                service their own stack is running. */}
+            {form.kind === "docker" && local?.token_available === true && (
+              <div className="bg-muted/40 space-y-2 rounded-md p-3">
+                <p className="text-xs">
+                  This deployment already holds the token its sandbox service was started with — the
+                  one <span className="font-mono">make sandbox-token</span> wrote to{" "}
+                  <span className="font-mono">backend/.env</span>.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={storing}
+                  onClick={async () => {
+                    setStoring(true);
+                    setRefusal(null);
+                    try {
+                      const secretId = await storeCredential();
+                      setForm((current) => ({ ...current, secretId }));
+                    } catch (error) {
+                      setRefusal(getErrorMessage(error));
+                    } finally {
+                      setStoring(false);
+                    }
+                  }}
+                >
+                  {storing ? "Storing…" : "Store it in the vault and use it"}
+                </Button>
+              </div>
+            )}
             <InlineSecret
               kind="api_key"
               purpose={PURPOSE[form.kind]}
@@ -227,19 +287,47 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="connection-runtime">Default runtime</Label>
-            <Input
-              id="connection-runtime"
+          {form.kind === "docker" ? (
+            <RuntimeField
               value={form.defaultRuntime}
-              placeholder="the service's own"
-              onChange={(event) => setForm({ ...form, defaultRuntime: event.target.value })}
+              onChange={(defaultRuntime) => setForm({ ...form, defaultRuntime })}
+              runtimes={runtimes}
+              // Nothing to ask with until there is an address and a key, and a
+              // button that answers "fill both in first" is a button that wasted
+              // somebody's click.
+              onTest={
+                baseUrl.trim() && form.secretId
+                  ? async () => {
+                      setTesting(true);
+                      setRefusal(null);
+                      try {
+                        const policy = await probe(baseUrl.trim(), form.secretId);
+                        setRuntimes(policy.runtimes);
+                      } catch (error) {
+                        setRefusal(getErrorMessage(error));
+                      } finally {
+                        setTesting(false);
+                      }
+                    }
+                  : null
+              }
+              testing={testing}
             />
-            <p className="text-muted-foreground text-xs">
-              The image alias an agent gets when its own spec names none. Leave empty to take
-              whatever the service defaults to.
-            </p>
-          </div>
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor="connection-runtime">Default runtime</Label>
+              <Input
+                id="connection-runtime"
+                value={form.defaultRuntime}
+                placeholder="the service's own"
+                onChange={(event) => setForm({ ...form, defaultRuntime: event.target.value })}
+              />
+              <p className="text-muted-foreground text-xs">
+                A Daytona snapshot or image. What it allows is an account setting on their side, so
+                there is no list to offer.
+              </p>
+            </div>
+          )}
 
           <div className="flex items-center justify-between">
             <div>
@@ -279,7 +367,7 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={submit} disabled={saving || !isComplete(form)}>
+          <Button onClick={submit} disabled={saving || !isComplete(form, baseUrl)}>
             {editing ? "Save" : "Add connection"}
           </Button>
         </DialogFooter>

@@ -7,9 +7,24 @@ import type { SandboxConnectionRecord } from "@/lib/sandbox-connections-api";
 
 const state = vi.hoisted(() => ({
   secrets: [{ id: "s-1", name: "Sandbox token", kind: "api_key", hint: "4242" }],
+  local: null as {
+    url: string | null;
+    token_available: boolean;
+    registered_connection_id: string | null;
+  } | null,
+  storeCredential: vi.fn(async () => "s-local"),
+  probe: vi.fn(async () => ({ runtimes: [{ alias: "python", description: "Python 3.12" }] })),
 }));
 
-vi.mock("@/hooks", () => ({ useSecrets: () => ({ secrets: state.secrets }) }));
+vi.mock("@/hooks", () => ({
+  useSecrets: () => ({ secrets: state.secrets }),
+  useLocalSandboxService: () => ({
+    local: state.local,
+    isLoading: false,
+    storeCredential: state.storeCredential,
+    probe: state.probe,
+  }),
+}));
 
 // The real inline form writes to the vault and is covered by its own tests. What
 // this dialog owes it is the callback: a key added there is the key chosen here.
@@ -47,6 +62,11 @@ function mount(editing: SandboxConnectionRecord | null = null) {
 beforeEach(() => {
   vi.clearAllMocks();
   state.secrets = [{ id: "s-1", name: "Sandbox token", kind: "api_key", hint: "4242" }];
+  state.local = null;
+  state.storeCredential = vi.fn(async () => "s-local");
+  state.probe = vi.fn(async () => ({
+    runtimes: [{ alias: "python", description: "Python 3.12" }],
+  }));
 });
 
 describe("ConnectionDialog", () => {
@@ -218,5 +238,164 @@ describe("ConnectionDialog", () => {
 
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  describe("a service this deployment is already running", () => {
+    it("fills in the address that answered", async () => {
+      // Nobody should have to know that a `make dev` sandbox service answers at
+      // `http://sandboxd:8080`.
+      state.local = {
+        url: "http://sandboxd:8080",
+        token_available: true,
+        registered_connection_id: null,
+      };
+      mount();
+
+      expect(await screen.findByLabelText("Address")).toHaveValue("http://sandboxd:8080");
+      expect(screen.getByText(/answered at http:\/\/sandboxd:8080/)).toBeVisible();
+    });
+
+    it("stops prefilling once somebody clears the field to type another host", async () => {
+      state.local = {
+        url: "http://sandboxd:8080",
+        token_available: false,
+        registered_connection_id: null,
+      };
+      mount();
+      const address = await screen.findByLabelText("Address");
+
+      await userEvent.clear(address);
+
+      expect(address).toHaveValue("");
+    });
+
+    it("says when this organization already registered that address", async () => {
+      // Otherwise somebody adds a second row for one host and then wonders which
+      // of the two an agent gets.
+      state.local = {
+        url: "http://sandboxd:8080",
+        token_available: false,
+        registered_connection_id: "c-9",
+      };
+      mount();
+
+      expect(await screen.findByText(/already has a connection pointing there/)).toBeVisible();
+    });
+
+    it("offers nothing when no service answered", () => {
+      mount();
+
+      expect(screen.getByLabelText("Address")).toHaveValue("");
+      expect(screen.queryByText(/answered at/)).toBeNull();
+    });
+
+    it("does not offer to change where an existing connection points", () => {
+      // An operator editing a row has already decided its host; probing on their
+      // behalf would be offering to move it.
+      state.local = {
+        url: "http://elsewhere:8080",
+        token_available: true,
+        registered_connection_id: null,
+      };
+      mount(connection());
+
+      expect(screen.getByLabelText("Address")).toHaveValue("http://sandboxd:8080");
+    });
+  });
+
+  describe("the token this deployment already holds", () => {
+    it("stores it in the vault and selects it, rather than asking for the value", async () => {
+      // `make sandbox-token` wrote it to `backend/.env` and compose handed it to
+      // the service. Asking somebody to go and copy it back out is friction with
+      // nothing behind it.
+      state.local = {
+        url: "http://sandboxd:8080",
+        token_available: true,
+        registered_connection_id: null,
+      };
+      const { onSubmit } = mount();
+      await userEvent.type(screen.getByLabelText("Name"), "Local Docker");
+
+      await userEvent.click(
+        await screen.findByRole("button", { name: /Store it in the vault and use it/ }),
+      );
+      await userEvent.click(screen.getByRole("button", { name: "Add connection" }));
+
+      expect(state.storeCredential).toHaveBeenCalled();
+      expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ secret_id: "s-local" }));
+    });
+
+    it("says why storing it failed instead of leaving the button dead", async () => {
+      state.local = { url: "http://s:8080", token_available: true, registered_connection_id: null };
+      state.storeCredential = vi.fn(async () => {
+        throw new Error("This deployment carries no sandbox service token");
+      });
+      mount();
+
+      await userEvent.click(
+        await screen.findByRole("button", { name: /Store it in the vault and use it/ }),
+      );
+
+      expect(screen.getByText("This deployment carries no sandbox service token")).toBeVisible();
+    });
+
+    it("offers nothing when the deployment holds no token", () => {
+      state.local = {
+        url: "http://s:8080",
+        token_available: false,
+        registered_connection_id: null,
+      };
+      mount();
+
+      expect(screen.queryByRole("button", { name: /Store it in the vault/ })).toBeNull();
+    });
+  });
+
+  describe("the runtime the service will actually accept", () => {
+    it("asks the service and offers what it named", async () => {
+      // A typo in free text is stored happily and refused at the first tool call,
+      // in somebody's conversation rather than in this form.
+      mount(connection());
+
+      await userEvent.click(screen.getByRole("button", { name: /Test and list runtimes/ }));
+
+      expect(state.probe).toHaveBeenCalledWith("http://sandboxd:8080", "s-1");
+      expect(await screen.findByRole("combobox", { name: "Default runtime" })).toBeVisible();
+    });
+
+    it("cannot be asked before there is an address and a key to ask with", () => {
+      mount();
+
+      expect(screen.queryByRole("button", { name: /Test and list runtimes/ })).toBeNull();
+    });
+
+    it("reports a service that refused the key where the form can see it", async () => {
+      state.probe = vi.fn(async () => {
+        throw new Error("The sandbox service refused this connection's credential");
+      });
+      mount(connection());
+
+      await userEvent.click(screen.getByRole("button", { name: /Test and list runtimes/ }));
+
+      expect(
+        await screen.findByText("The sandbox service refused this connection's credential"),
+      ).toBeVisible();
+    });
+
+    it("keeps a free-text field for Daytona, which publishes no list", async () => {
+      const { onSubmit } = mount(connection({ kind: "daytona", base_url: null }));
+      const field = screen.getByLabelText("Default runtime");
+
+      expect(field).toHaveValue("python");
+      expect(screen.queryByRole("button", { name: /Test and list runtimes/ })).toBeNull();
+
+      await userEvent.clear(field);
+      await userEvent.type(field, "ubuntu-24");
+      await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({ default_runtime: "ubuntu-24" }),
+      );
+    });
   });
 });

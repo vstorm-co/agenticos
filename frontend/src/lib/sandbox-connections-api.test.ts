@@ -84,4 +84,38 @@ describe("the sandbox connections client", () => {
     await expect(api.readSandboxPolicy("c-1")).resolves.toEqual({ kind: "docker", runtimes: [] });
     expect(apiClient.get).toHaveBeenCalledWith("/sandbox-connections/c-1/policy");
   });
+
+  it("asks whether this deployment runs a service of its own", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      url: "http://sandboxd:8080",
+      token_available: true,
+      registered_connection_id: null,
+    });
+
+    await expect(api.readLocalSandboxService()).resolves.toMatchObject({
+      url: "http://sandboxd:8080",
+    });
+    expect(apiClient.get).toHaveBeenCalledWith("/sandbox-connections/local");
+  });
+
+  it("stores the local token without sending one", async () => {
+    // The value is in the backend's own environment. A request carrying it would
+    // mean the browser had it, which is the thing this avoids.
+    vi.mocked(apiClient.post).mockResolvedValue({ secret_id: "s-1", name: "t", hint: "4242" });
+
+    await api.storeLocalSandboxCredential();
+
+    expect(apiClient.post).toHaveBeenCalledWith("/sandbox-connections/local/credential");
+  });
+
+  it("probes an unsaved address through our own API, key by reference", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ kind: "docker", runtimes: [] });
+
+    await api.probeSandboxService("http://sandboxd:8080", "s-1");
+
+    expect(apiClient.post).toHaveBeenCalledWith("/sandbox-connections/probe", {
+      base_url: "http://sandboxd:8080",
+      secret_id: "s-1",
+    });
+  });
 });

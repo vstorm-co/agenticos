@@ -27,6 +27,7 @@ export {
 export { useMcpCatalog, useMcpServers, type McpServerRow } from "./use-mcp-servers";
 export { useModelProviders, useProviderModels, providerInfo } from "./use-model-providers";
 export {
+  useLocalSandboxService,
   useSandboxConnections,
   useSandboxEvents,
   useSandboxPolicy,

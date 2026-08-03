@@ -19,24 +19,52 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
+from pydantic import SecretStr
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
+from app.core.config import settings
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
 from app.core.secret_kinds import ApiKeySecret
 from app.db.models.sandbox_connection import SandboxConnection
-from app.repositories import agent_workspace_repo, sandbox_connection_repo
+from app.repositories import (
+    agent_workspace_repo,
+    organization_secret_repo,
+    sandbox_connection_repo,
+)
 from app.schemas.sandbox_connection import (
     SandboxConnectionCreate,
     SandboxConnectionRead,
     SandboxConnectionUpdate,
+    SandboxProbeRequest,
 )
 from app.services.organization_secret import OrganizationSecretService
 
 logger = logging.getLogger(__name__)
 
 CONNECTION_KINDS = ("docker", "daytona")
+
+LOCAL_SERVICE_URLS = ("http://sandboxd:8080", "http://localhost:8080")
+"""Where this project's own compose file puts a sandbox service.
+
+Two addresses, and they are the same service seen from two places: `sandboxd` is
+the compose service name an API container reaches it by, and `localhost:8080` is
+what a developer running the API on their host sees. Tried in that order, because
+inside the stack the first answers and the second does not exist.
+
+Not configuration. The address a connection uses is a row, deliberately - what
+this is for is filling in a form, and a wrong guess costs an operator one edit
+rather than a broken deployment.
+"""
+
+LOCAL_TOKEN_SECRET_NAME = "Sandbox service token (this deployment)"
+"""The vault entry holding what `make sandbox-token` generated.
+
+One entry per deployment rather than one per attempt: the token is already in the
+environment the service was started with, so a second copy under a second name is
+two answers to "which key opens this host" and only one of them stays right.
+"""
 
 
 @dataclass(frozen=True)
@@ -191,6 +219,139 @@ class SandboxConnectionService:
             target_id=str(connection_id),
             details={"name": row.name},
         )
+
+    # -- what this deployment can already see ---------------------------
+
+    async def local_service(self, ctx: AuthContext) -> dict[str, Any]:
+        """Whether a sandbox service is already running where this stack puts one.
+
+        Asked rather than configured. There is no setting naming the address - it
+        is a row, because a deployment can hold several hosts - so the only honest
+        way to offer a prefill is to try the address this project's own compose
+        file gives the service and report what answered.
+
+        `/healthz` is what is probed, and it is unauthenticated on purpose: this
+        answers "is something there", not "may you use it". Whether the credential
+        works is a separate question with a separate answer, which is what
+        `probe_policy` is for.
+        """
+        url = await self._first_answering()
+        registered = None
+        if url is not None:
+            rows = await sandbox_connection_repo.list_for_organization(
+                self.db, organization_id=ctx.organization_id
+            )
+            match = next((row for row in rows if (row.base_url or "").rstrip("/") == url), None)
+            registered = None if match is None else match.id
+        return {
+            "url": url,
+            "token_available": bool(settings.SANDBOXD_TOKEN),
+            "registered_connection_id": registered,
+        }
+
+    @staticmethod
+    async def _first_answering() -> str | None:
+        """The first of `LOCAL_SERVICE_URLS` that answers, or `None`.
+
+        A short timeout and no retry. Nothing depends on this answer - a form
+        prefills or it does not - and an operator waiting on a dialog should not
+        pay for two attempts at an address that is simply not there.
+        """
+        import httpx
+
+        async with httpx.AsyncClient(timeout=1.5) as client:
+            for url in LOCAL_SERVICE_URLS:
+                try:
+                    response = await client.get(f"{url}/healthz")
+                except Exception as exc:
+                    # Expected on every address that is not there, which is most of
+                    # them - debug rather than a warning, or a deployment running no
+                    # sandbox service logs one every time somebody opens the form.
+                    logger.debug("sandbox_probe_no_answer", extra={"url": url, "error": str(exc)})
+                    continue
+                if response.status_code == 200:
+                    return url
+        return None
+
+    async def store_local_credential(self, ctx: AuthContext) -> dict[str, Any]:
+        """Put this deployment's own service token in the vault, and name it.
+
+        The awkwardness this removes: the token is generated by `make
+        sandbox-token` into `backend/.env`, handed to the service through
+        `env_file`, and then an operator is asked to paste it into a form - a value
+        they have to go and find, for a service this same deployment started. It is
+        already here; this stores it where a connection can name it.
+
+        An existing entry is *rotated* rather than reused. `.env` can have been
+        regenerated since, and a reused entry holding the older token produces a
+        connection that resolves and then 401s on every session - which is the
+        failure this exists to avoid, arrived at from the other direction.
+
+        Raises:
+            BadRequestError: If this deployment's environment carries no token, in
+                which case there is nothing to store and the operator does have to
+                paste one.
+        """
+        token = settings.SANDBOXD_TOKEN
+        if not token:
+            raise BadRequestError(
+                message=(
+                    "This deployment carries no sandbox service token. Run "
+                    "`make sandbox-token`, restart the stack, or paste the token "
+                    "the service was started with."
+                ),
+                details={"setting": "SANDBOXD_TOKEN"},
+            )
+        value = ApiKeySecret(api_key=SecretStr(token))
+        existing = await organization_secret_repo.get_by_name(
+            self.db, organization_id=ctx.organization_id, name=LOCAL_TOKEN_SECRET_NAME
+        )
+        if existing is not None:
+            secret = await self.secrets.update(ctx, existing.id, value=value)
+        else:
+            secret = await self.secrets.create(
+                ctx,
+                name=LOCAL_TOKEN_SECRET_NAME,
+                value=value,
+                purpose="sandboxd",
+                description="Generated by `make sandbox-token` and read from this deployment's own environment.",
+            )
+        return {"secret_id": secret.id, "name": secret.name, "hint": secret.hint}
+
+    async def probe_policy(self, ctx: AuthContext, data: SandboxProbeRequest) -> dict[str, Any]:
+        """What a service allows, asked before a connection exists to name it.
+
+        The same read as `policy`, one step earlier. It is what makes `Default
+        runtime` a list of aliases the service will actually accept rather than a
+        free-text field where a typo is stored happily and refused at the first
+        tool call - and it is the answer to "does this address and this key work",
+        which is otherwise learned by saving and waiting for somebody's
+        conversation to fail.
+
+        Raises:
+            BadRequestError: If the address does not answer, the credential is
+                missing, is not an API key, or is refused.
+        """
+        if data.secret_id is None:
+            raise BadRequestError(
+                message="Pick the key this service was started with before testing it",
+                details={"field": "secret_id"},
+            )
+        secrets = await self.secrets.resolve_for_bindings(ctx, [data.secret_id])
+        secret = secrets.get(data.secret_id)
+        if not isinstance(secret, ApiKeySecret):
+            raise BadRequestError(
+                message="That credential is not an API key, so it cannot authenticate a service",
+                details={"secret_id": str(data.secret_id)},
+            )
+        payload = await self._get_json(
+            base_url=data.base_url,
+            token=secret.api_key.get_secret_value(),
+            path="/policy",
+            details={"base_url": data.base_url},
+        )
+        payload["kind"] = "docker"
+        return payload
 
     async def _refuse_duplicate_name(self, ctx: AuthContext, name: str) -> None:
         existing = await sandbox_connection_repo.get_by_name(
@@ -456,34 +617,47 @@ class SandboxConnectionService:
         to tell apart - unreachable, wrong credential, and anything else - are
         described the same way once rather than three times differently.
         """
+        return await self._get_json(
+            base_url=resolved.row.base_url,
+            token=resolved.token,
+            path=path,
+            details={"connection_id": str(connection_id)},
+        )
+
+    @staticmethod
+    async def _get_json(
+        *, base_url: str | None, token: str, path: str, details: dict[str, str]
+    ) -> dict[str, Any]:
+        """One authenticated GET against a sandbox service.
+
+        Takes an address and a token rather than a connection, because the same
+        three failures have to be described the same way for an address nobody has
+        saved yet - a form testing one before it exists is exactly when a clear
+        answer is worth most.
+        """
         import httpx
 
-        base = (resolved.row.base_url or "").rstrip("/")
+        base = (base_url or "").rstrip("/")
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
-                response = await client.get(
-                    f"{base}{path}", headers={"X-Sandbox-Token": resolved.token}
-                )
+                response = await client.get(f"{base}{path}", headers={"X-Sandbox-Token": token})
         except Exception as exc:
             raise BadRequestError(
                 message=f"The sandbox service at {base} did not answer",
-                details={"connection_id": str(connection_id)},
+                details=details,
             ) from exc
 
         if response.status_code == 401:
             raise BadRequestError(
                 message="The sandbox service refused this connection's credential",
-                details={"connection_id": str(connection_id)},
+                details=details,
             )
         if response.status_code == 404:
-            raise NotFoundError(
-                message="Sandbox session not found",
-                details={"connection_id": str(connection_id)},
-            )
+            raise NotFoundError(message="Sandbox session not found", details=details)
         if response.status_code != 200:
             raise BadRequestError(
                 message=f"The sandbox service answered {response.status_code}",
-                details={"connection_id": str(connection_id)},
+                details=details,
             )
         payload: dict[str, Any] = response.json()
         return payload

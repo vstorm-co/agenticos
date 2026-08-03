@@ -9,13 +9,17 @@ import {
   deleteSandboxConnection,
   listSandboxConnections,
   listSandboxSessions,
+  probeSandboxService,
+  readLocalSandboxService,
   readSandboxEvents,
   readSandboxPolicy,
+  storeLocalSandboxCredential,
   updateSandboxConnection,
   type SandboxConnectionInput,
   type SandboxConnectionPatch,
   type SandboxConnectionRecord,
   type SandboxEventList,
+  type SandboxLocalService,
   type SandboxPolicy,
   type SandboxSessionList,
 } from "@/lib/sandbox-connections-api";
@@ -130,6 +134,49 @@ export function useSandboxPolicy(connectionId: string | null): UseSandboxPolicyR
     isLoading: connectionId !== null && isLoading,
     error:
       error instanceof Error ? error.message : error ? "The sandbox service did not answer" : null,
+  };
+}
+
+interface UseLocalSandboxServiceResult {
+  local: SandboxLocalService | null;
+  isLoading: boolean;
+  /** Store this deployment's own token in the vault, and answer with its id. */
+  storeCredential: () => Promise<string>;
+  /** Ask an unsaved address what it allows. Throws with what went wrong. */
+  probe: (baseUrl: string, secretId: string | null) => Promise<SandboxPolicy>;
+}
+
+/**
+ * What this deployment can already see, for the form that would otherwise ask.
+ *
+ * No error field, deliberately. "Nothing answered" is the normal case for a
+ * deployment that runs no sandbox service, and it arrives as `url: null` rather
+ * than as a failure - a dialog that showed a red line every time somebody opened
+ * it on a stack without one would be reporting a problem nobody has.
+ */
+export function useLocalSandboxService(enabled: boolean): UseLocalSandboxServiceResult {
+  const queryClient = useQueryClient();
+  const { data: local = null, isLoading } = useQuery({
+    queryKey: qk.sandboxConnections.local(),
+    queryFn: readLocalSandboxService,
+    enabled,
+    retry: false,
+    staleTime: 30_000,
+  });
+
+  const storeCredential = useCallback(async () => {
+    const created = await storeLocalSandboxCredential();
+    // The vault list is what the credential picker reads, and the entry has to be
+    // in it before the id this returns can be selected.
+    await queryClient.invalidateQueries({ queryKey: qk.secrets.all() });
+    return created.secret_id;
+  }, [queryClient]);
+
+  return {
+    local,
+    isLoading: enabled && isLoading,
+    storeCredential,
+    probe: probeSandboxService,
   };
 }
 
