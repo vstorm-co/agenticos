@@ -14,9 +14,12 @@ sentence; two copies in two repositories drift, and nothing reports it.
 
 from __future__ import annotations
 
-from typing import Any
-
-from pydantic_ai_backends import ConsoleCapability, StateBackend
+from pydantic_ai_backends import (
+    AsyncBackendProtocol,
+    BackendProtocol,
+    ConsoleCapability,
+    StateBackend,
+)
 from pydantic_ai_backends.toolsets import descriptions as console_text
 
 from app.agents.capabilities._registry import CapabilityToolInfo
@@ -72,7 +75,9 @@ looking. A binding that wants the stricter behaviour still gets it with one
 """
 
 
-def build_workspace(*, backend: Any | None, include_execute: bool) -> ConsoleCapability:
+def build_workspace(
+    *, backend: BackendProtocol | AsyncBackendProtocol | None, include_execute: bool
+) -> ConsoleCapability:
     """The console capability this agent runs with.
 
     Args:

@@ -170,6 +170,31 @@ class TestCollectingWhatTheAgentChanged:
 
         assert collect_changes(backend, state) == []
 
+    def test_a_host_that_did_not_measure_a_file_does_not_break_the_read(self):
+        """`size` is `int | None`, and a listing carrying the key with `None` - a
+        host that could not measure the file - compared `None` to the cap and raised
+        inside the ingestion of a proposal. Found by typing the backend properly."""
+        backend = _backend()
+        state = materialise(backend, [_Skill()])
+
+        class _Unmeasured:
+            """A listing whose sizes are absent rather than zero."""
+
+            def __init__(self, inner):
+                self._inner = inner
+
+            def glob_info(self, pattern):
+                return [{**entry, "size": None} for entry in self._inner.glob_info(pattern)]
+
+            def __getattr__(self, name):
+                return getattr(self._inner, name)
+
+        backend.write(f"{SKILLS_ROOT}/refunds/SKILL.md", "---\nname: refunds\n---\n\nrewritten")
+
+        [change] = collect_changes(_Unmeasured(backend), state)
+
+        assert change.content == "rewritten"
+
     def test_frontmatter_the_model_mangled_is_refused_rather_than_guessed_at(self):
         """The description is what other agents read first; a guess at it is a
         guess at what this skill claims to be."""

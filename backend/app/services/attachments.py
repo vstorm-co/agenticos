@@ -25,6 +25,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from pydantic_ai.messages import BinaryContent
+from pydantic_ai_backends import BackendProtocol
 
 from app.core.config import settings
 from app.db.models.chat_file import ChatFile
@@ -126,7 +127,7 @@ class AttachmentRouter:
     three different things.
     """
 
-    def __init__(self, backend: Any | None = None) -> None:
+    def __init__(self, backend: BackendProtocol | None = None) -> None:
         self._backend = backend
 
     async def build_prompt(self, user_message: str, files: list[ChatFile]) -> str | list[Any]:
@@ -181,7 +182,9 @@ class AttachmentRouter:
             return AttachmentPlan(reference=_pasted(chat_file), inline=None)
         return AttachmentPlan(reference=None, inline=None)
 
-    async def _into_workspace(self, backend: Any, chat_file: ChatFile) -> AttachmentPlan:
+    async def _into_workspace(
+        self, backend: BackendProtocol, chat_file: ChatFile
+    ) -> AttachmentPlan:
         path = workspace_path(chat_file)
         data: bytes | None = None
 
@@ -203,7 +206,9 @@ class AttachmentRouter:
             inline=await self._inline_image(chat_file, data),
         )
 
-    def _write_extracted_text(self, backend: Any, chat_file: ChatFile, path: str) -> None:
+    def _write_extracted_text(
+        self, backend: BackendProtocol, chat_file: ChatFile, path: str
+    ) -> None:
         """Put the parse beside the original, for a format a shell cannot read.
 
         A PDF in a workspace is bytes an agent has no tool for; the text this

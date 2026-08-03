@@ -28,9 +28,9 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any
 from uuid import UUID
 
+from pydantic_ai_backends import BackendProtocol
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.chat_file import ChatFile
@@ -179,7 +179,7 @@ def _why(attachment: IncomingAttachment, error: str | None) -> str:
     return error or "not supported."
 
 
-def files_written(backend: Any, before: set[str]) -> DeliveredFiles:
+def files_written(backend: BackendProtocol, before: set[str]) -> DeliveredFiles:
     """What the agent produced this turn, ready to post.
 
     `before` is the set of paths the workspace held when the turn started, so this
@@ -229,7 +229,7 @@ def files_written(backend: Any, before: set[str]) -> DeliveredFiles:
     return DeliveredFiles(attachments=attachments, refused=refused)
 
 
-def workspace_snapshot(backend: Any) -> set[str]:
+def workspace_snapshot(backend: BackendProtocol) -> set[str]:
     """Every path the workspace holds right now.
 
     Taken before the turn so what it added can be told from what it already had.
@@ -244,5 +244,5 @@ def workspace_snapshot(backend: Any) -> set[str]:
         return set()
 
 
-def _workspace_paths(backend: Any) -> set[str]:
+def _workspace_paths(backend: BackendProtocol) -> set[str]:
     return {str(entry["path"]) for entry in backend.glob_info("**/*") if not entry.get("is_dir")}

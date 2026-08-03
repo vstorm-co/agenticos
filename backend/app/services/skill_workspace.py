@@ -33,6 +33,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 
+from pydantic_ai_backends import BackendProtocol
 from pydantic_ai_skills._parsing import parse_skill_md
 
 from app.db.models.skill import Skill
@@ -92,7 +93,7 @@ def render_body(skill: Skill) -> str:
     return f"---\nname: {skill.name}\ndescription: {skill.description}\n---\n\n{skill.content}\n"
 
 
-def materialise(backend: Any, skills: list[Skill]) -> MaterialisedSkills:
+def materialise(backend: BackendProtocol, skills: list[Skill]) -> MaterialisedSkills:
     """Write each skill into the workspace, and remember what was written.
 
     Never raises. A workspace that refuses a write - past its storage ceiling,
@@ -111,7 +112,7 @@ def materialise(backend: Any, skills: list[Skill]) -> MaterialisedSkills:
     return state
 
 
-def _write(backend: Any, path: str, content: str) -> bool:
+def _write(backend: BackendProtocol, path: str, content: str) -> bool:
     """Whether the file made it. A refusal is logged rather than raised."""
     try:
         result = backend.write(path, content)
@@ -125,7 +126,7 @@ def _write(backend: Any, path: str, content: str) -> bool:
     return True
 
 
-def collect_changes(backend: Any, state: MaterialisedSkills) -> list[SkillChange]:
+def collect_changes(backend: BackendProtocol, state: MaterialisedSkills) -> list[SkillChange]:
     """What the agent left under `/skills` that is not what was put there.
 
     Compared against what this run wrote rather than against the database: the
@@ -158,7 +159,7 @@ def collect_changes(backend: Any, state: MaterialisedSkills) -> list[SkillChange
     return changes
 
 
-def _read_tree(backend: Any) -> dict[str, str]:
+def _read_tree(backend: BackendProtocol) -> dict[str, str]:
     """Every file under `/skills`, by path.
 
     Oversized files are dropped rather than truncated: half a script is not a
@@ -170,7 +171,11 @@ def _read_tree(backend: Any) -> dict[str, str]:
         path = entry["path"]
         if entry.get("is_dir"):
             continue
-        if entry.get("size", 0) > MAX_PROPOSED_BYTES:
+        # `or 0`, not a default on `get`: `size` is `int | None` and a listing that
+        # carries the key with `None` - a host that did not measure the file - would
+        # otherwise compare `None` to an int and raise inside the ingestion of a
+        # skill proposal.
+        if (entry.get("size") or 0) > MAX_PROPOSED_BYTES:
             logger.warning("skill_proposal_too_large", extra={"path": path})
             continue
         # `read_bytes`, not `read`: the toolset's `read` numbers lines for a
