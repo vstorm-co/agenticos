@@ -118,6 +118,7 @@ part is missing rather than that something failed.
 | `uv run` reports Python 3.13 or 3.14 | `backend/.venv` resolved past the pin. Delete it and re-run `uv sync` |
 | The frontend loads but every request fails | Step 3 without step 2, or the API is still applying migrations. `make dev-logs` |
 | `agenticos_sandboxd` exits immediately | No `SANDBOXD_TOKEN` in `backend/.env`. `make sandbox-token`, then `make dev` |
+| Files says `This host's files could not be read` and names `workspace_root` | A sandbox service started before it had one. Recreate it - `docker compose -f docker-compose.yml --profile sandbox up -d sandboxd` - and `docker rm` the leftover `sandboxd-*` containers: a persisted container is reattached with the mounts it was created with, so an old session keeps writing where nothing can read it |
 | A port is already taken (3000, 5432, 6379, 8000, 4200) | Something else is on it. `make dev-down`, stop the other process, start again |
 | Anything stranger | `make docker-clean` wipes containers, networks **and volumes** - all local data - then `make dev` from scratch |
 
