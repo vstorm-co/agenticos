@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Boxes, Cloud, FileText, Minus } from "lucide-react";
+import { AlertTriangle, Boxes, Cloud, FileText } from "lucide-react";
 
 import { CapabilityDetail } from "@/components/agents/capability-settings";
 import {
@@ -17,13 +17,12 @@ import type { CapabilityBindingSpec, CapabilityCatalogEntry } from "@/types/agen
 
 export const SANDBOX_CAPABILITY_ID = "sandbox";
 
-type Backend = "none" | "state" | "docker" | "daytona";
+type Backend = "state" | "docker" | "daytona";
 type Scope = "run" | "conversation" | "user" | "agent";
 
 interface WorkspaceSectionProps {
   definition: CapabilityCatalogEntry | undefined;
   binding: CapabilityBindingSpec | undefined;
-  onToggle: (capabilityId: string) => void;
   onChange: (binding: CapabilityBindingSpec) => void;
   disabled?: boolean;
 }
@@ -32,14 +31,8 @@ const BACKENDS: {
   id: Backend;
   label: string;
   detail: string;
-  icon: typeof Minus;
+  icon: typeof FileText;
 }[] = [
-  {
-    id: "none",
-    label: "None",
-    detail: "The agent keeps nothing between turns.",
-    icon: Minus,
-  },
   {
     id: "state",
     label: "Files",
@@ -95,7 +88,6 @@ const SCOPES: { id: Scope; label: string; detail: string }[] = [
 export function WorkspaceSection({
   definition,
   binding,
-  onToggle,
   onChange,
   disabled,
 }: WorkspaceSectionProps) {
@@ -110,7 +102,7 @@ export function WorkspaceSection({
     runtime?: string | null;
     include_execute?: boolean;
   };
-  const backend: Backend = enabled ? (config.backend ?? "state") : "none";
+  const backend: Backend = config.backend ?? "state";
   const scope: Scope = config.session_scope ?? "conversation";
   const containerBacked = backend === "docker" || backend === "daytona";
 
@@ -120,13 +112,10 @@ export function WorkspaceSection({
   };
 
   const chooseBackend = (next: Backend) => {
-    if (next === "none") {
-      if (enabled) onToggle(definition.id);
-      return;
-    }
-    if (!enabled) {
-      onToggle(definition.id);
-    }
+    // Enablement is the switch above, the same one every capability has. There
+    // is no "None" tile: a tile that turns the capability off would be a second
+    // control for a decision that already has one, and the two would disagree
+    // the moment somebody used the wrong one.
     setConfig({
       backend: next,
       // A runtime names an environment inside a container. Carrying one onto a

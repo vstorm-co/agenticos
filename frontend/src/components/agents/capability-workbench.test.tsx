@@ -333,14 +333,15 @@ describe("the workspace, which is a row like the rest and a detail unlike it", (
     expect(await screen.findByText(expected)).toBeInTheDocument();
   });
 
-  it("offers the four backends instead of an on/off switch", async () => {
-    // The objection this answers: "which of four backends, and who shares it" is
-    // not the same kind of decision as switching on a chart tool.
+  it("offers the backends and the scope instead of a generated form", async () => {
+    // The objection this answers: "which backend, and who shares it" is not the
+    // same kind of decision as switching on a chart tool. Enablement still is,
+    // so the switch above stays exactly where every capability has it.
     renderSandbox([binding("sandbox", { config: { backend: "state" } })]);
 
     expect(await screen.findByRole("button", { name: /^Container/ })).toBeVisible();
     expect(screen.getByRole("combobox", { name: "Who shares it" })).toBeVisible();
-    expect(screen.queryByText("Files & shell is on")).toBeNull();
+    expect(screen.getByText("Files & shell is on")).toBeVisible();
   });
 
   it("keeps the header switch for every other capability", async () => {

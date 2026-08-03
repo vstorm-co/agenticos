@@ -38,5 +38,13 @@
     "kind": "api_key",
     "help_url": "https://cloud.llamaindex.ai",
     "description": "Parse PDFs with LlamaParse, billed to this organization's own key."
+  },
+  {
+    "id": "daytona",
+    "label": "Daytona",
+    "category": "other",
+    "kind": "api_key",
+    "help_url": "https://app.daytona.io/dashboard/keys",
+    "description": "Cloud sandboxes an agent works in, billed to this organization's own Daytona account."
   }
 ]

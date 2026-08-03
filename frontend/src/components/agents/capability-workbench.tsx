@@ -156,22 +156,7 @@ export function CapabilityWorkbench({
       </div>
 
       <div className="min-w-0">
-        {/* The workspace is a row like any other, and its detail is not: "which
-            of four backends, and who shares it" is not an on/off switch, and one
-            of the scopes shares files between people in a way a generated form
-            cannot warn about. So the panel gives it its own controls while the
-            list keeps treating it as one entry among the rest. */}
-        {focused?.id === SANDBOX_ID && (
-          <WorkspaceSection
-            definition={focused}
-            binding={bound}
-            onToggle={onToggle}
-            onChange={onChange}
-            disabled={disabled}
-          />
-        )}
-
-        {focused && focused.id !== SANDBOX_ID && (
+        {focused && (
           <div className="space-y-3">
             {/* The switch travels with the panel as well as sitting in the row.
                 The list scrolls independently, so the capability being read can
@@ -200,16 +185,31 @@ export function CapabilityWorkbench({
               />
             </div>
 
-            <CapabilityDetail
-              binding={bound ?? unboundBinding(focused.id)}
-              definition={focused}
-              onChange={onChange}
-              // A capability nobody granted has nothing to configure yet, so its
-              // controls are shown at their real values and left inert. The
-              // alternative - live controls writing to a binding that does not
-              // exist - would make reading a capability grant it by accident.
-              disabled={disabled || !isOn}
-            />
+            {/* The workspace's configuration is a choice between three
+                backends and who shares them, not a set of fields - and one of
+                those scopes shares files between people, which a generated form
+                cannot warn about. Enablement is still the switch above, the same
+                one every capability has. */}
+            {focused.id === SANDBOX_ID ? (
+              <WorkspaceSection
+                definition={focused}
+                binding={bound}
+                onChange={onChange}
+                disabled={disabled || !isOn}
+              />
+            ) : (
+              <CapabilityDetail
+                binding={bound ?? unboundBinding(focused.id)}
+                definition={focused}
+                onChange={onChange}
+                // A capability nobody granted has nothing to configure yet, so
+                // its controls are shown at their real values and left inert.
+                // The alternative - live controls writing to a binding that does
+                // not exist - would make reading a capability grant it by
+                // accident.
+                disabled={disabled || !isOn}
+              />
+            )}
           </div>
         )}
       </div>

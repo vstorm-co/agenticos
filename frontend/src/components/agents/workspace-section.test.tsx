@@ -42,49 +42,36 @@ describe("WorkspaceSection", () => {
   it("renders nothing when the deployment did not register the capability", () => {
     // An empty section reads as something that failed to load.
     const { container } = render(
-      <WorkspaceSection
-        definition={undefined}
-        binding={undefined}
-        onToggle={vi.fn()}
-        onChange={vi.fn()}
-      />,
+      <WorkspaceSection definition={undefined} binding={undefined} onChange={vi.fn()} />,
     );
 
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("starts on None, and choosing a backend switches the capability on", async () => {
-    const onToggle = vi.fn();
-    render(
-      <WorkspaceSection
-        definition={SANDBOX}
-        binding={undefined}
-        onToggle={onToggle}
-        onChange={vi.fn()}
-      />,
-    );
+  it("shows the backend the binding is set to, defaulting to Files", () => {
+    render(<WorkspaceSection definition={SANDBOX} binding={binding()} onChange={vi.fn()} />);
 
-    expect(screen.getByRole("button", { name: /^None/ })).toHaveAttribute("aria-pressed", "true");
-
-    await userEvent.click(screen.getByRole("button", { name: /^Files/ }));
-
-    expect(onToggle).toHaveBeenCalledWith("sandbox");
+    expect(screen.getByRole("button", { name: /^Files/ })).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("choosing None switches it back off", async () => {
-    const onToggle = vi.fn();
+  it("choosing a backend writes it to the binding", async () => {
+    // There is no None tile: turning the capability off is the switch above,
+    // the same one every capability has, and a second control for one decision
+    // is two controls that disagree.
+    const onChange = vi.fn();
     render(
       <WorkspaceSection
         definition={SANDBOX}
         binding={binding({ backend: "state" })}
-        onToggle={onToggle}
-        onChange={vi.fn()}
+        onChange={onChange}
       />,
     );
 
-    await userEvent.click(screen.getByRole("button", { name: /^None/ }));
+    await userEvent.click(screen.getByRole("button", { name: /^Container/ }));
 
-    expect(onToggle).toHaveBeenCalledWith("sandbox");
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ config: expect.objectContaining({ backend: "docker" }) }),
+    );
   });
 
   it("warns that a shared workspace is shared, because a schema cannot", async () => {
@@ -94,7 +81,6 @@ describe("WorkspaceSection", () => {
       <WorkspaceSection
         definition={SANDBOX}
         binding={binding({ backend: "state", session_scope: "agent" })}
-        onToggle={vi.fn()}
         onChange={vi.fn()}
       />,
     );
@@ -107,7 +93,6 @@ describe("WorkspaceSection", () => {
       <WorkspaceSection
         definition={SANDBOX}
         binding={binding({ backend: "state", session_scope: "conversation" })}
-        onToggle={vi.fn()}
         onChange={vi.fn()}
       />,
     );
@@ -120,7 +105,6 @@ describe("WorkspaceSection", () => {
       <WorkspaceSection
         definition={SANDBOX}
         binding={binding({ backend: "state" })}
-        onToggle={vi.fn()}
         onChange={vi.fn()}
       />,
     );
@@ -131,7 +115,6 @@ describe("WorkspaceSection", () => {
       <WorkspaceSection
         definition={SANDBOX}
         binding={binding({ backend: "docker" })}
-        onToggle={vi.fn()}
         onChange={vi.fn()}
       />,
     );
@@ -147,7 +130,6 @@ describe("WorkspaceSection", () => {
       <WorkspaceSection
         definition={SANDBOX}
         binding={binding({ backend: "docker", runtime: "python" })}
-        onToggle={vi.fn()}
         onChange={onChange}
       />,
     );
@@ -166,7 +148,6 @@ describe("WorkspaceSection", () => {
       <WorkspaceSection
         definition={SANDBOX}
         binding={binding({ backend: "state" })}
-        onToggle={vi.fn()}
         onChange={vi.fn()}
       />,
     );
@@ -181,7 +162,6 @@ describe("WorkspaceSection", () => {
       <WorkspaceSection
         definition={SANDBOX}
         binding={binding({ backend: "docker" })}
-        onToggle={vi.fn()}
         onChange={vi.fn()}
       />,
     );
@@ -195,7 +175,6 @@ describe("WorkspaceSection", () => {
       <WorkspaceSection
         definition={SANDBOX}
         binding={binding({ backend: "state", session_scope: "conversation" })}
-        onToggle={vi.fn()}
         onChange={onChange}
       />,
     );
@@ -214,7 +193,6 @@ describe("WorkspaceSection", () => {
       <WorkspaceSection
         definition={SANDBOX}
         binding={binding({ backend: "docker" })}
-        onToggle={vi.fn()}
         onChange={onChange}
       />,
     );
@@ -233,7 +211,6 @@ describe("WorkspaceSection", () => {
       <WorkspaceSection
         definition={SANDBOX}
         binding={binding({ backend: "docker", runtime: "python" })}
-        onToggle={vi.fn()}
         onChange={onChange}
       />,
     );
@@ -251,7 +228,6 @@ describe("WorkspaceSection", () => {
       <WorkspaceSection
         definition={SANDBOX}
         binding={binding({ backend: "docker" })}
-        onToggle={vi.fn()}
         onChange={onChange}
       />,
     );
@@ -264,17 +240,10 @@ describe("WorkspaceSection", () => {
   });
 
   it("a choice made before the binding exists cannot write to nothing", async () => {
-    // `onToggle` creates the binding; the config patch lands on the next render
-    // with the binding the parent then supplies.
+    // The row's switch creates the binding; until it does there is nothing to
+    // patch, and patching `undefined` would throw where a user clicked.
     const onChange = vi.fn();
-    render(
-      <WorkspaceSection
-        definition={SANDBOX}
-        binding={undefined}
-        onToggle={vi.fn()}
-        onChange={onChange}
-      />,
-    );
+    render(<WorkspaceSection definition={SANDBOX} binding={undefined} onChange={onChange} />);
 
     await userEvent.click(screen.getByRole("button", { name: /^Container/ }));
 
@@ -286,13 +255,12 @@ describe("WorkspaceSection", () => {
       <WorkspaceSection
         definition={SANDBOX}
         binding={binding({ backend: "docker" })}
-        onToggle={vi.fn()}
         onChange={vi.fn()}
         disabled
       />,
     );
 
-    expect(screen.getByRole("button", { name: /^None/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^Files/ })).toBeDisabled();
     expect(screen.getByLabelText("Runtime")).toBeDisabled();
   });
 });
