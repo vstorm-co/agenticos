@@ -298,7 +298,9 @@ function ChatUI({
 }: ChatUIProps) {
   const tc = useTranslations("common");
   return (
-    <div className="flex h-full w-full">
+    // `relative`, because the file panel's closed state is a button positioned in
+    // this row's top-right corner rather than a column of its own.
+    <div className="relative flex h-full w-full">
       <div className="mx-auto flex h-full max-w-5xl min-w-0 flex-1 flex-col">
         <div
           ref={scrollContainerRef}
@@ -397,9 +399,11 @@ function ChatUI({
       <SourcesPanel />
       {/* Beside the transcript rather than under it: what the agent is holding is
           something you glance at while reading, and a list that pushed the input
-          down would move the box you are typing in. Hidden on a narrow screen,
-          where there is no room for a third column, and absent entirely for an
-          agent with no workspace - which is most of them. */}
+          down would move the box you are typing in. Closed by default - it is a
+          button in the corner until somebody opens it, because a permanent third
+          column took space from every conversation including the ones where the
+          agent keeps nothing. Hidden on a narrow screen, where there is no room for
+          it at all, and absent entirely for an agent with no workspace. */}
       <div className="hidden lg:block">
         <WorkspaceFiles conversationId={conversationId} revision={turns} />
       </div>

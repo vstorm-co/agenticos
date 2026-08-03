@@ -361,14 +361,14 @@ async def list_workspace_files(
             scope="none", backend="none", owner_label="No files", items=[], total=0
         )
 
-    row, entries = found
+    row, contents = found
     items = [
         WorkspaceFileRead(
             path=str(entry.get("path")),
             size=entry.get("size"),
             is_dir=bool(entry.get("is_dir")),
         )
-        for entry in entries
+        for entry in contents.entries
     ]
     return WorkspaceListing(
         scope=row.scope,
@@ -377,6 +377,7 @@ async def list_workspace_files(
         items=items,
         total=len(items),
         bytes_total=row.bytes_total,
+        unreadable_reason=contents.unreadable_reason,
     )
 
 

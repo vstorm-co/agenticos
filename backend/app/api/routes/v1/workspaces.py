@@ -110,14 +110,14 @@ async def list_all_files(workspaces: WorkspaceSvc, ctx: Auth) -> Any:
 @router.get("/{workspace_id}/files", response_model=WorkspaceListing)
 async def list_files(workspace_id: UUID, workspaces: WorkspaceSvc, ctx: Auth) -> Any:
     """What one workspace holds."""
-    row, entries = await workspaces.files_of(ctx, workspace_id)
+    row, contents = await workspaces.files_of(ctx, workspace_id)
     items = [
         WorkspaceFileRead(
             path=str(entry.get("path")),
             size=entry.get("size"),
             is_dir=bool(entry.get("is_dir")),
         )
-        for entry in entries
+        for entry in contents.entries
     ]
     return WorkspaceListing(
         scope=row.scope,
@@ -126,6 +126,7 @@ async def list_files(workspace_id: UUID, workspaces: WorkspaceSvc, ctx: Auth) ->
         items=items,
         total=len(items),
         bytes_total=row.bytes_total,
+        unreadable_reason=contents.unreadable_reason,
     )
 
 

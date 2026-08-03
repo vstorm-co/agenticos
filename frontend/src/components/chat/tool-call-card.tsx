@@ -27,6 +27,7 @@ import { LoadSkillResult, formatSkillName } from "./tool-results/skills";
 import { AskUserResult } from "./tool-results/ask-user";
 import { GenericToolResult, RawToolView } from "./tool-results/generic";
 import { RunPythonResult } from "./tool-results/run-python";
+import { WorkspaceToolResult, isWorkspaceTool } from "./tool-results/workspace";
 import { FetchUrlResult } from "./tool-results/fetch-url";
 import { useChanged } from "@/hooks/use-changed";
 
@@ -78,6 +79,9 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
   const isFetch =
     (toolCall.name === "fetch_url" || toolCall.name === "fetch") &&
     typeof toolCall.args?.url === "string";
+  // The sandbox tools: a path, a body and a return line, none of which is legible
+  // as the JSON the card used to print.
+  const isWorkspaceCall = isWorkspaceTool(toolCall.name);
   const isLoadSkill = toolCall.name === "load_skill";
   const isListSkills = toolCall.name === "list_skills";
   const loadedSkillName =
@@ -282,6 +286,8 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
             <RunPythonResult toolCall={toolCall} resultText={resultText} />
           ) : isLoadSkill ? (
             <LoadSkillResult resultText={resultText} status={toolCall.status} />
+          ) : isWorkspaceCall ? (
+            <WorkspaceToolResult toolCall={toolCall} resultText={resultText} />
           ) : isListSkills ? null : (
             <GenericToolResult toolCall={toolCall} resultText={resultText} />
           )}

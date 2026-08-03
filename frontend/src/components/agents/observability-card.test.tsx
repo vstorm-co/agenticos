@@ -76,9 +76,14 @@ describe("the tracing card", () => {
     expect(screen.getByRole("link", { name: /Open the Vault/ })).toBeInTheDocument();
   });
 
-  it("stores a token added inline rather than sending somebody to another page", async () => {
+  it("selects a token added inline, so nobody has to re-pick it", async () => {
+    // The whole point of the inline form: a key added there is the key this agent
+    // traces with, without a round trip through the Vault and back.
     state.secrets = [];
-    mount();
+    // The real mutation calls `onSuccess` with the stored secret; the stub has to
+    // as well, or the callback under test never runs.
+    state.create.mutate = vi.fn((_input, options) => options?.onSuccess?.({ id: "s-new" }));
+    const { onChange } = mount();
 
     await userEvent.click(screen.getByRole("button", { name: /Add a key/ }));
     await userEvent.type(screen.getByLabelText("Key"), "pylf_v1_x");
@@ -88,6 +93,7 @@ describe("the tracing card", () => {
       expect.objectContaining({ purpose: "logfire" }),
       expect.anything(),
     );
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ token_secret_id: "s-new" }));
   });
 
   it("says the spec keeps a reference once there is something to pick", () => {

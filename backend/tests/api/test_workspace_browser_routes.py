@@ -28,6 +28,7 @@ from app.core.config import settings
 from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
+from app.services.sandbox_workspace import WorkspaceContents
 
 pytestmark = pytest.mark.anyio
 
@@ -79,7 +80,9 @@ def service() -> MagicMock:
     stub.files_of = AsyncMock(
         return_value=(
             _row(),
-            [{"path": "/uploads/report.csv", "size": 128, "is_dir": False}],
+            WorkspaceContents(
+                entries=[{"path": "/uploads/report.csv", "size": 128, "is_dir": False}]
+            ),
         )
     )
     stub.read_file_of = AsyncMock(return_value="month,total")
@@ -143,6 +146,24 @@ class TestListing:
 
         assert response.status_code == 200
         assert response.json() == {"items": [], "total": 0}
+
+
+class TestAHostThatCannotBeRead:
+    async def test_the_reason_is_part_of_the_answer(self, client, service) -> None:
+        """Rather than a 500, which reads as "something went wrong" beside an empty
+        folder, which reads as "there are no files"."""
+        service.files_of = AsyncMock(
+            return_value=(
+                _row(backend="service"),
+                WorkspaceContents(entries=[], unreadable_reason="No workspace root on that host."),
+            )
+        )
+
+        async with client() as opened:
+            response = await opened.get(_url(f"/{_WORKSPACE_ID}/files"))
+
+        assert response.status_code == 200
+        assert response.json()["unreadable_reason"] == "No workspace root on that host."
 
 
 class TestOneFlatList:

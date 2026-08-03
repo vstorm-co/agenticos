@@ -299,6 +299,25 @@ which workspaces exist in a colleague's conversation. Nothing here crosses an
 organization — an app admin browsing another tenant's files would be the one read
 this platform refuses, so they switch organization like anybody else.
 
+**A container-backed workspace is read off the host volume, which needs one.** The
+sandbox service serves those files from `SANDBOXD_WORKSPACE_ROOT`, and that is what
+lets a conversation from last month list its files after its session was reaped —
+no container is started to answer. A service configured *without* one keeps nothing
+on disk, so its files exist only while a sandbox is running and cannot be read
+without starting one. **The local compose file is that case**, deliberately: the
+daemon resolves the path on the host, so a workspace root has to be one host path
+mounted at the same location on both sides, which is a decision belonging to whoever
+runs one (`docker-compose-prod.yml` shows the shape).
+
+That is reported rather than raised. Every listing carries `unreadable_reason`, and
+a client shows it as an explanation instead of an error, because neither cause is a
+fault: a service keeping nothing on disk is a configuration with a one-line fix the
+message names, and a host that is down will be up later. Raising made it a 500,
+which a browser could only render as "something went wrong" — beside an empty list,
+which reads as "there are no files". Two wrong answers at once. Reading *one file*
+from such a host is refused with the same sentence rather than reported as "no such
+file", which would say the file is missing when it is not.
+
 **What is running is read from the service too.** The Sandboxes screen lists this
 organization's open sandboxes on its default host — runtime, what shares each one,
 idle time, and memory against its own ceiling when asked — plus the activity log

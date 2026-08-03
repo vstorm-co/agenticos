@@ -32,6 +32,14 @@ export interface ConversationWorkspace {
   items: ConversationFile[];
   total: number;
   bytes_total: number;
+  /**
+   * Why this listing may be empty despite the workspace holding files.
+   *
+   * Not an error to render red. A service started with no `workspace_root` keeps
+   * nothing on disk, so its files exist only while a sandbox runs - that is a
+   * configuration somebody chose, and it has a one-line fix the message names.
+   */
+  unreadable_reason: string | null;
 }
 
 export interface ConversationFileContent {

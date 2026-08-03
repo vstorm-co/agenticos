@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertTriangle, FileText, FolderOpen } from "lucide-react";
+import { AlertTriangle, FileText, FolderOpen, Info, X } from "lucide-react";
 
 import { Button, Skeleton } from "@/components/ui";
 import { useConversationFile, useConversationWorkspace } from "@/hooks";
@@ -22,19 +22,21 @@ function size(bytes: number | null): string {
 }
 
 /**
- * What the agent is keeping in this conversation.
+ * What the agent is keeping in this conversation, behind a button.
  *
- * The routes behind this have existed for a while with no client at all, which is
- * its own kind of half-feature: an agent could write a file and the only way to
- * see it was to ask the agent.
+ * **Closed by default, and that is the change.** A permanent third column took
+ * space from the transcript in every conversation, including the ones where the
+ * agent keeps nothing — so it is a toggle in the corner now, and the count on it is
+ * what tells somebody there is anything to open.
  *
- * `owner_label` is shown and is not decoration. Under `agent` scope one workspace
- * is shared by everybody who talks to that agent, so somebody opens a chat and
- * finds a file they never created — and without a line saying whose files these
- * are, the reasonable reading is that something leaked.
+ * `owner_label` is shown and is not decoration. Under `agent` scope one workspace is
+ * shared by everybody who talks to that agent, so somebody opens a chat and finds a
+ * file they never created — and without a line saying whose files these are, the
+ * reasonable reading is that something leaked.
  */
 export function WorkspaceFiles({ conversationId, revision }: WorkspaceFilesProps) {
   const { workspace, isLoading, error, refresh } = useConversationWorkspace(conversationId);
+  const [open, setOpen] = useState(false);
   const [reading, setReading] = useState<string | null>(null);
 
   // Re-read when a turn ends rather than on a timer: the chat knows exactly when
@@ -46,20 +48,41 @@ export function WorkspaceFiles({ conversationId, revision }: WorkspaceFilesProps
   }, [revision, refresh]);
 
   if (conversationId === null) return null;
-  // An agent with no workspace is the default, so an empty panel would be a
-  // permanent empty box for most conversations.
+  // An agent with no workspace is the default, so a button would be a permanent
+  // control that opens an empty box.
   if (!isLoading && error === null && (workspace === null || workspace.backend === "none"))
     return null;
 
   const files = workspace?.items.filter((file) => !file.is_dir) ?? [];
 
+  if (!open)
+    return (
+      <div className="absolute top-3 right-3 z-10">
+        <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+          <FolderOpen className="h-4 w-4" aria-hidden />
+          Files
+          {files.length > 0 && <span className="text-muted-foreground">{files.length}</span>}
+        </Button>
+      </div>
+    );
+
   return (
     <aside className="border-border w-72 shrink-0 space-y-3 border-l p-4">
       <div className="space-y-1">
-        <p className="flex items-center gap-2 text-sm font-medium">
-          <FolderOpen className="h-4 w-4" aria-hidden />
-          Files
-        </p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="flex items-center gap-2 text-sm font-medium">
+            <FolderOpen className="h-4 w-4" aria-hidden />
+            Files
+          </p>
+          <button
+            type="button"
+            aria-label="Close the file panel"
+            onClick={() => setOpen(false)}
+            className="text-muted-foreground hover:text-foreground rounded-md p-1"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
         {workspace !== null && (
           <p className="text-muted-foreground text-xs">
             {workspace.owner_label}
@@ -79,7 +102,17 @@ export function WorkspaceFiles({ conversationId, revision }: WorkspaceFilesProps
         </div>
       )}
 
-      {workspace !== null && files.length === 0 && (
+      {/* Not red, and not beside "nothing yet". A host that keeps no files on disk
+          is a configuration somebody chose, with a one-line fix this message names
+          - and saying "no files" as well would be the second of two wrong answers. */}
+      {workspace?.unreadable_reason != null && (
+        <div className="text-muted-foreground flex items-start gap-2 text-xs">
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+          <p>{workspace.unreadable_reason}</p>
+        </div>
+      )}
+
+      {workspace !== null && workspace.unreadable_reason == null && files.length === 0 && (
         <p className="text-muted-foreground text-xs">
           Nothing yet. Files the agent writes, and anything you attach, appear here.
         </p>

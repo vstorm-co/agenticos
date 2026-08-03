@@ -1119,8 +1119,9 @@ class TestShowingTheFilesToAPerson:
         )
 
         assert found is not None
-        _, entries = found
-        assert [entry["path"] for entry in entries] == ["/uploads/report.csv"]
+        _, contents = found
+        assert [entry["path"] for entry in contents.entries] == ["/uploads/report.csv"]
+        assert contents.unreadable_reason is None
 
     async def test_a_state_file_is_read_back(self, monkeypatch, mock_db_session):
         stored = StateBackend()
@@ -1192,13 +1193,17 @@ class TestShowingTheFilesToAPerson:
         text = await service.read_text(_ctx(), conversation_id=uuid4(), path="/workspace/run.py")
 
         assert found is not None
-        assert found[1][0]["path"] == "/workspace/run.py"
+        assert found[1].entries[0]["path"] == "/workspace/run.py"
         assert text == "print(1)"
 
-    async def test_a_service_that_is_misconfigured_raises_rather_than_looking_empty(
+    async def test_a_host_that_cannot_be_read_says_so_instead_of_looking_empty(
         self, monkeypatch, mock_db_session
     ):
-        """An empty folder is what a user believes; a 502 is what they can act on."""
+        """An empty folder is what a user believes, and a 500 said nothing at all -
+        the panel showed "an unexpected error occurred" beside "nothing yet", which
+        is two wrong answers at once. The commonest cause is not even a fault: a
+        service with no `workspace_root` keeps nothing on disk, so its files exist
+        only while a sandbox runs."""
         from pydantic_ai_backends import remote as remote_module
 
         class _Archive:
@@ -1206,7 +1211,7 @@ class TestShowingTheFilesToAPerson:
                 pass
 
             def ls(self, session_id):
-                raise RuntimeError("no workspace root configured")
+                raise RuntimeError("This service keeps no workspaces on disk.")
 
         monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
         _serve(monkeypatch, _resolved())
@@ -1218,8 +1223,49 @@ class TestShowingTheFilesToAPerson:
             ),
         )
 
-        with pytest.raises(RuntimeError):
-            await SandboxWorkspaceService(mock_db_session).listing(_ctx(), conversation_id=uuid4())
+        found = await SandboxWorkspaceService(mock_db_session).listing(
+            _ctx(), conversation_id=uuid4()
+        )
+
+        assert found is not None
+        _, contents = found
+        assert contents.entries == []
+        # The service's own detail is kept: it names the setting, which is the
+        # difference between an operator fixing this and filing a bug against us.
+        assert "keeps no workspaces on disk" in (contents.unreadable_reason or "")
+
+    async def test_a_file_on_a_host_that_cannot_be_read_is_refused_not_reported_missing(
+        self, monkeypatch, mock_db_session
+    ):
+        """A 404 would say the file is not there. It is; this host cannot serve it."""
+        from pydantic_ai_backends import remote as remote_module
+
+        class _Archive:
+            def __init__(self, url, token=""):
+                pass
+
+            def ls(self, session_id):
+                return []
+
+            def read(self, session_id, path):
+                raise RuntimeError("This service keeps no workspaces on disk.")
+
+        monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
+        _serve(monkeypatch, _resolved())
+        monkeypatch.setattr(
+            workspace_repo,
+            "list_for_conversation",
+            AsyncMock(
+                return_value=[_row(backend="service", session_id="dc-1", connection_id=uuid4())]
+            ),
+        )
+
+        with pytest.raises(BadRequestError) as refused:
+            await SandboxWorkspaceService(mock_db_session).read_text(
+                _ctx(), conversation_id=uuid4(), path="/workspace/run.py"
+            )
+
+        assert "could not be read" in refused.value.message
 
     async def test_a_daytona_workspace_keeps_no_volume_of_ours_to_list(
         self, monkeypatch, mock_db_session
@@ -1239,7 +1285,8 @@ class TestShowingTheFilesToAPerson:
         found = await service.listing(_ctx(), conversation_id=uuid4())
 
         assert found is not None
-        assert found[1] == []
+        assert found[1].entries == []
+        assert found[1].unreadable_reason is None
         assert await service.read_text(_ctx(), conversation_id=uuid4(), path="/a.txt") is None
 
     async def test_a_workspace_whose_host_was_forgotten_lists_nothing(
@@ -1259,7 +1306,8 @@ class TestShowingTheFilesToAPerson:
         found = await service.listing(_ctx(), conversation_id=uuid4())
 
         assert found is not None
-        assert found[1] == []
+        assert found[1].entries == []
+        assert found[1].unreadable_reason is None
         assert await service.read_text(_ctx(), conversation_id=uuid4(), path="/a.txt") is None
 
 
@@ -1386,10 +1434,10 @@ class TestBrowsingEveryWorkspace:
         row = _row(files=dict(stored.files))
         monkeypatch.setattr(workspace_repo, "get", AsyncMock(return_value=row))
 
-        found, entries = await SandboxWorkspaceService(mock_db_session).files_of(_ctx(), row.id)
+        found, contents = await SandboxWorkspaceService(mock_db_session).files_of(_ctx(), row.id)
 
         assert found is row
-        assert [entry["path"] for entry in entries] == ["/uploads/report.csv"]
+        assert [entry["path"] for entry in contents.entries] == ["/uploads/report.csv"]
 
     async def test_another_organizations_workspace_reads_as_missing(
         self, monkeypatch, mock_db_session

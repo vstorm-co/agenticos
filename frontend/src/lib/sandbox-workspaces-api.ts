@@ -53,6 +53,14 @@ export interface WorkspaceFiles {
   items: WorkspaceFile[];
   total: number;
   bytes_total: number;
+  /**
+   * Why the listing may be empty despite the workspace holding files.
+   *
+   * A configuration rather than a fault, most of the time: a service started with
+   * no `workspace_root` keeps nothing on disk, so its files exist only while a
+   * sandbox runs. Shown as an explanation, not as a red error.
+   */
+  unreadable_reason: string | null;
 }
 
 /** One file in the flat view, with the workspace it came from named beside it. */

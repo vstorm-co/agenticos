@@ -33,6 +33,16 @@ class WorkspaceListing(BaseSchema):
     items: list[WorkspaceFileRead]
     total: int
     bytes_total: int = 0
+    unreadable_reason: str | None = Field(
+        default=None,
+        description=(
+            "Why this listing may be shorter than the workspace, or empty. A service "
+            "started with no `workspace_root` keeps nothing on disk, so its files "
+            "exist only while a sandbox runs and cannot be read without starting "
+            "one; a host that is down will be up later. Neither is an error to raise "
+            "- an empty list on its own reads as 'there are no files'."
+        ),
+    )
 
 
 class WorkspaceSummary(BaseSchema):

@@ -55,6 +55,22 @@ SANDBOX_CAPABILITY_ID = "sandbox"
 
 
 @dataclass(frozen=True)
+class WorkspaceContents:
+    """What a workspace holds, and why that might be less than it holds.
+
+    `unreadable_reason` is part of the answer rather than an exception, because the
+    two failures it stands for are not faults: a service configured to keep nothing
+    on disk cannot be read without starting a sandbox, and a host that is down will
+    be up later. Both used to surface as a 500, which a client can only render as
+    "something went wrong" - beside an empty list, which reads as "there are no
+    files". Two wrong answers at once.
+    """
+
+    entries: list[FileInfo]
+    unreadable_reason: str | None = None
+
+
+@dataclass(frozen=True)
 class WorkspaceOverview:
     """One workspace as a table shows it: the row, plus what makes it readable."""
 
@@ -468,24 +484,20 @@ class SandboxWorkspaceService:
         out. `truncated` says the answer is partial, which a listing that quietly
         stopped could not.
 
-        A workspace that cannot be read is skipped and counted, not raised: one
-        unreachable host must not empty a list that is mostly readable.
+        A workspace that cannot be read is skipped and counted rather than dropping
+        the request: one unreachable host must not empty a list that is mostly
+        readable, and `unreadable` is what stops the shorter list reading as fewer
+        files.
         """
         overviews = await self.visible_to(ctx)
         files: list[tuple[WorkspaceOverview, FileInfo]] = []
         unreadable = 0
         for overview in overviews[:limit]:
-            try:
-                entries = await self._entries(ctx, overview.row)
-            except Exception:
-                logger.warning(
-                    "workspace_listing_failed",
-                    extra={"workspace_id": str(overview.row.id)},
-                    exc_info=True,
-                )
+            contents = await self._entries(ctx, overview.row)
+            if contents.unreadable_reason is not None:
                 unreadable += 1
                 continue
-            files.extend((overview, entry) for entry in entries if not entry.get("is_dir"))
+            files.extend((overview, entry) for entry in contents.entries if not entry.get("is_dir"))
         return FlatFileListing(
             files=files,
             workspaces_read=min(len(overviews), limit) - unreadable,
@@ -495,7 +507,7 @@ class SandboxWorkspaceService:
 
     async def files_of(
         self, ctx: AuthContext, workspace_id: UUID
-    ) -> tuple[AgentWorkspace, list[FileInfo]]:
+    ) -> tuple[AgentWorkspace, WorkspaceContents]:
         """One workspace's files, addressed by its own id.
 
         The sibling of :meth:`listing`, which addresses a workspace through the
@@ -544,7 +556,7 @@ class SandboxWorkspaceService:
 
     async def listing(
         self, ctx: AuthContext, *, conversation_id: UUID
-    ) -> tuple[AgentWorkspace, list[FileInfo]] | None:
+    ) -> tuple[AgentWorkspace, WorkspaceContents] | None:
         """The files a conversation's workspace holds, and the row describing it.
 
         `None` when the conversation has no workspace - it ran an agent without
@@ -564,28 +576,43 @@ class SandboxWorkspaceService:
         row = rows[0]
         return row, await self._entries(ctx, row)
 
-    async def _entries(self, ctx: AuthContext, row: AgentWorkspace) -> list[FileInfo]:
+    async def _entries(self, ctx: AuthContext, row: AgentWorkspace) -> WorkspaceContents:
         if row.backend == "state":
             from pydantic_ai_backends import StateBackend
 
-            return list(StateBackend(files=dict(row.files or {})).glob_info("**/*"))
+            return WorkspaceContents(
+                entries=list(StateBackend(files=dict(row.files or {})).glob_info("**/*"))
+            )
         return await self._remote_entries(ctx, row)
 
-    async def _remote_entries(self, ctx: AuthContext, row: AgentWorkspace) -> list[FileInfo]:
-        archive = await self._archive(ctx, row)
-        if archive is None:
-            return []
+    async def _remote_entries(self, ctx: AuthContext, row: AgentWorkspace) -> WorkspaceContents:
         try:
-            return list(archive.ls(row.session_id or row.scope_key))
-        except Exception:
-            # Raised rather than degraded by the archive on purpose: "there are
-            # no files" and "the service is misconfigured" must be
-            # distinguishable. The route turns this into a 502 rather than an
-            # empty folder, because an empty folder is what a user believes.
+            archive = await self._archive(ctx, row)
+            if archive is None:
+                return WorkspaceContents(entries=[])
+            return WorkspaceContents(entries=list(archive.ls(row.session_id or row.scope_key)))
+        except Exception as exc:
+            # Carried, not raised. "There are no files" and "this host cannot be
+            # read" must stay distinguishable - an empty folder is what a user
+            # believes - but a 500 said neither: the panel showed a red "an
+            # unexpected error occurred" beside "nothing yet", which is two wrong
+            # answers at once.
+            #
+            # The commonest cause is not a fault at all. A service started with no
+            # `workspace_root` keeps nothing on disk, so files exist only while a
+            # sandbox is running, and reading them without starting one is
+            # impossible by construction. That is a sentence for an operator, and
+            # the service's own detail names the setting - so it is passed through
+            # rather than replaced with something vaguer.
+            #
+            # Resolving the connection is inside the same `try` deliberately: a
+            # host retired or a credential rotated away raises there, and it is the
+            # same class of answer - these files cannot be read right now, and here
+            # is why.
             logger.warning(
                 "workspace_listing_failed", extra={"scope_key": row.scope_key}, exc_info=True
             )
-            raise
+            return WorkspaceContents(entries=[], unreadable_reason=_reason(exc))
 
     async def read_text(self, ctx: AuthContext, *, conversation_id: UUID, path: str) -> str | None:
         """One file's text, or `None` when there is no such workspace or file."""
@@ -613,7 +640,15 @@ class SandboxWorkspaceService:
         archive = await self._archive(ctx, row)
         if archive is None:
             return None
-        return archive.read(row.session_id or row.scope_key, path)
+        try:
+            return archive.read(row.session_id or row.scope_key, path)
+        except Exception as exc:
+            # A 400 naming the reason, rather than the 500 this used to be or the
+            # 404 that "no such file" would have been. Both of those tell somebody
+            # the file is missing when the truth is that this host cannot serve it.
+            raise BadRequestError(
+                message=_reason(exc), details={"workspace_id": str(row.id), "path": path}
+            ) from exc
 
     async def _archive(self, ctx: AuthContext, row: AgentWorkspace) -> Any | None:
         """A reader for the host volume behind a container-backed workspace.
@@ -631,6 +666,17 @@ class SandboxWorkspaceService:
         if resolved.kind != "docker" or not resolved.row.base_url:
             return None
         return WorkspaceArchive(resolved.row.base_url, token=resolved.token)
+
+
+def _reason(exc: Exception) -> str:
+    """Why a host's files could not be read, in a sentence a client can show.
+
+    The service's own detail is kept rather than replaced: for the commonest cause
+    it names the exact setting (`workspace_root`), which is the difference between
+    an operator fixing this in one line and filing a bug against us.
+    """
+    detail = str(exc).strip() or exc.__class__.__name__
+    return f"This host's files could not be read. {detail}"
 
 
 def access_label(row: AgentWorkspace) -> str:

@@ -20,6 +20,7 @@ from app.api import deps
 from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
+from app.services.sandbox_workspace import WorkspaceContents
 
 pytestmark = pytest.mark.anyio
 
@@ -63,7 +64,9 @@ class TestListing:
             listing=AsyncMock(
                 return_value=(
                     _row(scope="agent"),
-                    [{"path": "/uploads/report.csv", "size": 128, "is_dir": False}],
+                    WorkspaceContents(
+                        entries=[{"path": "/uploads/report.csv", "size": 128, "is_dir": False}]
+                    ),
                 )
             )
         )
@@ -112,6 +115,48 @@ class TestListing:
 
         assert response.status_code == 404
         workspaces.listing.assert_not_called()
+
+
+class TestAHostThatCannotBeRead:
+    """The panel used to show "an unexpected error occurred" beside "nothing yet".
+
+    Two wrong answers at once, and the commonest cause was not a fault: a service
+    started with no `workspace_root` keeps nothing on disk, so its files exist only
+    while a sandbox runs.
+    """
+
+    async def test_the_reason_travels_with_an_empty_listing(self, client: AsyncClient):
+        _override(
+            conversation=MagicMock(get_conversation=AsyncMock()),
+            workspaces=MagicMock(
+                listing=AsyncMock(
+                    return_value=(
+                        _row(backend="service"),
+                        WorkspaceContents(
+                            entries=[],
+                            unreadable_reason="This host's files could not be read. No workspace root.",
+                        ),
+                    )
+                )
+            ),
+        )
+
+        response = await client.get(f"/api/v1/conversations/{CONVERSATION_ID}/workspace")
+
+        assert response.status_code == 200
+        assert "No workspace root" in response.json()["unreadable_reason"]
+
+    async def test_a_readable_workspace_carries_no_reason(self, client: AsyncClient):
+        _override(
+            conversation=MagicMock(get_conversation=AsyncMock()),
+            workspaces=MagicMock(
+                listing=AsyncMock(return_value=(_row(), WorkspaceContents(entries=[])))
+            ),
+        )
+
+        response = await client.get(f"/api/v1/conversations/{CONVERSATION_ID}/workspace")
+
+        assert response.json()["unreadable_reason"] is None
 
 
 class TestReadingOneFile:

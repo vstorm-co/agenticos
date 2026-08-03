@@ -70,6 +70,7 @@ function workspace(overrides: Partial<WorkspaceSummary> = {}): WorkspaceSummary 
 
 function files(overrides: Partial<WorkspaceFiles> = {}): WorkspaceFiles {
   return {
+    unreadable_reason: null,
     scope: "conversation",
     backend: "state",
     owner_label: "This conversation",
