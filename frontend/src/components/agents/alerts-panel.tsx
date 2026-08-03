@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronDown, CircleDollarSign, Hand, PieChart, UserPlus, X } from "lucide-react";
+import { CircleDollarSign, Hand, PieChart, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import {
@@ -12,13 +12,12 @@ import {
   CardHeader,
   CardTitle,
   Checkbox,
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
   Label,
   Switch,
 } from "@/components/ui";
+import { MemberIdentity, displayName } from "@/components/orgs/member-identity";
+import { MemberPicker } from "@/components/orgs/member-picker";
+import type { IdentifiedMember } from "@/components/orgs/member-identity";
 import { useMembers } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import { DEFAULT_NOTIFICATIONS } from "@/lib/agent-spec";
@@ -137,10 +136,7 @@ export function AlertsPanel({ value, onChange, disabled }: AlertsPanelProps) {
             key={meta.key}
             meta={meta}
             alert={spec[meta.key]}
-            members={members.map((member) => ({
-              user_id: member.user_id,
-              label: member.full_name ?? member.email,
-            }))}
+            members={members}
             disabled={disabled}
             onChange={(alert) => edit(meta.key, alert)}
           />
@@ -165,7 +161,7 @@ function AlertRow({
 }: {
   meta: AlertKindMeta;
   alert: AlertSpec;
-  members: { user_id: string; label: string }[];
+  members: IdentifiedMember[];
   disabled?: boolean;
   onChange: (alert: AlertSpec) => void;
 }) {
@@ -268,43 +264,36 @@ function AlertRow({
               </p>
             ) : (
               <div className="space-y-2">
-                {/* A menu rather than every member as a pill: an organization of
-                    forty rendered forty of them inside a settings card. The names
-                    that were picked are listed below it, so who is on the list is
-                    readable without opening anything. */}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" disabled={disabled}>
-                      <UserPlus className="h-3.5 w-3.5" />
-                      {chosenCount(alert.user_ids.length)}
-                      <ChevronDown className="h-3.5 w-3.5 opacity-60" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto">
-                    {members.map((member) => (
-                      <DropdownMenuCheckboxItem
-                        key={member.user_id}
-                        checked={alert.user_ids.includes(member.user_id)}
-                        aria-label={`${meta.label}: ${member.label}`}
-                        onCheckedChange={() => toggleMember(member.user_id)}
-                      >
-                        {member.label}
-                      </DropdownMenuCheckboxItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <MemberPicker
+                  members={members}
+                  selected={alert.user_ids}
+                  onToggle={toggleMember}
+                  label={chosenCount}
+                  scope={meta.label}
+                  disabled={disabled}
+                />
 
                 {alert.user_ids.length > 0 && (
                   <ul className="space-y-1.5">
                     {alert.user_ids.map((userId) => {
-                      const label =
-                        members.find((member) => member.user_id === userId)?.label ?? userId;
+                      const member = members.find((entry) => entry.user_id === userId);
+                      const label = member === undefined ? userId : displayName(member);
                       return (
                         <li
                           key={userId}
-                          className="border-border flex items-center gap-2 rounded-md border px-3 py-1.5"
+                          className="border-border flex items-center gap-2 rounded-md border px-2.5 py-1.5"
                         >
-                          <span className="min-w-0 flex-1 truncate text-sm">{label}</span>
+                          {/* A member the listing no longer has - removed from the
+                              organization since this was saved - still has to be
+                              removable, so the id stands in rather than the row
+                              vanishing and leaving nothing to click. */}
+                          {member === undefined ? (
+                            <span className="min-w-0 flex-1 truncate font-mono text-xs">
+                              {userId}
+                            </span>
+                          ) : (
+                            <MemberIdentity member={member} className="min-w-0 flex-1" />
+                          )}
                           <Button
                             variant="ghost"
                             size="sm"

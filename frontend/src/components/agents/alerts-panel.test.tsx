@@ -112,20 +112,20 @@ describe("the alerts panel", () => {
     expect(saved(onChange).approvals.user_ids).toEqual([]);
   });
 
-  it("names members by their name, falling back to the address", async () => {
+  it("names members by name and address, the way the rest of the app draws a person", async () => {
     // In a menu rather than as a pill each: an organization of forty rendered
-    // forty of them inside a settings card, which is what made this section the
-    // odd one out in the app.
+    // forty of them inside a settings card. And with both lines, because a bare
+    // first name is not something two colleagues called Bob are told apart by.
     mount(withChosen(["u-1"]));
 
     await userEvent.click(screen.getByRole("button", { name: /1 person/ }));
 
     expect(
-      screen.getByRole("menuitemcheckbox", { name: "Approval requests: Ada Lovelace" }),
-    ).toBeChecked();
+      screen.getByRole("option", { name: "Approval requests: Ada Lovelace (ada@acme.test)" }),
+    ).toHaveAttribute("aria-selected", "true");
     expect(
-      screen.getByRole("menuitemcheckbox", { name: "Approval requests: bob@acme.test" }),
-    ).not.toBeChecked();
+      screen.getByRole("option", { name: "Approval requests: bob (bob@acme.test)" }),
+    ).toHaveAttribute("aria-selected", "false");
   });
 
   it("lists who was chosen without opening the menu", () => {
@@ -172,7 +172,7 @@ describe("the alerts panel", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /1 person/ }));
     await userEvent.click(
-      screen.getByRole("menuitemcheckbox", { name: "Approval requests: bob@acme.test" }),
+      screen.getByRole("option", { name: "Approval requests: bob (bob@acme.test)" }),
     );
 
     expect(saved(onChange).approvals.user_ids).toEqual(["u-1", "u-2"]);
