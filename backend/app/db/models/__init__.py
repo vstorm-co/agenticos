@@ -22,12 +22,14 @@ from app.db.models.agent_embed import AgentEmbed
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.agent_workspace import AgentWorkspace
+from app.db.models.sandbox_connection import SandboxConnection
 from app.db.models.agent_exposure import AgentExposure, ExposureSurface
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, RunSurface, ToolApproval
 from app.db.models.ingestion_spend import IngestionSpend
 from app.db.models.credential import ModelProfile
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.skill import Skill, SkillResource
+from app.db.models.skill_proposal import ProposalStatus, SkillProposal
 from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
 
 __all__ = [
@@ -58,6 +60,7 @@ __all__ = [
     "AgentVersion",
     "AgentEnvironment",
     "AgentWorkspace",
+    "SandboxConnection",
     "AgentExposure",
     "ExposureSurface",
     "AgentRun",
@@ -69,6 +72,8 @@ __all__ = [
     "ModelProfile",
     "OrganizationSecret",
     "Skill",
+    "SkillProposal",
+    "ProposalStatus",
     "SkillResource",
     "ResourceGrant",
     "GrantLevel",

@@ -221,8 +221,10 @@ export function CapabilityWorkbench({
 function backendLabel(binding: CapabilityBindingSpec | undefined, enabled: boolean): string {
   if (!enabled) return "no workspace";
   const backend = (binding?.config as { backend?: string } | undefined)?.backend ?? "state";
-  if (backend === "docker") return "a container";
-  if (backend === "daytona") return "a cloud sandbox";
+  // The kind of host - a container service or Daytona - belongs to the
+  // connection rather than the spec, so the row says what the agent gets and not
+  // where it runs. "Where" is on the connection, which the detail panel names.
+  if (backend === "service") return "files and a shell";
   return "files, no shell";
 }
 

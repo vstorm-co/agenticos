@@ -215,24 +215,64 @@ are only for a container-backed one.
 
 | Variable | Default | Notes |
 |---|---|---|
-| `SANDBOXD_URL` | (empty) | The sandbox service. Empty means this deployment has none, and publishing an agent that asks for a container is refused in the Builder |
-| `SANDBOXD_TOKEN` | (empty) | Authorises opening a session. `make sandbox-token` generates one |
 | `SANDBOX_STATE_MAX_BYTES` | 4 MiB | Per workspace. Past it a write is refused with a message the model reads |
 | `SANDBOX_INLINE_IMAGE_MAX_BYTES` | 5 MiB | Above this an attached image is written to the workspace and not also sent inline |
 
-**`SANDBOXD_TOKEN` is worth what the Docker socket is worth.** The service holds
-that socket, the socket is an unauthenticated API for root on the host, and this
+**Where sandboxes run is not a setting.** It is a row per organization — Sandboxes
+in the app, `sandbox_connections` in the database — with the service token in the
+vault. Two reasons, and neither is expressible in an environment variable: a
+deployment can hold more than one host, and one address per deployment gave every
+organization the same one; and the token authorises opening a session, which runs
+commands on the host holding the Docker socket, so it belongs where every other
+credential at rest lives.
+
+An operator registers a connection with a name, an address, and a key from the
+vault. An agent names one by id, exactly as it names a model profile, or names
+none and takes the organization's default — so moving to another host is one edit
+rather than a republish of every agent.
+
+**The service token is worth what the Docker socket is worth.** The service holds
+that socket, the socket is an unauthenticated API for root on the host, and the
 token is what opens a session on it. Never in a browser, never in a log, never
-committed. The service's own dashboard (`SANDBOXD_UI_ENABLED`) is off in every
-shipped compose file for the same reason: it asks a human to paste this value
-into a browser.
+committed — which is why the operator screen shows only that a credential is
+attached, and why `GET /policy` is proxied through this API rather than fetched by
+the browser. The service's own dashboard (`SANDBOXD_UI_ENABLED`) is off in every
+shipped compose file for the same reason: it asks a human to paste this value into
+a browser.
+
+`SANDBOXD_TOKEN` in `backend/.env` is the *service's* own — what the daemon in the
+compose file will accept. `make sandbox-token` generates it, and you paste the same
+value into the vault when registering the connection.
 
 The service runs behind the `sandbox` compose profile, which is on by default in
-local dev and off elsewhere until an operator opts in — mounting the Docker
-socket on a shared host is a deliberate act. `COMPOSE_DEV_PROFILES` in the
-Makefile is the one place to change that. `uv run agenticos cmd doctor` reports
-whether the service answers, whether it accepts the token, and which runtimes it
-allows; an unconfigured service is a warning, not a failure.
+local dev and off elsewhere until an operator opts in — mounting the Docker socket
+on a shared host is a deliberate act. `COMPOSE_DEV_PROFILES` in the Makefile is
+the one place to change that. `uv run agenticos cmd doctor` probes every registered
+connection: whether it answers, whether it accepts its credential, and whether it
+allows any runtime at all. No connection registered is a warning, not a failure —
+the `state` workspace needs none.
+
+**What is running is read from the service too.** The Sandboxes screen lists this
+organization's open sandboxes on its default host — runtime, what shares each one,
+idle time, and memory against its own ceiling when asked — plus the activity log
+per sandbox: which paths were read, which commands ran, and how each went. Neither
+file contents nor command output is recorded by the service, which is what keeps
+an audit trail from becoming a way to read another agent's work.
+
+That listing is **filtered, not forwarded**. One `sandboxd` answers for every
+organization that registered a connection at its address, so passing its response
+through would show one tenant another tenant's containers. Sessions are matched on
+the `tenant` label this platform sets when it opens one, and named from
+`agent_workspaces` rather than by decoding the session id — the id encodes the
+scope key, and parsing it back would make that format a schema.
+
+**What the service allows is read from the service.** The runtime allowlist and the
+ceiling behind each alias (`SANDBOXD_RUNTIMES`, `SANDBOXD_MEM_LIMIT`,
+`SANDBOXD_NETWORK_MODE`, `SANDBOXD_MAX_SESSIONS_PER_TENANT` and the rest) are its
+own boot configuration, and there is deliberately no endpoint to write them: a
+browser that could reconfigure the process holding the Docker socket would own the
+host. The Sandboxes screen *reads* them so what is in force is visible, and the
+Builder offers an agent only the aliases the service will actually accept.
 
 ## Messaging Channels
 

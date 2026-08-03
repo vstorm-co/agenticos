@@ -23,7 +23,6 @@ module exists rather than a helper on the capability:
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
@@ -43,9 +42,10 @@ from app.agents.capabilities.sandbox._identity import (
 from app.agents.spec import AgentSpec
 from app.core.config import settings
 from app.core.exceptions import BadRequestError
-from app.core.secret_kinds import ApiKeySecret, StorableSecret
+from app.core.permissions import AuthContext
 from app.db.models.agent_workspace import AgentWorkspace
 from app.repositories import agent_workspace as workspace_repo
+from app.services.sandbox_connection import ResolvedConnection, SandboxConnectionService
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +62,10 @@ class OpenWorkspace:
     scope_key: str
     row_id: UUID | None
     """The `agent_workspaces` row, absent only where there is no database to
-    write to - a preview, or a spec being exercised by a test."""
+    write to - a run-scoped workspace, or a spec being exercised by a test."""
+
+    connection_id: UUID | None = None
+    """Which registered connection it runs on, for a workspace that is not `state`."""
 
 
 def sandbox_config(spec: AgentSpec) -> SandboxConfig | None:
@@ -83,64 +86,60 @@ class SandboxWorkspaceService:
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
+        self.connections = SandboxConnectionService(db)
 
     async def open(
         self,
         spec: AgentSpec,
         *,
+        ctx: AuthContext,
         identity: WorkspaceIdentity,
-        secrets: Mapping[UUID, StorableSecret] | None = None,
+        scope_override: SessionScope | None = None,
     ) -> OpenWorkspace | None:
         """The workspace this run should use, or `None` when it has no sandbox.
 
-        `secrets` are the ones the runner already unsealed for this spec's
-        bindings. Daytona is billed to the organization's own account, so its key
-        has to come from the organization's vault rather than from a
-        deployment-wide environment variable - which is what the SDK would fall
-        back to, silently putting every tenant's sandboxes on one invoice.
+        `scope_override` is what the *exposure* said, when one did. An agent
+        reached in web chat and on a Slack bot is the same agent in two
+        situations - one has an account and a conversation, the other has a
+        channel with threads in it - and one value for both was the wrong shape.
+        The spec keeps the default; the binding that admitted this run may narrow
+        it.
 
         Raises:
             BadRequestError: If the spec asks for a backend this deployment
                 cannot provide, or a scope this run cannot key. Both are refused
                 at publish too; this is the backstop for a spec that was valid
-                when it was published and is not any more - a deployment that
-                dropped `SANDBOXD_URL`, or an agent reached from a surface with
-                no conversation.
+                when it was published and is not any more - a connection deleted
+                or switched off, or an agent reached from a surface that has no
+                conversation to key a workspace to.
         """
         config = sandbox_config(spec)
         if config is None:
             return None
 
+        scope = scope_override or config.session_scope
         try:
-            key = scope_key(identity, config.session_scope, config.backend)
+            key = scope_key(identity, scope, config.backend)
         except WorkspaceScopeUnavailable as exc:
             raise BadRequestError(
                 message=str(exc),
-                details={"session_scope": config.session_scope},
+                details={"session_scope": scope},
             ) from exc
 
         if config.backend == "state":
-            return await self._open_state(config, identity, key)
-        return await self._open_remote(config, identity, key, self._secret(spec, secrets))
-
-    @staticmethod
-    def _secret(
-        spec: AgentSpec, secrets: Mapping[UUID, StorableSecret] | None
-    ) -> StorableSecret | None:
-        """The credential this spec's workspace binding names, if any."""
-        if not secrets:
-            return None
-        for binding in spec.capabilities:
-            if binding.id == SANDBOX_CAPABILITY_ID and binding.secret_id:
-                return secrets.get(binding.secret_id)
-        return None
+            return await self._open_state(config, identity, key, scope)
+        return await self._open_service(ctx, config, identity, key, scope)
 
     async def _open_state(
-        self, config: SandboxConfig, identity: WorkspaceIdentity, key: str
+        self,
+        config: SandboxConfig,
+        identity: WorkspaceIdentity,
+        key: str,
+        scope: SessionScope,
     ) -> OpenWorkspace:
         from pydantic_ai_backends import StateBackend
 
-        row = await self._row(config, identity, key)
+        row = await self._row(config, identity, key, scope)
         stored = dict(row.files or {}) if row is not None else {}
         backend = CappedStateBackend(
             StateBackend(files=stored),  # type: ignore[arg-type]
@@ -149,55 +148,66 @@ class SandboxWorkspaceService:
         return OpenWorkspace(
             backend=backend,
             kind="state",
-            scope=config.session_scope,
+            scope=scope,
             scope_key=key,
             row_id=row.id if row is not None else None,
         )
 
-    async def _open_remote(
+    async def _open_service(
         self,
+        ctx: AuthContext,
         config: SandboxConfig,
         identity: WorkspaceIdentity,
         key: str,
-        secret: StorableSecret | None,
+        scope: SessionScope,
     ) -> OpenWorkspace:
-        """A container-backed workspace, opened lazily by the client.
+        """A workspace on one of the organization's registered connections.
 
-        Nothing starts here: `RemoteSandbox` opens its session on the first
+        Nothing starts here. `RemoteSandbox` opens its session on the first
         operation, so an agent granted a workspace it never touches costs no
         container and not even a round trip.
-        """
-        if config.backend == "docker":
-            backend = self._sandboxd(config, identity, key)
-        else:
-            backend = self._daytona(key, secret)
 
-        row = await self._row(config, identity, key, session_id=key)
+        The connection is resolved rather than read from settings, which is what
+        makes two hosts possible and what keeps the credential in the vault. It
+        can fail here for reasons that were fine at publish time - a key rotated
+        away, a host switched off - and each says which.
+        """
+        resolved = await self.connections.resolve(ctx, config.connection_id)
+        if resolved.kind == "daytona":
+            backend = self._daytona(key, resolved)
+        else:
+            backend = self._sandboxd(config, identity, key, resolved)
+
+        row = await self._row(
+            config, identity, key, scope, session_id=key, connection_id=resolved.row.id
+        )
         return OpenWorkspace(
             backend=backend,
-            kind=config.backend,
-            scope=config.session_scope,
+            kind="service",
+            scope=scope,
             scope_key=key,
             row_id=row.id if row is not None else None,
+            connection_id=resolved.row.id,
         )
 
-    def _sandboxd(self, config: SandboxConfig, identity: WorkspaceIdentity, key: str) -> Any:
+    @staticmethod
+    def _sandboxd(
+        config: SandboxConfig,
+        identity: WorkspaceIdentity,
+        key: str,
+        resolved: ResolvedConnection,
+    ) -> Any:
         from pydantic_ai_backends.remote import RemoteSandbox
 
-        if not settings.SANDBOXD_URL:
-            raise BadRequestError(
-                message=(
-                    "This deployment has no sandbox service, so an agent cannot be "
-                    "given a container-backed workspace. Set SANDBOXD_URL, or use "
-                    "the 'state' backend."
-                ),
-                details={"setting": "SANDBOXD_URL"},
-            )
         return RemoteSandbox(
-            settings.SANDBOXD_URL,
-            token=settings.SANDBOXD_TOKEN,
+            resolved.row.base_url or "",
+            token=resolved.token,
             session_id=key,
-            runtime=config.runtime,
+            # The spec's alias wins, then the connection's default, then whatever
+            # the service itself defaults to. Three levels because each answers a
+            # different question: what this agent needs, what this host prefers,
+            # and what exists at all.
+            runtime=config.runtime or resolved.row.default_runtime,
             # The organization, as a capacity label the service counts against
             # its per-tenant ceiling. It grants nothing - only the service token
             # opens a session at all - and it is what stops one talkative
@@ -208,31 +218,24 @@ class SandboxWorkspaceService:
             reuse=True,
         )
 
-    def _daytona(self, key: str, secret: StorableSecret | None) -> Any:
+    @staticmethod
+    def _daytona(key: str, resolved: ResolvedConnection) -> Any:
         from pydantic_ai_backends import DaytonaSandbox
 
-        if not isinstance(secret, ApiKeySecret):
-            # Publish demands the key for this backend, so arriving here without
-            # one means the secret was deleted after the agent was published.
-            # Refused rather than left to the SDK's `DAYTONA_API_KEY` fallback,
-            # which would put this organization's sandboxes on whichever account
-            # the deployment happens to have configured.
-            raise BadRequestError(
-                message=(
-                    "This agent's Daytona key is no longer available, so its "
-                    "workspace cannot be opened. Re-attach one in the Builder."
-                ),
-                details={"backend": "daytona"},
-            )
-        return DaytonaSandbox(api_key=secret.api_key.get_secret_value(), sandbox_id=key)
+        # The organization's own key, from the connection, from the vault. Never
+        # the SDK's `DAYTONA_API_KEY` fallback, which would put every tenant's
+        # sandboxes on whichever account the deployment happens to have set.
+        return DaytonaSandbox(api_key=resolved.token, sandbox_id=key)
 
     async def _row(
         self,
         config: SandboxConfig,
         identity: WorkspaceIdentity,
         key: str,
+        scope: SessionScope,
         *,
         session_id: str | None = None,
+        connection_id: UUID | None = None,
     ) -> AgentWorkspace | None:
         """The bookkeeping row for this workspace, created on first use.
 
@@ -240,7 +243,7 @@ class SandboxWorkspaceService:
         ends, so a row would be written and removed on every turn to record
         something nothing can outlive.
         """
-        if config.session_scope == "run":
+        if scope == "run":
             return None
 
         existing = await workspace_repo.get_by_key(
@@ -253,14 +256,13 @@ class SandboxWorkspaceService:
             self.db,
             organization_id=identity.organization_id,
             agent_id=identity.agent_id,
-            conversation_id=(
-                identity.conversation_id if config.session_scope == "conversation" else None
-            ),
-            owner_ref=identity.user_id if config.session_scope == "user" else None,
-            scope=config.session_scope,
+            conversation_id=(identity.conversation_id if scope == "conversation" else None),
+            owner_ref=identity.user_id if scope == "user" else None,
+            scope=scope,
             scope_key=key,
             backend=config.backend,
             session_id=session_id,
+            connection_id=connection_id,
         )
 
     async def close(self, workspace: OpenWorkspace | None) -> None:
@@ -305,7 +307,7 @@ class SandboxWorkspaceService:
             return
         stop(purge=True)
 
-    async def purge_for_conversation(self, *, organization_id: UUID, conversation_id: UUID) -> int:
+    async def purge_for_conversation(self, ctx: AuthContext, *, conversation_id: UUID) -> int:
         """Drop every workspace belonging to a conversation being deleted.
 
         The rows would go with it anyway - `conversation_id` cascades - but a
@@ -314,23 +316,26 @@ class SandboxWorkspaceService:
         user deleted. Only this platform knows the conversation is gone.
         """
         rows = await workspace_repo.list_for_conversation(
-            self.db, organization_id=organization_id, conversation_id=conversation_id
+            self.db, organization_id=ctx.organization_id, conversation_id=conversation_id
         )
         for row in rows:
             if row.backend != "state" and row.session_id:
-                self._purge_remote(row)
+                await self._purge_remote(ctx, row)
             await workspace_repo.delete(self.db, workspace=row)
         return len(rows)
 
-    def _purge_remote(self, row: AgentWorkspace) -> None:
-        if row.backend != "docker" or not settings.SANDBOXD_URL:
+    async def _purge_remote(self, ctx: AuthContext, row: AgentWorkspace) -> None:
+        if row.connection_id is None:
             return
         from pydantic_ai_backends.remote import RemoteSandbox
 
         try:
+            resolved = await self.connections.resolve(ctx, row.connection_id)
+            if resolved.kind != "docker" or not resolved.row.base_url:
+                return
             RemoteSandbox(
-                settings.SANDBOXD_URL,
-                token=settings.SANDBOXD_TOKEN,
+                resolved.row.base_url,
+                token=resolved.token,
                 session_id=row.session_id or row.scope_key,
                 reuse=True,
             ).stop(purge=True)
@@ -342,7 +347,7 @@ class SandboxWorkspaceService:
             )
 
     async def listing(
-        self, *, organization_id: UUID, conversation_id: UUID
+        self, ctx: AuthContext, *, conversation_id: UUID
     ) -> tuple[AgentWorkspace, list[FileInfo]] | None:
         """The files a conversation's workspace holds, and the row describing it.
 
@@ -356,26 +361,24 @@ class SandboxWorkspaceService:
         session was reaped.
         """
         rows = await workspace_repo.list_for_conversation(
-            self.db, organization_id=organization_id, conversation_id=conversation_id
+            self.db, organization_id=ctx.organization_id, conversation_id=conversation_id
         )
         if not rows:
             return None
         row = rows[0]
-        return row, self._entries(row)
+        return row, await self._entries(ctx, row)
 
-    def _entries(self, row: AgentWorkspace) -> list[FileInfo]:
+    async def _entries(self, ctx: AuthContext, row: AgentWorkspace) -> list[FileInfo]:
         if row.backend == "state":
             from pydantic_ai_backends import StateBackend
 
             return list(StateBackend(files=dict(row.files or {})).glob_info("**/*"))
-        return self._remote_entries(row)
+        return await self._remote_entries(ctx, row)
 
-    def _remote_entries(self, row: AgentWorkspace) -> list[FileInfo]:
-        if not settings.SANDBOXD_URL:
+    async def _remote_entries(self, ctx: AuthContext, row: AgentWorkspace) -> list[FileInfo]:
+        archive = await self._archive(ctx, row)
+        if archive is None:
             return []
-        from pydantic_ai_backends.remote import WorkspaceArchive
-
-        archive = WorkspaceArchive(settings.SANDBOXD_URL, token=settings.SANDBOXD_TOKEN)
         try:
             return list(archive.ls(row.session_id or row.scope_key))
         except Exception:
@@ -388,11 +391,9 @@ class SandboxWorkspaceService:
             )
             raise
 
-    async def read_text(
-        self, *, organization_id: UUID, conversation_id: UUID, path: str
-    ) -> str | None:
+    async def read_text(self, ctx: AuthContext, *, conversation_id: UUID, path: str) -> str | None:
         """One file's text, or `None` when there is no such workspace or file."""
-        found = await self.listing(organization_id=organization_id, conversation_id=conversation_id)
+        found = await self.listing(ctx, conversation_id=conversation_id)
         if found is None:
             return None
         row, _ = found
@@ -404,12 +405,27 @@ class SandboxWorkspaceService:
                 return None
             return backend.read(path)
 
-        if not settings.SANDBOXD_URL:
+        archive = await self._archive(ctx, row)
+        if archive is None:
+            return None
+        return archive.read(row.session_id or row.scope_key, path)
+
+    async def _archive(self, ctx: AuthContext, row: AgentWorkspace) -> Any | None:
+        """A reader for the host volume behind a container-backed workspace.
+
+        `None` when the workspace has no connection left to ask - the host was
+        forgotten, or this is a Daytona sandbox, which keeps no host volume of
+        ours to read. Either way the answer is "no files here", which is true, and
+        distinct from the service being misconfigured: that raises.
+        """
+        if row.connection_id is None:
             return None
         from pydantic_ai_backends.remote import WorkspaceArchive
 
-        archive = WorkspaceArchive(settings.SANDBOXD_URL, token=settings.SANDBOXD_TOKEN)
-        return archive.read(row.session_id or row.scope_key, path)
+        resolved = await self.connections.resolve(ctx, row.connection_id)
+        if resolved.kind != "docker" or not resolved.row.base_url:
+            return None
+        return WorkspaceArchive(resolved.row.base_url, token=resolved.token)
 
 
 def owner_label(row: AgentWorkspace) -> str:

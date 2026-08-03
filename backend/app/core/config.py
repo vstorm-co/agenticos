@@ -149,15 +149,13 @@ class Settings(BaseSettings):
     LLAMAPARSE_API_KEY: str = ""
     LITEPARSE_OCR_SERVER_URL: str = ""
 
-    # The sandbox service, which is the same shape of thing as the OCR sidecar
-    # above: something this deployment may or may not run. Empty means it does
-    # not, and publishing an agent that asks for a container-backed workspace is
-    # refused in the Builder rather than failing inside somebody's conversation.
+    # Where sandboxes run is deliberately *not* a setting. It is a row per
+    # organization in `sandbox_connections`, with its token in the vault: a
+    # deployment can hold more than one host, a token that authorises running
+    # commands belongs where every other credential lives, and neither of those
+    # is expressible in an environment variable. See
+    # `app/db/models/sandbox_connection.py`.
     #
-    # The token is on a par with the Docker socket the service holds: whoever
-    # has it can open a session, and a session runs commands on that host.
-    SANDBOXD_URL: str = ""
-    SANDBOXD_TOKEN: str = ""
     # How much of an agent's `state` workspace the platform will store, per
     # workspace. It lives in a JSONB column, so this is a real ceiling on a real
     # row rather than a policy: past it, writes are refused with a message the

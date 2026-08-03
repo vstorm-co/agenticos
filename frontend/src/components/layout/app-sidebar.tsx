@@ -26,6 +26,7 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
   Activity,
+  Boxes,
   BookOpen,
   Bot,
   Building2,
@@ -110,6 +111,14 @@ export const NAV_GROUPS: NavGroup[] = [
         href: ROUTES.MCP_SERVERS,
         icon: Plug,
         permission: Perm.agentsView,
+      },
+      {
+        // Gated on what the backend gates every route on: whoever edits these
+        // decides which host an agent's shell runs on.
+        labelKey: "sandboxes",
+        href: ROUTES.SANDBOXES,
+        icon: Boxes,
+        permission: Perm.connectionsManage,
       },
     ],
   },

@@ -209,6 +209,27 @@ it is about to wait.
   organization's.
 - **Charts render as images** where the platform supports them, and fall back to
   a text table where it does not.
+- **Who shares a workspace, per surface.** An agent's spec sets the default; each
+  binding may override it, because a web chat and a Slack channel are not the same
+  sharing question.
+
+### Overriding who shares the workspace
+
+On Slack, `thread_ts` is folded into the chat id — so a thread *is* a
+conversation, and an agent whose spec says `conversation` gets one workspace per
+thread. In a busy channel that is fifty containers and a `429` for the fifty-first
+person to reply. The binding can say `channel` instead, and every thread in that
+channel shares one.
+
+The choices are the same as the spec's (`run`, `conversation`, `channel`, `user`,
+`agent`), plus "as the agent says", which is the default and stores nothing. The
+control is on the binding in the Builder, and it appears only for an agent that
+keeps files at all.
+
+`user` scope is what carries a workspace *across* surfaces: a person who starts in
+web chat and continues in Slack is one `ChannelIdentity` linked to one account, so
+they find the same files. `conversation` and `channel` deliberately do not — those
+name a place, and a place does not follow somebody to another platform.
 
 ## Choosing
 

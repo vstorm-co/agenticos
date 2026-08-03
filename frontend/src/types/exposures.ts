@@ -7,6 +7,9 @@
  * added, because a surface is a row here and not a field on the spec.
  */
 
+/** Who shares a workspace. Mirrors the backend's `SessionScope`. */
+export type SessionScope = "run" | "conversation" | "channel" | "user" | "agent";
+
 /** A place an agent can be made available. Mirrors the backend's ExposureSurface. */
 export type ExposureSurface = "slack" | "telegram" | "mattermost";
 
@@ -19,6 +22,15 @@ export interface Exposure {
   channel_bot_name: string;
   /** Which named environment answers here; null = the default. */
   environment_id: string | null;
+  /**
+   * Who shares a workspace on *this* surface; null = whatever the spec says.
+   *
+   * A web chat and a Slack channel are not the same sharing question - one has
+   * an account and a conversation, the other has a channel with threads in it -
+   * and one value for both was the wrong shape. The spec keeps the default; the
+   * binding that admits a run may say something else.
+   */
+  session_scope: SessionScope | null;
   is_active: boolean;
   created_at: string | null;
 }

@@ -83,6 +83,20 @@ class AgentWorkspace(Base, TimestampMixin):
     scope_key: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     backend: Mapped[str] = mapped_column(String(16), nullable=False)
 
+    connection_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("sandbox_connections.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    """Which registered connection holds this workspace, when it is not `state`.
+
+    Recorded rather than re-derived, because the questions asked of it later have
+    no spec in hand: listing a conversation's files, and purging the sandbox when
+    the conversation is deleted. `SET NULL` on purpose - forgetting a host must
+    not delete the record of what an agent did on it.
+    """
+
     session_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     """The service-side session, for a container-backed workspace.
 

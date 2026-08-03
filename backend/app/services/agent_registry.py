@@ -26,7 +26,6 @@ from app.agents.capabilities import TOOL_NAME_PATTERN, CapabilityDef
 from app.agents.capabilities import get as get_capability
 from app.agents.spec import AgentSpec, CapabilityBindingSpec
 from app.core.audit import record_audit
-from app.core.config import settings
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
@@ -45,6 +44,7 @@ from app.repositories import (
     member_repo,
     organization_secret_repo,
     resource_grant_repo,
+    sandbox_connection_repo,
 )
 from app.schemas.agent import AgentRead, AgentVersionRead
 from app.services.access import AGENT, COLLECTION, SECRET, resolve_access, visible_resource_ids
@@ -77,37 +77,65 @@ def _copy_name(base: str, attempt: int) -> str:
     return f"{base[: _NAME_LIMIT - len(suffix)].rstrip()}{suffix}"
 
 
-def _sandbox_problems(spec: AgentSpec) -> list[str]:
-    """Workspace configurations this deployment cannot honour.
+async def _sandbox_problems(db: AsyncSession, ctx: AuthContext, spec: AgentSpec) -> list[str]:
+    """Workspace configurations this organization cannot honour.
 
-    Both of these fail at run time otherwise, and by then the author is not
-    looking at a form - they are looking at a conversation where an agent
-    stopped answering. Both are also things the spec cannot know on its own:
-    whether this deployment runs a sandbox service, and what a backend without
-    containers does with a container's runtime.
+    Every one of these fails at run time otherwise, and by then the author is not
+    looking at a form - they are looking at a conversation where an agent stopped
+    answering. Each is also something the spec cannot know on its own: which
+    hosts this organization has registered, and what a backend without containers
+    does with a container's runtime.
 
-    What is deliberately *not* refused here is `session_scope="user"` on an
-    agent that might be reached without one. Publishing cannot know which
-    surfaces an agent will be exposed to, and a web-only agent with a per-user
-    workspace is a perfectly good configuration. The run refuses instead, by
-    name, when it turns out there is nobody to attribute the workspace to -
-    which is the moment the answer is actually knowable.
+    What is deliberately *not* refused here is `session_scope="user"` on an agent
+    that might be reached without one. Publishing cannot know which surfaces an
+    agent will be exposed to, and a web-only agent with a per-user workspace is a
+    perfectly good configuration - as is one whose Slack binding overrides the
+    scope to `channel`. The run refuses instead, by name, when it turns out there
+    is nobody to attribute the workspace to.
     """
     config = sandbox_config(spec)
     if config is None:
         return []
 
     problems: list[str] = []
-    if config.backend == "docker" and not settings.SANDBOXD_URL:
-        problems.append(
-            "This deployment runs no sandbox service, so a container-backed "
-            "workspace has nothing to talk to. Set SANDBOXD_URL, or choose the "
-            "'state' backend, which needs nothing."
+    if config.backend == "state":
+        if config.runtime is not None:
+            problems.append(
+                "The 'state' workspace runs no container, so it has no runtime to "
+                "choose. Clear the runtime, or put this agent on a sandbox connection."
+            )
+        if config.connection_id is not None:
+            problems.append(
+                "The 'state' workspace is stored by the platform, so it does not run "
+                "on a sandbox connection. Clear the connection, or switch the backend."
+            )
+        return problems
+
+    connection = None
+    if config.connection_id is not None:
+        connection = await sandbox_connection_repo.get(
+            db, config.connection_id, organization_id=ctx.organization_id
         )
-    if config.runtime is not None and config.backend == "state":
+        if connection is None:
+            problems.append(
+                "The sandbox connection this agent names does not exist in this "
+                "organization. Pick one that does, or leave it unset to use the default."
+            )
+    else:
+        connection = await sandbox_connection_repo.get_default(
+            db, organization_id=ctx.organization_id
+        )
+        if connection is None:
+            problems.append(
+                "This organization has registered no sandbox connection, so an agent "
+                "cannot be given a container-backed workspace. Register one, or use "
+                "the 'state' workspace, which needs nothing."
+            )
+
+    if connection is not None and connection.secret_id is None:
         problems.append(
-            "The 'state' backend runs no container, so it has no runtime to "
-            "choose. Clear the runtime, or pick a container-backed backend."
+            f"The sandbox connection '{connection.name}' has no credential, so no "
+            "sandbox can be opened on it. Attach its key in the vault."
         )
     return problems
 
@@ -449,7 +477,7 @@ class AgentRegistryService:
                     "depend on who happens to run it."
                 )
 
-        problems.extend(_sandbox_problems(spec))
+        problems.extend(await _sandbox_problems(self.db, ctx, spec))
 
         if problems:
             raise BadRequestError(

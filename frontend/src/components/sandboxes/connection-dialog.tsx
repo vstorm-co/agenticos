@@ -1,0 +1,289 @@
+"use client";
+
+import { useState } from "react";
+
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Input,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Switch,
+} from "@/components/ui";
+import { InlineSecret } from "@/components/vault/inline-secret";
+import { useSecrets } from "@/hooks";
+import { getErrorMessage } from "@/lib/utils";
+import type {
+  SandboxConnectionInput,
+  SandboxConnectionKind,
+  SandboxConnectionRecord,
+} from "@/lib/sandbox-connections-api";
+
+interface ConnectionDialogProps {
+  /**
+   * The row being edited, or `null` to register a new one.
+   *
+   * Read once, when this component mounts. The page mounts it only while it is
+   * open, which is what makes that safe: an effect that re-synced state from
+   * props would be a cascading render, and the version without one showed the
+   * previous row's values the second time somebody clicked Edit.
+   */
+  editing: SandboxConnectionRecord | null;
+  onOpenChange: (open: boolean) => void;
+  onSubmit: (input: SandboxConnectionInput & { is_active?: boolean }) => Promise<void>;
+}
+
+/**
+ * What a key stored from this form is for.
+ *
+ * Two purposes rather than one because they are two different services with two
+ * different tokens, and a picker offering a Daytona key for a `sandboxd` service
+ * is a picker that authenticates the wrong host.
+ */
+const PURPOSE: Record<SandboxConnectionKind, string> = {
+  docker: "sandboxd",
+  daytona: "daytona",
+};
+
+const SUGGESTED_NAME: Record<SandboxConnectionKind, string> = {
+  docker: "Sandbox service token",
+  daytona: "Daytona API key",
+};
+
+interface FormState {
+  name: string;
+  kind: SandboxConnectionKind;
+  baseUrl: string;
+  secretId: string | null;
+  defaultRuntime: string;
+  isDefault: boolean;
+  isActive: boolean;
+}
+
+function initialState(editing: SandboxConnectionRecord | null): FormState {
+  return {
+    name: editing?.name ?? "",
+    kind: editing?.kind ?? "docker",
+    baseUrl: editing?.base_url ?? "",
+    secretId: editing?.secret_id ?? null,
+    defaultRuntime: editing?.default_runtime ?? "",
+    isDefault: editing?.is_default ?? false,
+    isActive: editing?.is_active ?? true,
+  };
+}
+
+/**
+ * Whether this is worth submitting.
+ *
+ * The backend refuses the same two things, and refusing them here means an
+ * operator is told while the form is open rather than by a toast afterwards. A
+ * container connection with no address resolves and then fails to connect on
+ * every session; that is not a state worth being able to save.
+ */
+function isComplete(form: FormState): boolean {
+  if (form.name.trim().length === 0) return false;
+  return form.kind !== "docker" || form.baseUrl.trim().length > 0;
+}
+
+/**
+ * Register or edit a place sandboxes run.
+ *
+ * The credential is chosen from the vault or added inline; it is never typed into
+ * this form's own state and never comes back from the server, which is what keeps
+ * a token that can run commands on a host out of the browser's memory and out of
+ * this component's props.
+ */
+export function ConnectionDialog({ editing, onOpenChange, onSubmit }: ConnectionDialogProps) {
+  const { secrets } = useSecrets();
+  const [form, setForm] = useState<FormState>(() => initialState(editing));
+  const [saving, setSaving] = useState(false);
+  const [refusal, setRefusal] = useState<string | null>(null);
+
+  const usable = secrets.filter((secret) => secret.kind === "api_key");
+
+  async function submit(): Promise<void> {
+    setSaving(true);
+    setRefusal(null);
+    try {
+      await onSubmit({
+        name: form.name.trim(),
+        kind: form.kind,
+        // Daytona has an address of its own, so ours is deliberately cleared
+        // rather than left holding whatever was typed before the kind changed.
+        base_url: form.kind === "docker" ? form.baseUrl.trim() : null,
+        secret_id: form.secretId,
+        default_runtime: form.defaultRuntime.trim() || null,
+        is_default: form.isDefault,
+        is_active: form.isActive,
+      });
+      onOpenChange(false);
+    } catch (error) {
+      // Shown here rather than rethrown. The server refuses a duplicate name and
+      // a shape it cannot use; both are about a field on this form, and a
+      // rejection that escaped an onClick reached nobody at all.
+      setRefusal(getErrorMessage(error));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>
+            {editing ? "Edit sandbox connection" : "Add sandbox connection"}
+          </DialogTitle>
+          <DialogDescription>
+            Where this organization&apos;s agents run shell commands and keep files. The token is
+            stored in the vault and never shown again.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="connection-name">Name</Label>
+            <Input
+              id="connection-name"
+              value={form.name}
+              placeholder="Local Docker"
+              onChange={(event) => setForm({ ...form, name: event.target.value })}
+            />
+            <p className="text-muted-foreground text-xs">
+              What agent authors will see when they pick a host.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="connection-kind">Kind</Label>
+            <Select
+              value={form.kind}
+              onValueChange={(kind) =>
+                setForm({ ...form, kind: kind as SandboxConnectionKind, secretId: null })
+              }
+            >
+              <SelectTrigger id="connection-kind">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="docker">Container service — a sandboxd you run</SelectItem>
+                <SelectItem value="daytona">Daytona — cloud sandboxes on your account</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {form.kind === "docker" && (
+            <div className="space-y-2">
+              <Label htmlFor="connection-url">Address</Label>
+              <Input
+                id="connection-url"
+                value={form.baseUrl}
+                placeholder="http://sandboxd:8080"
+                onChange={(event) => setForm({ ...form, baseUrl: event.target.value })}
+              />
+              <p className="text-muted-foreground text-xs">
+                Where the sandbox service answers. It holds the Docker socket, so it should not be
+                reachable from outside your network.
+              </p>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label htmlFor="connection-secret">Credential</Label>
+            <Select
+              value={usable.find((secret) => secret.id === form.secretId)?.id ?? ""}
+              onValueChange={(secretId) => setForm({ ...form, secretId })}
+            >
+              <SelectTrigger id="connection-secret">
+                <SelectValue placeholder="Pick a key from the vault" />
+              </SelectTrigger>
+              <SelectContent>
+                {usable.map((secret) => (
+                  <SelectItem key={secret.id} value={secret.id}>
+                    {secret.name} <span className="font-mono">····{secret.hint}</span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-muted-foreground text-xs">
+              {form.kind === "docker"
+                ? "The service token. Whoever holds it can open a session, and a session runs commands on that host."
+                : "Your Daytona API key. Sandboxes are billed to the account it belongs to."}
+            </p>
+            <InlineSecret
+              kind="api_key"
+              purpose={PURPOSE[form.kind]}
+              suggestedName={SUGGESTED_NAME[form.kind]}
+              onCreated={(secretId) => setForm({ ...form, secretId })}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="connection-runtime">Default runtime</Label>
+            <Input
+              id="connection-runtime"
+              value={form.defaultRuntime}
+              placeholder="the service's own"
+              onChange={(event) => setForm({ ...form, defaultRuntime: event.target.value })}
+            />
+            <p className="text-muted-foreground text-xs">
+              The image alias an agent gets when its own spec names none. Leave empty to take
+              whatever the service defaults to.
+            </p>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <Label htmlFor="connection-default">Use this by default</Label>
+              <p className="text-muted-foreground text-xs">
+                Agents that name no connection run here. Only one can hold this.
+              </p>
+            </div>
+            <Switch
+              id="connection-default"
+              checked={form.isDefault}
+              onCheckedChange={(isDefault) => setForm({ ...form, isDefault })}
+            />
+          </div>
+
+          {editing && (
+            <div className="flex items-center justify-between">
+              <div>
+                <Label htmlFor="connection-active">Switched on</Label>
+                <p className="text-muted-foreground text-xs">
+                  Turning it off refuses new sandboxes here without deleting the record of what
+                  agents did on it.
+                </p>
+              </div>
+              <Switch
+                id="connection-active"
+                checked={form.isActive}
+                onCheckedChange={(isActive) => setForm({ ...form, isActive })}
+              />
+            </div>
+          )}
+        </div>
+
+        {refusal !== null && <p className="text-destructive text-sm">{refusal}</p>}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button onClick={submit} disabled={saving || !isComplete(form)}>
+            {editing ? "Save" : "Add connection"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

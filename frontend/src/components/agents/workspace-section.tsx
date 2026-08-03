@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Boxes, Cloud, FileText } from "lucide-react";
+import { AlertTriangle, Boxes, FileText } from "lucide-react";
 
 import { CapabilityDetail } from "@/components/agents/capability-settings";
 import {
@@ -12,13 +12,15 @@ import {
   SelectValue,
   Switch,
 } from "@/components/ui";
+import { useSandboxConnections, useSandboxPolicy } from "@/hooks";
 import { cn } from "@/lib/utils";
+import type { SandboxConnectionRecord } from "@/lib/sandbox-connections-api";
 import type { CapabilityBindingSpec, CapabilityCatalogEntry } from "@/types/agents";
 
 export const SANDBOX_CAPABILITY_ID = "sandbox";
 
-type Backend = "state" | "docker" | "daytona";
-type Scope = "run" | "conversation" | "user" | "agent";
+type Backend = "state" | "service";
+type Scope = "run" | "conversation" | "channel" | "user" | "agent";
 
 interface WorkspaceSectionProps {
   definition: CapabilityCatalogEntry | undefined;
@@ -27,6 +29,15 @@ interface WorkspaceSectionProps {
   disabled?: boolean;
 }
 
+/**
+ * Two tiles, not four.
+ *
+ * Docker and Daytona used to be separate choices here, which asked an agent
+ * author a question they cannot answer: *where* sandboxes run is a property of
+ * the connection an operator registered, and picking the kind separately from
+ * the host made it possible to pick two things that disagree. Naming the
+ * connection is naming the kind.
+ */
 const BACKENDS: {
   id: Backend;
   label: string;
@@ -40,16 +51,10 @@ const BACKENDS: {
     icon: FileText,
   },
   {
-    id: "docker",
+    id: "service",
     label: "Container",
-    detail: "Files and a shell, in a container the sandbox service runs.",
+    detail: "Files and a shell, on a sandbox connection your operator registered.",
     icon: Boxes,
-  },
-  {
-    id: "daytona",
-    label: "Daytona",
-    detail: "Files and a shell in the cloud, billed to your own account.",
-    icon: Cloud,
   },
 ];
 
@@ -58,12 +63,17 @@ const SCOPES: { id: Scope; label: string; detail: string }[] = [
   {
     id: "conversation",
     label: "This conversation",
-    detail: "Everyone in the chat, group channels included.",
+    detail: "Everyone in the chat. On Slack a thread is a chat, so threads do not share.",
+  },
+  {
+    id: "channel",
+    label: "This channel",
+    detail: "Every thread in one channel shares. Direct messages stay separate.",
   },
   {
     id: "user",
     label: "Each person",
-    detail: "One workspace per person, across their chats with this agent.",
+    detail: "One workspace per person, across every surface they reach this agent on.",
   },
   {
     id: "agent",
@@ -72,18 +82,29 @@ const SCOPES: { id: Scope; label: string; detail: string }[] = [
   },
 ];
 
+/** Which connection this binding will actually run on, spec or default. */
+function resolvedConnection(
+  connections: readonly SandboxConnectionRecord[],
+  connectionId: string | null,
+): SandboxConnectionRecord | undefined {
+  if (connectionId !== null)
+    return connections.find((connection) => connection.id === connectionId);
+  return connections.find((connection) => connection.is_default);
+}
+
 /**
  * The workspace decision, on its own, rather than as one switch among tools.
  *
  * Every other capability is "may this agent do X". This one is "where does this
- * agent keep things, and who else can read them" — four choices with different
+ * agent keep things, and who else can read them" — choices with different
  * infrastructure behind them, and one of them shares files between people. A row
  * in the capability picker presents that as the same kind of decision as turning
  * on a chart tool, which it is not.
  *
  * The generated configuration form is suppressed for the same reason. A schema
  * can render an enum; it cannot say that picking one of the values means a
- * colleague will see your uploads.
+ * colleague will see your uploads, or that the runtime list has to come from a
+ * host that may be switched off.
  */
 export function WorkspaceSection({
   definition,
@@ -91,6 +112,8 @@ export function WorkspaceSection({
   onChange,
   disabled,
 }: WorkspaceSectionProps) {
+  const { connections, error: connectionsError } = useSandboxConnections();
+
   // A deployment that did not register the capability has nothing to configure,
   // and an empty section reads as something that failed to load.
   if (!definition) return null;
@@ -98,13 +121,15 @@ export function WorkspaceSection({
   const enabled = binding?.enabled === true;
   const config = (binding?.config ?? {}) as {
     backend?: Backend;
+    connection_id?: string | null;
     session_scope?: Scope;
     runtime?: string | null;
     include_execute?: boolean;
   };
   const backend: Backend = config.backend ?? "state";
   const scope: Scope = config.session_scope ?? "conversation";
-  const containerBacked = backend === "docker" || backend === "daytona";
+  const connectionId = config.connection_id ?? null;
+  const connection = resolvedConnection(connections, connectionId);
 
   const setConfig = (patch: Record<string, unknown>) => {
     if (!binding) return;
@@ -118,10 +143,11 @@ export function WorkspaceSection({
     // the moment somebody used the wrong one.
     setConfig({
       backend: next,
-      // A runtime names an environment inside a container. Carrying one onto a
-      // backend that runs none is refused at publish, so it is cleared here
-      // rather than left to fail in a form somebody has already left.
-      ...(next === "state" ? { runtime: null } : {}),
+      // A runtime names an environment inside a container and a connection names
+      // the host it runs on. Carrying either onto the stored workspace is
+      // refused at publish, so both are cleared here rather than left to fail in
+      // a form somebody has already left.
+      ...(next === "state" ? { runtime: null, connection_id: null } : {}),
     });
   };
 
@@ -129,7 +155,7 @@ export function WorkspaceSection({
     <div className="space-y-4">
       <fieldset disabled={disabled} className="space-y-2">
         <legend className="sr-only">Workspace</legend>
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-2 sm:grid-cols-2">
           {BACKENDS.map((option) => (
             <button
               key={option.id}
@@ -158,7 +184,7 @@ export function WorkspaceSection({
         <div className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="workspace-scope">Who shares it</Label>
+              <Label htmlFor="workspace-scope">Who shares it by default</Label>
               <Select
                 value={scope}
                 disabled={disabled}
@@ -176,29 +202,30 @@ export function WorkspaceSection({
                 </SelectContent>
               </Select>
               <p className="text-muted-foreground text-xs">
-                {SCOPES.find((option) => option.id === scope)?.detail}
+                {SCOPES.find((option) => option.id === scope)?.detail} Each channel this agent is
+                published to can override it.
               </p>
             </div>
 
-            {containerBacked && (
-              <div className="space-y-1.5">
-                <Label htmlFor="workspace-runtime">Runtime</Label>
-                <input
-                  id="workspace-runtime"
-                  type="text"
-                  value={config.runtime ?? ""}
-                  disabled={disabled}
-                  placeholder="the deployment's default"
-                  onChange={(event) => setConfig({ runtime: event.target.value.trim() || null })}
-                  className="border-input bg-background w-full rounded-md border px-3 py-2 text-sm"
-                />
-                <p className="text-muted-foreground text-xs">
-                  An environment your deployment allows. It never names an image — that is the
-                  operator&apos;s decision.
-                </p>
-              </div>
+            {backend === "service" && (
+              <ConnectionField
+                connections={connections}
+                connectionId={connectionId}
+                error={connectionsError}
+                disabled={disabled}
+                onChange={(next) => setConfig({ connection_id: next, runtime: null })}
+              />
             )}
           </div>
+
+          {backend === "service" && (
+            <RuntimeField
+              connection={connection}
+              runtime={config.runtime ?? null}
+              disabled={disabled}
+              onChange={(next) => setConfig({ runtime: next })}
+            />
+          )}
 
           {/* The warning a schema cannot express. `agent` scope is the one
               setting here that lets one person read another person's files, and
@@ -238,12 +265,147 @@ export function WorkspaceSection({
               definition={definition}
               onChange={onChange}
               disabled={disabled}
-              // The choice above *is* this capability's configuration; the
-              // generated form would render the same four fields again.
+              // The choices above *are* this capability's configuration; the
+              // generated form would render the same fields again.
               hideConfigForm
             />
           )}
         </div>
+      )}
+    </div>
+  );
+}
+
+interface ConnectionFieldProps {
+  connections: readonly SandboxConnectionRecord[];
+  connectionId: string | null;
+  error: string | null;
+  disabled?: boolean;
+  onChange: (connectionId: string | null) => void;
+}
+
+/**
+ * Which registered host this agent runs on.
+ *
+ * "Whatever is default" is a real choice and is offered as one: an agent that
+ * follows the organization's default keeps working when the operator retires a
+ * host, and pinning one is for the agent that genuinely needs *that* host.
+ *
+ * An organization with none registered is the case worth spelling out. Publishing
+ * is refused for it, and being told here beats being told by a publish error.
+ */
+function ConnectionField({
+  connections,
+  connectionId,
+  error,
+  disabled,
+  onChange,
+}: ConnectionFieldProps) {
+  const usable = connections.filter((connection) => connection.is_active);
+
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor="workspace-connection">Runs on</Label>
+      <Select
+        value={connectionId ?? "default"}
+        disabled={disabled || usable.length === 0}
+        onValueChange={(value) => onChange(value === "default" ? null : value)}
+      >
+        <SelectTrigger id="workspace-connection">
+          <SelectValue placeholder="No sandbox connection registered" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="default">Whichever is default</SelectItem>
+          {usable.map((connection) => (
+            <SelectItem key={connection.id} value={connection.id}>
+              {connection.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {usable.length === 0 ? (
+        <p className="text-destructive text-xs">
+          {error ??
+            "This organization has registered no sandbox connection, so this agent cannot be published with a container. An operator adds one under Sandboxes."}
+        </p>
+      ) : (
+        <p className="text-muted-foreground text-xs">
+          A host an operator registered. The credential lives in the vault, not in this spec.
+        </p>
+      )}
+    </div>
+  );
+}
+
+interface RuntimeFieldProps {
+  connection: SandboxConnectionRecord | undefined;
+  runtime: string | null;
+  disabled?: boolean;
+  onChange: (runtime: string | null) => void;
+}
+
+/**
+ * Which environment the container starts in, offered as what the service allows.
+ *
+ * This was a free-text field, and free text here is a promise nothing keeps: an
+ * alias the service does not know is accepted by the form, published, and then
+ * refused on the agent's first tool call. The allowlist is read from the service
+ * on demand rather than stored, because it is that service's boot configuration
+ * and a copy would be wrong the first time an operator restarted it.
+ *
+ * A host that cannot be reached says so instead of offering an empty list -
+ * "no runtimes" and "no answer" are different problems and only one of them is
+ * the author's.
+ */
+function RuntimeField({ connection, runtime, disabled, onChange }: RuntimeFieldProps) {
+  const { policy, isLoading, error } = useSandboxPolicy(connection?.id ?? null);
+  const runtimes = policy?.runtimes ?? [];
+  const known = runtimes.some((entry) => entry.alias === runtime);
+
+  return (
+    <div className="max-w-sm space-y-1.5">
+      <Label htmlFor="workspace-runtime">Runtime</Label>
+      <Select
+        value={runtime ?? "default"}
+        disabled={disabled || runtimes.length === 0}
+        onValueChange={(value) => onChange(value === "default" ? null : value)}
+      >
+        <SelectTrigger id="workspace-runtime">
+          <SelectValue
+            placeholder={isLoading ? "Asking the service…" : "The connection's default"}
+          />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="default">
+            {connection?.default_runtime ?? "The service's own default"}
+          </SelectItem>
+          {runtimes.map((entry) => (
+            <SelectItem key={entry.alias} value={entry.alias}>
+              {entry.alias}
+              {entry.mem_limit === null ? "" : ` · ${entry.mem_limit}`}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      {error !== null && (
+        <p className="text-destructive text-xs">
+          {error} Until it answers, the runtimes it allows cannot be listed here.
+        </p>
+      )}
+
+      {error === null && runtime !== null && !known && !isLoading && runtimes.length > 0 && (
+        <p className="text-destructive text-xs">
+          This connection no longer allows <span className="font-mono">{runtime}</span>. Pick one it
+          does, or the agent fails on its first tool call.
+        </p>
+      )}
+
+      {error === null && runtimes.length > 0 && (
+        <p className="text-muted-foreground text-xs">
+          {runtimes.find((entry) => entry.alias === runtime)?.description ||
+            "What the service allows. It never names an image — that is the operator's decision."}
+        </p>
       )}
     </div>
   );

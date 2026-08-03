@@ -6,7 +6,15 @@ import { CapabilityWorkbench } from "./capability-workbench";
 import { jsonSchemaType } from "./capability-settings";
 import type { CapabilityBindingSpec, CapabilityCatalogEntry } from "@/types/agents";
 
-vi.mock("@/hooks", () => ({ useSecrets: () => ({ secrets: [], isLoading: false, error: null }) }));
+vi.mock("@/hooks", () => ({
+  useSecrets: () => ({ secrets: [], isLoading: false, error: null }),
+  // The workspace section reads both: where sandboxes may run, and what the
+  // chosen host allows. Neither is this file's subject - `workspace-section`
+  // covers them - so both answer empty, which is a deployment that registered
+  // no connection.
+  useSandboxConnections: () => ({ connections: [], isLoading: false, error: null }),
+  useSandboxPolicy: () => ({ policy: null, isLoading: false, error: null }),
+}));
 
 const CHARTS: CapabilityCatalogEntry = {
   id: "charts",
@@ -294,7 +302,7 @@ describe("the workspace, which is a row like the rest and a detail unlike it", (
     contracts: [],
     config_schema: {
       type: "object",
-      properties: { backend: { type: "string", enum: ["state", "docker", "daytona"] } },
+      properties: { backend: { type: "string", enum: ["state", "service"] } },
     },
   };
 
@@ -309,12 +317,13 @@ describe("the workspace, which is a row like the rest and a detail unlike it", (
     );
   }
 
-  it("says which backend it runs, not how many tools it has", async () => {
-    // "2 tools" is the least useful thing to say about it in a list; which
-    // backend is running is what somebody is scanning for.
-    renderSandbox([binding("sandbox", { config: { backend: "docker" } })]);
+  it("says what the workspace gives the agent, not how many tools it has", async () => {
+    // "2 tools" is the least useful thing to say about it in a list; whether
+    // there is a shell is what somebody is scanning for. *Where* it runs is on
+    // the connection rather than the spec, so the row does not claim to know.
+    renderSandbox([binding("sandbox", { config: { backend: "service" } })]);
 
-    expect(await screen.findByText("a container")).toBeInTheDocument();
+    expect(await screen.findByText("files and a shell")).toBeInTheDocument();
   });
 
   it("says so when the agent has no workspace at all", async () => {
@@ -325,7 +334,7 @@ describe("the workspace, which is a row like the rest and a detail unlike it", (
 
   it.each([
     [{ backend: "state" }, "files, no shell"],
-    [{ backend: "daytona" }, "a cloud sandbox"],
+    [{ backend: "service" }, "files and a shell"],
     [{}, "files, no shell"],
   ])("names the backend in the row (%o)", async (config, expected) => {
     renderSandbox([binding("sandbox", { config })]);
@@ -340,7 +349,7 @@ describe("the workspace, which is a row like the rest and a detail unlike it", (
     renderSandbox([binding("sandbox", { config: { backend: "state" } })]);
 
     expect(await screen.findByRole("button", { name: /^Container/ })).toBeVisible();
-    expect(screen.getByRole("combobox", { name: "Who shares it" })).toBeVisible();
+    expect(screen.getByRole("combobox", { name: "Who shares it by default" })).toBeVisible();
     expect(screen.getByText("Files & shell is on")).toBeVisible();
   });
 

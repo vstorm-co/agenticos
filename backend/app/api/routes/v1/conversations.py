@@ -5,6 +5,7 @@ from fastapi import APIRouter, Query, Response, status
 
 from app.api.deps import (
     ActiveOrg,
+    Auth,
     ConversationShareSvc,
     ConversationSvc,
     CurrentUser,
@@ -145,6 +146,7 @@ async def delete_conversation(
     workspaces: WorkspaceSvc,
     current_user: CurrentUser,
     active_org: ActiveOrg,
+    ctx: Auth,
 ) -> None:
     """Delete a conversation and all its messages."""
     await conversation_service.delete_conversation(
@@ -156,9 +158,7 @@ async def delete_conversation(
     # workspace lives outside this database and would sit on the host until its
     # TTL swept it - holding files whose conversation the user just deleted. Only
     # this platform knows the conversation is gone.
-    await workspaces.purge_for_conversation(
-        organization_id=active_org.id, conversation_id=conversation_id
-    )
+    await workspaces.purge_for_conversation(ctx, conversation_id=conversation_id)
 
 
 @router.post(
@@ -333,6 +333,7 @@ async def list_workspace_files(
     workspaces: WorkspaceSvc,
     current_user: CurrentUser,
     active_org: ActiveOrg,
+    ctx: Auth,
 ) -> Any:
     """The files the agent kept in this conversation.
 
@@ -386,6 +387,7 @@ async def read_workspace_file(
     workspaces: WorkspaceSvc,
     current_user: CurrentUser,
     active_org: ActiveOrg,
+    ctx: Auth,
     path: str = Query(description="Path inside the workspace, as the listing gives it"),
 ) -> Any:
     """One file's text.
@@ -401,9 +403,7 @@ async def read_workspace_file(
         include_messages=False,
         user_id=current_user.id,
     )
-    content = await workspaces.read_text(
-        organization_id=active_org.id, conversation_id=conversation_id, path=path
-    )
+    content = await workspaces.read_text(ctx, conversation_id=conversation_id, path=path)
     if content is None:
         raise NotFoundError(
             message="No such file in this conversation's workspace",

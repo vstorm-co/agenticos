@@ -18,6 +18,7 @@ from httpx import AsyncClient
 
 from app.api import deps
 from app.core.exceptions import NotFoundError
+from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
 
 pytestmark = pytest.mark.anyio
@@ -39,9 +40,16 @@ def _override(*, conversation: object, workspaces: object) -> None:
     about is what happens *after* authentication, and the sweep in
     `test_platform_routes.py` is what proves these routes demand it at all.
     """
+    organization_id = uuid.uuid4()
     app.dependency_overrides[deps.get_current_user] = lambda: SimpleNamespace(id=uuid.uuid4())
     app.dependency_overrides[deps.get_active_organization] = lambda: SimpleNamespace(
-        id=uuid.uuid4()
+        id=organization_id
+    )
+    # The workspace service takes the caller's context rather than an
+    # organization id: reading a container-backed workspace resolves a
+    # connection and unseals its credential, and both are per-organization.
+    app.dependency_overrides[deps.get_auth_context] = lambda: AuthContext(
+        user_id=uuid.uuid4(), organization_id=organization_id, role=OrgRoleName.MEMBER
     )
     app.dependency_overrides[deps.get_conversation_service] = lambda: conversation
     app.dependency_overrides[deps.get_sandbox_workspace_service] = lambda: workspaces

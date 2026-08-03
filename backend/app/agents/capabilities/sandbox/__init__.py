@@ -20,6 +20,7 @@ one whose entrypoint mounts the host.
 from __future__ import annotations
 
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 from pydantic_ai_backends import ConsoleCapability
@@ -33,7 +34,6 @@ from app.agents.capabilities.sandbox._identity import (
     WorkspaceScopeUnavailable,
     scope_key,
 )
-from app.core.secret_kinds import SecretCondition, SecretKind, SecretRequirement
 
 __all__ = [
     "WORKSPACE_BACKEND_RESOURCE",
@@ -65,21 +65,37 @@ class SandboxConfig(BaseModel):
     shows one person another person's files.
     """
 
-    backend: Literal["state", "docker", "daytona"] = Field(
+    backend: Literal["state", "service"] = Field(
         default="state",
         description=(
             "state: files only, no shell, stored by the platform - works on every "
             "deployment with no extra services. "
-            "docker: a container per workspace, run by the sandboxd service. "
-            "daytona: a cloud sandbox, billed to the organization's own account."
+            "service: a container or cloud sandbox, on one of the connections this "
+            "organization has registered."
         ),
     )
-    session_scope: Literal["run", "conversation", "user", "agent"] = Field(
+    connection_id: UUID | None = Field(
+        default=None,
+        description=(
+            "Which registered sandbox connection to run on; null takes the "
+            "organization's default. An id, never an address or a token - a spec is "
+            "exported to a client's git repository, so the only thing it may carry "
+            "is a reference. The connection decides whether that is a container on "
+            "a host you run or a sandbox in Daytona's cloud."
+        ),
+    )
+    session_scope: Literal["run", "conversation", "channel", "user", "agent"] = Field(
         default="conversation",
         description=(
-            "Who shares the workspace. run: nobody, a fresh one every turn. "
-            "conversation: everyone in that chat, group channels included. "
-            "user: one person across their chats with this agent. "
+            "Who shares the workspace, by default on every surface - a binding on "
+            "one of the agent's exposures may say otherwise. "
+            "run: nobody, a fresh one every turn. "
+            "conversation: everyone in that chat - and on Slack a thread is a chat, "
+            "so this is per thread there. "
+            "channel: everyone in a Slack channel or group chat, threads included; "
+            "a direct message still has its own. "
+            "user: one person across their chats with this agent, and across "
+            "surfaces once they have linked their account. "
             "agent: everyone who talks to this agent - files are shared between "
             "people in the organization."
         ),
@@ -89,7 +105,8 @@ class SandboxConfig(BaseModel):
         max_length=64,
         description=(
             "Which environment a container-backed workspace runs, named from the "
-            "list the deployment allows. Null takes the deployment's default."
+            "list the connection's service allows. Null takes the connection's "
+            "default. An alias, never an image."
         ),
     )
     include_execute: bool = Field(
@@ -121,14 +138,11 @@ class SandboxConfig(BaseModel):
     # otherwise for themselves. This is what a binding's `approval` falls back
     # to when it says nothing about a particular tool.
     side_effecting=True,
-    secret=SecretRequirement(
-        kind=SecretKind.API_KEY,
-        description="The Daytona API key this organization's sandboxes are billed to",
-        # Only Daytona authenticates. A flat requirement would make the backend
-        # that needs no account - the one every deployment can run - unusable
-        # without inventing a key for it.
-        required_when=SecretCondition(field="backend", equals=("daytona",)),
-    ),
+    # No `secret=` here, and that is the change worth noting: the credential
+    # belongs to the *connection*, not to a binding. Two hosts need two tokens,
+    # and a key attached per agent could not express that - nor could it be one
+    # concept with the Daytona account an organization bills its cloud sandboxes
+    # to. A connection carries both.
 )
 def _build(ctx: CapabilityBuildContext) -> ConsoleCapability:
     """Wrap the backend the runner opened in the library's console toolset.

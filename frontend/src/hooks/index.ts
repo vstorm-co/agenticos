@@ -25,8 +25,15 @@ export {
 } from "./use-agents";
 export { useMcpCatalog, useMcpServers, type McpServerRow } from "./use-mcp-servers";
 export { useModelProviders, useProviderModels, providerInfo } from "./use-model-providers";
+export {
+  useSandboxConnections,
+  useSandboxEvents,
+  useSandboxPolicy,
+  useSandboxSessions,
+} from "./use-sandbox-connections";
 export { useSecrets, useSecretPurposes, kindInfo } from "./use-secrets";
 export { useApprovals, useRuns, useSpend } from "./use-runs";
+export { useSkillChanges } from "./use-skill-changes";
 export { useSkill, useSkillLibrary, useSkillResource, useSkills } from "./use-skills";
 export { useSharing } from "./use-sharing";
 export { useEmbeds } from "./use-embeds";

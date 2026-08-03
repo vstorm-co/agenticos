@@ -16,6 +16,7 @@ the run history keeps saying what was actually live at the time.
 
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4
 
 import pytest
 from pydantic import BaseModel
@@ -1481,16 +1482,105 @@ class TestWorkspaceConfigurationsRefusedAtPublish:
     """
 
     @pytest.mark.anyio
-    async def test_a_container_workspace_needs_a_sandbox_service(self, monkeypatch):
-        from app.core import config as config_module
+    async def test_a_container_workspace_needs_a_registered_connection(self, monkeypatch):
+        """Otherwise the first tool call fails inside somebody's conversation,
+        for a reason only an operator can fix and nobody is watching for."""
+        from app.repositories import sandbox_connection_repo
 
-        monkeypatch.setattr(config_module.settings, "SANDBOXD_URL", "")
-        spec = _spec(capabilities=[{"id": "sandbox", "config": {"backend": "docker"}}])
+        monkeypatch.setattr(sandbox_connection_repo, "get_default", AsyncMock(return_value=None))
+        spec = _spec(capabilities=[{"id": "sandbox", "config": {"backend": "service"}}])
 
         with pytest.raises(BadRequestError) as refused:
             await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
 
-        assert any("SANDBOXD_URL" in problem for problem in refused.value.details["problems"])
+        assert any(
+            "registered no sandbox connection" in problem
+            for problem in refused.value.details["problems"]
+        )
+
+    @pytest.mark.anyio
+    async def test_a_connection_from_another_organization_is_refused(self, monkeypatch):
+        """The repository is asked inside the caller's organization, so another
+        tenant's host reads as "does not exist" rather than being reachable."""
+        from app.repositories import sandbox_connection_repo
+
+        monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=None))
+        spec = _spec(
+            capabilities=[
+                {
+                    "id": "sandbox",
+                    "config": {"backend": "service", "connection_id": str(uuid4())},
+                }
+            ]
+        )
+
+        with pytest.raises(BadRequestError) as refused:
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+        assert any(
+            "does not exist in this" in problem for problem in refused.value.details["problems"]
+        )
+
+    @pytest.mark.anyio
+    async def test_a_connection_with_no_credential_is_refused(self, monkeypatch):
+        """It resolves, and every sandbox opened on it would be refused a session."""
+        from app.repositories import sandbox_connection_repo
+
+        connection = MagicMock(secret_id=None)
+        connection.name = "Big box"
+        monkeypatch.setattr(
+            sandbox_connection_repo, "get_default", AsyncMock(return_value=connection)
+        )
+        spec = _spec(capabilities=[{"id": "sandbox", "config": {"backend": "service"}}])
+
+        with pytest.raises(BadRequestError) as refused:
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+        assert any("Big box" in problem for problem in refused.value.details["problems"])
+
+    @pytest.mark.anyio
+    async def test_a_connection_on_the_state_backend_is_refused(self):
+        """The platform stores that workspace itself, so a host is not a choice it
+        has. Ignoring the field would leave an author believing they picked one."""
+        spec = _spec(
+            capabilities=[
+                {
+                    "id": "sandbox",
+                    "config": {"backend": "state", "connection_id": str(uuid4())},
+                }
+            ]
+        )
+
+        with pytest.raises(BadRequestError) as refused:
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+        assert any("does not run" in problem for problem in refused.value.details["problems"])
+
+    @pytest.mark.anyio
+    async def test_a_named_connection_with_a_credential_is_not_a_problem(self, monkeypatch):
+        """The branch the three refusals above exist to let through. Asserted on
+        the workspace's own problems rather than on publishing succeeding: this
+        spec is deliberately bare, so it has others."""
+        from app.repositories import sandbox_connection_repo
+
+        connection = MagicMock(secret_id=uuid4())
+        connection.name = "Big box"
+        monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=connection))
+        spec = _spec(
+            capabilities=[
+                {
+                    "id": "sandbox",
+                    "config": {"backend": "service", "connection_id": str(uuid4())},
+                }
+            ]
+        )
+
+        with pytest.raises(BadRequestError) as refused:
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+        assert not [
+            problem for problem in refused.value.details["problems"] if "connection" in problem
+        ]
 
     @pytest.mark.anyio
     async def test_a_runtime_on_a_backend_with_no_container_is_refused(self):

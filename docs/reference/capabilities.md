@@ -121,10 +121,16 @@ normal pairing on the `state` backend, because that one has no shell at all.
 
 | Config | Default | Values |
 |---|---|---|
-| `backend` | `state` | `state`, `docker`, `daytona` |
-| `session_scope` | `conversation` | `run`, `conversation`, `user`, `agent` |
-| `runtime` | null | an alias the deployment allows; container backends only |
+| `backend` | `state` | `state`, `service` |
+| `connection_id` | null | a registered sandbox connection; null takes the organization's default. `service` only |
+| `session_scope` | `conversation` | `run`, `conversation`, `channel`, `user`, `agent` |
+| `runtime` | null | an alias that connection's service allows; `service` only |
 | `include_execute` | `true` | removes the shell entirely when off, rather than gating it |
+
+There is no `docker` or `daytona` backend to choose. *Where* a sandbox runs is a
+property of the connection an operator registered — Sandboxes in the app — so
+naming the connection is naming the kind. Choosing them separately made it
+possible to choose two things that disagree.
 
 **`backend` is infrastructure; `session_scope` is a data-sharing policy.** Getting
 the first wrong costs a feature. Getting the second wrong shows one person
@@ -133,28 +139,50 @@ another person's files, so it is worth reading twice:
 | Scope | Who shares the workspace |
 |---|---|
 | `run` | Nobody — a fresh one every turn |
-| `conversation` | Everyone in that chat, group channels included |
-| `user` | One person, across their chats with this agent |
+| `conversation` | Everyone in that chat. On Slack a thread *is* a chat, so threads do not share |
+| `channel` | Every thread in one channel. A direct message has its own chat id, so people still get their own |
+| `user` | One person, across every surface they reach this agent on |
 | `agent` | **Everyone who talks to this agent**, across the organization |
+
+`conversation` and `channel` exist as separate answers because a chat platform
+makes them different things. `SlackAdapter` folds `thread_ts` into the chat id, so
+`conversation` on Slack means one workspace per thread — fifty threads in a busy
+channel is fifty containers and a `429` for the fifty-first person to reply.
+
+The scope in the spec is the **default**. Each channel the agent is published to
+can override it, on the exposure: an agent reached in web chat and on a Slack bot
+is one agent in two situations, and one value for both was the wrong shape.
+`user` scope is what carries a workspace across surfaces — the same person picking
+up in Slack a conversation they started in web chat finds their files there.
 
 `agent` is the one that crosses a boundary between people. The Builder warns at
 the field, the file panel labels whose workspace it is rather than calling it "this
 conversation's files", and setting it is recorded in the audit log — because a user
 who sees a file they did not create should be able to find out why.
 
-A spec chooses a backend and never an image, a mount, a network mode or a
+A spec chooses a connection and never an image, a mount, a network mode or a
 ceiling. Those belong to whoever runs the deployment: a spec is authored in a
-browser by anyone holding `edit` on the agent, and one that could name a
-container image could name one whose entrypoint mounts the host. `runtime` is an
-alias, validated against the service's own allowlist.
+browser by anyone holding `edit` on the agent, and one that could name a container
+image could name one whose entrypoint mounts the host. `runtime` is an alias, and
+the Builder offers only the aliases that connection's service reports — read live,
+because a stored copy would offer one the service has since stopped allowing.
 
 What each backend costs to run:
 
 | Backend | Needs | Shell | Where files live |
 |---|---|---|---|
 | `state` | nothing | no | this database, capped at `SANDBOX_STATE_MAX_BYTES` |
-| `docker` | the `sandboxd` service | yes | a container, on a host volume |
-| `daytona` | an organization API key | yes | Daytona's cloud, billed to that account |
+| `service` | a registered connection | yes | a container on that host, or Daytona's cloud on the organization's own account |
+
+An operator can see what is running: Sandboxes lists this organization's open
+sandboxes on its default host with their runtimes, idle times and memory, and the
+activity log per sandbox. See [Configuration](../configuration.md#agent-workspaces).
+
+Publishing is refused for a `service` workspace when the organization has
+registered no connection, when the one it names is gone, or when that connection
+has no credential — each by name, because all three are states a deployment
+reaches *after* an agent was published and the fix is an operator's rather than the
+author's.
 
 Reading is free and writing is not: `write_file`, `edit_file` and `execute`
 declare themselves side-effecting per tool, so an agent asks before it changes
@@ -163,6 +191,18 @@ something and does not ask to list a directory. See
 
 Files somebody attaches to a message land in `/uploads` — see
 [File processing](../file-processing.md).
+
+**Skills become files too.** An agent with both a workspace and skills gets each
+skill as `/skills/<name>/SKILL.md` with its resources beside it, which is what
+makes a skill's script runnable at all: it is on disk next to the shell that can
+run it. There is deliberately no `run_skill_script` — `execute` already has the
+workspace's permission rules and the operator's ceilings behind it, and a second
+execution path would be a second set of rules to get wrong.
+
+Those files are writable, and what the agent writes does **not** become a skill. A
+skill is instructions every agent bound to it follows on every run, so a change is
+recorded as a proposal and somebody holding `skills:edit` accepts or discards it —
+see [Skills](../skills.md).
 
 ## Charts
 

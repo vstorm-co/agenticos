@@ -82,6 +82,7 @@
     "workspace": "Przestrzeń",
     "vault": "Sejf",
     "mcpServers": "Serwery MCP",
+    "sandboxes": "Sandboxy",
     "adminOverview": "Administracja"
   },
   "auth": {

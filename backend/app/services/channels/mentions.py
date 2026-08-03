@@ -127,6 +127,17 @@ class ChannelAgentRouter:
         self.db = db
         self.runner = AgentRunnerService(db)
 
+    @staticmethod
+    def _channel_key(platform_chat_id: str) -> str:
+        """The chat this message arrived in, with any thread stripped.
+
+        Slack folds `thread_ts` into `platform_chat_id` as `channel:thread_ts`, so
+        the raw id identifies a *thread*. A workspace scoped to the channel has to
+        key on what is stable across the threads inside it, which is the part
+        before the colon. Every other platform's id is already the chat.
+        """
+        return platform_chat_id.partition(":")[0]
+
     async def answer(
         self,
         text: str,
@@ -136,6 +147,7 @@ class ChannelAgentRouter:
         bot_id: UUID,
         user_id: UUID | None,
         conversation_id: UUID | None = None,
+        platform_chat_id: str | None = None,
     ) -> str:
         """Run the agent named in `text` and return what it said.
 
@@ -201,6 +213,7 @@ class ChannelAgentRouter:
             mention.prompt,
             surface=_SURFACES.get(platform, RunSurface.API),
             conversation_id=conversation_id,
+            channel_key=(None if platform_chat_id is None else self._channel_key(platform_chat_id)),
             # The binding is what let this message through, so it is also what
             # the run is attributed to and bounded by. Resolving it here and
             # then not passing it on would leave a cap somebody set on this bot
@@ -218,6 +231,7 @@ class ChannelAgentRouter:
         bot_id: UUID,
         user_id: UUID | None,
         conversation_id: UUID | None = None,
+        platform_chat_id: str | None = None,
         message_history: list[Any] | None = None,
     ) -> str:
         """Run the only agent this bot serves and return what it said.
@@ -260,6 +274,7 @@ class ChannelAgentRouter:
             text,
             surface=_SURFACES.get(platform, RunSurface.API),
             conversation_id=conversation_id,
+            channel_key=(None if platform_chat_id is None else self._channel_key(platform_chat_id)),
             message_history=message_history,
             exposure=exposure,
         )

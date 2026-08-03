@@ -40,6 +40,13 @@
     "description": "Parse PDFs with LlamaParse, billed to this organization's own key."
   },
   {
+    "id": "sandboxd",
+    "label": "Sandbox service",
+    "category": "other",
+    "kind": "api_key",
+    "description": "The token a sandbox service accepts. Whoever holds it can open a session, and a session runs commands on the host holding the Docker socket."
+  },
+  {
     "id": "daytona",
     "label": "Daytona",
     "category": "other",

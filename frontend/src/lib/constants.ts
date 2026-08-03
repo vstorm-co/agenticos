@@ -40,6 +40,7 @@ export const ROUTES = {
   AGENT_DETAIL: (id: string) => `/agents/${id}`,
   RUNS: "/runs",
   VAULT: "/vault",
+  SANDBOXES: "/sandboxes",
   SKILLS: "/skills",
   ORG_SETTINGS: (id: string) => `/orgs/${id}/settings`,
   KB: "/kb",

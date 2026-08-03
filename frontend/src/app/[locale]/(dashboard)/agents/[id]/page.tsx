@@ -82,7 +82,7 @@ import {
   useRuns,
   useSkills,
 } from "@/hooks";
-import { SKILLS_ID, THINKING_ID, withCapability, withSkills } from "@/lib/agent-spec";
+import { SANDBOX_ID, SKILLS_ID, THINKING_ID, withCapability, withSkills } from "@/lib/agent-spec";
 import { ROUTES } from "@/lib/constants";
 import { useAgentSelectionStore, useConversationStore } from "@/stores";
 import { cn } from "@/lib/utils";
@@ -840,7 +840,13 @@ export default function AgentBuilderPage({ params }: PageProps) {
         </TabsContent>
 
         <TabsContent value="availability" className="mt-4 space-y-6">
-          <ExposuresPanel agentId={id} canManage={canPublish} />
+          <ExposuresPanel
+            agentId={id}
+            canManage={canPublish}
+            hasWorkspace={spec.capabilities.some(
+              (binding) => binding.id === SANDBOX_ID && binding.enabled !== false,
+            )}
+          />
           {/* Bots stay organization resources - one bot serves many agents -
               but they are registered here, beside the binding they exist for.
               The panel hides itself from anyone without channels:manage. */}

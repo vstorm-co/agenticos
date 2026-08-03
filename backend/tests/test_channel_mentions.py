@@ -38,6 +38,35 @@ def _bound(*, is_active: bool = True) -> AsyncMock:
     return AsyncMock(return_value=MagicMock(is_active=is_active))
 
 
+class TestTheChannelAWorkspaceSharesAcross:
+    """`channel` scope keys on the chat with the thread stripped.
+
+    Slack folds `thread_ts` into `platform_chat_id`, so the raw id identifies a
+    *thread*. Keying a channel-scoped workspace on it would give one workspace
+    per thread - which is what `conversation` scope already does, and under a
+    container backend it is fifty containers in a busy channel.
+    """
+
+    @pytest.mark.parametrize(
+        ("platform_chat_id", "expected"),
+        [
+            ("C0123456:1717171717.001", "C0123456"),
+            ("C0123456", "C0123456"),
+            ("-1001234567890", "-1001234567890"),
+        ],
+    )
+    def test_a_thread_resolves_to_the_channel_that_holds_it(
+        self, platform_chat_id: str, expected: str
+    ):
+        assert ChannelAgentRouter._channel_key(platform_chat_id) == expected
+
+    def test_two_threads_in_one_channel_agree_on_the_key(self):
+        first = ChannelAgentRouter._channel_key("C0123456:1717171717.001")
+        second = ChannelAgentRouter._channel_key("C0123456:1818181818.002")
+
+        assert first == second
+
+
 class TestParseMention:
     @pytest.mark.parametrize(
         ("text", "slug", "prompt"),

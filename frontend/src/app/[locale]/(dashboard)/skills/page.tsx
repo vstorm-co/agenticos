@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { BookOpen, ChevronDown, ListFilter, Lock, Plus } from "lucide-react";
 
 import { PageHeader } from "@/components/dashboard/page-header";
+import { ProposedChanges } from "@/components/skills/proposed-changes";
 import { CreateSkillDialog } from "@/components/skills/create-skill-dialog";
 import { SkillCard } from "@/components/skills/skill-card";
 import { SkillLibraryGallery } from "@/components/skills/skill-library-gallery";
@@ -219,6 +220,10 @@ export default function SkillsPage() {
   return (
     <div className="space-y-6">
       {header}
+
+      {/* Above the list, because it is a decision somebody has to make and the
+          list is a thing to browse. Absent entirely when nothing is waiting. */}
+      <ProposedChanges canEdit={canEdit} />
 
       <SkillsCard count={total} controls={controls}>
         <div className="space-y-4">

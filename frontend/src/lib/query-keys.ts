@@ -167,6 +167,25 @@ export const qk = {
     // other's data with rows it has no business showing.
     org: () => ["mcp-connections", "org"] as const,
   },
+  skillChanges: {
+    all: () => ["skill-changes"] as const,
+    // Keyed by filter: the reviewer's list is the pending ones, and a page
+    // showing every decided proposal must not overwrite it in the cache.
+    list: (status: string) => ["skill-changes", "list", status] as const,
+  },
+  sandboxConnections: {
+    all: () => ["sandbox-connections"] as const,
+    list: () => ["sandbox-connections", "list"] as const,
+    // What one connection's service allows, keyed per connection: a policy is a
+    // round trip to a host that may be down, and two connections must not share
+    // a cache entry that one of them cannot fill.
+    policy: (id: string) => ["sandbox-connections", "policy", id] as const,
+    // Live state on a host, keyed per connection for the same reason the policy
+    // is: two hosts must not share a cache entry one of them cannot fill.
+    sessions: (id: string) => ["sandbox-connections", "sessions", id] as const,
+    events: (id: string, sessionId: string) =>
+      ["sandbox-connections", "events", id, sessionId] as const,
+  },
   mcpServers: {
     // The organization catalog. Not under `agents`: the same list backs the
     // Builder and Settings, and invalidating the agent registry must not

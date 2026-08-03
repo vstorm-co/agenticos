@@ -20,7 +20,9 @@ import * as providers from "./providers/[[...path]]/route";
 import * as rag from "./rag/[[...path]]/route";
 import * as roles from "./roles/[[...path]]/route";
 import * as runs from "./runs/[[...path]]/route";
+import * as sandboxConnections from "./sandbox-connections/[[...path]]/route";
 import * as secrets from "./secrets/[[...path]]/route";
+import * as skillChanges from "./skill-changes/[[...path]]/route";
 import * as skills from "./skills/[[...path]]/route";
 import * as spend from "./spend/[[...path]]/route";
 import * as users from "./users/[userId]/route";
@@ -48,7 +50,9 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["rag", rag],
   ["roles", roles],
   ["runs", runs],
+  ["sandbox-connections", sandboxConnections],
   ["secrets", secrets],
+  ["skill-changes", skillChanges],
   ["skills", skills],
   ["spend", spend],
   ["users/[userId]", users],

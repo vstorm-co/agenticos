@@ -434,6 +434,62 @@ class TestSpendReporting:
         assert timedelta(days=7) <= looked_back < timedelta(days=7, seconds=30)
 
 
+class TestSkillChangesARunProposed:
+    """What an agent wrote to its skills, on the way out of the run.
+
+    Recorded rather than applied: a skill is instructions every bound agent
+    follows, so an agent editing one directly would rewrite what another agent
+    does inside a conversation nobody reviewed.
+    """
+
+    @pytest.mark.anyio
+    async def test_what_the_agent_changed_becomes_a_proposal(self):
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.ctx = MagicMock(organization_id=uuid.uuid4())
+        change = MagicMock()
+        record = AsyncMock(return_value=[MagicMock()])
+        service.proposals = MagicMock(record=record)
+
+        with (
+            patch("app.services.agent_runner.collect_changes", return_value=[change]) as collected,
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+        ):
+            await service.finish(prepared, status=RunStatus.COMPLETED)
+
+        collected.assert_called_once()
+        assert record.await_args.args[1] == [change]
+
+    @pytest.mark.anyio
+    async def test_a_recording_failure_does_not_replace_the_runs_own_outcome(self):
+        """It runs in the same `finally` that records what the run cost, so a name
+        taken since must not turn a completed run into a storage error."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.ctx = MagicMock(organization_id=uuid.uuid4())
+        service.proposals = MagicMock(record=AsyncMock(side_effect=RuntimeError("name taken")))
+
+        with (
+            patch("app.services.agent_runner.collect_changes", return_value=[MagicMock()]),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()) as finish,
+        ):
+            await service.finish(prepared, status=RunStatus.COMPLETED)
+
+        assert finish.call_args.kwargs["status"] == RunStatus.COMPLETED.value
+
+    @pytest.mark.anyio
+    async def test_a_run_with_no_workspace_proposes_nothing(self):
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.workspace = None
+        service.proposals = MagicMock(record=AsyncMock())
+
+        with patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()):
+            await service.finish(prepared, status=RunStatus.COMPLETED)
+
+        service.proposals.record.assert_not_called()
+
+
 class TestRunAccounting:
     @pytest.mark.anyio
     async def test_a_failed_run_still_records_its_cost(self):

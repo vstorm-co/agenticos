@@ -119,6 +119,7 @@ class ChannelMessageRouter:
                 bot_id=bot.id,
                 user_id=identity.user_id,
                 conversation_id=session.conversation_id,
+                platform_chat_id=incoming.platform_chat_id,
                 message_history=build_message_history(history),
             )
         except AppException as exc:
@@ -168,6 +169,7 @@ class ChannelMessageRouter:
                 bot_id=bot.id,
                 user_id=identity.user_id,
                 conversation_id=session.conversation_id,
+                platform_chat_id=incoming.platform_chat_id,
             )
         except UnaddressedMessage:
             return False

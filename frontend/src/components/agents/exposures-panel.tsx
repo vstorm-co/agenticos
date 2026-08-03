@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui";
 import { useAgentEnvironments, useExposures } from "@/hooks";
-import type { ExposureSurface } from "@/types/exposures";
+import type { ExposureSurface, SessionScope } from "@/types/exposures";
 
 interface ExposuresPanelProps {
   agentId: string;
@@ -30,6 +30,15 @@ interface ExposuresPanelProps {
    * sharing panel does.
    */
   canManage: boolean;
+  /**
+   * Whether the agent keeps files at all.
+   *
+   * Decides only whether the sharing override is offered. Read from the spec by
+   * the page rather than re-derived here: this panel is about *where* an agent
+   * is available, and reaching into the capability list for one control would
+   * make it a second reader of the spec's shape.
+   */
+  hasWorkspace: boolean;
 }
 
 const SURFACE_LABEL: Record<ExposureSurface, string> = {
@@ -53,9 +62,37 @@ const SURFACE_LABEL: Record<ExposureSurface, string> = {
 /** Sentinel for "the default environment" - a Select item may not be empty. */
 const DEFAULT_ENV = "__default__";
 
-export function ExposuresPanel({ agentId, canManage }: ExposuresPanelProps) {
-  const { exposures, isLoading, available, expose, setActive, setEnvironment, revoke } =
-    useExposures(agentId);
+/** The same trick for "whatever the spec says". */
+const SPEC_SCOPE = "__spec__";
+
+/**
+ * Who shares a workspace *here*, when this surface disagrees with the spec.
+ *
+ * The labels are the surface's own vocabulary rather than the Builder's, because
+ * this is where the question stops being abstract: on Slack a thread is a chat,
+ * so "this conversation" means per-thread and a busy channel is fifty
+ * workspaces. That is exactly the mistake this control exists to let somebody
+ * fix without republishing the agent.
+ */
+const SCOPE_LABEL: Record<SessionScope, string> = {
+  run: "fresh each turn",
+  conversation: "per chat or thread",
+  channel: "per channel",
+  user: "per person",
+  agent: "one for everyone",
+};
+
+export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPanelProps) {
+  const {
+    exposures,
+    isLoading,
+    available,
+    expose,
+    setActive,
+    setEnvironment,
+    setSessionScope,
+    revoke,
+  } = useExposures(agentId);
   const { environments } = useAgentEnvironments(agentId);
   const [selectedBotId, setSelectedBotId] = useState("");
   // Only worth a control when there is a choice: with the default alone, every
@@ -77,6 +114,15 @@ export function ExposuresPanel({ agentId, canManage }: ExposuresPanelProps) {
           A published agent answers in the dashboard and through the API. To reach it from a chat
           platform, add the bot here - an agent is mentionable by <code>@handle</code> only on the
           bots it is bound to.
+          {hasWorkspace && (
+            <>
+              {" "}
+              A tool that asks for approval parks the run until somebody answers in this dashboard,
+              so on a chat platform the thread sits there meanwhile - which reads as the bot being
+              broken. For an agent people reach from a channel, the workable setting is a shell that
+              is not gated, inside a container with no network.
+            </>
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -119,6 +165,36 @@ export function ExposuresPanel({ agentId, canManage }: ExposuresPanelProps) {
                     {namedEnvironments.map((environment) => (
                       <SelectItem key={environment.id} value={environment.id}>
                         {environment.name} (v{environment.version})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {/* Only where the agent has a workspace at all: an override on an
+                  agent that keeps no files is a control that changes nothing,
+                  and a section full of those is how the real ones get ignored. */}
+              {hasWorkspace && (
+                <Select
+                  value={exposure.session_scope ?? SPEC_SCOPE}
+                  disabled={!canManage || setSessionScope.isPending}
+                  onValueChange={(next) =>
+                    setSessionScope.mutate({
+                      exposureId: exposure.id,
+                      sessionScope: next === SPEC_SCOPE ? null : (next as SessionScope),
+                    })
+                  }
+                >
+                  <SelectTrigger
+                    className="w-44"
+                    aria-label={`Workspace sharing on ${exposure.channel_bot_name}`}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={SPEC_SCOPE}>as the agent says</SelectItem>
+                    {(Object.keys(SCOPE_LABEL) as SessionScope[]).map((scope) => (
+                      <SelectItem key={scope} value={scope}>
+                        {SCOPE_LABEL[scope]}
                       </SelectItem>
                     ))}
                   </SelectContent>

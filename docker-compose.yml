@@ -46,7 +46,6 @@ services:
       # Empty outside compose, so a bare `uvicorn` run degrades to "no container
       # workspace available" rather than erroring. Note what is absent here:
       # no docker.sock, which is the whole point of the service below.
-      - SANDBOXD_URL=${SANDBOXD_URL-http://sandboxd:8080}
     # --ws websockets-sansio: uvicorn's `auto` picks the legacy websockets impl,
     # which is broken with websockets >=14 (handshake → HTTP 500). The sansio
     # implementation is the modern, compatible one. Required for the chat WS.

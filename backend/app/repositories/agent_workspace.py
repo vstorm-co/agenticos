@@ -35,6 +35,7 @@ async def create(
     conversation_id: UUID | None = None,
     owner_ref: str | None = None,
     session_id: str | None = None,
+    connection_id: UUID | None = None,
     files: dict[str, Any] | None = None,
 ) -> AgentWorkspace:
     workspace = AgentWorkspace(
@@ -46,6 +47,7 @@ async def create(
         scope_key=scope_key,
         backend=backend,
         session_id=session_id,
+        connection_id=connection_id,
         files=files,
         bytes_total=0,
         version=0,

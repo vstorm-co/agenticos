@@ -35,7 +35,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -52,6 +52,7 @@ from app.agents.capabilities.approval import (
 )
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope, SpendEntry, metered_by
 from app.agents.capabilities.sandbox import WORKSPACE_BACKEND_RESOURCE, WorkspaceIdentity
+from app.agents.capabilities.sandbox._identity import SessionScope
 from app.agents.deps import AgentDeps
 from app.agents.factory import BuiltAgent, build_agent
 from app.agents.spec import AgentSpec, ObservabilitySpec
@@ -74,6 +75,9 @@ from app.services.notifications import NotificationService
 from app.services.organization import OrganizationService
 from app.services.organization_secret import OrganizationSecretService
 from app.services.sandbox_workspace import OpenWorkspace, SandboxWorkspaceService
+from app.services.skill_proposal import SkillProposalService
+from app.services.skill_workspace import MaterialisedSkills, collect_changes
+from app.services.skill_workspace import materialise as materialise_skills
 from app.services.skills import SkillService
 from app.services.spend import month_start, organization_monthly_spend
 
@@ -158,6 +162,24 @@ class PreparedRun:
     run is over.
     """
 
+    materialised_skills: MaterialisedSkills | None = None
+    """The skill files written into that workspace, as they were written.
+
+    Kept so that `finish` can tell what the agent changed from what it was given.
+    Diffing against the database instead would re-propose every change a reviewer
+    already discarded, on every turn of a conversation whose workspace outlives
+    the run.
+    """
+
+    ctx: AuthContext | None = None
+    """Who ran it, for recording a proposal in `finish`.
+
+    A workspace flush needs no tenant - it writes a row it already holds - but a
+    proposal does: it is stored against an organization and read by a reviewer
+    there. Carried rather than re-derived, because `finish` is called from a
+    `finally` where the request may already be gone.
+    """
+
     @property
     def deps(self) -> AgentDeps:
         return self.built.deps
@@ -192,6 +214,7 @@ class AgentRunnerService:
         self.approvals = ApprovalService(db)
         self.organizations = OrganizationService(db)
         self.workspaces = SandboxWorkspaceService(db)
+        self.proposals = SkillProposalService(db)
 
     async def _collection_names(self, spec: AgentSpec, ctx: AuthContext) -> list[str]:
         """Vector-store collection names for the agent's bound collections.
@@ -221,6 +244,7 @@ class AgentRunnerService:
         *,
         surface: RunSurface = RunSurface.PLAYGROUND,
         conversation_id: UUID | None = None,
+        channel_key: str | None = None,
         user_name: str | None = None,
         extra_toolsets: list[Any] | None = None,
         exposure: AgentExposure | None = None,
@@ -265,6 +289,7 @@ class AgentRunnerService:
             existing_run=None,
             surface=surface,
             conversation_id=conversation_id,
+            channel_key=channel_key,
             model_profile_id=model_profile_id,
             user_name=user_name,
             extra_toolsets=extra_toolsets,
@@ -283,6 +308,7 @@ class AgentRunnerService:
         existing_run: AgentRun | None,
         surface: RunSurface,
         conversation_id: UUID | None,
+        channel_key: str | None = None,
         user_name: str | None,
         extra_toolsets: list[Any] | None,
         exposure: AgentExposure | None,
@@ -382,21 +408,32 @@ class AgentRunnerService:
         # workspace it never touches costs nothing.
         workspace = await self.workspaces.open(
             spec,
-            # The same unsealed secrets the capabilities get. Daytona is billed
-            # to the organization's own account, so its key has to be the
-            # organization's rather than whatever the deployment's environment
-            # happens to hold.
-            secrets=secrets,
+            ctx=ctx,
             identity=WorkspaceIdentity(
                 organization_id=ctx.organization_id,
                 agent_id=agent.id,
                 run_id=run.id,
                 conversation_id=conversation_id,
                 user_id=None if ctx.user_id is None else str(ctx.user_id),
+                channel_key=channel_key,
+            ),
+            # What the binding that admitted this run says, if it says anything.
+            # The same agent in web chat and on a Slack bot is one agent in two
+            # situations, and one value for both was the wrong shape.
+            scope_override=(
+                cast("SessionScope | None", exposure.session_scope)
+                if exposure is not None and exposure.session_scope
+                else None
             ),
         )
+        materialised: MaterialisedSkills | None = None
         if workspace is not None:
             resources[WORKSPACE_BACKEND_RESOURCE] = workspace.backend
+            # Skills as files, beside the shell that can run them. A skill whose
+            # resource is a script was previously handed to the model as text it
+            # could quote and not execute, while the same agent had `execute` one
+            # tool call away.
+            materialised = materialise_skills(workspace.backend, resources["skills"])
 
         channel = ApprovalChannel(
             approvals=self.approvals,
@@ -436,7 +473,38 @@ class AgentRunnerService:
             built=built,
             approvals=channel,
             workspace=workspace,
+            materialised_skills=materialised,
+            ctx=ctx,
         )
+
+    async def _propose_skill_changes(self, prepared: PreparedRun) -> None:
+        """Record what this run wrote to its skills, as something a person decides.
+
+        Never raises. It is called from the same `finally` that records what the
+        run cost, so a failure here - a name taken since, a workspace that cannot
+        be listed - must not replace whatever actually happened to the run.
+
+        The change is not applied. A skill is instructions every agent bound to it
+        follows on every run, so an agent that could edit one directly could
+        rewrite what another agent does, inside a conversation nobody is
+        reviewing. `app/db/models/skill_proposal.py` has the rest of the
+        reasoning.
+        """
+        workspace = prepared.workspace
+        state = prepared.materialised_skills
+        if workspace is None or state is None or prepared.ctx is None:
+            return
+        try:
+            changes = collect_changes(workspace.backend, state)
+            if changes:
+                await self.proposals.record(
+                    prepared.ctx,
+                    changes,
+                    agent_id=prepared.agent.id,
+                    conversation_id=prepared.run.conversation_id,
+                )
+        except Exception:
+            logger.exception("skill_proposal_record_failed", extra={"run_id": str(prepared.run.id)})
 
     async def finish(
         self,
@@ -463,6 +531,10 @@ class AgentRunnerService:
         error message - and it decides who gets mailed: an agent's cap is its
         author's to raise, the organization's is not.
         """
+        # Before the workspace closes, because a run-scoped one is released by
+        # `close` and its files are gone afterwards.
+        await self._propose_skill_changes(prepared)
+
         # Before the run row is written, so a workspace flush that fails cannot
         # leave the run un-finished, and after the run has certainly stopped
         # using it. `close` never raises; it logs.
@@ -554,6 +626,7 @@ class AgentRunnerService:
         *,
         surface: RunSurface = RunSurface.API,
         conversation_id: UUID | None = None,
+        channel_key: str | None = None,
         message_history: list[Any] | None = None,
         exposure: AgentExposure | None = None,
         environment_id: UUID | None = None,
@@ -574,6 +647,7 @@ class AgentRunnerService:
             agent_id,
             surface=surface,
             conversation_id=conversation_id,
+            channel_key=channel_key,
             exposure=exposure,
             environment_id=environment_id,
         )

@@ -12,8 +12,8 @@ refusals worth more than the feature itself:
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock
-from uuid import uuid4
+from unittest.mock import AsyncMock, MagicMock
+from uuid import UUID, uuid4
 
 import pytest
 from pydantic_ai_backends import StateBackend
@@ -32,10 +32,20 @@ from app.agents.capabilities.sandbox._identity import (
 )
 from app.agents.spec import AgentSpec
 from app.core.exceptions import BadRequestError
+from app.core.permissions import AuthContext, OrgRoleName
 from app.repositories import agent_workspace as workspace_repo
+from app.services.sandbox_connection import ResolvedConnection, SandboxConnectionService
 from app.services.sandbox_workspace import SandboxWorkspaceService, sandbox_config
 
 pytestmark = pytest.mark.anyio
+
+
+def _ctx(organization_id: UUID | None = None) -> AuthContext:
+    return AuthContext(
+        user_id=uuid4(),
+        organization_id=organization_id or uuid4(),
+        role=OrgRoleName.OWNER,
+    )
 
 
 def _identity(**overrides: object) -> WorkspaceIdentity:
@@ -56,24 +66,36 @@ def _spec(**config: object) -> AgentSpec:
     )
 
 
-def _daytona_spec() -> tuple[AgentSpec, dict]:
-    """A spec whose workspace names a key, and the unsealed key itself.
+def _resolved(
+    *,
+    kind: str = "docker",
+    base_url: str | None = "http://sandboxd:8080",
+    default_runtime: str | None = None,
+    token: str = "service-token",
+) -> ResolvedConnection:
+    """A registered connection with its credential already unsealed.
 
-    Daytona is the one backend that authenticates, and it authenticates to an
-    account the *organization* pays for - so the key has to come from the
-    organization's vault. The SDK's own `DAYTONA_API_KEY` fallback would put
-    every tenant's sandboxes on whichever account the deployment configured.
+    Where a sandbox runs is a row now, not a setting, so every container-backed
+    test resolves one. The vault half is exercised in `tests/test_secrets.py`
+    and the resolution half in `tests/test_sandbox_connections.py`; here the
+    question is only what the workspace service does with the answer.
     """
-    from app.core.secret_kinds import ApiKeySecret
+    row = MagicMock()
+    row.id = uuid4()
+    row.kind = kind
+    row.base_url = base_url
+    row.default_runtime = default_runtime
+    row.name = "Local Docker"
+    return ResolvedConnection(row=row, token=token)
 
-    secret_id = uuid4()
-    spec = AgentSpec(
-        name="Analyst",
-        capabilities=[
-            {"id": "sandbox", "config": {"backend": "daytona"}, "secret_id": str(secret_id)}
-        ],
-    )
-    return spec, {secret_id: ApiKeySecret(api_key="dtn-live-key")}
+
+def _serve(monkeypatch, resolved: ResolvedConnection | Exception) -> None:
+    async def _resolve(self, ctx, connection_id):
+        if isinstance(resolved, Exception):
+            raise resolved
+        return resolved
+
+    monkeypatch.setattr(SandboxConnectionService, "resolve", _resolve)
 
 
 class TestWhoSharesAWorkspace:
@@ -133,15 +155,15 @@ class TestWhoSharesAWorkspace:
         identity = _identity()
 
         assert scope_key(identity, "conversation", "state") != scope_key(
-            identity, "conversation", "docker"
+            identity, "conversation", "service"
         )
 
-    @pytest.mark.parametrize("scope", ["run", "conversation", "user", "agent"])
+    @pytest.mark.parametrize("scope", ["run", "conversation", "channel", "user", "agent"])
     def test_every_key_fits_what_the_service_accepts(self, scope: str):
         """`sandboxd` rejects an id over 64 characters, on the first tool call."""
-        identity = _identity(user_id="U" * 200)
+        identity = _identity(user_id="U" * 200, channel_key="C" * 200)
 
-        assert len(scope_key(identity, scope, "docker")) <= MAX_SESSION_ID  # type: ignore[arg-type]
+        assert len(scope_key(identity, scope, "service")) <= MAX_SESSION_ID  # type: ignore[arg-type]
 
     def test_a_conversation_scope_with_no_conversation_is_refused(self):
         with pytest.raises(WorkspaceScopeUnavailable):
@@ -151,6 +173,42 @@ class TestWhoSharesAWorkspace:
         """Rather than falling back and merging strangers' files."""
         with pytest.raises(WorkspaceScopeUnavailable):
             scope_key(_identity(user_id=None), "user", "state")
+
+    def test_a_channel_scope_in_web_chat_is_refused_by_name(self):
+        """There is no channel above a web conversation. Falling back to the
+        conversation would look like it worked and quietly mean something else."""
+        with pytest.raises(WorkspaceScopeUnavailable) as refused:
+            scope_key(_identity(channel_key=None), "channel", "state")
+
+        assert "messaging channel" in str(refused.value)
+
+    def test_two_agents_in_one_channel_do_not_share_a_workspace(self):
+        """Putting both bots in a room is not a request that either read the
+        other's files."""
+        organization = uuid4()
+        first = _identity(organization_id=organization, agent_id=uuid4(), channel_key="C123")
+        second = _identity(organization_id=organization, agent_id=uuid4(), channel_key="C123")
+
+        assert scope_key(first, "channel", "state") != scope_key(second, "channel", "state")
+
+    def test_threads_in_one_channel_share_it(self):
+        """The reason `channel` exists: `conversation` scope on Slack is one
+        workspace per thread, which is fifty containers in a busy channel."""
+        agent, organization = uuid4(), uuid4()
+        first = _identity(
+            organization_id=organization,
+            agent_id=agent,
+            conversation_id=uuid4(),
+            channel_key="C123",
+        )
+        second = _identity(
+            organization_id=organization,
+            agent_id=agent,
+            conversation_id=uuid4(),
+            channel_key="C123",
+        )
+
+        assert scope_key(first, "channel", "state") == scope_key(second, "channel", "state")
 
 
 class TestTheStorageCeiling:
@@ -310,26 +368,33 @@ class TestBuildingTheCapability:
         assert toolset is not None
         assert "run_in_background" not in toolset.tools
 
-    def test_a_secret_is_only_demanded_by_the_backend_that_authenticates(self):
+    def test_no_backend_demands_a_credential_on_the_binding(self):
+        """The credential moved to the connection, and that is the point.
+
+        A key on a capability binding is a key per agent; a sandbox credential
+        authorises running commands on a host, which is a property of the host
+        rather than of whoever happens to be pointed at it. Leaving the old
+        requirement in place would have asked every author for a token they have
+        no business holding.
+        """
         definition = get_capability("sandbox")
 
         assert not definition.needs_secret(SandboxConfig(backend="state"))
-        assert not definition.needs_secret(SandboxConfig(backend="docker"))
-        assert definition.needs_secret(SandboxConfig(backend="daytona"))
+        assert not definition.needs_secret(SandboxConfig(backend="service"))
 
 
 class TestOpeningAndClosing:
     async def test_an_agent_without_a_workspace_opens_nothing(self, mock_db_session):
         service = SandboxWorkspaceService(mock_db_session)
 
-        assert await service.open(AgentSpec(name="Plain"), identity=_identity()) is None
+        assert await service.open(AgentSpec(name="Plain"), ctx=_ctx(), identity=_identity()) is None
 
     async def test_a_run_scoped_state_workspace_needs_no_row(self, monkeypatch, mock_db_session):
         created = AsyncMock()
         monkeypatch.setattr(workspace_repo, "create", created)
         service = SandboxWorkspaceService(mock_db_session)
 
-        workspace = await service.open(_spec(session_scope="run"), identity=_identity())
+        workspace = await service.open(_spec(session_scope="run"), ctx=_ctx(), identity=_identity())
 
         assert workspace is not None
         assert workspace.row_id is None
@@ -345,7 +410,7 @@ class TestOpeningAndClosing:
         monkeypatch.setattr(workspace_repo, "touch", AsyncMock(return_value=row))
         service = SandboxWorkspaceService(mock_db_session)
 
-        workspace = await service.open(_spec(), identity=_identity())
+        workspace = await service.open(_spec(), ctx=_ctx(), identity=_identity())
 
         assert workspace is not None
         assert "the numbers" in workspace.backend.read("/report.md")
@@ -359,7 +424,7 @@ class TestOpeningAndClosing:
         mock_db_session.get = AsyncMock(return_value=row)
         service = SandboxWorkspaceService(mock_db_session)
 
-        workspace = await service.open(_spec(), identity=_identity())
+        workspace = await service.open(_spec(), ctx=_ctx(), identity=_identity())
         assert workspace is not None
         workspace.backend.write("/notes.txt", "kept")
         await service.close(workspace)
@@ -377,7 +442,7 @@ class TestOpeningAndClosing:
         monkeypatch.setattr(workspace_repo, "save_files", saved)
         service = SandboxWorkspaceService(mock_db_session)
 
-        workspace = await service.open(_spec(session_scope="run"), identity=_identity())
+        workspace = await service.open(_spec(session_scope="run"), ctx=_ctx(), identity=_identity())
         assert workspace is not None
         workspace.backend.write("/scratch.txt", "gone after this")
         await service.close(workspace)
@@ -396,7 +461,7 @@ class TestOpeningAndClosing:
         mock_db_session.get = AsyncMock(return_value=None)
         service = SandboxWorkspaceService(mock_db_session)
 
-        workspace = await service.open(_spec(), identity=_identity())
+        workspace = await service.open(_spec(), ctx=_ctx(), identity=_identity())
         await service.close(workspace)
 
         saved.assert_not_called()
@@ -414,7 +479,7 @@ class TestOpeningAndClosing:
         mock_db_session.get = AsyncMock(return_value=row)
         service = SandboxWorkspaceService(mock_db_session)
 
-        workspace = await service.open(_spec(), identity=_identity())
+        workspace = await service.open(_spec(), ctx=_ctx(), identity=_identity())
 
         await service.close(workspace)
 
@@ -422,22 +487,25 @@ class TestOpeningAndClosing:
         service = SandboxWorkspaceService(mock_db_session)
 
         with pytest.raises(BadRequestError) as exc:
-            await service.open(_spec(session_scope="user"), identity=_identity(user_id=None))
+            await service.open(
+                _spec(session_scope="user"), ctx=_ctx(), identity=_identity(user_id=None)
+            )
 
         assert "no signed-in user" in exc.value.message
 
-    async def test_a_container_backend_without_a_service_is_refused(
+    async def test_a_connection_that_no_longer_resolves_is_refused_where_it_is_read(
         self, monkeypatch, mock_db_session
     ):
-        from app.core import config as config_module
-
-        monkeypatch.setattr(config_module.settings, "SANDBOXD_URL", "")
+        """A spec valid at publish can stop being valid: a host is retired, a key
+        is rotated out of the vault. The refusal has to name which, because the
+        reader here is a user in a conversation and the fix is elsewhere."""
+        _serve(monkeypatch, BadRequestError(message="The sandbox connection 'Big box' is gone"))
         service = SandboxWorkspaceService(mock_db_session)
 
         with pytest.raises(BadRequestError) as exc:
-            await service.open(_spec(backend="docker"), identity=_identity())
+            await service.open(_spec(backend="service"), ctx=_ctx(), identity=_identity())
 
-        assert exc.value.details["setting"] == "SANDBOXD_URL"
+        assert "Big box" in exc.value.message
 
 
 def _row(**overrides: object):
@@ -469,10 +537,6 @@ class TestContainerBackedWorkspaces:
         conversation's workspace the same one next turn rather than a 409."""
         from pydantic_ai_backends import remote as remote_module
 
-        from app.core import config as config_module
-
-        monkeypatch.setattr(config_module.settings, "SANDBOXD_URL", "http://sandboxd:8080")
-        monkeypatch.setattr(config_module.settings, "SANDBOXD_TOKEN", "service-token")
         seen: dict[str, object] = {}
 
         class _Sandbox:
@@ -480,28 +544,61 @@ class TestContainerBackedWorkspaces:
                 seen.update(kwargs, url=url)
 
         monkeypatch.setattr(remote_module, "RemoteSandbox", _Sandbox)
-        row = _row(backend="docker")
+        resolved = _resolved()
+        _serve(monkeypatch, resolved)
+        row = _row(backend="service")
         monkeypatch.setattr(workspace_repo, "get_by_key", AsyncMock(return_value=None))
         created = AsyncMock(return_value=row)
         monkeypatch.setattr(workspace_repo, "create", created)
         identity = _identity()
 
         workspace = await SandboxWorkspaceService(mock_db_session).open(
-            _spec(backend="docker", runtime="python"), identity=identity
+            _spec(backend="service", runtime="python"), ctx=_ctx(), identity=identity
         )
 
         assert workspace is not None
-        assert workspace.kind == "docker"
+        assert workspace.kind == "service"
+        assert seen["url"] == "http://sandboxd:8080"
+        assert seen["token"] == "service-token"
         assert seen["tenant"] == str(identity.organization_id)
         assert seen["reuse"] is True
         assert seen["runtime"] == "python"
         # The service is told which session belongs to this row, so deleting the
-        # conversation can purge the sandbox rather than wait for a TTL.
+        # conversation can purge the sandbox rather than wait for a TTL. The
+        # connection is recorded for the same reason: nothing later has the spec.
         assert created.await_args.kwargs["session_id"] == workspace.scope_key
+        assert created.await_args.kwargs["connection_id"] == resolved.row.id
 
-    async def test_a_daytona_workspace_uses_the_organizations_own_key(
+    async def test_the_connections_runtime_is_used_when_the_spec_names_none(
         self, monkeypatch, mock_db_session
     ):
+        """Three levels, each answering a different question: what this agent
+        needs, what this host prefers, and what exists at all."""
+        from pydantic_ai_backends import remote as remote_module
+
+        seen: dict[str, object] = {}
+        monkeypatch.setattr(
+            remote_module, "RemoteSandbox", lambda url, **kwargs: seen.update(kwargs) or object()
+        )
+        _serve(monkeypatch, _resolved(default_runtime="data-science"))
+        monkeypatch.setattr(workspace_repo, "get_by_key", AsyncMock(return_value=None))
+        monkeypatch.setattr(
+            workspace_repo, "create", AsyncMock(return_value=_row(backend="service"))
+        )
+
+        await SandboxWorkspaceService(mock_db_session).open(
+            _spec(backend="service"), ctx=_ctx(), identity=_identity()
+        )
+
+        assert seen["runtime"] == "data-science"
+
+    async def test_a_daytona_connection_uses_the_organizations_own_key(
+        self, monkeypatch, mock_db_session
+    ):
+        """Daytona bills an account the *organization* owns, so the key comes
+        from that organization's vault by way of its connection. The SDK's own
+        `DAYTONA_API_KEY` fallback would put every tenant's sandboxes on
+        whichever account the deployment happened to configure."""
         import pydantic_ai_backends as backends_module
 
         seen: dict[str, object] = {}
@@ -511,73 +608,52 @@ class TestContainerBackedWorkspaces:
                 seen.update(api_key=api_key, sandbox_id=sandbox_id)
 
         monkeypatch.setattr(backends_module, "DaytonaSandbox", _Sandbox, raising=False)
+        _serve(monkeypatch, _resolved(kind="daytona", base_url=None, token="dtn-live-key"))
         monkeypatch.setattr(workspace_repo, "get_by_key", AsyncMock(return_value=None))
         monkeypatch.setattr(
-            workspace_repo, "create", AsyncMock(return_value=_row(backend="daytona"))
+            workspace_repo, "create", AsyncMock(return_value=_row(backend="service"))
         )
-        spec, secrets = _daytona_spec()
 
         workspace = await SandboxWorkspaceService(mock_db_session).open(
-            spec, identity=_identity(), secrets=secrets
+            _spec(backend="service"), ctx=_ctx(), identity=_identity()
         )
 
         assert workspace is not None
         assert seen["api_key"] == "dtn-live-key"
         assert seen["sandbox_id"] == workspace.scope_key
 
-    async def test_a_key_belonging_to_another_capability_is_not_mistaken_for_this_one(
+    async def test_the_spec_may_name_a_connection_other_than_the_default(
         self, monkeypatch, mock_db_session
     ):
-        """An agent can hold several secrets - a search key and a Daytona key -
-        and picking the wrong one would authenticate a sandbox with a Tavily
-        token and fail somewhere unhelpful."""
+        """Two hosts is the whole reason connections are rows. An agent that
+        names one has to reach that one, not whichever is marked default."""
         from pydantic_ai_backends import remote as remote_module
 
-        from app.core import config as config_module
-        from app.core.secret_kinds import ApiKeySecret
-
-        monkeypatch.setattr(config_module.settings, "SANDBOXD_URL", "http://sandboxd:8080")
         monkeypatch.setattr(remote_module, "RemoteSandbox", lambda url, **kwargs: object())
+        asked: list[UUID | None] = []
+
+        async def _resolve(self, ctx, connection_id):
+            asked.append(connection_id)
+            return _resolved()
+
+        monkeypatch.setattr(SandboxConnectionService, "resolve", _resolve)
         monkeypatch.setattr(workspace_repo, "get_by_key", AsyncMock(return_value=None))
         monkeypatch.setattr(
-            workspace_repo, "create", AsyncMock(return_value=_row(backend="docker"))
+            workspace_repo, "create", AsyncMock(return_value=_row(backend="service"))
         )
-        elsewhere = uuid4()
-        spec = AgentSpec(
-            name="Analyst",
-            capabilities=[
-                {"id": "sandbox", "config": {"backend": "docker"}},
-                {"id": "web_research", "config": {"method": "tavily"}, "secret_id": str(elsewhere)},
-            ],
+        named = uuid4()
+
+        await SandboxWorkspaceService(mock_db_session).open(
+            _spec(backend="service", connection_id=str(named)), ctx=_ctx(), identity=_identity()
         )
 
-        workspace = await SandboxWorkspaceService(mock_db_session).open(
-            spec,
-            identity=_identity(),
-            secrets={elsewhere: ApiKeySecret(api_key="tvly-key")},
-        )
-
-        assert workspace is not None
-        assert workspace.kind == "docker"
-
-    async def test_a_daytona_workspace_whose_key_was_deleted_is_refused(self, mock_db_session):
-        """Rather than falling through to the SDK's environment variable, which
-        would bill this organization's sandboxes to somebody else's account."""
-        spec, _ = _daytona_spec()
-
-        with pytest.raises(BadRequestError) as exc:
-            await SandboxWorkspaceService(mock_db_session).open(spec, identity=_identity())
-
-        assert "Daytona key" in exc.value.message
+        assert asked == [named]
 
     async def test_a_run_scoped_sandbox_is_released_when_the_run_ends(
         self, monkeypatch, mock_db_session
     ):
         from pydantic_ai_backends import remote as remote_module
 
-        from app.core import config as config_module
-
-        monkeypatch.setattr(config_module.settings, "SANDBOXD_URL", "http://sandboxd:8080")
         stopped: dict[str, object] = {}
 
         class _Sandbox:
@@ -588,10 +664,11 @@ class TestContainerBackedWorkspaces:
                 stopped["purge"] = purge
 
         monkeypatch.setattr(remote_module, "RemoteSandbox", _Sandbox)
+        _serve(monkeypatch, _resolved())
         service = SandboxWorkspaceService(mock_db_session)
 
         workspace = await service.open(
-            _spec(backend="docker", session_scope="run"), identity=_identity()
+            _spec(backend="service", session_scope="run"), ctx=_ctx(), identity=_identity()
         )
         await service.close(workspace)
 
@@ -603,9 +680,6 @@ class TestContainerBackedWorkspaces:
         """The next turn is meant to find the files this one wrote."""
         from pydantic_ai_backends import remote as remote_module
 
-        from app.core import config as config_module
-
-        monkeypatch.setattr(config_module.settings, "SANDBOXD_URL", "http://sandboxd:8080")
         stopped: list[bool] = []
 
         class _Sandbox:
@@ -616,13 +690,14 @@ class TestContainerBackedWorkspaces:
                 stopped.append(purge)
 
         monkeypatch.setattr(remote_module, "RemoteSandbox", _Sandbox)
+        _serve(monkeypatch, _resolved())
         monkeypatch.setattr(workspace_repo, "get_by_key", AsyncMock(return_value=None))
         monkeypatch.setattr(
-            workspace_repo, "create", AsyncMock(return_value=_row(backend="docker"))
+            workspace_repo, "create", AsyncMock(return_value=_row(backend="service"))
         )
         service = SandboxWorkspaceService(mock_db_session)
 
-        workspace = await service.open(_spec(backend="docker"), identity=_identity())
+        workspace = await service.open(_spec(backend="service"), ctx=_ctx(), identity=_identity())
         await service.close(workspace)
 
         assert stopped == []
@@ -630,7 +705,7 @@ class TestContainerBackedWorkspaces:
     async def test_a_backend_that_cannot_be_stopped_is_left_alone(
         self, monkeypatch, mock_db_session
     ):
-        """A `state` workspace has no `stop`, and neither does a stub."""
+        """A Daytona sandbox exposes no `stop`, and `close` must not care."""
         import pydantic_ai_backends as backends_module
 
         class _Sandbox:
@@ -638,11 +713,12 @@ class TestContainerBackedWorkspaces:
                 pass
 
         monkeypatch.setattr(backends_module, "DaytonaSandbox", _Sandbox, raising=False)
-        spec, secrets = _daytona_spec()
-        spec.capabilities[0].config["session_scope"] = "run"
+        _serve(monkeypatch, _resolved(kind="daytona", base_url=None))
         service = SandboxWorkspaceService(mock_db_session)
 
-        workspace = await service.open(spec, identity=_identity(), secrets=secrets)
+        workspace = await service.open(
+            _spec(backend="service", session_scope="run"), ctx=_ctx(), identity=_identity()
+        )
         await service.close(workspace)
 
 
@@ -654,7 +730,7 @@ class TestDeletingAConversation:
         monkeypatch.setattr(workspace_repo, "delete", deleted)
 
         count = await SandboxWorkspaceService(mock_db_session).purge_for_conversation(
-            organization_id=uuid4(), conversation_id=uuid4()
+            _ctx(), conversation_id=uuid4()
         )
 
         assert count == 2
@@ -666,9 +742,6 @@ class TestDeletingAConversation:
         """The row would cascade away; the container would sit on the host."""
         from pydantic_ai_backends import remote as remote_module
 
-        from app.core import config as config_module
-
-        monkeypatch.setattr(config_module.settings, "SANDBOXD_URL", "http://sandboxd:8080")
         purged: list[str] = []
 
         class _Sandbox:
@@ -679,15 +752,18 @@ class TestDeletingAConversation:
                 pass
 
         monkeypatch.setattr(remote_module, "RemoteSandbox", _Sandbox)
+        _serve(monkeypatch, _resolved())
         monkeypatch.setattr(
             workspace_repo,
             "list_for_conversation",
-            AsyncMock(return_value=[_row(backend="docker", session_id="dc-1")]),
+            AsyncMock(
+                return_value=[_row(backend="service", session_id="dc-1", connection_id=uuid4())]
+            ),
         )
         monkeypatch.setattr(workspace_repo, "delete", AsyncMock())
 
         await SandboxWorkspaceService(mock_db_session).purge_for_conversation(
-            organization_id=uuid4(), conversation_id=uuid4()
+            _ctx(), conversation_id=uuid4()
         )
 
         assert purged == ["dc-1"]
@@ -698,25 +774,72 @@ class TestDeletingAConversation:
         """The workspace TTL is the net under exactly this."""
         from pydantic_ai_backends import remote as remote_module
 
-        from app.core import config as config_module
-
-        monkeypatch.setattr(config_module.settings, "SANDBOXD_URL", "http://sandboxd:8080")
-
         class _Sandbox:
             def __init__(self, url, **kwargs):
                 raise RuntimeError("connection refused")
 
         monkeypatch.setattr(remote_module, "RemoteSandbox", _Sandbox)
+        _serve(monkeypatch, _resolved())
         monkeypatch.setattr(
             workspace_repo,
             "list_for_conversation",
-            AsyncMock(return_value=[_row(backend="docker", session_id="dc-1")]),
+            AsyncMock(
+                return_value=[_row(backend="service", session_id="dc-1", connection_id=uuid4())]
+            ),
         )
         deleted = AsyncMock()
         monkeypatch.setattr(workspace_repo, "delete", deleted)
 
         count = await SandboxWorkspaceService(mock_db_session).purge_for_conversation(
-            organization_id=uuid4(), conversation_id=uuid4()
+            _ctx(), conversation_id=uuid4()
+        )
+
+        assert count == 1
+        deleted.assert_awaited_once()
+
+    async def test_a_connection_deleted_since_does_not_stop_the_deletion(
+        self, monkeypatch, mock_db_session
+    ):
+        """`SET NULL` makes this reachable: the host was forgotten, the row that
+        records what an agent did on it was not. Deleting the chat still works."""
+        _serve(monkeypatch, BadRequestError(message="that connection no longer exists"))
+        monkeypatch.setattr(
+            workspace_repo,
+            "list_for_conversation",
+            AsyncMock(
+                return_value=[_row(backend="service", session_id="dc-1", connection_id=uuid4())]
+            ),
+        )
+        deleted = AsyncMock()
+        monkeypatch.setattr(workspace_repo, "delete", deleted)
+
+        count = await SandboxWorkspaceService(mock_db_session).purge_for_conversation(
+            _ctx(), conversation_id=uuid4()
+        )
+
+        assert count == 1
+        deleted.assert_awaited_once()
+
+    async def test_a_daytona_workspace_is_dropped_without_a_sandboxd_call(
+        self, monkeypatch, mock_db_session
+    ):
+        """Its sandbox lives on the organization's own Daytona account, which
+        keeps no session of ours to purge - so the row goes and nothing is
+        called. Reaching for `RemoteSandbox` here would send a Daytona key to a
+        `sandboxd` that does not exist."""
+        _serve(monkeypatch, _resolved(kind="daytona", base_url=None))
+        monkeypatch.setattr(
+            workspace_repo,
+            "list_for_conversation",
+            AsyncMock(
+                return_value=[_row(backend="service", session_id="dt-1", connection_id=uuid4())]
+            ),
+        )
+        deleted = AsyncMock()
+        monkeypatch.setattr(workspace_repo, "delete", deleted)
+
+        count = await SandboxWorkspaceService(mock_db_session).purge_for_conversation(
+            _ctx(), conversation_id=uuid4()
         )
 
         assert count == 1
@@ -730,28 +853,27 @@ class TestDeletingAConversation:
 
         assert (
             await SandboxWorkspaceService(mock_db_session).purge_for_conversation(
-                organization_id=uuid4(), conversation_id=uuid4()
+                _ctx(), conversation_id=uuid4()
             )
             == 1
         )
 
-    async def test_a_container_workspace_with_no_service_configured_is_skipped(
+    async def test_a_workspace_whose_host_was_forgotten_is_still_deleted(
         self, monkeypatch, mock_db_session
     ):
-        """A deployment that dropped SANDBOXD_URL still deletes its rows."""
-        from app.core import config as config_module
-
-        monkeypatch.setattr(config_module.settings, "SANDBOXD_URL", "")
+        """No `connection_id` left means nothing to ask, not a failure."""
         monkeypatch.setattr(
             workspace_repo,
             "list_for_conversation",
-            AsyncMock(return_value=[_row(backend="docker", session_id="dc-1")]),
+            AsyncMock(
+                return_value=[_row(backend="service", session_id="dc-1", connection_id=None)]
+            ),
         )
         monkeypatch.setattr(workspace_repo, "delete", AsyncMock())
 
         assert (
             await SandboxWorkspaceService(mock_db_session).purge_for_conversation(
-                organization_id=uuid4(), conversation_id=uuid4()
+                _ctx(), conversation_id=uuid4()
             )
             == 1
         )
@@ -771,7 +893,7 @@ class TestShowingTheFilesToAPerson:
         monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[]))
 
         found = await SandboxWorkspaceService(mock_db_session).listing(
-            organization_id=uuid4(), conversation_id=uuid4()
+            _ctx(), conversation_id=uuid4()
         )
 
         assert found is None
@@ -786,7 +908,7 @@ class TestShowingTheFilesToAPerson:
         )
 
         found = await SandboxWorkspaceService(mock_db_session).listing(
-            organization_id=uuid4(), conversation_id=uuid4()
+            _ctx(), conversation_id=uuid4()
         )
 
         assert found is not None
@@ -803,7 +925,7 @@ class TestShowingTheFilesToAPerson:
         )
 
         text = await SandboxWorkspaceService(mock_db_session).read_text(
-            organization_id=uuid4(), conversation_id=uuid4(), path="/uploads/report.csv"
+            _ctx(), conversation_id=uuid4(), path="/uploads/report.csv"
         )
 
         assert text is not None
@@ -816,7 +938,7 @@ class TestShowingTheFilesToAPerson:
 
         assert (
             await SandboxWorkspaceService(mock_db_session).read_text(
-                organization_id=uuid4(), conversation_id=uuid4(), path="/nope.txt"
+                _ctx(), conversation_id=uuid4(), path="/nope.txt"
             )
             is None
         )
@@ -828,7 +950,7 @@ class TestShowingTheFilesToAPerson:
 
         assert (
             await SandboxWorkspaceService(mock_db_session).read_text(
-                organization_id=uuid4(), conversation_id=uuid4(), path="/a.txt"
+                _ctx(), conversation_id=uuid4(), path="/a.txt"
             )
             is None
         )
@@ -837,10 +959,6 @@ class TestShowingTheFilesToAPerson:
         self, monkeypatch, mock_db_session
     ):
         from pydantic_ai_backends import remote as remote_module
-
-        from app.core import config as config_module
-
-        monkeypatch.setattr(config_module.settings, "SANDBOXD_URL", "http://sandboxd:8080")
 
         class _Archive:
             def __init__(self, url, token=""):
@@ -853,17 +971,18 @@ class TestShowingTheFilesToAPerson:
                 return "print(1)"
 
         monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
+        _serve(monkeypatch, _resolved())
         monkeypatch.setattr(
             workspace_repo,
             "list_for_conversation",
-            AsyncMock(return_value=[_row(backend="docker", session_id="dc-1")]),
+            AsyncMock(
+                return_value=[_row(backend="service", session_id="dc-1", connection_id=uuid4())]
+            ),
         )
         service = SandboxWorkspaceService(mock_db_session)
 
-        found = await service.listing(organization_id=uuid4(), conversation_id=uuid4())
-        text = await service.read_text(
-            organization_id=uuid4(), conversation_id=uuid4(), path="/workspace/run.py"
-        )
+        found = await service.listing(_ctx(), conversation_id=uuid4())
+        text = await service.read_text(_ctx(), conversation_id=uuid4(), path="/workspace/run.py")
 
         assert found is not None
         assert found[1][0]["path"] == "/workspace/run.py"
@@ -875,10 +994,6 @@ class TestShowingTheFilesToAPerson:
         """An empty folder is what a user believes; a 502 is what they can act on."""
         from pydantic_ai_backends import remote as remote_module
 
-        from app.core import config as config_module
-
-        monkeypatch.setattr(config_module.settings, "SANDBOXD_URL", "http://sandboxd:8080")
-
         class _Archive:
             def __init__(self, url, token=""):
                 pass
@@ -887,38 +1002,58 @@ class TestShowingTheFilesToAPerson:
                 raise RuntimeError("no workspace root configured")
 
         monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
+        _serve(monkeypatch, _resolved())
         monkeypatch.setattr(
             workspace_repo,
             "list_for_conversation",
-            AsyncMock(return_value=[_row(backend="docker", session_id="dc-1")]),
+            AsyncMock(
+                return_value=[_row(backend="service", session_id="dc-1", connection_id=uuid4())]
+            ),
         )
 
         with pytest.raises(RuntimeError):
-            await SandboxWorkspaceService(mock_db_session).listing(
-                organization_id=uuid4(), conversation_id=uuid4()
-            )
+            await SandboxWorkspaceService(mock_db_session).listing(_ctx(), conversation_id=uuid4())
 
-    async def test_a_container_workspace_with_no_service_lists_nothing(
+    async def test_a_daytona_workspace_keeps_no_volume_of_ours_to_list(
         self, monkeypatch, mock_db_session
     ):
-        from app.core import config as config_module
-
-        monkeypatch.setattr(config_module.settings, "SANDBOXD_URL", "")
+        """Its files live on their account, so "none here" is the true answer -
+        and it must not be confused with the service being misconfigured."""
+        _serve(monkeypatch, _resolved(kind="daytona", base_url=None))
         monkeypatch.setattr(
             workspace_repo,
             "list_for_conversation",
-            AsyncMock(return_value=[_row(backend="docker", session_id="dc-1")]),
+            AsyncMock(
+                return_value=[_row(backend="service", session_id="dt-1", connection_id=uuid4())]
+            ),
         )
         service = SandboxWorkspaceService(mock_db_session)
 
-        found = await service.listing(organization_id=uuid4(), conversation_id=uuid4())
+        found = await service.listing(_ctx(), conversation_id=uuid4())
 
         assert found is not None
         assert found[1] == []
-        assert (
-            await service.read_text(organization_id=uuid4(), conversation_id=uuid4(), path="/a.txt")
-            is None
+        assert await service.read_text(_ctx(), conversation_id=uuid4(), path="/a.txt") is None
+
+    async def test_a_workspace_whose_host_was_forgotten_lists_nothing(
+        self, monkeypatch, mock_db_session
+    ):
+        """The row survives a deleted connection on purpose - it records what an
+        agent did - and browsing it answers "no files" rather than failing."""
+        monkeypatch.setattr(
+            workspace_repo,
+            "list_for_conversation",
+            AsyncMock(
+                return_value=[_row(backend="service", session_id="dc-1", connection_id=None)]
+            ),
         )
+        service = SandboxWorkspaceService(mock_db_session)
+
+        found = await service.listing(_ctx(), conversation_id=uuid4())
+
+        assert found is not None
+        assert found[1] == []
+        assert await service.read_text(_ctx(), conversation_id=uuid4(), path="/a.txt") is None
 
 
 class TestWhoseWorkspaceItIs:

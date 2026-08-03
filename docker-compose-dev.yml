@@ -35,7 +35,6 @@ services:
       - PREFECT_API_URL=http://prefect-server:4200/api
       # Empty unless the sandbox profile is up. Note what is absent from
       # this service: the Docker socket.
-      - SANDBOXD_URL=${SANDBOXD_URL-}
     # --ws websockets-sansio: uvicorn's `auto` picks the legacy websockets impl,
     # which is broken with websockets >=14 (handshake → HTTP 500). Required for
     # the chat WS. No --reload: there is no mounted source to watch.
@@ -104,7 +103,6 @@ services:
       - PREFECT_API_URL=http://prefect-server:4200/api
       # Empty unless the sandbox profile is up. Note what is absent from
       # this service: the Docker socket.
-      - SANDBOXD_URL=${SANDBOXD_URL-}
       - PREFECT_SERVER_API_HOST=0.0.0.0
     networks:
       - backend
@@ -136,7 +134,6 @@ services:
       - PREFECT_API_URL=http://prefect-server:4200/api
       # Empty unless the sandbox profile is up. Note what is absent from
       # this service: the Docker socket.
-      - SANDBOXD_URL=${SANDBOXD_URL-}
     networks:
       - backend
     depends_on:

@@ -12,6 +12,7 @@ from app.api.routes.v1 import conversations
 from app.api.routes.v1 import admin_conversations
 from app.api.routes.v1 import me_mcp_connections
 from app.api.routes.v1 import org_mcp_connections
+from app.api.routes.v1 import sandbox_connections
 from app.api.routes.v1 import agent
 from app.api.routes.v1 import rag
 from app.api.routes.v1 import files
@@ -24,6 +25,7 @@ from app.api.routes.v1 import agents as agent_registry
 from app.api.routes.v1 import model_providers
 from app.api.routes.v1 import secrets
 from app.api.routes.v1 import runs as agent_runs
+from app.api.routes.v1 import skill_changes
 from app.api.routes.v1 import skills as agent_skills
 from app.api.routes.v1 import permissions
 from app.api.routes.v1 import telegram_webhook
@@ -59,6 +61,7 @@ v1_router.include_router(agent_embeds.router, prefix="/agents", tags=["agents:em
 v1_router.include_router(embed_widget.router, prefix="/embed", tags=["embed"])
 v1_router.include_router(agent_runs.router, tags=["runs"])
 v1_router.include_router(agent_skills.router, prefix="/skills", tags=["skills"])
+v1_router.include_router(skill_changes.router, prefix="/skill-changes", tags=["skills:changes"])
 v1_router.include_router(
     sharing.collection_sharing_router, prefix="/kb", tags=["collections:sharing"]
 )
@@ -76,6 +79,9 @@ v1_router.include_router(conversations.router, prefix="/conversations", tags=["c
 
 v1_router.include_router(
     org_mcp_connections.router, prefix="/mcp-connections", tags=["mcp-connections"]
+)
+v1_router.include_router(
+    sandbox_connections.router, prefix="/sandbox-connections", tags=["sandbox-connections"]
 )
 
 v1_router.include_router(
