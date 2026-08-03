@@ -513,6 +513,19 @@ class TestOpeningAndClosing:
         assert "Big box" in exc.value.message
 
 
+def _no_conversations(monkeypatch) -> None:
+    """No titles and no counts, for a listing test that is about something else."""
+    from app.repositories import conversation as conversation_repo
+
+    monkeypatch.setattr(conversation_repo, "titles_for", AsyncMock(return_value={}))
+    monkeypatch.setattr(conversation_repo, "count_by_agent", AsyncMock(return_value={}))
+
+
+def _member_ctx() -> AuthContext:
+    """A caller who holds no `connections:manage`, which is most people."""
+    return AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.MEMBER)
+
+
 def _row(**overrides: object):
     from app.db.models.agent_workspace import AgentWorkspace
 
@@ -530,6 +543,195 @@ def _row(**overrides: object):
     for name, value in overrides.items():
         setattr(row, name, value)
     return row
+
+
+class TestWorkspacesAreScopedToTheirReader:
+    """Who sees which workspace, and why the route carries no gate.
+
+    The gate this replaced refused a member outright, which made a listing of a
+    person's *own* files an operator screen. The narrowing moved into the query, so
+    what is worth proving here is that it is applied - to the listing, and to a
+    workspace fetched by id, where a hidden row served by id is not access control
+    at all.
+    """
+
+    async def test_an_operator_sees_the_organizations_workspaces(
+        self, monkeypatch, mock_db_session
+    ):
+        from app.repositories import agent as agent_repo
+
+        listed = AsyncMock(return_value=[])
+        monkeypatch.setattr(workspace_repo, "list_for_reader", listed)
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+
+        await SandboxWorkspaceService(mock_db_session).visible_to(_ctx())
+
+        assert listed.await_args.kwargs["see_all"] is True
+
+    async def test_a_member_sees_only_what_they_are_part_of(self, monkeypatch, mock_db_session):
+        """Their own user-scoped files, their own conversations, and the shared
+        workspace of an agent they have talked to - not the organization's."""
+        from app.repositories import agent as agent_repo
+
+        listed = AsyncMock(return_value=[])
+        monkeypatch.setattr(workspace_repo, "list_for_reader", listed)
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        ctx = _member_ctx()
+
+        await SandboxWorkspaceService(mock_db_session).visible_to(ctx)
+
+        assert listed.await_args.kwargs == {
+            "organization_id": ctx.organization_id,
+            "user_id": ctx.user_id,
+            "see_all": False,
+        }
+
+    async def test_a_member_reading_a_workspace_they_cannot_see_is_told_it_is_missing(
+        self, monkeypatch, mock_db_session
+    ):
+        """Not "forbidden": an id must not be usable to find out which workspaces
+        exist in a colleague's conversation."""
+        row = _row()
+        monkeypatch.setattr(workspace_repo, "get", AsyncMock(return_value=row))
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=[]))
+
+        with pytest.raises(NotFoundError):
+            await SandboxWorkspaceService(mock_db_session).files_of(_member_ctx(), row.id)
+
+    async def test_a_member_reading_their_own_workspace_gets_it(self, monkeypatch, mock_db_session):
+        row = _row(files={})
+        monkeypatch.setattr(workspace_repo, "get", AsyncMock(return_value=row))
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=[row]))
+
+        found, _entries = await SandboxWorkspaceService(mock_db_session).files_of(
+            _member_ctx(), row.id
+        )
+
+        assert found is row
+
+    async def test_an_operator_is_not_asked_a_second_question(self, monkeypatch, mock_db_session):
+        """`connections:manage` already answers it, and the visibility query is the
+        expensive half."""
+        row = _row(files={})
+        monkeypatch.setattr(workspace_repo, "get", AsyncMock(return_value=row))
+        listed = AsyncMock(return_value=[])
+        monkeypatch.setattr(workspace_repo, "list_for_reader", listed)
+
+        await SandboxWorkspaceService(mock_db_session).files_of(_ctx(), row.id)
+
+        listed.assert_not_called()
+
+
+class TestOneFlatListOfFiles:
+    """The "which agent is holding a copy of that CSV" view.
+
+    What it owes a reader is that a short answer is never mistaken for a small
+    number of files: it is bounded, one host can fail, and both of those are in the
+    answer rather than in a log line.
+    """
+
+    async def test_every_visible_workspaces_files_arrive_in_one_list(
+        self, monkeypatch, mock_db_session
+    ):
+        from app.repositories import agent as agent_repo
+
+        first = StateBackend()
+        first.write("/report.csv", "month,total")
+        second = StateBackend()
+        second.write("/notes.md", "hello")
+        monkeypatch.setattr(
+            workspace_repo,
+            "list_for_reader",
+            AsyncMock(return_value=[_row(files=dict(first.files)), _row(files=dict(second.files))]),
+        )
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+
+        listing = await SandboxWorkspaceService(mock_db_session).flat_files(_ctx())
+
+        assert sorted(str(entry.get("path")) for _overview, entry in listing.files) == [
+            "/notes.md",
+            "/report.csv",
+        ]
+        assert listing.truncated is False
+
+    async def test_directories_are_not_files(self, monkeypatch, mock_db_session):
+        from app.repositories import agent as agent_repo
+
+        stored = StateBackend()
+        stored.write("/out/report.csv", "a,b")
+        monkeypatch.setattr(
+            workspace_repo,
+            "list_for_reader",
+            AsyncMock(return_value=[_row(files=dict(stored.files))]),
+        )
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+
+        listing = await SandboxWorkspaceService(mock_db_session).flat_files(_ctx())
+
+        assert all(not entry.get("is_dir") for _overview, entry in listing.files)
+
+    async def test_a_partial_answer_says_it_is_partial(self, monkeypatch, mock_db_session):
+        """Reading a container-backed workspace is a round trip to its host, so the
+        bound is real - and a list that quietly stopped would read as "that is all
+        the files there are"."""
+        from app.repositories import agent as agent_repo
+
+        monkeypatch.setattr(
+            workspace_repo,
+            "list_for_reader",
+            AsyncMock(return_value=[_row(files={}) for _ in range(3)]),
+        )
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+
+        listing = await SandboxWorkspaceService(mock_db_session).flat_files(_ctx(), limit=2)
+
+        assert listing.truncated is True
+        assert listing.workspaces_read == 2
+
+    async def test_one_unreadable_workspace_does_not_empty_the_list(
+        self, monkeypatch, mock_db_session
+    ):
+        from app.repositories import agent as agent_repo
+
+        stored = StateBackend()
+        stored.write("/report.csv", "a")
+        rows = [_row(files=dict(stored.files)), _row(backend="service", connection_id=uuid4())]
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=rows))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+        service = SandboxWorkspaceService(mock_db_session)
+        service.connections = MagicMock(
+            resolve=AsyncMock(side_effect=RuntimeError("the host is down"))
+        )
+
+        listing = await service.flat_files(_ctx())
+
+        assert [str(entry.get("path")) for _overview, entry in listing.files] == ["/report.csv"]
+        assert listing.unreadable == 1
+        assert listing.workspaces_read == 1
+
+    async def test_each_file_names_the_workspace_it_came_from(self, monkeypatch, mock_db_session):
+        """`/report.csv` exists in several workspaces, so a path on its own is
+        ambiguous - and who can see it is the whole point of the column."""
+        from app.repositories import agent as agent_repo
+
+        stored = StateBackend()
+        stored.write("/report.csv", "a")
+        row = _row(files=dict(stored.files), scope="agent")
+        agent = MagicMock(id=row.agent_id)
+        agent.name = "Analyst"
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=[row]))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={row.agent_id: agent}))
+        _no_conversations(monkeypatch)
+
+        listing = await SandboxWorkspaceService(mock_db_session).flat_files(_ctx())
+
+        [(overview, _entry)] = listing.files
+        assert overview.agent_name == "Analyst"
+        assert overview.access_label == "Everybody who talks to this agent"
 
 
 class TestContainerBackedWorkspaces:
@@ -1077,15 +1279,14 @@ class TestBrowsingEveryWorkspace:
         row = _row()
         agent = MagicMock(id=row.agent_id)
         agent.name = "Analyst"
-        monkeypatch.setattr(workspace_repo, "list_for_organization", AsyncMock(return_value=[row]))
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=[row]))
         monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={row.agent_id: agent}))
+        _no_conversations(monkeypatch)
 
-        [(found, name)] = await SandboxWorkspaceService(mock_db_session).all_for_organization(
-            _ctx()
-        )
+        [overview] = await SandboxWorkspaceService(mock_db_session).visible_to(_ctx())
 
-        assert found is row
-        assert name == "Analyst"
+        assert overview.row is row
+        assert overview.agent_name == "Analyst"
 
     async def test_a_workspace_of_a_deleted_agent_still_lists(self, monkeypatch, mock_db_session):
         """`SET NULL` is not used on `agent_id` - it cascades - but a row can
@@ -1093,26 +1294,89 @@ class TestBrowsingEveryWorkspace:
         hide every other workspace in the organization."""
         from app.repositories import agent as agent_repo
 
-        monkeypatch.setattr(
-            workspace_repo, "list_for_organization", AsyncMock(return_value=[_row()])
-        )
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=[_row()]))
         monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
 
-        [(_, name)] = await SandboxWorkspaceService(mock_db_session).all_for_organization(_ctx())
+        [overview] = await SandboxWorkspaceService(mock_db_session).visible_to(_ctx())
 
-        assert name == "a deleted agent"
+        assert overview.agent_name == "a deleted agent"
 
     async def test_an_organization_with_no_workspaces_asks_for_no_agents(
         self, monkeypatch, mock_db_session
     ):
         from app.repositories import agent as agent_repo
 
-        monkeypatch.setattr(workspace_repo, "list_for_organization", AsyncMock(return_value=[]))
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=[]))
         looked_up = AsyncMock()
         monkeypatch.setattr(agent_repo, "get_many", looked_up)
 
-        assert await SandboxWorkspaceService(mock_db_session).all_for_organization(_ctx()) == []
+        assert await SandboxWorkspaceService(mock_db_session).visible_to(_ctx()) == []
         looked_up.assert_not_called()
+
+    async def test_the_conversation_behind_a_workspace_is_named(self, monkeypatch, mock_db_session):
+        """A table of conversation ids is a table nobody can read, and "which chat
+        are these files from" is the first question asked of one."""
+        from app.repositories import agent as agent_repo
+        from app.repositories import conversation as conversation_repo
+
+        row = _row(scope="conversation", conversation_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=[row]))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        monkeypatch.setattr(
+            conversation_repo,
+            "titles_for",
+            AsyncMock(return_value={row.conversation_id: "Refund policy"}),
+        )
+        monkeypatch.setattr(conversation_repo, "count_by_agent", AsyncMock(return_value={}))
+
+        [overview] = await SandboxWorkspaceService(mock_db_session).visible_to(_ctx())
+
+        assert overview.conversation_title == "Refund policy"
+        assert overview.conversations == 1
+
+    async def test_a_shared_workspace_says_how_many_chats_reach_it(
+        self, monkeypatch, mock_db_session
+    ):
+        """Under `agent` scope one workspace is shared by everybody who talks to
+        that agent, and the number is the difference between "my files" and
+        "everybody's"."""
+        from app.repositories import agent as agent_repo
+        from app.repositories import conversation as conversation_repo
+
+        row = _row(scope="agent", conversation_id=None)
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=[row]))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        monkeypatch.setattr(conversation_repo, "titles_for", AsyncMock(return_value={}))
+        counted = AsyncMock(return_value={row.agent_id: 12})
+        monkeypatch.setattr(conversation_repo, "count_by_agent", counted)
+
+        [overview] = await SandboxWorkspaceService(mock_db_session).visible_to(_ctx())
+
+        assert overview.conversations == 12
+        assert overview.access_label == "Everybody who talks to this agent"
+
+    async def test_a_run_scoped_workspace_counts_nobody(self, monkeypatch, mock_db_session):
+        """It is deleted when the run ends, so there is no chat to reach it - and
+        counting the agent's conversations would claim twelve people can see files
+        that no longer exist."""
+        from app.repositories import agent as agent_repo
+        from app.repositories import conversation as conversation_repo
+
+        monkeypatch.setattr(
+            workspace_repo,
+            "list_for_reader",
+            AsyncMock(return_value=[_row(scope="run", conversation_id=None)]),
+        )
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        counted = AsyncMock(return_value={})
+        monkeypatch.setattr(conversation_repo, "titles_for", AsyncMock(return_value={}))
+        monkeypatch.setattr(conversation_repo, "count_by_agent", counted)
+
+        [overview] = await SandboxWorkspaceService(mock_db_session).visible_to(_ctx())
+
+        assert overview.conversations == 0
+        counted.assert_not_called()
 
     async def test_the_files_of_one_workspace_come_back_with_its_row(
         self, monkeypatch, mock_db_session
@@ -1178,3 +1442,21 @@ class TestWhoseWorkspaceItIs:
         from app.services.sandbox_workspace import owner_label
 
         assert owner_label(_row(scope=scope)) == expected
+
+    @pytest.mark.parametrize(
+        ("scope", "expected"),
+        [
+            ("conversation", "Whoever is in that conversation"),
+            ("user", "One person, in this agent only"),
+            ("agent", "Everybody who talks to this agent"),
+            ("channel", "Everybody in that chat"),
+            ("run", "Nobody - it is deleted when the run ends"),
+        ],
+    )
+    def test_access_says_the_consequence_rather_than_the_mechanism(self, scope: str, expected: str):
+        """`owner_label` addresses whoever is in the chat; this addresses somebody
+        auditing a table of files, and "agent" does not tell them whether the file
+        in front of them is one person's or the whole team's."""
+        from app.services.sandbox_workspace import access_label
+
+        assert access_label(_row(scope=scope)) == expected

@@ -345,20 +345,12 @@ CALLS: tuple[Call, ...] = (
         "/sandbox-connections/{connection_id}/sessions/{session_id}/events",
         Perm.CONNECTIONS_MANAGE,
     ),
-    # The workspaces themselves. The same permission rather than a softer one:
-    # this lists files across every conversation in the organization, including
-    # chats that are not the caller's, so it is an operator surface and not a
-    # nicer file browser for a member.
-    Call("GET", "/sandbox-workspaces", Perm.CONNECTIONS_MANAGE),
-    Call("GET", "/sandbox-workspaces/{workspace_id}/files", Perm.CONNECTIONS_MANAGE),
-    # `path` is required, and a 422 for a missing one is indistinguishable from a
-    # refusal in the sweep below - so it is supplied.
-    Call(
-        "GET",
-        "/sandbox-workspaces/{workspace_id}/file",
-        Perm.CONNECTIONS_MANAGE,
-        query="?path=/run.py",
-    ),
+    # The workspaces themselves carry no gate, and that is the change rather than
+    # an omission: `connections:manage` widens the listing to the organization, and
+    # a member sees the workspaces they are part of. A gate refused them outright,
+    # which made a listing of their *own* files an operator screen.
+    # `tests/test_sandbox_workspace.py::TestWorkspacesAreScopedToTheirReader` is
+    # where the narrowing and the refusals are proven.
     # What an agent proposed changing about a skill. Reading one is reading a
     # candidate version of the organization's own instructions, so whoever may
     # read it is exactly whoever may accept it.
@@ -586,6 +578,14 @@ RESOURCE_AWARE_SERVICES = (
     # through `readable_kb`, writes through `get_for_write`, both of which end
     # at `resolve_access` for org rows. Every per-KB route depends on it.
     deps.get_knowledge_base_service,
+    # A workspace is not a shared resource with grants, but the decision is the
+    # same shape: the service scopes every read to what the caller is part of -
+    # their own user-scoped files, their own conversations, the shared workspace of
+    # an agent they have talked to - and widens to the organization only for
+    # `connections:manage`. A route gate would have refused a member outright,
+    # which is what made a listing of *their own* files an operator screen.
+    # `TestWorkspacesAreScopedToTheirReader` is where those refusals are proven.
+    deps.get_sandbox_workspace_service,
 )
 
 

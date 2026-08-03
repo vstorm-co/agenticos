@@ -42,15 +42,44 @@ from app.agents.capabilities.sandbox._identity import (
 from app.agents.spec import AgentSpec
 from app.core.config import settings
 from app.core.exceptions import BadRequestError, NotFoundError
-from app.core.permissions import AuthContext
+from app.core.permissions import AuthContext, Perm
 from app.db.models.agent_workspace import AgentWorkspace
 from app.repositories import agent as agent_repo
 from app.repositories import agent_workspace as workspace_repo
+from app.repositories import conversation as conversation_repo
 from app.services.sandbox_connection import ResolvedConnection, SandboxConnectionService
 
 logger = logging.getLogger(__name__)
 
 SANDBOX_CAPABILITY_ID = "sandbox"
+
+
+@dataclass(frozen=True)
+class WorkspaceOverview:
+    """One workspace as a table shows it: the row, plus what makes it readable."""
+
+    row: AgentWorkspace
+    agent_name: str
+    conversation_title: str | None
+    conversations: int
+    """How many conversations reach these files. Zero for a run-scoped workspace,
+    which is gone before anybody could look."""
+    access_label: str
+
+
+@dataclass(frozen=True)
+class FlatFileListing:
+    """Every file a caller can see, and what the answer left out.
+
+    `truncated` and `unreadable` are carried rather than folded into the list
+    because a shorter list is indistinguishable from fewer files, and "an agent is
+    not holding that document" is a different answer from "we stopped looking".
+    """
+
+    files: list[tuple[WorkspaceOverview, FileInfo]]
+    workspaces_read: int
+    unreadable: int
+    truncated: bool
 
 
 @dataclass
@@ -347,29 +376,122 @@ class SandboxWorkspaceService:
                 "workspace_purge_failed", extra={"scope_key": row.scope_key}, exc_info=True
             )
 
-    async def all_for_organization(self, ctx: AuthContext) -> list[tuple[AgentWorkspace, str]]:
-        """Every workspace this organization holds, with the agent behind each.
+    async def visible_to(self, ctx: AuthContext) -> list[WorkspaceOverview]:
+        """The workspaces this caller may see, with what a table needs beside each.
+
+        Scoped in the query rather than gated on the route. An operator holding
+        `connections:manage` sees the organization's; everybody else sees the ones
+        they are part of - their own `user`-scoped files, the workspaces of their
+        own conversations, and the shared workspace of an agent they have talked
+        to. A route gate would have refused a member entirely, which is what made
+        this an operator screen and left a person no way to see the files an agent
+        was keeping *for them*.
 
         Rows only, no files: a deployment can hold a workspace per warm
-        conversation, and reading each one would be a query or a round trip per
-        row for a page nobody has asked a question of yet.
+        conversation, and reading each would be a query or a round trip per row
+        for a page nobody has asked a question of yet.
 
-        The agent's name is resolved here rather than left to the caller, because
-        the alternative is a listing that renders a table of hex ids and a client
-        that has to fetch the agents to make it readable.
+        Everything a table needs is resolved here in three grouped queries rather
+        than per row - the agent's name, the linked conversation's title, and how
+        many conversations reach the files - because the alternative is a client
+        that fetches agents and conversations to make a table of hex ids readable.
         """
-        rows = await workspace_repo.list_for_organization(
-            self.db, organization_id=ctx.organization_id
+        rows = await workspace_repo.list_for_reader(
+            self.db,
+            organization_id=ctx.organization_id,
+            user_id=ctx.user_id,
+            see_all=self._sees_every_workspace(ctx),
         )
         if not rows:
             return []
         agents = await agent_repo.get_many(
             self.db, [row.agent_id for row in rows], organization_id=ctx.organization_id
         )
+        titles = await conversation_repo.titles_for(
+            self.db,
+            [row.conversation_id for row in rows if row.conversation_id is not None],
+            organization_id=ctx.organization_id,
+        )
+        # Only for the scopes where more than one chat reaches one workspace. A
+        # conversation-scoped workspace has exactly one by construction, and
+        # counting it would be a query answering a question nobody asked.
+        shared = {row.agent_id for row in rows if row.scope in ("agent", "channel")}
+        counts = (
+            await conversation_repo.count_by_agent(
+                self.db, list(shared), organization_id=ctx.organization_id
+            )
+            if shared
+            else {}
+        )
         return [
-            (row, agents[row.agent_id].name if row.agent_id in agents else "a deleted agent")
+            WorkspaceOverview(
+                row=row,
+                agent_name=(
+                    agents[row.agent_id].name if row.agent_id in agents else "a deleted agent"
+                ),
+                conversation_title=(
+                    None if row.conversation_id is None else titles.get(row.conversation_id)
+                ),
+                conversations=(
+                    1
+                    if row.conversation_id is not None
+                    else counts.get(row.agent_id, 0)
+                    if row.scope in ("agent", "channel")
+                    else 0
+                ),
+                access_label=access_label(row),
+            )
             for row in rows
         ]
+
+    @staticmethod
+    def _sees_every_workspace(ctx: AuthContext) -> bool:
+        """Whether this caller reads across other people's conversations.
+
+        `connections:manage` and nothing else. It is the permission that already
+        decides who may see where sandboxes run, and listing every workspace means
+        listing files from chats belonging to people who are not the caller - so
+        the bar is the operator's, not a member's.
+        """
+        return ctx.has(Perm.CONNECTIONS_MANAGE)
+
+    async def flat_files(self, ctx: AuthContext, *, limit: int = 25) -> FlatFileListing:
+        """Every file this caller can see, in one list, with its workspace named.
+
+        The "which agent is holding a copy of that CSV" view. Asking it of the
+        listing above means opening each workspace in turn, which is the question
+        this answers in one call instead.
+
+        Bounded, and the bound is reported rather than silently applied: reading a
+        container-backed workspace is a round trip to its host, so twenty-five of
+        them is already a slow request and two hundred would be a page that times
+        out. `truncated` says the answer is partial, which a listing that quietly
+        stopped could not.
+
+        A workspace that cannot be read is skipped and counted, not raised: one
+        unreachable host must not empty a list that is mostly readable.
+        """
+        overviews = await self.visible_to(ctx)
+        files: list[tuple[WorkspaceOverview, FileInfo]] = []
+        unreadable = 0
+        for overview in overviews[:limit]:
+            try:
+                entries = await self._entries(ctx, overview.row)
+            except Exception:
+                logger.warning(
+                    "workspace_listing_failed",
+                    extra={"workspace_id": str(overview.row.id)},
+                    exc_info=True,
+                )
+                unreadable += 1
+                continue
+            files.extend((overview, entry) for entry in entries if not entry.get("is_dir"))
+        return FlatFileListing(
+            files=files,
+            workspaces_read=min(len(overviews), limit) - unreadable,
+            unreadable=unreadable,
+            truncated=len(overviews) > limit,
+        )
 
     async def files_of(
         self, ctx: AuthContext, workspace_id: UUID
@@ -384,16 +506,36 @@ class SandboxWorkspaceService:
         all of them.
 
         Raises:
-            NotFoundError: If it is not this organization's. Reported as missing
-                rather than refused, so an id cannot be used to find out which
-                workspaces exist in an organization somebody is not in.
+            NotFoundError: If it is not this organization's, or not one this
+                caller may see. Reported as missing rather than refused in both
+                cases, so an id cannot be used to find out which workspaces exist
+                - in another organization, or in a colleague's conversation.
         """
         row = await workspace_repo.get(self.db, workspace_id, organization_id=ctx.organization_id)
-        if row is None:
+        if row is None or not await self._may_read(ctx, row):
             raise NotFoundError(
                 message="Workspace not found", details={"workspace_id": str(workspace_id)}
             )
         return row, await self._entries(ctx, row)
+
+    async def _may_read(self, ctx: AuthContext, row: AgentWorkspace) -> bool:
+        """Whether this caller reaches one workspace by id.
+
+        The same three predicates the listing applies, asked of one row - and asked
+        here rather than only there, because a listing that hides a row and a route
+        that serves it by id is not access control. The query is reused rather than
+        reimplemented for exactly that reason: two copies of "who can see this"
+        disagree eventually, and the one that is wrong is the one nobody reads.
+        """
+        if self._sees_every_workspace(ctx):
+            return True
+        visible = await workspace_repo.list_for_reader(
+            self.db,
+            organization_id=ctx.organization_id,
+            user_id=ctx.user_id,
+            see_all=False,
+        )
+        return any(candidate.id == row.id for candidate in visible)
 
     async def read_file_of(self, ctx: AuthContext, workspace_id: UUID, *, path: str) -> str | None:
         """One file's text from a workspace addressed by its own id."""
@@ -489,6 +631,25 @@ class SandboxWorkspaceService:
         if resolved.kind != "docker" or not resolved.row.base_url:
             return None
         return WorkspaceArchive(resolved.row.base_url, token=resolved.token)
+
+
+def access_label(row: AgentWorkspace) -> str:
+    """Who can see these files, said in words rather than as a scope name.
+
+    `scope` is the mechanism; this is the consequence, and they are not the same
+    sentence. "agent" tells an operator nothing about whether the file they are
+    looking at is one person's or the whole team's - which is the question somebody
+    auditing a workspace is actually asking.
+    """
+    if row.scope == "conversation":
+        return "Whoever is in that conversation"
+    if row.scope == "user":
+        return "One person, in this agent only"
+    if row.scope == "agent":
+        return "Everybody who talks to this agent"
+    if row.scope == "channel":
+        return "Everybody in that chat"
+    return "Nobody - it is deleted when the run ends"
 
 
 def owner_label(row: AgentWorkspace) -> str:

@@ -9,7 +9,6 @@ import { ConnectionDialog } from "@/components/sandboxes/connection-dialog";
 import { ConnectionsTable } from "@/components/sandboxes/connections-table";
 import { PolicyPanel } from "@/components/sandboxes/policy-panel";
 import { SessionsPanel } from "@/components/sandboxes/sessions-panel";
-import { WorkspaceBrowser } from "@/components/sandboxes/workspace-browser";
 import {
   Button,
   Card,
@@ -30,7 +29,8 @@ import type { SandboxConnectionRecord } from "@/lib/sandbox-connections-api";
 const SANDBOXES_DESCRIPTION =
   "Where this organization's agents run shell commands and keep files. An agent names a " +
   "connection by id, so moving to another host is one edit here rather than a republish of " +
-  "every agent. The token stays in the vault; nothing on this page can read it back.";
+  "every agent. The token stays in the vault; nothing on this page can read it back. The files " +
+  "themselves are on Workspaces, which is not an operator screen — everybody sees their own.";
 
 function registeredCount(count: number): string {
   return count === 1 ? "1 connection" : `${count} connections`;
@@ -160,12 +160,6 @@ export default function SandboxesPage() {
           registered at all" - and it is live, so it belongs on the page rather
           than behind a click. */}
       <SessionsPanel connection={watching} />
-
-      {/* Below what is running, because the two answer different questions: that
-          one is "what is live on this host", this one is "what are the agents
-          holding" - including workspaces no host has a session for, which is
-          every stored one and every container reaped since. */}
-      <WorkspaceBrowser />
 
       <PolicyPanel
         connection={inspecting}

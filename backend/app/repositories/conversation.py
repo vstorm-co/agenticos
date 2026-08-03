@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import distinct, func, select
 from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -42,6 +42,54 @@ async def agents_in_conversations(
     for conversation_id, agent, _first_turn in result.all():
         by_conversation.setdefault(conversation_id, []).append(agent)
     return by_conversation
+
+
+async def titles_for(
+    db: AsyncSession, conversation_ids: list[UUID], *, organization_id: UUID
+) -> dict[UUID, str]:
+    """The title of each of these conversations, inside one organization.
+
+    One query for a whole page, and scoped: an id from somewhere else answers
+    with nothing rather than with a title, which is what stops a listing from
+    confirming that a conversation exists in an organization the caller is not in.
+    """
+    if not conversation_ids:
+        return {}
+    result = await db.execute(
+        select(Conversation.id, Conversation.title).where(
+            Conversation.id.in_(conversation_ids),
+            Conversation.organization_id == organization_id,
+        )
+    )
+    return {row.id: row.title for row in result.all()}
+
+
+async def count_by_agent(
+    db: AsyncSession, agent_ids: list[UUID], *, organization_id: UUID
+) -> dict[UUID, int]:
+    """How many conversations each of these agents has answered in.
+
+    Counted through `messages` and not off the conversation, because a
+    conversation is not had with one agent - the picker can be changed mid-thread,
+    which is why `agent_id` sits on the message. `distinct` is what keeps a long
+    thread from counting as fifty.
+
+    For the workspaces a whole agent shares: "how many chats reach these files" is
+    a number a table can show, and asking it per row would be one query per
+    workspace.
+    """
+    if not agent_ids:
+        return {}
+    result = await db.execute(
+        select(Message.agent_id, func.count(distinct(Message.conversation_id)))
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .where(
+            Message.agent_id.in_(agent_ids),
+            Conversation.organization_id == organization_id,
+        )
+        .group_by(Message.agent_id)
+    )
+    return {agent_id: count for agent_id, count in result.all() if agent_id is not None}
 
 
 async def version_numbers(db: AsyncSession, version_ids: list[UUID]) -> dict[UUID, int]:

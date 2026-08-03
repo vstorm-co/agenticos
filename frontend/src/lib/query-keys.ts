@@ -177,6 +177,10 @@ export const qk = {
     all: () => ["sandbox-workspaces"] as const,
     list: () => ["sandbox-workspaces", "list"] as const,
     files: (id: string) => ["sandbox-workspaces", "files", id] as const,
+    // Every file across every visible workspace, which is a different request
+    // from any one workspace's - and an expensive one, so it gets its own entry
+    // rather than sharing the listing's.
+    allFiles: () => ["sandbox-workspaces", "all-files"] as const,
     file: (id: string, path: string) => ["sandbox-workspaces", "file", id, path] as const,
   },
   skillChanges: {

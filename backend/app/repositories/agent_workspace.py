@@ -6,10 +6,11 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent_workspace import AgentWorkspace
+from app.db.models.conversation import Conversation, Message
 
 
 async def get_by_key(
@@ -126,6 +127,58 @@ async def list_for_organization(db: AsyncSession, *, organization_id: UUID) -> l
         .where(AgentWorkspace.organization_id == organization_id)
         .order_by(AgentWorkspace.last_used_at.desc().nullslast())
     )
+    return list(result.scalars().all())
+
+
+async def list_for_reader(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID | None, see_all: bool
+) -> list[AgentWorkspace]:
+    """The workspaces one person may see, most recently used first.
+
+    `see_all` is for a caller holding `connections:manage` - the permission that
+    already decides who may see where sandboxes run, and the honest bar for a
+    listing that crosses other people's conversations.
+
+    Everybody else sees the workspaces they are actually part of, and the three
+    predicates are the three ways a person reaches one:
+
+    - `owner_ref` matching them, which is a `user`-scoped workspace of their own;
+    - a workspace belonging to a conversation of theirs, which covers `conversation`
+      scope and the `run` rows that outlive a crash;
+    - an `agent`-scoped workspace of an agent they have talked to. Deliberately
+      "have talked to" rather than "could open": that scope shares one workspace
+      across an agent's users, and the chat panel already shows those files to
+      anybody in a conversation with it. Being *able* to open the agent is a wider
+      claim, and this listing is not the place to widen it.
+
+    `channel` scope is absent from all three, which is correct rather than an
+    oversight: it is keyed on a Slack or Telegram chat, so the people sharing it
+    are identified by that platform and not by a row in `users`. It is visible to
+    an operator only.
+    """
+    query = select(AgentWorkspace).where(AgentWorkspace.organization_id == organization_id)
+    if not see_all:
+        if user_id is None:
+            # An anonymous caller is part of no conversation, so the honest answer
+            # is nothing at all - never the organization's whole listing.
+            return []
+        mine = select(Conversation.id).where(Conversation.user_id == user_id)
+        # Through `messages`, because a conversation is not had with one agent -
+        # the picker can be changed mid-thread, which is why `agent_id` is on the
+        # message and not on the conversation.
+        my_agents = (
+            select(Message.agent_id)
+            .join(Conversation, Conversation.id == Message.conversation_id)
+            .where(Conversation.user_id == user_id, Message.agent_id.is_not(None))
+        )
+        query = query.where(
+            or_(
+                AgentWorkspace.owner_ref == str(user_id),
+                AgentWorkspace.conversation_id.in_(mine),
+                and_(AgentWorkspace.scope == "agent", AgentWorkspace.agent_id.in_(my_agents)),
+            )
+        )
+    result = await db.execute(query.order_by(AgentWorkspace.last_used_at.desc().nullslast()))
     return list(result.scalars().all())
 
 

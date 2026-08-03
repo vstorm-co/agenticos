@@ -6,10 +6,17 @@ deployment asks "what are the agents keeping, and where", which no conversation
 can answer - a `run`-scoped workspace never had one and an `agent`-scoped one
 belongs to all of them.
 
-Gated on `connections:manage`, the permission that already decides who may see
-where sandboxes run. That is the honest bar: this lists files across every
-conversation in the organization, including chats belonging to people who are not
-the caller, so it is an operator surface and not a nicer file browser for a member.
+**Scoped in the service, not gated on the route.** A caller holding
+`connections:manage` sees the organization's workspaces - the honest bar for a
+listing that crosses other people's conversations. Everybody else sees the ones
+they are part of: their own `user`-scoped files, the workspaces of their own
+conversations, and the shared workspace of an agent they have talked to. A route
+gate refused a member outright, which left a person no way to see the files an
+agent was keeping *for them* and made this an operator screen by accident.
+
+A workspace read by id applies the same three predicates, and answers "not found"
+rather than "forbidden" when they fail - an id must not be usable to discover
+which workspaces exist in a colleague's conversation.
 
 Read-only throughout, and no sandbox is started: a container-backed workspace is
 read off the volume its service keeps, which is what lets a conversation from last
@@ -19,11 +26,12 @@ month list its files after the session was reaped.
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, status
 
-from app.api.deps import Auth, WorkspaceSvc, require
-from app.core.permissions import Perm
+from app.api.deps import Auth, WorkspaceSvc
 from app.schemas.workspace import (
+    FlatFileList,
+    FlatFileRead,
     WorkspaceFileContent,
     WorkspaceFileRead,
     WorkspaceListing,
@@ -35,43 +43,71 @@ from app.services.sandbox_workspace import owner_label
 router = APIRouter()
 
 
-@router.get(
-    "",
-    response_model=WorkspaceSummaryList,
-    dependencies=[Depends(require(Perm.CONNECTIONS_MANAGE))],
-)
+@router.get("", response_model=WorkspaceSummaryList)
 async def list_workspaces(workspaces: WorkspaceSvc, ctx: Auth) -> Any:
-    """Every workspace, most recently used first, with no files read.
+    """The workspaces this caller may see, most recently used first, no files read.
 
     A deployment can hold one per warm conversation, so reading each to render a
     table would be a query or a round trip per row for a page nobody has asked a
     question of yet. The files come when somebody opens one.
     """
-    rows = await workspaces.all_for_organization(ctx)
+    overviews = await workspaces.visible_to(ctx)
     items = [
         WorkspaceSummary(
-            id=row.id,
-            agent_id=row.agent_id,
-            agent_name=agent_name,
-            conversation_id=row.conversation_id,
-            scope=row.scope,
-            backend=row.backend,
-            owner_label=owner_label(row),
-            bytes_total=row.bytes_total,
-            version=row.version,
-            last_used_at=row.last_used_at,
-            created_at=row.created_at,
+            id=overview.row.id,
+            agent_id=overview.row.agent_id,
+            agent_name=overview.agent_name,
+            conversation_id=overview.row.conversation_id,
+            conversation_title=overview.conversation_title,
+            conversations=overview.conversations,
+            scope=overview.row.scope,
+            backend=overview.row.backend,
+            owner_label=owner_label(overview.row),
+            access_label=overview.access_label,
+            bytes_total=overview.row.bytes_total,
+            version=overview.row.version,
+            last_used_at=overview.row.last_used_at,
+            created_at=overview.row.created_at,
         )
-        for row, agent_name in rows
+        for overview in overviews
     ]
     return WorkspaceSummaryList(items=items, total=len(items))
 
 
-@router.get(
-    "/{workspace_id}/files",
-    response_model=WorkspaceListing,
-    dependencies=[Depends(require(Perm.CONNECTIONS_MANAGE))],
-)
+@router.get("/files", response_model=FlatFileList)
+async def list_all_files(workspaces: WorkspaceSvc, ctx: Auth) -> Any:
+    """Every file this caller can see, in one list rather than per workspace.
+
+    Declared before `/{workspace_id}` so `files` is not read as an id.
+
+    The "which agent is holding a copy of that CSV" view, which the per-workspace
+    listing can only answer by being opened one row at a time. Bounded, and the
+    bound is in the answer: reading a container-backed workspace is a round trip to
+    its host, so `truncated` and `unreadable` say what the list left out rather than
+    letting a short list read as few files.
+    """
+    listing = await workspaces.flat_files(ctx)
+    items = [
+        FlatFileRead(
+            path=str(entry.get("path")),
+            size=entry.get("size"),
+            is_dir=False,
+            workspace_id=overview.row.id,
+            agent_name=overview.agent_name,
+            access_label=overview.access_label,
+        )
+        for overview, entry in listing.files
+    ]
+    return FlatFileList(
+        items=items,
+        total=len(items),
+        workspaces_read=listing.workspaces_read,
+        unreadable=listing.unreadable,
+        truncated=listing.truncated,
+    )
+
+
+@router.get("/{workspace_id}/files", response_model=WorkspaceListing)
 async def list_files(workspace_id: UUID, workspaces: WorkspaceSvc, ctx: Auth) -> Any:
     """What one workspace holds."""
     row, entries = await workspaces.files_of(ctx, workspace_id)
@@ -93,11 +129,7 @@ async def list_files(workspace_id: UUID, workspaces: WorkspaceSvc, ctx: Auth) ->
     )
 
 
-@router.get(
-    "/{workspace_id}/file",
-    response_model=WorkspaceFileContent,
-    dependencies=[Depends(require(Perm.CONNECTIONS_MANAGE))],
-)
+@router.get("/{workspace_id}/file", response_model=WorkspaceFileContent)
 async def read_file(
     workspace_id: UUID,
     workspaces: WorkspaceSvc,

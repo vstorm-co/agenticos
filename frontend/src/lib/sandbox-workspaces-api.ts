@@ -19,10 +19,16 @@ export interface WorkspaceSummary {
   /** Resolved server-side, so a row names something readable rather than a UUID. */
   agent_name: string;
   conversation_id: string | null;
+  /** The chat these files belong to, named. Null when no single conversation owns it. */
+  conversation_title: string | null;
+  /** How many conversations reach these files. Zero for a run-scoped workspace. */
+  conversations: number;
   scope: string;
   backend: string;
   /** Whose workspace this is, in words. Under `agent` scope this is the whole point. */
   owner_label: string;
+  /** Who can see the files. `scope` is the mechanism; this is the consequence. */
+  access_label: string;
   bytes_total: number;
   version: number;
   last_used_at: string | null;
@@ -49,6 +55,28 @@ export interface WorkspaceFiles {
   bytes_total: number;
 }
 
+/** One file in the flat view, with the workspace it came from named beside it. */
+export interface FlatFile extends WorkspaceFile {
+  workspace_id: string;
+  agent_name: string;
+  access_label: string;
+}
+
+/**
+ * Every file the caller can see, across their workspaces.
+ *
+ * `truncated` and `unreadable` are part of the answer rather than diagnostics: a
+ * shorter list is indistinguishable from fewer files, and "no agent is holding
+ * that document" is a different statement from "we stopped looking".
+ */
+export interface FlatFileList {
+  items: FlatFile[];
+  total: number;
+  workspaces_read: number;
+  unreadable: number;
+  truncated: boolean;
+}
+
 export interface WorkspaceFileContent {
   path: string;
   content: string;
@@ -60,6 +88,11 @@ const ROOT = "/sandbox-workspaces";
 export async function listWorkspaces(): Promise<WorkspaceSummary[]> {
   const data = await apiClient.get<WorkspaceSummaryList>(ROOT);
   return data.items;
+}
+
+/** Every file at once, for the view that asks "who is holding a copy of this". */
+export async function listAllWorkspaceFiles(): Promise<FlatFileList> {
+  return apiClient.get<FlatFileList>(`${ROOT}/files`);
 }
 
 export async function readWorkspaceFiles(id: string): Promise<WorkspaceFiles> {

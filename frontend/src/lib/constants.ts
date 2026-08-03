@@ -41,6 +41,7 @@ export const ROUTES = {
   RUNS: "/runs",
   VAULT: "/vault",
   SANDBOXES: "/sandboxes",
+  WORKSPACES: "/workspaces",
   SKILLS: "/skills",
   ORG_SETTINGS: (id: string) => `/orgs/${id}/settings`,
   KB: "/kb",

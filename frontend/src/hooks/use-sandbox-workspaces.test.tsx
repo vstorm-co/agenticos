@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  useAllWorkspaceFiles,
   useSandboxWorkspaces,
   useWorkspaceFile,
   useWorkspaceFiles,
@@ -13,6 +14,7 @@ import type { WorkspaceSummary } from "@/lib/sandbox-workspaces-api";
 
 vi.mock("@/lib/sandbox-workspaces-api", () => ({
   listWorkspaces: vi.fn(),
+  listAllWorkspaceFiles: vi.fn(),
   readWorkspaceFiles: vi.fn(),
   readWorkspaceFile: vi.fn(),
 }));
@@ -27,9 +29,12 @@ const WORKSPACE: WorkspaceSummary = {
   agent_id: "a-1",
   agent_name: "Analyst",
   conversation_id: "c-1",
+  conversation_title: "Refund policy",
+  conversations: 1,
   scope: "conversation",
   backend: "state",
   owner_label: "This conversation",
+  access_label: "Whoever is in that conversation",
   bytes_total: 2048,
   version: 1,
   last_used_at: null,
@@ -136,5 +141,37 @@ describe("useWorkspaceFile", () => {
     const { result } = renderHook(() => useWorkspaceFile("w-1", "/a.txt"), { wrapper });
 
     await waitFor(() => expect(result.current.error).toBe("That file could not be read"));
+  });
+});
+
+describe("every file at once", () => {
+  it("is not asked for until the flat view is on", () => {
+    // It reads each workspace in turn - a round trip per container-backed one.
+    renderHook(() => useAllWorkspaceFiles(false), { wrapper });
+
+    expect(api.listAllWorkspaceFiles).not.toHaveBeenCalled();
+  });
+
+  it("carries what the answer left out", async () => {
+    vi.mocked(api.listAllWorkspaceFiles).mockResolvedValue({
+      items: [],
+      total: 0,
+      workspaces_read: 25,
+      unreadable: 1,
+      truncated: true,
+    });
+
+    const { result } = renderHook(() => useAllWorkspaceFiles(true), { wrapper });
+
+    await waitFor(() => expect(result.current.listing).not.toBeNull());
+    expect(result.current.listing?.truncated).toBe(true);
+  });
+
+  it("reports a refusal rather than an empty list", async () => {
+    vi.mocked(api.listAllWorkspaceFiles).mockRejectedValue(new Error("Not permitted"));
+
+    const { result } = renderHook(() => useAllWorkspaceFiles(true), { wrapper });
+
+    await waitFor(() => expect(result.current.error).toBe("Not permitted"));
   });
 });

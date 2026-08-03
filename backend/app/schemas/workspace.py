@@ -48,9 +48,32 @@ class WorkspaceSummary(BaseSchema):
     agent_id: UUID
     agent_name: str = Field(description="Resolved server-side, so a row names something readable")
     conversation_id: UUID | None = None
+    conversation_title: str | None = Field(
+        default=None,
+        description=(
+            "The chat these files belong to, named rather than left as an id. Null "
+            "for a workspace no single conversation owns."
+        ),
+    )
+    conversations: int = Field(
+        default=0,
+        description=(
+            "How many conversations reach these files. One for a conversation-scoped "
+            "workspace, every chat with the agent for an agent-scoped one, and zero "
+            "for a run-scoped one, which is gone before anybody could look."
+        ),
+    )
     scope: str
     backend: str
     owner_label: str
+    access_label: str = Field(
+        default="",
+        description=(
+            "Who can see these files, in words. `scope` is the mechanism; this is "
+            "the consequence, and 'agent' does not tell a reader whether the file "
+            "in front of them is one person's or the whole team's."
+        ),
+    )
     bytes_total: int = 0
     version: int = 0
     last_used_at: datetime | None = None
@@ -60,6 +83,39 @@ class WorkspaceSummary(BaseSchema):
 class WorkspaceSummaryList(BaseSchema):
     items: list[WorkspaceSummary]
     total: int
+
+
+class FlatFileRead(WorkspaceFileRead):
+    """One file, with the workspace it came from named beside it.
+
+    The flat view's row. A path on its own is ambiguous across workspaces -
+    `/report.csv` exists in several - so the agent and who can see it travel with
+    every entry rather than being implied by a heading somebody has scrolled past.
+    """
+
+    workspace_id: UUID
+    agent_name: str
+    access_label: str
+
+
+class FlatFileList(BaseSchema):
+    """Every file the caller can see, across their workspaces.
+
+    `truncated` and `unreadable` are part of the answer, not diagnostics. A shorter
+    list is indistinguishable from fewer files, and "no agent is holding that
+    document" is a different statement from "we stopped looking" or "one host did
+    not answer".
+    """
+
+    items: list[FlatFileRead]
+    total: int
+    workspaces_read: int = 0
+    unreadable: int = Field(
+        default=0, description="Workspaces whose host or document could not be read"
+    )
+    truncated: bool = Field(
+        default=False, description="Whether more workspaces exist than were read"
+    )
 
 
 class WorkspaceFileContent(BaseSchema):

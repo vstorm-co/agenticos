@@ -265,17 +265,39 @@ connection: whether it answers, whether it accepts its credential, and whether i
 allows any runtime at all. No connection registered is a warning, not a failure —
 the `state` workspace needs none.
 
-**Browsing what the agents kept.** Sandboxes lists every workspace in the
-organization — which agent, who shares it, how big, when it was last used — and
-the files inside one on demand. Files are read only when a workspace is opened: a
-deployment can hold one per warm conversation, so reading each to render the table
-would be a request per row for a page nobody has asked a question of yet.
+**Browsing what the agents kept.** Workspaces is its own screen — not part of
+Sandboxes, which is about *hosts*. Each row names the agent, the conversation the
+files belong to (or how many chats reach them, for a workspace no single
+conversation owns), who can see them, how big it is and when it was last used; the
+files inside one are read on demand. A second view flattens every file into one
+list, which is the "who is holding a copy of that CSV" question the per-workspace
+table can only answer one row at a time.
 
-That listing is gated on `connections:manage` rather than something softer. It
-crosses every conversation in the organization, including chats that are not the
-reader's, which makes it an operator surface and not a nicer file browser for a
-member. A conversation's own files stay where they belong: on the conversation,
-authorised by fetching it first.
+Files are read only when a workspace is opened, or when the flat view is switched
+on: a deployment can hold one per warm conversation, so reading each to render the
+table would be a request per row for a page nobody has asked a question of yet. The
+flat view is bounded for the same reason, and says so — how many workspaces it read,
+how many it could not, and whether more exist. A shorter list is otherwise
+indistinguishable from fewer files.
+
+**Who sees which workspace is decided per reader, in the query.** A caller holding
+`connections:manage` sees the organization's — the honest bar for a listing that
+crosses chats that are not theirs. Everybody else sees the workspaces they are part
+of: their own `user`-scoped files, the workspaces of their own conversations, and
+the shared workspace of an agent they have talked to. "Have talked to" rather than
+"could open", deliberately: `agent` scope shares one workspace across an agent's
+users and the chat panel already shows those files to anybody in a conversation
+with it, so being *able* to open the agent is a wider claim than this listing makes.
+
+`channel` scope is visible to an operator only, which is correct rather than an
+oversight — it is keyed on a Slack or Telegram chat, so the people sharing it are
+identified by that platform and not by a row in `users`.
+
+A workspace fetched by id applies the same three predicates and answers **not
+found** rather than forbidden when they fail: an id must not be usable to discover
+which workspaces exist in a colleague's conversation. Nothing here crosses an
+organization — an app admin browsing another tenant's files would be the one read
+this platform refuses, so they switch organization like anybody else.
 
 **What is running is read from the service too.** The Sandboxes screen lists this
 organization's open sandboxes on its default host — runtime, what shares each one,

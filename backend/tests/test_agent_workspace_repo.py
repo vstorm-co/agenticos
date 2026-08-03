@@ -123,6 +123,71 @@ class TestReading:
         assert "last_used_at" in statement
 
 
+class TestWhoAListingIsFor:
+    """The predicates that decide whose workspaces come back.
+
+    Read off the statement, because that *is* the behaviour: an operator listing
+    and a member's are the same query with one `OR` in it, and the difference
+    between them is whether that clause is there at all.
+    """
+
+    async def test_an_operator_gets_the_organization_and_nothing_narrower(self):
+        organization_id = uuid.uuid4()
+        session = _RecordingSession(_scalars([]))
+
+        await agent_workspace_repo.list_for_reader(
+            session, organization_id=organization_id, user_id=uuid.uuid4(), see_all=True
+        )
+
+        # The model's own columns are in the SELECT either way, so the question is
+        # what is in the WHERE: one predicate, the tenant, and no `OR` narrowing it.
+        where = str(session.statements[-1]).split("WHERE", 1)[1]
+        assert organization_id in _filters(session).values()
+        assert " OR " not in where
+        assert "last_used_at" in where
+
+    async def test_a_member_gets_their_own_files_their_chats_and_their_agents(self):
+        """The three ways a person reaches a workspace, and no fourth."""
+        organization_id, user_id = uuid.uuid4(), uuid.uuid4()
+        session = _RecordingSession(_scalars([]))
+
+        await agent_workspace_repo.list_for_reader(
+            session, organization_id=organization_id, user_id=user_id, see_all=False
+        )
+
+        where = str(session.statements[-1]).split("WHERE", 1)[1]
+        statement = str(session.statements[-1])
+        assert "owner_ref" in where
+        assert "conversations" in statement
+        # Through `messages`, because `agent_id` is on the message rather than the
+        # conversation - the picker can be changed mid-thread.
+        assert "messages" in statement
+        assert str(user_id) in _filters(session).values()
+
+    async def test_channel_scope_is_reachable_only_by_an_operator(self):
+        """Its people are identified by Slack or Telegram, not by a row in
+        `users`, so no member predicate can name them."""
+        session = _RecordingSession(_scalars([]))
+
+        await agent_workspace_repo.list_for_reader(
+            session, organization_id=uuid.uuid4(), user_id=uuid.uuid4(), see_all=False
+        )
+
+        assert "'channel'" not in str(session.statements[-1])
+
+    async def test_an_anonymous_caller_gets_nothing_rather_than_everything(self):
+        """The dangerous direction: a missing subject must narrow the listing to
+        nothing, never widen it to the organization."""
+        session = _RecordingSession()
+
+        found = await agent_workspace_repo.list_for_reader(
+            session, organization_id=uuid.uuid4(), user_id=None, see_all=False
+        )
+
+        assert found == []
+        assert session.statements == []
+
+
 class TestWriting:
     async def test_creating_records_who_the_workspace_belongs_to(self):
         session = _RecordingSession()

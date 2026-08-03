@@ -19,7 +19,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui";
-import { useSandboxWorkspaces, useWorkspaceFile, useWorkspaceFiles } from "@/hooks";
+import {
+  useAllWorkspaceFiles,
+  useSandboxWorkspaces,
+  useWorkspaceFile,
+  useWorkspaceFiles,
+} from "@/hooks";
 import type { WorkspaceSummary } from "@/lib/sandbox-workspaces-api";
 
 /** Bytes as a person reads them. */
@@ -40,36 +45,68 @@ function used(when: string | null): string {
 }
 
 /**
- * Every workspace the organization's agents keep, and the files in one.
+ * The workspaces this reader can see, and the files in one.
  *
  * A workspace is scratch space, so a list of them is a list of what the agents are
  * *holding* — which is the question this answers and the conversation panel cannot:
  * a `run`-scoped workspace never had a conversation and an `agent`-scoped one
  * belongs to all of them, so neither is reachable from a chat.
  *
- * `owner_label` is a column and not decoration. Under `agent` scope one workspace
+ * Which workspaces appear is the backend's decision, not this component's: an
+ * operator sees the organization's, and everybody else sees the ones they are part
+ * of. That is why this is no longer gated in the nav — a person's own files are not
+ * an operator surface.
+ *
+ * `access_label` is a column and not decoration. Under `agent` scope one workspace
  * is shared by everybody who talks to that agent, and a table of paths with no
  * statement of who can see them is the wrong thing to hand somebody auditing this.
  */
 export function WorkspaceBrowser() {
   const { workspaces, isLoading, error } = useSandboxWorkspaces();
   const [opened, setOpened] = useState<WorkspaceSummary | null>(null);
+  const [flat, setFlat] = useState(false);
 
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader className="space-y-1 border-b px-5 py-4">
-          <CardTitle className="flex items-center gap-2 text-sm">
-            <FolderOpen className="h-4 w-4" aria-hidden />
-            Workspaces
-          </CardTitle>
-          <CardDescription className="text-xs">
-            What the agents are keeping. A workspace is scratch space — it is deleted with the
-            conversation it belongs to, and is not a place to store anything durable.
-          </CardDescription>
+        <CardHeader className="flex-row items-start justify-between space-y-0 border-b px-5 py-4">
+          <div className="space-y-1">
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <FolderOpen className="h-4 w-4" aria-hidden />
+              Workspaces
+            </CardTitle>
+            <CardDescription className="text-xs">
+              What the agents are keeping. A workspace is scratch space — it is deleted with the
+              conversation it belongs to, and is not a place to store anything durable.
+            </CardDescription>
+          </div>
+          {/* Two questions, not two designs: "which workspaces exist" is a table
+              of rows, and "who is holding a copy of that CSV" is a flat list of
+              files. The second cannot be answered by opening the first one row at
+              a time, which is what this exists for. */}
+          <div className="flex shrink-0 gap-1">
+            <Button
+              variant={flat ? "ghost" : "secondary"}
+              size="sm"
+              aria-pressed={!flat}
+              onClick={() => setFlat(false)}
+            >
+              By workspace
+            </Button>
+            <Button
+              variant={flat ? "secondary" : "ghost"}
+              size="sm"
+              aria-pressed={flat}
+              onClick={() => setFlat(true)}
+            >
+              All files
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
-          {isLoading && (
+          {flat && <FlatFiles />}
+
+          {!flat && isLoading && (
             <div className="space-y-3 p-5">
               {[0, 1].map((row) => (
                 <Skeleton key={row} className="h-10 w-full" />
@@ -77,22 +114,23 @@ export function WorkspaceBrowser() {
             </div>
           )}
 
-          {error !== null && <p className="text-destructive px-5 py-4 text-sm">{error}</p>}
+          {!flat && error !== null && <p className="text-destructive px-5 py-4 text-sm">{error}</p>}
 
-          {!isLoading && error === null && workspaces.length === 0 && (
+          {!flat && !isLoading && error === null && workspaces.length === 0 && (
             <p className="text-muted-foreground px-5 py-8 text-center text-sm">
               No agent is keeping files yet. One appears here the first time an agent with a
               workspace writes something.
             </p>
           )}
 
-          {workspaces.length > 0 && (
+          {!flat && workspaces.length > 0 && (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Agent</TableHead>
-                    <TableHead>Shared by</TableHead>
+                    <TableHead>Conversation</TableHead>
+                    <TableHead>Who can see it</TableHead>
                     <TableHead>Backend</TableHead>
                     <TableHead>Size</TableHead>
                     <TableHead>Last used</TableHead>
@@ -103,8 +141,18 @@ export function WorkspaceBrowser() {
                   {workspaces.map((workspace) => (
                     <TableRow key={workspace.id}>
                       <TableCell className="font-medium">{workspace.agent_name}</TableCell>
+                      <TableCell className="text-muted-foreground max-w-48 truncate text-xs">
+                        {/* A conversation-scoped workspace has exactly one chat; a
+                            shared one has however many the agent has answered in,
+                            and that number is the difference between "my files" and
+                            "everybody's". */}
+                        {workspace.conversation_title ??
+                          (workspace.conversations > 0
+                            ? `${workspace.conversations} conversations`
+                            : "—")}
+                      </TableCell>
                       <TableCell className="text-muted-foreground text-xs">
-                        {workspace.owner_label}
+                        {workspace.access_label}
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline">
@@ -141,7 +189,59 @@ export function WorkspaceBrowser() {
         </CardContent>
       </Card>
 
-      {opened !== null && <WorkspaceFilesCard workspace={opened} />}
+      {!flat && opened !== null && <WorkspaceFilesCard workspace={opened} />}
+    </div>
+  );
+}
+
+/**
+ * Every file at once, with the workspace each came from named beside it.
+ *
+ * The bound and the failures are shown rather than logged: a shorter list reads as
+ * fewer files, so "we stopped looking" and "one host did not answer" have to be on
+ * screen or the list is quietly a lie.
+ */
+function FlatFiles() {
+  const { listing, isLoading, error } = useAllWorkspaceFiles(true);
+
+  if (isLoading) return <Skeleton className="m-5 h-24" />;
+  if (error !== null) return <p className="text-destructive px-5 py-4 text-sm">{error}</p>;
+  if (listing === null) return null;
+
+  if (listing.items.length === 0)
+    return (
+      <p className="text-muted-foreground px-5 py-8 text-center text-sm">
+        No agent is holding a file yet.
+      </p>
+    );
+
+  return (
+    <div className="space-y-3 p-5">
+      <ul className="divide-border divide-y text-sm">
+        {listing.items.map((file) => (
+          <li
+            key={`${file.workspace_id}${file.path}`}
+            className="flex items-center justify-between gap-3 py-2"
+          >
+            <span className="flex min-w-0 items-center gap-2">
+              <FileText className="text-muted-foreground h-3.5 w-3.5 shrink-0" aria-hidden />
+              <span className="truncate font-mono text-xs">{file.path}</span>
+            </span>
+            <span className="flex shrink-0 items-center gap-3 text-xs">
+              <span className="font-medium">{file.agent_name}</span>
+              <span className="text-muted-foreground">{file.access_label}</span>
+              <span className="text-muted-foreground">{size(file.size)}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+      {(listing.truncated || listing.unreadable > 0) && (
+        <p className="text-muted-foreground text-xs">
+          {listing.truncated && `Read ${listing.workspaces_read} workspaces — there are more. `}
+          {listing.unreadable > 0 &&
+            `${listing.unreadable} could not be read; their host may be down.`}
+        </p>
+      )}
     </div>
   );
 }

@@ -82,6 +82,7 @@
     "workspace": "Workspace",
     "vault": "Vault",
     "mcpServers": "MCP servers",
+    "workspaces": "Workspaces",
     "sandboxes": "Sandboxes",
     "adminOverview": "Admin"
   },

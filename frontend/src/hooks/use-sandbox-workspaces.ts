@@ -4,9 +4,11 @@ import { useQuery } from "@tanstack/react-query";
 
 import { qk } from "@/lib/query-keys";
 import {
+  listAllWorkspaceFiles,
   listWorkspaces,
   readWorkspaceFile,
   readWorkspaceFiles,
+  type FlatFileList,
   type WorkspaceFileContent,
   type WorkspaceFiles,
   type WorkspaceSummary,
@@ -39,6 +41,37 @@ export function useSandboxWorkspaces(): UseWorkspacesResult {
     workspaces,
     isLoading,
     error: error instanceof Error ? error.message : error ? "Failed to load workspaces" : null,
+  };
+}
+
+interface UseAllWorkspaceFilesResult {
+  listing: FlatFileList | null;
+  isLoading: boolean;
+  error: string | null;
+}
+
+/**
+ * Every file the caller can see, in one list.
+ *
+ * Only fetched when the flat view is on. It reads each workspace in turn - a round
+ * trip per container-backed one - so it is not what a page pays for on load.
+ */
+export function useAllWorkspaceFiles(enabled: boolean): UseAllWorkspaceFilesResult {
+  const {
+    data: listing = null,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: qk.sandboxWorkspaces.allFiles(),
+    queryFn: listAllWorkspaceFiles,
+    enabled,
+    retry: false,
+  });
+
+  return {
+    listing,
+    isLoading: enabled && isLoading,
+    error: error === null ? null : error.message,
   };
 }
 

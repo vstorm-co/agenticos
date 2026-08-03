@@ -27,6 +27,7 @@ import { useTranslations } from "next-intl";
 import {
   Activity,
   Boxes,
+  FolderOpen,
   BookOpen,
   Bot,
   Building2,
@@ -119,6 +120,15 @@ export const NAV_GROUPS: NavGroup[] = [
         href: ROUTES.SANDBOXES,
         icon: Boxes,
         permission: Perm.connectionsManage,
+      },
+      {
+        // Deliberately ungated, unlike Sandboxes above. These are the files an
+        // agent kept *for the person looking*, and the backend narrows the listing
+        // to what they are part of - so a permission here would hide somebody's own
+        // workspace behind an operator's authority.
+        labelKey: "workspaces",
+        href: ROUTES.WORKSPACES,
+        icon: FolderOpen,
       },
     ],
   },

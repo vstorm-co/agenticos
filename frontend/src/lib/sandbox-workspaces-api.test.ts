@@ -35,4 +35,18 @@ describe("the workspace browser client", () => {
 
     expect(apiClient.get).toHaveBeenCalledWith("/sandbox-workspaces/w-1/file?path=%2Fa%2Fb.txt");
   });
+
+  it("asks for every file in one call, not one call per workspace", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: [],
+      total: 0,
+      workspaces_read: 0,
+      unreadable: 0,
+      truncated: false,
+    });
+
+    await api.listAllWorkspaceFiles();
+
+    expect(apiClient.get).toHaveBeenCalledWith("/sandbox-workspaces/files");
+  });
 });
