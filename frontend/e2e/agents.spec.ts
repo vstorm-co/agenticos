@@ -137,6 +137,7 @@ async function openToolRow(page: Page): Promise<Locator> {
  * rather than a failing test.
  */
 interface CatalogEntry {
+  id: string;
   name: string;
   requires_secret: {
     kind: string;
@@ -418,6 +419,14 @@ test.describe("Agents", () => {
     await expect(tool.getByRole("button", { name: "Reset name" })).toBeHidden();
   });
 
+  // Capabilities the Builder gives a section of their own, so they are not rows in
+  // the picker and cannot be driven through it. `sandbox` is here because its
+  // configuration is a choice between four backends with different infrastructure
+  // behind them, one of which shares files between people - and because it
+  // registers before `web_research`, so a search for "something that needs a
+  // secret" finds it first and then cannot find its switch.
+  const OWN_SECTION = new Set(["sandbox", "skills", "thinking"]);
+
   test("a capability that needs a secret says so until it has one, and keeps the one it is given", async ({
     page,
   }) => {
@@ -439,7 +448,8 @@ test.describe("Agents", () => {
     // an API key, and a picker filtered by kind would offer nothing for any other
     // requirement — correctly, which is a different spec than this one.
     const needy = items.find(
-      (entry): entry is NeedsSecret => entry.requires_secret?.kind === "api_key",
+      (entry): entry is NeedsSecret =>
+        entry.requires_secret?.kind === "api_key" && !OWN_SECTION.has(entry.id),
     );
     if (needy === undefined) {
       test.skip(
