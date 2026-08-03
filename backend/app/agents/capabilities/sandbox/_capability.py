@@ -30,10 +30,10 @@ WORKSPACE_TOOLS: tuple[CapabilityToolInfo, ...] = (
     CapabilityToolInfo(id="glob", description=console_text.GLOB_DESCRIPTION, side_effecting=False),
     CapabilityToolInfo(id="grep", description=console_text.GREP_DESCRIPTION, side_effecting=False),
     CapabilityToolInfo(
-        id="write_file", description=console_text.WRITE_FILE_DESCRIPTION, side_effecting=True
+        id="write_file", description=console_text.WRITE_FILE_DESCRIPTION, side_effecting=False
     ),
     CapabilityToolInfo(
-        id="edit_file", description=console_text.EDIT_FILE_DESCRIPTION, side_effecting=True
+        id="edit_file", description=console_text.EDIT_FILE_DESCRIPTION, side_effecting=False
     ),
     CapabilityToolInfo(
         id="execute", description=console_text.EXECUTE_DESCRIPTION, side_effecting=True
@@ -59,6 +59,16 @@ characters about what a shell command may and may not assume. A tool's
 description is the strongest prompt in the product; replacing it with a label
 for a form is a downgrade wearing consistency as an excuse. So the label follows
 the prompt.
+
+**Only `execute` is side-effecting.** Writing a file used to be too, and that was
+wrong in a way only visible from using it: a workspace is scratch space deleted
+with the conversation it belongs to, so `write_file` is not the same class of act
+as sending an email - and an agent that must ask before every write cannot do
+multi-step work at all. The author's move then is to turn the gate off entirely,
+which loses the one that mattered. `execute` runs arbitrary commands on somebody's
+host; it is what `sandbox:execute` exists for, and it is the one worth a person
+looking. A binding that wants the stricter behaviour still gets it with one
+`tool_approval` override.
 """
 
 

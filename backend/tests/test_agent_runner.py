@@ -22,7 +22,7 @@ from app.agents.spec import AgentSpec, ObservabilitySpec
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import ApprovalStatus, RunStatus, RunSurface
-from app.services.agent_runner import AgentRunnerService, month_start
+from app.services.agent_runner import AgentRunnerService, ApprovalChannel, month_start
 from app.services.approvals import ApprovalService
 
 
@@ -433,6 +433,55 @@ class TestSpendReporting:
         assert breakdown.call_args.kwargs["organization_id"] == ctx.organization_id
         looked_back = datetime.now(UTC) - breakdown.call_args.kwargs["since"]
         assert timedelta(days=7) <= looked_back < timedelta(days=7, seconds=30)
+
+
+class TestWhatAParkedCallRecords:
+    """Enough for a surface to put the decision in front of somebody.
+
+    Before this, a run parked and `/chat` could only name a queue: the client had
+    a panel for deciding inline and nothing ever gave it anything to show. The
+    detail is kept where the row is created rather than read back afterwards,
+    which would be a query per parked call to recover what this object had in hand.
+    """
+
+    @pytest.mark.anyio
+    async def test_a_parked_call_records_the_row_the_decision_goes_against(self):
+        approval = MagicMock(id=uuid.uuid4())
+        channel = ApprovalChannel(
+            approvals=MagicMock(request=AsyncMock(return_value=approval)),
+            organization_id=uuid.uuid4(),
+            agent_id=uuid.uuid4(),
+            run_id=uuid.uuid4(),
+        )
+        request = MagicMock(
+            tool_call_id="tc-1", tool_name="write_file", tool_args={"path": "/a.txt"}
+        )
+
+        await channel(request)
+
+        [parked] = channel.requested
+        assert parked.approval_id == approval.id
+        # The model's own id as well as the row's: one addresses the decision, the
+        # other addresses the card already on screen.
+        assert parked.tool_call_id == "tc-1"
+        assert parked.tool_name == "write_file"
+        assert parked.tool_args == {"path": "/a.txt"}
+
+    @pytest.mark.anyio
+    async def test_a_second_call_after_a_decision_records_nothing_new(self):
+        """A decision is consumed on use, so an approved call runs rather than
+        parking again - and nothing is put back in front of anybody."""
+        channel = ApprovalChannel(
+            approvals=MagicMock(request=AsyncMock()),
+            organization_id=uuid.uuid4(),
+            agent_id=uuid.uuid4(),
+            run_id=uuid.uuid4(),
+            decided={"tc-1": MagicMock()},
+        )
+
+        await channel(MagicMock(tool_call_id="tc-1", tool_name="write_file", tool_args={}))
+
+        assert channel.requested == []
 
 
 class TestFilesAcrossOneTurn:

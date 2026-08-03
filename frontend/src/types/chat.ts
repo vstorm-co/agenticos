@@ -62,7 +62,12 @@ export interface ToolCall {
   name: string;
   args: Record<string, unknown>;
   result?: unknown;
-  status: "pending" | "running" | "completed" | "error";
+  status: "pending" | "running" | "completed" | "error" | "awaiting_approval";
+  /**
+   * `awaiting_approval` is its own state, not a kind of running. A parked call
+   * produces no result *ever* until somebody decides, so a spinner is a lie that
+   * never resolves — which is what the card did before.
+   */
 }
 
 export type MessagePartType = "thinking" | "text" | "tool" | "research";
@@ -204,7 +209,10 @@ export interface ChatState {
 }
 
 export interface ActionRequest {
+  /** The `approvals` row. What a decision is recorded against. */
   id: string;
+  /** The model's own id for the call, so the card drawn for it can be resolved. */
+  tool_call_id: string;
   tool_name: string;
   args: Record<string, unknown>;
 }
@@ -220,6 +228,8 @@ export interface ReviewConfig {
 export interface PendingApproval {
   actionRequests: ActionRequest[];
   reviewConfigs: ReviewConfig[];
+  /** The run to continue once every call has been decided. */
+  runId: string;
 }
 
 export type DecisionType = "approve" | "edit" | "reject";

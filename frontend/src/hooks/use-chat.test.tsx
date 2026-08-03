@@ -16,6 +16,13 @@ import {
 // The socket itself is not under test: what matters is the frame the hook hands
 // it, because that frame is the whole contract with the backend. The mock also
 // keeps hold of the inbound handler so a server event can be replayed.
+// A decision on a parked call goes to the same REST endpoints the approvals queue
+// uses. It used to be a WebSocket `resume` frame the server silently discarded, so
+// asserting on the frame is exactly what let that pass.
+const { post } = vi.hoisted(() => ({ post: vi.fn() }));
+vi.mock("@/lib/api-client", () => ({ apiClient: { post } }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+
 const { sent, socket, connect, disconnect } = vi.hoisted(() => ({
   sent: vi.fn(),
   connect: vi.fn(),
@@ -457,27 +464,35 @@ describe("useChat - the conversation a turn belongs to", () => {
 });
 
 describe("useChat - approvals and questions", () => {
-  it("surfaces the tools waiting on a person, and says so in the message", () => {
+  it("surfaces the tools waiting on a person, and resolves their cards", async () => {
+    // The card used to spin forever: a parked call produces no `tool_result`
+    // until somebody decides, so "running" is a state it never leaves.
     const { result } = renderHook(() => useChat(), { wrapper });
     receive("model_request_start", {});
+    receive("tool_call", { tool_name: "send_email", args: {}, tool_call_id: "tc-1" });
 
     receive("tool_approval_required", {
-      action_requests: [{ id: "ar-1", tool_name: "send_email", args: { to: "a@b.c" } }],
-      review_configs: [{ tool_name: "send_email", allow_edit: true }],
+      run_id: "r-1",
+      action_requests: [
+        { id: "ar-1", tool_call_id: "tc-1", tool_name: "send_email", args: { to: "a@b.c" } },
+      ],
+      review_configs: [{ tool_name: "send_email", allow_edit: false }],
     });
 
     expect(result.current.pendingApproval).toMatchObject({
       actionRequests: [{ id: "ar-1", tool_name: "send_email" }],
-      reviewConfigs: [{ tool_name: "send_email", allow_edit: true }],
+      runId: "r-1",
     });
-    expect(streaming()?.content).toContain("⏸️ Waiting for approval: send_email");
+    const card = streaming()?.parts?.find((part) => part.type === "tool");
+    expect(card?.toolCall?.status).toBe("awaiting_approval");
   });
 
   it("still surfaces an approval with no message open", () => {
     const { result } = renderHook(() => useChat(), { wrapper });
 
     receive("tool_approval_required", {
-      action_requests: [{ id: "ar-1", tool_name: "send_email", args: {} }],
+      run_id: "r-1",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "send_email", args: {} }],
       review_configs: [],
     });
 
@@ -485,52 +500,84 @@ describe("useChat - approvals and questions", () => {
     expect(useChatStore.getState().messages).toEqual([]);
   });
 
-  it("sends each decision, and replaces the waiting line with what was decided", () => {
+  it("records each decision on its own approval row, then resumes once", async () => {
+    // Once, after all of them: the run continues when nothing is left parked, and
+    // resuming per decision would start it while calls it has not heard about are
+    // still waiting.
+    post.mockResolvedValue({});
     const { result } = renderHook(() => useChat(), { wrapper });
     receive("model_request_start", {});
     receive("tool_approval_required", {
+      run_id: "r-9",
       action_requests: [
-        { id: "ar-1", tool_name: "send_email", args: {} },
-        { id: "ar-2", tool_name: "delete_row", args: {} },
-        { id: "ar-3", tool_name: "post_invoice", args: {} },
+        { id: "ar-1", tool_call_id: "tc-1", tool_name: "send_email", args: {} },
+        { id: "ar-2", tool_call_id: "tc-2", tool_name: "delete_row", args: {} },
       ],
       review_configs: [],
     });
 
-    act(() =>
-      result.current.sendResumeDecisions([
-        { type: "approve" },
-        { type: "reject" },
-        {
-          type: "edit",
-          editedAction: { id: "ar-3", tool_name: "post_invoice", args: { amount: 1 } },
-        },
-      ]),
-    );
-
-    expect(result.current.pendingApproval).toBeNull();
-    expect(frame(0)).toEqual({
-      type: "resume",
-      decisions: [
-        { type: "approve" },
-        { type: "reject" },
-        {
-          type: "edit",
-          edited_action: { id: "ar-3", tool_name: "post_invoice", args: { amount: 1 } },
-        },
-      ],
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "approve" }, { type: "reject" }]);
     });
-    expect(streaming()?.content).toContain("✅ Decisions: 1 approved, 1 edited, 1 rejected");
+
+    expect(post.mock.calls).toEqual([
+      ["/approvals/ar-1", { approved: true }],
+      ["/approvals/ar-2", { approved: false }],
+      ["/runs/r-9/resume"],
+    ]);
+    expect(result.current.pendingApproval).toBeNull();
   });
 
-  it("sends an edit with no edited action as a plain edit", () => {
-    // Which is what the dialog produces when somebody opens the editor and
-    // changes nothing.
+  it("puts the panel back when a decision could not be recorded", async () => {
+    // A decision that failed to record is a run still parked, and a panel that
+    // vanished is a person believing they unblocked it.
+    post.mockRejectedValue(new Error("403 Forbidden"));
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("tool_approval_required", {
+      run_id: "r-9",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "send_email", args: {} }],
+      review_configs: [],
+    });
+
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "approve" }]);
+    });
+
+    expect(result.current.pendingApproval).not.toBeNull();
+  });
+
+  it("decides nothing when there was nothing parked", async () => {
     const { result } = renderHook(() => useChat(), { wrapper });
 
-    act(() => result.current.sendResumeDecisions([{ type: "edit" }]));
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "approve" }]);
+    });
 
-    expect(frame(0)).toMatchObject({ decisions: [{ type: "edit" }] });
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it("ignores a decision list shorter than what is waiting", async () => {
+    // Rather than reading `undefined` as a refusal, which would reject a call
+    // nobody decided about.
+    post.mockResolvedValue({});
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("tool_approval_required", {
+      run_id: "r-9",
+      action_requests: [
+        { id: "ar-1", tool_call_id: "tc-1", tool_name: "a", args: {} },
+        { id: "ar-2", tool_call_id: "tc-2", tool_name: "b", args: {} },
+      ],
+      review_configs: [],
+    });
+
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "approve" }]);
+    });
+
+    expect(post.mock.calls).toEqual([
+      ["/approvals/ar-1", { approved: true }],
+      ["/runs/r-9/resume"],
+    ]);
   });
 
   it("surfaces the questions an agent asked, filling in what it left out", () => {

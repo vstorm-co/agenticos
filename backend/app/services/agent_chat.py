@@ -44,7 +44,12 @@ from app.db.models.chat_file import ChatFile
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.repositories import member_repo
-from app.services.agent_runner import AgentRunnerService, PausedRunState, PreparedRun
+from app.services.agent_runner import (
+    AgentRunnerService,
+    ParkedApproval,
+    PausedRunState,
+    PreparedRun,
+)
 from app.services.attachments import AttachmentRouter
 from app.services.usage_report import UsageReport, UsageReportService
 
@@ -176,6 +181,18 @@ class ChatTurn:
     """The frozen spec that answered. None only for an agent with no version,
     which cannot run - carried rather than assumed so the transcript records
     what actually happened."""
+
+    run_id: UUID | None = None
+    """The run these approvals belong to, for resuming it once they are decided."""
+
+    parked: tuple[ParkedApproval, ...] = ()
+    """Tool calls this turn stopped on, if it stopped.
+
+    Present so the surface can put the decision in front of whoever is already
+    looking, instead of only naming a queue. The queue stays the record - these
+    are the same rows - so a decision made here and one made there are the same
+    decision.
+    """
 
     usage: UsageReport | None = None
     """What the turn cost, and how full its workspace is.
@@ -342,6 +359,8 @@ class ChatAgentRunner:
             model_label=prepared.built.model_label,
             agent_id=prepared.agent.id,
             agent_version_id=prepared.run.agent_version_id,
+            run_id=prepared.run.id,
+            parked=tuple(prepared.approvals.requested),
             usage=await self._usage(ctx, prepared),
         )
 

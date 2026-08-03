@@ -184,10 +184,16 @@ has no credential — each by name, because all three are states a deployment
 reaches *after* an agent was published and the fix is an operator's rather than the
 author's.
 
-Reading is free and writing is not: `write_file`, `edit_file` and `execute`
-declare themselves side-effecting per tool, so an agent asks before it changes
-something and does not ask to list a directory. See
-[Governance](../governance.md) for how an approval is put to a person.
+**Only `execute` asks.** Side-effecting is declared per tool, and of the seven only
+running a command is: a workspace is scratch space deleted with the conversation it
+belongs to, so writing a file in it is not the class of act sending an email is —
+and an agent that has to ask before every `write_file` cannot do multi-step work at
+all, which is how an author ends up turning the gate off entirely and losing the one
+that mattered. `execute` runs arbitrary commands on somebody's host.
+
+A binding that wants the stricter behaviour sets it per tool:
+`tool_approval: {"write_file": "required"}`. See [Governance](../governance.md) for
+how an approval is put to a person.
 
 Files somebody attaches to a message land in `/uploads` — see
 [File processing](../file-processing.md).

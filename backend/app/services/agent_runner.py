@@ -105,6 +105,26 @@ class PausedRunState(BaseModel):
     )
 
 
+@dataclass(frozen=True)
+class ParkedApproval:
+    """One tool call waiting for a person.
+
+    Carries the `approvals` row id rather than the model's `tool_call_id`: the
+    decision is recorded against that row, and it is the row the approvals queue
+    and the notification email point at. A surface that invented its own
+    identifier would be a second way to approve the same call.
+    """
+
+    approval_id: UUID
+    tool_call_id: str
+    """The model's own id for the call, so a surface can resolve the card it drew
+    for it. Carried beside the row id rather than instead of it: one addresses the
+    decision, the other addresses what is on screen."""
+
+    tool_name: str
+    tool_args: dict[str, Any]
+
+
 @dataclass
 class ApprovalChannel:
     """A run's connection to the approval queue.
@@ -125,6 +145,14 @@ class ApprovalChannel:
     decided: dict[str, ApprovalDecision] = field(default_factory=dict)
     parked: dict[str, str] = field(default_factory=dict)
 
+    requested: list[ParkedApproval] = field(default_factory=list)
+    """What was parked, in enough detail for a surface to put it to somebody.
+
+    Kept here rather than read back from the rows afterwards, because this is where
+    the row was created - re-reading it would be a query per parked call to recover
+    what this object had in hand.
+    """
+
     async def __call__(self, request: ApprovalRequest) -> ApprovalDecision:
         decision = self.decided.pop(request.tool_call_id, None)
         if decision is not None:
@@ -140,6 +168,14 @@ class ApprovalChannel:
             tool_args=request.tool_args,
         )
         self.parked[str(approval.id)] = request.tool_call_id
+        self.requested.append(
+            ParkedApproval(
+                approval_id=approval.id,
+                tool_call_id=request.tool_call_id,
+                tool_name=request.tool_name,
+                tool_args=request.tool_args,
+            )
+        )
         return ApprovalPending()
 
 

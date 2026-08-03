@@ -7,16 +7,22 @@ import { useChatStore, useAuthStore, useOrgStore } from "@/stores";
 import { useTenantId } from "@/hooks/use-organizations";
 import { useAgentSelectionStore } from "@/stores";
 import type {
+  ActionRequest,
   AskUserAnswer,
   AskUserQuestion,
   ChatMessageFile,
   Decision,
   PendingApproval,
+  ReviewConfig,
   ToolCall,
   TurnUsage,
   WSEvent,
 } from "@/types";
 import { WS_URL } from "@/lib/constants";
+import { toast } from "sonner";
+
+import { apiClient } from "@/lib/api-client";
+import { getErrorMessage } from "@/lib/utils";
 import { setUrlParam } from "@/lib/utils";
 import { useConversationStore } from "@/stores";
 /** A message the user typed while the agent was busy / socket offline.
@@ -267,28 +273,27 @@ export function useChat(options: UseChatOptions = {}) {
         }
 
         case "tool_approval_required": {
-          // Human-in-the-Loop: AI wants to execute tools that need approval
-          const { action_requests, review_configs } = wsEvent.data as {
-            action_requests: Array<{
-              id: string;
-              tool_name: string;
-              args: Record<string, unknown>;
-            }>;
-            review_configs: Array<{
-              tool_name: string;
-              allow_edit?: boolean;
-              timeout?: number;
-            }>;
+          // The run stopped on a gated tool call. The `approvals` queue has the
+          // same rows and the email points at them; this is the shortcut for
+          // whoever is already looking at the tab.
+          const { action_requests, review_configs, run_id } = wsEvent.data as {
+            action_requests: ActionRequest[];
+            review_configs: ReviewConfig[];
+            run_id: string;
           };
           setPendingApproval({
             actionRequests: action_requests,
             reviewConfigs: review_configs,
+            runId: run_id,
           });
-          // Show pending tools in the current message
+          // Resolve the cards rather than leaving them spinning. A parked call
+          // produces no `tool_result` until somebody decides, so "running" is a
+          // state it can sit in forever.
           if (currentMessageIdRef.current) {
             const id = currentMessageIdRef.current;
-            const toolNames = action_requests.map((ar) => ar.tool_name).join(", ");
-            appendTextDelta(id, `\n\n⏸️ Waiting for approval: ${toolNames}`);
+            for (const request of action_requests) {
+              updateToolCallPart(id, request.tool_call_id, { status: "awaiting_approval" });
+            }
           }
           break;
         }
@@ -492,45 +497,57 @@ export function useChat(options: UseChatOptions = {}) {
     setPendingQuestions(null);
   }, [tenantId, clearQueued]);
 
+  /** Record one decision on the `approvals` row it belongs to. */
+  const decideApproval = useCallback(
+    (approvalId: string, approved: boolean) =>
+      apiClient.post(`/approvals/${approvalId}`, { approved }),
+    [],
+  );
+
+  /** Continue a run whose parked calls have all been decided. */
+  const resumeRun = useCallback((runId: string) => apiClient.post(`/runs/${runId}/resume`), []);
+
   const sendResumeDecisions = useCallback(
-    (decisions: Decision[]) => {
+    async (decisions: Decision[]) => {
+      // Read from state and listed in the deps below. A ref would avoid
+      // rebuilding this callback, but it cannot be written during render - and
+      // rebuilding it is harmless: it is only ever passed down as a prop.
+      const parked = pendingApproval;
       setPendingApproval(null);
 
-      // Update message to show decisions were made
-      if (currentMessageIdRef.current) {
-        const approvedCount = decisions.filter((d) => d.type === "approve").length;
-        const editedCount = decisions.filter((d) => d.type === "edit").length;
-        const rejectedCount = decisions.filter((d) => d.type === "reject").length;
+      if (parked === null) return;
 
-        const summaryParts: string[] = [];
-        if (approvedCount > 0) summaryParts.push(`${approvedCount} approved`);
-        if (editedCount > 0) summaryParts.push(`${editedCount} edited`);
-        if (rejectedCount > 0) summaryParts.push(`${rejectedCount} rejected`);
-
-        updateMessage(currentMessageIdRef.current, (msg) => ({
-          ...msg,
-          content: msg.content.replace(
-            /\n\n⏸️ Waiting for approval:.*$/,
-            `\n\n✅ Decisions: ${summaryParts.join(", ")}`,
-          ),
-        }));
-      }
-
-      // Send resume message to WebSocket
-      sendMessage({
-        type: "resume",
-        decisions: decisions.map((d) => {
-          if (d.type === "edit" && d.editedAction) {
-            return {
-              type: "edit",
-              edited_action: d.editedAction,
-            };
+      // The same endpoints the approvals queue uses. This used to send a
+      // `resume` frame over the WebSocket, which the server silently ignores -
+      // so the panel reported "3 approved" and nothing whatsoever happened.
+      // Recording the decision on the row is also what keeps the queue, the
+      // audit entry and the email honest about what was decided.
+      try {
+        for (const [index, request] of parked.actionRequests.entries()) {
+          const decision = decisions[index];
+          if (decision === undefined) continue;
+          await decideApproval(request.id, decision.type === "approve");
+          if (currentMessageIdRef.current) {
+            updateToolCallPart(currentMessageIdRef.current, request.tool_call_id, {
+              status: decision.type === "approve" ? "running" : "error",
+              result: decision.type === "approve" ? undefined : "Refused",
+            });
           }
-          return { type: d.type };
-        }),
-      });
+        }
+        // Once, after all of them: the run continues when nothing is left
+        // parked, and resuming per decision would start it while calls it has
+        // not been told about are still waiting.
+        await resumeRun(parked.runId);
+        toast.success("Continuing the run");
+      } catch (error) {
+        // Put it back rather than swallowing it. A decision that failed to
+        // record is a run still parked, and a panel that vanished is a person
+        // believing they unblocked it.
+        setPendingApproval(parked);
+        toast.error(getErrorMessage(error));
+      }
     },
-    [updateMessage, sendMessage],
+    [pendingApproval, updateToolCallPart, decideApproval, resumeRun],
   );
 
   const sendAskUserResponses = useCallback(

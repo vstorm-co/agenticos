@@ -296,15 +296,20 @@ class TestReadingTheSpec:
 
 
 class TestApprovalIsPerTool:
-    def test_reading_is_free_and_writing_is_gated(self):
-        """One flag for the capability would gate `ls`, and authors would turn
-        the lot off rather than write seven overrides."""
+    def test_only_running_commands_is_gated(self):
+        """One flag for the capability would gate `ls`, and authors would turn the
+        lot off rather than write seven overrides.
+
+        Writing is not gated either, which was a correction rather than a default:
+        a workspace is scratch space deleted with its conversation, so a write is
+        not the class of act an email is - and an agent that must ask before every
+        one cannot do multi-step work, which is how an author ends up turning off
+        the gate that mattered. `execute` runs arbitrary commands on somebody's
+        host, and that is the one worth a person looking at.
+        """
         gated = approval_required_tools(_spec())
 
-        assert "write_file" in gated
-        assert "execute" in gated
-        assert "read_file" not in gated
-        assert "ls" not in gated
+        assert gated == {"execute"}
 
     def test_a_binding_still_overrides_the_code(self):
         spec = AgentSpec(

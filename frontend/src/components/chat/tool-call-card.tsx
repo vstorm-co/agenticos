@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   XCircle,
   BarChart3,
+  PauseCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toolCaption, toolDisplayName } from "@/lib/agent-step-captions";
@@ -155,6 +156,10 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
   // While still running: narrate what the agent is doing instead of the finished label,
   // and swap the chevron/raw toggle for a spinner - the header becomes a step caption.
   const isRunning = toolCall.status === "running" || toolCall.status === "pending";
+  // Its own state, not a kind of running: a parked call produces no result until
+  // somebody decides, so a spinner here is a lie that never resolves. That is what
+  // this card did - "Running Write File… Running…", forever.
+  const isParked = toolCall.status === "awaiting_approval";
   const isError = toolCall.status === "error";
   const liveCaption = toolCaption(toolCall.name);
 
@@ -163,6 +168,7 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
       className={cn(
         "bg-muted/50 step-card-in",
         isRunning && "border-brand/50 relative overflow-hidden",
+        isParked && "border-amber-500/50",
       )}
     >
       <div
@@ -179,17 +185,28 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
         className="hover:bg-foreground/[0.03] flex w-full cursor-pointer items-center justify-between gap-2 px-3 py-2 text-left transition-colors"
       >
         <div className="flex min-w-0 items-center gap-2">
-          <ToolIcon
-            className={cn(
-              "h-4 w-4 shrink-0",
-              isRunning
-                ? "text-brand animate-pulse"
-                : hasSpecialRenderer
-                  ? "text-primary"
-                  : "text-muted-foreground",
-            )}
-          />
-          {isRunning ? (
+          {isParked ? (
+            <PauseCircle className="h-4 w-4 shrink-0 text-amber-600" aria-hidden />
+          ) : (
+            <ToolIcon
+              className={cn(
+                "h-4 w-4 shrink-0",
+                isRunning
+                  ? "text-brand animate-pulse"
+                  : hasSpecialRenderer
+                    ? "text-primary"
+                    : "text-muted-foreground",
+              )}
+            />
+          )}
+          {isParked ? (
+            <span className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
+              <span className="truncate">{friendlyName}</span>
+              <span className="shrink-0 text-xs font-normal text-amber-600">
+                waiting for approval
+              </span>
+            </span>
+          ) : isRunning ? (
             <span className="text-foreground/80 flex min-w-0 items-center gap-1.5 text-sm font-medium">
               <span className="truncate">{liveCaption}</span>
               <span className="flex shrink-0 gap-0.5" aria-hidden="true">
