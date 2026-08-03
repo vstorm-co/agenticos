@@ -97,20 +97,20 @@ export function ActiveSessions() {
   const handleRevoke = async (sessionId: string) => {
     try {
       await apiClient.delete(`/sessions/${sessionId}`);
-      toast.success("Session revoked");
+      toast.success(t("sessionRevoked"));
       reload(total - 1);
     } catch {
-      toast.error("Failed to revoke session");
+      toast.error(t("failedRevokeSession"));
     }
   };
 
   const handleRevokeAll = async () => {
     try {
       await apiClient.delete("/sessions");
-      toast.success("All other sessions revoked");
+      toast.success(t("allOtherSessionsRevoked"));
       reload(0);
     } catch {
-      toast.error("Failed to revoke sessions");
+      toast.error(t("failedRevokeSessions"));
     }
   };
 
@@ -149,9 +149,7 @@ export function ActiveSessions() {
           ))}
         </div>
       ) : error ? (
-        <p className="text-destructive text-sm">
-          {getErrorMessage(error, "Couldn't load your sessions")}
-        </p>
+        <p className="text-destructive text-sm">{getErrorMessage(error, t("couldnTLoadYour"))}</p>
       ) : sessions.length === 0 ? (
         <p className="text-muted-foreground text-sm">{t("noSessionDataAvailable")}</p>
       ) : (

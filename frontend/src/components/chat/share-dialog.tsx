@@ -155,7 +155,7 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
                 }}
                 onFocus={() => setSuggestionsOpen(true)}
                 onBlur={() => setSuggestionsOpen(false)}
-                onKeyDown={(e) => e.key === "Enter" && handleShare()}
+                onKeyDown={(e) => e.key === t("enter8") && handleShare()}
               />
               {suggestionsOpen && suggestions.length > 0 && (
                 <div
@@ -239,7 +239,7 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
           </div>
           {shareLink && (
             <p className="text-muted-foreground text-xs break-all">
-              {copied ? "Copied!" : shareLink}
+              {copied ? t("copied") : shareLink}
             </p>
           )}
 
@@ -253,7 +253,7 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
                 >
                   <div className="flex items-center gap-2">
                     <span className="text-sm">
-                      {share.shared_with_email || share.shared_with || "Link"}
+                      {share.shared_with_email || share.shared_with || t("link")}
                     </span>
                     <Badge variant="secondary">{share.permission}</Badge>
                     {share.share_token && <Badge variant="outline">{t("link")}</Badge>}

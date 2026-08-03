@@ -96,7 +96,7 @@ export function ChannelBotsPanel({ canManage }: { canManage: boolean }) {
                 {PLATFORM_LABEL[bot.platform] ?? bot.platform} - {bot.name}
               </p>
               <p className="text-muted-foreground text-xs">
-                {bot.webhook_mode ? "Webhook" : "Polling"}
+                {bot.webhook_mode ? t("webhook") : t("polling")}
               </p>
             </div>
             {bot.platform === "slack" && !bot.has_slack_signing_secret && (

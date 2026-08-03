@@ -621,7 +621,7 @@ function ToolList({ binding, tools, contracts, sideEffecting, onChange, disabled
             disabled={disabled}
             onClick={() => onChange({ ...binding, tool_approval: {}, tool_overrides: {} })}
           >
-            {changed.length === 1 ? "Clear 1 override" : `Clear ${changed.length} overrides`}
+            {changed.length === 1 ? t("clear1Override") : `Clear ${changed.length} overrides`}
           </Button>
         )}
       </div>
@@ -699,7 +699,7 @@ function ToolRow({ binding, tool, contract, sideEffecting, onChange, disabled }:
         <ToolField
           htmlFor={fieldId("name")}
           label={t("name2")}
-          reset={resetFor("name", "Reset name")}
+          reset={resetFor("name", t("resetName"))}
           error={nameError}
           disabled={disabled}
         >
@@ -729,8 +729,8 @@ function ToolRow({ binding, tool, contract, sideEffecting, onChange, disabled }:
             <SelectContent>
               <SelectItem value="default">
                 {resolveCapabilityApproval(binding.approval, sideEffecting) === "required"
-                  ? "Follow the capability - always ask"
-                  : "Follow the capability - never ask"}
+                  ? t("followCapabilityAlwaysAsk")
+                  : t("followCapabilityNeverAsk")}
               </SelectItem>
               {APPROVAL_OPTIONS.filter((option) => option.value !== "default").map((option) => (
                 <SelectItem key={option.value} value={option.value}>
@@ -745,7 +745,7 @@ function ToolRow({ binding, tool, contract, sideEffecting, onChange, disabled }:
       <ToolField
         htmlFor={fieldId("description")}
         label={t("descriptionModelReads")}
-        reset={resetFor("description", "Reset description")}
+        reset={resetFor("description", t("resetDescription"))}
         disabled={disabled}
       >
         {/* One field, holding the whole text. An override replaces everything

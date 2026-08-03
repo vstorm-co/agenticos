@@ -70,8 +70,8 @@ export function ChatControls({
   const triggerSummary = useMemo(() => {
     const parts: string[] = [];
     if (selectedProfile) parts.push(selectedProfile.label);
-    if (settingsOverridden) parts.push("Custom");
-    return parts.length ? parts.join(" · ") : "Controls";
+    if (settingsOverridden) parts.push(t("custom"));
+    return parts.length ? parts.join(" · ") : t("controls");
   }, [selectedProfile, settingsOverridden]);
 
   const hasOverrides = profileId !== null || settingsOverridden;
@@ -292,7 +292,7 @@ function SettingsPanel({
           ))}
         </div>
         <p className="text-foreground/55 text-[11px]">
-          {t(`effort${EFFORT_OPTIONS.find((o) => o.value === effort)?.key ?? "Off"}Hint`)}
+          {t(`effort${EFFORT_OPTIONS.find((o) => o.value === effort)?.key ?? t("off")}Hint`)}
         </p>
       </div>
 

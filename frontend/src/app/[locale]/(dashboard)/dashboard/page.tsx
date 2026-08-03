@@ -14,8 +14,8 @@ export default function DashboardPage() {
         icon={Construction}
         title={t("underConstruction")}
         description={t("weReReworkingWhat")}
-        cta={{ label: "Go to chat", href: ROUTES.CHAT }}
-        secondaryCta={{ label: "Agents", href: ROUTES.AGENTS }}
+        cta={{ label: t("goChat"), href: ROUTES.CHAT }}
+        secondaryCta={{ label: t("agents2"), href: ROUTES.AGENTS }}
       />
     </div>
   );

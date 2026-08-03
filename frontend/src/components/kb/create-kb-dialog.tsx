@@ -197,7 +197,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                 <span className="text-muted-foreground ml-auto text-xs">
                   {embeddingModel && embeddingModel !== embeddingModels?.default
                     ? embeddingModel
-                    : "deployment default"}
+                    : t("deploymentDefault")}
                 </span>
               </summary>
               <div className="space-y-4 border-t p-4">
@@ -266,7 +266,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                 <ChevronRight className="h-3.5 w-3.5 transition-transform group-open:rotate-90" />
                 How documents are parsed
                 <span className="text-muted-foreground ml-auto text-xs">
-                  {chosen ? "customized" : "deployment defaults"}
+                  {chosen ? "customized" : t("deploymentDefaults")}
                 </span>
               </summary>
               <div className="space-y-4 border-t p-4">
@@ -287,7 +287,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
               {t("cancel")}
             </Button>
             <Button type="submit" disabled={!canSubmit || isSubmitting}>
-              {isSubmitting ? "Creating..." : "Create"}
+              {isSubmitting ? t("creating") : t("create")}
             </Button>
           </DialogFooter>
         </form>

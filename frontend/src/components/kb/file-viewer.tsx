@@ -196,7 +196,7 @@ export function FileViewer({ kbId, doc, open, onClose }: FileViewerProps) {
           }
         }
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load file");
+        if (!cancelled) setError(e instanceof Error ? e.message : t("failedLoadFile"));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -220,7 +220,7 @@ export function FileViewer({ kbId, doc, open, onClose }: FileViewerProps) {
         if (!cancelled) setParsed(data);
       } catch (e) {
         if (!cancelled) {
-          setParsedError(e instanceof Error ? e.message : "Failed to load parsed content");
+          setParsedError(e instanceof Error ? e.message : t("failedLoadParsedContent"));
         }
       } finally {
         if (!cancelled) setParsedLoading(false);
@@ -294,7 +294,7 @@ export function FileViewer({ kbId, doc, open, onClose }: FileViewerProps) {
                       : "text-muted-foreground hover:text-foreground",
                   )}
                 >
-                  {choice === "original" ? "Original" : "Parsed"}
+                  {choice === "original" ? t("original") : t("parsed")}
                 </button>
               ))}
             </div>
@@ -488,9 +488,7 @@ function ParsedView({
         <div>
           <p className="text-foreground text-sm font-medium">{t("nothingReadableCameOut")}</p>
           <p className="text-muted-foreground mx-auto mt-1 max-w-md text-xs">
-            {parsed.chunk_count > 0
-              ? "Every page came back as empty scaffolding, which is what an unreadable scan looks like. If this file is a scan or a photo, turn on reading scanned pages in the parse options and upload it again."
-              : "Nothing is indexed for this document. Its vectors may have been removed since it was ingested."}
+            {parsed.chunk_count > 0 ? t("everyPageCameBack") : t("nothingIndexedDocumentIts")}
           </p>
           {parsed.parser && (
             <p className="text-muted-foreground mt-2 font-mono text-xs">

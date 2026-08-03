@@ -101,7 +101,7 @@ export default function AdminRatingsPage() {
   const columns: Column<MessageRatingWithDetails>[] = [
     {
       key: "date",
-      header: "Date",
+      header: t("date"),
       className: "whitespace-nowrap",
       cell: (r) => (
         <span className="text-muted-foreground font-mono text-xs tabular-nums">
@@ -111,7 +111,7 @@ export default function AdminRatingsPage() {
     },
     {
       key: "rating",
-      header: "Rating",
+      header: t("rating"),
       cell: (r) =>
         r.rating === 1 ? (
           <span className="bg-muted text-foreground inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 font-mono text-[10px] font-semibold tracking-wider uppercase">
@@ -127,7 +127,7 @@ export default function AdminRatingsPage() {
     },
     {
       key: "comment",
-      header: "Comment",
+      header: t("comment"),
       className: "max-w-[180px]",
       cell: (r) => (
         <span className="text-foreground block truncate text-xs">
@@ -137,7 +137,7 @@ export default function AdminRatingsPage() {
     },
     {
       key: "message",
-      header: "Message",
+      header: t("message"),
       className: "max-w-[260px]",
       cell: (r) => (
         <span className="text-muted-foreground block truncate text-xs">
@@ -147,7 +147,7 @@ export default function AdminRatingsPage() {
     },
     {
       key: "user",
-      header: "User",
+      header: t("user"),
       className: "whitespace-nowrap",
       cell: (r) => (
         <span className="text-foreground text-xs">{r.user_name || r.user_email || "-"}</span>
@@ -197,8 +197,8 @@ export default function AdminRatingsPage() {
       {summaryError ? (
         <ErrorState
           title={t("couldnTLoadSummary")}
-          description={getErrorMessage(summaryError, "The ratings summary request failed.")}
-          cta={{ label: "Try again", onClick: () => void refetchSummary() }}
+          description={getErrorMessage(summaryError, t("ratingsSummaryRequestFailed"))}
+          cta={{ label: t("tryAgain"), onClick: () => void refetchSummary() }}
         />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -298,8 +298,8 @@ export default function AdminRatingsPage() {
           ratingsError ? (
             <ErrorState
               title={t("couldnTLoadRatings")}
-              description={getErrorMessage(ratingsError, "The ratings request failed.")}
-              cta={{ label: "Try again", onClick: () => void refetchRatings() }}
+              description={getErrorMessage(ratingsError, t("ratingsRequestFailed"))}
+              cta={{ label: t("tryAgain2"), onClick: () => void refetchRatings() }}
             />
           ) : (
             <div className="py-8">

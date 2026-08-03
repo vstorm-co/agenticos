@@ -82,8 +82,8 @@ function ConversationItem({
           onChange={(e) => setEditTitle(e.target.value)}
           onBlur={handleRename}
           onKeyDown={(e) => {
-            if (e.key === "Enter") handleRename();
-            if (e.key === "Escape") setIsEditing(false);
+            if (e.key === t("enter3")) handleRename();
+            if (e.key === t("escape3")) setIsEditing(false);
           }}
           className="text-foreground flex-1 bg-transparent outline-none"
           autoFocus

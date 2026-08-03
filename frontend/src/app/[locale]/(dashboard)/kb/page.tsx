@@ -120,9 +120,7 @@ export default function KBPage() {
             </div>
             <p className="text-foreground mt-4 text-sm font-medium">{t("noKnowledgeBasesYet")}</p>
             <p className="text-muted-foreground mx-auto mt-1 max-w-sm text-sm">
-              {mayEdit
-                ? "Create one to give your assistant access to documents from your collections."
-                : "Nothing has been shared with you yet."}
+              {mayEdit ? t("createOneGiveYour") : t("nothingHasBeenShared")}
             </p>
             {mayEdit && (
               <Button
@@ -159,11 +157,7 @@ function KBCard({ kb, onDelete }: { kb: KnowledgeBase; onDelete?: () => void }) 
   const meta = SCOPE_META[kb.scope];
 
   return (
-    <div
-      className={cn(
-        "group border-border bg-card hover:border-foreground/30 hover:bg-accent relative flex flex-col rounded-xl border transition-colors",
-      )}
-    >
+    <div className={cn(t("groupBorderBorderBg2"))}>
       {/* Whole-card link, stacked below the interactive controls and above
           nothing else.
 

@@ -165,9 +165,7 @@ export function WorkspaceBrowser() {
                         {/* Only meaningful for a stored workspace: a container's
                             files are on its host volume and this column is the
                             JSONB document's size. */}
-                        {workspace.backend === "state"
-                          ? size(workspace.bytes_total)
-                          : "on the host"}
+                        {workspace.backend === "state" ? size(workspace.bytes_total) : t("host")}
                       </TableCell>
                       <TableCell className="text-muted-foreground text-xs">
                         {used(workspace.last_used_at)}

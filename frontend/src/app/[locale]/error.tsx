@@ -19,8 +19,8 @@ export default function Error({
   const router = useRouter();
 
   useEffect(() => {
-    console.error("Page error:", error);
-  }, [error]);
+    console.error(t("pageError"), error);
+  }, [error, t]);
 
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center px-4 text-center">
@@ -32,7 +32,9 @@ export default function Error({
       </h1>
       <p className="text-muted-foreground mt-3 max-w-md">{t("errorOccurredWhileLoading")}</p>
       {error.digest && (
-        <p className="text-muted-foreground/60 mt-1 text-xs">Error ID: {error.digest}</p>
+        <p className="text-muted-foreground/60 mt-1 text-xs">
+          {t("errorId", { id: error.digest })}
+        </p>
       )}
       <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
         <Button onClick={reset}>{t("tryAgain")}</Button>

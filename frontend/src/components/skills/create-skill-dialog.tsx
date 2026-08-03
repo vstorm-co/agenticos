@@ -301,8 +301,7 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
                         errors.content ? "text-destructive" : "text-muted-foreground",
                       )}
                     >
-                      {errors.content ??
-                        "Markdown. You can fill this in later - it is loaded only after the description convinced the model to."}
+                      {errors.content ?? t("markdownYouCanFill")}
                     </p>
                   }
                 />

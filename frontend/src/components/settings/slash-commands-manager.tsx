@@ -68,11 +68,11 @@ export function SlashCommandsManager() {
     const name = draftName.trim().toLowerCase();
     const prompt = draftPrompt.trim();
     if (!NAME_PATTERN.test(name)) {
-      toast.error("Name must be lowercase letters, digits, and hyphens (max 32 chars).");
+      toast.error(t("nameMustBeLowercase"));
       return;
     }
     if (!prompt) {
-      toast.error("Prompt cannot be empty.");
+      toast.error(t("promptCannotBeEmpty"));
       return;
     }
     setSubmitting(true);
@@ -87,11 +87,7 @@ export function SlashCommandsManager() {
       setEditingId(null);
     } catch (e) {
       const msg =
-        e instanceof ApiError
-          ? e.message
-          : e instanceof Error
-            ? e.message
-            : "Failed to save command";
+        e instanceof ApiError ? e.message : e instanceof Error ? e.message : t("failedSaveCommand");
       toast.error(msg);
     } finally {
       setSubmitting(false);
@@ -102,7 +98,7 @@ export function SlashCommandsManager() {
     try {
       await updateCustom(record.id, { is_enabled: next });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to toggle");
+      toast.error(e instanceof Error ? e.message : t("failedToggle"));
     }
   };
 
@@ -110,7 +106,7 @@ export function SlashCommandsManager() {
     try {
       await setBuiltinEnabled(name, next);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to toggle");
+      toast.error(e instanceof Error ? e.message : t("failedToggle2"));
     }
   };
 
@@ -120,7 +116,7 @@ export function SlashCommandsManager() {
       await remove(record.id);
       toast.success(`/${record.name} deleted.`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to delete");
+      toast.error(e instanceof Error ? e.message : t("failedDelete3"));
     }
   };
 
@@ -234,7 +230,7 @@ export function SlashCommandsManager() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {editingId === "new" ? "New custom command" : `Edit /${draftName}`}
+              {editingId === "new" ? t("newCustomCommand") : `Edit /${draftName}`}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
@@ -284,7 +280,7 @@ export function SlashCommandsManager() {
               {t("cancel")}
             </Button>
             <Button onClick={handleSubmit} disabled={submitting}>
-              {submitting ? "Saving…" : editingId === "new" ? "Create" : "Save"}
+              {submitting ? t("saving4") : editingId === "new" ? t("create3") : t("save2")}
             </Button>
           </DialogFooter>
         </DialogContent>

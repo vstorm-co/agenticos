@@ -18,7 +18,6 @@ export async function generateMetadata({
 }: {
   params: Promise<{ locale: string }>;
 }): Promise<Metadata> {
-  const t = await getTranslations("pages.root");
   const { locale } = await params;
   const safeLocale: Locale = locales.includes(locale as Locale)
     ? (locale as Locale)

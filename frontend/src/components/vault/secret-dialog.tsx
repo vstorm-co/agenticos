@@ -235,7 +235,7 @@ export function AddSecretDialog({
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="secret-purpose">
-                {category === "other" ? "Service" : "Which one"}
+                {category === "other" ? t("service") : t("whichOne")}
               </Label>
               <Select value={purpose} onValueChange={choosePurpose}>
                 <SelectTrigger id="secret-purpose">
@@ -255,8 +255,7 @@ export function AddSecretDialog({
                 </SelectContent>
               </Select>
               <p className="text-muted-foreground text-xs">
-                {chosen?.description ??
-                  "Naming the service is what lets a model picker offer it and a capability ask for the right key."}
+                {chosen?.description ?? t("namingServiceWhatLets")}
                 {chosen?.help_url && (
                   <>
                     {" "}
@@ -288,11 +287,8 @@ export function AddSecretDialog({
                 </SelectContent>
               </Select>
               <p className="text-muted-foreground text-xs">
-                {visibility === "org"
-                  ? "A shared account. Anyone here can bind it to an agent."
-                  : "Yours alone. You can share it with named people afterwards."}{" "}
-                Either way, an agent that uses this key runs with it for everyone who can run that
-                agent.
+                {visibility === "org" ? t("sharedAccountAnyoneHere") : t("yoursAloneYouCan")} Either
+                way, an agent that uses this key runs with it for everyone who can run that agent.
               </p>
             </div>
           </div>

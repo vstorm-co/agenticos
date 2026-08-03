@@ -189,7 +189,7 @@ function AlertRow({
   // "Specific people" and name nobody.
   const problem =
     alert.enabled && alert.to.length === 0
-      ? "Nobody is set to hear this. Add an audience, or switch the alert off."
+      ? t("nobodySetHearAdd")
       : alert.to.includes("chosen") && alert.user_ids.length === 0
         ? "“Specific people” is chosen and nobody is named, so this would mail nobody."
         : null;

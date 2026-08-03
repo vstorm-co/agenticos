@@ -203,71 +203,71 @@ export default function AgentBuilderPage({ params }: PageProps) {
       ? chosen
         ? `${chosen.label} · ${chosen.model}`
         : `${spec.model_profile_id} (missing)`
-      : "Organization default";
+      : t("organizationDefault");
 
     return [
       {
         key: "channels",
-        title: "Channels",
+        title: t("channels"),
         icon: MAP_ICONS.channels,
         side: "in",
         items: exposures.map(
           (exposure) => `${exposure.channel_bot_name}${exposure.is_active ? "" : " (paused)"}`,
         ),
-        empty: "Chat only - not on Slack or Telegram",
+        empty: t("chatOnlyNotSlack"),
       },
       {
         key: "knowledge",
-        title: "Knowledge",
+        title: t("knowledge"),
         icon: MAP_ICONS.knowledge,
         side: "in",
         items: spec.collection_ids.map((entry) => name(collections, entry)),
-        empty: "No collections attached",
+        empty: t("noCollectionsAttached"),
       },
       {
         key: "model",
-        title: "Model",
+        title: t("model"),
         icon: MAP_ICONS.model,
         side: "out",
         items: [profile],
-        empty: "No model",
+        empty: t("noModel"),
       },
       {
         key: "capabilities",
-        title: "Toolbox",
+        title: t("toolbox"),
         icon: MAP_ICONS.capabilities,
         side: "out",
         items: spec.capabilities
           .filter((binding) => binding.enabled)
           .map((binding) => name(capabilities, binding.id)),
-        empty: "No capabilities enabled",
+        empty: t("noCapabilitiesEnabled"),
       },
       {
         key: "mcp",
-        title: "MCP servers",
+        title: t("mcpServers"),
         icon: MAP_ICONS.mcp,
         side: "out",
         items: spec.mcp_server_ids.map((entry) => name(mcpConnections, entry)),
-        empty: "No MCP servers attached",
+        empty: t("noMcpServersAttached"),
       },
       {
         key: "skills",
-        title: "Skills",
+        title: t("skills"),
         icon: MAP_ICONS.skills,
         side: "out",
         items: spec.skill_ids.map((entry) => name(skills, entry)),
-        empty: "No skills attached",
+        empty: t("noSkillsAttached"),
       },
       {
         key: "budget",
-        title: "Budget",
+        title: t("budget"),
         icon: MAP_ICONS.budget,
         side: "out",
         items: spec.budget?.monthly_usd ? [`$${spec.budget.monthly_usd} per month`] : [],
-        empty: "Spends without a ceiling of its own",
+        empty: t("spendsWithoutCeilingIts"),
       },
     ];
-  }, [spec, exposures, collections, profiles, capabilities, mcpConnections, skills]);
+  }, [spec, exposures, collections, profiles, capabilities, mcpConnections, skills, t]);
 
   // Two capabilities are configured elsewhere and so are kept off this list,
   // because a second control for one field is a control that disagrees with the
@@ -372,7 +372,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   type="button"
                   onClick={() => avatarInput.current?.click()}
                   disabled={setAvatar.isPending}
-                  aria-label={agent.has_avatar ? "Replace avatar" : "Upload avatar"}
+                  aria-label={agent.has_avatar ? t("replaceAvatar") : t("uploadAvatar")}
                   title={t("squareImagesLookBest")}
                   className="bg-background/70 text-foreground absolute inset-0 flex items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 disabled:cursor-not-allowed"
                 >
@@ -394,7 +394,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           </span>
         }
         description={agent.description ?? undefined}
-        breadcrumbs={[{ label: "Agents", href: ROUTES.AGENTS }, { label: agent.name }]}
+        breadcrumbs={[{ label: t("agents"), href: ROUTES.AGENTS }, { label: agent.name }]}
         actions={
           <div className="flex items-center gap-2">
             {/* Trying the agent happens in the chat, which streams, keeps the
@@ -406,11 +406,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
               variant="outline"
               onClick={openInChat}
               disabled={!isPublished}
-              title={
-                isPublished
-                  ? undefined
-                  : "Publish this agent to chat with it - the chat runs the published version"
-              }
+              title={isPublished ? undefined : t("publishAgentChatWith")}
             >
               <MessageSquare className="h-4 w-4" />
               {t("openChat")}
@@ -454,7 +450,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   </DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => avatarInput.current?.click()}>
                     <ImagePlus className="h-4 w-4" />
-                    {agent.has_avatar ? "Replace avatar" : "Upload avatar"}
+                    {agent.has_avatar ? t("replaceAvatar2") : t("uploadAvatar2")}
                   </DropdownMenuItem>
                   {agent.status === "archived" ? (
                     <DropdownMenuItem onSelect={() => unarchive.mutate(id)}>

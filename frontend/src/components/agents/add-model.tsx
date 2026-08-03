@@ -116,9 +116,7 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
   // catalog changes when a provider ships a model, not while a form is open.
   const { models: suggestions, source, isLoading: loadingModels } = useProviderModels(providerId);
   const derivedLabel =
-    provider && model.trim()
-      ? `${provider.label} · ${model.trim()}`
-      : "How agents refer to this model";
+    provider && model.trim() ? `${provider.label} · ${model.trim()}` : t("howAgentsReferModel");
 
   const canSubmit =
     provider !== undefined &&
@@ -282,15 +280,15 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
             placeholder={
               capabilities?.keyless === true
                 ? "http://localhost:11434/v1"
-                : "Leave empty for the provider's own API"
+                : t("leaveEmptyProviderS")
             }
             autoComplete="off"
             spellCheck={false}
           />
           <p className="text-muted-foreground text-xs">
             {capabilities?.keyless === true
-              ? "A gateway, a LiteLLM proxy, or a model server on this network. Give one and the key becomes optional — there is nothing to authenticate against on your own hardware."
-              : "Optional. Point this model at a gateway or proxy instead of the provider's own API; the key is still what authenticates."}
+              ? t("gatewayLitellmProxyModel")
+              : t("optionalPointModelAt")}
           </p>
         </div>
       )}

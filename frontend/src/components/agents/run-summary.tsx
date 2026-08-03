@@ -85,9 +85,7 @@ export function RunSummary({ agentId, runs }: RunSummaryProps) {
         <Figure
           label={t("spent")}
           value={`$${stats.spent.toFixed(2)}${stats.partial ? "+" : ""}`}
-          hint={
-            stats.partial ? "A model in these runs had no price, so this is a floor." : undefined
-          }
+          hint={stats.partial ? t("modelTheseRunsHad") : undefined}
         />
       </div>
 
@@ -98,7 +96,7 @@ export function RunSummary({ agentId, runs }: RunSummaryProps) {
           <li key={run.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 p-3 text-sm">
             <RunStatusBadge status={run.status} />
             <span className="text-muted-foreground text-xs">
-              {run.started_at ? formatDate(run.started_at) : "not started"}
+              {run.started_at ? formatDate(run.started_at) : t("notStarted")}
             </span>
             <span className="text-muted-foreground text-xs">{run.surface}</span>
             <span className="ml-auto font-mono text-xs">{run.model_label ?? "-"}</span>

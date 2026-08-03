@@ -258,13 +258,13 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
     try {
       const result = await api(scope).test(connection.id);
       if (!result.ok) {
-        toast.error(result.error ?? "The server could not be reached");
+        toast.error(result.error ?? t("serverCouldNotBe"));
         return null;
       }
       recordTools(connection.id, result.tools);
       return result.tools;
     } catch (caught) {
-      toast.error(errorMessage(caught, "The check failed"));
+      toast.error(errorMessage(caught, t("checkFailed")));
       return null;
     } finally {
       setBusyId(null);
@@ -292,7 +292,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
       const { authorization_url } = await startMcpOAuth({ name, url: row.url ?? "" }, scope);
       window.location.href = authorization_url;
     } catch (caught) {
-      toast.error(errorMessage(caught, "Could not start sign-in"));
+      toast.error(errorMessage(caught, t("couldNotStartSign")));
       setBusyId(null);
     }
     // On success the browser navigates away - leave the row busy.
@@ -306,7 +306,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
     // submitting must not quietly store whatever was typed before.
     const token = draftAuth === "token" ? draftToken.trim() : "";
     if (!NAME_PATTERN.test(name)) {
-      toast.error("Name must be lowercase letters, digits and hyphens (max 32 characters).");
+      toast.error(t("nameMustBeLowercase"));
       return;
     }
     if (!/^https?:\/\//.test(url)) {
@@ -356,7 +356,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
         setDraft(null);
       }
     } catch (caught) {
-      toast.error(errorMessage(caught, "Could not save the server"));
+      toast.error(errorMessage(caught, t("couldNotSaveServer")));
     } finally {
       setSubmitting(false);
     }
@@ -372,7 +372,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
       await api(scope).remove(connection.id);
       toast.success(`${connection.name} disconnected.`);
     } catch (caught) {
-      toast.error(errorMessage(caught, "Could not disconnect"));
+      toast.error(errorMessage(caught, t("couldNotDisconnect")));
     }
   };
 
@@ -388,10 +388,10 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
       } else {
         await api(scope).update(connection.id, { allowed_tools: [...checked] });
       }
-      toast.success("Tool selection saved.");
+      toast.success(t("toolSelectionSaved"));
       setToolPicker(null);
     } catch (caught) {
-      toast.error(errorMessage(caught, "Could not save the tool selection"));
+      toast.error(errorMessage(caught, t("couldNotSaveTool")));
     } finally {
       setSubmitting(false);
     }
@@ -434,7 +434,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                 "organization",
                 {
                   key: "new",
-                  name: "Custom server",
+                  name: t("customServer"),
                   description: "",
                   category: CUSTOM_CATEGORY,
                   auth: "token",
@@ -493,7 +493,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                     </div>
                     <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
                       {row.category === CUSTOM_CATEGORY
-                        ? "not in the catalog"
+                        ? t("notCatalog")
                         : categoryLabel(row.category)}
                     </p>
                     {row.description && (
@@ -559,7 +559,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                         disabled={busyId === row.key}
                       >
                         <Plug className="mr-1 h-3.5 w-3.5" />
-                        {busyId === row.key ? "Redirecting…" : "Connect"}
+                        {busyId === row.key ? t("redirecting") : t("connectAction")}
                       </Button>
                     )}
                     {row.organization && canManageOrganization && (
@@ -616,7 +616,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                 ? ""
                 : draft.existing
                   ? `Edit "${draft.existing.name}"`
-                  : `Connect ${draft.row.name} for ${draft.scope === "organization" ? "the organization" : "yourself"}`}
+                  : `Connect ${draft.row.name} for ${draft.scope === "organization" ? t("organization") : "yourself"}`}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
@@ -633,7 +633,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
               <p className="text-foreground/45 mt-1 text-[11px]">
                 Lowercase letters, digits and hyphens. It prefixes the server&apos;s tool names, so
                 it has to be unique among{" "}
-                {draft?.scope === "organization" ? "the organization's" : "your"} servers.
+                {draft?.scope === "organization" ? t("organizationS") : "your"} servers.
               </p>
             </div>
             <div>
@@ -648,7 +648,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
               />
             </div>
             <div>
-              <Label>{t("connect")}</Label>
+              <Label>{t("connectAction")}</Label>
               <div
                 className="mt-1.5 flex flex-wrap gap-1.5"
                 role="radiogroup"
@@ -683,9 +683,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                   })}
               </div>
               <p className="text-muted-foreground mt-1.5 text-xs">
-                {draft?.scope === "organization"
-                  ? "Every agent can reach it. An agent spec can only bind the organization's servers."
-                  : "Yours alone, in your own chat. No agent can bind it."}
+                {draft?.scope === "organization" ? t("everyAgentCanReach") : t("yoursAloneYourOwn")}
               </p>
               {draft?.existing !== null && (
                 // Moving a live connection between owners would mean re-sealing
@@ -756,15 +754,15 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                 placeholder={
                   draft?.existing?.has_auth_token
                     ? "•••••• (stored - type to replace)"
-                    : "Paste it here"
+                    : t("pasteHere")
                 }
                 maxLength={4096}
                 className="mt-1.5 font-mono text-sm"
               />
               <p className="text-foreground/45 mt-1 text-[11px]">
                 {draft?.scope === "organization"
-                  ? "Use a service credential, not your own - every agent bound to this server acts with it. Sealed for this organization and never shown again."
-                  : "Stored encrypted and never shown again."}
+                  ? t("useServiceCredentialNot")
+                  : t("storedEncryptedNeverShown")}
               </p>
               {draft?.existing?.has_auth_token && !draftToken && (
                 <div className="mt-2 flex items-center gap-2">
@@ -785,7 +783,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
               {t("cancel")}
             </Button>
             <Button onClick={handleSubmit} disabled={submitting}>
-              {submitting ? "Saving…" : draft?.existing ? "Save" : "Connect & check"}
+              {submitting ? t("saving") : draft?.existing ? t("save") : t("connectCheck")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -842,7 +840,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
               onClick={handleSaveTools}
               disabled={submitting || toolPicker?.checked.size === 0}
             >
-              {submitting ? "Saving…" : "Save selection"}
+              {submitting ? t("saving2") : t("saveSelection")}
             </Button>
           </DialogFooter>
         </DialogContent>

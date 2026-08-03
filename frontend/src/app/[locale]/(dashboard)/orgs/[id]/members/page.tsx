@@ -44,12 +44,12 @@ import type { OrganizationMember, OrgRole } from "@/types";
 import { formatDate, getErrorMessage, MAX_AVATAR_SIZE_BYTES } from "@/lib/utils";
 import { ROUTES } from "@/lib/constants";
 import { useChanged } from "@/hooks/use-changed";
-import { useTranslations } from "next-intl";
 
 interface PageProps {
   params: Promise<{ id: string }>;
 }
 
+import { useTranslations } from "next-intl";
 const ROLE_VARIANT: Record<OrgRole, "default" | "secondary" | "outline"> = {
   owner: "default",
   admin: "secondary",
@@ -60,7 +60,6 @@ const ROLE_VARIANT: Record<OrgRole, "default" | "secondary" | "outline"> = {
 };
 
 function getInitials(nameOrEmail: string): string {
-  const t = useTranslations("pages.orgs");
   return nameOrEmail
     .split(/[\s@]/)
     .filter(Boolean)
@@ -121,7 +120,7 @@ export default function OrgMembersPage({ params }: PageProps) {
     if (!file) return;
     e.target.value = "";
     if (file.size > MAX_AVATAR_SIZE_BYTES) {
-      toast.error("Avatar too large. Maximum 2MB.");
+      toast.error(t("avatarTooLargeMaximum"));
       return;
     }
     setAvatarUploading(true);
@@ -130,13 +129,13 @@ export default function OrgMembersPage({ params }: PageProps) {
       fd.append("file", file);
       const res = await fetch(`/api/orgs/${id}/avatar`, { method: "POST", body: fd });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: "Upload failed" }));
-        throw new Error(err.detail || "Upload failed");
+        const err = await res.json().catch(() => ({ detail: t("uploadFailed") }));
+        throw new Error(err.detail || t("uploadFailed2"));
       }
-      toast.success("Workspace avatar updated");
+      toast.success(t("workspaceAvatarUpdated"));
       await fetchOrgs(true);
     } catch (err) {
-      toast.error(getErrorMessage(err, "Failed to upload avatar"));
+      toast.error(getErrorMessage(err, t("failedUploadAvatar")));
     } finally {
       setAvatarUploading(false);
     }
@@ -146,7 +145,7 @@ export default function OrgMembersPage({ params }: PageProps) {
     const cols: Column<OrganizationMember>[] = [
       {
         key: "member",
-        header: "Member",
+        header: t("member"),
         cell: (m) => {
           const isSelf = m.user_id === user?.id;
           return (
@@ -169,7 +168,7 @@ export default function OrgMembersPage({ params }: PageProps) {
       },
       {
         key: "role",
-        header: "Role",
+        header: t("role2"),
         cell: (m) => {
           const isSelf = m.user_id === user?.id;
           const isOwner = m.role === "owner";
@@ -198,7 +197,7 @@ export default function OrgMembersPage({ params }: PageProps) {
       },
       {
         key: "joined",
-        header: "Joined",
+        header: t("joined"),
         cell: (m) => (
           <span className="text-muted-foreground text-sm">{formatDate(m.joined_at)}</span>
         ),
@@ -236,11 +235,11 @@ export default function OrgMembersPage({ params }: PageProps) {
   return (
     <div className="space-y-6">
       <PageHeader
-        title={org?.name ?? "Members"}
-        description={`${total} ${total === 1 ? "person has" : "people have"} access to this workspace. Owners and admins can invite teammates and adjust roles.`}
+        title={org?.name ?? t("members")}
+        description={`${total} ${total === 1 ? t("personHas") : t("peopleHave")} access to this workspace. Owners and admins can invite teammates and adjust roles.`}
         breadcrumbs={[
-          { label: "Organizations", href: ROUTES.ORGS },
-          { label: org?.name ?? "Members" },
+          { label: t("organizations"), href: ROUTES.ORGS },
+          { label: org?.name ?? t("members2") },
         ]}
         actions={
           <div className="flex items-center gap-2">
@@ -277,7 +276,7 @@ export default function OrgMembersPage({ params }: PageProps) {
             onClick={() => avatarInputRef.current?.click()}
             disabled={!canManage || avatarUploading}
             className="bg-muted text-foreground group relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl disabled:cursor-default"
-            title={canManage ? "Change workspace avatar" : "Only owners and admins can edit"}
+            title={canManage ? t("changeWorkspaceAvatar") : t("onlyOwnersAdminsCan")}
           >
             {org.avatar_url ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -353,7 +352,9 @@ export default function OrgMembersPage({ params }: PageProps) {
           title={t("noMembersYet")}
           description={t("inviteTeammatesByEmail")}
           cta={
-            canManage ? { label: "Invite teammate", onClick: () => setInviteOpen(true) } : undefined
+            canManage
+              ? { label: t("inviteTeammate"), onClick: () => setInviteOpen(true) }
+              : undefined
           }
         />
       ) : (
@@ -385,7 +386,7 @@ export default function OrgMembersPage({ params }: PageProps) {
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="text-foreground truncate text-sm font-medium">
-                    {inv.email ?? "Shareable link"}
+                    {inv.email ?? t("shareableLink")}
                   </p>
                   <p className="text-muted-foreground mt-0.5 truncate text-xs">
                     {/* A link is not waiting on one person, so "invited" is the

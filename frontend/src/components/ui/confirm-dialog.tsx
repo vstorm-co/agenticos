@@ -45,14 +45,18 @@ export function ConfirmDialog({
   onOpenChange,
   title,
   description,
-  confirmLabel = "Confirm",
-  cancelLabel = "Cancel",
+  confirmLabel,
+  cancelLabel,
   destructive,
   confirmText,
   loading,
   onConfirm,
 }: ConfirmDialogProps) {
   const t = useTranslations("ui");
+  // Resolved in the body, not as a default parameter: the translator is declared here,
+  // and a default cannot reach a value that does not exist yet.
+  const confirmWords = confirmLabel ?? t("confirm");
+  const cancelWords = cancelLabel ?? t("cancel");
   const [typed, setTyped] = React.useState("");
 
   // Cleared as the dialog closes, during render rather than in an effect: an
@@ -87,14 +91,14 @@ export function ConfirmDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
-            {cancelLabel}
+            {cancelWords}
           </Button>
           <Button
             variant={destructive ? "destructive" : "default"}
             disabled={!canConfirm}
             onClick={() => void onConfirm()}
           >
-            {loading ? "…" : confirmLabel}
+            {loading ? "…" : confirmWords}
           </Button>
         </DialogFooter>
       </DialogContent>

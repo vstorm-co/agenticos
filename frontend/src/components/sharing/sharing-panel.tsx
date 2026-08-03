@@ -275,7 +275,7 @@ export function SharingPanel({ resourceType, resourceId, canManage }: SharingPan
                   <SelectTrigger id="share-with">
                     <SelectValue
                       placeholder={
-                        candidates.length === 0 ? "Everyone already has access" : "Choose a member"
+                        candidates.length === 0 ? t("everyoneAlreadyHasAccess") : t("chooseMember")
                       }
                     />
                   </SelectTrigger>

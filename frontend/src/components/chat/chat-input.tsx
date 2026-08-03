@@ -110,30 +110,30 @@ export function ChatInput({
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (showPalette && filteredCommands.length > 0) {
-      if (e.key === "ArrowDown") {
+      if (e.key === t("arrowdown")) {
         e.preventDefault();
         setPaletteIndex((i) => (i + 1) % filteredCommands.length);
         return;
       }
-      if (e.key === "ArrowUp") {
+      if (e.key === t("arrowup")) {
         e.preventDefault();
         setPaletteIndex((i) => (i - 1 + filteredCommands.length) % filteredCommands.length);
         return;
       }
-      if (e.key === "Tab") {
+      if (e.key === t("tab")) {
         // Tab autocompletes to the highlighted command name.
         e.preventDefault();
         const cmd = filteredCommands[paletteIndex];
         if (cmd) setMessage("/" + cmd.name + " ");
         return;
       }
-      if (e.key === "Escape") {
+      if (e.key === t("escape2")) {
         e.preventDefault();
         setMessage("");
         return;
       }
     }
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === t("enter2") && !e.shiftKey) {
       e.preventDefault();
       handleSubmit(e);
     }
@@ -226,7 +226,7 @@ export function ChatInput({
   // dragenter/dragleave so the overlay doesn't flicker over child elements.
   const [isDragging, setIsDragging] = useState(false);
   const dragDepth = useRef(0);
-  const isFileDrag = (e: React.DragEvent) => Array.from(e.dataTransfer.types).includes("Files");
+  const isFileDrag = (e: React.DragEvent) => Array.from(e.dataTransfer.types).includes(t("files"));
   const handleDragEnter = (e: React.DragEvent) => {
     if (!isFileDrag(e)) return;
     e.preventDefault();

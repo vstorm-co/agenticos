@@ -133,7 +133,7 @@ export function UsageStrip({ usage, workspace = null }: UsageStripProps) {
               >
                 <span
                   className={cn(
-                    "block h-full rounded-full",
+                    t("blockHFullRounded"),
                     percent >= 90
                       ? "bg-destructive"
                       : percent >= 80

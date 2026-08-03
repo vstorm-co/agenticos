@@ -82,10 +82,7 @@ export function FilePreviewPanel() {
         aria-orientation="vertical"
         aria-label={t("resizeFilePreview")}
         onMouseDown={onMouseDown}
-        className={cn(
-          "group absolute top-0 left-0 z-20 h-full w-1.5 -translate-x-1/2 cursor-col-resize",
-          isDragging && "bg-foreground/20",
-        )}
+        className={cn(t("groupAbsoluteTop0"), isDragging && "bg-foreground/20")}
       >
         <div className="bg-foreground/0 group-hover:bg-foreground/15 absolute top-1/2 left-1/2 h-12 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full transition-colors" />
       </div>

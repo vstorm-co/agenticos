@@ -244,7 +244,7 @@ export default function SkillsPage() {
                       <Button variant="outline" size="sm">
                         <ListFilter className="h-4 w-4" />
                         {selectedCategories.length === 0
-                          ? "All categories"
+                          ? t("allCategories")
                           : selectedCategories.length === 1
                             ? categoryLabel(selectedCategories[0]!)
                             : `${selectedCategories.length} categories`}
@@ -314,14 +314,14 @@ export default function SkillsPage() {
                 <BookOpen className="h-5 w-5" />
               </div>
               <p className="text-foreground mt-4 text-sm font-medium">
-                {isFiltering ? "No skill matches" : "No skills yet"}
+                {isFiltering ? t("noSkillMatches") : t("noSkillsYet")}
               </p>
               <p className="text-muted-foreground mx-auto mt-1 max-w-sm text-sm">
                 {isFiltering
-                  ? "Names, descriptions and the picked categories were checked. Clear the search or the filter to see everything."
+                  ? t("namesDescriptionsPickedCategories")
                   : canEdit
-                    ? "Write down something your team explains more than once, and every agent can read it."
-                    : "Nobody has written a skill for this organization yet."}
+                    ? t("writeDownSomethingYour")
+                    : t("nobodyHasWrittenSkill")}
               </p>
               {canEdit && !isFiltering && (
                 <Button

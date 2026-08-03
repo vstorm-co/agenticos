@@ -125,7 +125,7 @@ export function VersionHistory({
           <li
             key={version.id}
             className={cn(
-              "flex flex-wrap items-center gap-3 p-3 text-sm",
+              t("flexFlexWrapItems"),
               // The live row is the one fact somebody scans this list for.
               version.id === currentVersionId && "bg-brand-subtle/40",
             )}
@@ -138,10 +138,10 @@ export function VersionHistory({
                   wrote at publish - and the who/when reads under it instead of
                   competing with it on one line. */}
               <p className={cn("truncate", !version.note && "text-muted-foreground italic")}>
-                {version.note ?? "No note"}
+                {version.note ?? t("noNote")}
               </p>
               <p className="text-muted-foreground mt-0.5 text-xs">
-                {version.published_by_email ?? "unknown author"}
+                {version.published_by_email ?? t("unknownAuthor")}
                 {version.created_at ? ` · ${formatDate(version.created_at)}` : ""}
               </p>
             </div>

@@ -235,7 +235,7 @@ function HtmlViewer({ url }: { url: string }) {
         if (!cancelled) setHtml(text);
       })
       .catch((e) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load");
+        if (!cancelled) setError(e instanceof Error ? e.message : t("failedLoad"));
       });
     return () => {
       cancelled = true;

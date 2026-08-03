@@ -129,7 +129,7 @@ export function PolicyPanel({ connection, onOpenChange }: PolicyPanelProps) {
                           </div>
                         </TableCell>
                         <TableCell className="text-muted-foreground font-mono text-xs">
-                          {runtime.image ?? (runtime.builds ? "built on this host" : "—")}
+                          {runtime.image ?? (runtime.builds ? t("builtHost") : "—")}
                         </TableCell>
                         <TableCell className="text-muted-foreground text-xs">
                           {runtime.mem_limit ?? "—"}

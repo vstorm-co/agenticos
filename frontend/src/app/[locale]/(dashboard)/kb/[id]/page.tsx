@@ -146,7 +146,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
     () => [
       {
         key: "filename",
-        header: "Name",
+        header: t("name"),
         cell: (doc) => (
           <div className="flex min-w-0 items-center gap-3">
             <span className="bg-muted text-muted-foreground inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
@@ -160,7 +160,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
       },
       {
         key: "filetype",
-        header: "Type / size",
+        header: t("typeSize"),
         className: "hidden sm:table-cell",
         cell: (doc) => (
           <span className="text-muted-foreground text-xs">
@@ -175,13 +175,13 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
         // set to now. Without it, "why did this one come out differently" has no
         // answer on any screen.
         key: "parser",
-        header: "Parsed with",
+        header: t("parsedWith"),
         className: "hidden md:table-cell",
         cell: (doc) => <Provenance doc={doc} />,
       },
       {
         key: "status",
-        header: "Status",
+        header: t("status2"),
         cell: (doc) => <StatusBadge status={doc.status} message={doc.error_message} />,
       },
       {
@@ -259,7 +259,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
     <div
       className="relative pb-8"
       onDragEnter={(e) => {
-        if (e.dataTransfer.types.includes("Files")) {
+        if (e.dataTransfer.types.includes(t("files2"))) {
           dragCounterRef.current += 1;
           setIsDragging(true);
         }
@@ -269,7 +269,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
         if (dragCounterRef.current === 0) setIsDragging(false);
       }}
       onDragOver={(e) => {
-        if (e.dataTransfer.types.includes("Files")) e.preventDefault();
+        if (e.dataTransfer.types.includes(t("files3"))) e.preventDefault();
       }}
       onDrop={(e) => {
         e.preventDefault();
@@ -305,7 +305,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
       />
 
       <PageHeader
-        breadcrumbs={[{ label: "Knowledge bases", href: ROUTES.KB }, { label: kb.name }]}
+        breadcrumbs={[{ label: t("knowledgeBases"), href: ROUTES.KB }, { label: kb.name }]}
         title={kb.name}
         description={
           kb.description || <span className="font-mono text-xs">{kb.collection_name}</span>
@@ -337,7 +337,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
                   ) : (
                     <Upload className="h-4 w-4" />
                   )}
-                  {isUploading ? "Uploading…" : "Upload"}
+                  {isUploading ? t("uploading") : t("upload")}
                 </Button>
               </>
             )}
@@ -396,9 +396,9 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
                 </span>
                 <span className="text-muted-foreground shrink-0 tabular-nums">
                   {up.percent === null
-                    ? "Uploading…"
+                    ? t("uploading2")
                     : up.percent >= 100
-                      ? "Processing…"
+                      ? t("processing")
                       : `${up.percent}%`}
                 </span>
               </div>
@@ -422,14 +422,10 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
             <EmptyState
               icon={Upload}
               title={t("noDocumentsYet")}
-              description={
-                mayEdit
-                  ? "Drag files anywhere on this page, or pick from your computer."
-                  : "Nothing has been uploaded here yet."
-              }
+              description={mayEdit ? t("dragFilesAnywherePage") : t("nothingHasBeenUploaded")}
               cta={
                 mayEdit
-                  ? { label: "Choose files", onClick: () => fileInputRef.current?.click() }
+                  ? { label: t("chooseFiles"), onClick: () => fileInputRef.current?.click() }
                   : undefined
               }
             />
@@ -445,7 +441,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
                 disabled={isLoadingMoreDocs}
               >
                 {isLoadingMoreDocs && <Loader2 className="h-4 w-4 animate-spin" />}
-                {isLoadingMoreDocs ? "Loading…" : "Load more"}
+                {isLoadingMoreDocs ? t("loading") : t("loadMore")}
               </Button>
             )}
             <p className="text-muted-foreground text-center text-xs">
@@ -476,15 +472,13 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
         {syncSources.length === 0 ? (
           <EmptyState
             icon={Plug}
-            title={connectors.length > 0 ? "No sources connected" : "No connectors configured"}
+            title={connectors.length > 0 ? t("noSourcesConnected") : t("noConnectorsConfigured")}
             description={
-              connectors.length > 0
-                ? "Add one to keep this knowledge base in sync automatically."
-                : "Configure connectors at the workspace level to start syncing from external sources."
+              connectors.length > 0 ? t("addOneKeepKnowledge") : t("configureConnectorsAtWorkspace")
             }
             cta={
               mayEdit && connectors.length > 0
-                ? { label: "Connect source", onClick: () => setWizardOpen(true) }
+                ? { label: t("connectSource"), onClick: () => setWizardOpen(true) }
                 : undefined
             }
           />
@@ -510,7 +504,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
                   size="sm"
                   onClick={() => setSyncSourcesExpanded((v) => !v)}
                 >
-                  {syncSourcesExpanded ? "Show less" : `Show all ${syncSources.length} sources`}
+                  {syncSourcesExpanded ? t("showLess") : `Show all ${syncSources.length} sources`}
                 </Button>
               </div>
             )}
@@ -621,7 +615,7 @@ function SyncSourceRow({
   onDelete?: () => void;
 }) {
   const t = useTranslations("pages.kb");
-  const lastSync = source.last_sync_at ? formatDateTime(source.last_sync_at) : "Never";
+  const lastSync = source.last_sync_at ? formatDateTime(source.last_sync_at) : t("never");
   const brand = connectorBrand(source.connector_type);
   return (
     <li className="overflow-hidden">

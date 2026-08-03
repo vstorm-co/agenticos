@@ -82,7 +82,7 @@ export function AgentCard({
   return (
     <div
       className={cn(
-        "group border-border bg-card relative rounded-xl border p-4 transition-colors",
+        t("groupBorderBorderBg"),
         "hover:border-foreground/25",
         archived && "opacity-70",
         busy && "pointer-events-none opacity-50",
@@ -105,7 +105,7 @@ export function AgentCard({
             <AgentStatusBadge status={agent.status} />
           </div>
           <p className="text-muted-foreground mt-2 line-clamp-2 min-h-[2.5rem] text-sm">
-            {agent.description || "No description."}
+            {agent.description || t("noDescription")}
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
             <AccessChip agent={agent} />
@@ -120,7 +120,7 @@ export function AgentCard({
 
       <div className="relative mt-3 flex items-center justify-between gap-2 border-t pt-3">
         <span className="text-muted-foreground pointer-events-none text-xs">
-          {agent.updated_at ? `edited ${formatDate(agent.updated_at)}` : "never edited"}
+          {agent.updated_at ? `edited ${formatDate(agent.updated_at)}` : t("neverEdited")}
         </span>
 
         {canEdit && (

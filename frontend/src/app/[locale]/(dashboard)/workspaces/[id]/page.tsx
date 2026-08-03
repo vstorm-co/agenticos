@@ -1,7 +1,6 @@
 import { PageHeader } from "@/components/dashboard/page-header";
 import { WorkspaceExplorer } from "@/components/sandboxes/workspace-explorer";
 import { getTranslations } from "next-intl/server";
-import { useTranslations } from "next-intl";
 
 /**
  * One workspace, browsable.

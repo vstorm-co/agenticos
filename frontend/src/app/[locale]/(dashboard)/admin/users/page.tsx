@@ -29,15 +29,14 @@ import { useAdminUsers } from "@/hooks";
 import type { AdminUserRead } from "@/hooks/use-admin-users";
 import { cn, formatDate } from "@/lib/utils";
 import { useChanged } from "@/hooks/use-changed";
-import { useTranslations } from "next-intl";
 
+import { useTranslations } from "next-intl";
 const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
 type SortDir = "asc" | "desc";
 // Keys the backend can sort on (route → service → repo).
 type SortKey = "email" | "full_name" | "created_at";
 
 function getInitials(nameOrEmail: string): string {
-  const t = useTranslations("pages.admin");
   return nameOrEmail
     .split(/[\s@]/)
     .filter(Boolean)
@@ -136,7 +135,7 @@ export default function AdminUsersPage() {
       {
         key: "role",
         hideBelow: "md",
-        header: "Role",
+        header: t("role"),
         cell: (u) => (
           <div className="flex items-center gap-1.5">
             <span className="text-sm capitalize">{u.role}</span>
@@ -152,7 +151,7 @@ export default function AdminUsersPage() {
       {
         key: "is_active",
         hideBelow: "sm",
-        header: "Status",
+        header: t("status"),
         cell: (u) =>
           u.is_active ? (
             <Badge
@@ -245,7 +244,7 @@ export default function AdminUsersPage() {
         getRowKey={(u) => u.id}
         loading={isLoading && users.length === 0}
         onRowClick={handleOpenUser}
-        empty={search ? `No users match "${search}".` : "No users yet."}
+        empty={search ? `No users match "${search}".` : t("noUsersYet")}
       />
 
       {total > 0 && (

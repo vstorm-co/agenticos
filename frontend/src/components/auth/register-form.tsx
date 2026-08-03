@@ -36,16 +36,16 @@ export function RegisterForm() {
     setError("");
 
     if (!EMAIL_RE.test(email)) {
-      setError("Please enter a valid email address");
+      setError(t("pleaseEnterValidEmail2"));
       return;
     }
     if (password.length < 8) {
-      setError("Password must be at least 8 characters");
+      setError(t("passwordMustBeAt"));
       return;
     }
     if (password !== confirmPassword) {
-      setError("Passwords do not match");
-      toast.error("Passwords do not match");
+      setError(t("passwordsDoNotMatch2"));
+      toast.error(t("passwordsDoNotMatch3"));
       return;
     }
 
@@ -55,8 +55,7 @@ export function RegisterForm() {
       toast.success(t("registerSuccess"));
       router.push(ROUTES.LOGIN + "?registered=true");
     } catch (err) {
-      const message =
-        err instanceof ApiError ? err.message : "Registration failed. Please try again.";
+      const message = err instanceof ApiError ? err.message : t("registrationFailedPleaseTry");
       setError(message);
       toast.error(message);
     } finally {

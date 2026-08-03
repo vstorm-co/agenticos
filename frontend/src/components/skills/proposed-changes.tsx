@@ -112,7 +112,7 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
             )}
           </div>
           <p className="text-muted-foreground text-xs">
-            {change.description || "No description — worth adding one before accepting."}
+            {change.description || t("noDescriptionWorthAdding")}
           </p>
           {change.conversation_id !== null && (
             <a
@@ -132,7 +132,7 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
             aria-label={`Show what changed in ${change.name}`}
           >
             <ChevronDown className="h-4 w-4" aria-hidden />
-            {open ? "Hide" : "Review"}
+            {open ? t("hide") : t("review")}
           </Button>
           <Button
             variant="ghost"

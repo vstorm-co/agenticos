@@ -69,7 +69,7 @@ export default function AcceptInvitationPage({ params }: PageProps) {
               {status === "loading" && <Loader2 className="text-primary h-8 w-8 animate-spin" />}
               <p className="text-muted-foreground text-sm">{t("clickBelowAcceptInvitation")}</p>
               <Button onClick={handleAccept} disabled={status === "loading"} className="w-full">
-                {status === "loading" ? "Joining..." : "Accept invitation"}
+                {status === "loading" ? t("joining") : t("acceptInvitation")}
               </Button>
             </>
           )}

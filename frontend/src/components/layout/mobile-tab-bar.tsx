@@ -71,7 +71,7 @@ export function MobileTabBar() {
       {items.map((item) => {
         const active = isActive(item);
         const className = cn(
-          "flex flex-1 flex-col items-center justify-center gap-1 py-2.5 text-[10px] font-medium uppercase tracking-wider transition-colors min-h-[56px]",
+          t("flexFlex1Flex"),
           active ? "text-brand" : "text-foreground/55 hover:text-foreground",
         );
         const inner = (

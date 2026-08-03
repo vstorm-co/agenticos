@@ -61,7 +61,7 @@ export function IngestionPanel({ kb, onEdit }: IngestionPanelProps) {
           {config.pdf_parser === "liteparse" && ` · ${config.ocr_language.trim()}`}
         </Fact>
 
-        <Fact term="Scanned pages">{config.ocr ? "Read as images" : "Not read"}</Fact>
+        <Fact term="Scanned pages">{config.ocr ? t("readAsImages") : t("notRead")}</Fact>
 
         <Fact term="Chunking">
           {config.chunk_size.toLocaleString()} characters, {config.chunk_overlap.toLocaleString()}{" "}
@@ -69,9 +69,7 @@ export function IngestionPanel({ kb, onEdit }: IngestionPanelProps) {
         </Fact>
 
         <Fact term="Images">
-          {config.describe_images
-            ? "Described by a model and indexed"
-            : "Not described - a picture of a table is not searchable"}
+          {config.describe_images ? t("describedByModelIndexed") : t("notDescribedPictureTable")}
         </Fact>
 
         {/*

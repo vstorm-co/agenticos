@@ -133,7 +133,7 @@ export function SyncSourceWizard({
     await onClone?.(
       cloneSourceId,
       defaultCollection,
-      cloneName.trim() || `${selectedIntegration?.name ?? "Integration"} (${defaultCollection})`,
+      cloneName.trim() || `${selectedIntegration?.name ?? t("integration")} (${defaultCollection})`,
     );
   };
 
@@ -224,7 +224,7 @@ export function SyncSourceWizard({
                   <li key={s.id} className="flex flex-1 items-center gap-2">
                     <div
                       className={cn(
-                        "flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-colors",
+                        t("flexH6W"),
                         done && "bg-foreground text-background",
                         active && "bg-brand text-brand-foreground",
                         !done && !active && "bg-foreground/8 text-foreground/55",
@@ -234,7 +234,7 @@ export function SyncSourceWizard({
                     </div>
                     <span
                       className={cn(
-                        "hidden font-mono text-[10px] tracking-wider uppercase sm:inline",
+                        t("hiddenFontMonoText"),
                         active || done ? "text-foreground" : "text-foreground/45",
                       )}
                     >
@@ -314,11 +314,11 @@ export function SyncSourceWizard({
             {submitting && isLastStep ? (
               <>
                 <Spinner className="h-3.5 w-3.5" />
-                {mode === "clone" ? "Cloning…" : "Creating…"}
+                {mode === "clone" ? t("cloning") : t("creating3")}
               </>
             ) : isLastStep ? (
               <>
-                {mode === "clone" ? "Use this integration" : "Create source"}
+                {mode === "clone" ? t("useIntegration") : t("createSource")}
                 <Check className="h-4 w-4" />
               </>
             ) : (
@@ -365,7 +365,7 @@ function CloneStep({
                 type="button"
                 onClick={() => setCloneSourceId(src.id)}
                 className={cn(
-                  "flex w-full items-center gap-3 rounded-xl border p-3.5 text-left transition-colors",
+                  t("flexWFullItems"),
                   isSelected
                     ? "border-brand bg-brand/[0.06]"
                     : "border-foreground/10 bg-card hover:border-foreground/30",
@@ -373,7 +373,7 @@ function CloneStep({
               >
                 <span
                   className={cn(
-                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
+                    t("flexH9W"),
                     isSelected
                       ? "bg-brand text-brand-foreground"
                       : "bg-foreground/8 text-foreground",
@@ -467,7 +467,7 @@ function ConnectorStep({
                   type="button"
                   onClick={() => setForm((f) => ({ ...f, connector_type: conn.type, config: {} }))}
                   className={cn(
-                    "flex items-center gap-3 rounded-xl border p-3.5 text-left transition-colors",
+                    t("flexItemsCenterGap2"),
                     isSelected
                       ? "border-brand bg-brand/[0.06]"
                       : "border-foreground/10 bg-card hover:border-foreground/30",
@@ -475,7 +475,7 @@ function ConnectorStep({
                 >
                   <span
                     className={cn(
-                      "flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
+                      t("flexH9W2"),
                       isSelected
                         ? "bg-brand text-brand-foreground"
                         : "bg-foreground/8 text-foreground",

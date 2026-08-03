@@ -154,7 +154,7 @@ export function InlineSecret({
             <button
               type="button"
               onClick={() => setRevealed((shown) => !shown)}
-              aria-label={revealed ? "Hide key" : "Show key"}
+              aria-label={revealed ? t("hideKey") : t("showKey")}
               aria-pressed={revealed}
               className="text-muted-foreground hover:text-foreground absolute top-1/2 right-1 -translate-y-1/2 rounded-md p-2"
             >

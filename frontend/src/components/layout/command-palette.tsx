@@ -250,7 +250,7 @@ export function CommandPalette() {
               <PaletteItem
                 key={c.id}
                 icon={MessageSquare}
-                label={c.title?.trim() || "Untitled conversation"}
+                label={c.title?.trim() || t("untitledConversation")}
                 onSelect={() => go(`${ROUTES.CHAT}?id=${c.id}`)}
               />
             ))}

@@ -257,9 +257,7 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
             // chosen without saying which of the two absences this is - no
             // bots at all, or all of them already bound.
             <p className="text-muted-foreground border-t pt-3 text-sm">
-              {exposures.length > 0
-                ? "This agent is already on every bot this organization has registered."
-                : "This organization has no channel bots yet. Register one in the panel below, then bind it here."}
+              {exposures.length > 0 ? t("agentAlreadyEveryBot") : t("organizationHasNoChannel")}
             </p>
           ))}
       </CardContent>

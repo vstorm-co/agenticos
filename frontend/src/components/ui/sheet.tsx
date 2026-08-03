@@ -90,7 +90,7 @@ export function SheetClose({ onClick, className }: { onClick: () => void; classN
       className={cn(
         "ring-offset-background rounded-sm opacity-70 transition-opacity",
         "focus:ring-ring hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-none",
-        "flex h-10 w-10 items-center justify-center",
+        t("flexH10W"),
         className,
       )}
     >

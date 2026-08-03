@@ -244,9 +244,7 @@ export function WorkspaceSection({
             <div className="min-w-0">
               <p className="text-sm font-medium">{t("shellCommands")}</p>
               <p className="text-muted-foreground text-xs">
-                {backend === "state"
-                  ? "The Files workspace has no shell — pair it with Run Python to compute."
-                  : "Off removes the shell entirely, rather than asking before each command."}
+                {backend === "state" ? t("filesWorkspaceHasNo") : t("offRemovesShellEntirely")}
               </p>
             </div>
             <Switch
@@ -323,10 +321,7 @@ function ConnectionField({
         </SelectContent>
       </Select>
       {usable.length === 0 ? (
-        <p className="text-destructive text-xs">
-          {error ??
-            "This organization has registered no sandbox connection, so this agent cannot be published with a container. An operator adds one under Sandboxes."}
-        </p>
+        <p className="text-destructive text-xs">{error ?? t("organizationHasRegisteredNo")}</p>
       ) : (
         <p className="text-muted-foreground text-xs">{t("hostOperatorRegisteredCredential")}</p>
       )}
@@ -369,13 +364,11 @@ function RuntimeField({ connection, runtime, disabled, onChange }: RuntimeFieldP
         onValueChange={(value) => onChange(value === "default" ? null : value)}
       >
         <SelectTrigger id="workspace-runtime">
-          <SelectValue
-            placeholder={isLoading ? "Asking the service…" : "The connection's default"}
-          />
+          <SelectValue placeholder={isLoading ? t("askingService") : t("connectionSDefault")} />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="default">
-            {connection?.default_runtime ?? "The service's own default"}
+            {connection?.default_runtime ?? t("serviceSOwnDefault")}
           </SelectItem>
           {runtimes.map((entry) => (
             <SelectItem key={entry.alias} value={entry.alias}>
@@ -402,7 +395,7 @@ function RuntimeField({ connection, runtime, disabled, onChange }: RuntimeFieldP
       {error === null && runtimes.length > 0 && (
         <p className="text-muted-foreground text-xs">
           {runtimes.find((entry) => entry.alias === runtime)?.description ||
-            "What the service allows. It never names an image — that is the operator's decision."}
+            t("whatServiceAllowsNever")}
         </p>
       )}
     </div>

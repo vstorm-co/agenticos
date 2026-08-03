@@ -60,7 +60,7 @@ export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
   const [creating, setCreating] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Embed | null>(null);
 
-  const [name, setName] = useState("Website widget");
+  const [name, setName] = useState(t("websiteWidget"));
   const [origins, setOrigins] = useState("");
   const [authMode, setAuthMode] = useState<EmbedAuthMode>("public");
   const [secret, setSecret] = useState("");
@@ -69,7 +69,7 @@ export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
 
   const reset = () => {
     setCreating(false);
-    setName("Website widget");
+    setName(t("websiteWidget2"));
     setOrigins("");
     setAuthMode("public");
     setSecret("");
@@ -295,7 +295,7 @@ function EmbedRow({
             <Switch
               checked={embed.is_active}
               onCheckedChange={onToggle}
-              aria-label={`${embed.is_active ? "Pause" : "Resume"} ${embed.name}`}
+              aria-label={`${embed.is_active ? t("pause") : t("resume")} ${embed.name}`}
             />
             <Button
               variant="ghost"
@@ -328,7 +328,7 @@ function EmbedRow({
         <Code2 className="h-3 w-3 shrink-0" />
         <span className={cn("truncate", embed.allowed_origins.length === 0 && "text-destructive")}>
           {embed.allowed_origins.length === 0
-            ? "No sites allowed - this widget cannot open anywhere"
+            ? t("noSitesAllowedWidget")
             : embed.allowed_origins.join(", ")}
         </span>
       </p>

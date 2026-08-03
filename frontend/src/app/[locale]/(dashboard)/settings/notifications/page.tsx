@@ -118,7 +118,7 @@ export default function NotificationsSettingsPage() {
       const updated = await apiClient.patch<User>("/users/me", { [key]: enabled });
       setUser(updated);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Failed to save preference");
+      toast.error(err instanceof ApiError ? err.message : t("failedSavePreference"));
     } finally {
       setSaving(null);
     }

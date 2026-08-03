@@ -42,15 +42,15 @@ export default function ProfileSettingsPage() {
       if (email !== user.email) payload.email = email;
       if (name !== (user.full_name ?? "")) payload.full_name = name || null;
       if (Object.keys(payload).length === 0) {
-        toast.info("Nothing changed");
+        toast.info(t("nothingChanged"));
         setSaving(false);
         return;
       }
       const updated = await apiClient.patch<User>("/users/me", payload);
       setUser(updated);
-      toast.success("Profile updated");
+      toast.success(t("profileUpdated"));
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Failed to update profile");
+      toast.error(err instanceof ApiError ? err.message : t("failedUpdateProfile"));
     } finally {
       setSaving(false);
     }
@@ -61,7 +61,7 @@ export default function ProfileSettingsPage() {
     if (!file) return;
     e.target.value = "";
     if (file.size > MAX_AVATAR_SIZE_BYTES) {
-      toast.error("Avatar too large. Maximum 2MB.");
+      toast.error(t("avatarTooLargeMaximum2"));
       return;
     }
     setAvatarUploading(true);
@@ -70,15 +70,15 @@ export default function ProfileSettingsPage() {
       formData.append("file", file);
       const res = await fetch("/api/users/me/avatar", { method: "POST", body: formData });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: "Upload failed" }));
-        throw new Error(err.detail || "Upload failed");
+        const err = await res.json().catch(() => ({ detail: t("uploadFailed3") }));
+        throw new Error(err.detail || t("uploadFailed4"));
       }
       const updated = await res.json();
       setUser(updated);
       bumpAvatarVersion();
-      toast.success("Avatar updated");
+      toast.success(t("avatarUpdated"));
     } catch (err) {
-      toast.error(getErrorMessage(err, "Failed to upload avatar"));
+      toast.error(getErrorMessage(err, t("failedUploadAvatar2")));
     } finally {
       setAvatarUploading(false);
     }
@@ -96,7 +96,7 @@ export default function ProfileSettingsPage() {
             type="button"
             onClick={() => avatarInputRef.current?.click()}
             disabled={avatarUploading}
-            aria-label={user.avatar_url ? "Replace avatar" : "Upload avatar"}
+            aria-label={user.avatar_url ? t("replaceAvatar3") : t("uploadAvatar3")}
             className="border-border bg-muted hover:bg-accent group relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl border transition-colors"
           >
             {user.avatar_url ? (
@@ -133,13 +133,13 @@ export default function ProfileSettingsPage() {
               disabled={avatarUploading}
             >
               {avatarUploading
-                ? "Uploading…"
+                ? t("uploading3")
                 : user.avatar_url
-                  ? "Replace avatar"
-                  : "Upload avatar"}
+                  ? t("replaceAvatar4")
+                  : t("uploadAvatar4")}
             </Button>
             <p className="text-muted-foreground mt-2 text-xs">
-              {isAppAdmin(user) ? "Admin · " : ""}Member since {formatDate(user.created_at)}
+              {isAppAdmin(user) ? t("admin") : ""}Member since {formatDate(user.created_at)}
             </p>
           </div>
         </div>
@@ -150,7 +150,7 @@ export default function ProfileSettingsPage() {
         description={t("visibleTeammatesSharedOrganizations")}
         action={
           <Button onClick={handleSaveProfile} disabled={saving} size="sm">
-            {saving ? "Saving…" : "Save changes"}
+            {saving ? t("saving3") : t("saveChanges")}
           </Button>
         }
       >

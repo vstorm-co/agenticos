@@ -159,7 +159,7 @@ export function SecretsTable({
               </TableCell>
 
               <TableCell className="text-muted-foreground text-xs">
-                {used.length === 0 ? "not used yet" : used.map((usage) => usage.name).join(", ")}
+                {used.length === 0 ? t("notUsedYet") : used.map((usage) => usage.name).join(", ")}
               </TableCell>
 
               {canManage && (

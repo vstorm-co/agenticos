@@ -20,7 +20,7 @@ export function ForgotPasswordForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!EMAIL_RE.test(email)) {
-      setError("Please enter a valid email address");
+      setError(t("pleaseEnterValidEmail"));
       return;
     }
     setError("");
@@ -31,7 +31,7 @@ export function ForgotPasswordForm() {
     } catch (err) {
       // Treat "not found" the same as success to avoid email enumeration.
       if (err instanceof ApiError && err.status >= 500) {
-        setError("Something went wrong. Please try again.");
+        setError(t("somethingWentWrongPlease"));
         setIsLoading(false);
         return;
       }
@@ -113,7 +113,7 @@ export function ForgotPasswordForm() {
           className="bg-foreground text-background hover:bg-foreground/90 h-12 w-full rounded-full text-base font-medium"
         >
           {isLoading ? (
-            "Sending…"
+            t("sending")
           ) : (
             <>
               Send reset link

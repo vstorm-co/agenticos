@@ -99,7 +99,7 @@ export function CollectionPicker({
               disabled={disabled}
               onClick={() => onToggle(collection.id)}
               className={cn(
-                "flex items-start gap-3 rounded-xl border p-4 text-left transition-colors",
+                t("flexItemsStartGap"),
                 isOn ? "border-brand bg-brand/5" : "hover:border-foreground/20",
                 disabled && "cursor-not-allowed opacity-60",
               )}

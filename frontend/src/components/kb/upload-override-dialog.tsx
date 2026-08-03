@@ -107,9 +107,9 @@ export function UploadOverrideDialog({
             }}
           >
             {count === 0
-              ? "Nothing changed"
+              ? t("nothingChanged2")
               : count === 1
-                ? "Apply 1 change"
+                ? t("apply1Change")
                 : `Apply ${count} changes`}
           </Button>
         </DialogFooter>

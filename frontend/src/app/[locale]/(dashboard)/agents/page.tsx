@@ -184,14 +184,14 @@ export default function AgentsPage() {
                 <Bot className="h-5 w-5" />
               </div>
               <p className="text-foreground mt-4 text-sm font-medium">
-                {agents.length === 0 ? "No agents yet" : "Nothing matches"}
+                {agents.length === 0 ? t("noAgentsYet") : t("nothingMatches")}
               </p>
               <p className="text-muted-foreground mx-auto mt-1 max-w-sm text-sm">
                 {agents.length === 0
                   ? canEdit
-                    ? "Create one, give it instructions and a few capabilities, then publish it."
-                    : "Nobody has shared an agent with you yet."
-                  : "No agent here matches that filter and search."}
+                    ? t("createOneGiveInstructions")
+                    : t("nobodyHasSharedAgent")
+                  : t("noAgentHereMatches")}
               </p>
               {agents.length > 0 && (
                 <Button

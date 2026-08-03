@@ -196,7 +196,7 @@ export function MessageItem({
   return (
     <div
       className={cn(
-        "group relative flex gap-2 overflow-visible sm:gap-4",
+        t("groupRelativeFlexGap"),
         isGrouped ? "py-2 sm:py-3" : "py-3 sm:py-4",
         isUser && "flex-row-reverse",
       )}
@@ -247,7 +247,7 @@ export function MessageItem({
       <div
         className={cn(
           "max-w-[88%] flex-1 space-y-2 overflow-hidden sm:max-w-[85%]",
-          isUser && "flex flex-col items-end",
+          isUser && t("flexFlexColItems"),
         )}
       >
         {/* Which agent answered, on the turn it answered. A conversation that

@@ -179,9 +179,7 @@ export function CapabilityWorkbench({
                   {isOn ? `${focused.name} is on` : `Give this agent ${focused.name}`}
                 </p>
                 <p className="text-muted-foreground mt-0.5 text-xs">
-                  {isOn
-                    ? "Everything below applies to this agent alone."
-                    : "Read it here first - the settings below are what switching it on configures."}
+                  {isOn ? t("everythingBelowAppliesAgent") : t("readHereFirstSettings")}
                 </p>
               </div>
               <Switch
@@ -280,7 +278,7 @@ function CapabilityRow({
         <span className="text-muted-foreground mt-0.5 block text-xs">
           {subtitle ??
             (entry.tools.length === 0
-              ? "no tools - changes how it runs"
+              ? t("noToolsChangesHow")
               : entry.tools.length === 1
                 ? "1 tool"
                 : `${entry.tools.length} tools`)}

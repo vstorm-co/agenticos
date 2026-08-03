@@ -155,7 +155,7 @@ export function SessionsPanel({ connection }: SessionsPanelProps) {
                           setWatching(watching === session.session_id ? null : session.session_id)
                         }
                       >
-                        {watching === session.session_id ? "Hide" : "Show"}
+                        {watching === session.session_id ? t("hide2") : t("show")}
                       </Button>
                     </TableCell>
                   </TableRow>

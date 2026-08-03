@@ -102,7 +102,6 @@ function StatusIcon({ status }: { status: string }) {
  * rather than from a render, so the fetchers that call it can stay stable.
  */
 function stillCurrent(startedIn: string): boolean {
-  const t = useTranslations("pages.rag");
   return (useOrgStore.getState().activeOrgId ?? "") === startedIn;
 }
 
@@ -184,7 +183,7 @@ export default function RAGPage() {
         }
         return items;
       } catch (err) {
-        toast.error("Failed to load collections");
+        toast.error(t("failedLoadCollections"));
         throw err;
       }
     },
@@ -252,7 +251,7 @@ export default function RAGPage() {
 
   const handleAddSource = async (data: SyncSourceCreate) => {
     if (!data.name || !data.connector_type || !data.collection_name) {
-      toast.error("Name, connector type, and collection are required");
+      toast.error(t("nameConnectorTypeCollection"));
       return;
     }
     setAddSourceSubmitting(true);
@@ -262,7 +261,7 @@ export default function RAGPage() {
       setAddSourceOpen(false);
       refreshSync();
     } catch (err) {
-      toast.error(getErrorMessage(err, "Failed to create source"));
+      toast.error(getErrorMessage(err, t("failedCreateSource")));
     } finally {
       setAddSourceSubmitting(false);
     }
@@ -271,20 +270,20 @@ export default function RAGPage() {
   const handleDeleteSource = async (sourceId: string) => {
     try {
       await deleteSyncSource(sourceId);
-      toast.success("Source deleted");
+      toast.success(t("sourceDeleted"));
       refreshSync();
     } catch {
-      toast.error("Failed to delete source");
+      toast.error(t("failedDeleteSource"));
     }
   };
 
   const handleTriggerSync = async (sourceId: string) => {
     try {
       await triggerSyncSource(sourceId);
-      toast.success("Sync triggered");
+      toast.success(t("syncTriggered"));
       refreshSync();
     } catch {
-      toast.error("Failed to trigger sync");
+      toast.error(t("failedTriggerSync"));
     }
   };
 
@@ -315,7 +314,7 @@ export default function RAGPage() {
       await refetchCollections();
       if (stillCurrent(startedIn)) setChosen(name);
     } catch {
-      toast.error("Failed to create collection");
+      toast.error(t("failedCreateCollection"));
     }
   };
 
@@ -332,21 +331,21 @@ export default function RAGPage() {
         setSearchResults([]);
       }
     } catch {
-      toast.error("Failed to delete");
+      toast.error(t("failedDelete"));
     }
   };
 
   const handleDeleteDoc = async (docId: string) => {
     try {
       await deleteTrackedDocument(docId);
-      toast.success("Document deleted");
+      toast.success(t("documentDeleted"));
       queryClient.setQueryData<RAGTrackedDocument[]>(
         qk.rag.documents(orgId, selected),
         (prev = []) => prev.filter((d) => d.id !== docId),
       );
       void refetchCollections();
     } catch {
-      toast.error("Failed to delete");
+      toast.error(t("failedDelete2"));
     }
   };
 
@@ -381,7 +380,7 @@ export default function RAGPage() {
         // tenant. Stopping is the only honest answer: the remaining files were
         // chosen for a collection this tenant does not have.
         if (!stillCurrent(startedIn)) {
-          toast.error("Upload stopped: the organization changed");
+          toast.error(t("uploadStoppedOrganizationChanged"));
           break;
         }
 
@@ -389,7 +388,7 @@ export default function RAGPage() {
           await ingestFile(selected, file);
           successCount++;
         } catch (err) {
-          toast.error(`${file.name}: ${getErrorMessage(err, "Failed")}`);
+          toast.error(`${file.name}: ${getErrorMessage(err, t("failed"))}`);
           errorCount++;
         }
       }
@@ -406,7 +405,7 @@ export default function RAGPage() {
       await refetchDocs();
       await refetchCollections();
     },
-    [selected, supportedFormats, refetchDocs, refetchCollections, orgId],
+    [selected, supportedFormats, refetchDocs, refetchCollections, orgId, t],
   );
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -419,12 +418,12 @@ export default function RAGPage() {
   const handleDrop = useCallback(
     (files: File[]) => {
       if (!selected) {
-        toast.error("Select a collection before dropping files");
+        toast.error(t("selectCollectionBeforeDropping"));
         return;
       }
       processFiles(files);
     },
-    [selected, processFiles],
+    [selected, processFiles, t],
   );
 
   /** Open a document's original file, reporting a refusal rather than a blank tab. */
@@ -432,7 +431,7 @@ export default function RAGPage() {
     try {
       await openTrackedDocument(docId);
     } catch (err) {
-      toast.error(getErrorMessage(err, "Could not open the original"));
+      toast.error(getErrorMessage(err, t("couldNotOpenOriginal")));
     }
   };
 
@@ -450,7 +449,7 @@ export default function RAGPage() {
       setSearchResults(data.results);
       setSearchDone(true);
     } catch {
-      toast.error("Search failed");
+      toast.error(t("searchFailed"));
     } finally {
       setSearching(false);
     }
@@ -459,9 +458,9 @@ export default function RAGPage() {
   const info = collections.find((c) => c.name === selected)?.info;
 
   const tabs: { key: "documents" | "search" | "sync"; label: string }[] = [
-    { key: "documents", label: docs.length > 0 ? `Documents (${docs.length})` : "Documents" },
-    { key: "search", label: "Search" },
-    { key: "sync", label: "Sync" },
+    { key: "documents", label: docs.length > 0 ? `Documents (${docs.length})` : t("documents") },
+    { key: "search", label: t("search") },
+    { key: "sync", label: t("sync") },
   ];
 
   return (
@@ -469,12 +468,8 @@ export default function RAGPage() {
       <DragDropOverlay
         onDrop={handleDrop}
         disabled={!selected || uploading}
-        title={selected ? `Drop files into "${selected}"` : "Drop files to upload"}
-        description={
-          selected
-            ? "Files will be ingested into the active collection"
-            : "Select a collection first"
-        }
+        title={selected ? `Drop files into "${selected}"` : t("dropFilesUpload")}
+        description={selected ? t("filesWillBeIngested") : t("selectCollectionFirst")}
         acceptedFormats={supportedFormats}
       />
       <SyncSourceWizard
@@ -611,7 +606,7 @@ export default function RAGPage() {
               placeholder={t("collectionName")}
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+              onKeyDown={(e) => e.key === t("enter4") && handleCreate()}
               className="h-9 max-w-xs rounded-xl"
             />
             <Button size="sm" className="h-9 rounded-xl" onClick={handleCreate}>
@@ -679,8 +674,8 @@ export default function RAGPage() {
               // is worth offering an upload button for.
               <ErrorState
                 title={t("couldnTLoadDocuments")}
-                description={getErrorMessage(docsError, "The document list request failed.")}
-                cta={{ label: "Try again", onClick: () => void refetchDocs() }}
+                description={getErrorMessage(docsError, t("documentListRequestFailed"))}
+                cta={{ label: t("tryAgain3"), onClick: () => void refetchDocs() }}
               />
             ) : docs.length === 0 ? (
               <div className="border-border bg-card flex flex-col items-center justify-center rounded-xl border py-16 text-center">
@@ -786,7 +781,7 @@ export default function RAGPage() {
                     placeholder={`Search in "${selected}"...`}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                    onKeyDown={(e) => e.key === t("enter5") && handleSearch()}
                     className="rounded-xl"
                   />
                   <Button
@@ -795,7 +790,7 @@ export default function RAGPage() {
                     className="rounded-xl"
                   >
                     <Search className="mr-2 h-4 w-4" />
-                    {searching ? "..." : "Search"}
+                    {searching ? "..." : t("search2")}
                   </Button>
                 </div>
               </div>
@@ -901,7 +896,7 @@ export default function RAGPage() {
                             </span>
                           </div>
                           <Badge variant={source.is_active ? "default" : "secondary"}>
-                            {source.is_active ? "Active" : "Disabled"}
+                            {source.is_active ? t("active") : t("disabled")}
                           </Badge>
                         </div>
                         <div className="text-muted-foreground space-y-1 text-sm">
@@ -911,7 +906,7 @@ export default function RAGPage() {
                           <p>
                             {source.schedule_minutes
                               ? `Every ${source.schedule_minutes}min`
-                              : "Manual"}{" "}
+                              : t("manual")}{" "}
                             &bull; {source.sync_mode}
                           </p>
                           {source.last_sync_at && (
@@ -1014,10 +1009,10 @@ export default function RAGPage() {
                                 onClick={async () => {
                                   try {
                                     await cancelSync(log.id);
-                                    toast.success("Sync cancelled");
+                                    toast.success(t("syncCancelled"));
                                     refreshSync();
                                   } catch {
-                                    toast.error("Failed to cancel");
+                                    toast.error(t("failedCancel"));
                                   }
                                 }}
                               >

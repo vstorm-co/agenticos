@@ -91,9 +91,9 @@ export function UserDetailDrawer({
     if (token) {
       try {
         await navigator.clipboard.writeText(token);
-        toast.success("Impersonation token copied (valid 1h)");
+        toast.success(t("impersonationTokenCopiedValid"));
       } catch {
-        toast.success("Impersonation token created (1h)");
+        toast.success(t("impersonationTokenCreated1h"));
       }
     }
   };
@@ -101,9 +101,9 @@ export function UserDetailDrawer({
   const handleCopyId = async () => {
     try {
       await navigator.clipboard.writeText(subject.id);
-      toast.success("User ID copied");
+      toast.success(t("userIdCopied"));
     } catch {
-      toast.error("Copy failed");
+      toast.error(t("copyFailed"));
     }
   };
 
@@ -136,7 +136,7 @@ export function UserDetailDrawer({
         <div className="flex-1 scrollbar-thin overflow-y-auto px-6 py-5">
           <div className="flex flex-wrap gap-1.5">
             <Badge variant={subject.is_active ? "default" : "secondary"} className="text-[10px]">
-              {subject.is_active ? "Active" : "Suspended"}
+              {subject.is_active ? t("active2") : t("suspended")}
             </Badge>
             {/* One privilege, so one badge. There used to be a second one
                 printing `users.role`, which said "user" for every account on
@@ -167,7 +167,7 @@ export function UserDetailDrawer({
               // opened a chat are the same sentence, and an admin acting on the
               // second when it was the first is acting on nothing.
               <p className="text-destructive text-xs">
-                {getErrorMessage(convsError, "Couldn't load conversations.")}
+                {getErrorMessage(convsError, t("couldnTLoadConversations"))}
               </p>
             ) : !conversations || conversations.length === 0 ? (
               <p className="text-foreground/55 text-xs">{t("noConversationsFound")}</p>
@@ -180,7 +180,7 @@ export function UserDetailDrawer({
                   >
                     <div className="min-w-0 flex-1">
                       <p className="text-foreground truncate text-xs font-medium">
-                        {c.title || "Untitled"}
+                        {c.title || t("untitled")}
                       </p>
                       <p className="text-foreground/45 truncate font-mono text-[10px] tracking-wider uppercase">
                         {formatDateTime(c.created_at)}

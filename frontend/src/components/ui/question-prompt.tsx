@@ -139,13 +139,13 @@ function SingleQuestion({
       }
       return;
     }
-    if (e.key === "ArrowDown") {
+    if (e.key === t("arrowdown2")) {
       e.preventDefault();
       setFocusIdx((i) => Math.min(i + 1, options.length - 1));
-    } else if (e.key === "ArrowUp") {
+    } else if (e.key === t("arrowup2")) {
       e.preventDefault();
       setFocusIdx((i) => Math.max(i - 1, 0));
-    } else if (e.key === "Enter") {
+    } else if (e.key === t("enter6")) {
       e.preventDefault();
       onAnswer(options[focusIdx]!);
     }
@@ -209,7 +209,7 @@ function SingleQuestion({
               placeholder={t("typeYourAnswer")}
               onChange={(e) => setCustomText(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") {
+                if (e.key === t("enter7")) {
                   e.preventDefault();
                   submitCustom();
                 }
@@ -223,7 +223,7 @@ function SingleQuestion({
               disabled={disabled || !customText.trim()}
               onClick={submitCustom}
             >
-              {isLast ? "Done" : "Next"}
+              {isLast ? t("done") : t("next")}
             </Button>
           </div>
         ) : (

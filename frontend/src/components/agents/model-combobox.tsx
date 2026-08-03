@@ -189,9 +189,7 @@ export function ModelCombobox({
 
           {source !== null && options.length > 0 && (
             <p className="text-muted-foreground border-border border-t px-3 py-2 text-xs">
-              {source === "live"
-                ? "Listed by the provider just now."
-                : "This deployment's own shortlist - the provider could not be asked. Any id it accepts still works."}
+              {source === "live" ? t("listedByProviderJust") : t("deploymentSOwnShortlist")}
             </p>
           )}
         </Command>

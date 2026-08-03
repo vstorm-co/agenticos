@@ -71,14 +71,14 @@ function SpendingLimitForm({ org }: { org: Organization }) {
     // only thing to reject locally is a box holding something that is not a
     // number. Everything else is the server's call.
     if (parsed !== null && !Number.isFinite(parsed)) {
-      setError("Enter an amount in dollars, or leave it empty for no limit.");
+      setError(t("enterAmountDollarsLeave"));
       return;
     }
     setSaving(true);
     try {
       await setMonthlyBudget(org.id, parsed);
       setError(null);
-      toast.success(parsed === null ? "Monthly limit removed" : "Monthly limit updated");
+      toast.success(parsed === null ? t("monthlyLimitRemoved") : t("monthlyLimitUpdated"));
     } catch (failure) {
       const problem = submitFailure(failure, { fields: [FIELD] });
       setError(problem.fields[FIELD] ?? null);
@@ -91,11 +91,7 @@ function SpendingLimitForm({ org }: { org: Organization }) {
   return (
     <SettingsSection
       title={t("monthlySpendingLimit")}
-      description={
-        "The ceiling on what every agent in this workspace can spend between the first of the " +
-        "month and the next. An agent's own limit can tighten it, never loosen it. Leave it " +
-        "empty for no limit."
-      }
+      description={t("ceilingWhatEveryAgent") + t("monthNextAgentS") + t("emptyNoLimit")}
     >
       <div className="flex flex-wrap items-start gap-3">
         <FormField label={t("limitUsd")} htmlFor="org-monthly-budget" error={error}>

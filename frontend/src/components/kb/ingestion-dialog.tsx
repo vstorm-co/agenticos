@@ -111,7 +111,7 @@ export function IngestionDialog({
             {t("cancel2")}
           </Button>
           <Button type="button" onClick={handleSave} disabled={!canSave || isSaving}>
-            {isSaving ? "Saving…" : "Save"}
+            {isSaving ? t("saving") : t("save")}
           </Button>
         </DialogFooter>
       </DialogContent>

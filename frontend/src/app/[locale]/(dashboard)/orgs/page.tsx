@@ -203,7 +203,7 @@ export default function OrgsPage() {
                       }}
                     >
                       <ArrowRightLeft className="h-3.5 w-3.5" />
-                      {isActive ? "Current" : "Switch"}
+                      {isActive ? t("current") : t("switch")}
                     </Button>
                   </div>
                 </li>

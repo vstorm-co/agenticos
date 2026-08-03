@@ -102,7 +102,7 @@ export default function SystemHealthPage() {
         label: `Every service answered · ${unconfigured.length} not configured`,
       };
     }
-    return { tone: "good" as const, label: "Every check passed" };
+    return { tone: "good" as const, label: t("everyCheckPassed") };
   }, [checks]);
 
   return (
@@ -167,7 +167,7 @@ export default function SystemHealthPage() {
           <AlertCircle className="text-destructive mx-auto h-6 w-6" />
           <p className="text-foreground mt-3 text-sm font-medium">{t("couldnAposTFetch")}</p>
           <p className="text-muted-foreground mt-1 text-xs">
-            {getErrorMessage(error, "Failed to fetch health")}
+            {getErrorMessage(error, t("failedFetchHealth"))}
           </p>
         </div>
       ) : (

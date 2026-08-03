@@ -100,7 +100,7 @@ export function ConnectionsTable({
               )}
             </TableCell>
             <TableCell className="text-muted-foreground font-mono text-xs">
-              {connection.default_runtime ?? "the service's own"}
+              {connection.default_runtime ?? t("serviceSOwn")}
             </TableCell>
             <TableCell className="text-right">
               <div className="flex justify-end gap-1">

@@ -241,7 +241,7 @@ export default function RunsPage() {
               description={t("whatEachVendorWas")}
               rows={(spend?.by_provider ?? []).map((entry) => ({
                 key: entry.provider ?? "unrecorded",
-                label: entry.provider ?? "Not recorded",
+                label: entry.provider ?? t("notRecorded"),
                 muted: entry.provider === null,
                 runs: entry.run_count,
                 cost: entry.cost_usd,
@@ -252,7 +252,7 @@ export default function RunsPage() {
               description={t("whichStoredCredentialWas")}
               rows={(spend?.by_key ?? []).map((entry) => ({
                 key: entry.secret_id ?? "deleted",
-                label: entry.label ?? "Deleted key",
+                label: entry.label ?? t("deletedKey"),
                 muted: entry.label === null,
                 runs: entry.run_count,
                 cost: entry.cost_usd,

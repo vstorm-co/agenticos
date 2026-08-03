@@ -299,7 +299,7 @@ function CloneIntoDialog({
           </Button>
           <Button onClick={handleSubmit} disabled={!target || submitting}>
             {submitting && <Spinner className="h-3.5 w-3.5" />}
-            {submitting ? "Adding…" : "Add to knowledge base"}
+            {submitting ? t("adding") : t("addKnowledgeBase")}
           </Button>
         </DialogFooter>
       </DialogContent>

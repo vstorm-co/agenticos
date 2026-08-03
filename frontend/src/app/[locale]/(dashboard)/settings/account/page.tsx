@@ -34,11 +34,11 @@ export default function AccountSettingsPage() {
 
   const handleChangePassword = async () => {
     if (newPassword.length < 8) {
-      toast.error("New password must be at least 8 characters");
+      toast.error(t("newPasswordMustBe"));
       return;
     }
     if (newPassword !== confirmPassword) {
-      toast.error("Passwords do not match");
+      toast.error(t("passwordsDoNotMatch"));
       return;
     }
     setSaving(true);
@@ -47,16 +47,16 @@ export default function AccountSettingsPage() {
         current_password: currentPassword,
         new_password: newPassword,
       });
-      toast.success("Password updated");
+      toast.success(t("passwordUpdated"));
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
     } catch (err) {
       // Backend may not have this endpoint yet - surface a helpful message.
       if (err instanceof ApiError && err.status === 404) {
-        toast.error("Password change requires backend wiring (POST /auth/password/change).");
+        toast.error(t("passwordChangeRequiresBackend"));
       } else {
-        toast.error(err instanceof ApiError ? err.message : "Failed to update password");
+        toast.error(err instanceof ApiError ? err.message : t("failedUpdatePassword"));
       }
     } finally {
       setSaving(false);
@@ -68,13 +68,13 @@ export default function AccountSettingsPage() {
     setDeleting(true);
     try {
       await apiClient.delete(`/users/${user.id}`);
-      toast.success("Account deleted");
+      toast.success(t("accountDeleted"));
       logout();
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) {
-        toast.error("Self-delete not enabled. Contact support.");
+        toast.error(t("selfDeleteNotEnabled"));
       } else {
-        toast.error(err instanceof ApiError ? err.message : "Failed to delete account");
+        toast.error(err instanceof ApiError ? err.message : t("failedDeleteAccount"));
       }
     } finally {
       setDeleting(false);
@@ -92,7 +92,7 @@ export default function AccountSettingsPage() {
             disabled={saving || !currentPassword || !newPassword}
             size="sm"
           >
-            {saving ? "Saving…" : "Update password"}
+            {saving ? t("saving2") : t("updatePassword")}
           </Button>
         }
       >
@@ -148,10 +148,10 @@ export default function AccountSettingsPage() {
                 onClick={async () => {
                   try {
                     await apiClient.delete("/sessions");
-                    toast.success("Signed out from all devices");
+                    toast.success(t("signedOutFromAll"));
                     logout();
                   } catch {
-                    toast.error("Failed to sign out everywhere");
+                    toast.error(t("failedSignOutEverywhere"));
                   }
                 }}
               >
@@ -195,7 +195,7 @@ export default function AccountSettingsPage() {
                   onClick={handleDeleteAccount}
                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 >
-                  {deleting ? "Deleting…" : "Yes, delete my account"}
+                  {deleting ? t("deleting") : t("yesDeleteMyAccount")}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>

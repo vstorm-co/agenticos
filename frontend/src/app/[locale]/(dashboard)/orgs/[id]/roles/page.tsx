@@ -47,9 +47,9 @@ export default function RolesPage({ params }: PageProps) {
       title={t("usersRoles")}
       description={t("whatEachRoleMay")}
       breadcrumbs={[
-        { label: "Organizations", href: ROUTES.ORGS },
-        { label: "Members", href: ROUTES.ORG_MEMBERS(orgId) },
-        { label: "Roles" },
+        { label: t("organizations2"), href: ROUTES.ORGS },
+        { label: t("members3"), href: ROUTES.ORG_MEMBERS(orgId) },
+        { label: t("roles") },
       ]}
     />
   );

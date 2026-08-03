@@ -240,7 +240,7 @@ export function SkillWorkbench({
 
       <DialogFooter>
         <Button variant="outline" onClick={onCancel}>
-          {canEdit ? "Cancel" : "Close"}
+          {canEdit ? t("cancel2") : t("close")}
         </Button>
         {canEdit && (
           <Button
