@@ -1,60 +1,73 @@
 "use client";
 import { useMemo, useState, type MouseEvent } from "react";
-import { Card, CardContent, Button } from "@/components/ui";
+import { Code2 } from "lucide-react";
 import type { ToolCall } from "@/types";
-import {
-  Wrench,
-  Clock,
-  Search,
-  Globe,
-  ChevronDown,
-  ChevronUp,
-  Code2,
-  MessageCircleQuestion,
-  Loader2,
-  CheckCircle2,
-  XCircle,
-  BarChart3,
-  PauseCircle,
-} from "lucide-react";
 import { cn } from "@/lib/utils";
-import { toolCaption, toolDisplayName } from "@/lib/agent-step-captions";
+import { isWorkspaceTool, toolStep } from "@/lib/tool-steps";
+import { AgentStep } from "./agent-step";
 import { ChartMessage, parseChartResult } from "./chart-message";
 import { DateTimeResult } from "./tool-results/datetime";
 import { RAGSearchResults } from "./tool-results/rag";
 import { WebSearchResults, parseWebSearch } from "./tool-results/web-search";
-import { LoadSkillResult, formatSkillName } from "./tool-results/skills";
+import { LoadSkillResult } from "./tool-results/skills";
 import { AskUserResult } from "./tool-results/ask-user";
 import { GenericToolResult, RawToolView } from "./tool-results/generic";
 import { RunPythonResult } from "./tool-results/run-python";
-import { WorkspaceToolResult, isWorkspaceTool } from "./tool-results/workspace";
+import { WorkspaceToolResult } from "./tool-results/workspace";
 import { FetchUrlResult } from "./tool-results/fetch-url";
-import { useChanged } from "@/hooks/use-changed";
+import { useMcpToolServers } from "@/hooks";
 
 interface ToolCallCardProps {
   toolCall: ToolCall;
+  /**
+   * The conversation this call happened in, when it is known.
+   *
+   * Only the workspace tools use it, and only to turn a file they wrote into a file
+   * somebody can open - the files live in *this* conversation's workspace, and the
+   * route that serves them is addressed through it.
+   */
+  conversationId?: string;
+  /**
+   * Open this step on mount.
+   *
+   * Set for the last call of the newest turn and nothing else: that result is what
+   * somebody returning to a conversation is looking at, and every other finished call
+   * is a line they can open if they want it.
+   */
+  startOpen?: boolean;
 }
 
-export function ToolCallCard({ toolCall }: ToolCallCardProps) {
-  // Collapsed by default - the bar acts as the toggle. `showRaw` swaps the
-  // formatted view for args + raw output (the </> button). Charts are the
-  // exception: they're only useful when visible, so expand them by default.
+/**
+ * One tool call, as a step in the turn's narration.
+ *
+ * It used to be a card: a border, a fill, a status pill, a chevron, a raw-view
+ * button, per call. A turn that listed a directory, read a file and wrote another
+ * arrived as three boxes of chrome wrapped around three short sentences, with the
+ * answer pushed below them. Now it is a line - *Wrote test1.md* - that opens into
+ * whatever the call actually produced.
+ *
+ * What opens is unchanged and deliberately so: every renderer under `tool-results/`
+ * is still here, and the raw view is still one click away for somebody debugging a
+ * call. The step decides *whether* something is worth opening by default, and the
+ * defaults are the calls whose whole value is the thing they produced - a chart, a
+ * question waiting on an answer, code that ran, and a file that was written.
+ */
+export function ToolCallCard({ toolCall, conversationId, startOpen = false }: ToolCallCardProps) {
   const isRunPython = toolCall.name === "run_python";
+  const isWorkspaceCall = isWorkspaceTool(toolCall.name);
+  const isWrite = toolCall.name === "write_file" || toolCall.name === "edit_file";
+  // Open on arrival, not on sight. A call that finishes while somebody is watching
+  // shows what it produced - a chart, code that ran, a file that was written - and the
+  // same call re-read from history is one line in a transcript they came back to for
+  // something else. Opening those on mount made every past turn a wall, which is what
+  // a replayed conversation looked like.
+  //
+  // A question is the exception in the other direction: it is a control, and it stays
+  // open whether it is waiting for an answer or showing the one that was given.
   const [expanded, setExpanded] = useState(
-    toolCall.name === "ask_user" ||
-      (isRunPython && toolCall.status === "completed") ||
-      (toolCall.name === "create_chart_tool" &&
-        toolCall.status === "completed" &&
-        parseChartResult(toolCall.result) !== null),
+    toolCall.name === "ask_user" || (startOpen && toolCall.status === "completed"),
   );
   const [showRaw, setShowRaw] = useState(false);
-
-  // Short input hint shown in the collapsed bar - the query for search
-  // tools, the URL for fetch_url, etc. (any tool with a url/query arg).
-  const urlArg = toolCall.args?.url;
-  const queryArg = toolCall.args?.query;
-  const inputHint =
-    typeof urlArg === "string" ? urlArg : typeof queryArg === "string" ? queryArg : null;
 
   const resultText =
     toolCall.result !== undefined
@@ -79,19 +92,14 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
   const isFetch =
     (toolCall.name === "fetch_url" || toolCall.name === "fetch") &&
     typeof toolCall.args?.url === "string";
-  // The sandbox tools: a path, a body and a return line, none of which is legible
-  // as the JSON the card used to print.
-  const isWorkspaceCall = isWorkspaceTool(toolCall.name);
   const isLoadSkill = toolCall.name === "load_skill";
   const isListSkills = toolCall.name === "list_skills";
-  const loadedSkillName =
-    isLoadSkill && typeof toolCall.args?.skill_name === "string" ? toolCall.args.skill_name : null;
   // Memoize the parsed chart spec - `parseChartResult` does `JSON.parse` for
   // string results, returning a NEW object each call. Without this memo, every
-  // streaming delta (text/thinking) re-renders ToolCallCard → new spec ref →
-  // ChartMessage re-renders → Recharts re-layouts → ResponsiveContainer
-  // briefly reports -1 dimensions → `RenderedTicksReporter` setState → React
-  // detects too-many updates and bails with "Maximum update depth exceeded".
+  // streaming delta (text/thinking) re-renders this step → new spec ref →
+  // ChartMessage re-renders → Recharts re-layouts → ResponsiveContainer briefly
+  // reports -1 dimensions → `RenderedTicksReporter` setState → React detects
+  // too-many updates and bails with "Maximum update depth exceeded".
   const chartSpec = useMemo(
     () =>
       toolCall.name === "create_chart_tool" && toolCall.status === "completed"
@@ -100,199 +108,98 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
     [toolCall.name, toolCall.status, toolCall.result],
   );
   const isChart = chartSpec !== null;
-  // A chart that finishes after this card mounted (live streaming) won't have
-  // triggered the initial-state default - expand it on the transition. During
-  // render, so the collapsed card is not shown for a frame first.
-  if (useChanged(isChart) && isChart) setExpanded(true);
 
-  const hasSpecialRenderer =
-    isDateTime || isRAGSearch || isWebSearch || isAskUser || isFetch || isChart || isRunPython;
-  const friendlyName = isDateTime
-    ? "Current Date & Time"
-    : isRAGSearch
-      ? "Knowledge Base Search"
-      : isWebSearch
-        ? "Web Search"
-        : isFetch
-          ? "Fetched page"
-          : isChart
-            ? "Chart"
-            : isAskUser
-              ? "Question"
-              : isLoadSkill
-                ? loadedSkillName
-                  ? formatSkillName(loadedSkillName)
-                  : "Load Skill"
-                : isListSkills
-                  ? "Available Skills"
-                  : toolCall.name === "run_python"
-                    ? "Run Python"
-                    : toolDisplayName(toolCall.name);
-
-  const ToolIcon = isDateTime
-    ? Clock
-    : isRAGSearch
-      ? Search
-      : isWebSearch || isFetch
-        ? Globe
-        : isChart
-          ? BarChart3
-          : isAskUser
-            ? MessageCircleQuestion
-            : isRunPython
-              ? Code2
-              : Wrench;
-
-  const toggleExpanded = () => {
-    setExpanded((prev) => {
-      const next = !prev;
-      if (!next) setShowRaw(false);
-      return next;
-    });
-  };
-
-  const toggleRaw = (e: MouseEvent) => {
-    e.stopPropagation();
-    setShowRaw((r) => !r);
-    setExpanded(true);
-  };
-
-  // While still running: narrate what the agent is doing instead of the finished label,
-  // and swap the chevron/raw toggle for a spinner - the header becomes a step caption.
+  const mcpServers = useMcpToolServers();
   const isRunning = toolCall.status === "running" || toolCall.status === "pending";
   // Its own state, not a kind of running: a parked call produces no result until
-  // somebody decides, so a spinner here is a lie that never resolves. That is what
-  // this card did - "Running Write File… Running…", forever.
+  // somebody decides, so a spinner here is a lie that never resolves.
   const isParked = toolCall.status === "awaiting_approval";
   const isError = toolCall.status === "error";
-  const liveCaption = toolCaption(toolCall.name);
+  // The servers are what turn `linear_create_issue` into "Linear · Create issue".
+  // Nothing on a tool call says where it came from, so the prefix is matched against
+  // the connections this caller has - see `useMcpToolServers`.
+  const step = toolStep(toolCall.name, toolCall.args, !isRunning && !isParked, mcpServers);
+
+  // Whether this call finished *while mounted*, which is what "somebody watched it
+  // happen" means. Not `useChanged`, which reports the mount pass too - and the mount
+  // pass is exactly the replayed-history case this must not treat as live. Written
+  // during render, so a step that just produced something is never shown collapsed for
+  // a frame first.
+  const [seenStatus, setSeenStatus] = useState(toolCall.status);
+  if (seenStatus !== toolCall.status) {
+    setSeenStatus(toolCall.status);
+    if (toolCall.status === "completed" && (isWrite || isRunPython || isChart)) setExpanded(true);
+  }
+
+  // `list_skills` has nothing worth opening: the step says the agent looked, and the
+  // list it got back is a prompt fragment rather than something a person reads.
+  const openable = !isListSkills;
 
   return (
-    <Card
-      className={cn(
-        "bg-muted/50 step-card-in",
-        isRunning && "border-brand/50 relative overflow-hidden",
-        isParked && "border-amber-500/50",
-      )}
+    <AgentStep
+      label={step.label}
+      detail={isRunning ? null : step.detail}
+      kind={step.kind}
+      logoDomain={step.logoDomain}
+      state={isParked ? "parked" : isRunning ? "running" : isError ? "error" : "done"}
+      expanded={expanded && openable}
+      onToggle={
+        openable
+          ? () =>
+              setExpanded((prev) => {
+                const next = !prev;
+                if (!next) setShowRaw(false);
+                return next;
+              })
+          : undefined
+      }
+      actions={
+        openable ? (
+          <button
+            type="button"
+            onClick={(event: MouseEvent) => {
+              event.stopPropagation();
+              setShowRaw((raw) => !raw);
+            }}
+            title={showRaw ? "Show the formatted view" : "Show arguments and raw output"}
+            aria-label={showRaw ? "Show the formatted view" : "Show arguments and raw output"}
+            className={cn(
+              "text-muted-foreground/60 hover:text-foreground shrink-0 rounded-md p-1",
+              showRaw && "text-foreground",
+            )}
+          >
+            <Code2 className="h-3 w-3" />
+          </button>
+        ) : undefined
+      }
     >
-      <div
-        role="button"
-        tabIndex={0}
-        aria-expanded={expanded}
-        onClick={toggleExpanded}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            toggleExpanded();
-          }
-        }}
-        className="hover:bg-foreground/[0.03] flex w-full cursor-pointer items-center justify-between gap-2 px-3 py-2 text-left transition-colors"
-      >
-        <div className="flex min-w-0 items-center gap-2">
-          {isParked ? (
-            <PauseCircle className="h-4 w-4 shrink-0 text-amber-600" aria-hidden />
-          ) : (
-            <ToolIcon
-              className={cn(
-                "h-4 w-4 shrink-0",
-                isRunning
-                  ? "text-brand animate-pulse"
-                  : hasSpecialRenderer
-                    ? "text-primary"
-                    : "text-muted-foreground",
-              )}
-            />
-          )}
-          {isParked ? (
-            <span className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
-              <span className="truncate">{friendlyName}</span>
-              <span className="shrink-0 text-xs font-normal text-amber-600">
-                waiting for approval
-              </span>
-            </span>
-          ) : isRunning ? (
-            <span className="text-foreground/80 flex min-w-0 items-center gap-1.5 text-sm font-medium">
-              <span className="truncate">{liveCaption}</span>
-              <span className="flex shrink-0 gap-0.5" aria-hidden="true">
-                <span className="bg-brand/70 h-1 w-1 animate-bounce rounded-full [animation-delay:0ms]" />
-                <span className="bg-brand/70 h-1 w-1 animate-bounce rounded-full [animation-delay:150ms]" />
-                <span className="bg-brand/70 h-1 w-1 animate-bounce rounded-full [animation-delay:300ms]" />
-              </span>
-            </span>
-          ) : (
-            <span className="truncate text-sm font-medium">{friendlyName}</span>
-          )}
-          {inputHint && !isRunning ? (
-            <span className="text-muted-foreground min-w-0 flex-1 truncate text-xs italic">
-              {inputHint}
-            </span>
-          ) : null}
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          {isRunning ? (
-            <Loader2 className="text-brand h-4 w-4 animate-spin" aria-label="Running" />
-          ) : (
-            <>
-              {isError ? (
-                <XCircle className="text-destructive pop-in h-4 w-4 shrink-0" aria-label="Failed" />
-              ) : (
-                <CheckCircle2 className="text-brand pop-in h-4 w-4 shrink-0" aria-label="Done" />
-              )}
-              <Button
-                variant="ghost"
-                size="icon"
-                className={cn(
-                  "text-muted-foreground hover:bg-foreground/10 hover:text-foreground h-6 w-6 transition-colors",
-                  showRaw && "text-primary",
-                )}
-                onClick={toggleRaw}
-                title={showRaw ? "Show formatted view" : "Show arguments + raw output"}
-                aria-label={showRaw ? "Show formatted view" : "Show arguments and raw output"}
-              >
-                <Code2 className="h-3.5 w-3.5" />
-              </Button>
-              {expanded ? (
-                <ChevronUp className="text-muted-foreground h-4 w-4" />
-              ) : (
-                <ChevronDown className="text-muted-foreground h-4 w-4" />
-              )}
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Live progress shimmer - only while the step is in flight. */}
-      {isRunning && (
-        <div className="step-progress pointer-events-none absolute inset-x-0 bottom-0 h-0.5" />
+      {showRaw ? (
+        <RawToolView toolCall={toolCall} resultText={resultText} />
+      ) : toolCall.status === "completed" && isDateTime ? (
+        <DateTimeResult result={resultText} />
+      ) : toolCall.status === "completed" && isRAGSearch ? (
+        <RAGSearchResults result={resultText} />
+      ) : toolCall.status === "completed" && isWebSearch && webResults ? (
+        <WebSearchResults data={webResults} />
+      ) : isFetch ? (
+        <FetchUrlResult url={String(toolCall.args?.url ?? "")} content={resultText} />
+      ) : toolCall.status === "completed" && isChart && chartSpec ? (
+        <ChartMessage spec={chartSpec} />
+      ) : isAskUser ? (
+        <AskUserResult args={toolCall.args} resultText={resultText} />
+      ) : isRunPython ? (
+        <RunPythonResult toolCall={toolCall} resultText={resultText} />
+      ) : isLoadSkill ? (
+        <LoadSkillResult resultText={resultText} status={toolCall.status} />
+      ) : isWorkspaceCall ? (
+        <WorkspaceToolResult
+          toolCall={toolCall}
+          resultText={resultText}
+          conversationId={conversationId}
+        />
+      ) : (
+        <GenericToolResult toolCall={toolCall} resultText={resultText} />
       )}
-
-      {expanded && (
-        <CardContent className="px-3 pt-0 pb-3">
-          {showRaw ? (
-            <RawToolView toolCall={toolCall} resultText={resultText} />
-          ) : toolCall.status === "completed" && isDateTime ? (
-            <DateTimeResult result={resultText} />
-          ) : toolCall.status === "completed" && isRAGSearch ? (
-            <RAGSearchResults result={resultText} />
-          ) : toolCall.status === "completed" && isWebSearch && webResults ? (
-            <WebSearchResults data={webResults} />
-          ) : isFetch ? (
-            <FetchUrlResult url={String(toolCall.args?.url ?? "")} content={resultText} />
-          ) : toolCall.status === "completed" && isChart && chartSpec ? (
-            <ChartMessage spec={chartSpec} />
-          ) : isAskUser ? (
-            <AskUserResult args={toolCall.args} resultText={resultText} />
-          ) : isRunPython ? (
-            <RunPythonResult toolCall={toolCall} resultText={resultText} />
-          ) : isLoadSkill ? (
-            <LoadSkillResult resultText={resultText} status={toolCall.status} />
-          ) : isWorkspaceCall ? (
-            <WorkspaceToolResult toolCall={toolCall} resultText={resultText} />
-          ) : isListSkills ? null : (
-            <GenericToolResult toolCall={toolCall} resultText={resultText} />
-          )}
-        </CardContent>
-      )}
-    </Card>
+    </AgentStep>
   );
 }

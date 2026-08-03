@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { AlertTriangle, FileText, FolderOpen, Info, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { AlertTriangle, FolderOpen, Info, X } from "lucide-react";
 
-import { Button, Skeleton } from "@/components/ui";
-import { useConversationFile, useConversationWorkspace } from "@/hooks";
-import { cn } from "@/lib/utils";
+import { FileIcon } from "@/components/sandboxes/file-tile";
+import { WorkspaceFileViewer } from "@/components/sandboxes/file-viewer";
+import { Skeleton } from "@/components/ui";
+import { useConversationWorkspace } from "@/hooks";
+import type { FileSource } from "@/lib/workspace-files";
 
 interface WorkspaceFilesProps {
   conversationId: string | null;
@@ -33,11 +35,23 @@ function size(bytes: number | null): string {
  * shared by everybody who talks to that agent, so somebody opens a chat and finds a
  * file they never created — and without a line saying whose files these are, the
  * reasonable reading is that something leaked.
+ *
+ * A file opens into the shared viewer rather than into a `<pre>` under its own row.
+ * A 288-pixel column can list what the agent is keeping; it cannot show a report, a
+ * chart or a PDF, and the panel used to answer "open this" with the first 60
+ * characters of a line.
  */
 export function WorkspaceFiles({ conversationId, revision }: WorkspaceFilesProps) {
   const { workspace, isLoading, error, refresh } = useConversationWorkspace(conversationId);
   const [open, setOpen] = useState(false);
   const [reading, setReading] = useState<string | null>(null);
+  // The chat addresses files through its conversation, not through the workspace's
+  // id: that route authorises by fetching the conversation, so somebody this chat
+  // was shared with reaches the same files.
+  const source = useMemo<FileSource | null>(
+    () => (conversationId === null ? null : { kind: "conversation", id: conversationId }),
+    [conversationId],
+  );
 
   // Re-read when a turn ends rather than on a timer: the chat knows exactly when
   // the files could have changed, and a poll is wrong almost every time it fires.
@@ -129,75 +143,33 @@ export function WorkspaceFiles({ conversationId, revision }: WorkspaceFilesProps
         </p>
       )}
 
+      {/* Tiles rather than rows. The name is what somebody scans for and the icon
+          says what kind of thing it is before the name is read, which a 288-pixel
+          column of monospace paths did not. */}
       {files.length > 0 && (
-        <ul className="space-y-0.5">
+        <ul className="grid grid-cols-2 gap-2">
           {files.map((file) => (
             <li key={file.path}>
               <button
                 type="button"
-                onClick={() => setReading(reading === file.path ? null : file.path)}
-                aria-expanded={reading === file.path}
-                className={cn(
-                  "hover:bg-accent/60 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left",
-                  reading === file.path && "bg-accent",
-                )}
+                onClick={() => setReading(file.path)}
+                title={file.path}
+                className="border-border hover:bg-accent/60 flex h-full w-full flex-col items-start gap-1.5 rounded-lg border p-2.5 text-left"
               >
-                <FileText className="text-muted-foreground h-3.5 w-3.5 shrink-0" aria-hidden />
-                <span className="min-w-0 flex-1 truncate font-mono text-xs">{file.path}</span>
-                <span className="text-muted-foreground shrink-0 text-[11px]">
-                  {size(file.size)}
+                <FileIcon path={file.path} className="text-muted-foreground h-4 w-4" />
+                <span className="w-full truncate font-mono text-[11px]">
+                  {file.path.split("/").filter(Boolean).pop() ?? file.path}
                 </span>
+                <span className="text-muted-foreground text-[10px]">{size(file.size)}</span>
               </button>
-              {reading === file.path && (
-                <FileContents conversationId={conversationId} path={file.path} />
-              )}
             </li>
           ))}
         </ul>
       )}
-    </aside>
-  );
-}
 
-interface FileContentsProps {
-  conversationId: string;
-  path: string;
-}
-
-/**
- * One file, as text.
- *
- * Text only, which is this route's limit rather than this component's: a
- * conversation's workspace is served as text, and the bytes of a chart an agent
- * produced come from the Workspaces page instead — `GET
- * /sandbox-workspaces/{id}/raw`, where the content-type and disposition rules live.
- * Duplicating those here would mean a second place to get them wrong.
- */
-function FileContents({ conversationId, path }: FileContentsProps) {
-  const { file, isLoading, error } = useConversationFile(conversationId, path);
-
-  if (isLoading) return <Skeleton className="mt-1 h-16 w-full" />;
-  if (error !== null) return <p className="text-destructive mt-1 px-2 text-xs">{error}</p>;
-  if (file === null) return null;
-
-  return (
-    <div className="mt-1 space-y-1">
-      <pre className="bg-muted max-h-64 overflow-auto rounded-md p-2 text-[11px] whitespace-pre-wrap">
-        {file.content}
-      </pre>
-      {file.truncated && (
-        <p className="text-muted-foreground px-2 text-[11px]">
-          Shortened. The agent reads the whole file.
-        </p>
+      {source !== null && reading !== null && (
+        <WorkspaceFileViewer source={source} path={reading} onClose={() => setReading(null)} />
       )}
-      <Button
-        variant="ghost"
-        size="sm"
-        className="w-full"
-        onClick={() => navigator.clipboard.writeText(file.content)}
-      >
-        Copy
-      </Button>
-    </div>
+    </aside>
   );
 }

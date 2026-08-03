@@ -1,53 +1,21 @@
 "use client";
 
-import { FileText, FolderOpen, Search, TerminalSquare } from "lucide-react";
+import { useState } from "react";
+import { Download } from "lucide-react";
 
 import { CopyButton } from "../copy-button";
+import { FileIcon, kindOf } from "@/components/sandboxes/file-tile";
+import { WorkspaceFileViewer } from "@/components/sandboxes/file-viewer";
+import { Button } from "@/components/ui";
+import { useConversationWorkspace, useFileDownload } from "@/hooks";
+import { basename, contentArg, pathArg } from "@/lib/tool-steps";
+import type { FileSource } from "@/lib/workspace-files";
 import type { ToolCall } from "@/types";
 
-/** The workspace tools this renders. Anything else falls through to the generic card. */
-const WORKSPACE_TOOLS = ["ls", "glob", "grep", "read_file", "write_file", "edit_file", "execute"];
-
-export function isWorkspaceTool(name: string): boolean {
-  return WORKSPACE_TOOLS.includes(name);
-}
+export { isWorkspaceTool } from "@/lib/tool-steps";
 
 function asString(value: unknown): string | null {
   return typeof value === "string" && value.trim() !== "" ? value : null;
-}
-
-/** What this call is about, in one line: a path, a pattern, or a command. */
-function subject(toolCall: ToolCall): { icon: typeof FileText; text: string } | null {
-  const args = toolCall.args ?? {};
-  const path = asString(args.path) ?? asString(args.file_path);
-  const pattern = asString(args.pattern);
-  const command = asString(args.command) ?? asString(args.cmd);
-
-  if (toolCall.name === "execute" && command !== null)
-    return { icon: TerminalSquare, text: command };
-  if (toolCall.name === "grep" && pattern !== null)
-    return { icon: Search, text: path === null ? pattern : `${pattern} in ${path}` };
-  if (toolCall.name === "glob" && pattern !== null) return { icon: Search, text: pattern };
-  if (path !== null) return { icon: toolCall.name === "ls" ? FolderOpen : FileText, text: path };
-  return null;
-}
-
-/**
- * What a file the agent wrote is *for* — the body of `write_file`, or of `edit_file`.
- *
- * `edit_file` carries the replacement rather than the whole file, which is the more
- * useful thing to show: an edit is a diff by intent, and the file it edited is one
- * click away in the workspace panel.
- */
-function body(toolCall: ToolCall): string | null {
-  const args = toolCall.args ?? {};
-  return (
-    asString(args.content) ??
-    asString(args.text) ??
-    asString(args.new_string) ??
-    asString(args.new_str) ??
-    null
-  );
 }
 
 /** A listing's output split into lines, or null when it is not one. */
@@ -60,58 +28,162 @@ function lines(name: string, result: string): string[] | null {
   return found.length === 0 ? null : found;
 }
 
+const KIND_WORDS: Record<string, string> = {
+  doc: "Document",
+  image: "Image",
+  sheet: "Spreadsheet",
+  code: "Code",
+  archive: "Archive",
+  text: "Text",
+};
+
 /**
- * A sandbox tool call, shown as what it did rather than as its arguments.
+ * The file a call produced, as something to open rather than a sentence about it.
  *
- * The card used to print the JSON it was called with and its return line
- * underneath — so "wrote a file called test.md containing hej" arrived as
- * `{"path": "test.md", "content": "hej"}` above `Wrote 1 lines to
- * /workspace/test.md`. Everything needed to read it was there and none of it was
- * legible.
+ * `write_file` answers "Wrote 1 lines to /workspace/test1.md", which is true and is
+ * not what somebody wants from a turn that just made them a document. The card is the
+ * end of that turn: what it is called, what kind of thing it is, and the two things
+ * anybody does next.
  *
- * So: the path (or the pattern, or the command) as a heading, the content as a code
- * block with a copy button, a listing as a list. The raw view is still one click
- * away in the card's own header, which is where somebody debugging a call should
- * look — and is why nothing here needs to be exhaustive.
+ * **The path is resolved against the conversation's own listing, not trusted.** A
+ * tool is called with `test1.md` and answers about `/workspace/test1.md`, while the
+ * workspace lists it under whichever of those its backend stored - so a button built
+ * from the argument opens a file that is not there about a third of the time. Matching
+ * the listing by name is what makes Open and Download mean it; with no match the card
+ * is still drawn, without controls that would fail.
+ */
+function WorkspaceFileCard({
+  conversationId,
+  path,
+}: {
+  conversationId: string | undefined;
+  path: string;
+}) {
+  const { workspace } = useConversationWorkspace(conversationId ?? null);
+  const [opened, setOpened] = useState(false);
+  const name = basename(path);
+  const entry =
+    workspace?.items.find((file) => !file.is_dir && file.path === path) ??
+    workspace?.items.find((file) => !file.is_dir && basename(file.path) === name) ??
+    null;
+  const source: FileSource | null =
+    conversationId === undefined ? null : { kind: "conversation", id: conversationId };
+  const reachable = source !== null && entry !== null;
+
+  return (
+    <div className="border-foreground/12 flex items-center gap-3 rounded-xl border p-2.5">
+      <span className="bg-foreground/5 text-foreground/60 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
+        <FileIcon path={path} className="h-4 w-4" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium">{name}</span>
+        <span className="text-muted-foreground text-[11px]">
+          {KIND_WORDS[kindOf(path)] ?? "File"}
+          {name.includes(".") && <> · {name.split(".").pop()?.toUpperCase() ?? ""}</>}
+        </span>
+      </span>
+      {reachable && (
+        <FileCardActions source={source} path={entry.path} onOpen={() => setOpened(true)} />
+      )}
+      {opened && reachable && (
+        <WorkspaceFileViewer source={source} path={entry.path} onClose={() => setOpened(false)} />
+      )}
+    </div>
+  );
+}
+
+function FileCardActions({
+  source,
+  path,
+  onOpen,
+}: {
+  source: FileSource;
+  path: string;
+  onOpen: () => void;
+}) {
+  const { download, error } = useFileDownload(source);
+
+  return (
+    <span className="flex shrink-0 items-center gap-1">
+      {error !== null && <span className="text-destructive mr-1 text-[11px]">{error}</span>}
+      <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={onOpen}>
+        Open
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-7 text-xs"
+        aria-label={`Download ${basename(path)}`}
+        onClick={() => download(path)}
+      >
+        <Download className="h-3.5 w-3.5" />
+        Download
+      </Button>
+    </span>
+  );
+}
+
+/**
+ * What a workspace tool did, shown as the thing it did.
+ *
+ * The step above says *Wrote test1.md*; this is what opens under it. Four shapes,
+ * one per kind of call, because the calls are not alike: a write ends in a file, a
+ * read ends in text, a listing ends in a list, and a command ends in output that has
+ * to keep its own line breaks.
+ *
+ * The raw arguments are one click away in the step's own header, which is where
+ * somebody debugging a call looks - and is why nothing here needs to be exhaustive.
  */
 export function WorkspaceToolResult({
   toolCall,
   resultText,
+  conversationId,
 }: {
   toolCall: ToolCall;
   resultText: string;
+  conversationId?: string;
 }) {
-  const head = subject(toolCall);
-  const written = body(toolCall);
+  const path = pathArg(toolCall.args);
+  const written = contentArg(toolCall.args);
   const listed = lines(toolCall.name, resultText);
-  const Icon = head?.icon ?? FileText;
-
+  const command = asString(toolCall.args?.command) ?? asString(toolCall.args?.cmd);
   const isRunning = toolCall.status === "running" || toolCall.status === "pending";
   const isError = toolCall.status === "error";
+  const finished = !isRunning && toolCall.status !== "awaiting_approval";
+  const isWrite = toolCall.name === "write_file" || toolCall.name === "edit_file";
+  const showsCard = isWrite && finished && !isError && path !== null;
 
   return (
-    <div className="space-y-2 py-1">
-      {head !== null && (
-        <p className="flex items-center gap-2 text-xs">
-          <Icon className="text-muted-foreground h-3.5 w-3.5 shrink-0" aria-hidden />
-          <span className="min-w-0 flex-1 truncate font-mono">{head.text}</span>
-        </p>
+    <div className="space-y-2">
+      {/* The file itself, once there is one. Not while the call is in flight and not
+          when it failed: a card offering to open a file that was never written is the
+          one wrong thing this could do. */}
+      {showsCard && path !== null && (
+        <WorkspaceFileCard conversationId={conversationId} path={path} />
       )}
 
-      {written !== null && (
-        <div className="relative">
-          <pre className="bg-muted max-h-64 overflow-auto rounded-md p-3 text-[11px] whitespace-pre-wrap">
-            {written}
-          </pre>
-          <CopyButton text={written} className="absolute top-1 right-1 h-6 w-6 rounded-md" />
-        </div>
+      {command !== null && (
+        <pre className="bg-muted text-foreground/80 overflow-x-auto rounded-md px-3 py-2 font-mono text-[11px]">
+          <span className="text-muted-foreground select-none">$ </span>
+          {command}
+        </pre>
+      )}
+
+      {/* What was put into the file. An edit carries the replacement rather than the
+          whole file, which is the more useful half: an edit is a diff by intent. */}
+      {written !== null && <TextPanel text={written} />}
+
+      {/* What a read answered, which is the file. Kept out of the muted one-liner
+          below because it is the point of the call, not a status. */}
+      {finished && toolCall.name === "read_file" && resultText !== "" && (
+        <TextPanel text={resultText} />
       )}
 
       {isRunning && <p className="text-muted-foreground text-xs italic">Running…</p>}
 
       {/* A listing is a list. Fifty paths in a `pre` is a wall; fifty rows is
           something an eye can scan for the one it wanted. */}
-      {!isRunning && listed !== null && (
+      {finished && listed !== null && (
         <ul className="divide-border/60 divide-y">
           {listed.slice(0, 50).map((line) => (
             <li key={line} className="truncate py-1 font-mono text-[11px]">
@@ -126,16 +198,43 @@ export function WorkspaceToolResult({
         </ul>
       )}
 
-      {/* Whatever the tool said back, when it is not a listing and not the body we
-          already showed. `write_file` answers "Wrote 1 lines to /workspace/test.md",
-          which is worth one muted line and no more. */}
-      {!isRunning && listed === null && resultText !== "" && (
-        <p
-          className={isError ? "text-destructive text-xs" : "text-muted-foreground text-xs italic"}
-        >
-          {resultText.length > 400 ? `${resultText.slice(0, 400)}…` : resultText}
-        </p>
+      {/* A command's output, which is neither a list nor a file: it is a terminal's,
+          and folding its line breaks away would make a stack trace unreadable. */}
+      {finished && toolCall.name === "execute" && resultText !== "" && (
+        <pre className="bg-foreground/[0.04] max-h-64 overflow-auto rounded-md p-3 font-mono text-[11px] whitespace-pre">
+          {resultText}
+        </pre>
       )}
+
+      {/* Whatever else the tool said back - and not when the card above already said
+          it. `write_file` answers "Wrote 1 lines to /workspace/test1.md", which beside
+          a card naming the file is the same fact told worse. It stays for the cases
+          with no card: a failure, or a path the arguments did not carry. */}
+      {finished &&
+        listed === null &&
+        !showsCard &&
+        !["read_file", "execute"].includes(toolCall.name) &&
+        resultText !== "" && (
+          <p
+            className={
+              isError ? "text-destructive text-xs" : "text-muted-foreground text-xs italic"
+            }
+          >
+            {resultText.length > 400 ? `${resultText.slice(0, 400)}…` : resultText}
+          </p>
+        )}
+    </div>
+  );
+}
+
+/** A body of text with a way to take it, which is what somebody wants from one. */
+function TextPanel({ text }: { text: string }) {
+  return (
+    <div className="relative">
+      <pre className="bg-muted max-h-64 overflow-auto rounded-md p-3 pr-9 text-[11px] whitespace-pre-wrap">
+        {text}
+      </pre>
+      <CopyButton text={text} className="absolute top-1 right-1 h-6 w-6 rounded-md" />
     </div>
   );
 }

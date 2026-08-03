@@ -215,6 +215,48 @@ it is about to wait.
   binding may override it, because a web chat and a Slack channel are not the same
   sharing question.
 
+### What a turn looks like in web chat
+
+**The work is a narration, not a stack of cards.** Each tool call is one line — *Wrote
+test1.md*, *Searched for TODO in app.py*, *Ran pytest -q*, *Linear · Create issue* —
+written in the tense it is true in: present while the call runs, past once it has. The
+line names the *subject* rather than the function, because `write_file` is not what
+anybody wants to read. Every line opens into what the call actually produced, and the
+raw arguments and output stay one click further in for whoever is debugging one.
+
+Consecutive calls hang from one rail, and **only the last row stays visible**: earlier
+ones fold into "4 earlier steps", which says work happened without pushing the answer off
+the screen. A run holding a failure or a call parked for approval is never folded — that
+is the one line in the turn that is asking for something. Nothing marks a step that
+simply worked, so a marker means what it says.
+
+**What opens itself follows what somebody is watching.** A call that finishes while the
+turn is streaming opens on the spot — a chart, code that ran, a file that was written is
+the answer, not a footnote to it. A conversation *reopened* shows one line per past call
+and keeps open exactly one: the last call of the most recent turn that **used a tool**,
+which is the result the reader came back for. The most recent *turn* is the wrong anchor
+and was the first way this was written - an agent that writes a file and then answers
+about it in prose ends the transcript with text, and the file it had just written was
+folded away. Opening every finished call on mount turned a reopened chat into a wall; opening
+none of them hid the thing that was asked for.
+
+**A write ends in the file, not in a sentence about it.** `write_file` answers "Wrote 1
+lines to /workspace/test1.md"; what the transcript shows is a card naming the file, with
+*Open* — the same viewer the Workspaces screen uses — and *Download*. The path is
+resolved against the conversation's own listing rather than trusted from the arguments,
+because a tool called with `test1.md` reports `/workspace/test1.md` and the workspace may
+store either; with no match the card is drawn without controls that would fail.
+
+**An MCP call is named by its server.** Nothing on a tool call records where it came
+from — the only trace is the prefix the backend puts on a connection's tools, which is
+the connection's name — so the frontend matches that prefix against the servers the
+caller can see and shows the server's own logo beside the step. A miss reads as the
+humanised tool name, which is what it read as before.
+
+The assistant's answer is **not** in a bubble; only the person's message is. An answer
+is prose with headings, code and tables in it, and a rounded fill around that fights
+every one of them.
+
 ### Files
 
 Somebody dropping a spreadsheet on a bot used to have it discarded: `IncomingMessage`
@@ -277,6 +319,18 @@ broken. The only difference between "broken" and "out of budget" is somebody
 having said so beforehand, so a bot can report what a turn spent: tokens, cost,
 how much of the month is gone, and how full the workspace behind it is.
 
+In web chat the same two numbers sit under the composer, and they come from
+different places because they measure different things. **The cost** is the newest
+measured answer *in the conversation on screen* — read from the transcript, so it is
+there when a thread is reopened rather than after the next message, and filtered by
+conversation id because the store still holds the previous thread's messages for the
+moment between the click and the fetch landing. It reported those under the new
+conversation until it was. **The fill** is the workspace as it stands now: a live turn
+reports it (a container's resident memory can only come from its host), and a reopened
+conversation reads it from the workspace listing, which carries the ceiling a stored
+workspace fills up against. Without that, "workspace 0% full" appeared only after
+somebody sent a message — the one moment nobody needs it.
+
 Per bot, in the channel bots panel:
 
 | Mode | |
@@ -318,7 +372,12 @@ channel footer does not:
   timer, and it is absent entirely — not empty — for an agent that keeps no files,
   which is most of them. It names whose files these are, because under `agent` scope
   one workspace is shared and finding a file you never created reads as a leak until
-  something on screen explains it.
+  something on screen explains it. A file is a tile, and opening one opens the same
+  viewer the Workspaces screen uses — a picture, a PDF, markdown as preview or
+  source, and always a download — reading `…/workspace/file` for text and
+  `…/workspace/raw` for bytes. Through the *conversation* rather than the
+  workspace id, deliberately: that is what keeps these files reachable for
+  somebody the chat was shared with.
 
 ### Overriding who shares the workspace
 

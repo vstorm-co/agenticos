@@ -2,16 +2,17 @@
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { cn } from "@/lib/utils";
-import type { ChatMessage, ChatMessageFile } from "@/types";
+import type { ChatMessage, ChatMessageFile, MessagePart } from "@/types";
 import type { Agent } from "@/types/agents";
 import { ToolCallCard } from "./tool-call-card";
+import { AgentSteps } from "./agent-step";
 import { MarkdownContent } from "./markdown-content";
 import { CopyButton } from "./copy-button";
 import { MessageCost } from "./message-cost";
 import { RatingButtons } from "./rating-buttons";
 import { useChatStore, useFilePreviewStore } from "@/stores";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
-import { Bot, FileText, Globe, Paperclip, RefreshCw, User } from "lucide-react";
+import { Bot, FileText, Globe, Paperclip, RefreshCw, Sparkles, User } from "lucide-react";
 import Image from "next/image";
 import { useAuthStore } from "@/stores";
 import { getFileUrl } from "@/lib/file-api";
@@ -28,24 +29,36 @@ function ThinkingBlock({
   isStreaming: boolean;
 }) {
   return (
-    <details
-      className="border-foreground/10 bg-muted/40 group rounded-2xl rounded-tl-sm border px-3 py-2 sm:px-4"
-      open={open}
-    >
-      <summary className="text-foreground/55 hover:text-foreground/80 flex cursor-pointer items-center gap-2 font-mono text-[10px] tracking-wider uppercase select-none">
-        <span className="bg-foreground/30 inline-block h-1.5 w-1.5 rounded-full" />
-        Thinking
+    <details className="group" open={open}>
+      {/* A line, not a box. The reasoning is an aside on the way to an answer, and a
+          bordered panel around it gives it more weight on the page than the answer
+          itself - which is backwards, and was the loudest thing in every turn. */}
+      <summary className="text-muted-foreground hover:text-foreground/80 flex cursor-pointer items-center gap-2 text-[13px] select-none">
+        <Sparkles className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden />
+        Thought about it
         {isStreaming && (
           <span className="bg-foreground/40 inline-block h-1 w-1 animate-pulse rounded-full" />
         )}
       </summary>
-      <pre className="text-foreground/65 mt-2 max-h-72 overflow-y-auto font-mono text-[11px] leading-relaxed whitespace-pre-wrap">
+      <pre className="text-muted-foreground border-foreground/10 mt-2 max-h-72 overflow-y-auto border-l pl-3.5 text-[12px] leading-relaxed whitespace-pre-wrap">
         {text}
       </pre>
     </details>
   );
 }
 
+/**
+ * What was said, by whichever side said it.
+ *
+ * **Only the person gets a bubble.** An assistant turn is prose - headings, lists,
+ * code, a table - and a rounded grey box around it makes every answer look like a
+ * chat message from 2016: the fill fights the code blocks nested inside it, the
+ * padding eats the width a table needs, and a turn made of three parts arrives as
+ * three separate boxes with hairlines between them. Unwrapped, the answer is the
+ * page, which is what every tool of this kind settled on. The user's message keeps
+ * its bubble precisely because it is the short one, and the contrast is what makes a
+ * long transcript scannable at all.
+ */
 function TextBubble({
   text,
   showCursor,
@@ -57,22 +70,19 @@ function TextBubble({
   isUser: boolean;
   onCiteClick?: (index: number) => void;
 }) {
-  return (
-    <div
-      className={cn(
-        "relative rounded-2xl px-3 py-2 sm:px-4 sm:py-2.5",
-        isUser ? "bg-foreground text-background rounded-tr-sm" : "bg-muted rounded-tl-sm",
-      )}
-    >
-      {isUser ? (
+  if (isUser) {
+    return (
+      <div className="bg-foreground text-background relative rounded-2xl rounded-tr-sm px-3 py-2 sm:px-4 sm:py-2.5">
         <p className="text-sm break-words whitespace-pre-wrap">{text}</p>
-      ) : (
-        <div className="prose-sm max-w-none text-sm">
-          <MarkdownContent content={text} onCiteClick={onCiteClick} />
-          {showCursor && (
-            <span className="ml-1 inline-block h-4 w-1.5 animate-pulse rounded-full bg-current" />
-          )}
-        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="prose-sm max-w-none text-[15px] leading-relaxed">
+      <MarkdownContent content={text} onCiteClick={onCiteClick} />
+      {showCursor && (
+        <span className="ml-1 inline-block h-4 w-1.5 animate-pulse rounded-full bg-current" />
       )}
     </div>
   );
@@ -107,8 +117,55 @@ function SourcesButton({ sources, onClick }: { sources: SourceItem[]; onClick: (
   );
 }
 
+/** One stretch of a turn: a run of tool steps, or a single part of another kind. */
+interface PartRun {
+  kind: "tools" | "other";
+  parts: MessagePart[];
+  /** Whether this run ends the turn, which is what may still be streaming. */
+  isLast: boolean;
+}
+
+/**
+ * The turn's parts, with consecutive tool calls gathered into one run.
+ *
+ * Grouping is what makes the steps read as one thread: the rail they hang from has to
+ * be a single element, because a border on each row leaves gaps between them and a
+ * dashed line says something this does not mean. A part of any other kind - text, or
+ * thinking - closes the run, which is right: the agent said something, so what follows
+ * is a new stretch of work.
+ *
+ * Empty text and thinking parts are dropped rather than rendered as empty bubbles,
+ * which is what the flat map did with them.
+ */
+export function runsOf(parts: MessagePart[]): PartRun[] {
+  const runs: PartRun[] = [];
+  for (const part of parts) {
+    if (part.type === "tool" && part.toolCall) {
+      const open = runs.at(-1);
+      if (open?.kind === "tools") open.parts.push(part);
+      else runs.push({ kind: "tools", parts: [part], isLast: false });
+      continue;
+    }
+    if ((part.type === "text" || part.type === "thinking") && part.content) {
+      runs.push({ kind: "other", parts: [part], isLast: false });
+    }
+  }
+  const last = runs.at(-1);
+  if (last !== undefined) last.isLast = true;
+  return runs;
+}
+
 interface MessageItemProps {
   message: ChatMessage;
+  /**
+   * Open this turn's last tool step on mount.
+   *
+   * Set for the most recent turn that used a tool - see `lastToolTurnIndex`. The last
+   * thing the agent did stays open when somebody comes back to the chat, and everything
+   * before it is one line. Opening every finished call made a reopened conversation a
+   * wall of results; opening none of them hid the thing that was asked for.
+   */
+  openLastStep?: boolean;
   /** The published agent that answered. Absent for the general assistant. */
   /** The agent that produced this turn, when one did. */
   agent?: Agent;
@@ -116,7 +173,13 @@ interface MessageItemProps {
   onRegenerate?: () => void;
 }
 
-export function MessageItem({ message, agent, groupPosition, onRegenerate }: MessageItemProps) {
+export function MessageItem({
+  message,
+  agent,
+  groupPosition,
+  openLastStep = false,
+  onRegenerate,
+}: MessageItemProps) {
   const isUser = message.role === "user";
   const updateMessage = useChatStore((state) => state.updateMessage);
   const openPreview = useFilePreviewStore((s) => s.open);
@@ -258,11 +321,7 @@ export function MessageItem({ message, agent, groupPosition, onRegenerate }: Mes
           return (
             <>
               {showPlaceholder && (
-                <div
-                  className="bg-muted flex items-center gap-2 rounded-2xl rounded-tl-sm px-4 py-2.5"
-                  role="status"
-                  aria-live="polite"
-                >
+                <div className="flex items-center gap-2 py-1" role="status" aria-live="polite">
                   <div className="flex gap-1" aria-hidden="true">
                     <span className="bg-muted-foreground/40 h-1.5 w-1.5 animate-bounce rounded-full [animation-delay:0ms]" />
                     <span className="bg-muted-foreground/40 h-1.5 w-1.5 animate-bounce rounded-full [animation-delay:150ms]" />
@@ -273,38 +332,51 @@ export function MessageItem({ message, agent, groupPosition, onRegenerate }: Mes
               )}
 
               {useParts ? (
-                /* Ordered timeline: render each part in arrival order. */
-                parts.map((part, i) => {
-                  if (part.type === "thinking" && part.content) {
-                    return (
-                      <ThinkingBlock
-                        key={part.id}
-                        text={part.content}
-                        open={Boolean(message.isStreaming) && i === parts.length - 1}
-                        isStreaming={Boolean(message.isStreaming)}
-                      />
-                    );
-                  }
-                  if (part.type === "tool" && part.toolCall) {
-                    return (
-                      <div key={part.id} className="w-full">
-                        <ToolCallCard toolCall={part.toolCall} />
-                      </div>
-                    );
-                  }
-                  if (part.type === "text" && part.content) {
-                    return (
-                      <TextBubble
-                        key={part.id}
-                        text={part.content}
-                        showCursor={Boolean(message.isStreaming) && i === parts.length - 1}
-                        isUser={isUser}
-                        onCiteClick={onCiteClick}
-                      />
-                    );
-                  }
-                  return null;
-                })
+                /* Ordered timeline: render each part in arrival order, with runs of
+                   tool calls on one rail - see `runsOf`. */
+                runsOf(parts).map((run, index) =>
+                  run.kind === "tools" ? (
+                    <div key={run.parts[0]?.id ?? index} className="w-full">
+                      {/* The rail folds its own earlier steps away, but it cannot see
+                          what is in them - so whether this run holds something a person
+                          has to answer is decided here, where the statuses are. */}
+                      <AgentSteps
+                        showAll={run.parts.some(
+                          (part) =>
+                            part.toolCall?.status === "error" ||
+                            part.toolCall?.status === "awaiting_approval",
+                        )}
+                        done={run.parts.length > 1 && !message.isStreaming}
+                      >
+                        {run.parts.map((part, step) => (
+                          <ToolCallCard
+                            key={part.id}
+                            toolCall={part.toolCall!}
+                            conversationId={message.conversationId}
+                            // The last call of that turn, which is the one whose result
+                            // the reader is here for.
+                            startOpen={openLastStep && run.isLast && step === run.parts.length - 1}
+                          />
+                        ))}
+                      </AgentSteps>
+                    </div>
+                  ) : run.parts[0]?.type === "thinking" ? (
+                    <ThinkingBlock
+                      key={run.parts[0].id}
+                      text={run.parts[0].content ?? ""}
+                      open={Boolean(message.isStreaming) && run.isLast}
+                      isStreaming={Boolean(message.isStreaming)}
+                    />
+                  ) : (
+                    <TextBubble
+                      key={run.parts[0]?.id ?? index}
+                      text={run.parts[0]?.content ?? ""}
+                      showCursor={Boolean(message.isStreaming) && run.isLast}
+                      isUser={isUser}
+                      onCiteClick={onCiteClick}
+                    />
+                  ),
+                )
               ) : (
                 /* Legacy fallback: user / pre-parts messages. */
                 <>
@@ -324,10 +396,19 @@ export function MessageItem({ message, agent, groupPosition, onRegenerate }: Mes
                     />
                   )}
                   {message.toolCalls && message.toolCalls.length > 0 && (
-                    <div className="w-full space-y-2">
-                      {message.toolCalls.map((toolCall) => (
-                        <ToolCallCard key={toolCall.id} toolCall={toolCall} />
-                      ))}
+                    <div className="w-full">
+                      <AgentSteps>
+                        {message.toolCalls.map((toolCall, step) => (
+                          <ToolCallCard
+                            key={toolCall.id}
+                            toolCall={toolCall}
+                            conversationId={message.conversationId}
+                            startOpen={
+                              openLastStep && step === (message.toolCalls?.length ?? 0) - 1
+                            }
+                          />
+                        ))}
+                      </AgentSteps>
                     </div>
                   )}
                 </>

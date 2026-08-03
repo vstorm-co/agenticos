@@ -8,7 +8,13 @@ import { WorkspaceFiles } from "./workspace-files";
 import { apiClient } from "@/lib/api-client";
 
 vi.mock("@/lib/api-client", () => ({
-  apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
+  apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn(), raw: vi.fn() },
+}));
+
+vi.mock("@/components/chat/markdown-content", () => ({
+  MarkdownContent: ({ content }: { content: string }) => (
+    <div data-testid="rendered">{content}</div>
+  ),
 }));
 
 function draw(node: ReactNode) {
@@ -52,11 +58,13 @@ beforeEach(() => {
  * leak until something on screen explains it.
  */
 describe("the workspace panel", () => {
-  it("lists what the agent is keeping, with what each file weighs", async () => {
+  it("lists what the agent is keeping as tiles, with what each file weighs", async () => {
     draw(<WorkspaceFiles conversationId="c1" revision={0} />);
     await openPanel();
 
-    await waitFor(() => expect(screen.getByText("/report.csv")).toBeVisible());
+    // The name, not the path: a 288-pixel column of monospace paths is unreadable,
+    // and the whole path is on the tile's title and in the viewer it opens.
+    await waitFor(() => expect(screen.getByText("report.csv")).toBeVisible());
     expect(screen.getByText("2 KiB")).toBeVisible();
   });
 
@@ -97,8 +105,8 @@ describe("the workspace panel", () => {
     draw(<WorkspaceFiles conversationId="c1" revision={0} />);
     await openPanel();
 
-    await waitFor(() => expect(screen.getByText("/report.csv")).toBeVisible());
-    expect(screen.queryByText("/out")).toBeNull();
+    await waitFor(() => expect(screen.getByText("report.csv")).toBeVisible());
+    expect(screen.queryByText("out")).toBeNull();
   });
 
   it("says the workspace is empty when it is, rather than showing nothing", async () => {
@@ -132,7 +140,7 @@ describe("the workspace panel", () => {
       </QueryClientProvider>,
     );
     await openPanel();
-    await waitFor(() => expect(screen.getByText("/report.csv")).toBeVisible());
+    await waitFor(() => expect(screen.getByText("report.csv")).toBeVisible());
     const before = vi.mocked(apiClient.get).mock.calls.length;
 
     rerender(
@@ -144,7 +152,10 @@ describe("the workspace panel", () => {
     await waitFor(() => expect(vi.mocked(apiClient.get).mock.calls.length).toBeGreaterThan(before));
   });
 
-  it("opens a file into its text, and closes it again", async () => {
+  it("opens a file into the viewer, and closes it again", async () => {
+    // A `<pre>` under the row was the panel showing a report as the first sixty
+    // characters of a line. The viewer is shared with the Workspaces screen, so a
+    // file means the same thing wherever it was clicked.
     vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
       path.includes("/file")
         ? { path: "/report.csv", content: "month,total", truncated: false }
@@ -153,13 +164,56 @@ describe("the workspace panel", () => {
 
     draw(<WorkspaceFiles conversationId="c1" revision={0} />);
     await openPanel();
-    const row = await screen.findByRole("button", { name: /report\.csv/ });
 
-    await userEvent.click(row);
+    await userEvent.click(await screen.findByRole("button", { name: /report\.csv/ }));
     await waitFor(() => expect(screen.getByText("month,total")).toBeVisible());
+    expect(screen.getByRole("dialog")).toBeVisible();
 
-    await userEvent.click(row);
-    expect(screen.queryByText("month,total")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("reads a file through its conversation, which is what a shared chat can do", async () => {
+    // Not through the workspace's own id: that route is scoped to conversations the
+    // caller owns, so a chat somebody shared would list files it could not open.
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+      path.includes("/file")
+        ? { path: "/report.csv", content: "month,total", truncated: false }
+        : workspace(),
+    );
+
+    draw(<WorkspaceFiles conversationId="c1" revision={0} />);
+    await openPanel();
+    await userEvent.click(await screen.findByRole("button", { name: /report\.csv/ }));
+
+    await waitFor(() =>
+      expect(vi.mocked(apiClient.get).mock.calls.map(([url]) => url)).toContain(
+        "/conversations/c1/workspace/file?path=%2Freport.csv",
+      ),
+    );
+  });
+
+  it("offers the file as a download, asking the route for it as an attachment", async () => {
+    Object.assign(URL, { createObjectURL: () => "blob:x", revokeObjectURL: vi.fn() });
+    // A stub rather than a real `Response`: jsdom's `Blob` is not the one its
+    // `Response` constructor accepts, and this call only ever reads `blob()`.
+    vi.mocked(apiClient.raw).mockResolvedValue({
+      blob: async () => new Blob(["month,total"]),
+    } as unknown as Response);
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+      path.includes("/file")
+        ? { path: "/report.csv", content: "month,total", truncated: false }
+        : workspace(),
+    );
+
+    draw(<WorkspaceFiles conversationId="c1" revision={0} />);
+    await openPanel();
+    await userEvent.click(await screen.findByRole("button", { name: /report\.csv/ }));
+    await userEvent.click(await screen.findByRole("button", { name: "Download" }));
+
+    expect(vi.mocked(apiClient.raw).mock.calls[0]?.[0]).toBe(
+      "/conversations/c1/workspace/raw?path=%2Freport.csv&download=true",
+    );
   });
 
   it("says a file was shortened, because the agent read all of it", async () => {
@@ -176,23 +230,6 @@ describe("the workspace panel", () => {
     await waitFor(() => expect(screen.getByText(/Shortened/)).toBeVisible());
   });
 
-  it("copies a file's text", async () => {
-    const writeText = vi.fn();
-    Object.assign(navigator, { clipboard: { writeText } });
-    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
-      path.includes("/file")
-        ? { path: "/report.csv", content: "month,total", truncated: false }
-        : workspace(),
-    );
-
-    draw(<WorkspaceFiles conversationId="c1" revision={0} />);
-    await openPanel();
-    await userEvent.click(await screen.findByRole("button", { name: /report\.csv/ }));
-    await userEvent.click(await screen.findByRole("button", { name: "Copy" }));
-
-    expect(writeText).toHaveBeenCalledWith("month,total");
-  });
-
   it("reports a file it could not read where the file was", async () => {
     vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
       if (path.includes("/file")) throw new Error("That file is not text");
@@ -206,7 +243,7 @@ describe("the workspace panel", () => {
     await waitFor(() => expect(screen.getByText("That file is not text")).toBeVisible());
   });
 
-  it("draws no pane for a file the route answered nothing for", async () => {
+  it("shows nothing for a file the route answered nothing for", async () => {
     // A 204 or an empty body is not an empty file; an empty `<pre>` would say the
     // file is blank when what happened is that nobody answered.
     vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
@@ -217,7 +254,8 @@ describe("the workspace panel", () => {
     await openPanel();
     await userEvent.click(await screen.findByRole("button", { name: /report\.csv/ }));
 
-    await waitFor(() => expect(screen.queryByRole("button", { name: "Copy" })).toBeNull());
+    await screen.findByRole("dialog");
+    expect(screen.queryByRole("figure")).toBeNull();
   });
 
   it("reads bytes and megabytes in their own units", async () => {
@@ -246,7 +284,7 @@ describe("the workspace panel", () => {
     draw(<WorkspaceFiles conversationId="c1" revision={0} />);
 
     expect(await screen.findByRole("button", { name: /^Show the files/ })).toBeVisible();
-    expect(screen.queryByText("/report.csv")).toBeNull();
+    expect(screen.queryByText("report.csv")).toBeNull();
   });
 
   it("says on the button how many files there are to see", async () => {
@@ -268,11 +306,11 @@ describe("the workspace panel", () => {
   it("closes again", async () => {
     draw(<WorkspaceFiles conversationId="c1" revision={0} />);
     await openPanel();
-    await waitFor(() => expect(screen.getByText("/report.csv")).toBeVisible());
+    await waitFor(() => expect(screen.getByText("report.csv")).toBeVisible());
 
     await userEvent.click(screen.getByRole("button", { name: "Close the file panel" }));
 
-    expect(screen.queryByText("/report.csv")).toBeNull();
+    expect(screen.queryByText("report.csv")).toBeNull();
   });
 
   it("explains a host that keeps no files on disk instead of alarming somebody", async () => {
