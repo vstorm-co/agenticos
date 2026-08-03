@@ -97,13 +97,13 @@ function ConversationItem({
               undefined,
               { month: "short", day: "numeric" },
             )}
-            {/* Which agent this was with. One agent gets its face and its
-                name; a thread that changed agents mid-way shows every face
-                rather than naming only the latest. */}
-            <ConversationAgents
-              agents={conversation.agents}
-              showName={conversation.agents?.length === 1}
-            />
+            {/* Which agent this was with, as a face and nothing more. The name
+                was repeating what the picture already says, in a row that also
+                has to fit a title and a date - and it is on the hover title for
+                the times somebody cannot tell two avatars apart. A thread that
+                changed agents mid-way shows every face rather than naming only
+                the latest. */}
+            <ConversationAgents agents={conversation.agents} showName={false} />
           </span>
         </div>
       )}
