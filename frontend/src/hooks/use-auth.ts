@@ -176,7 +176,15 @@ export function useAuth() {
         adoptUser(queryClient, setUser, response.user);
         useAuthStore.getState().setAccessToken(response.access_token);
         authChecked = true; // login already populated user + token; skip /auth/me
-        router.push(postSignInDestination(returnTo));
+        const destination = postSignInDestination(returnTo);
+        if (destination.includes("#")) {
+          // next@16.2's segment cache appends the fragment a second time on a
+          // soft navigation (/path#x becomes /path#x#x in a production build),
+          // so a destination with a fragment must load the document instead.
+          window.location.assign(destination);
+        } else {
+          router.push(destination);
+        }
         return response;
       } finally {
         setLoading(false);
