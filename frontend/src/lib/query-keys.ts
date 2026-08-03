@@ -181,6 +181,9 @@ export const qk = {
     // from any one workspace's - and an expensive one, so it gets its own entry
     // rather than sharing the listing's.
     allFiles: () => ["sandbox-workspaces", "all-files"] as const,
+    // One file's bytes, for a download or an image. Keyed apart from `file`, which
+    // holds the same file's text - they are two different bodies.
+    bytes: (id: string, path: string) => ["sandbox-workspaces", "bytes", id, path] as const,
     file: (id: string, path: string) => ["sandbox-workspaces", "file", id, path] as const,
   },
   skillChanges: {

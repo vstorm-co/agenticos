@@ -549,6 +549,55 @@ class SandboxWorkspaceService:
         )
         return any(candidate.id == row.id for candidate in visible)
 
+    async def read_bytes_of(self, ctx: AuthContext, workspace_id: UUID, *, path: str) -> bytes:
+        """One file as bytes, for a download or an image preview.
+
+        Bytes rather than text because the two are not interchangeable for the files
+        an agent actually produces: a PNG decoded as UTF-8 and re-encoded is a
+        corrupt PNG, and a chart is the commonest thing in a workspace nobody can
+        read as a string.
+
+        Only a stored workspace can answer that faithfully. A container-backed one
+        is read through `WorkspaceArchive`, whose only reader is textual - so a text
+        file is served by encoding it, and anything else is refused rather than
+        quietly mangled. `vstorm-co/pydantic-ai-backend` is where a byte-range
+        reader belongs; guessing one here would mean this platform re-implementing
+        the archive protocol.
+
+        Raises:
+            NotFoundError: If the workspace is not this caller's, or holds no such
+                file.
+            BadRequestError: If the host cannot be read, or cannot serve this file
+                as bytes.
+        """
+        row, _contents = await self.files_of(ctx, workspace_id)
+        if row.backend == "state":
+            from pydantic_ai_backends import StateBackend
+
+            backend = StateBackend(files=dict(row.files or {}))
+            if not backend.exists(path):
+                raise NotFoundError(
+                    message="No such file",
+                    details={"workspace_id": str(workspace_id), "path": path},
+                )
+            return backend.read_bytes(path)
+
+        if not _is_textual(path):
+            raise BadRequestError(
+                message=(
+                    "This host keeps its files in a container, and the workspace "
+                    "archive can only read text - so this file cannot be downloaded "
+                    "from here. A stored workspace serves any file."
+                ),
+                details={"workspace_id": str(workspace_id), "path": path},
+            )
+        text = await self._read_from(ctx, row, path)
+        if text is None:
+            raise NotFoundError(
+                message="No such file", details={"workspace_id": str(workspace_id), "path": path}
+            )
+        return text.encode()
+
     async def read_file_of(self, ctx: AuthContext, workspace_id: UUID, *, path: str) -> str | None:
         """One file's text from a workspace addressed by its own id."""
         row, _ = await self.files_of(ctx, workspace_id)
@@ -666,6 +715,68 @@ class SandboxWorkspaceService:
         if resolved.kind != "docker" or not resolved.row.base_url:
             return None
         return WorkspaceArchive(resolved.row.base_url, token=resolved.token)
+
+
+TEXTUAL_SUFFIXES = frozenset(
+    {
+        ".txt",
+        ".md",
+        ".markdown",
+        ".csv",
+        ".tsv",
+        ".json",
+        ".jsonl",
+        ".yaml",
+        ".yml",
+        ".toml",
+        ".ini",
+        ".cfg",
+        ".conf",
+        ".env",
+        ".log",
+        ".sql",
+        ".py",
+        ".js",
+        ".ts",
+        ".tsx",
+        ".jsx",
+        ".html",
+        ".htm",
+        ".css",
+        ".scss",
+        ".xml",
+        ".svg",
+        ".sh",
+        ".bash",
+        ".zsh",
+        ".rs",
+        ".go",
+        ".java",
+        ".kt",
+        ".rb",
+        ".php",
+        ".c",
+        ".h",
+        ".cpp",
+        ".hpp",
+        ".patch",
+        ".diff",
+    }
+)
+"""Suffixes a text-only reader can serve without corrupting the file.
+
+An allowlist rather than a guess at the bytes: the question being answered is "may
+this be read as a string", and a file with no suffix or an unknown one is exactly
+the case where guessing wrong is silent. `.svg` is here because it *is* text -
+whether it may be *displayed* inline is a separate decision the route makes, and
+the answer there is no.
+"""
+
+
+def _is_textual(path: str) -> bool:
+    from pathlib import PurePosixPath
+
+    return PurePosixPath(path).suffix.lower() in TEXTUAL_SUFFIXES
 
 
 def _reason(exc: Exception) -> str:

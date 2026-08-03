@@ -86,6 +86,7 @@ def service() -> MagicMock:
         )
     )
     stub.read_file_of = AsyncMock(return_value="month,total")
+    stub.read_bytes_of = AsyncMock(return_value=b"month,total")
     return stub
 
 
@@ -146,6 +147,88 @@ class TestListing:
 
         assert response.status_code == 200
         assert response.json() == {"items": [], "total": 0}
+
+
+class TestServingBytes:
+    """A download and an image preview, and the disposition rule behind both.
+
+    Almost everything is an attachment. Only raster images are served for display,
+    because an SVG served inline from this origin is stored cross-site scripting
+    written by whatever the agent decided to save - and "the agent wrote it" is not
+    a trust boundary.
+    """
+
+    async def test_a_png_is_served_for_display(self, client, service) -> None:
+        service.read_bytes_of = AsyncMock(return_value=b"\x89PNG\r\n")
+
+        async with client() as opened:
+            response = await opened.get(
+                _url(f"/{_WORKSPACE_ID}/raw"), params={"path": "/chart.png"}
+            )
+
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "image/png"
+        assert response.headers["content-disposition"].startswith("inline")
+        assert response.content == b"\x89PNG\r\n"
+
+    async def test_an_svg_is_downloadable_and_never_displayable(self, client, service) -> None:
+        """It carries script. Inline, from this origin, that is a hole with the
+        agent as its author."""
+        service.read_bytes_of = AsyncMock(return_value=b"<svg onload=alert(1)>")
+
+        async with client() as opened:
+            response = await opened.get(_url(f"/{_WORKSPACE_ID}/raw"), params={"path": "/x.svg"})
+
+        assert response.headers["content-type"] == "application/octet-stream"
+        assert response.headers["content-disposition"].startswith("attachment")
+
+    async def test_html_is_treated_the_same_way(self, client, service) -> None:
+        service.read_bytes_of = AsyncMock(return_value=b"<script>alert(1)</script>")
+
+        async with client() as opened:
+            response = await opened.get(_url(f"/{_WORKSPACE_ID}/raw"), params={"path": "/x.html"})
+
+        assert response.headers["content-type"] == "application/octet-stream"
+
+    async def test_a_download_is_forced_when_asked_even_for_an_image(self, client, service) -> None:
+        service.read_bytes_of = AsyncMock(return_value=b"\x89PNG")
+
+        async with client() as opened:
+            response = await opened.get(
+                _url(f"/{_WORKSPACE_ID}/raw"), params={"path": "/chart.png", "download": "true"}
+            )
+
+        assert response.headers["content-disposition"].startswith("attachment")
+
+    async def test_the_filename_is_encoded_rather_than_quoted(self, client, service) -> None:
+        """A workspace path can hold any UTF-8, and the bare `filename` form has no
+        way to say so - a quote or a newline in it is header injection."""
+        service.read_bytes_of = AsyncMock(return_value=b"a,b")
+
+        async with client() as opened:
+            response = await opened.get(
+                _url(f"/{_WORKSPACE_ID}/raw"), params={"path": "/raport wrzesień.csv"}
+            )
+
+        assert (
+            "filename*=UTF-8''raport%20wrzesie%C5%84.csv"
+            in (response.headers["content-disposition"])
+        )
+
+    async def test_a_path_that_names_no_file_still_gets_a_name(self, client, service) -> None:
+        service.read_bytes_of = AsyncMock(return_value=b"")
+
+        async with client() as opened:
+            response = await opened.get(_url(f"/{_WORKSPACE_ID}/raw"), params={"path": "/"})
+
+        assert "filename*=UTF-8''file" in response.headers["content-disposition"]
+
+    async def test_asking_for_bytes_without_naming_a_file_is_refused(self, client, service) -> None:
+        async with client() as opened:
+            response = await opened.get(_url(f"/{_WORKSPACE_ID}/raw"))
+
+        assert response.status_code == 422
+        service.read_bytes_of.assert_not_called()
 
 
 class TestAHostThatCannotBeRead:

@@ -98,6 +98,26 @@ export async function listWorkspaces(): Promise<WorkspaceSummary[]> {
   return data.items;
 }
 
+/**
+ * One file's bytes: a download, or an image a preview can render.
+ *
+ * Through `apiClient.raw` rather than as an `<img src>`, and that is not a
+ * preference. A bare browser request carries no `X-Organization-Id`, so the backend
+ * would fall back to the caller's personal organization and serve - or refuse - a
+ * file from a different tenant than the one on screen. The caller turns this into a
+ * blob URL.
+ */
+export async function readWorkspaceBytes(
+  id: string,
+  path: string,
+  { download = false }: { download?: boolean } = {},
+): Promise<Blob> {
+  const response = await apiClient.raw(
+    `${ROOT}/${id}/raw?path=${encodeURIComponent(path)}${download ? "&download=true" : ""}`,
+  );
+  return response.blob();
+}
+
 /** Every file at once, for the view that asks "who is holding a copy of this". */
 export async function listAllWorkspaceFiles(): Promise<FlatFileList> {
   return apiClient.get<FlatFileList>(`${ROOT}/files`);

@@ -36,8 +36,10 @@ export {
 export { useSecrets, useSecretPurposes, kindInfo } from "./use-secrets";
 export { useApprovals, useRuns, useSpend } from "./use-runs";
 export {
+  downloadWorkspaceFile,
   useAllWorkspaceFiles,
   useSandboxWorkspaces,
+  useWorkspaceBytes,
   useWorkspaceFile,
   useWorkspaceFiles,
 } from "./use-sandbox-workspaces";

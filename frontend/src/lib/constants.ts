@@ -42,6 +42,7 @@ export const ROUTES = {
   VAULT: "/vault",
   SANDBOXES: "/sandboxes",
   WORKSPACES: "/workspaces",
+  WORKSPACE_DETAIL: (id: string) => `/workspaces/${id}`,
   SKILLS: "/skills",
   ORG_SETTINGS: (id: string) => `/orgs/${id}/settings`,
   KB: "/kb",

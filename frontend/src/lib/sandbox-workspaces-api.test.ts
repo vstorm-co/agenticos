@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "./sandbox-workspaces-api";
 import { apiClient } from "./api-client";
 
-vi.mock("./api-client", () => ({ apiClient: { get: vi.fn() } }));
+vi.mock("./api-client", () => ({ apiClient: { get: vi.fn(), raw: vi.fn() } }));
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -48,5 +48,29 @@ describe("the workspace browser client", () => {
     await api.listAllWorkspaceFiles();
 
     expect(apiClient.get).toHaveBeenCalledWith("/sandbox-workspaces/files");
+  });
+
+  it("asks for bytes through the client, so the organization header goes with them", async () => {
+    // A bare browser request carries none, and the backend would then answer for the
+    // caller's personal organization rather than the one on screen.
+    const blob = new Blob(["a,b"]);
+    vi.mocked(apiClient.raw).mockResolvedValue({ blob: async () => blob } as Response);
+
+    await expect(api.readWorkspaceBytes("w-1", "/out/report.csv")).resolves.toBe(blob);
+    expect(apiClient.raw).toHaveBeenCalledWith(
+      "/sandbox-workspaces/w-1/raw?path=%2Fout%2Freport.csv",
+    );
+  });
+
+  it("says when it wants a download rather than a preview", async () => {
+    vi.mocked(apiClient.raw).mockResolvedValue({
+      blob: async () => new Blob([""]),
+    } as Response);
+
+    await api.readWorkspaceBytes("w-1", "/chart.png", { download: true });
+
+    expect(apiClient.raw).toHaveBeenCalledWith(
+      "/sandbox-workspaces/w-1/raw?path=%2Fchart.png&download=true",
+    );
   });
 });

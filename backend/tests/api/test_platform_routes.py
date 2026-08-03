@@ -348,6 +348,9 @@ CALLS: tuple[Call, ...] = (
         "/sandbox-connections/{connection_id}/sessions/{session_id}/events",
         Perm.CONNECTIONS_MANAGE,
     ),
+    # `raw` is the download and the image preview. Ungated for the same reason as
+    # the rest of the workspace routes - the service scopes it, and a download must
+    # not be the way around that.
     # The workspaces themselves carry no gate, and that is the change rather than
     # an omission: `connections:manage` widens the listing to the organization, and
     # a member sees the workspaces they are part of. A gate refused them outright,

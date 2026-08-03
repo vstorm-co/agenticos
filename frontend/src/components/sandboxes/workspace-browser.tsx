@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, FileText, FolderOpen } from "lucide-react";
+import { Download, FolderOpen } from "lucide-react";
 
 import {
   Badge,
@@ -19,13 +19,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui";
-import {
-  useAllWorkspaceFiles,
-  useSandboxWorkspaces,
-  useWorkspaceFile,
-  useWorkspaceFiles,
-} from "@/hooks";
-import type { WorkspaceSummary } from "@/lib/sandbox-workspaces-api";
+import Link from "next/link";
+
+import { FileIcon } from "./file-tile";
+import { downloadWorkspaceFile, useAllWorkspaceFiles, useSandboxWorkspaces } from "@/hooks";
+import { ROUTES } from "@/lib/constants";
 
 /** Bytes as a person reads them. */
 function size(bytes: number | null): string {
@@ -63,7 +61,6 @@ function used(when: string | null): string {
  */
 export function WorkspaceBrowser() {
   const { workspaces, isLoading, error } = useSandboxWorkspaces();
-  const [opened, setOpened] = useState<WorkspaceSummary | null>(null);
   const [flat, setFlat] = useState(false);
 
   return (
@@ -171,13 +168,16 @@ export function WorkspaceBrowser() {
                         {used(workspace.last_used_at)}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          aria-label={`Files of ${workspace.agent_name}`}
-                          onClick={() => setOpened(opened?.id === workspace.id ? null : workspace)}
-                        >
-                          {opened?.id === workspace.id ? "Hide" : "Open"}
+                        {/* A page, not a panel below the table. A workspace with a
+                            `skills/` directory is a tree, and it is worth having a
+                            URL somebody can send. */}
+                        <Button variant="ghost" size="sm" asChild>
+                          <Link
+                            href={ROUTES.WORKSPACE_DETAIL(workspace.id)}
+                            aria-label={`Files of ${workspace.agent_name}`}
+                          >
+                            Open
+                          </Link>
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -189,7 +189,6 @@ export function WorkspaceBrowser() {
         </CardContent>
       </Card>
 
-      {!flat && opened !== null && <WorkspaceFilesCard workspace={opened} />}
     </div>
   );
 }
@@ -217,21 +216,35 @@ function FlatFiles() {
 
   return (
     <div className="space-y-3 p-5">
-      <ul className="divide-border divide-y text-sm">
+      {/* Tiles rather than rows, and each one carries the thing a row could not:
+          the icon for what kind of file it is, the agent holding it, who else can
+          see it, and a way to get it onto this machine. */}
+      <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {listing.items.map((file) => (
-          <li
-            key={`${file.workspace_id}${file.path}`}
-            className="flex items-center justify-between gap-3 py-2"
-          >
-            <span className="flex min-w-0 items-center gap-2">
-              <FileText className="text-muted-foreground h-3.5 w-3.5 shrink-0" aria-hidden />
-              <span className="truncate font-mono text-xs">{file.path}</span>
-            </span>
-            <span className="flex shrink-0 items-center gap-3 text-xs">
-              <span className="font-medium">{file.agent_name}</span>
-              <span className="text-muted-foreground">{file.access_label}</span>
-              <span className="text-muted-foreground">{size(file.size)}</span>
-            </span>
+          <li key={`${file.workspace_id}${file.path}`} className="border-border rounded-lg border">
+            <div className="flex items-start gap-2 p-3">
+              <FileIcon path={file.path} className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" />
+              <div className="min-w-0 flex-1 space-y-1">
+                <Link
+                  href={ROUTES.WORKSPACE_DETAIL(file.workspace_id)}
+                  className="block truncate font-mono text-xs hover:underline"
+                  title={file.path}
+                >
+                  {file.path}
+                </Link>
+                <p className="text-muted-foreground truncate text-[11px]">
+                  {file.agent_name} · {file.access_label} · {size(file.size)}
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-label={`Download ${file.path}`}
+                onClick={() => void downloadWorkspaceFile(file.workspace_id, file.path)}
+                className="text-muted-foreground hover:text-foreground shrink-0 rounded-md p-1"
+              >
+                <Download className="h-3.5 w-3.5" />
+              </button>
+            </div>
           </li>
         ))}
       </ul>
@@ -243,100 +256,5 @@ function FlatFiles() {
         </p>
       )}
     </div>
-  );
-}
-
-interface WorkspaceFilesCardProps {
-  workspace: WorkspaceSummary;
-}
-
-/**
- * One workspace's files, and one file's text.
- *
- * Read only when opened, which is why the listing above carries none: this is a
- * request per workspace, and for a container-backed one it reads the host volume.
- */
-function WorkspaceFilesCard({ workspace }: WorkspaceFilesCardProps) {
-  const { files, isLoading, error } = useWorkspaceFiles(workspace.id);
-  const [reading, setReading] = useState<string | null>(null);
-
-  return (
-    <Card>
-      <CardHeader className="space-y-1 border-b px-5 py-4">
-        <CardTitle className="text-sm">{workspace.agent_name} — files</CardTitle>
-        <CardDescription className="text-xs">{workspace.owner_label}</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3 p-5">
-        {isLoading && <Skeleton className="h-16 w-full" />}
-
-        {error !== null && (
-          <div className="text-destructive flex items-start gap-2 text-sm">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-            <p>{error}</p>
-          </div>
-        )}
-
-        {files !== null && files.items.length === 0 && (
-          <p className="text-muted-foreground text-sm">
-            This workspace is empty. It exists because an agent was given one, not because it has
-            written anything.
-          </p>
-        )}
-
-        {files !== null && files.items.length > 0 && (
-          <ul className="divide-border divide-y text-sm">
-            {files.items.map((file) => (
-              <li key={file.path} className="flex items-center justify-between gap-3 py-2">
-                <span className="flex min-w-0 items-center gap-2">
-                  <FileText className="text-muted-foreground h-3.5 w-3.5 shrink-0" aria-hidden />
-                  <span className="truncate font-mono text-xs">{file.path}</span>
-                </span>
-                <span className="flex shrink-0 items-center gap-3">
-                  <span className="text-muted-foreground text-xs">{size(file.size)}</span>
-                  {!file.is_dir && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      aria-label={`Read ${file.path}`}
-                      onClick={() => setReading(reading === file.path ? null : file.path)}
-                    >
-                      {reading === file.path ? "Close" : "Read"}
-                    </Button>
-                  )}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-
-        {reading !== null && <FileContents workspaceId={workspace.id} path={reading} />}
-      </CardContent>
-    </Card>
-  );
-}
-
-interface FileContentsProps {
-  workspaceId: string;
-  path: string;
-}
-
-/**
- * One file, as text.
- *
- * Text only, which is the API's own limit rather than this component's: a workspace
- * can hold a PNG an agent produced, and serving it would mean deciding content
- * types and disposition headers — a download path with its own threat model.
- */
-function FileContents({ workspaceId, path }: FileContentsProps) {
-  const { file, isLoading, error } = useWorkspaceFile(workspaceId, path);
-
-  if (isLoading) return <Skeleton className="h-24 w-full" />;
-  if (error !== null) return <p className="text-destructive text-sm">{error}</p>;
-  if (file === null) return null;
-
-  return (
-    <pre className="bg-muted max-h-80 overflow-auto rounded-md p-3 text-xs whitespace-pre-wrap">
-      {file.content}
-    </pre>
   );
 }

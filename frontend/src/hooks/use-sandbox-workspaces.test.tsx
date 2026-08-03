@@ -4,7 +4,9 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  downloadWorkspaceFile,
   useAllWorkspaceFiles,
+  useWorkspaceBytes,
   useSandboxWorkspaces,
   useWorkspaceFile,
   useWorkspaceFiles,
@@ -15,6 +17,7 @@ import type { WorkspaceSummary } from "@/lib/sandbox-workspaces-api";
 vi.mock("@/lib/sandbox-workspaces-api", () => ({
   listWorkspaces: vi.fn(),
   listAllWorkspaceFiles: vi.fn(),
+  readWorkspaceBytes: vi.fn(),
   readWorkspaceFiles: vi.fn(),
   readWorkspaceFile: vi.fn(),
 }));
@@ -174,5 +177,105 @@ describe("every file at once", () => {
     const { result } = renderHook(() => useAllWorkspaceFiles(true), { wrapper });
 
     await waitFor(() => expect(result.current.error).toBe("Not permitted"));
+  });
+});
+
+describe("one file's bytes", () => {
+  const created: string[] = [];
+  const revoked: string[] = [];
+
+  beforeEach(() => {
+    created.length = 0;
+    revoked.length = 0;
+    // jsdom has neither, and the hook's whole job is to make and release one.
+    Object.assign(URL, {
+      createObjectURL: (blob: Blob) => {
+        const url = `blob:${created.length}`;
+        created.push(url);
+        void blob;
+        return url;
+      },
+      revokeObjectURL: (url: string) => revoked.push(url),
+    });
+    vi.mocked(api.readWorkspaceBytes).mockResolvedValue(new Blob(["bytes"]));
+  });
+
+  it("asks for nothing until there is a file to ask about", () => {
+    renderHook(() => useWorkspaceBytes(null, null), { wrapper });
+
+    expect(api.readWorkspaceBytes).not.toHaveBeenCalled();
+  });
+
+  it("answers with a URL something can render", async () => {
+    // Not an `<img src>` pointing at the API: a browser request carries no
+    // organization header, so the backend would answer for the wrong tenant.
+    const { result } = renderHook(() => useWorkspaceBytes("w-1", "/chart.png"), { wrapper });
+
+    await waitFor(() => expect(result.current.url).toBe("blob:0"));
+    expect(api.readWorkspaceBytes).toHaveBeenCalledWith("w-1", "/chart.png");
+  });
+
+  it("releases the URL when it is done with it", async () => {
+    // A blob URL holds the bytes alive until it is revoked, and an image the size of
+    // a chart adds up over a session of clicking through files.
+    const { result, unmount } = renderHook(() => useWorkspaceBytes("w-1", "/chart.png"), {
+      wrapper,
+    });
+    await waitFor(() => expect(result.current.url).toBe("blob:0"));
+
+    unmount();
+
+    expect(revoked).toEqual(["blob:0"]);
+  });
+
+  it("reports a refusal rather than a blank preview", async () => {
+    vi.mocked(api.readWorkspaceBytes).mockRejectedValue(new Error("This host can only read text"));
+
+    const { result } = renderHook(() => useWorkspaceBytes("w-1", "/chart.png"), { wrapper });
+
+    await waitFor(() => expect(result.current.error).toBe("This host can only read text"));
+    expect(result.current.url).toBeNull();
+  });
+});
+
+describe("saving a file to disk", () => {
+  it("asks for it as a download and names it after the file", async () => {
+    const clicked: HTMLAnchorElement[] = [];
+    Object.assign(URL, {
+      createObjectURL: () => "blob:download",
+      revokeObjectURL: vi.fn(),
+    });
+    vi.mocked(api.readWorkspaceBytes).mockResolvedValue(new Blob(["a,b"]));
+    const create = document.createElement.bind(document);
+    vi.spyOn(document, "createElement").mockImplementation((tag: string) => {
+      const element = create(tag) as HTMLAnchorElement;
+      if (tag === "a") element.click = () => clicked.push(element);
+      return element;
+    });
+
+    await downloadWorkspaceFile("w-1", "/out/report.csv");
+
+    expect(api.readWorkspaceBytes).toHaveBeenCalledWith("w-1", "/out/report.csv", {
+      download: true,
+    });
+    expect(clicked[0]?.download).toBe("report.csv");
+    vi.mocked(document.createElement).mockRestore();
+  });
+
+  it("falls back to a name when the path ends in a slash", async () => {
+    Object.assign(URL, { createObjectURL: () => "blob:x", revokeObjectURL: vi.fn() });
+    vi.mocked(api.readWorkspaceBytes).mockResolvedValue(new Blob([""]));
+    const create = document.createElement.bind(document);
+    const names: string[] = [];
+    vi.spyOn(document, "createElement").mockImplementation((tag: string) => {
+      const element = create(tag) as HTMLAnchorElement;
+      if (tag === "a") element.click = () => names.push(element.download);
+      return element;
+    });
+
+    await downloadWorkspaceFile("w-1", "/");
+
+    expect(names).toEqual(["file"]);
+    vi.mocked(document.createElement).mockRestore();
   });
 });

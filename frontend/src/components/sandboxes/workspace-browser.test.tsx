@@ -26,6 +26,7 @@ const state = vi.hoisted(() => ({
   flatLoading: false,
   flatError: null as string | null,
   flatAsked: [] as boolean[],
+  downloaded: [] as [string, string][],
 }));
 
 vi.mock("@/hooks", () => ({
@@ -41,6 +42,10 @@ vi.mock("@/hooks", () => ({
   useWorkspaceFiles: (id: string | null) => {
     state.opened.push(id);
     return { files: state.files, isLoading: state.filesLoading, error: state.filesError };
+  },
+  downloadWorkspaceFile: (id: string, path: string) => {
+    state.downloaded.push([id, path]);
+    return Promise.resolve();
   },
   useWorkspaceFile: (_id: string | null, path: string | null) => {
     state.read.push(path);
@@ -97,6 +102,7 @@ beforeEach(() => {
   state.flatLoading = false;
   state.flatError = null;
   state.flatAsked = [];
+  state.downloaded = [];
 });
 
 describe("WorkspaceBrowser", () => {
@@ -201,148 +207,15 @@ describe("WorkspaceBrowser", () => {
     expect(document.querySelector(".h-10")).not.toBeNull();
   });
 
-  it("reads no files until a workspace is opened", async () => {
-    // Which is why the listing carries none: this is a request per workspace, and
-    // for a container-backed one it reads the host volume.
+  it("opens a workspace as its own page rather than a panel under the table", () => {
+    // A workspace with a `skills/` directory is a tree, and a URL is what makes
+    // "look at this file" something one person can send another.
     render(<WorkspaceBrowser />);
 
-    expect(state.opened).toEqual([]);
-
-    await userEvent.click(screen.getByRole("button", { name: "Files of Analyst" }));
-
-    expect(state.opened.at(-1)).toBe("w-1");
-    expect(screen.getByText("/uploads/report.csv")).toBeVisible();
-  });
-
-  it("closes again on a second press", async () => {
-    render(<WorkspaceBrowser />);
-    const toggle = screen.getByRole("button", { name: "Files of Analyst" });
-
-    await userEvent.click(toggle);
-    await userEvent.click(toggle);
-
-    expect(screen.queryByText("/uploads/report.csv")).toBeNull();
-  });
-
-  it("says an opened workspace is empty rather than showing nothing", async () => {
-    state.files = files({ items: [], total: 0 });
-    render(<WorkspaceBrowser />);
-
-    await userEvent.click(screen.getByRole("button", { name: "Files of Analyst" }));
-
-    expect(screen.getByText(/This workspace is empty/)).toBeVisible();
-  });
-
-  it("reports a workspace that could not be read", async () => {
-    state.files = null;
-    state.filesError = "The sandbox service did not answer";
-    render(<WorkspaceBrowser />);
-
-    await userEvent.click(screen.getByRole("button", { name: "Files of Analyst" }));
-
-    expect(screen.getByText("The sandbox service did not answer")).toBeVisible();
-  });
-
-  it("draws a placeholder while a workspace opens", async () => {
-    state.files = null;
-    state.filesLoading = true;
-    render(<WorkspaceBrowser />);
-
-    await userEvent.click(screen.getByRole("button", { name: "Files of Analyst" }));
-
-    expect(document.querySelector(".h-16")).not.toBeNull();
-  });
-
-  it("reads a file only when somebody asks for it", async () => {
-    render(<WorkspaceBrowser />);
-    await userEvent.click(screen.getByRole("button", { name: "Files of Analyst" }));
-
-    expect(state.read).toEqual([]);
-
-    await userEvent.click(screen.getByRole("button", { name: "Read /uploads/report.csv" }));
-
-    expect(state.read.at(-1)).toBe("/uploads/report.csv");
-    expect(screen.getByText("month,total")).toBeVisible();
-  });
-
-  it("closes a file on a second press", async () => {
-    render(<WorkspaceBrowser />);
-    await userEvent.click(screen.getByRole("button", { name: "Files of Analyst" }));
-    const toggle = screen.getByRole("button", { name: "Read /uploads/report.csv" });
-
-    await userEvent.click(toggle);
-    await userEvent.click(toggle);
-
-    expect(screen.queryByText("month,total")).toBeNull();
-  });
-
-  it("offers no Read for a directory entry", async () => {
-    state.files = files({ items: [{ path: "/uploads", size: null, is_dir: true }] });
-    render(<WorkspaceBrowser />);
-
-    await userEvent.click(screen.getByRole("button", { name: "Files of Analyst" }));
-
-    expect(screen.queryByRole("button", { name: /^Read/ })).toBeNull();
-    expect(screen.getByText("—")).toBeVisible();
-  });
-
-  it("reports a file that could not be read", async () => {
-    state.file = null;
-    state.fileError = "That file could not be read";
-    render(<WorkspaceBrowser />);
-
-    await userEvent.click(screen.getByRole("button", { name: "Files of Analyst" }));
-    await userEvent.click(screen.getByRole("button", { name: "Read /uploads/report.csv" }));
-
-    expect(screen.getByText("That file could not be read")).toBeVisible();
-  });
-
-  it("draws a placeholder while a file loads", async () => {
-    state.file = null;
-    state.fileLoading = true;
-    render(<WorkspaceBrowser />);
-
-    await userEvent.click(screen.getByRole("button", { name: "Files of Analyst" }));
-    await userEvent.click(screen.getByRole("button", { name: "Read /uploads/report.csv" }));
-
-    expect(document.querySelector(".h-24")).not.toBeNull();
-  });
-
-  it("renders nothing for a file that answered with neither content nor an error", async () => {
-    state.file = null;
-    render(<WorkspaceBrowser />);
-
-    await userEvent.click(screen.getByRole("button", { name: "Files of Analyst" }));
-    await userEvent.click(screen.getByRole("button", { name: "Read /uploads/report.csv" }));
-
-    expect(screen.queryByText("month,total")).toBeNull();
-  });
-
-  it("reads a file's size in kibibytes", async () => {
-    state.files = files({ items: [{ path: "/notes.md", size: 4096, is_dir: false }] });
-    render(<WorkspaceBrowser />);
-
-    await userEvent.click(screen.getByRole("button", { name: "Files of Analyst" }));
-
-    expect(screen.getByText("4 KiB")).toBeVisible();
-  });
-
-  it("reads a small file's size in bytes", async () => {
-    state.files = files({ items: [{ path: "/a.txt", size: 12, is_dir: false }] });
-    render(<WorkspaceBrowser />);
-
-    await userEvent.click(screen.getByRole("button", { name: "Files of Analyst" }));
-
-    expect(screen.getByText("12 B")).toBeVisible();
-  });
-
-  it("reads a large file's size in mebibytes", async () => {
-    state.files = files({ items: [{ path: "/big.csv", size: 2_097_152, is_dir: false }] });
-    render(<WorkspaceBrowser />);
-
-    await userEvent.click(screen.getByRole("button", { name: "Files of Analyst" }));
-
-    expect(screen.getByText("2.0 MiB")).toBeVisible();
+    expect(screen.getByRole("link", { name: "Files of Analyst" })).toHaveAttribute(
+      "href",
+      "/workspaces/w-1",
+    );
   });
 
   describe("the flat view", () => {
@@ -378,15 +251,46 @@ describe("WorkspaceBrowser", () => {
       expect(state.flatAsked.at(-1)).toBe(true);
     });
 
-    it("names the workspace each file came from", async () => {
+    it("names the workspace each file came from, and links to it", async () => {
       // `/report.csv` exists in several workspaces, so a path on its own is
-      // ambiguous - and who can see it is the point of the column.
+      // ambiguous - and who can see it is the point of the line beneath it.
       render(<WorkspaceBrowser />);
 
       await userEvent.click(screen.getByRole("button", { name: "All files" }));
 
-      expect(screen.getByText("/report.csv")).toBeVisible();
-      expect(screen.getByText("Everybody who talks to this agent")).toBeVisible();
+      expect(screen.getByRole("link", { name: "/report.csv" })).toHaveAttribute(
+        "href",
+        "/workspaces/w-1",
+      );
+      expect(
+        screen.getByText(/Analyst · Everybody who talks to this agent/),
+      ).toBeVisible();
+    });
+
+    it("reads a file's size in the units a person uses, or says it is unmeasured", async () => {
+      state.flat = {
+        ...state.flat!,
+        items: [
+          { ...state.flat!.items[0]!, path: "/small.txt", size: 12 },
+          { ...state.flat!.items[0]!, path: "/unknown.bin", size: null },
+        ],
+      };
+      render(<WorkspaceBrowser />);
+
+      await userEvent.click(screen.getByRole("button", { name: "All files" }));
+
+      expect(screen.getByText(/12 B/)).toBeVisible();
+      expect(screen.getByText(/unknown\.bin/)).toBeVisible();
+      expect(screen.getByText(/· —$/)).toBeVisible();
+    });
+
+    it("offers a download for every file, without opening it first", async () => {
+      render(<WorkspaceBrowser />);
+
+      await userEvent.click(screen.getByRole("button", { name: "All files" }));
+      await userEvent.click(screen.getByRole("button", { name: "Download /report.csv" }));
+
+      expect(state.downloaded).toEqual([["w-1", "/report.csv"]]);
     });
 
     it("says when the answer is partial rather than letting it read as complete", async () => {

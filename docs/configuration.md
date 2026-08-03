@@ -268,10 +268,27 @@ the `state` workspace needs none.
 **Browsing what the agents kept.** Workspaces is its own screen — not part of
 Sandboxes, which is about *hosts*. Each row names the agent, the conversation the
 files belong to (or how many chats reach them, for a workspace no single
-conversation owns), who can see them, how big it is and when it was last used; the
-files inside one are read on demand. A second view flattens every file into one
-list, which is the "who is holding a copy of that CSV" question the per-workspace
-table can only answer one row at a time.
+conversation owns), who can see them, how big it is and when it was last used.
+**Open** goes to that workspace's own page: folders walked one at a time, a search
+box over the whole tree rather than the folder on screen, a text file or an image
+previewed in place, and every file downloadable. A second view on the listing
+flattens every file the reader can see into one grid — the "who is holding a copy of
+that CSV" question the per-workspace page cannot answer.
+
+A download and an image preview go through `GET
+/sandbox-workspaces/{id}/raw?path=…`, which serves **bytes**: a chart is the
+commonest thing a workspace holds that nobody can read as a string, and a PNG
+decoded as UTF-8 and re-encoded is a corrupt PNG. Almost everything is served as an
+attachment; only the raster image types are served for display. **SVG and HTML are
+downloadable and never displayable** — an SVG served inline from this origin is
+stored cross-site scripting written by whatever the agent decided to save, and "the
+agent wrote it" is not a trust boundary. The filename travels as `filename*` only,
+because a workspace path can hold any UTF-8 and the bare form has no way to say so.
+
+Only a **stored** workspace can serve arbitrary bytes. A container-backed one is read
+through the workspace archive, whose only reader is textual, so a text file is served
+by encoding it and anything else is refused rather than quietly mangled — the browser
+offers the download beside the refusal so the answer is never a dead end.
 
 Files are read only when a workspace is opened, or when the flat view is switched
 on: a deployment can hold one per warm conversation, so reading each to render the

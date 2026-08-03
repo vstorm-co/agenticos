@@ -622,6 +622,114 @@ class TestWorkspacesAreScopedToTheirReader:
         listed.assert_not_called()
 
 
+class TestServingAFileAsBytes:
+    """Downloads and image previews, and why text is not enough.
+
+    A chart is the commonest thing a workspace holds that nobody can read as a
+    string, and a PNG decoded as UTF-8 and re-encoded is a corrupt PNG. So this path
+    exists, and its one refusal is the honest one: a container-backed workspace is
+    read through an archive whose only reader is textual.
+    """
+
+    async def test_a_stored_file_comes_back_as_the_bytes_it_was_written_as(
+        self, monkeypatch, mock_db_session
+    ):
+        stored = StateBackend()
+        stored.write("/report.csv", "month,total")
+        row = _row(files=dict(stored.files))
+        monkeypatch.setattr(workspace_repo, "get", AsyncMock(return_value=row))
+
+        data = await SandboxWorkspaceService(mock_db_session).read_bytes_of(
+            _ctx(), row.id, path="/report.csv"
+        )
+
+        assert data == b"month,total"
+
+    async def test_a_path_that_is_not_there_is_missing_rather_than_empty(
+        self, monkeypatch, mock_db_session
+    ):
+        row = _row(files={})
+        monkeypatch.setattr(workspace_repo, "get", AsyncMock(return_value=row))
+
+        with pytest.raises(NotFoundError):
+            await SandboxWorkspaceService(mock_db_session).read_bytes_of(
+                _ctx(), row.id, path="/nope.png"
+            )
+
+    async def test_a_text_file_on_a_container_host_is_served(self, monkeypatch, mock_db_session):
+        from pydantic_ai_backends import remote as remote_module
+
+        class _Archive:
+            def __init__(self, url, token=""):
+                pass
+
+            def ls(self, session_id):
+                return []
+
+            def read(self, session_id, path):
+                return "print(1)"
+
+        monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
+        _serve(monkeypatch, _resolved())
+        row = _row(backend="service", session_id="dc-1", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "get", AsyncMock(return_value=row))
+
+        data = await SandboxWorkspaceService(mock_db_session).read_bytes_of(
+            _ctx(), row.id, path="/run.py"
+        )
+
+        assert data == b"print(1)"
+
+    async def test_a_binary_on_a_container_host_is_refused_rather_than_mangled(
+        self, monkeypatch, mock_db_session
+    ):
+        """The archive reads text only, and a PNG that has been through `str` is a
+        corrupt PNG that downloads successfully - the worst of the three outcomes."""
+        row = _row(backend="service", session_id="dc-1", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "get", AsyncMock(return_value=row))
+        service = SandboxWorkspaceService(mock_db_session)
+        service.connections = MagicMock(resolve=AsyncMock(return_value=_resolved()))
+
+        with pytest.raises(BadRequestError) as refused:
+            await service.read_bytes_of(_ctx(), row.id, path="/chart.png")
+
+        assert "can only read text" in refused.value.message
+
+    async def test_a_text_file_a_container_host_does_not_have_is_missing(
+        self, monkeypatch, mock_db_session
+    ):
+        row = _row(backend="service", session_id="dc-1", connection_id=None)
+        monkeypatch.setattr(workspace_repo, "get", AsyncMock(return_value=row))
+
+        with pytest.raises(NotFoundError):
+            await SandboxWorkspaceService(mock_db_session).read_bytes_of(
+                _ctx(), row.id, path="/run.py"
+            )
+
+    async def test_a_workspace_that_is_not_this_callers_is_missing(
+        self, monkeypatch, mock_db_session
+    ):
+        """The same predicate the listing applies - a download must not be the way
+        around it."""
+        row = _row(files={})
+        monkeypatch.setattr(workspace_repo, "get", AsyncMock(return_value=row))
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=[]))
+
+        with pytest.raises(NotFoundError):
+            await SandboxWorkspaceService(mock_db_session).read_bytes_of(
+                _member_ctx(), row.id, path="/a.txt"
+            )
+
+    def test_a_file_with_no_suffix_is_not_assumed_to_be_text(self):
+        """Guessing wrong here is silent, and the file that has no suffix is exactly
+        where a guess is least informed."""
+        from app.services.sandbox_workspace import _is_textual
+
+        assert _is_textual("/notes.md") is True
+        assert _is_textual("/Makefile") is False
+        assert _is_textual("/chart.PNG") is False
+
+
 class TestOneFlatListOfFiles:
     """The "which agent is holding a copy of that CSV" view.
 

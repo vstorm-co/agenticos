@@ -26,7 +26,7 @@ month list its files after the session was reaped.
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, Response, status
 
 from app.api.deps import Auth, WorkspaceSvc
 from app.schemas.workspace import (
@@ -127,6 +127,65 @@ async def list_files(workspace_id: UUID, workspaces: WorkspaceSvc, ctx: Auth) ->
         total=len(items),
         bytes_total=row.bytes_total,
         unreadable_reason=contents.unreadable_reason,
+    )
+
+
+INLINE_IMAGE_TYPES: dict[str, str] = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+}
+"""The only types served with `inline` disposition, and the list is short on purpose.
+
+A raster image cannot execute. `.svg` can - it carries script, and an SVG served
+inline from the same origin as the application is a stored cross-site scripting
+hole with the agent as the author. `.html` is the same argument without the
+subtlety. Both are downloadable; neither is displayable.
+"""
+
+
+@router.get("/{workspace_id}/raw", response_model=None)
+async def read_raw_file(
+    workspace_id: UUID,
+    workspaces: WorkspaceSvc,
+    ctx: Auth,
+    path: str = Query(description="Path inside the workspace, as the listing gives it"),
+    download: bool = Query(False, description="Force a download rather than a preview"),
+) -> Response:
+    """One file as bytes: a download, or an image a preview can render.
+
+    The sibling of `/file`, which answers with text in JSON. Both exist because a
+    chart an agent produced is not a string - decoding a PNG as UTF-8 and
+    re-encoding it is a corrupt PNG - and the panel needs the bytes to show it at
+    all.
+
+    **Almost everything is an attachment.** Only the raster image types in
+    `INLINE_IMAGE_TYPES` are served for display; anything else, including SVG and
+    HTML, is `attachment` with `application/octet-stream`. An SVG served inline from
+    this origin is stored XSS written by whatever the agent decided to save, and
+    "the agent wrote it" is not a trust boundary.
+    """
+    from pathlib import PurePosixPath
+    from urllib.parse import quote
+
+    data = await workspaces.read_bytes_of(ctx, workspace_id, path=path)
+    name = PurePosixPath(path).name or "file"
+    suffix = PurePosixPath(path).suffix.lower()
+    inline = not download and suffix in INLINE_IMAGE_TYPES
+    media_type = INLINE_IMAGE_TYPES[suffix] if inline else "application/octet-stream"
+    return Response(
+        content=data,
+        media_type=media_type,
+        headers={
+            # `filename*` and nothing else: a workspace path can hold any UTF-8, and
+            # the bare `filename` form has no way to say so - a quote or a newline in
+            # it is a header-injection primitive rather than a filename.
+            "Content-Disposition": (
+                f"{'inline' if inline else 'attachment'}; filename*=UTF-8''{quote(name)}"
+            ),
+        },
     )
 
 
