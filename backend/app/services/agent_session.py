@@ -455,14 +455,20 @@ class AgentSession:
                 pending[tool_event.part.tool_call_id] = tc
                 await send_event(self.websocket, "tool_call", tc)
             elif isinstance(tool_event, FunctionToolResultEvent):
+                # `.part`, not `.result`. Pydantic AI 2 renamed the field when
+                # `ToolResultEvent` became the shared base of the function and
+                # output events; reading the old name raised `AttributeError`
+                # inside the stream, which reached the user as
+                # "❌ Error: 'FunctionToolResultEvent' object has no attribute
+                # 'result'" on every tool call in web chat. A `RetryPromptPart`
+                # arrives here too and also carries `content` - the retry message -
+                # so a failed call is reported rather than swallowed.
+                content = str(tool_event.part.content)
                 tc = pending.get(tool_event.tool_call_id)
                 if tc is not None:
-                    tc["result"] = str(tool_event.result.content)
+                    tc["result"] = content
                 await send_event(
                     self.websocket,
                     "tool_result",
-                    {
-                        "tool_call_id": tool_event.tool_call_id,
-                        "content": str(tool_event.result.content),
-                    },
+                    {"tool_call_id": tool_event.tool_call_id, "content": content},
                 )
