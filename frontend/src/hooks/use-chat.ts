@@ -55,10 +55,19 @@ export function useChat(options: UseChatOptions = {}) {
   } = useChatStore();
 
   const [isProcessing, setIsProcessing] = useState(false);
-  // What the last turn cost. Replaced rather than accumulated: the strip says
-  // "that turn", and a running total would be a second, disagreeing answer to a
-  // question the billing pages already own.
-  const [lastUsage, setLastUsage] = useState<TurnUsage | null>(null);
+  // What the last turn cost, and *which conversation it was*. Replaced rather than
+  // accumulated: the strip says "that turn", and a running total would be a second,
+  // disagreeing answer to a question the billing pages already own.
+  //
+  // Keyed on the conversation because it is read after switching to another one. The
+  // bare value survived the switch and the strip reported the previous thread's cost
+  // under this one's input - a stale number that looked exactly like a real one.
+  // Keyed, it simply is not returned, so the staleness is impossible rather than
+  // cleaned up afterwards.
+  const [liveUsage, setLiveUsage] = useState<{
+    conversationId: string | null;
+    usage: TurnUsage;
+  } | null>(null);
   // Held in a ref instead of state because the WS handler reads it
   // synchronously: events arriving in the same tick (e.g. model_request_start
   // + text_delta in one server flush) need to see the just-created message id
@@ -84,6 +93,13 @@ export function useChat(options: UseChatOptions = {}) {
   // read from the store at that moment, because switching agents while an answer
   // is streaming must not re-credit that answer to the newly picked agent.
   const turnAgentIdRef = useRef<string | null>(null);
+  // Which conversation this hook is about: the store's, or the one passed in before
+  // the store has caught up. Computed once because three places need the same answer
+  // - stamping a new message, recording what a turn cost, and deciding whether that
+  // cost still belongs to what is on screen - and three copies of the fallback chain
+  // is three chances for them to disagree.
+  const activeConversationId = currentConversationIdFromStore || conversationId || null;
+
   const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null);
   const [pendingQuestions, setPendingQuestions] = useState<AskUserQuestion[] | null>(null);
 
@@ -100,9 +116,7 @@ export function useChat(options: UseChatOptions = {}) {
         }
 
         const newMsgId = nanoid();
-        // Use current conversationId from store to avoid closure issues
-        const effectiveConversationId =
-          currentConversationIdFromStore || conversationId || undefined;
+        const effectiveConversationId = activeConversationId ?? undefined;
         addMessage({
           id: newMsgId,
           role: "assistant",
@@ -147,6 +161,12 @@ export function useChat(options: UseChatOptions = {}) {
               id: message_id,
               isTemporaryId: false,
             }));
+            // And point the ref at it. Everything after this - `complete` writing
+            // what the turn cost, an `error` marking the message failed - addresses
+            // the message through this ref, and a ref still holding the temporary id
+            // addresses a message that no longer exists. The cost was being written
+            // to nothing, so it appeared only after a reload fetched it from the row.
+            setCurrentMessageId(message_id);
           } else {
             // Fallback: find the last assistant message with a temp ID
             // This handles cases where currentMessageId was already cleared
@@ -323,7 +343,14 @@ export function useChat(options: UseChatOptions = {}) {
           {
             const { usage } = wsEvent.data as { usage?: TurnUsage | null };
             if (usage) {
-              setLastUsage(usage);
+              setLiveUsage({
+                // From the store rather than the render closure: a turn that created
+                // the conversation learns its id from `conversation_created` in this
+                // same handler, and the closure still holds `null`.
+                conversationId:
+                  useConversationStore.getState().currentConversationId ?? activeConversationId,
+                usage,
+              });
               // Also on the message itself. The strip under the input only ever
               // describes the last turn, so in a long conversation there is no
               // way to see which answer was the expensive one - and "the one
@@ -356,8 +383,7 @@ export function useChat(options: UseChatOptions = {}) {
       setCurrentConversationId,
       setCurrentMessageId,
       onConversationCreated,
-      currentConversationIdFromStore,
-      conversationId,
+      activeConversationId,
     ],
   );
 
@@ -595,11 +621,16 @@ export function useChat(options: UseChatOptions = {}) {
     }
   }, [isProcessing, isConnected, doSend]);
 
+  // The live turn's cost, and only while it still belongs to the conversation on
+  // screen. A value from the thread somebody just left is not a value about this one.
+  const onThisConversation =
+    liveUsage !== null && liveUsage.conversationId === activeConversationId;
+
   return {
     messages,
     isConnected,
     isProcessing,
-    lastUsage,
+    lastUsage: onThisConversation ? liveUsage.usage : null,
     connect,
     disconnect,
     sendMessage: sendChatMessage,

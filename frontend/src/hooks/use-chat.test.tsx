@@ -427,6 +427,73 @@ describe("useChat - the conversation a turn belongs to", () => {
     expect(result.current.lastUsage).toMatchObject({ input_tokens: 1200 });
   });
 
+  it("still finds the message after it has been given its real id", () => {
+    // `message_saved` renames the streaming message, and everything after it -
+    // the cost, an error - addresses the message through the ref. A ref left
+    // holding the temporary id addresses a message that no longer exists, so the
+    // cost was written to nothing and appeared only after a reload.
+    renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("message_saved", { message_id: "m-real" });
+
+    receive("complete", {
+      usage: {
+        input_tokens: 4055,
+        output_tokens: 24,
+        cost_usd: 0.0012,
+        budget_percent: null,
+        agent_budget_percent: null,
+        sandbox: null,
+      },
+    });
+
+    expect(streaming()).toMatchObject({ id: "m-real" });
+    expect(streaming()?.usage).toMatchObject({ input_tokens: 4055 });
+  });
+
+  it("credits the cost to the conversation it was passed, before the store catches up", () => {
+    // The page knows which thread it opened before the store does, and a cost
+    // attributed to `null` would be shown under whatever came next.
+    const { result } = renderHook(() => useChat({ conversationId: "c-passed" }), { wrapper });
+
+    receive("complete", {
+      usage: {
+        input_tokens: 5,
+        output_tokens: 5,
+        cost_usd: 0.001,
+        budget_percent: null,
+        agent_budget_percent: null,
+        sandbox: null,
+      },
+    });
+
+    expect(result.current.lastUsage).toMatchObject({ input_tokens: 5 });
+  });
+
+  it("does not report one conversation's cost under another", () => {
+    // The bare value survived a switch, so the strip showed the thread somebody had
+    // just left. Keyed on the conversation, it simply is not returned.
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("complete", {
+      usage: {
+        input_tokens: 1200,
+        output_tokens: 300,
+        cost_usd: 0.0125,
+        budget_percent: null,
+        agent_budget_percent: null,
+        sandbox: null,
+      },
+    });
+    expect(result.current.lastUsage).toMatchObject({ input_tokens: 1200 });
+
+    act(() => {
+      useConversationStore.getState().setCurrentConversationId("c-2");
+    });
+
+    expect(result.current.lastUsage).toBeNull();
+  });
+
   it("records the cost on the answer that cost it, not only under the input", () => {
     // The strip only ever describes the last turn, so in a long conversation
     // there is no way to see which answer was the expensive one.
