@@ -258,11 +258,23 @@ describe("WorkspaceBrowser", () => {
 
       await userEvent.click(screen.getByRole("button", { name: "All files" }));
 
-      expect(screen.getByRole("link", { name: "/report.csv" })).toHaveAttribute(
+      expect(screen.getByRole("link", { name: "Analyst" })).toHaveAttribute(
         "href",
         "/workspaces/w-1",
       );
-      expect(screen.getByText(/Analyst · Everybody who talks to this agent/)).toBeVisible();
+      expect(screen.getByText(/Everybody who talks to this agent/)).toBeVisible();
+    });
+
+    it("opens a file in place, because the next question is what is in it", async () => {
+      render(<WorkspaceBrowser />);
+      await userEvent.click(screen.getByRole("button", { name: "All files" }));
+
+      await userEvent.click(screen.getByRole("button", { name: "/report.csv" }));
+
+      expect(screen.getByRole("button", { name: "/report.csv" })).toHaveAttribute(
+        "aria-expanded",
+        "true",
+      );
     });
 
     it("reads a file's size in the units a person uses, or says it is unmeasured", async () => {

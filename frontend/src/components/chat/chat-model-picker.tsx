@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
+import { InlineSecret } from "@/components/vault/inline-secret";
 import { useModelProviders, useProviderModels, useSecretPurposes, useSecrets } from "@/hooks";
 import { getErrorMessage } from "@/lib/utils";
 
@@ -72,7 +73,9 @@ export function ChatModelPicker({ value, onChange }: ChatModelPickerProps) {
 
     const key = secrets.find((secret) => secret.purpose === provider.id);
     if (key === undefined) {
-      setFailure(`No ${provider.label} key in the vault. Add one on the Vault page first.`);
+      // The form below offers to add one, so this says what is missing rather than
+      // sending somebody to another page for it.
+      setFailure(`No ${provider.label} key in the vault yet. Add one below.`);
       return;
     }
 
@@ -164,6 +167,19 @@ export function ChatModelPicker({ value, onChange }: ChatModelPickerProps) {
         )}
         {failure !== null && <p className="text-destructive text-xs">{failure}</p>}
       </div>
+
+      {/* A key can be added here rather than on another page. A picker that can only
+          offer what is already stored, and answers "add one in the Vault" when
+          nothing is, is a dead end - and the provider is already chosen, so the
+          purpose this key needs is known. */}
+      {provider !== undefined && !secrets.some((secret) => secret.purpose === provider.id) && (
+        <InlineSecret
+          kind="api_key"
+          purpose={provider.id}
+          suggestedName={provider.label}
+          onCreated={() => setFailure(null)}
+        />
+      )}
 
       <Button type="button" size="sm" disabled={!canApply} onClick={apply}>
         Run on this model

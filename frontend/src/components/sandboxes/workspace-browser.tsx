@@ -22,6 +22,7 @@ import {
 import Link from "next/link";
 
 import { FileIcon } from "./file-tile";
+import { FilePreview } from "./file-preview";
 import { downloadWorkspaceFile, useAllWorkspaceFiles, useSandboxWorkspaces } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 
@@ -31,6 +32,11 @@ function size(bytes: number | null): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KiB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
+}
+
+/** One file's identity across workspaces: the same path exists in several. */
+function key(file: { workspace_id: string; path: string }): string {
+  return `${file.workspace_id}${file.path}`;
 }
 
 /** When it was last touched, roughly. */
@@ -201,6 +207,7 @@ export function WorkspaceBrowser() {
  */
 function FlatFiles() {
   const { listing, isLoading, error } = useAllWorkspaceFiles(true);
+  const [opened, setOpened] = useState<string | null>(null);
 
   if (isLoading) return <Skeleton className="m-5 h-24" />;
   if (error !== null) return <p className="text-destructive px-5 py-4 text-sm">{error}</p>;
@@ -220,22 +227,34 @@ function FlatFiles() {
           see it, and a way to get it onto this machine. */}
       <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {listing.items.map((file) => (
-          <li key={`${file.workspace_id}${file.path}`} className="border-border rounded-lg border">
+          <li key={key(file)} className="border-border rounded-lg border">
             <div className="flex items-start gap-2 p-3">
               <FileIcon
                 path={file.path}
                 className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0"
               />
               <div className="min-w-0 flex-1 space-y-1">
-                <Link
-                  href={ROUTES.WORKSPACE_DETAIL(file.workspace_id)}
-                  className="block truncate font-mono text-xs hover:underline"
+                {/* The path opens the file, here, rather than only linking to the
+                    workspace it lives in - "who is holding a copy of that CSV" is
+                    usually followed by "what is in it". The workspace is one click
+                    away on the line below, for the times it is not. */}
+                <button
+                  type="button"
+                  onClick={() => setOpened(opened === key(file) ? null : key(file))}
+                  aria-expanded={opened === key(file)}
+                  className="block w-full truncate text-left font-mono text-xs hover:underline"
                   title={file.path}
                 >
                   {file.path}
-                </Link>
+                </button>
                 <p className="text-muted-foreground truncate text-[11px]">
-                  {file.agent_name} · {file.access_label} · {size(file.size)}
+                  <Link
+                    href={ROUTES.WORKSPACE_DETAIL(file.workspace_id)}
+                    className="hover:underline"
+                  >
+                    {file.agent_name}
+                  </Link>{" "}
+                  · {file.access_label} · {size(file.size)}
                 </p>
               </div>
               <button
@@ -247,6 +266,9 @@ function FlatFiles() {
                 <Download className="h-3.5 w-3.5" />
               </button>
             </div>
+            {opened === key(file) && (
+              <FilePreview workspaceId={file.workspace_id} path={file.path} />
+            )}
           </li>
         ))}
       </ul>
