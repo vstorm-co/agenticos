@@ -61,17 +61,19 @@ interface AddModelProps {
  * form was filled in, which is the wrong end of the interaction for something
  * this mechanical.
  */
+/** Catalog key for the placeholder, so the caller translates it. */
 export function modelPlaceholder(providerId: string | undefined): string {
   if (providerId === undefined) return "Pick a provider first";
   if (providerId === "openrouter") return "openai/gpt-5";
   return "gpt-5, claude-opus-5, gemini-3-pro…";
 }
 
+/** Catalog key for the hint under the field. */
 export function modelHint(providerId: string | undefined): string {
   if (providerId === "openrouter") {
     return "Namespaced by origin, as OpenRouter lists it - openai/gpt-5, anthropic/claude-opus-5.";
   }
-  return "As the provider names it. Free text, because they ship new ones faster than any list here could be updated.";
+  return "modelIdProviderHint";
 }
 
 /** The same rule the backend applies, so the button says no before the server does. */
@@ -208,7 +210,7 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
             source={source}
             loading={loadingModels}
             disabled={provider === undefined}
-            placeholder={modelPlaceholder(provider?.id)}
+            placeholder={t(modelPlaceholder(provider?.id))}
           />
           {failure !== null && <p className="text-destructive text-xs">{failure}</p>}
         </div>

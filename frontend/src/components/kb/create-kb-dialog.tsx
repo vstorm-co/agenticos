@@ -248,7 +248,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                   <InlineSecret
                     kind="api_key"
                     purpose={EMBEDDING_KEY_PURPOSE}
-                    suggestedName="OpenRouter (embeddings)"
+                    suggestedName={t("embeddingsKeyName")}
                     onCreated={setEmbeddingSecretId}
                   />
                 </div>

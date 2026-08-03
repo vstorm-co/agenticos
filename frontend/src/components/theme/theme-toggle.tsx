@@ -52,7 +52,7 @@ export function ThemeToggle({ variant = "icon", className }: ThemeToggleProps) {
         title={`Theme: ${theme}`}
       >
         {resolvedTheme === "dark" ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
-        {theme === "system" && <span className="sr-only">(following system)</span>}
+        {theme === "system" && <span className="sr-only">{t("followingSystem")}</span>}
       </Button>
     );
   }

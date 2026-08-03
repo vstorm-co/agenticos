@@ -14,6 +14,7 @@ function parseResult(text: string): Parsed {
   if (!text || text === "(code ran successfully with no output)") {
     return { stdout: null, result: null, error: null };
   }
+  // i18n-exempt: matches the tool's own output prefix, which is not translated
   if (text.startsWith("Execution failed:")) {
     return { stdout: null, result: null, error: text };
   }

@@ -1,5 +1,6 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui";
 import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 
 /**
  * Two letters for a face nobody uploaded.
@@ -55,6 +56,7 @@ export function MemberIdentity({
   isSelf?: boolean;
   className?: string;
 }) {
+  const t = useTranslations("orgs");
   const name = displayName(member);
 
   return (
@@ -68,7 +70,7 @@ export function MemberIdentity({
       <span className="min-w-0">
         <span className="text-foreground block truncate text-sm">
           {name}
-          {isSelf && <span className="text-muted-foreground"> (you)</span>}
+          {isSelf && <span className="text-muted-foreground"> {t("you")}</span>}
         </span>
         {/* Only when it adds something. For an account with no name the line above
             is already the address, and repeating it is a row that says one thing

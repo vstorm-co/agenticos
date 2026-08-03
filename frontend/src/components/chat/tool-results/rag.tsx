@@ -40,6 +40,7 @@ export function RAGSearchResults({ result }: { result: string }) {
   const items = parseRAGResults(result);
 
   if (items.length === 0) {
+    // i18n-exempt: matches the backend's own answer, which is not translated
     if (result.includes("No relevant documents")) {
       return (
         <div className="text-muted-foreground flex items-center gap-2 py-2 text-sm">

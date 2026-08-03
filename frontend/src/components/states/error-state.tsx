@@ -2,6 +2,7 @@ import { AlertCircle } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
+import { useTranslations } from "next-intl";
 interface ErrorStateProps {
   title?: string;
   description?: string;
@@ -9,12 +10,8 @@ interface ErrorStateProps {
   className?: string;
 }
 
-export function ErrorState({
-  title = "Something went wrong",
-  description = "Check your connection and try again.",
-  cta,
-  className,
-}: ErrorStateProps) {
+export function ErrorState({ title, description, cta, className }: ErrorStateProps) {
+  const t = useTranslations("ui");
   return (
     <div
       className={cn(

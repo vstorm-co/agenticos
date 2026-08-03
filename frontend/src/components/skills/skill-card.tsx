@@ -16,8 +16,8 @@ interface SkillCardProps {
 }
 
 /** The file count in words, so a zero reads as an answer rather than a glitch. */
-function fileCount(count: number): string {
-  if (count === 0) return "No files";
+function fileCount(count: number, t: (key: string) => string): string {
+  if (count === 0) return t("noFiles");
   return count === 1 ? "1 file" : `${count} files`;
 }
 
@@ -48,7 +48,7 @@ export function SkillCard({ skill, canEdit, onOpen, onDelete }: SkillCardProps) 
           <span className="text-muted-foreground flex items-center gap-3 text-xs">
             <span className="flex items-center gap-1">
               <FileText className="h-3.5 w-3.5 shrink-0" />
-              {fileCount(skill.file_count)}
+              {fileCount(skill.file_count, t)}
             </span>
             {skill.category !== null && (
               <span className="flex min-w-0 items-center gap-1">

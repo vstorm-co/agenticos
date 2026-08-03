@@ -19,6 +19,7 @@ import { Label } from "./label";
  */
 
 /** How the untouched state of every control reads, in one place. */
+import { useTranslations } from "next-intl";
 export const PROVIDER_DEFAULT = "Provider default";
 
 export interface OptionalSettingProps {
@@ -47,11 +48,12 @@ export function OptionalSetting({
   label,
   description,
   onReset,
-  resetLabel = "Use provider default",
+  resetLabel,
   error,
   disabled,
   children,
 }: OptionalSettingProps) {
+  const t = useTranslations("ui");
   return (
     <div className="space-y-1.5">
       <div className="flex min-h-8 items-center justify-between gap-2">
@@ -65,7 +67,7 @@ export function OptionalSetting({
             disabled={disabled}
             onClick={onReset}
           >
-            {resetLabel}
+            {resetLabel ?? t("useProviderDefault")}
           </Button>
         )}
       </div>

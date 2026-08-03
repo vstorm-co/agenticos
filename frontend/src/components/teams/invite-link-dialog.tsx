@@ -146,7 +146,12 @@ export function InviteLinkDialog({ open, onOpenChange, orgId }: InviteLinkDialog
               <code className="bg-muted min-w-0 flex-1 overflow-x-auto rounded-md p-2 font-mono text-xs">
                 {link}
               </code>
-              <Button variant="outline" size="sm" onClick={() => copy(link)} aria-label="Copy link">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => copy(link)}
+                aria-label={t("copyLink")}
+              >
                 {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
               </Button>
             </div>

@@ -9,7 +9,7 @@ import { useTranslations } from "next-intl";
 const ROUTE_LABELS: Record<string, string> = {
   [ROUTES.DASHBOARD]: "Dashboard",
   [ROUTES.CHAT]: "Chat",
-  [ROUTES.RAG]: "Knowledge Base",
+  [ROUTES.RAG]: "knowledgeBase",
   [ROUTES.PROFILE]: "Profile",
   "/settings": "Settings",
 };

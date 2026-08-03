@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Upload } from "lucide-react";
 
+import { useTranslations } from "next-intl";
 interface DragDropOverlayProps {
   /** Called when files are dropped. Validate / size-check inside. */
   onDrop: (files: File[]) => void;
@@ -24,10 +25,11 @@ interface DragDropOverlayProps {
 export function DragDropOverlay({
   onDrop,
   disabled,
-  title = "Drop files to upload",
-  description = "Files will be added to the active collection",
+  title,
+  description,
   acceptedFormats,
 }: DragDropOverlayProps) {
+  const t = useTranslations("rag");
   const [active, setActive] = useState(false);
   const counter = useRef(0);
 

@@ -30,10 +30,11 @@ const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
 };
 
 /** What to paste, per platform - the one thing people get stuck on. */
+/** Catalog key per platform; the sentence is in `messages/en.json`. */
 const TOKEN_HINT: Record<ChannelPlatform, string> = {
-  telegram: "The token @BotFather gives you when you create a bot",
-  slack: "The bot user OAuth token (xoxb-...) from your Slack app",
-  mattermost: "The bot account's access token",
+  telegram: "botTokenHintTelegram",
+  slack: "botTokenHintSlack",
+  mattermost: "botTokenHintMattermost",
 };
 
 /**
@@ -195,7 +196,7 @@ export function ChannelBotsPanel({ canManage }: { canManage: boolean }) {
               type="password"
               value={token}
               onChange={(event) => setToken(event.target.value)}
-              placeholder={TOKEN_HINT[platform]}
+              placeholder={t(TOKEN_HINT[platform])}
             />
           </div>
           <Button

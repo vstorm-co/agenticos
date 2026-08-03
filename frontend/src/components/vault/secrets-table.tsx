@@ -30,8 +30,12 @@ interface SecretsTableProps {
 }
 
 /** What a key is for, in words, falling back to the stored id for a custom one. */
-function purposeLabel(purposes: readonly SecretPurpose[], purpose: string | undefined): string {
-  if (!purpose || purpose === "custom") return "Custom service";
+function purposeLabel(
+  purposes: readonly SecretPurpose[],
+  purpose: string | undefined,
+  t: (key: string) => string,
+): string {
+  if (!purpose || purpose === "custom") return t("customService");
   return purposes.find((entry) => entry.id === purpose)?.label ?? purpose;
 }
 
@@ -121,7 +125,7 @@ export function SecretsTable({
               </TableCell>
 
               <TableCell className="text-muted-foreground text-sm">
-                {purposeLabel(purposes, secret.purpose)}
+                {purposeLabel(purposes, secret.purpose, t)}
               </TableCell>
 
               <TableCell>

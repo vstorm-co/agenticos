@@ -103,7 +103,7 @@ export function ObservabilityCard({
           <InlineSecret
             kind="api_key"
             purpose={TOKEN_PURPOSE}
-            suggestedName="Logfire write token"
+            suggestedName={t("logfireTokenName")}
             helpUrl="https://logfire.pydantic.dev/docs/how-to-guides/create-write-tokens/"
             disabled={disabled}
             onCreated={(secretId) => update({ token_secret_id: secretId })}

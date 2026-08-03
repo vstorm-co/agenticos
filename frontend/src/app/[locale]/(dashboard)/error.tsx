@@ -12,7 +12,7 @@ export default function DashboardError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error("Dashboard error:", error);
+    console.error("Dashboard error:", error); // i18n-exempt: a log line, read in a console
   }, [error]);
 
   return (

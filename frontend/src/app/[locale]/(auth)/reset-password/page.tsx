@@ -13,9 +13,10 @@ export async function generateMetadata({
   params: Promise<{ locale: Locale }>;
 }): Promise<Metadata> {
   const { locale } = await params;
+  const t = await getTranslations("pages.meta");
   return pageMetadata({
-    title: "Set a new password",
-    description: "Reset your account password.",
+    title: t("resetPasswordTitle"),
+    description: t("resetPasswordDescription"),
     path: "/reset-password",
     locale,
     noindex: true,

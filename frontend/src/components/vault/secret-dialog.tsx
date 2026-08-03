@@ -71,10 +71,10 @@ interface AddSecretDialogProps {
  * others fit, not a peer of them.
  */
 const PURPOSE_GROUPS = [
-  { id: "model_provider", label: "Model provider", hint: "OpenAI, Anthropic…" },
-  { id: "search", label: "Web search", hint: "Tavily, Brave, Exa" },
-  { id: "observability", label: "Tracing", hint: "Logfire" },
-  { id: "other", label: "Something else", hint: "Any other service" },
+  { id: "model_provider", words: "purposeModelProvider" },
+  { id: "search", words: "purposeSearch" },
+  { id: "observability", words: "purposeObservability" },
+  { id: "other", words: "purposeOther" },
 ] as const;
 
 type PurposeCategory = (typeof PURPOSE_GROUPS)[number]["id"];
@@ -222,8 +222,10 @@ export function AddSecretDialog({
                       : "border-input hover:bg-accent/50 text-muted-foreground",
                   )}
                 >
-                  <span className="block font-medium">{group.label}</span>
-                  <span className="text-muted-foreground block text-xs">{group.hint}</span>
+                  <span className="block font-medium">{t(group.words)}</span>
+                  <span className="text-muted-foreground block text-xs">
+                    {t(`${group.words}Hint`)}
+                  </span>
                 </button>
               ))}
             </div>

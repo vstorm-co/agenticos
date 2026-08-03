@@ -444,7 +444,7 @@ export function IngestionSettings({
                   ? undefined
                   : () => setImage("prompt", DEFAULT_IMAGE_PROMPT)
               }
-              resetLabel="Use the standard prompt"
+              resetLabel={t("useStandardPrompt")}
               disabled={disabled}
             >
               <Textarea

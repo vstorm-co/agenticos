@@ -187,7 +187,7 @@ export function CommandPalette() {
         </Command.Empty>
 
         <Group heading={t("quickActions")}>
-          <PaletteItem icon={Plus} label="Start new chat" onSelect={() => go(ROUTES.CHAT)} />
+          <PaletteItem icon={Plus} label={t("startNewChat")} onSelect={() => go(ROUTES.CHAT)} />
           <PaletteItem
             icon={BookOpen}
             label={t("apiDocs")}

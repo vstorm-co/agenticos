@@ -13,9 +13,10 @@ export async function generateMetadata({
   params: Promise<{ locale: Locale }>;
 }): Promise<Metadata> {
   const { locale } = await params;
+  const t = await getTranslations("pages.meta");
   return pageMetadata({
-    title: "Check your email",
-    description: "We sent you a sign-in link.",
+    title: t("magicLinkSentTitle"),
+    description: t("magicLinkSentDescription"),
     path: "/magic-link-sent",
     locale,
     noindex: true,

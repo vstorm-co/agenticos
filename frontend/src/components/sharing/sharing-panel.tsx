@@ -98,10 +98,11 @@ const RUNTIME_NOTE: Partial<Record<SharingResourceType, string>> = {
     "Sharing controls who can pick this collection in the Builder and who can change it. An agent connected to it searches it for everyone who can run that agent, including people who cannot open the collection themselves.",
 };
 
-const LEVEL_OPTIONS: { value: GrantLevel; label: string }[] = [
-  { value: "read", label: "Can view" },
-  { value: "use", label: "Can use" },
-  { value: "edit", label: "Can edit" },
+/** Each level's word is in the catalog; `words` names the key. */
+const LEVEL_OPTIONS: { value: GrantLevel; words: string }[] = [
+  { value: "read", words: "levelRead" },
+  { value: "use", words: "levelUse" },
+  { value: "edit", words: "levelEdit" },
 ];
 
 /** Radix hands back a plain string; a level the catalog does not know is a bug, not a default. */
@@ -243,7 +244,7 @@ export function SharingPanel({ resourceType, resourceId, canManage }: SharingPan
                   <SelectContent>
                     {LEVEL_OPTIONS.map((option) => (
                       <SelectItem key={option.value} value={option.value}>
-                        {option.label}
+                        {t(option.words)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -297,7 +298,7 @@ export function SharingPanel({ resourceType, resourceId, canManage }: SharingPan
                   <SelectContent>
                     {LEVEL_OPTIONS.map((option) => (
                       <SelectItem key={option.value} value={option.value}>
-                        {option.label}
+                        {t(option.words)}
                       </SelectItem>
                     ))}
                   </SelectContent>

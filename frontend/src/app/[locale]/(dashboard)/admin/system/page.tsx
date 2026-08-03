@@ -37,11 +37,12 @@ interface SystemHealth {
 
 const REFRESH_INTERVAL_MS = 30_000;
 
-const META: Record<string, { name: string; description: string; icon: LucideIcon }> = {
-  database: { name: "Database", description: "PostgreSQL primary", icon: Database },
-  redis: { name: "Redis", description: "Cache & queue broker", icon: Zap },
-  vector_store: { name: "Vector store", description: "pgvector, same database", icon: HardDrive },
-  model_access: { name: "Model access", description: "Provider keys and profiles", icon: Cpu },
+/** Each service's words live in the catalog; `words` names the key. */
+const META: Record<string, { words: string; icon: LucideIcon }> = {
+  database: { words: "serviceDatabase", icon: Database },
+  redis: { words: "serviceRedis", icon: Zap },
+  vector_store: { words: "serviceVectorStore", icon: HardDrive },
+  model_access: { words: "serviceModelAccess", icon: Cpu },
 };
 
 const STATUS_DOT: Record<CheckStatus, string> = {
@@ -51,11 +52,12 @@ const STATUS_DOT: Record<CheckStatus, string> = {
   not_checked: "bg-muted-foreground",
 };
 
-const STATUS_LABEL: Record<CheckStatus, string> = {
-  healthy: "Operational",
-  unhealthy: "Failing",
-  unconfigured: "Not configured",
-  not_checked: "Not checked",
+/** The catalog key for each state, not the word: the word is in `messages/en.json`. */
+const STATUS_WORDS: Record<CheckStatus, string> = {
+  healthy: "stateHealthy",
+  unhealthy: "stateUnhealthy",
+  unconfigured: "stateUnconfigured",
+  not_checked: "stateNotChecked",
 };
 
 const STATUS_TEXT: Record<CheckStatus, string> = {
@@ -92,7 +94,9 @@ export default function SystemHealthPage() {
     if (!checks.length) return null;
     const failing = checks.filter((check) => check.status === "unhealthy");
     if (failing.length) {
-      const names = failing.map((check) => META[check.key]?.name ?? check.key);
+      const names = failing.map((check) =>
+        META[check.key] ? t(META[check.key]!.words) : check.key,
+      );
       return { tone: "bad" as const, label: `Failing: ${names.join(", ")}` };
     }
     const unconfigured = checks.filter((check) => check.status !== "healthy");
@@ -187,11 +191,11 @@ export default function SystemHealthPage() {
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="text-foreground text-sm font-medium">
-                      {meta?.name ?? check.key}
+                      {meta ? t(meta.words) : check.key}
                       {meta && (
                         <span className="text-muted-foreground font-normal">
                           {" · "}
-                          {meta.description}
+                          {t(`${meta.words}Detail`)}
                         </span>
                       )}
                     </p>
@@ -209,7 +213,7 @@ export default function SystemHealthPage() {
                           STATUS_TEXT[check.status],
                         )}
                       >
-                        {STATUS_LABEL[check.status]}
+                        {t(STATUS_WORDS[check.status])}
                       </span>
                     </div>
                     {check.latency_ms !== null && (
