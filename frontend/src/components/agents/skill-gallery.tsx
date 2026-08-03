@@ -60,15 +60,13 @@ export function SkillGallery({
     return (
       <div className="border-border rounded-lg border border-dashed p-6 text-center">
         <BookOpen className="text-muted-foreground mx-auto h-6 w-6" />
-        <p className="text-muted-foreground mt-2 text-sm">
-          This organization has written no skills yet.
-        </p>
+        <p className="text-muted-foreground mt-2 text-sm">{t("organizationHasWrittenNo")}</p>
         <Link
           href={ROUTES.SKILLS}
           className="mt-3 inline-flex items-center gap-1.5 text-sm underline underline-offset-4"
         >
           <Plus className="h-3.5 w-3.5" />
-          Write one
+          {t("writeOne")}
         </Link>
       </div>
     );
@@ -141,7 +139,7 @@ export function SkillGallery({
         The agent loads a skill only when it decides one is relevant, so twenty skills cost almost
         nothing in context.{" "}
         <Link href={ROUTES.SKILLS} className="underline underline-offset-4">
-          Manage skills
+          {t("manageSkills")}
         </Link>
       </p>
     </div>

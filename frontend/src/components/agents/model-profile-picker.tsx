@@ -93,9 +93,7 @@ export function ModelProfilePicker({
       return (
         <div className="border-border rounded-lg border border-dashed p-6 text-center">
           <KeyRound className="text-muted-foreground mx-auto h-5 w-5" />
-          <p className="text-muted-foreground mt-2 text-sm">
-            This organization has no models yet. An agent cannot run without one.
-          </p>
+          <p className="text-muted-foreground mt-2 text-sm">{t("organizationHasNoModels")}</p>
         </div>
       );
     }
@@ -153,9 +151,7 @@ export function ModelProfilePicker({
           </summary>
           <div className="mt-2 space-y-2">
             {list}
-            <p className="text-muted-foreground text-xs">
-              Named, so an organization can rotate a key or repoint every agent at once.
-            </p>
+            <p className="text-muted-foreground text-xs">{t("namedSoOrganizationCan")}</p>
           </div>
         </details>
       )}

@@ -55,8 +55,8 @@ export function ForgotPasswordForm() {
             Link sent. <em>{t("itsWay")}</em>
           </h1>
           <p className="text-foreground/70 text-sm">
-            If an account exists for <span className="text-foreground font-medium">{email}</span>,
-            you&apos;ll get a reset link in a moment. It expires in 1 hour.
+            If an account exists for <span className="text-foreground font-medium">{email}</span>
+            {t("youAposLlGet")}
           </p>
         </div>
         <Link
@@ -64,7 +64,7 @@ export function ForgotPasswordForm() {
           className="text-foreground/65 hover:text-foreground inline-flex items-center gap-2 text-sm font-medium"
         >
           <ArrowLeft className="h-4 w-4" />
-          Back to sign in
+          {t("backSign")}
         </Link>
       </div>
     );
@@ -77,9 +77,7 @@ export function ForgotPasswordForm() {
         <h1 className="text-display-md text-foreground [&_em]:font-normal [&_em]:italic">
           Happens to the <em>{t("bestUs")}</em>
         </h1>
-        <p className="text-foreground/65 text-sm">
-          Drop your email below - we&apos;ll send you a one-time link to set a new password.
-        </p>
+        <p className="text-foreground/65 text-sm">{t("dropYourEmailBelow")}</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
@@ -129,7 +127,7 @@ export function ForgotPasswordForm() {
           className="text-foreground/55 hover:text-foreground mt-2 inline-flex items-center gap-2 text-sm font-medium"
         >
           <ArrowLeft className="h-4 w-4" />
-          Back to sign in
+          {t("backSign2")}
         </Link>
       </form>
     </div>

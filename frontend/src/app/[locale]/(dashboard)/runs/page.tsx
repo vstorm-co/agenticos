@@ -24,8 +24,10 @@ import { useApprovals, usePermissions, useRuns, useSpend } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
+import { useTranslations } from "next-intl";
 
 export default function RunsPage() {
+  const t = useTranslations("pages.runs");
   // `?agent=` is how the Builder hands over. Its Recent runs panel answers the
   // summary question and links here for the detail, and arriving at the whole
   // organization's history after clicking through from one agent would make the
@@ -42,17 +44,14 @@ export default function RunsPage() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <PageHeader
-          title="Activity"
-          description="What your agents did, what it cost, and what is waiting on a person."
-        />
+        <PageHeader title={t("activity")} description={t("whatYourAgentsDid")} />
         {/* The three figures and the run table, in that order - the tabs are
             omitted rather than faked, because a tab strip with no tab to select
             invites a click that does nothing. */}
         <LoadingState variant="stats" rows={3} className="gap-3 sm:grid-cols-3 lg:grid-cols-3" />
         <Card>
           <CardHeader>
-            <CardTitle>Run history</CardTitle>
+            <CardTitle>{t("runHistory")}</CardTitle>
           </CardHeader>
           <CardContent>
             <LoadingState variant="skeleton-table" columns={6} rows={6} />
@@ -64,35 +63,30 @@ export default function RunsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Activity"
-        description="What your agents did, what it cost, and what is waiting on a person."
-      />
+      <PageHeader title={t("activity2")} description={t("whatYourAgentsDid2")} />
 
       <div className="grid gap-3 sm:grid-cols-3">
         <Card>
           <CardContent className="space-y-1 p-5">
             <p className="text-muted-foreground text-xs tracking-wide uppercase">
-              Spend this month
+              {t("spendMonth")}
             </p>
             <p className="font-mono text-2xl">
               ${Number(spend?.month_to_date_usd ?? 0).toFixed(2)}
             </p>
-            <p className="text-muted-foreground text-xs">
-              Calendar month, so it reconciles against an invoice.
-            </p>
+            <p className="text-muted-foreground text-xs">{t("calendarMonthSoReconciles")}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="space-y-1 p-5">
-            <p className="text-muted-foreground text-xs tracking-wide uppercase">Runs</p>
+            <p className="text-muted-foreground text-xs tracking-wide uppercase">{t("runs")}</p>
             <p className="font-mono text-2xl">{runs.length}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="space-y-1 p-5">
             <p className="text-muted-foreground text-xs tracking-wide uppercase">
-              Waiting on a person
+              {t("waitingPerson")}
             </p>
             <p className="font-mono text-2xl">{approvals.length}</p>
           </CardContent>
@@ -109,25 +103,22 @@ export default function RunsPage() {
               </Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="runs">Runs</TabsTrigger>
-          <TabsTrigger value="spend">Spend</TabsTrigger>
+          <TabsTrigger value="runs">{t("runs2")}</TabsTrigger>
+          <TabsTrigger value="spend">{t("spend")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="approvals">
           <Card>
             <CardHeader>
-              <CardTitle>Waiting for a decision</CardTitle>
-              <CardDescription>
-                The arguments are shown in full. Approving a tool name without seeing what it will
-                do is a rubber stamp, not approval.
-              </CardDescription>
+              <CardTitle>{t("waitingDecision")}</CardTitle>
+              <CardDescription>{t("argumentsAreShownFull")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {approvals.length === 0 ? (
                 <EmptyState
                   icon={CheckCircle2}
-                  title="Nothing waiting"
-                  description="Agents are running without needing you."
+                  title={t("nothingWaiting")}
+                  description={t("agentsAreRunningWithout")}
                 />
               ) : (
                 approvals.map((approval) => (
@@ -148,7 +139,7 @@ export default function RunsPage() {
                           onClick={() => decide.mutate({ id: approval.id, approved: true })}
                         >
                           <CheckCircle2 className="h-4 w-4" />
-                          Approve
+                          {t("approve")}
                         </Button>
                         <Button
                           size="sm"
@@ -156,7 +147,7 @@ export default function RunsPage() {
                           onClick={() => decide.mutate({ id: approval.id, approved: false })}
                         >
                           <XCircle className="h-4 w-4" />
-                          Reject
+                          {t("reject")}
                         </Button>
                       </div>
                     )}
@@ -170,10 +161,10 @@ export default function RunsPage() {
         <TabsContent value="runs">
           <Card>
             <CardHeader>
-              <CardTitle>Run history</CardTitle>
+              <CardTitle>{t("runHistory2")}</CardTitle>
               <CardDescription>
-                Every run records the agent <em>version</em> it executed, so what happened last week
-                stays answerable after the agent has been rewritten.
+                Every run records the agent <em>{t("version")}</em>
+                {t("executedSoWhatHappened")}
               </CardDescription>
               {/* Said out loud, with the way out beside it. A filtered table that
                   does not mention the filter is a table somebody reads as the
@@ -182,25 +173,29 @@ export default function RunsPage() {
                 <p className="text-muted-foreground text-xs">
                   Narrowed to one agent.{" "}
                   <Link href={ROUTES.RUNS} className="underline underline-offset-4">
-                    Show every agent
+                    {t("showEveryAgent")}
                   </Link>
                 </p>
               )}
             </CardHeader>
             <CardContent>
               {runs.length === 0 ? (
-                <EmptyState icon={Activity} title="No runs yet" description="Nothing has run." />
+                <EmptyState
+                  icon={Activity}
+                  title={t("noRunsYet")}
+                  description={t("nothingHasRun")}
+                />
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[40rem] text-sm">
                     <thead>
                       <tr className="text-muted-foreground border-b text-left">
-                        <th className="py-2 font-medium">Status</th>
-                        <th className="px-3 py-2 font-medium">Surface</th>
-                        <th className="px-3 py-2 font-medium">Model</th>
-                        <th className="px-3 py-2 text-right font-medium">Tokens</th>
-                        <th className="px-3 py-2 text-right font-medium">Cost</th>
-                        <th className="px-3 py-2 font-medium">Started</th>
+                        <th className="py-2 font-medium">{t("status")}</th>
+                        <th className="px-3 py-2 font-medium">{t("surface")}</th>
+                        <th className="px-3 py-2 font-medium">{t("model")}</th>
+                        <th className="px-3 py-2 text-right font-medium">{t("tokens")}</th>
+                        <th className="px-3 py-2 text-right font-medium">{t("cost")}</th>
+                        <th className="px-3 py-2 font-medium">{t("started")}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -217,10 +212,7 @@ export default function RunsPage() {
                           <td className="px-3 py-2 text-right font-mono text-xs">
                             ${Number(run.cost_usd).toFixed(4)}
                             {run.cost_is_partial && (
-                              <span
-                                className="text-muted-foreground"
-                                title="A model in this run had no price, so this is a floor"
-                              >
+                              <span className="text-muted-foreground" title={t("modelRunHadNo")}>
                                 {" +"}
                               </span>
                             )}
@@ -245,8 +237,8 @@ export default function RunsPage() {
               existed, and it is the one that cannot be checked against a bill. */}
           <div className="grid gap-4 md:grid-cols-2">
             <SpendBreakdown
-              title="By provider"
-              description="What each vendor was paid - this is the number an invoice is checked against."
+              title={t("byProvider")}
+              description={t("whatEachVendorWas")}
               rows={(spend?.by_provider ?? []).map((entry) => ({
                 key: entry.provider ?? "unrecorded",
                 label: entry.provider ?? "Not recorded",
@@ -256,8 +248,8 @@ export default function RunsPage() {
               }))}
             />
             <SpendBreakdown
-              title="By key"
-              description="Which stored credential it was spent through. A key you do not recognise here is one to rotate."
+              title={t("byKey")}
+              description={t("whichStoredCredentialWas")}
               rows={(spend?.by_key ?? []).map((entry) => ({
                 key: entry.secret_id ?? "deleted",
                 label: entry.label ?? "Deleted key",
@@ -270,12 +262,12 @@ export default function RunsPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Spend by agent</CardTitle>
+              <CardTitle>{t("spendByAgent")}</CardTitle>
               <CardDescription>Last {spend?.period_days ?? 30} days.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
               {!spend || spend.by_agent.length === 0 ? (
-                <p className="text-muted-foreground text-sm">Nothing spent yet.</p>
+                <p className="text-muted-foreground text-sm">{t("nothingSpentYet")}</p>
               ) : (
                 spend.by_agent.map((entry) => (
                   <div
@@ -313,6 +305,7 @@ function SpendBreakdown({
   description: string;
   rows: { key: string; label: string; muted: boolean; runs: number; cost: string }[];
 }) {
+  const t = useTranslations("pages.runs");
   return (
     <Card>
       <CardHeader>
@@ -321,7 +314,7 @@ function SpendBreakdown({
       </CardHeader>
       <CardContent className="space-y-2">
         {rows.length === 0 ? (
-          <p className="text-muted-foreground text-sm">Nothing spent yet.</p>
+          <p className="text-muted-foreground text-sm">{t("nothingSpentYet2")}</p>
         ) : (
           rows.map((row) => (
             <div

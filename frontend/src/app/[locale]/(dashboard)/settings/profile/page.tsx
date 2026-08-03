@@ -14,8 +14,10 @@ import { formatDate, getErrorMessage, isAppAdmin, MAX_AVATAR_SIZE_BYTES } from "
 import { useAuthStore } from "@/stores";
 import type { User } from "@/types";
 import { useChanged } from "@/hooks/use-changed";
+import { useTranslations } from "next-intl";
 
 export default function ProfileSettingsPage() {
+  const t = useTranslations("pages.settings");
   const { user } = useAuth();
   const { setUser, bumpAvatarVersion, avatarVersion } = useAuthStore();
 
@@ -88,10 +90,7 @@ export default function ProfileSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <SectionCard
-        title="Avatar"
-        description="Square images look best. Up to 2MB. JPG, PNG, WEBP, or GIF."
-      >
+      <SectionCard title={t("avatar")} description={t("squareImagesLookBest")}>
         <div className="flex items-center gap-5">
           <button
             type="button"
@@ -147,8 +146,8 @@ export default function ProfileSettingsPage() {
       </SectionCard>
 
       <SectionCard
-        title="Personal info"
-        description="Visible to teammates in shared organizations."
+        title={t("personalInfo")}
+        description={t("visibleTeammatesSharedOrganizations")}
         action={
           <Button onClick={handleSaveProfile} disabled={saving} size="sm">
             {saving ? "Saving…" : "Save changes"}
@@ -156,18 +155,18 @@ export default function ProfileSettingsPage() {
         }
       >
         <div className="space-y-4">
-          <FormField label="Display name" htmlFor="profile-name">
+          <FormField label={t("displayName")} htmlFor="profile-name">
             <Input
               id="profile-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="How should we call you?"
+              placeholder={t("howShouldWeCall")}
             />
           </FormField>
           <FormField
-            label="Email"
+            label={t("email")}
             htmlFor="profile-email"
-            description="Changing email may require re-verification depending on your auth setup."
+            description={t("changingEmailMayRequire")}
           >
             <Input
               id="profile-email"

@@ -305,7 +305,7 @@ export function SharingPanel({ resourceType, resourceId, canManage }: SharingPan
               </div>
               <Button onClick={addShare} disabled={subjectUserId === "" || share.isPending}>
                 <UserPlus className="h-4 w-4" />
-                Share
+                {t("share")}
               </Button>
             </div>
           )}

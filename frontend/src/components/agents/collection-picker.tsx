@@ -63,15 +63,13 @@ export function CollectionPicker({
     return (
       <div className="border-border rounded-lg border border-dashed p-6 text-center">
         <Database className="text-muted-foreground mx-auto h-6 w-6" />
-        <p className="text-muted-foreground mt-2 text-sm">
-          This organization has no collections yet. An agent with none searches nothing.
-        </p>
+        <p className="text-muted-foreground mt-2 text-sm">{t("organizationHasNoCollections")}</p>
         <Link
           href={ROUTES.KB}
           className="mt-3 inline-flex items-center gap-1.5 text-sm underline underline-offset-4"
         >
           <Plus className="h-3.5 w-3.5" />
-          Create one
+          {t("createOne")}
         </Link>
       </div>
     );
@@ -182,7 +180,7 @@ export function CollectionPicker({
       <p className="text-muted-foreground text-xs">
         The model chooses what to look for; it can never widen where it looks.{" "}
         <Link href={ROUTES.KB} className="underline underline-offset-4">
-          Manage collections
+          {t("manageCollections")}
         </Link>
       </p>
     </div>

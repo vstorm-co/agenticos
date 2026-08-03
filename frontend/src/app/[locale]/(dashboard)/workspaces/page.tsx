@@ -1,5 +1,6 @@
 import { PageHeader } from "@/components/dashboard/page-header";
 import { WorkspaceBrowser } from "@/components/sandboxes/workspace-browser";
+import { useTranslations } from "next-intl";
 
 const WORKSPACES_DESCRIPTION =
   "The files agents are keeping for you. A workspace is scratch space — it is deleted with the " +
@@ -21,9 +22,10 @@ const WORKSPACES_DESCRIPTION =
  * stays a heading and a sentence.
  */
 export default function WorkspacesPage() {
+  const t = useTranslations("pages.workspaces");
   return (
     <div className="space-y-6">
-      <PageHeader title="Workspaces" description={WORKSPACES_DESCRIPTION} />
+      <PageHeader title={t("workspaces")} description={WORKSPACES_DESCRIPTION} />
       <WorkspaceBrowser />
     </div>
   );

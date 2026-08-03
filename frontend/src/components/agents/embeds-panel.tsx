@@ -98,13 +98,9 @@ export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Globe className="h-4 w-4" />
-          Website widget
+          {t("websiteWidget")}
         </CardTitle>
-        <CardDescription>
-          Publish this agent as a chat widget for a site you do not control - one script tag, no
-          build step. The key in that tag is public, so what actually protects the agent is the list
-          of sites it may be opened from. An empty list allows nothing.
-        </CardDescription>
+        <CardDescription>{t("publishAgentAsChat")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {isLoading ? (
@@ -136,9 +132,7 @@ export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
                   onChange={(event) => setName(event.target.value)}
                   placeholder={t("websiteWidget")}
                 />
-                <p className="text-muted-foreground text-xs">
-                  For you, not for visitors - which placement this is.
-                </p>
+                <p className="text-muted-foreground text-xs">{t("youNotVisitorsWhich")}</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="embed-accent">{t("accentColour")}</Label>
@@ -169,10 +163,7 @@ export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
                 rows={3}
                 className="font-mono text-sm"
               />
-              <p className="text-muted-foreground text-xs">
-                One per line. A different port or subdomain is a different site - the browser treats
-                them as such, so this list has to.
-              </p>
+              <p className="text-muted-foreground text-xs">{t("onePerLineDifferent")}</p>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -190,7 +181,7 @@ export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
                       <span className="flex flex-col">
                         <span>{t("anyoneThoseSites")}</span>
                         <span className="text-muted-foreground text-xs">
-                          No sign-in - a marketing page
+                          {t("noSignMarketingPage")}
                         </span>
                       </span>
                     </SelectItem>
@@ -198,7 +189,7 @@ export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
                       <span className="flex flex-col">
                         <span>{t("signedUsersOnly")}</span>
                         <span className="text-muted-foreground text-xs">
-                          Your backend signs a token we verify
+                          {t("yourBackendSignsToken")}
                         </span>
                       </span>
                     </SelectItem>
@@ -215,10 +206,7 @@ export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
                     placeholder={t("atLeast16Characters")}
                     className="font-mono"
                   />
-                  <p className="text-muted-foreground text-xs">
-                    Stored in the vault and never shown again. Your backend signs each visitor a
-                    HS256 token with it.
-                  </p>
+                  <p className="text-muted-foreground text-xs">{t("storedVaultNeverShown")}</p>
                 </div>
               )}
             </div>
@@ -232,10 +220,7 @@ export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
                 placeholder={t("youArePricingPage")}
                 rows={2}
               />
-              <p className="text-muted-foreground text-xs">
-                Added to the first message of each conversation. It never replaces the agent&apos;s
-                own instructions.
-              </p>
+              <p className="text-muted-foreground text-xs">{t("addedFirstMessageEach")}</p>
             </div>
 
             <div className="flex items-center gap-2">
@@ -243,15 +228,13 @@ export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
                 onClick={submit}
                 disabled={create.isPending || !name.trim() || parseOrigins(origins).length === 0}
               >
-                Publish widget
+                {t("publishWidget")}
               </Button>
               <Button variant="ghost" onClick={reset}>
-                Cancel
+                {t("cancel3")}
               </Button>
               {parseOrigins(origins).length === 0 && (
-                <span className="text-muted-foreground text-xs">
-                  Add at least one site - a widget allowed nowhere cannot open.
-                </span>
+                <span className="text-muted-foreground text-xs">{t("addAtLeastOne")}</span>
               )}
             </div>
           </div>
@@ -260,7 +243,7 @@ export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
         {canManage && !creating && (
           <Button variant="outline" onClick={() => setCreating(true)}>
             <Plus className="h-4 w-4" />
-            Publish as widget
+            {t("publishAsWidget")}
           </Button>
         )}
       </CardContent>

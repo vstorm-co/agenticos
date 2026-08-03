@@ -10,6 +10,7 @@ import { Button } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import { cn, getErrorMessage } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 
 /**
  * Every status this page can show, and none it can invent.
@@ -65,6 +66,7 @@ const STATUS_TEXT: Record<CheckStatus, string> = {
 };
 
 export default function SystemHealthPage() {
+  const t = useTranslations("pages.admin");
   const [auto, setAuto] = useState(true);
 
   // Through the query layer, where server data belongs. `refetchInterval` is
@@ -120,7 +122,7 @@ export default function SystemHealthPage() {
         </Button>
         <Button size="sm" variant="outline" onClick={load}>
           <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
-          Refresh
+          {t("refresh2")}
         </Button>
       </div>
 
@@ -136,7 +138,7 @@ export default function SystemHealthPage() {
                 )}
               </span>
               <div>
-                <p className="text-muted-foreground text-xs">Overall status</p>
+                <p className="text-muted-foreground text-xs">{t("overallStatus")}</p>
                 <div className="mt-1 flex items-center gap-2">
                   <span
                     aria-hidden
@@ -163,7 +165,7 @@ export default function SystemHealthPage() {
       ) : error ? (
         <div className="border-border bg-card rounded-xl border p-8 text-center">
           <AlertCircle className="text-destructive mx-auto h-6 w-6" />
-          <p className="text-foreground mt-3 text-sm font-medium">Couldn&apos;t fetch health</p>
+          <p className="text-foreground mt-3 text-sm font-medium">{t("couldnAposTFetch")}</p>
           <p className="text-muted-foreground mt-1 text-xs">
             {getErrorMessage(error, "Failed to fetch health")}
           </p>
@@ -171,10 +173,8 @@ export default function SystemHealthPage() {
       ) : (
         <section className="border-border bg-card rounded-xl border">
           <div className="border-border border-b px-5 py-4">
-            <h2 className="text-foreground text-sm font-semibold">Services</h2>
-            <p className="text-muted-foreground text-xs">
-              Each row says what was checked. Auto-refreshes every 30s.
-            </p>
+            <h2 className="text-foreground text-sm font-semibold">{t("services")}</h2>
+            <p className="text-muted-foreground text-xs">{t("eachRowSaysWhat")}</p>
           </div>
           <ul className="divide-border divide-y">
             {checks.map((check) => {
@@ -225,10 +225,7 @@ export default function SystemHealthPage() {
         </section>
       )}
 
-      <p className="text-muted-foreground text-xs">
-        Every status here comes from a probe that ran when this page loaded. There is no uptime
-        history: nothing records one, and a number that looks like one would be made up.
-      </p>
+      <p className="text-muted-foreground text-xs">{t("everyStatusHereComes")}</p>
     </div>
   );
 }

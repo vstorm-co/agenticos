@@ -79,12 +79,9 @@ export function WorkspaceBrowser() {
           <div className="space-y-1">
             <CardTitle className="flex items-center gap-2 text-sm">
               <FolderOpen className="h-4 w-4" aria-hidden />
-              Workspaces
+              {t("workspacesHeading")}
             </CardTitle>
-            <CardDescription className="text-xs">
-              What the agents are keeping. A workspace is scratch space — it is deleted with the
-              conversation it belongs to, and is not a place to store anything durable.
-            </CardDescription>
+            <CardDescription className="text-xs">{t("whatAgentsAreKeeping")}</CardDescription>
           </div>
           {/* Two questions, not two designs: "which workspaces exist" is a table
               of rows, and "who is holding a copy of that CSV" is a flat list of
@@ -97,7 +94,7 @@ export function WorkspaceBrowser() {
               aria-pressed={!flat}
               onClick={() => setFlat(false)}
             >
-              By workspace
+              {t("byWorkspace")}
             </Button>
             <Button
               variant={flat ? "secondary" : "ghost"}
@@ -105,7 +102,7 @@ export function WorkspaceBrowser() {
               aria-pressed={flat}
               onClick={() => setFlat(true)}
             >
-              All files
+              {t("allFiles")}
             </Button>
           </div>
         </CardHeader>
@@ -124,8 +121,7 @@ export function WorkspaceBrowser() {
 
           {!flat && !isLoading && error === null && workspaces.length === 0 && (
             <p className="text-muted-foreground px-5 py-8 text-center text-sm">
-              No agent is keeping files yet. One appears here the first time an agent with a
-              workspace writes something.
+              {t("noAgentKeepingFiles")}
             </p>
           )}
 
@@ -185,7 +181,7 @@ export function WorkspaceBrowser() {
                             href={ROUTES.WORKSPACE_DETAIL(workspace.id)}
                             aria-label={`Files of ${workspace.agent_name}`}
                           >
-                            Open
+                            {t("open")}
                           </Link>
                         </Button>
                       </TableCell>
@@ -209,6 +205,7 @@ export function WorkspaceBrowser() {
  * screen or the list is quietly a lie.
  */
 function FlatFiles() {
+  const t = useTranslations("sandboxes");
   const { listing, isLoading, error } = useAllWorkspaceFiles(true);
   const [opened, setOpened] = useState<FlatFile | null>(null);
 
@@ -219,7 +216,7 @@ function FlatFiles() {
   if (listing.items.length === 0)
     return (
       <p className="text-muted-foreground px-5 py-8 text-center text-sm">
-        No agent is holding a file yet.
+        {t("noAgentHoldingFile")}
       </p>
     );
 

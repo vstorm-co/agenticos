@@ -125,15 +125,13 @@ export function ActiveSessions() {
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="outline" size="sm">
-                Revoke all others
+                {t("revokeAllOthers")}
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>{t("revokeAllOtherSessions")}</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Every device signed in to your account will be signed out, except this one.
-                </AlertDialogDescription>
+                <AlertDialogDescription>{t("everyDeviceSignedYour")}</AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
@@ -176,7 +174,7 @@ export function ActiveSessions() {
                       <span className="truncate">{session.device_name || "Unknown device"}</span>
                       {session.is_current && (
                         <span className="bg-card border-border text-muted-foreground inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
-                          Current
+                          {t("current")}
                         </span>
                       )}
                     </p>

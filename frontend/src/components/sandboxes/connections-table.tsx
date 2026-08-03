@@ -79,7 +79,7 @@ export function ConnectionsTable({
                 {connection.is_default && (
                   <Badge variant="secondary" className="gap-1">
                     <Star className="h-3 w-3" aria-hidden />
-                    Default
+                    {t("default")}
                   </Badge>
                 )}
                 {!connection.is_active && <Badge variant="outline">{t("off")}</Badge>}
@@ -111,7 +111,7 @@ export function ConnectionsTable({
                     onClick={() => onInspect(connection)}
                     aria-label={`What ${connection.name} allows`}
                   >
-                    What it allows
+                    {t("whatAllows")}
                   </Button>
                 )}
                 <Button

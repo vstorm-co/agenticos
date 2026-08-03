@@ -40,6 +40,7 @@ import { downloadKBDocument } from "@/lib/rag-api";
 import type { SyncSourceRead } from "@/lib/rag-api";
 import type { IngestionOverride, KBDocument, KBScope } from "@/types";
 import { Perm } from "@/types/permissions";
+import { useTranslations } from "next-intl";
 
 const SCOPE_META: Record<KBScope, { label: string; icon: LucideIcon }> = {
   personal: { label: "Personal", icon: Lock },
@@ -57,6 +58,7 @@ interface KBDetailPageProps {
 }
 
 export default function KBDetailPage({ params }: KBDetailPageProps) {
+  const t = useTranslations("pages.kb");
   const { id } = use(params);
   const {
     kb,
@@ -198,8 +200,8 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
                     size="sm"
                     className="text-muted-foreground hover:text-foreground h-8 w-8 p-0"
                     onClick={() => setViewerDoc(doc)}
-                    title="Preview file"
-                    aria-label="Preview file"
+                    title={t("previewFile")}
+                    aria-label={t("previewFile2")}
                   >
                     <Eye className="h-3.5 w-3.5" />
                   </Button>
@@ -209,8 +211,8 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
                     className="text-muted-foreground hover:text-foreground h-8 w-8 p-0"
                     onClick={() => handleDownload(doc)}
                     disabled={!!downloadingId}
-                    title="Download file"
-                    aria-label="Download file"
+                    title={t("downloadFile")}
+                    aria-label={t("downloadFile2")}
                   >
                     {dlBusy ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -229,8 +231,8 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
                     if (confirm(`Remove "${doc.filename}" from this knowledge base?`))
                       deleteDocument(doc.id);
                   }}
-                  title="Remove document"
-                  aria-label="Remove document"
+                  title={t("removeDocument")}
+                  aria-label={t("removeDocument2")}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
@@ -283,7 +285,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
               <Upload className="h-6 w-6" />
             </span>
             <div className="text-center">
-              <p className="text-foreground text-lg font-semibold">Drop to upload</p>
+              <p className="text-foreground text-lg font-semibold">{t("dropUpload")}</p>
               <p className="text-muted-foreground mt-1 text-sm">
                 Files will be added to{" "}
                 <span className="text-foreground font-medium">{kb.name}</span>
@@ -312,7 +314,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
           <>
             <Button variant="outline" size="sm" onClick={() => refresh()} disabled={isLoading}>
               <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
-              Refresh
+              {t("refresh")}
             </Button>
             {mayEdit && (
               <>
@@ -323,7 +325,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
                   disabled={isUploading}
                 >
                   <SlidersHorizontal className="h-4 w-4" />
-                  Parse options
+                  {t("parseOptions")}
                 </Button>
                 <Button
                   size="sm"
@@ -368,14 +370,14 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
               {overrideCount === 1 ? "1 change" : `${overrideCount} changes`}
             </span>{" "}
             from this collection&apos;s settings, and will say so.{" "}
-            <span className="text-muted-foreground">The collection itself is unchanged.</span>
+            <span className="text-muted-foreground">{t("collectionItselfUnchanged")}</span>
           </p>
           <div className="flex shrink-0 items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => setOverrideOpen(true)}>
-              Review
+              {t("review")}
             </Button>
             <Button variant="ghost" size="sm" onClick={() => setUploadOverride({})}>
-              Clear
+              {t("clear")}
             </Button>
           </div>
         </div>
@@ -410,7 +412,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
       )}
 
       <section className="mb-8">
-        <h2 className="text-foreground mb-3 text-sm font-semibold">Documents</h2>
+        <h2 className="text-foreground mb-3 text-sm font-semibold">{t("documents")}</h2>
         <DataTable<KBDocument>
           columns={documentColumns}
           rows={documents}
@@ -419,7 +421,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
           empty={
             <EmptyState
               icon={Upload}
-              title="No documents yet"
+              title={t("noDocumentsYet")}
               description={
                 mayEdit
                   ? "Drag files anywhere on this page, or pick from your computer."
@@ -462,11 +464,11 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
 
       <section>
         <div className="mb-3 flex items-center justify-between gap-2">
-          <h2 className="text-foreground text-sm font-semibold">Sync sources</h2>
+          <h2 className="text-foreground text-sm font-semibold">{t("syncSources")}</h2>
           {mayEdit && connectors.length > 0 && (
             <Button variant="outline" size="sm" onClick={() => setWizardOpen(true)}>
               <Plus className="h-4 w-4" />
-              Connect
+              {t("connect")}
             </Button>
           )}
         </div>
@@ -618,6 +620,7 @@ function SyncSourceRow({
   onTrigger?: () => void;
   onDelete?: () => void;
 }) {
+  const t = useTranslations("pages.kb");
   const lastSync = source.last_sync_at ? formatDateTime(source.last_sync_at) : "Never";
   const brand = connectorBrand(source.connector_type);
   return (
@@ -653,8 +656,8 @@ function SyncSourceRow({
             size="sm"
             className="text-muted-foreground hover:text-foreground h-8 w-8 p-0"
             onClick={onTrigger}
-            title="Trigger sync now"
-            aria-label="Trigger sync now"
+            title={t("triggerSyncNow")}
+            aria-label={t("triggerSyncNow2")}
           >
             <RotateCw className="h-3.5 w-3.5" />
           </Button>
@@ -667,8 +670,8 @@ function SyncSourceRow({
             onClick={() => {
               if (confirm(`Disconnect "${source.name}"?`)) onDelete();
             }}
-            title="Remove source"
-            aria-label="Remove source"
+            title={t("removeSource")}
+            aria-label={t("removeSource2")}
           >
             <Trash2 className="h-3.5 w-3.5" />
           </Button>
@@ -692,8 +695,9 @@ function SyncSourceRow({
  * that is impossible to catch.
  */
 function Provenance({ doc }: { doc: KBDocument }) {
+  const t = useTranslations("pages.kb");
   if (doc.parser === null) {
-    return <span className="text-muted-foreground text-xs">Not recorded</span>;
+    return <span className="text-muted-foreground text-xs">{t("notRecorded")}</span>;
   }
   return (
     <div className="flex flex-wrap items-center gap-1.5">
@@ -708,10 +712,10 @@ function Provenance({ doc }: { doc: KBDocument }) {
           className="text-muted-foreground text-xs"
           title={`Images described by ${doc.image_description_model}`}
         >
-          + images
+          {t("images")}
         </span>
       )}
-      {doc.was_overridden && <Badge variant="secondary">overridden</Badge>}
+      {doc.was_overridden && <Badge variant="secondary">{t("overridden")}</Badge>}
     </div>
   );
 }

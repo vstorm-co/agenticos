@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { useAuthStore } from "@/stores";
 import type { User } from "@/types";
+import { useTranslations } from "next-intl";
 
 /**
  * Every toggle on this page controls a real send.
@@ -102,6 +103,7 @@ const SENT_EMAILS: readonly SentEmail[] = [
 ];
 
 export default function NotificationsSettingsPage() {
+  const t = useTranslations("pages.settings");
   const { user } = useAuth();
   const { setUser } = useAuthStore();
   const [saving, setSaving] = useState<PreferenceKey | null>(null);
@@ -124,10 +126,7 @@ export default function NotificationsSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <SectionCard
-        title="Agent activity"
-        description="Emails about runs nobody is watching. Each switch is checked before the email is sent. These are your own opt-outs and only ever subtract: an agent decides who should hear about it, and switching one off here removes you from that list whatever the agent says. Who an agent tells is set on the agent, under Limits."
-      >
+      <SectionCard title={t("agentActivity")} description={t("emailsAboutRunsNobody")}>
         <ul className="divide-border divide-y">
           {OPTIONAL_EMAILS.map((email) => (
             <li key={email.key} className="flex items-start gap-3 py-4 first:pt-0 last:pb-0">
@@ -150,10 +149,7 @@ export default function NotificationsSettingsPage() {
         </ul>
       </SectionCard>
 
-      <SectionCard
-        title="Always sent"
-        description="The transactional emails, what triggers each, and why none of them is optional."
-      >
+      <SectionCard title={t("alwaysSent")} description={t("transactionalEmailsWhatTriggers")}>
         <ul className="divide-border divide-y">
           {SENT_EMAILS.map((email) => (
             <li key={email.key} className="flex gap-3 py-4 first:pt-0 last:pb-0">
@@ -164,7 +160,7 @@ export default function NotificationsSettingsPage() {
                 <p className="text-foreground text-sm font-medium">{email.label}</p>
                 <p className="text-muted-foreground text-xs leading-relaxed">{email.trigger}</p>
                 <p className="text-muted-foreground text-xs leading-relaxed">
-                  <span className="text-foreground/70 font-medium">Not optional - </span>
+                  <span className="text-foreground/70 font-medium">{t("notOptional")}</span>
                   {email.reason}
                 </p>
               </div>
@@ -173,22 +169,19 @@ export default function NotificationsSettingsPage() {
         </ul>
       </SectionCard>
 
-      <SectionCard
-        title="What is not sent"
-        description="Absences worth stating, because a settings page implies the opposite."
-      >
+      <SectionCard title={t("whatNotSent")} description={t("absencesWorthStatingBecause")}>
         <ul className="text-muted-foreground space-y-2 text-xs leading-relaxed">
           <li>
-            <span className="text-foreground/70 font-medium">No marketing email.</span> This is a
-            self-hosted deployment. There is no newsletter and no subscriber list.
+            <span className="text-foreground/70 font-medium">{t("noMarketingEmail")}</span>
+            {t("selfHostedDeploymentThere")}
           </li>
           <li>
-            <span className="text-foreground/70 font-medium">No billing email.</span> Nothing here
-            charges you, so there are no renewals, payment failures or credit warnings.
+            <span className="text-foreground/70 font-medium">{t("noBillingEmail")}</span>
+            {t("nothingHereChargesYou")}
           </li>
           <li>
-            <span className="text-foreground/70 font-medium">No in-app notifications.</span> There
-            is no notification feed to route anything to; activity lives on the pages that own it.
+            <span className="text-foreground/70 font-medium">{t("noAppNotifications")}</span>
+            {t("thereNoNotificationFeed")}
           </li>
         </ul>
       </SectionCard>

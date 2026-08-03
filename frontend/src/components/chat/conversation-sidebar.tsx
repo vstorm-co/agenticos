@@ -160,7 +160,7 @@ function ConversationItem({
                   }}
                 >
                   <ArchiveRestore className="h-4 w-4" />
-                  Restore
+                  {t("restore")}
                 </button>
               ) : (
                 <button

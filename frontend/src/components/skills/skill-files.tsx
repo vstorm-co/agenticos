@@ -167,6 +167,7 @@ export function FilePane({
   onSave: (content: string) => void;
   onDelete: () => void;
 }) {
+  const t = useTranslations("skills");
   const { resource: loaded, isLoading } = useSkillResource(skillId, resource.id);
   const [draft, setDraft] = useState<string | null>(null);
 
@@ -192,11 +193,11 @@ export function FilePane({
                 setDraft(null);
               }}
             >
-              Save file
+              {t("saveFile")}
             </Button>
             {dirty && (
               <Button size="sm" variant="ghost" onClick={() => setDraft(null)}>
-                Discard
+                {t("discard2")}
               </Button>
             )}
           </>
@@ -417,9 +418,7 @@ export function NewFileForm({
             className="font-mono text-sm"
             required
           />
-          <p className="text-muted-foreground text-xs">
-            A folder is made by naming a file inside it - there is nothing else to create.
-          </p>
+          <p className="text-muted-foreground text-xs">{t("folderMadeByNaming")}</p>
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="resource-description">{t("description2")}</Label>
@@ -441,10 +440,10 @@ export function NewFileForm({
       />
       <div className="flex items-center gap-2">
         <Button type="submit" size="sm" disabled={busy || name.trim() === ""}>
-          Add file
+          {t("addFile")}
         </Button>
         <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
-          Cancel
+          {t("cancel2")}
         </Button>
       </div>
     </form>

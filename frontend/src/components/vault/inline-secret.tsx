@@ -79,7 +79,7 @@ export function InlineSecret({
           }}
         >
           <Plus className="h-3.5 w-3.5" />
-          Add a key
+          {t("addKey")}
         </Button>
         {/* Beside it, always. This form takes one shape - an opaque `api_key` -
             and the vault takes every other: an AWS pair, a service-account JSON,
@@ -93,7 +93,7 @@ export function InlineSecret({
           className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs underline underline-offset-4"
         >
           <ExternalLink className="h-3 w-3" aria-hidden />
-          Open the Vault
+          {t("openVault")}
         </a>
       </div>
     );
@@ -119,13 +119,13 @@ export function InlineSecret({
     <div className="border-border space-y-3 rounded-lg border border-dashed p-3">
       <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
         <KeyRound className="h-3.5 w-3.5 shrink-0" />
-        Stored in this organization&apos;s vault, encrypted, and never shown again.
+        {t("storedOrganizationAposS")}
       </p>
 
       <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
         <div className="space-y-1.5">
           <Label htmlFor="inline-secret-name" className="text-xs">
-            Name
+            {t("name")}
           </Label>
           <Input
             id="inline-secret-name"
@@ -136,7 +136,7 @@ export function InlineSecret({
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="inline-secret-value" className="text-xs">
-            Key
+            {t("key")}
           </Label>
           <div className="relative">
             <Input
@@ -171,10 +171,10 @@ export function InlineSecret({
           disabled={create.isPending || !name.trim() || !value.trim()}
           onClick={submit}
         >
-          Save key
+          {t("saveKey")}
         </Button>
         <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)}>
-          Cancel
+          {t("cancel")}
         </Button>
         <a
           href={ROUTES.VAULT}
@@ -183,7 +183,7 @@ export function InlineSecret({
           className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs underline underline-offset-4"
         >
           <ExternalLink className="h-3 w-3" aria-hidden />
-          Open the Vault
+          {t("openVault2")}
         </a>
         {helpUrl && (
           <a
@@ -192,7 +192,7 @@ export function InlineSecret({
             rel="noreferrer noopener"
             className="text-muted-foreground ml-auto text-xs underline underline-offset-4"
           >
-            Where do I get one?
+            {t("whereDoIGet")}
           </a>
         )}
       </div>

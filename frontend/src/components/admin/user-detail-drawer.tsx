@@ -144,7 +144,7 @@ export function UserDetailDrawer({
             {subject.is_app_admin && (
               <Badge className="bg-brand text-brand-foreground border-transparent text-[10px]">
                 <Shield className="mr-1 h-3 w-3" />
-                App admin
+                {t("appAdmin")}
               </Badge>
             )}
           </div>
@@ -158,7 +158,7 @@ export function UserDetailDrawer({
 
           <section className="mt-7">
             <h3 className="text-foreground/55 mb-3 font-mono text-[11px] tracking-wider uppercase">
-              Recent conversations
+              {t("recentConversations")}
             </h3>
             {convsLoading ? (
               <LoadingState variant="skeleton-list" rows={3} />
@@ -211,12 +211,12 @@ export function UserDetailDrawer({
             {subject.is_active ? (
               <>
                 <UserX className="mr-1.5 h-3.5 w-3.5" />
-                Suspend
+                {t("suspend")}
               </>
             ) : (
               <>
                 <Mail className="mr-1.5 h-3.5 w-3.5" />
-                Reactivate
+                {t("reactivate")}
               </>
             )}
           </Button>
@@ -229,18 +229,18 @@ export function UserDetailDrawer({
             {subject.is_app_admin ? (
               <>
                 <ShieldOff className="mr-1.5 h-3.5 w-3.5" />
-                Demote
+                {t("demote")}
               </>
             ) : (
               <>
                 <Shield className="mr-1.5 h-3.5 w-3.5" />
-                Promote to admin
+                {t("promoteAdmin")}
               </>
             )}
           </Button>
           <Button variant="outline" size="sm" onClick={handleImpersonate} className="rounded-full">
             <KeyRound className="mr-1.5 h-3.5 w-3.5" />
-            Impersonate
+            {t("impersonate")}
           </Button>
 
           <AlertDialog>
@@ -251,16 +251,13 @@ export function UserDetailDrawer({
                 className="text-destructive hover:text-destructive ml-auto rounded-full"
               >
                 <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                Delete
+                {t("delete")}
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>Delete {subject.email}?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Permanently removes the user, their conversations, and credit balance. This
-                  can&apos;t be undone.
-                </AlertDialogDescription>
+                <AlertDialogDescription>{t("permanentlyRemovesUserTheir")}</AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
@@ -271,7 +268,7 @@ export function UserDetailDrawer({
                   }}
                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 >
-                  Delete user
+                  {t("deleteUser")}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>

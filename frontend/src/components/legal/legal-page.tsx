@@ -4,6 +4,7 @@ import { getTranslations } from "next-intl/server";
 
 import type { Locale } from "@/i18n";
 import { APP_NAME, ROUTES } from "@/lib/constants";
+import { useTranslations } from "next-intl";
 
 interface LegalPageProps {
   title: string;

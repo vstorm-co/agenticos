@@ -127,7 +127,7 @@ export function AlertsPanel({ value, onChange, disabled }: AlertsPanelProps) {
           happened on screen; the same run started by a schedule, a channel or the API stops
           silently, and this is what closes that gap.{" "}
           <Link href={ROUTES.SETTINGS_NOTIFICATIONS} className="underline underline-offset-4">
-            Your own switches
+            {t("yourOwnSwitches")}
           </Link>{" "}
           still apply on top and can only ever remove you from a list.
         </CardDescription>
@@ -144,11 +144,7 @@ export function AlertsPanel({ value, onChange, disabled }: AlertsPanelProps) {
           />
         ))}
 
-        <p className="text-muted-foreground text-xs">
-          The organization&apos;s own monthly cap is not here. It stops every agent in the
-          organization and an agent&apos;s author cannot raise it, so its alert always goes to the
-          admins.
-        </p>
+        <p className="text-muted-foreground text-xs">{t("organizationAposSOwn")}</p>
       </CardContent>
     </Card>
   );
@@ -232,7 +228,7 @@ function AlertRow({
               `title` is invisible on a touch screen and to a keyboard. */}
           <fieldset disabled={disabled} className="space-y-2">
             <legend className="text-muted-foreground text-xs font-medium">
-              Who hears about it
+              {t("whoHearsAbout")}
             </legend>
             {meta.audiences.map((audience) => {
               const id = `${meta.key}-${audience}`;
@@ -262,9 +258,7 @@ function AlertRow({
 
           {alert.to.includes("chosen") &&
             (members.length === 0 ? (
-              <p className="text-muted-foreground text-xs">
-                No members to choose from - this organization is just you.
-              </p>
+              <p className="text-muted-foreground text-xs">{t("noMembersChooseFrom")}</p>
             ) : (
               <div className="space-y-2">
                 <MemberPicker

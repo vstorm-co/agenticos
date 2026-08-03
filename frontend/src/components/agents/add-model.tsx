@@ -314,7 +314,7 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
           onClick={() => setNaming(true)}
           className="text-muted-foreground hover:text-foreground text-xs underline underline-offset-4"
         >
-          Name it something else
+          {t("nameSomethingElse")}
         </button>
       )}
 
@@ -326,11 +326,11 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
           onClick={submit}
         >
           <Plus className="h-4 w-4" />
-          Add model
+          {t("addModel")}
         </Button>
         {onCancel && (
           <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
-            Cancel
+            {t("cancel")}
           </Button>
         )}
       </div>

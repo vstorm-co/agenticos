@@ -26,7 +26,7 @@ export function PendingMessages({ messages, onCancel }: PendingMessagesProps) {
     <div className="border-border bg-card mb-2 rounded-2xl border px-3 py-2">
       <div className="text-foreground/55 mb-1.5 flex items-center gap-1.5 font-mono text-[10px] tracking-wider uppercase">
         <Clock className="h-3 w-3" />
-        Queued · sends after current reply
+        {t("queuedSendsAfterCurrent")}
       </div>
       <ul className="space-y-1.5">
         {messages.map((m, i) => (

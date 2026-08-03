@@ -130,7 +130,7 @@ export function SlashCommandsManager() {
         <div className="border-destructive/30 bg-destructive/5 text-destructive flex items-center justify-between rounded-xl border px-4 py-3 text-sm">
           <span>{error}</span>
           <Button size="sm" variant="ghost" onClick={() => refresh()}>
-            Retry
+            {t("retry")}
           </Button>
         </div>
       )}
@@ -139,9 +139,7 @@ export function SlashCommandsManager() {
         <div className="flex items-baseline justify-between gap-3">
           <div>
             <h3 className="text-foreground text-sm font-semibold">{t("builtCommands")}</h3>
-            <p className="text-foreground/55 mt-0.5 text-xs">
-              Disable any you don&apos;t want to see in the palette.
-            </p>
+            <p className="text-foreground/55 mt-0.5 text-xs">{t("disableAnyYouDon")}</p>
           </div>
         </div>
         <ul className="border-foreground/10 divide-foreground/8 divide-y rounded-xl border">
@@ -156,7 +154,7 @@ export function SlashCommandsManager() {
                     </code>
                     {cmd.action.kind === "client" && (
                       <span className="text-foreground/45 font-mono text-[10px] tracking-wider uppercase">
-                        local
+                        {t("local")}
                       </span>
                     )}
                   </div>
@@ -179,13 +177,13 @@ export function SlashCommandsManager() {
           <div>
             <h3 className="text-foreground text-sm font-semibold">{t("yourCustomCommands")}</h3>
             <p className="text-foreground/55 mt-0.5 text-xs">
-              Slash shortcuts for prompts you type often. Typing <code>/name</code> in chat sends
-              the stored prompt.
+              Slash shortcuts for prompts you type often. Typing <code>/name</code>
+              {t("chatSendsStoredPrompt")}
             </p>
           </div>
           <Button size="sm" onClick={openCreate}>
             <Plus className="mr-1 h-3.5 w-3.5" />
-            New command
+            {t("newCommand")}
           </Button>
         </div>
 
@@ -254,7 +252,7 @@ export function SlashCommandsManager() {
                 />
               </div>
               <p className="text-foreground/45 mt-1 text-[11px]">
-                Lowercase letters, digits, hyphens. Max 32 chars.
+                {t("lowercaseLettersDigitsHyphens")}
               </p>
             </div>
             <div>
@@ -276,14 +274,14 @@ export function SlashCommandsManager() {
               <div className="flex items-center gap-3">
                 <Switch id="cmd-enabled" checked={draftEnabled} onCheckedChange={setDraftEnabled} />
                 <Label htmlFor="cmd-enabled" className="text-sm font-normal">
-                  Enabled
+                  {t("enabled")}
                 </Label>
               </div>
             )}
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={closeDialog} disabled={submitting}>
-              Cancel
+              {t("cancel")}
             </Button>
             <Button onClick={handleSubmit} disabled={submitting}>
               {submitting ? "Saving…" : editingId === "new" ? "Create" : "Save"}

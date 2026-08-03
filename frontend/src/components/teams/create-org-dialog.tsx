@@ -75,7 +75,7 @@ export function CreateOrgDialog({ open, onOpenChange, onCreated }: CreateOrgDial
           </FormField>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
+              {t("cancel")}
             </Button>
             <Button type="submit" disabled={!name.trim() || isSubmitting}>
               {isSubmitting ? "Creating..." : "Create"}

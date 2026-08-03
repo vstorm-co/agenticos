@@ -105,7 +105,7 @@ export function ToolApprovalDialog({
               onClick={handleCancel}
               disabled={disabled}
             >
-              Cancel
+              {t("cancel")}
             </Button>
             <Button
               size="sm"
@@ -114,7 +114,7 @@ export function ToolApprovalDialog({
               onClick={handleSave}
               disabled={disabled}
             >
-              Save
+              {t("save")}
             </Button>
           </>
         )}

@@ -21,8 +21,10 @@ import {
 import { SectionCard } from "@/components/settings/settings-section";
 import { useAuth } from "@/hooks";
 import { apiClient, ApiError } from "@/lib/api-client";
+import { useTranslations } from "next-intl";
 
 export default function AccountSettingsPage() {
+  const t = useTranslations("pages.settings");
   const { user, logout } = useAuth();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -82,8 +84,8 @@ export default function AccountSettingsPage() {
   return (
     <div className="space-y-6">
       <SectionCard
-        title="Change password"
-        description="Use a strong, unique password - 8+ characters, mixed case, numbers."
+        title={t("changePassword")}
+        description={t("useStrongUniquePassword")}
         action={
           <Button
             onClick={handleChangePassword}
@@ -95,7 +97,7 @@ export default function AccountSettingsPage() {
         }
       >
         <div className="space-y-4">
-          <FormField label="Current password" htmlFor="current-pw">
+          <FormField label={t("currentPassword")} htmlFor="current-pw">
             <Input
               id="current-pw"
               type="password"
@@ -105,7 +107,7 @@ export default function AccountSettingsPage() {
             />
           </FormField>
           <div className="grid gap-4 sm:grid-cols-2">
-            <FormField label="New password" htmlFor="new-pw">
+            <FormField label={t("newPassword")} htmlFor="new-pw">
               <Input
                 id="new-pw"
                 type="password"
@@ -114,7 +116,7 @@ export default function AccountSettingsPage() {
                 autoComplete="new-password"
               />
             </FormField>
-            <FormField label="Confirm new password" htmlFor="confirm-pw">
+            <FormField label={t("confirmNewPassword")} htmlFor="confirm-pw">
               <Input
                 id="confirm-pw"
                 type="password"
@@ -127,26 +129,21 @@ export default function AccountSettingsPage() {
         </div>
       </SectionCard>
 
-      <SectionCard
-        title="Sign out everywhere"
-        description="Revoke every active session including this one. You'll be signed out immediately."
-      >
+      <SectionCard title={t("signOutEverywhere")} description={t("revokeEveryActiveSession")}>
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button variant="outline" size="sm">
               <Lock className="mr-2 h-3.5 w-3.5" />
-              Sign out everywhere
+              {t("signOutEverywhere")}
             </Button>
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Sign out from all devices?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This revokes every active session and signs you out of this device too.
-              </AlertDialogDescription>
+              <AlertDialogTitle>{t("signOutFromAll")}</AlertDialogTitle>
+              <AlertDialogDescription>{t("revokesEveryActiveSession")}</AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
               <AlertDialogAction
                 onClick={async () => {
                   try {
@@ -158,26 +155,22 @@ export default function AccountSettingsPage() {
                   }
                 }}
               >
-                Sign out everywhere
+                {t("signOutEverywhere2")}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
       </SectionCard>
 
-      <SectionCard
-        title="Delete account"
-        description="Permanently remove your account, conversations, and uploaded data. This can't be undone."
-      >
+      <SectionCard title={t("deleteAccount")} description={t("permanentlyRemoveYourAccount")}>
         <div className="border-border bg-muted flex items-start gap-3 rounded-xl border p-4">
           <span className="bg-card border-border text-muted-foreground flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border">
             <AlertTriangle className="h-4 w-4" />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="text-foreground text-sm font-semibold">This is irreversible</p>
+            <p className="text-foreground text-sm font-semibold">{t("irreversible")}</p>
             <p className="text-muted-foreground mt-0.5 text-xs leading-relaxed">
-              All conversations, knowledge base contents, API keys, and personal data will be
-              permanently deleted. Active subscriptions will be canceled.
+              {t("allConversationsKnowledgeBase")}
             </p>
           </div>
         </div>
@@ -185,20 +178,18 @@ export default function AccountSettingsPage() {
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="destructive" size="sm">
-                Delete my account
+                {t("deleteMyAccount")}
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Delete your account?</AlertDialogTitle>
+                <AlertDialogTitle>{t("deleteYourAccount")}</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Your conversations, knowledge base contents, API keys, and all personal data will
-                  be permanently deleted. Active subscriptions will be canceled. This cannot be
-                  undone.
+                  {t("yourConversationsKnowledgeBase")}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogCancel>{t("cancel2")}</AlertDialogCancel>
                 <AlertDialogAction
                   disabled={deleting}
                   onClick={handleDeleteAccount}

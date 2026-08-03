@@ -126,7 +126,7 @@ export function McpServerPicker({
             checked={connectedOnly}
             onCheckedChange={(next) => setConnectedOnly(next === true)}
           />
-          Connected only
+          {t("connectedOnly")}
         </label>
       </div>
 

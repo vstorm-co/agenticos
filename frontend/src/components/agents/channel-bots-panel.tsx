@@ -82,18 +82,11 @@ export function ChannelBotsPanel({ canManage }: { canManage: boolean }) {
     <Card>
       <CardHeader>
         <CardTitle>{t("channelBots")}</CardTitle>
-        <CardDescription>
-          A bot connects this organization to a chat platform and serves every agent bound to it -
-          registering is once per workspace, binding is per agent, above. The token is encrypted on
-          arrival and never shown again.
-        </CardDescription>
+        <CardDescription>{t("botConnectsOrganizationChat")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {!isLoading && bots.length === 0 && (
-          <p className="text-muted-foreground text-sm">
-            No bots yet. Register one below and it becomes bindable in &quot;Where this agent is
-            available&quot; - here and on every other agent.
-          </p>
+          <p className="text-muted-foreground text-sm">{t("noBotsYetRegister")}</p>
         )}
 
         {bots.map((bot) => (
@@ -210,7 +203,7 @@ export function ChannelBotsPanel({ canManage }: { canManage: boolean }) {
             disabled={!name.trim() || token.trim().length < 10 || create.isPending}
           >
             <Plus className="h-4 w-4" />
-            Register
+            {t("register")}
           </Button>
         </div>
 

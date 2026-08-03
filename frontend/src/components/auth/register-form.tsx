@@ -164,12 +164,12 @@ export function RegisterForm() {
                   {password.length >= 8 ? (
                     <span className="text-brand inline-flex items-center gap-1">
                       <Check className="h-3 w-3" />
-                      8+ chars
+                      {t("n8Chars")}
                     </span>
                   ) : (
                     <span className="text-foreground/55 inline-flex items-center gap-1">
                       <X className="h-3 w-3" />
-                      8+ chars
+                      {t("n8Chars2")}
                     </span>
                   )}
                 </div>
@@ -231,14 +231,14 @@ export function RegisterForm() {
             href={ROUTES.LEGAL_TERMS}
             className="text-foreground/70 hover:text-foreground underline-offset-4 hover:underline"
           >
-            Terms
+            {t("terms")}
           </Link>{" "}
           and{" "}
           <Link
             href={ROUTES.LEGAL_PRIVACY}
             className="text-foreground/70 hover:text-foreground underline-offset-4 hover:underline"
           >
-            Privacy Policy
+            {t("privacyPolicy")}
           </Link>
           .
         </p>

@@ -66,9 +66,7 @@ export function RunSummary({ agentId, runs }: RunSummaryProps) {
     return (
       <div className="border-border rounded-lg border border-dashed p-6 text-center">
         <Activity className="text-muted-foreground mx-auto h-5 w-5" />
-        <p className="text-muted-foreground mt-2 text-sm">
-          This agent has not run yet. Publish it and send it a message, or test it from the header.
-        </p>
+        <p className="text-muted-foreground mt-2 text-sm">{t("agentHasNotRun")}</p>
       </div>
     );
   }

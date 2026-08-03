@@ -14,6 +14,7 @@ import {
 import { Input } from "./input";
 import { Label } from "./label";
 import { useChanged } from "@/hooks/use-changed";
+import { useTranslations } from "next-intl";
 
 export interface ConfirmDialogProps {
   open: boolean;
@@ -51,6 +52,7 @@ export function ConfirmDialog({
   loading,
   onConfirm,
 }: ConfirmDialogProps) {
+  const t = useTranslations("ui");
   const [typed, setTyped] = React.useState("");
 
   // Cleared as the dialog closes, during render rather than in an effect: an
@@ -70,7 +72,8 @@ export function ConfirmDialog({
         {confirmText && (
           <div className="space-y-1.5">
             <Label htmlFor="confirm-phrase" className="text-muted-foreground text-xs">
-              Type <span className="text-foreground font-mono">{confirmText}</span> to confirm
+              Type <span className="text-foreground font-mono">{confirmText}</span>
+              {t("confirm")}
             </Label>
             <Input
               id="confirm-phrase"

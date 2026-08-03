@@ -201,11 +201,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                 </span>
               </summary>
               <div className="space-y-4 border-t p-4">
-                <p className="text-muted-foreground text-xs">
-                  Frozen at creation: the collection&apos;s vectors are produced by this model and
-                  cannot be re-indexed under another one later. The key decides whose account pays
-                  for embedding.
-                </p>
+                <p className="text-muted-foreground text-xs">{t("frozenAtCreationCollection")}</p>
                 <div className="space-y-1.5">
                   <Label htmlFor="kb-embedding-model">{t("model")}</Label>
                   <Select
@@ -244,10 +240,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-muted-foreground text-xs">
-                    A key here bills embeddings to this organization instead of using the
-                    deployment&apos;s.
-                  </p>
+                  <p className="text-muted-foreground text-xs">{t("keyHereBillsEmbeddings")}</p>
                   {/* Rather than only telling somebody to go and add one: a picker
                       with nothing in it and no way to fill it is a dead end, and
                       the answer to "add a key in the vault" is a form, not a
@@ -277,12 +270,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                 </span>
               </summary>
               <div className="space-y-4 border-t p-4">
-                <p className="text-muted-foreground text-xs">
-                  Left alone, this collection inherits whatever defaults the deployment is
-                  configured with. The values below are the platform&apos;s; changing any one of
-                  them sends all of them, and they become this collection&apos;s until somebody
-                  edits them.
-                </p>
+                <p className="text-muted-foreground text-xs">{t("leftAloneCollectionInherits")}</p>
                 <IngestionSettings
                   idPrefix="kb-new"
                   value={ingestion}
@@ -296,7 +284,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
+              {t("cancel")}
             </Button>
             <Button type="submit" disabled={!canSubmit || isSubmitting}>
               {isSubmitting ? "Creating..." : "Create"}

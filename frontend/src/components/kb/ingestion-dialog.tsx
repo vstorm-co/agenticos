@@ -91,8 +91,8 @@ export function IngestionDialog({
           <DialogTitle>{t("ingestionSettings")}</DialogTitle>
           <DialogDescription>
             How documents added to{" "}
-            <span className="text-foreground font-mono text-xs">{collectionName}</span> are read
-            from here on. Nothing already indexed is re-parsed.
+            <span className="text-foreground font-mono text-xs">{collectionName}</span>
+            {t("areReadFromHere")}
           </DialogDescription>
         </DialogHeader>
 
@@ -108,7 +108,7 @@ export function IngestionDialog({
 
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
+            {t("cancel2")}
           </Button>
           <Button type="button" onClick={handleSave} disabled={!canSave || isSaving}>
             {isSaving ? "Saving…" : "Save"}

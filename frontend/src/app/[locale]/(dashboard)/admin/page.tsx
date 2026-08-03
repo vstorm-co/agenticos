@@ -22,6 +22,7 @@ import { Badge, Button } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
 import { formatDate, timeAgo } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 
 interface AdminStats {
   total_users?: number;
@@ -57,6 +58,7 @@ const EVENT_ICON: Record<RecentEvent["type"], LucideIcon> = {
 };
 
 export default function AdminOverviewPage() {
+  const t = useTranslations("pages.admin");
   const statsQuery = useQuery({
     queryKey: ["admin", "stats"],
     queryFn: async (): Promise<AdminStats> => {
@@ -123,7 +125,7 @@ export default function AdminOverviewPage() {
           }}
         >
           <RefreshCw className={refreshing ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />
-          Refresh
+          {t("refresh")}
         </Button>
       </div>
 
@@ -132,28 +134,32 @@ export default function AdminOverviewPage() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <StatCard
-            label="Total users"
+            label={t("totalUsers")}
             value={(stats?.total_users ?? 0).toLocaleString()}
             icon={Users}
           />
           <StatCard
-            label="Active 24h"
+            label={t("active24h")}
             value={(stats?.active_users_24h ?? 0).toLocaleString()}
             icon={Activity}
           />
           <StatCard
-            label="Organizations"
+            label={t("organizations")}
             value={(stats?.total_organizations ?? 0).toLocaleString()}
             icon={Building2}
           />
-          <StatCard label="Agents" value={(stats?.total_agents ?? 0).toLocaleString()} icon={Bot} />
           <StatCard
-            label="Conversations"
+            label={t("agents")}
+            value={(stats?.total_agents ?? 0).toLocaleString()}
+            icon={Bot}
+          />
+          <StatCard
+            label={t("conversations")}
             value={(stats?.total_conversations ?? 0).toLocaleString()}
             icon={MessageSquare}
           />
           <StatCard
-            label="Messages"
+            label={t("messages")}
             value={(stats?.total_messages ?? 0).toLocaleString()}
             icon={MessagesSquare}
           />
@@ -164,35 +170,33 @@ export default function AdminOverviewPage() {
         <QuickLink
           href={ROUTES.ADMIN_USERS}
           icon={Users}
-          title="Manage users"
-          description="Search, suspend, impersonate"
+          title={t("manageUsers")}
+          description={t("searchSuspendImpersonate")}
         />
         <QuickLink
           href={ROUTES.ADMIN_CONVERSATIONS}
           icon={MessageSquare}
-          title="Browse chats"
-          description="All conversations across users"
+          title={t("browseChats")}
+          description={t("allConversationsAcrossUsers")}
         />
         <QuickLink
           href={ROUTES.ADMIN_SYSTEM}
           icon={Activity}
-          title="System health"
-          description="Per-service status & uptime"
+          title={t("systemHealth")}
+          description={t("perServiceStatusUptime")}
         />
         <QuickLink
           href={ROUTES.ADMIN_RATINGS}
           icon={Star}
-          title="Response ratings"
-          description="Quality signals from users"
+          title={t("responseRatings")}
+          description={t("qualitySignalsFromUsers")}
         />
       </section>
 
       <section className="border-border bg-card rounded-xl border">
         <div className="border-border border-b px-5 py-4">
-          <h2 className="text-foreground text-sm font-semibold">Organizations</h2>
-          <p className="text-muted-foreground text-xs">
-            Every tenant in the deployment - only the platform admin sees this list.
-          </p>
+          <h2 className="text-foreground text-sm font-semibold">{t("organizations2")}</h2>
+          <p className="text-muted-foreground text-xs">{t("everyTenantDeploymentOnly")}</p>
         </div>
         {orgs === undefined ? (
           <div className="p-5">
@@ -200,18 +204,18 @@ export default function AdminOverviewPage() {
           </div>
         ) : orgs.length === 0 ? (
           <div className="text-muted-foreground px-5 py-12 text-center text-sm">
-            No organizations yet.
+            {t("noOrganizationsYet")}
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[36rem] text-sm">
               <thead>
                 <tr className="border-border text-muted-foreground border-b text-left text-xs">
-                  <th className="px-5 py-2.5 font-medium">Name</th>
-                  <th className="px-3 py-2.5 font-medium">Slug</th>
-                  <th className="px-3 py-2.5 text-right font-medium">Members</th>
-                  <th className="px-3 py-2.5 text-right font-medium">Agents</th>
-                  <th className="px-5 py-2.5 text-right font-medium">Created</th>
+                  <th className="px-5 py-2.5 font-medium">{t("name")}</th>
+                  <th className="px-3 py-2.5 font-medium">{t("slug")}</th>
+                  <th className="px-3 py-2.5 text-right font-medium">{t("members")}</th>
+                  <th className="px-3 py-2.5 text-right font-medium">{t("agents2")}</th>
+                  <th className="px-5 py-2.5 text-right font-medium">{t("created")}</th>
                 </tr>
               </thead>
               <tbody className="divide-border divide-y">
@@ -221,7 +225,7 @@ export default function AdminOverviewPage() {
                       <span className="text-foreground font-medium">{org.name}</span>
                       {org.is_personal && (
                         <Badge variant="outline" className="ml-2 text-[10px]">
-                          Personal
+                          {t("personal")}
                         </Badge>
                       )}
                     </td>
@@ -243,8 +247,8 @@ export default function AdminOverviewPage() {
 
       <section className="border-border bg-card rounded-xl border">
         <div className="border-border border-b px-5 py-4">
-          <h2 className="text-foreground text-sm font-semibold">Recent activity</h2>
-          <p className="text-muted-foreground text-xs">Workspace-wide events across all users.</p>
+          <h2 className="text-foreground text-sm font-semibold">{t("recentActivity")}</h2>
+          <p className="text-muted-foreground text-xs">{t("workspaceWideEventsAcross")}</p>
         </div>
         {events === undefined ? (
           <div className="p-5">
@@ -252,7 +256,7 @@ export default function AdminOverviewPage() {
           </div>
         ) : events.length === 0 ? (
           <div className="text-muted-foreground px-5 py-12 text-center text-sm">
-            No recent events.
+            {t("noRecentEvents")}
           </div>
         ) : (
           <ul className="divide-border divide-y">

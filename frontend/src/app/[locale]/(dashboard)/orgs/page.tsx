@@ -20,6 +20,7 @@ import {
 import { useOrganizations } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import { useChanged } from "@/hooks/use-changed";
+import { useTranslations } from "next-intl";
 
 /** How many workspaces the account belongs to, in words rather than a bare digit. */
 function storedCount(count: number): string {
@@ -32,11 +33,12 @@ function storedCount(count: number): string {
  * border, in every state: what changes is what is inside it.
  */
 function WorkspacesCard({ count, children }: { count: number | null; children: ReactNode }) {
+  const t = useTranslations("pages.orgs");
   return (
     <Card>
       <CardHeader className="flex-row items-center justify-between space-y-0 border-b px-5 py-4">
         <div className="space-y-1">
-          <CardTitle className="text-sm">Workspaces</CardTitle>
+          <CardTitle className="text-sm">{t("workspaces")}</CardTitle>
           <CardDescription className="text-xs">
             {/* `null` is "the request has not answered". Rendering "0 workspaces"
                 there would state something nothing has said yet. */}
@@ -50,6 +52,7 @@ function WorkspacesCard({ count, children }: { count: number | null; children: R
 }
 
 export default function OrgsPage() {
+  const t = useTranslations("pages.orgs");
   const { orgs, activeOrgId, fetchOrgs, switchOrg } = useOrganizations();
   const [createOpen, setCreateOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -76,12 +79,12 @@ export default function OrgsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Organizations"
-        description="Switch between workspaces, manage members, and spin up new organizations to collaborate with your team."
+        title={t("organizations")}
+        description={t("switchBetweenWorkspacesManage")}
         actions={
           <Button onClick={() => setCreateOpen(true)}>
             <Plus className="h-4 w-4" />
-            New organization
+            {t("newOrganization")}
           </Button>
         }
       />
@@ -111,10 +114,9 @@ export default function OrgsPage() {
             <div className="bg-muted text-muted-foreground mx-auto flex h-11 w-11 items-center justify-center rounded-xl">
               <Building2 className="h-5 w-5" />
             </div>
-            <p className="text-foreground mt-4 text-sm font-medium">No organizations yet</p>
+            <p className="text-foreground mt-4 text-sm font-medium">{t("noOrganizationsYet")}</p>
             <p className="text-muted-foreground mx-auto mt-1 max-w-sm text-sm">
-              Create your first workspace to invite teammates and share access to conversations and
-              knowledge bases.
+              {t("createYourFirstWorkspace")}
             </p>
             <Button
               variant="outline"
@@ -123,7 +125,7 @@ export default function OrgsPage() {
               onClick={() => setCreateOpen(true)}
             >
               <Plus className="h-3.5 w-3.5" />
-              Create organization
+              {t("createOrganization")}
             </Button>
           </div>
         ) : (
@@ -172,13 +174,13 @@ export default function OrgsPage() {
                         </h2>
                         {org.is_personal && (
                           <span className="border-border text-muted-foreground rounded-full border px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
-                            Personal
+                            {t("personal")}
                           </span>
                         )}
                         {isActive && (
                           <span className="border-border bg-muted text-foreground inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
                             <Check className="h-2.5 w-2.5" />
-                            Active
+                            {t("active")}
                           </span>
                         )}
                       </div>

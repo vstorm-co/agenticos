@@ -9,6 +9,7 @@ import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle } from
 import { usePermissions, useRoleCatalog } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import type { PermissionScope } from "@/types/permissions";
+import { useTranslations } from "next-intl";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -35,6 +36,7 @@ const SCOPE_VARIANT: Record<PermissionScope, "default" | "secondary" | "outline"
 };
 
 export default function RolesPage({ params }: PageProps) {
+  const t = useTranslations("pages.orgs");
   const { id: orgId } = use(params);
   const { catalog, isLoading } = useRoleCatalog();
   const { role: myRole, isAppAdmin } = usePermissions();
@@ -42,8 +44,8 @@ export default function RolesPage({ params }: PageProps) {
   // Nothing here waits on the catalog, so it renders while the matrix loads.
   const breadcrumbHeader = (
     <PageHeader
-      title="Users & Roles"
-      description="What each role may do. Permissions are defined in code and bundled into roles - a role can never hold a permission the platform does not define."
+      title={t("usersRoles")}
+      description={t("whatEachRoleMay")}
       breadcrumbs={[
         { label: "Organizations", href: ROUTES.ORGS },
         { label: "Members", href: ROUTES.ORG_MEMBERS(orgId) },
@@ -58,7 +60,7 @@ export default function RolesPage({ params }: PageProps) {
         {breadcrumbHeader}
         <Card>
           <CardHeader>
-            <CardTitle>Permission matrix</CardTitle>
+            <CardTitle>{t("permissionMatrix")}</CardTitle>
           </CardHeader>
           <CardContent>
             {/* The permission name plus one column per role - six roles ship in
@@ -75,8 +77,8 @@ export default function RolesPage({ params }: PageProps) {
     return (
       <EmptyState
         icon={ShieldCheck}
-        title="Permission catalog unavailable"
-        description="The server did not return the role catalog. Try reloading the page."
+        title={t("permissionCatalogUnavailable")}
+        description={t("serverDidNotReturn")}
       />
     );
   }
@@ -94,12 +96,13 @@ export default function RolesPage({ params }: PageProps) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Permission matrix</CardTitle>
+          <CardTitle>{t("permissionMatrix2")}</CardTitle>
           <CardDescription>
-            Resource permissions carry a scope - <strong>own</strong> is what you created,{" "}
-            <strong>shared</strong> adds what was shared with you, <strong>all</strong> is the whole
-            organization. Sharing a single resource can widen access beyond the role, never narrow
-            it.
+            Resource permissions carry a scope - <strong>{t("own")}</strong> is what you created,{" "}
+            <strong>{t("shared")}</strong>
+            {t("addsWhatWasShared")}
+            <strong>{t("all")}</strong> is the whole organization. Sharing a single resource can
+            widen access beyond the role, never narrow it.
             {myRole ? (
               <>
                 {" "}
@@ -118,7 +121,7 @@ export default function RolesPage({ params }: PageProps) {
             <table className="w-full min-w-[46rem] text-sm">
               <thead>
                 <tr className="border-b">
-                  <th className="py-2 pr-4 text-left font-medium">Permission</th>
+                  <th className="py-2 pr-4 text-left font-medium">{t("permission")}</th>
                   {catalog.roles.map((role) => (
                     <th key={role.name} className="px-3 py-2 text-left font-medium capitalize">
                       {role.name}

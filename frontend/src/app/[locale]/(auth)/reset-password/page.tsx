@@ -6,6 +6,7 @@ import type { Locale } from "@/i18n";
 import { ROUTES } from "@/lib/constants";
 import { pageMetadata } from "@/lib/seo";
 
+import { getTranslations } from "next-intl/server";
 export async function generateMetadata({
   params,
 }: {
@@ -26,23 +27,22 @@ interface PageProps {
 }
 
 export default async function ResetPasswordPage({ searchParams }: PageProps) {
+  const t = await getTranslations("pages.auth");
   const { token } = await searchParams;
 
   if (!token) {
     return (
       <div className="space-y-6">
         <div className="space-y-2">
-          <span className="eyebrow text-foreground/55">Reset password</span>
-          <h1 className="text-display-md text-foreground">Missing or expired link</h1>
-          <p className="text-foreground/70 text-sm">
-            This page expects a token from your reset email. Request a new link to continue.
-          </p>
+          <span className="eyebrow text-foreground/55">{t("resetPassword")}</span>
+          <h1 className="text-display-md text-foreground">{t("missingExpiredLink")}</h1>
+          <p className="text-foreground/70 text-sm">{t("pageExpectsTokenFrom")}</p>
         </div>
         <Link
           href={ROUTES.FORGOT_PASSWORD}
           className="bg-foreground text-background hover:bg-foreground/90 inline-flex h-11 items-center justify-center gap-2 rounded-full px-5 text-sm font-medium transition-colors"
         >
-          Request a new link
+          {t("requestNewLink")}
         </Link>
         <p className="text-foreground/55 text-xs">
           Or{" "}
@@ -50,7 +50,7 @@ export default async function ResetPasswordPage({ searchParams }: PageProps) {
             href={ROUTES.LOGIN}
             className="text-foreground hover:text-foreground/80 underline-offset-4 hover:underline"
           >
-            return to sign in
+            {t("returnSign")}
           </Link>
           .
         </p>

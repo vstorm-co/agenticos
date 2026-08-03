@@ -121,7 +121,7 @@ export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
             onClick={() => setPrefix([])}
             className={cn("hover:underline", prefix.length === 0 && "font-medium")}
           >
-            All files
+            {t("allFiles2")}
           </button>
           {prefix.map((part, index) => (
             <span key={`${part}${index}`} className="flex items-center gap-1">

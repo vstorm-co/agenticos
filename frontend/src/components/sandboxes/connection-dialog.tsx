@@ -161,10 +161,7 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{editing ? t("editTitle") : t("addTitle")}</DialogTitle>
-          <DialogDescription>
-            Where this organization&apos;s agents run shell commands and keep files. The token is
-            stored in the vault and never shown again.
-          </DialogDescription>
+          <DialogDescription>{t("whereOrganizationAposS")}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -176,9 +173,7 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
               placeholder={t("namePlaceholder")}
               onChange={(event) => setForm({ ...form, name: event.target.value })}
             />
-            <p className="text-muted-foreground text-xs">
-              What agent authors will see when they pick a host.
-            </p>
+            <p className="text-muted-foreground text-xs">{t("whatAgentAuthorsWill")}</p>
           </div>
 
           <div className="space-y-2">
@@ -210,10 +205,7 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
                   setForm({ ...form, baseUrl: event.target.value, urlTouched: true })
                 }
               />
-              <p className="text-muted-foreground text-xs">
-                Where the sandbox service answers. It holds the Docker socket, so it should not be
-                reachable from outside your network.
-              </p>
+              <p className="text-muted-foreground text-xs">{t("whereSandboxServiceAnswers")}</p>
               {local?.url != null && (
                 <p className="text-muted-foreground text-xs">
                   {local.registered_connection_id === null
@@ -253,7 +245,7 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
               <div className="bg-muted/40 space-y-2 rounded-md p-3">
                 <p className="text-xs">
                   This deployment already holds the token its sandbox service was started with — the
-                  one <span className="font-mono">make sandbox-token</span> wrote to{" "}
+                  one <span className="font-mono">{t("makeSandboxToken")}</span> wrote to{" "}
                   <span className="font-mono">backend/.env</span>.
                 </p>
                 <Button
@@ -314,26 +306,21 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
             />
           ) : (
             <div className="space-y-2">
-              <Label htmlFor="connection-runtime">Default runtime</Label>
+              <Label htmlFor="connection-runtime">{t("defaultRuntime")}</Label>
               <Input
                 id="connection-runtime"
                 value={form.defaultRuntime}
-                placeholder="the service's own"
+                placeholder={t("serviceSOwn")}
                 onChange={(event) => setForm({ ...form, defaultRuntime: event.target.value })}
               />
-              <p className="text-muted-foreground text-xs">
-                A Daytona snapshot or image. What it allows is an account setting on their side, so
-                there is no list to offer.
-              </p>
+              <p className="text-muted-foreground text-xs">{t("daytonaSnapshotImageWhat")}</p>
             </div>
           )}
 
           <div className="flex items-center justify-between">
             <div>
               <Label htmlFor="connection-default">{t("useByDefault")}</Label>
-              <p className="text-muted-foreground text-xs">
-                Agents that name no connection run here. Only one can hold this.
-              </p>
+              <p className="text-muted-foreground text-xs">{t("agentsNameNoConnection")}</p>
             </div>
             <Switch
               id="connection-default"
@@ -346,10 +333,7 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
             <div className="flex items-center justify-between">
               <div>
                 <Label htmlFor="connection-active">{t("switchedOn")}</Label>
-                <p className="text-muted-foreground text-xs">
-                  Turning it off refuses new sandboxes here without deleting the record of what
-                  agents did on it.
-                </p>
+                <p className="text-muted-foreground text-xs">{t("turningOffRefusesNew")}</p>
               </div>
               <Switch
                 id="connection-active"
@@ -364,7 +348,7 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
+            {t("cancel")}
           </Button>
           <Button onClick={submit} disabled={saving || !isComplete(form, baseUrl)}>
             {editing ? t("save") : t("add")}

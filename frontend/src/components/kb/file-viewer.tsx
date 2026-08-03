@@ -416,18 +416,16 @@ export function FileViewer({ kbId, doc, open, onClose }: FileViewerProps) {
 
             {tab === "original" && !loading && !error && viewerKind === "unknown" && blobUrl && (
               <div className="flex h-full flex-col items-center justify-center gap-4 px-8 text-center">
-                <p className="text-muted-foreground text-sm">
-                  This file type cannot be previewed inline.
-                </p>
+                <p className="text-muted-foreground text-sm">{t("fileTypeCannotBe")}</p>
                 <p className="text-muted-foreground text-xs">{doc?.filetype || mimeType}</p>
                 <div className="flex gap-2">
                   <Button size="sm" variant="outline" onClick={handleOpenExternal}>
                     <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
-                    Open in browser
+                    {t("openBrowser")}
                   </Button>
                   <Button size="sm" onClick={handleDownload}>
                     <Download className="mr-1.5 h-3.5 w-3.5" />
-                    Download
+                    {t("download")}
                   </Button>
                 </div>
               </div>
@@ -488,9 +486,7 @@ function ParsedView({
           <ScanText className="h-5 w-5" />
         </span>
         <div>
-          <p className="text-foreground text-sm font-medium">
-            Nothing readable came out of this parse
-          </p>
+          <p className="text-foreground text-sm font-medium">{t("nothingReadableCameOut")}</p>
           <p className="text-muted-foreground mx-auto mt-1 max-w-md text-xs">
             {parsed.chunk_count > 0
               ? "Every page came back as empty scaffolding, which is what an unreadable scan looks like. If this file is a scan or a photo, turn on reading scanned pages in the parse options and upload it again."
@@ -531,7 +527,7 @@ function ParsedView({
             )}
             {!page.has_text && (
               <p className="text-muted-foreground border-border mb-2 rounded-lg border border-dashed px-3 py-2 text-xs">
-                This page parsed to nothing readable - likely an unreadable scan.
+                {t("pageParsedNothingReadable")}
               </p>
             )}
             <div className="divide-border divide-y">

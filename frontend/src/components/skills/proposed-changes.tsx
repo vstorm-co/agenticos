@@ -43,6 +43,7 @@ function waitingCount(count: number): string {
  * decision cannot be made from a title.
  */
 export function ProposedChanges({ canEdit }: ProposedChangesProps) {
+  const t = useTranslations("skills");
   const { changes, error, apply, discard, isDeciding } = useSkillChanges("pending");
 
   if (!canEdit) return null;
@@ -57,7 +58,7 @@ export function ProposedChanges({ canEdit }: ProposedChangesProps) {
         <div className="space-y-1">
           <CardTitle className="flex items-center gap-2 text-sm">
             <GitPullRequest className="h-4 w-4" aria-hidden />
-            Changes an agent proposed
+            {t("changesAgentProposed")}
           </CardTitle>
           <CardDescription className="text-xs">
             {waitingCount(changes.length)}. Accepting one rewrites the skill, which reaches every
@@ -118,7 +119,7 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
               className="text-muted-foreground text-xs underline"
               href={`${ROUTES.CHAT}?c=${change.conversation_id}`}
             >
-              Read the conversation it came from
+              {t("readConversationCameFrom")}
             </a>
           )}
         </div>
@@ -141,7 +142,7 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
             aria-label={`Discard the change to ${change.name}`}
           >
             <X className="h-4 w-4" aria-hidden />
-            Discard
+            {t("discard")}
           </Button>
           <Button
             size="sm"
@@ -150,7 +151,7 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
             aria-label={`Apply the change to ${change.name}`}
           >
             <Check className="h-4 w-4" aria-hidden />
-            Apply
+            {t("apply")}
           </Button>
         </div>
       </div>

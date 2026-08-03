@@ -37,11 +37,13 @@ import { ErrorState } from "@/components/states";
 import { ROUTES } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
 import type { MessageRatingListResponse, MessageRatingWithDetails, RatingSummary } from "@/types";
+import { useTranslations } from "next-intl";
 
 const PAGE_SIZE = 50;
 type RatingFilter = "all" | "positive" | "negative";
 
 export default function AdminRatingsPage() {
+  const t = useTranslations("pages.admin");
   const [filter, setFilter] = useState<RatingFilter>("all");
   const [commentsOnly, setCommentsOnly] = useState(false);
   const [page, setPage] = useState(0);
@@ -114,12 +116,12 @@ export default function AdminRatingsPage() {
         r.rating === 1 ? (
           <span className="bg-muted text-foreground inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 font-mono text-[10px] font-semibold tracking-wider uppercase">
             <ThumbsUp className="h-3 w-3" />
-            Like
+            {t("like")}
           </span>
         ) : (
           <span className="bg-muted text-foreground inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 font-mono text-[10px] font-semibold tracking-wider uppercase">
             <ThumbsDown className="h-3 w-3" />
-            Dislike
+            {t("dislike")}
           </span>
         ),
     },
@@ -162,7 +164,7 @@ export default function AdminRatingsPage() {
             className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 font-mono text-[11px] tracking-wider uppercase transition-colors"
           >
             <ExternalLink className="h-3 w-3" />
-            View
+            {t("view")}
           </Link>
         ) : null,
     },
@@ -171,22 +173,20 @@ export default function AdminRatingsPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-muted-foreground text-sm">
-          User feedback on AI responses - last 30 days.
-        </p>
+        <p className="text-muted-foreground text-sm">{t("userFeedbackAiResponses")}</p>
         <div className="flex items-center gap-2">
           <Select value={exportFormat} onValueChange={(v) => setExportFormat(v as "json" | "csv")}>
             <SelectTrigger className="w-24">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="csv">CSV</SelectItem>
-              <SelectItem value="json">JSON</SelectItem>
+              <SelectItem value="csv">{t("csv")}</SelectItem>
+              <SelectItem value="json">{t("json")}</SelectItem>
             </SelectContent>
           </Select>
           <Button variant="outline" size="sm" onClick={handleExport}>
             <Download className="h-3.5 w-3.5" />
-            Export
+            {t("export")}
           </Button>
         </div>
       </div>
@@ -196,31 +196,31 @@ export default function AdminRatingsPage() {
           of rows, each contradicting the other and neither admitting why. */}
       {summaryError ? (
         <ErrorState
-          title="Couldn't load the summary"
+          title={t("couldnTLoadSummary")}
           description={getErrorMessage(summaryError, "The ratings summary request failed.")}
           cta={{ label: "Try again", onClick: () => void refetchSummary() }}
         />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard
-            label="Total ratings"
+            label={t("totalRatings")}
             value={summaryPending ? "-" : (summary?.total_ratings ?? 0).toLocaleString()}
             loading={summaryPending}
           />
           <StatCard
-            label="Likes"
+            label={t("likes")}
             value={summaryPending ? "-" : (summary?.like_count ?? 0).toLocaleString()}
             icon={ThumbsUp}
             loading={summaryPending}
           />
           <StatCard
-            label="Dislikes"
+            label={t("dislikes")}
             value={summaryPending ? "-" : (summary?.dislike_count ?? 0).toLocaleString()}
             icon={ThumbsDown}
             loading={summaryPending}
           />
           <StatCard
-            label="Approval rate"
+            label={t("approvalRate")}
             value={summaryPending ? "-" : approvalRate !== null ? `${approvalRate}%` : "-"}
             icon={TrendingUp}
             loading={summaryPending}
@@ -230,8 +230,8 @@ export default function AdminRatingsPage() {
 
       {!summaryError && !summaryPending && summary && summary.ratings_by_day.length > 0 && (
         <section className="border-border bg-card rounded-xl border p-6">
-          <h2 className="text-foreground text-sm font-semibold">Ratings per day</h2>
-          <p className="text-muted-foreground text-xs">Likes and dislikes over the last 30 days.</p>
+          <h2 className="text-foreground text-sm font-semibold">{t("ratingsPerDay")}</h2>
+          <p className="text-muted-foreground text-xs">{t("likesDislikesOverLast")}</p>
           <div className="mt-5 h-56">
             <RatingsChart data={summary.ratings_by_day} />
           </div>
@@ -239,13 +239,13 @@ export default function AdminRatingsPage() {
             <span className="flex items-center gap-1.5">
               <span className="bg-foreground/75 h-2.5 w-2.5 rounded-full" />
               <span className="text-muted-foreground font-mono text-[10px] tracking-wider uppercase">
-                Likes
+                {t("likes")}
               </span>
             </span>
             <span className="flex items-center gap-1.5">
               <span className="bg-foreground/30 h-2.5 w-2.5 rounded-full" />
               <span className="text-muted-foreground font-mono text-[10px] tracking-wider uppercase">
-                Dislikes
+                {t("dislikes")}
               </span>
             </span>
           </div>
@@ -265,9 +265,9 @@ export default function AdminRatingsPage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All ratings</SelectItem>
-              <SelectItem value="positive">Likes only</SelectItem>
-              <SelectItem value="negative">Dislikes only</SelectItem>
+              <SelectItem value="all">{t("allRatings")}</SelectItem>
+              <SelectItem value="positive">{t("likesOnly")}</SelectItem>
+              <SelectItem value="negative">{t("dislikesOnly")}</SelectItem>
             </SelectContent>
           </Select>
           <label className="flex cursor-pointer items-center gap-2 text-xs">
@@ -278,7 +278,7 @@ export default function AdminRatingsPage() {
                 setPage(0);
               }}
             />
-            <span className="text-muted-foreground">With comments only</span>
+            <span className="text-muted-foreground">{t("withCommentsOnly")}</span>
           </label>
         </div>
         {ratings && !ratingsPending && (
@@ -297,15 +297,15 @@ export default function AdminRatingsPage() {
         empty={
           ratingsError ? (
             <ErrorState
-              title="Couldn't load the ratings"
+              title={t("couldnTLoadRatings")}
               description={getErrorMessage(ratingsError, "The ratings request failed.")}
               cta={{ label: "Try again", onClick: () => void refetchRatings() }}
             />
           ) : (
             <div className="py-8">
               <MessageSquare className="text-muted-foreground mx-auto mb-3 h-8 w-8" />
-              <p className="text-foreground text-sm">No ratings found.</p>
-              <p className="text-muted-foreground mt-1 text-xs">Try adjusting the filters above.</p>
+              <p className="text-foreground text-sm">{t("noRatingsFound")}</p>
+              <p className="text-muted-foreground mt-1 text-xs">{t("tryAdjustingFiltersAbove")}</p>
             </div>
           )
         }
@@ -323,7 +323,7 @@ export default function AdminRatingsPage() {
               disabled={page === 0}
               onClick={() => setPage((p) => Math.max(0, p - 1))}
             >
-              Previous
+              {t("previous")}
             </Button>
             <Button
               variant="outline"
@@ -331,7 +331,7 @@ export default function AdminRatingsPage() {
               disabled={page >= totalPages - 1}
               onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
             >
-              Next
+              {t("next")}
             </Button>
           </div>
         </div>

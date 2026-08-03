@@ -81,12 +81,9 @@ export function InviteLinkDialog({ open, onOpenChange, orgId }: InviteLinkDialog
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Link2 className="h-4 w-4" />
-            Invite with a link
+            {t("inviteWithLink")}
           </DialogTitle>
-          <DialogDescription>
-            One URL anybody can use to join, instead of an invitation per address. Paste it into a
-            channel and it works until it expires, runs out of uses, or you revoke it.
-          </DialogDescription>
+          <DialogDescription>{t("oneUrlAnybodyCan")}</DialogDescription>
         </DialogHeader>
 
         {link === null ? (
@@ -137,16 +134,14 @@ export function InviteLinkDialog({ open, onOpenChange, orgId }: InviteLinkDialog
             {maxUses.trim() === "" && domain.trim() === "" && (
               <p className="text-muted-foreground border-border rounded-md border border-dashed p-3 text-xs">
                 Unlimited and open to any address: whoever this URL reaches can join as{" "}
-                <span className="font-medium capitalize">{role}</span>. A link forwarded out of a
-                channel is still a working link.
+                <span className="font-medium capitalize">{role}</span>
+                {t("linkForwardedOutChannel")}
               </p>
             )}
           </div>
         ) : (
           <div className="space-y-3">
-            <p className="text-muted-foreground text-sm">
-              Copy it now - it is shown once, and no later request returns it.
-            </p>
+            <p className="text-muted-foreground text-sm">{t("copyNowShownOnce")}</p>
             <div className="flex items-start gap-2">
               <code className="bg-muted min-w-0 flex-1 overflow-x-auto rounded-md p-2 font-mono text-xs">
                 {link}
@@ -162,10 +157,10 @@ export function InviteLinkDialog({ open, onOpenChange, orgId }: InviteLinkDialog
           {link === null ? (
             <>
               <Button variant="ghost" onClick={close}>
-                Cancel
+                {t("cancel2")}
               </Button>
               <Button onClick={submit} disabled={pending}>
-                Create link
+                {t("createLink")}
               </Button>
             </>
           ) : (

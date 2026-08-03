@@ -84,7 +84,7 @@ export function InviteMemberDialog({ open, onOpenChange, orgId }: InviteMemberDi
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
+              {t("cancel3")}
             </Button>
             <Button type="submit" disabled={!email.trim() || isSubmitting}>
               {isSubmitting ? "Sending..." : "Send invite"}

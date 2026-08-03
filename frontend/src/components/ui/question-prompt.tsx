@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { CornerDownLeft, Pencil, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "./button";
+import { useTranslations } from "next-intl";
 
 export interface QuestionPromptItem {
   question: string;
@@ -33,6 +34,7 @@ export interface QuestionPromptProps {
  * selects the focused option (or submits the custom answer).
  */
 export function QuestionPrompt({ questions, disabled = false, onComplete }: QuestionPromptProps) {
+  const t = useTranslations("ui");
   const [step, setStep] = useState(0);
   const answersRef = useRef<QuestionPromptAnswer[]>([]);
 
@@ -68,7 +70,7 @@ export function QuestionPrompt({ questions, disabled = false, onComplete }: Ques
           type="button"
           onClick={dismiss}
           disabled={disabled}
-          aria-label="Dismiss questions"
+          aria-label={t("dismissQuestions")}
           className="text-muted-foreground hover:text-foreground shrink-0 rounded-md p-1 transition-colors"
         >
           <X className="h-4 w-4" />
@@ -108,6 +110,7 @@ function SingleQuestion({
   onAnswer,
   onSkip,
 }: SingleQuestionProps) {
+  const t = useTranslations("ui");
   const hasOptions = options.length > 0;
   const [focusIdx, setFocusIdx] = useState(0);
   // Open the free-form field straight away when there are no options to pick.
@@ -154,7 +157,7 @@ function SingleQuestion({
       tabIndex={-1}
       onKeyDown={onListKeyDown}
       role="group"
-      aria-label="Question from the assistant"
+      aria-label={t("questionFromAssistant")}
       className="outline-none"
     >
       <p className="text-foreground px-4 pb-2.5 text-[15px] leading-snug font-medium">{question}</p>
@@ -203,7 +206,7 @@ function SingleQuestion({
               type="text"
               value={customText}
               disabled={disabled}
-              placeholder="Type your answer…"
+              placeholder={t("typeYourAnswer")}
               onChange={(e) => setCustomText(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
@@ -233,7 +236,7 @@ function SingleQuestion({
                 className="text-muted-foreground hover:text-foreground flex items-center gap-2 text-sm transition-colors"
               >
                 <Pencil className="h-3.5 w-3.5" />
-                Something else
+                {t("somethingElse")}
               </button>
             ) : (
               <span />
@@ -246,7 +249,7 @@ function SingleQuestion({
               disabled={disabled}
               onClick={onSkip}
             >
-              Skip
+              {t("skip")}
             </Button>
           </div>
         )}

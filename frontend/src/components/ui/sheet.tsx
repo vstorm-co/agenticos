@@ -3,6 +3,7 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import { X } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 interface SheetProps {
   open: boolean;
@@ -82,6 +83,7 @@ export function SheetTitle({
 }
 
 export function SheetClose({ onClick, className }: { onClick: () => void; className?: string }) {
+  const t = useTranslations("ui");
   return (
     <button
       onClick={onClick}
@@ -93,7 +95,7 @@ export function SheetClose({ onClick, className }: { onClick: () => void; classN
       )}
     >
       <X className="h-5 w-5" />
-      <span className="sr-only">Close</span>
+      <span className="sr-only">{t("close2")}</span>
     </button>
   );
 }

@@ -73,10 +73,7 @@ export function UploadOverrideDialog({
       <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>{t("parseNextUploadDifferently")}</DialogTitle>
-          <DialogDescription>
-            This applies to each file you add next and is recorded on it. The collection keeps its
-            own settings - every later upload goes back to them.
-          </DialogDescription>
+          <DialogDescription>{t("appliesEachFileYou")}</DialogDescription>
         </DialogHeader>
 
         <div className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1">

@@ -133,10 +133,7 @@ export function RuntimeField({
         />
       )}
 
-      <p className="text-muted-foreground text-xs">
-        The image alias an agent gets when its own spec names none. Leave empty to take whatever the
-        service defaults to.
-      </p>
+      <p className="text-muted-foreground text-xs">{t("imageAliasAgentGets")}</p>
       <p className="text-muted-foreground text-xs">
         {allowed === null ? t("shipped") : t("allowedCount", { count: allowed.length })}
       </p>

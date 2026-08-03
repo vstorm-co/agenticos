@@ -106,10 +106,7 @@ export function SessionsPanel({ connection }: SessionsPanelProps) {
         )}
 
         {error === null && !isLoading && sessions.length === 0 && (
-          <p className="text-muted-foreground text-sm">
-            Nothing running. A sandbox opens on an agent&apos;s first file or shell call, so an
-            agent that has one and never uses it costs nothing here.
-          </p>
+          <p className="text-muted-foreground text-sm">{t("nothingRunningSandboxOpens")}</p>
         )}
 
         {sessions.length > 0 && (
@@ -187,6 +184,7 @@ interface ActivityLogProps {
  * work rather than audit it.
  */
 function ActivityLog({ connectionId, sessionId }: ActivityLogProps) {
+  const t = useTranslations("sandboxes");
   const { log, isLoading, error } = useSandboxEvents(connectionId, sessionId);
 
   if (isLoading) return <Skeleton className="h-24 w-full" />;
@@ -194,7 +192,8 @@ function ActivityLog({ connectionId, sessionId }: ActivityLogProps) {
   if (log === null || log.events.length === 0)
     return (
       <p className="text-muted-foreground text-sm">
-        Nothing recorded for <span className="font-mono">{sessionId}</span> yet.
+        Nothing recorded for <span className="font-mono">{sessionId}</span>
+        {t("yet")}
       </p>
     );
 

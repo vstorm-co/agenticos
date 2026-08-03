@@ -184,7 +184,7 @@ export function ChatModelPicker({ value, onChange }: ChatModelPickerProps) {
       )}
 
       <Button type="button" size="sm" disabled={!canApply} onClick={apply}>
-        Run on this model
+        {t("runModel")}
       </Button>
     </div>
   );

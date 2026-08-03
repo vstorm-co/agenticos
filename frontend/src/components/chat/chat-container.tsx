@@ -288,6 +288,7 @@ function ChatUI({
   onAnswerQuestions,
   onStop,
 }: ChatUIProps) {
+  const t = useTranslations("chat");
   const tc = useTranslations("common");
   // The same query the file panel beside the transcript makes, so the fill under the
   // input costs nothing extra - and appears when a conversation is *opened* rather than
@@ -341,7 +342,7 @@ function ChatUI({
             <div className="px-3 pt-3 sm:px-4 sm:pt-4">
               {isArchived && (
                 <p className="text-muted-foreground pb-2 text-center font-mono text-[11px] tracking-wider uppercase">
-                  This conversation is archived
+                  {t("conversationArchived")}
                 </p>
               )}
               {/* Under the input rather than over the transcript: it is about
@@ -388,7 +389,7 @@ function ChatUI({
             </div>
           </div>
           <p className="text-foreground/40 mt-2 text-center font-mono text-[10px] tracking-wider uppercase">
-            AI can make mistakes. Verify important information.
+            {t("aiCanMakeMistakes")}
           </p>
         </div>
       </div>

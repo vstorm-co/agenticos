@@ -204,7 +204,7 @@ export function CapabilityDetail({
           {definition.side_effecting && (
             <Badge variant="outline" className="gap-1">
               <ShieldAlert className="h-3 w-3" />
-              acts on the outside world
+              {t("actsOutsideWorld")}
             </Badge>
           )}
         </div>
@@ -291,11 +291,12 @@ export function CapabilityDetail({
  * and telling those apart without the source is guesswork.
  */
 function SchemaPreview({ schema }: { schema: JsonSchema }) {
+  const t = useTranslations("agents");
   return (
     <details className="group">
       <summary className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-1.5 text-xs">
         <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
-        Configuration schema
+        {t("configurationSchema")}
       </summary>
       <pre className="text-muted-foreground bg-muted/50 mt-1.5 max-h-64 overflow-auto rounded-md p-3 text-xs">
         {JSON.stringify(schema, null, 2)}
@@ -495,7 +496,7 @@ function SecretField({ binding, requirement, onChange, disabled }: SecretFieldPr
       {state === "empty" && requirement.kind !== "api_key" && (
         <p className="text-muted-foreground text-xs">
           <Link href={ROUTES.VAULT} className="underline">
-            Store one in the vault
+            {t("storeOneVault")}
           </Link>{" "}
           and it appears here - this shape has several fields, so it is filled in there. The value
           stays in the vault; an agent records which secret to use, never the secret.
@@ -569,19 +570,17 @@ interface StaleSecretNoticeProps {
  * be nothing on this page able to undo it.
  */
 function StaleSecretNotice({ binding, onChange, disabled }: StaleSecretNoticeProps) {
+  const t = useTranslations("agents");
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3">
-      <p className="text-destructive text-xs">
-        This capability uses no secret, so the one selected for it would be stored and never read.
-        Publishing refuses it.
-      </p>
+      <p className="text-destructive text-xs">{t("capabilityUsesNoSecret")}</p>
       <Button
         variant="ghost"
         size="sm"
         disabled={disabled}
         onClick={() => onChange({ ...binding, secret_id: null })}
       >
-        Clear secret
+        {t("clearSecret")}
       </Button>
     </div>
   );
@@ -630,8 +629,8 @@ function ToolList({ binding, tools, contracts, sideEffecting, onChange, disabled
       <p className="text-muted-foreground text-xs">
         A tool&apos;s name and description are the prompt the model reads before it decides to call
         it, so both steer it: <span className="font-mono">{t("searchRefundPolicy")}</span> is
-        reached for on questions <span className="font-mono">{t("searchDocuments")}</span> is passed
-        over for. Edits here apply to this agent alone.
+        reached for on questions <span className="font-mono">{t("searchDocuments")}</span>
+        {t("passedOverEditsHere")}
       </p>
 
       <ul className="divide-y rounded-md border">

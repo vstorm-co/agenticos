@@ -236,11 +236,7 @@ export function WorkspaceSection({
           {scope === "agent" && (
             <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-              <p className="text-xs">
-                Everyone who talks to this agent reads and writes the same files. A file one person
-                uploads is visible to the rest of the organization. Publishing this is recorded in
-                the audit log.
-              </p>
+              <p className="text-xs">{t("everyoneWhoTalksAgent")}</p>
             </div>
           )}
 
@@ -332,9 +328,7 @@ function ConnectionField({
             "This organization has registered no sandbox connection, so this agent cannot be published with a container. An operator adds one under Sandboxes."}
         </p>
       ) : (
-        <p className="text-muted-foreground text-xs">
-          A host an operator registered. The credential lives in the vault, not in this spec.
-        </p>
+        <p className="text-muted-foreground text-xs">{t("hostOperatorRegisteredCredential")}</p>
       )}
     </div>
   );
@@ -400,8 +394,8 @@ function RuntimeField({ connection, runtime, disabled, onChange }: RuntimeFieldP
 
       {error === null && runtime !== null && !known && !isLoading && runtimes.length > 0 && (
         <p className="text-destructive text-xs">
-          This connection no longer allows <span className="font-mono">{runtime}</span>. Pick one it
-          does, or the agent fails on its first tool call.
+          This connection no longer allows <span className="font-mono">{runtime}</span>
+          {t("pickOneDoesAgent")}
         </p>
       )}
 

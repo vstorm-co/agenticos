@@ -44,6 +44,7 @@ import type { OrganizationMember, OrgRole } from "@/types";
 import { formatDate, getErrorMessage, MAX_AVATAR_SIZE_BYTES } from "@/lib/utils";
 import { ROUTES } from "@/lib/constants";
 import { useChanged } from "@/hooks/use-changed";
+import { useTranslations } from "next-intl";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -59,6 +60,7 @@ const ROLE_VARIANT: Record<OrgRole, "default" | "secondary" | "outline"> = {
 };
 
 function getInitials(nameOrEmail: string): string {
+  const t = useTranslations("pages.orgs");
   return nameOrEmail
     .split(/[\s@]/)
     .filter(Boolean)
@@ -68,6 +70,7 @@ function getInitials(nameOrEmail: string): string {
 }
 
 export default function OrgMembersPage({ params }: PageProps) {
+  const t = useTranslations("pages.orgs");
   const { id } = use(params);
   const { user } = useAuth();
   const { members, total, isLoading, fetchMembers, changeRole, removeMember } = useMembers(id);
@@ -244,7 +247,7 @@ export default function OrgMembersPage({ params }: PageProps) {
             <Button variant="outline" asChild>
               <Link href={ROUTES.ORG_ROLES(id)}>
                 <ShieldCheck className="h-4 w-4" />
-                Roles
+                {t("roles")}
               </Link>
             </Button>
             {canManage ? (
@@ -255,11 +258,11 @@ export default function OrgMembersPage({ params }: PageProps) {
                     what most people want most of the time. */}
                 <Button variant="outline" onClick={() => setLinkOpen(true)}>
                   <Link2 className="h-4 w-4" />
-                  Invite link
+                  {t("inviteLink")}
                 </Button>
                 <Button onClick={() => setInviteOpen(true)}>
                   <UserPlus className="h-4 w-4" />
-                  Invite teammate
+                  {t("inviteTeammate")}
                 </Button>
               </>
             ) : null}
@@ -309,11 +312,9 @@ export default function OrgMembersPage({ params }: PageProps) {
           <div className="min-w-0 flex-1 space-y-3">
             <div>
               <p className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
-                Workspace profile
+                {t("workspaceProfile")}
               </p>
-              <p className="text-muted-foreground mt-0.5 text-xs">
-                Name and avatar shown across the app to everyone in this workspace.
-              </p>
+              <p className="text-muted-foreground mt-0.5 text-xs">{t("nameAvatarShownAcross")}</p>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -323,7 +324,7 @@ export default function OrgMembersPage({ params }: PageProps) {
                 onChange={(e) => setName(e.target.value)}
                 disabled={!canManage || savingName}
                 className="min-w-0 flex-1"
-                placeholder="Workspace name"
+                placeholder={t("workspaceName")}
                 maxLength={255}
               />
               {canManage && name.trim() !== org.name && name.trim() !== "" && (
@@ -333,9 +334,7 @@ export default function OrgMembersPage({ params }: PageProps) {
               )}
             </div>
             {!canManage && (
-              <p className="text-muted-foreground text-[11px]">
-                Only owners and admins can edit workspace profile.
-              </p>
+              <p className="text-muted-foreground text-[11px]">{t("onlyOwnersAdminsCan")}</p>
             )}
           </div>
         </section>
@@ -351,8 +350,8 @@ export default function OrgMembersPage({ params }: PageProps) {
       {!isLoading && members.length === 0 ? (
         <EmptyState
           icon={Users}
-          title="No members yet"
-          description="Invite teammates by email to give them access to this workspace."
+          title={t("noMembersYet")}
+          description={t("inviteTeammatesByEmail")}
           cta={
             canManage ? { label: "Invite teammate", onClick: () => setInviteOpen(true) } : undefined
           }
@@ -372,7 +371,7 @@ export default function OrgMembersPage({ params }: PageProps) {
         <section className="space-y-3">
           <div>
             <p className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
-              Pending invitations
+              {t("pendingInvitations")}
             </p>
             <h2 className="text-foreground text-sm font-semibold">
               {pendingInvitations.length} waiting on a response
@@ -412,7 +411,7 @@ export default function OrgMembersPage({ params }: PageProps) {
                     className="text-muted-foreground hover:text-destructive"
                     onClick={() => revokeInvitation(inv.id)}
                   >
-                    Revoke
+                    {t("revoke")}
                   </Button>
                 )}
               </li>

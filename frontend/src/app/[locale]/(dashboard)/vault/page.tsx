@@ -25,6 +25,7 @@ import { AddSecretDialog, RotateSecretDialog } from "@/components/vault/secret-d
 import { usePermissions, useSecretPurposes, useSecrets } from "@/hooks";
 import { Perm } from "@/types/permissions";
 import type { Secret } from "@/types/secrets";
+import { useTranslations } from "next-intl";
 
 /**
  * One sentence, in one place, so the skeleton and the page cannot disagree -
@@ -49,11 +50,12 @@ function storedCount(count: number): string {
  * inside it.
  */
 function KeysCard({ count, children }: { count: number | null; children: ReactNode }) {
+  const t = useTranslations("pages.vault");
   return (
     <Card>
       <CardHeader className="flex-row items-center justify-between space-y-0 border-b px-5 py-4">
         <div className="space-y-1">
-          <CardTitle className="text-sm">Keys</CardTitle>
+          <CardTitle className="text-sm">{t("keys")}</CardTitle>
           <CardDescription className="text-xs">
             {/* `null` is "the request has not answered". Rendering "0 keys
                 stored" there would state something about the organization that
@@ -69,6 +71,7 @@ function KeysCard({ count, children }: { count: number | null; children: ReactNo
 }
 
 export default function VaultPage() {
+  const t = useTranslations("pages.vault");
   const {
     secrets,
     kinds,
@@ -93,7 +96,7 @@ export default function VaultPage() {
   if (secretsLoading)
     return (
       <div className="space-y-6">
-        <PageHeader title="Vault" description={VAULT_DESCRIPTION} />
+        <PageHeader title={t("vault")} description={VAULT_DESCRIPTION} />
         <KeysCard count={null}>
           {[0, 1, 2].map((row) => (
             <div
@@ -114,13 +117,13 @@ export default function VaultPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Vault"
+        title={t("vault2")}
         description={VAULT_DESCRIPTION}
         actions={
           canManage ? (
             <Button onClick={() => setSecretOpen(true)}>
               <Plus className="h-4 w-4" />
-              Add key
+              {t("addKey")}
             </Button>
           ) : undefined
         }
@@ -135,10 +138,9 @@ export default function VaultPage() {
             <div className="bg-muted text-muted-foreground mx-auto flex h-11 w-11 items-center justify-center rounded-xl">
               <Lock className="h-5 w-5" />
             </div>
-            <p className="text-foreground mt-4 text-sm font-medium">No keys yet</p>
+            <p className="text-foreground mt-4 text-sm font-medium">{t("noKeysYet")}</p>
             <p className="text-muted-foreground mx-auto mt-1 max-w-sm text-sm">
-              Add one and it becomes selectable wherever it is needed - a model provider in the
-              Builder, a search service in a capability.
+              {t("addOneBecomesSelectable")}
             </p>
             {canManage && (
               <Button
@@ -148,7 +150,7 @@ export default function VaultPage() {
                 onClick={() => setSecretOpen(true)}
               >
                 <Plus className="h-3.5 w-3.5" />
-                Add key
+                {t("addKey2")}
               </Button>
             )}
           </div>
@@ -179,10 +181,7 @@ export default function VaultPage() {
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Access to {sharing?.name}</DialogTitle>
-            <DialogDescription>
-              Who can bind this key to an agent, and who can rotate or delete it. A key nobody can
-              reach is a capability nobody can configure.
-            </DialogDescription>
+            <DialogDescription>{t("whoCanBindKey")}</DialogDescription>
           </DialogHeader>
           {sharing && (
             <SharingPanel resourceType="secret" resourceId={sharing.id} canManage={canManage} />

@@ -155,7 +155,7 @@ export function SourcesPanel() {
           <section className="space-y-2">
             {ragSources.length > 0 && webSources.length > 0 && (
               <h3 className="text-foreground/45 font-mono text-[10px] tracking-wider uppercase">
-                Knowledge base
+                {t("knowledgeBase")}
               </h3>
             )}
             {ragSources.map((s) => (
@@ -172,7 +172,7 @@ export function SourcesPanel() {
           <section className="space-y-2">
             {ragSources.length > 0 && (
               <h3 className="text-foreground/45 font-mono text-[10px] tracking-wider uppercase">
-                Web
+                {t("web")}
               </h3>
             )}
             {webSources.map((s) => (

@@ -54,10 +54,7 @@ export function PolicyPanel({ connection, onOpenChange }: PolicyPanelProps) {
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>What {connection?.name} allows</DialogTitle>
-          <DialogDescription>
-            Read from the service itself, and only changeable there. These are the ceilings in force
-            for every agent on this connection.
-          </DialogDescription>
+          <DialogDescription>{t("readFromServiceItself")}</DialogDescription>
         </DialogHeader>
 
         {isLoading && <Skeleton className="h-32 w-full" />}
@@ -84,35 +81,30 @@ export function PolicyPanel({ connection, onOpenChange }: PolicyPanelProps) {
                 <dd className="text-foreground font-medium">
                   {policy.max_sessions_per_tenant ?? "—"}
                 </dd>
-                <dd className="font-mono text-[10px]">SANDBOXD_MAX_SESSIONS_PER_TENANT</dd>
+                <dd className="font-mono text-[10px]">{t("sandboxdMaxSessionsPer")}</dd>
               </div>
               <div>
                 <dt>{t("idleTimeout")}</dt>
                 <dd className="text-foreground font-medium">{timeout(policy.idle_timeout)}</dd>
-                <dd className="font-mono text-[10px]">SANDBOXD_IDLE_TIMEOUT</dd>
+                <dd className="font-mono text-[10px]">{t("sandboxdIdleTimeout")}</dd>
               </div>
               <div>
                 <dt>{t("keptBetweenTurns")}</dt>
                 <dd className="text-foreground font-medium">
                   {policy.persist_containers === false ? "no" : "yes"}
                 </dd>
-                <dd className="font-mono text-[10px]">SANDBOXD_PERSIST_CONTAINERS</dd>
+                <dd className="font-mono text-[10px]">{t("sandboxdPersistContainers")}</dd>
               </div>
             </dl>
 
             <p className="text-muted-foreground text-xs">
               These are the sandbox service&apos;s own environment, set where it starts — the
-              <span className="font-mono"> sandboxd </span>
-              service in your compose file. There is deliberately no endpoint to write them: an
-              application that could reconfigure the process holding the Docker socket would own the
-              host.
+              <span className="font-mono">{t("sandboxd")}</span>
+              {t("serviceYourComposeFile")}
             </p>
 
             {policy.runtimes.length === 0 ? (
-              <p className="text-destructive text-sm">
-                This service allows no runtime, so no sandbox can start on it. Its allowlist is
-                empty.
-              </p>
+              <p className="text-destructive text-sm">{t("serviceAllowsNoRuntime")}</p>
             ) : (
               <div className="overflow-x-auto">
                 <Table>

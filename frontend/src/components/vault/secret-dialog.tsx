@@ -186,10 +186,7 @@ export function AddSecretDialog({
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{t("addSecret")}</DialogTitle>
-          <DialogDescription>
-            Encrypted and bound to this organization. An agent names it by id, never by value - so
-            it can be rotated without touching a single agent, and it cannot be read back.
-          </DialogDescription>
+          <DialogDescription>{t("encryptedBoundOrganizationAgent")}</DialogDescription>
         </DialogHeader>
 
         <div className="max-h-[65vh] space-y-5 overflow-y-auto px-1">
@@ -205,7 +202,7 @@ export function AddSecretDialog({
               the heading tells everyone else. */}
           <div className="space-y-2">
             <p id="secret-purpose-family" className="text-sm leading-none font-medium">
-              What is it for
+              {t("what")}
             </p>
             <div
               role="group"
@@ -269,7 +266,7 @@ export function AddSecretDialog({
                       rel="noreferrer noopener"
                       className="underline underline-offset-4"
                     >
-                      Where do I get one?
+                      {t("whereDoIGet2")}
                     </a>
                   </>
                 )}
@@ -369,10 +366,10 @@ export function AddSecretDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
+            {t("cancel2")}
           </Button>
           <Button onClick={submit} disabled={!complete || isPending}>
-            Store secret
+            {t("storeSecret")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -408,6 +405,7 @@ export function RotateSecretDialog({
   onSubmit,
   isPending,
 }: RotateSecretDialogProps) {
+  const t = useTranslations("vault");
   const [value, setValue] = useState<Record<string, unknown>>({});
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
 
@@ -442,11 +440,7 @@ export function RotateSecretDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Rotate {secret?.name}</DialogTitle>
-          <DialogDescription>
-            The new value replaces the old one the moment you save, and the old one is gone. Every
-            agent bound to this secret keeps working - they name it by id, and the id does not
-            change.
-          </DialogDescription>
+          <DialogDescription>{t("newValueReplacesOld")}</DialogDescription>
         </DialogHeader>
 
         {secret && info && (
@@ -467,10 +461,10 @@ export function RotateSecretDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
+            {t("cancel3")}
           </Button>
           <Button onClick={submit} disabled={!complete || isPending}>
-            Rotate
+            {t("rotate")}
           </Button>
         </DialogFooter>
       </DialogContent>

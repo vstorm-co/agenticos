@@ -88,12 +88,14 @@ import { useAgentSelectionStore, useConversationStore } from "@/stores";
 import { cn } from "@/lib/utils";
 import type { AgentSpec, CapabilityBindingSpec } from "@/types/agents";
 import { Perm } from "@/types/permissions";
+import { useTranslations } from "next-intl";
 
 interface PageProps {
   params: Promise<{ id: string }>;
 }
 
 export default function AgentBuilderPage({ params }: PageProps) {
+  const t = useTranslations("pages.agents");
   const { id } = use(params);
   const router = useRouter();
   const { agent, isLoading, saveDraft, validate, publish, rollback, setAvatar } = useAgent(id);
@@ -371,7 +373,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   onClick={() => avatarInput.current?.click()}
                   disabled={setAvatar.isPending}
                   aria-label={agent.has_avatar ? "Replace avatar" : "Upload avatar"}
-                  title="Square images look best. Up to 2MB."
+                  title={t("squareImagesLookBest")}
                   className="bg-background/70 text-foreground absolute inset-0 flex items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 disabled:cursor-not-allowed"
                 >
                   <ImagePlus className="h-5 w-5" />
@@ -385,9 +387,9 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 button. */}
             {canEdit &&
               (saveDraft.isPending ? (
-                <Badge variant="secondary">Saving…</Badge>
+                <Badge variant="secondary">{t("saving")}</Badge>
               ) : (
-                isDirty && <Badge variant="secondary">Unsaved</Badge>
+                isDirty && <Badge variant="secondary">{t("unsaved")}</Badge>
               ))}
           </span>
         }
@@ -411,31 +413,31 @@ export default function AgentBuilderPage({ params }: PageProps) {
               }
             >
               <MessageSquare className="h-4 w-4" />
-              Open in chat
+              {t("openChat")}
             </Button>
             {/* Beside the chat button rather than in the overflow menu: the
                 map answers "what is this agent" and that question comes up
                 before publishing, not after somebody goes looking for it. */}
             <Button variant="outline" onClick={() => setMapOpen(true)}>
               <Network className="h-4 w-4" />
-              Visual map
+              {t("visualMap")}
             </Button>
             <Button variant="outline" asChild>
               <a href={`/api/agents/${id}/spec.yaml`} download>
                 <Download className="h-4 w-4" />
-                Export YAML
+                {t("exportYaml")}
               </a>
             </Button>
             {canPublish && (
               <Button onClick={handlePublish} disabled={publish.isPending}>
                 <Upload className="h-4 w-4" />
-                Publish
+                {t("publish")}
               </Button>
             )}
             {canEdit && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="icon" aria-label="More actions">
+                  <Button variant="outline" size="icon" aria-label={t("moreActions")}>
                     <MoreHorizontal className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -448,7 +450,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     }
                   >
                     <Copy className="h-4 w-4" />
-                    Duplicate
+                    {t("duplicate")}
                   </DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => avatarInput.current?.click()}>
                     <ImagePlus className="h-4 w-4" />
@@ -457,12 +459,12 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   {agent.status === "archived" ? (
                     <DropdownMenuItem onSelect={() => unarchive.mutate(id)}>
                       <ArchiveRestore className="h-4 w-4" />
-                      Restore
+                      {t("restore")}
                     </DropdownMenuItem>
                   ) : (
                     <DropdownMenuItem onSelect={() => setConfirming("archive")}>
                       <Archive className="h-4 w-4" />
-                      Archive
+                      {t("archive")}
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuSeparator />
@@ -471,7 +473,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     onSelect={() => setConfirming("delete")}
                   >
                     <Trash2 className="h-4 w-4" />
-                    Delete permanently
+                    {t("deletePermanently")}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -490,11 +492,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
       <Dialog open={mapOpen} onOpenChange={setMapOpen}>
         <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-[80rem]">
           <DialogHeader>
-            <DialogTitle>Visual map</DialogTitle>
-            <DialogDescription>
-              The draft as it stands: what reaches this agent, and what it reaches for. A dashed box
-              is something nothing is attached to.
-            </DialogDescription>
+            <DialogTitle>{t("visualMap")}</DialogTitle>
+            <DialogDescription>{t("draftAsStandsWhat")}</DialogDescription>
           </DialogHeader>
           {spec && (
             <AgentMap agentName={spec.name} instructions={spec.instructions} nodes={mapNodes} />
@@ -510,12 +509,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
       <Dialog open={connectingMcp} onOpenChange={setConnectingMcp}>
         <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-[72rem]">
           <DialogHeader>
-            <DialogTitle>Connect an MCP server</DialogTitle>
-            <DialogDescription>
-              Connect a server for the organization and it becomes bindable here. A personal
-              connection is for your own chat and is refused at publish, so an agent everyone runs
-              never depends on whose credential is behind it.
-            </DialogDescription>
+            <DialogTitle>{t("connectMcpServer")}</DialogTitle>
+            <DialogDescription>{t("connectServerOrganizationBecomes")}</DialogDescription>
           </DialogHeader>
           <McpServerList canManageOrganization={can(Perm.connectionsManage)} />
         </DialogContent>
@@ -526,8 +521,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
           open
           onOpenChange={() => setConfirming(null)}
           title={`Archive ${agent.name}?`}
-          description="It stops answering everywhere it is available. Its versions, runs and history are kept, and it can be restored."
-          confirmLabel="Archive"
+          description={t("stopsAnsweringEverywhereAvailable")}
+          confirmLabel={t("archive")}
           loading={archive.isPending}
           onConfirm={async () => {
             await archive.mutateAsync(id);
@@ -541,8 +536,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
           open
           onOpenChange={() => setConfirming(null)}
           title={`Delete ${agent.name}?`}
-          description="This removes the agent, every version of it and every share pointing at it. Its past runs are kept for the record. Archive instead if you only want it to stop."
-          confirmLabel="Delete"
+          description={t("removesAgentEveryVersion")}
+          confirmLabel={t("delete")}
           confirmText={agent.slug}
           destructive
           loading={remove.isPending}
@@ -558,7 +553,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           <CardContent className="space-y-2 p-4">
             <p className="flex items-center gap-2 text-sm font-medium">
               <AlertCircle className="h-4 w-4" />
-              This agent cannot be published yet
+              {t("agentCannotBePublished")}
             </p>
             <ul className="text-muted-foreground list-inside list-disc space-y-1 text-sm">
               {problems.map((problem) => (
@@ -574,40 +569,35 @@ export default function AgentBuilderPage({ params }: PageProps) {
           Grouped by the question being answered, not by implementation. */}
       <Tabs defaultValue="build">
         <TabsList>
-          <TabsTrigger value="build">Build</TabsTrigger>
-          <TabsTrigger value="toolbox">Toolbox</TabsTrigger>
-          <TabsTrigger value="knowledge">Knowledge</TabsTrigger>
-          <TabsTrigger value="skills">Skills</TabsTrigger>
-          <TabsTrigger value="limits">Limits</TabsTrigger>
-          <TabsTrigger value="availability">Availability</TabsTrigger>
-          <TabsTrigger value="history">History</TabsTrigger>
+          <TabsTrigger value="build">{t("build")}</TabsTrigger>
+          <TabsTrigger value="toolbox">{t("toolbox")}</TabsTrigger>
+          <TabsTrigger value="knowledge">{t("knowledge")}</TabsTrigger>
+          <TabsTrigger value="skills">{t("skills")}</TabsTrigger>
+          <TabsTrigger value="limits">{t("limits")}</TabsTrigger>
+          <TabsTrigger value="availability">{t("availability")}</TabsTrigger>
+          <TabsTrigger value="history">{t("history")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="build" className="mt-4 space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Instructions</CardTitle>
-              <CardDescription>
-                The agent&apos;s behaviour lives here, not in code. Be specific about what it should
-                do, what it should refuse, and how it should cite. Markdown, and the model reads the
-                structure - headings and lists are what make a long prompt followable, so being able
-                to see them rendered is the point of the preview.
-              </CardDescription>
+              <CardTitle>{t("instructions")}</CardTitle>
+              <CardDescription>{t("agentAposSBehaviour")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <MarkdownEditor
                 // Named, because a placeholder is not a label: it is the only
                 // accessible name this control had, and it is the one thing that
                 // disappears the moment somebody types into it.
-                label="Instructions"
+                label={t("instructions2")}
                 value={spec.instructions}
                 onChange={(instructions) => update({ instructions })}
                 rows={10}
                 disabled={!canEdit}
-                placeholder="You are Support Copilot. Answer from the product wiki and cite the document you used. If the wiki does not cover it, say so rather than guessing."
+                placeholder={t("youAreSupportCopilot")}
               />
               <div className="space-y-2">
-                <Label>Model</Label>
+                <Label>{t("model")}</Label>
                 <ModelProfilePicker
                   allowAdd
                   profiles={profiles}
@@ -621,14 +611,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
           <Card>
             <CardHeader>
-              <CardTitle>Model settings</CardTitle>
-              <CardDescription>
-                How this agent asks its model to behave, on top of whatever the model profile
-                already sets. A setting nobody touches is not sent at all - that is deliberate
-                rather than tidy: reasoning models reject a temperature outright, so an agent that
-                never chose one must not have one sent on its behalf. A provider that does not
-                implement a setting ignores it. Reasoning itself is a capability, below.
-              </CardDescription>
+              <CardTitle>{t("modelSettings")}</CardTitle>
+              <CardDescription>{t("howAgentAsksIts")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <ModelSettingsForm
@@ -650,11 +634,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
         <TabsContent value="toolbox" className="mt-4 space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Capabilities</CardTitle>
-              <CardDescription>
-                What this agent can do, and where it keeps what it produces. Anything that acts on
-                the outside world needs a human approval before it runs.
-              </CardDescription>
+              <CardTitle>{t("capabilities")}</CardTitle>
+              <CardDescription>{t("whatAgentCanDo")}</CardDescription>
             </CardHeader>
             <CardContent>
               <CapabilityWorkbench
@@ -671,15 +652,13 @@ export default function AgentBuilderPage({ params }: PageProps) {
             <CardHeader>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 space-y-1.5">
-                  <CardTitle>MCP servers</CardTitle>
+                  <CardTitle>{t("mcpServers")}</CardTitle>
                   <CardDescription>
                     External tools this agent may call, from the servers{" "}
                     <Link href={ROUTES.MCP_SERVERS} className="underline">
-                      your organization has connected
+                      {t("yourOrganizationHasConnected")}
                     </Link>
-                    . Only the organization&apos;s servers appear here - an agent everyone runs
-                    cannot depend on whose credential is behind it, so a personal connection is
-                    refused at publish.
+                    {t("onlyOrganizationAposS")}
                   </CardDescription>
                 </div>
                 {/* Connecting a server was a different page, and the trip was
@@ -692,7 +671,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 {can(Perm.connectionsManage) && (
                   <Button variant="outline" size="sm" onClick={() => setConnectingMcp(true)}>
                     <Plug className="h-3.5 w-3.5" />
-                    Connect a server
+                    {t("connectServer")}
                   </Button>
                 )}
               </div>
@@ -707,13 +686,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 }
                 disabled={!canEdit}
               />
-              <p className="text-muted-foreground mt-4 text-xs">
-                Two limits worth knowing before you rely on this. Which of a server&apos;s tools are
-                exposed is set on the connection, so every agent bound to it gets the same ones -
-                not the per-agent choice the capabilities above offer. And MCP tools are outside the
-                approval gate entirely: an approval set on a capability does not cover them, so
-                anything these servers can do, this agent can do without asking.
-              </p>
+              <p className="text-muted-foreground mt-4 text-xs">{t("twoLimitsWorthKnowing")}</p>
             </CardContent>
           </Card>
         </TabsContent>
@@ -721,12 +694,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
         <TabsContent value="knowledge" className="mt-4 space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Collections</CardTitle>
-              <CardDescription>
-                What this agent may search. The model chooses what to look for; it can never widen
-                where it looks. Each collection says what it holds, because attaching an empty one
-                produces an agent that searches, finds nothing, and reads as broken.
-              </CardDescription>
+              <CardTitle>{t("collections")}</CardTitle>
+              <CardDescription>{t("whatAgentMaySearch")}</CardDescription>
             </CardHeader>
             <CardContent>
               <CollectionPicker
@@ -749,13 +718,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
         <TabsContent value="skills" className="mt-4 space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Skills</CardTitle>
-              <CardDescription>
-                Written know-how the agent loads only when it decides a skill is relevant, so twenty
-                skills cost almost nothing in context. Picking one gives the agent the tools to read
-                them - that used to be a separate capability somebody had to know to switch on, and
-                skills chosen without it were resolved and then dropped on the floor.
-              </CardDescription>
+              <CardTitle>{t("skills2")}</CardTitle>
+              <CardDescription>{t("writtenKnowHowAgent")}</CardDescription>
             </CardHeader>
             <CardContent>
               <SkillGallery
@@ -772,16 +736,12 @@ export default function AgentBuilderPage({ params }: PageProps) {
         <TabsContent value="limits" className="mt-4 space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Run limits</CardTitle>
-              <CardDescription>
-                This agent&apos;s own monthly spending limit. The organization&apos;s limit still
-                applies on top - an agent can tighten it, never loosen it. The step limit catches
-                the other kind of runaway: a tool loop that is cheap per call and never finishes.
-              </CardDescription>
+              <CardTitle>{t("runLimits")}</CardTitle>
+              <CardDescription>{t("agentAposSOwn")}</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="monthly">Monthly (USD)</Label>
+                <Label htmlFor="monthly">{t("monthlyUsd")}</Label>
                 <Input
                   id="monthly"
                   type="number"
@@ -797,11 +757,11 @@ export default function AgentBuilderPage({ params }: PageProps) {
                       },
                     })
                   }
-                  placeholder="No limit"
+                  placeholder={t("noLimit")}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="max-steps">Max steps per run</Label>
+                <Label htmlFor="max-steps">{t("maxStepsPerRun")}</Label>
                 <Input
                   id="max-steps"
                   type="number"
@@ -813,12 +773,9 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   onChange={(event) =>
                     update({ max_steps: event.target.value ? Number(event.target.value) : null })
                   }
-                  placeholder="100 (default)"
+                  placeholder={t("n100Default")}
                 />
-                <p className="text-muted-foreground text-xs">
-                  How many model requests one run may make. A tool loop hits this long before it
-                  costs enough to hit a budget.
-                </p>
+                <p className="text-muted-foreground text-xs">{t("howManyModelRequests")}</p>
               </div>
             </CardContent>
           </Card>
@@ -858,12 +815,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
         <TabsContent value="history" className="mt-4 space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Environments</CardTitle>
-              <CardDescription>
-                Named pointers at published versions. Publish moves only the default; every other
-                environment stays pinned until a version is promoted onto it from the list below. A
-                bot bound to an environment serves its version.
-              </CardDescription>
+              <CardTitle>{t("environments")}</CardTitle>
+              <CardDescription>{t("namedPointersAtPublished")}</CardDescription>
             </CardHeader>
             <CardContent>
               <EnvironmentsPanel agentId={id} canManage={canPublish} />
@@ -874,14 +827,9 @@ export default function AgentBuilderPage({ params }: PageProps) {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <History className="h-4 w-4" />
-                Versions
+                {t("versions")}
               </CardTitle>
-              <CardDescription>
-                Each publish freezes a spec. Runs record the version, so what an agent did last
-                Tuesday stays answerable after a dozen edits. Restoring publishes a new version
-                copied from the old one - the timeline shows that a rollback happened rather than
-                pretending the bad version never existed.
-              </CardDescription>
+              <CardDescription>{t("eachPublishFreezesSpec")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
               <VersionHistory
@@ -907,12 +855,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
           <Card>
             <CardHeader>
-              <CardTitle>Recent runs</CardTitle>
-              <CardDescription>
-                Whether this agent is working, and what it has cost. The full history - surfaces,
-                tokens, the version each run executed - lives in Activity rather than being
-                half-rebuilt here.
-              </CardDescription>
+              <CardTitle>{t("recentRuns")}</CardTitle>
+              <CardDescription>{t("whetherAgentWorkingWhat")}</CardDescription>
             </CardHeader>
             <CardContent>
               <RunSummary agentId={id} runs={runs} />
@@ -934,8 +878,9 @@ export default function AgentBuilderPage({ params }: PageProps) {
  * `ConversationSkeleton` in `chat-container.tsx` is the same argument.
  */
 function BuilderSkeleton() {
+  const t = useTranslations("pages.agents");
   return (
-    <div role="status" aria-label="Loading" className="space-y-6">
+    <div role="status" aria-label={t("loading")} className="space-y-6">
       <div className="mb-6 md:mb-8">
         <div className="bg-foreground/8 mb-3 h-3 w-40 animate-pulse rounded" />
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">

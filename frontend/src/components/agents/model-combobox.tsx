@@ -131,13 +131,13 @@ export function ModelCombobox({
                 what you typed contradicts it. */}
             {loading && (
               <p className="text-muted-foreground px-3 py-6 text-center text-sm">
-                Reading the catalog…
+                {t("readingCatalog")}
               </p>
             )}
 
             {!loading && options.length === 0 && custom === null && (
               <p className="text-muted-foreground px-3 py-6 text-center text-sm">
-                This provider publishes no list here. Type the model id as the provider names it.
+                {t("providerPublishesNoList")}
               </p>
             )}
 

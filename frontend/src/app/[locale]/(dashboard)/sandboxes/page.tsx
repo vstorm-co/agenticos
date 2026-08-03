@@ -21,6 +21,7 @@ import {
 import { usePermissions, useSandboxConnections } from "@/hooks";
 import { Perm } from "@/types/permissions";
 import type { SandboxConnectionRecord } from "@/lib/sandbox-connections-api";
+import { useTranslations } from "next-intl";
 
 /**
  * One sentence, in one place, so the skeleton and the loaded page cannot
@@ -37,11 +38,12 @@ function registeredCount(count: number): string {
 }
 
 function ConnectionsCard({ count, children }: { count: number | null; children: ReactNode }) {
+  const t = useTranslations("pages.sandboxes");
   return (
     <Card>
       <CardHeader className="flex-row items-center justify-between space-y-0 border-b px-5 py-4">
         <div className="space-y-1">
-          <CardTitle className="text-sm">Sandbox connections</CardTitle>
+          <CardTitle className="text-sm">{t("sandboxConnections")}</CardTitle>
           <CardDescription className="text-xs">
             {count === null ? <Skeleton className="h-3 w-24" /> : registeredCount(count)}
           </CardDescription>
@@ -60,6 +62,7 @@ function ConnectionsCard({ count, children }: { count: number | null; children: 
  * on, and the credential behind one can start containers there.
  */
 export default function SandboxesPage() {
+  const t = useTranslations("pages.sandboxes");
   const { connections, isLoading, error, create, update, remove } = useSandboxConnections();
   const { can } = usePermissions();
   const canManage = can(Perm.connectionsManage);
@@ -77,7 +80,7 @@ export default function SandboxesPage() {
   if (isLoading)
     return (
       <div className="space-y-6">
-        <PageHeader title="Sandboxes" description={SANDBOXES_DESCRIPTION} />
+        <PageHeader title={t("sandboxes")} description={SANDBOXES_DESCRIPTION} />
         <ConnectionsCard count={null}>
           <div className="space-y-3 p-5">
             {[0, 1].map((row) => (
@@ -91,7 +94,7 @@ export default function SandboxesPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Sandboxes"
+        title={t("sandboxes2")}
         description={SANDBOXES_DESCRIPTION}
         actions={
           canManage ? (
@@ -102,7 +105,7 @@ export default function SandboxesPage() {
               }}
             >
               <Plus className="h-4 w-4" />
-              Add connection
+              {t("addConnection")}
             </Button>
           ) : undefined
         }
@@ -118,10 +121,11 @@ export default function SandboxesPage() {
             <div className="bg-muted text-muted-foreground mx-auto flex h-11 w-11 items-center justify-center rounded-xl">
               <Boxes className="h-5 w-5" />
             </div>
-            <p className="text-foreground mt-4 text-sm font-medium">No sandbox connections yet</p>
+            <p className="text-foreground mt-4 text-sm font-medium">
+              {t("noSandboxConnectionsYet")}
+            </p>
             <p className="text-muted-foreground mx-auto mt-1 max-w-md text-sm">
-              Agents can still keep files without one: the stored workspace needs nothing and works
-              on every deployment. Register a connection when an agent needs a real shell.
+              {t("agentsCanStillKeep")}
             </p>
           </div>
         ) : (

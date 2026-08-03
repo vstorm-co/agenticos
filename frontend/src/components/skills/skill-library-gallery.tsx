@@ -43,10 +43,7 @@ export function SkillLibraryGallery({ canInstall }: { canInstall: boolean }) {
     <div className="space-y-3">
       <div>
         <p className="text-sm font-medium">{t("readyMadeSkills")}</p>
-        <p className="text-muted-foreground text-xs">
-          Written for this platform and copied into your organization - yours to edit from the
-          moment you install one.
-        </p>
+        <p className="text-muted-foreground text-xs">{t("writtenPlatformCopiedInto")}</p>
       </div>
 
       {/* Only once the shelf is long enough to be worth searching - a box over
@@ -94,7 +91,7 @@ export function SkillLibraryGallery({ canInstall }: { canInstall: boolean }) {
                 onClick={() => install.mutate(entry.key)}
               >
                 <Download className="h-4 w-4" />
-                Install
+                {t("install")}
               </Button>
             )}
           </div>

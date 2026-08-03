@@ -274,11 +274,11 @@ export function AgentMap({ agentName, instructions, nodes }: AgentMapProps) {
               aria-label={`${agentName}, the agent`}
             >
               <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
-                Agent
+                {t("agent")}
               </p>
               <p className="mt-1 text-base font-semibold">{agentName}</p>
               <p className="text-muted-foreground mt-4 text-[11px] font-medium tracking-wide uppercase">
-                Instructions
+                {t("instructions")}
               </p>
               {instructions.trim() ? (
                 <p className="text-muted-foreground mt-1 line-clamp-6 text-sm whitespace-pre-wrap">

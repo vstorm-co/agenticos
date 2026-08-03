@@ -175,9 +175,7 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
       <DialogContent className="flex h-[92vh] flex-col sm:max-w-[92rem]">
         <DialogHeader>
           <DialogTitle>{t("newSkill")}</DialogTitle>
-          <DialogDescription>
-            It is available to every agent in this organization the moment you create it.
-          </DialogDescription>
+          <DialogDescription>{t("availableEveryAgentOrganization")}</DialogDescription>
         </DialogHeader>
 
         <div className="flex min-h-0 flex-1 flex-col gap-3">
@@ -193,9 +191,7 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
                 className="font-mono"
                 aria-invalid={errors.name ? true : undefined}
               />
-              <FieldNote error={errors.name}>
-                How the model refers to this skill. It cannot be changed later.
-              </FieldNote>
+              <FieldNote error={errors.name}>{t("howModelRefersSkill")}</FieldNote>
             </div>
             <div className="min-w-0 flex-1 basis-72 space-y-1.5">
               <Label htmlFor="new-skill-description">{t("description")}</Label>
@@ -207,10 +203,7 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
                 maxLength={MAX_DESCRIPTION}
                 aria-invalid={errors.description ? true : undefined}
               />
-              <FieldNote error={errors.description}>
-                The only part the model reads before deciding whether to open the skill at all.
-                Write when it applies, not what is inside it.
-              </FieldNote>
+              <FieldNote error={errors.description}>{t("onlyPartModelReads")}</FieldNote>
             </div>
             <div className="w-56 shrink-0 space-y-1.5">
               <Label htmlFor="new-skill-category">{t("category")}</Label>
@@ -221,9 +214,7 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
                 suggestions={categorySuggestions(categories, suggestedCategories)}
                 maxLength={MAX_CATEGORY}
               />
-              <FieldNote error={errors.category}>
-                Optional. Groups the listing. Never reaches the model.
-              </FieldNote>
+              <FieldNote error={errors.category}>{t("optionalGroupsListingNever")}</FieldNote>
             </div>
           </div>
 
@@ -240,7 +231,7 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
                   }}
                 >
                   <FilePlus className="h-3.5 w-3.5" />
-                  New
+                  {t("new")}
                 </Button>
                 <UploadButton icon={Upload} label={t("files")} onPick={addFiles} />
                 {/* A directory picker sends every file with its relative path,
@@ -321,13 +312,13 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
 
           <DialogFooter>
             <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
+              {t("cancel")}
             </Button>
             <Button
               onClick={handleCreate}
               disabled={!name.trim() || !description.trim() || create.isPending}
             >
-              Create
+              {t("create")}
             </Button>
           </DialogFooter>
         </div>
@@ -348,6 +339,7 @@ function FieldNote({ error, children }: { error?: string; children: React.ReactN
  * as a fact - name and size - rather than garbled into a text pane.
  */
 function PendingFilePane({ file, onRemove }: { file: File; onRemove: () => void }) {
+  const t = useTranslations("skills");
   const path = pathOf(file);
   const readable = isReadableText(file);
   const [text, setText] = useState<string | null>(null);
@@ -375,7 +367,7 @@ function PendingFilePane({ file, onRemove }: { file: File; onRemove: () => void 
         {formatSize(file.size)} · uploads when the skill is created
       </p>
       <Button variant="ghost" size="sm" onClick={onRemove}>
-        Remove
+        {t("remove")}
       </Button>
     </>
   );
@@ -388,7 +380,7 @@ function PendingFilePane({ file, onRemove }: { file: File; onRemove: () => void 
         </div>
         <div className="flex flex-1 items-center justify-center p-6">
           <p className="text-muted-foreground max-w-sm text-center text-xs">
-            Not shown here - the agent reads it as a file either way.
+            {t("notShownHereAgent")}
           </p>
         </div>
         <div className="flex items-center gap-2 border-t px-3 py-2">{footer}</div>

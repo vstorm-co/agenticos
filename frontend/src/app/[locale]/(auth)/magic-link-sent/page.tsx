@@ -6,6 +6,7 @@ import type { Locale } from "@/i18n";
 import { ROUTES } from "@/lib/constants";
 import { pageMetadata } from "@/lib/seo";
 
+import { getTranslations } from "next-intl/server";
 export async function generateMetadata({
   params,
 }: {
@@ -26,6 +27,7 @@ interface PageProps {
 }
 
 export default async function MagicLinkSentPage({ searchParams }: PageProps) {
+  const t = await getTranslations("pages.auth");
   const { email } = await searchParams;
 
   return (
@@ -38,9 +40,9 @@ export default async function MagicLinkSentPage({ searchParams }: PageProps) {
       </div>
 
       <div className="space-y-2">
-        <span className="eyebrow text-foreground/55">Magic link</span>
+        <span className="eyebrow text-foreground/55">{t("magicLink")}</span>
         <h1 className="text-display-md text-foreground [&_em]:font-normal [&_em]:italic">
-          Inbox, <em>incoming.</em>
+          Inbox, <em>{t("incoming")}</em>
         </h1>
         <p className="text-foreground/70 text-sm">
           We sent a sign-in link
@@ -61,7 +63,7 @@ export default async function MagicLinkSentPage({ searchParams }: PageProps) {
             href={ROUTES.LOGIN}
             className="text-foreground hover:text-foreground/80 font-medium underline-offset-4 hover:underline"
           >
-            try again
+            {t("tryAgain")}
           </Link>
           .
         </p>
@@ -72,7 +74,7 @@ export default async function MagicLinkSentPage({ searchParams }: PageProps) {
         className="text-foreground/55 hover:text-foreground inline-flex items-center gap-2 text-sm font-medium"
       >
         <ArrowLeft className="h-4 w-4" />
-        Back to sign in
+        {t("backSign")}
       </Link>
     </div>
   );

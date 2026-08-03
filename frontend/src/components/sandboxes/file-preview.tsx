@@ -60,6 +60,7 @@ function BytesBody({ source, path }: { source: FileSource; path: string }) {
 }
 
 function TextBody({ source, path, asSource }: Required<FilePreviewProps>) {
+  const t = useTranslations("sandboxes");
   const { file, isLoading, error } = useWorkspaceFileText(source, path);
 
   if (isLoading) return <Skeleton className="h-40 w-full" />;
@@ -78,9 +79,7 @@ function TextBody({ source, path, asSource }: Required<FilePreviewProps>) {
         </pre>
       )}
       {file.truncated && (
-        <p className="text-muted-foreground text-xs">
-          Shortened. The agent reads the whole file, and the download holds all of it.
-        </p>
+        <p className="text-muted-foreground text-xs">{t("shortenedAgentReadsWhole")}</p>
       )}
     </div>
   );
@@ -96,6 +95,7 @@ function Unshowable({
   path: string;
   reason: string;
 }) {
+  const t = useTranslations("sandboxes");
   const { download, error } = useFileDownload(source);
 
   return (
@@ -103,7 +103,7 @@ function Unshowable({
       <p className="text-muted-foreground text-sm">{reason}</p>
       <Button variant="outline" size="sm" onClick={() => download(path)}>
         <Download className="h-3.5 w-3.5" />
-        Download it
+        {t("download")}
       </Button>
       {/* A container-backed host refuses a binary either way, so the offer above can
           fail too - and silently, before this. */}

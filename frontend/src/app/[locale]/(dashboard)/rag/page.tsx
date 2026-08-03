@@ -72,6 +72,7 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { usePollWhileIngesting } from "@/hooks";
 
 import { getErrorMessage, isAppAdmin, MAX_UPLOAD_SIZE_MB, timeAgo } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 
 interface CollectionWithInfo {
   name: string;
@@ -101,12 +102,14 @@ function StatusIcon({ status }: { status: string }) {
  * rather than from a render, so the fetchers that call it can stay stable.
  */
 function stillCurrent(startedIn: string): boolean {
+  const t = useTranslations("pages.rag");
   return (useOrgStore.getState().activeOrgId ?? "") === startedIn;
 }
 
 const DEFAULT_FORMATS = [".pdf", ".docx", ".txt", ".md"];
 
 export default function RAGPage() {
+  const t = useTranslations("pages.rag");
   const { user } = useAuth();
   const router = useRouter();
 
@@ -484,10 +487,7 @@ export default function RAGPage() {
         submitting={addSourceSubmitting}
       />
 
-      <PageHeader
-        title="RAG"
-        description="Manage knowledge-base collections, ingest documents, run semantic search, and configure automated sync sources."
-      />
+      <PageHeader title={t("rag")} description={t("manageKnowledgeBaseCollections")} />
 
       <div className="border-border bg-card rounded-xl border p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -495,13 +495,13 @@ export default function RAGPage() {
             <div className="flex items-center gap-2">
               <Database className="text-muted-foreground h-4 w-4 shrink-0" />
               <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                Collection
+                {t("collection")}
               </span>
             </div>
             {loading ? (
               <Skeleton className="h-9 w-56 rounded-xl" />
             ) : collections.length === 0 ? (
-              <span className="text-muted-foreground text-sm">No collections yet</span>
+              <span className="text-muted-foreground text-sm">{t("noCollectionsYet")}</span>
             ) : (
               <Select
                 value={selected}
@@ -513,7 +513,7 @@ export default function RAGPage() {
                 }}
               >
                 <SelectTrigger className="h-9 w-full rounded-xl sm:w-72">
-                  <SelectValue placeholder="Select a collection" />
+                  <SelectValue placeholder={t("selectCollection")} />
                 </SelectTrigger>
                 <SelectContent>
                   {collections.map((col) => (
@@ -540,7 +540,7 @@ export default function RAGPage() {
               onClick={() => setShowCreate((v) => !v)}
             >
               <Plus className="mr-1.5 h-3.5 w-3.5" />
-              New collection
+              {t("newCollection")}
             </Button>
             {uploadProgress ? (
               <div
@@ -563,7 +563,7 @@ export default function RAGPage() {
                 disabled={uploading || !selected}
               >
                 <Upload className="mr-1.5 h-3.5 w-3.5" />
-                Upload files
+                {t("uploadFiles")}
               </Button>
             )}
             {selected && (
@@ -580,17 +580,15 @@ export default function RAGPage() {
                 <AlertDialogContent>
                   <AlertDialogHeader>
                     <AlertDialogTitle>Delete collection &ldquo;{selected}&rdquo;?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      All documents and vectors will be permanently removed.
-                    </AlertDialogDescription>
+                    <AlertDialogDescription>{t("allDocumentsVectorsWill")}</AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
                     <AlertDialogAction
                       className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                       onClick={() => handleDelete(selected)}
                     >
-                      Delete
+                      {t("delete")}
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
@@ -610,14 +608,14 @@ export default function RAGPage() {
         {showCreate && (
           <div className="border-border mt-3 flex gap-2 border-t pt-3">
             <Input
-              placeholder="collection_name"
+              placeholder={t("collectionName")}
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleCreate()}
               className="h-9 max-w-xs rounded-xl"
             />
             <Button size="sm" className="h-9 rounded-xl" onClick={handleCreate}>
-              Create
+              {t("create")}
             </Button>
             <Button
               size="sm"
@@ -628,7 +626,7 @@ export default function RAGPage() {
                 setNewName("");
               }}
             >
-              Cancel
+              {t("cancel")}
             </Button>
           </div>
         )}
@@ -648,7 +646,7 @@ export default function RAGPage() {
       {!selected ? (
         <div className="border-border bg-card text-muted-foreground flex flex-col items-center justify-center rounded-xl border py-16 text-center">
           <Database className="mb-3 h-8 w-8" />
-          <p className="text-sm">Select or create a collection to get started.</p>
+          <p className="text-sm">{t("selectCreateCollectionGet")}</p>
         </div>
       ) : (
         <>
@@ -680,22 +678,23 @@ export default function RAGPage() {
               // request answered 502" are the same pixels, and only one of them
               // is worth offering an upload button for.
               <ErrorState
-                title="Couldn't load the documents"
+                title={t("couldnTLoadDocuments")}
                 description={getErrorMessage(docsError, "The document list request failed.")}
                 cta={{ label: "Try again", onClick: () => void refetchDocs() }}
               />
             ) : docs.length === 0 ? (
               <div className="border-border bg-card flex flex-col items-center justify-center rounded-xl border py-16 text-center">
                 <FileText className="text-muted-foreground mb-3 h-8 w-8" />
-                <p className="text-foreground text-sm font-medium">No documents</p>
-                <p className="text-muted-foreground mt-1 text-xs">Upload PDF, DOCX, TXT, or MD</p>
+                <p className="text-foreground text-sm font-medium">{t("noDocuments")}</p>
+                <p className="text-muted-foreground mt-1 text-xs">{t("uploadPdfDocxTxt")}</p>
                 <Button
                   variant="outline"
                   size="sm"
                   className="mt-4 rounded-xl"
                   onClick={() => fileRef.current?.click()}
                 >
-                  <Upload className="mr-2 h-4 w-4" /> Upload files
+                  <Upload className="mr-2 h-4 w-4" />
+                  {t("uploadFiles2")}
                 </Button>
               </div>
             ) : (
@@ -721,7 +720,7 @@ export default function RAGPage() {
                             </span>
                           )}
                           {doc.status === "processing" && (
-                            <span className="text-muted-foreground text-xs">Processing...</span>
+                            <span className="text-muted-foreground text-xs">{t("processing")}</span>
                           )}
                           {doc.status === "error" && (
                             <span className="text-destructive max-w-[200px] truncate text-xs">
@@ -742,7 +741,7 @@ export default function RAGPage() {
                           type="button"
                           onClick={() => void openOriginal(doc.id)}
                           className="text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg p-1.5 transition-colors"
-                          title="View original"
+                          title={t("viewOriginal")}
                         >
                           <Eye className="h-3.5 w-3.5" />
                         </button>
@@ -759,16 +758,16 @@ export default function RAGPage() {
                               Delete &ldquo;{doc.filename}&rdquo;?
                             </AlertDialogTitle>
                             <AlertDialogDescription>
-                              This will remove the document from vector store and storage.
+                              {t("willRemoveDocumentFrom")}
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogCancel>{t("cancel2")}</AlertDialogCancel>
                             <AlertDialogAction
                               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                               onClick={() => handleDeleteDoc(doc.id)}
                             >
-                              Delete
+                              {t("delete2")}
                             </AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>
@@ -804,9 +803,9 @@ export default function RAGPage() {
               {searchDone && searchResults.length === 0 && !searching && (
                 <div className="border-border bg-card flex flex-col items-center justify-center rounded-xl border py-12 text-center">
                   <Search className="text-muted-foreground mb-3 h-8 w-8" />
-                  <p className="text-foreground text-sm font-medium">No results found</p>
+                  <p className="text-foreground text-sm font-medium">{t("noResultsFound")}</p>
                   <p className="text-muted-foreground mt-1 text-xs">
-                    Try a different query or check another collection
+                    {t("tryDifferentQueryCheck")}
                   </p>
                 </div>
               )}
@@ -842,7 +841,8 @@ export default function RAGPage() {
                               onClick={() => void openOriginal(sourceDoc.id)}
                               className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-[10px] font-medium"
                             >
-                              <Eye className="h-3 w-3" /> View source
+                              <Eye className="h-3 w-3" />
+                              {t("viewSource")}
                             </button>
                           )}
                         </div>
@@ -859,7 +859,7 @@ export default function RAGPage() {
             <div className="space-y-6">
               <div>
                 <div className="mb-3 flex items-center justify-between">
-                  <h3 className="text-foreground text-sm font-semibold">Sync sources</h3>
+                  <h3 className="text-foreground text-sm font-semibold">{t("syncSources")}</h3>
                   <Button
                     size="sm"
                     variant="outline"
@@ -868,7 +868,8 @@ export default function RAGPage() {
                       setAddSourceOpen(true);
                     }}
                   >
-                    <Plus className="mr-1 h-3.5 w-3.5" /> Add source
+                    <Plus className="mr-1 h-3.5 w-3.5" />
+                    {t("addSource")}
                   </Button>
                 </div>
 
@@ -882,10 +883,10 @@ export default function RAGPage() {
                   <div className="border-border bg-card flex flex-col items-center justify-center rounded-xl border py-8 text-center">
                     <Database className="text-muted-foreground mb-2 h-6 w-6" />
                     <p className="text-foreground text-sm font-medium">
-                      No sync sources configured
+                      {t("noSyncSourcesConfigured")}
                     </p>
                     <p className="text-muted-foreground mt-1 text-xs">
-                      Add a source to start syncing documents automatically
+                      {t("addSourceStartSyncing")}
                     </p>
                   </div>
                 ) : (
@@ -930,7 +931,8 @@ export default function RAGPage() {
                             className="rounded-xl"
                             onClick={() => handleTriggerSync(source.id)}
                           >
-                            <RefreshCw className="mr-1 h-3 w-3" /> Sync now
+                            <RefreshCw className="mr-1 h-3 w-3" />
+                            {t("syncNow")}
                           </Button>
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
@@ -948,17 +950,16 @@ export default function RAGPage() {
                                   Delete source &ldquo;{source.name}&rdquo;?
                                 </AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  This will remove the sync source configuration. Existing documents
-                                  will not be affected.
+                                  {t("willRemoveSyncSource")}
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogCancel>{t("cancel3")}</AlertDialogCancel>
                                 <AlertDialogAction
                                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                   onClick={() => handleDeleteSource(source.id)}
                                 >
-                                  Delete
+                                  {t("delete3")}
                                 </AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>
@@ -971,7 +972,7 @@ export default function RAGPage() {
               </div>
 
               <div>
-                <h3 className="text-foreground mb-3 text-sm font-semibold">History</h3>
+                <h3 className="text-foreground mb-3 text-sm font-semibold">{t("history")}</h3>
                 {syncLogsLoading ? (
                   <div className="space-y-2">
                     {[1, 2, 3].map((i) => (
@@ -979,7 +980,7 @@ export default function RAGPage() {
                     ))}
                   </div>
                 ) : syncLogs.length === 0 ? (
-                  <p className="text-muted-foreground text-sm">No sync history yet</p>
+                  <p className="text-muted-foreground text-sm">{t("noSyncHistoryYet")}</p>
                 ) : (
                   <div className="space-y-2">
                     {syncLogs.map((log) => (
@@ -1020,7 +1021,7 @@ export default function RAGPage() {
                                   }
                                 }}
                               >
-                                Cancel
+                                {t("cancel2")}
                               </Button>
                             )}
                           </div>

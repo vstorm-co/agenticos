@@ -82,7 +82,7 @@ export function MemberPicker({
 
           <Command.List className={cn(TEN_ROWS, "overflow-y-auto p-1")}>
             <Command.Empty className="text-muted-foreground px-3 py-6 text-center text-sm">
-              Nobody here matches that.
+              {t("nobodyHereMatches")}
             </Command.Empty>
 
             {members.map((member) => {

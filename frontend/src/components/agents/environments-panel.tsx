@@ -81,7 +81,7 @@ export function EnvironmentsPanel({ agentId, canManage }: { agentId: string; can
           </div>
           <Button onClick={add} disabled={!nameOk || create.isPending}>
             <Plus className="h-4 w-4" />
-            Add
+            {t("add")}
           </Button>
         </div>
       )}

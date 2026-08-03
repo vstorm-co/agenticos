@@ -95,15 +95,12 @@ export function ReusableIntegrations({ targets }: ReusableIntegrationsProps) {
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <h2 className="text-foreground text-sm font-semibold">{t("reusableIntegrations")}</h2>
-          <p className="text-muted-foreground mt-0.5 text-xs">
-            Configured once, used in as many knowledge bases as you like. Each copy syncs on its own
-            schedule.
-          </p>
+          <p className="text-muted-foreground mt-0.5 text-xs">{t("configuredOnceUsedAs")}</p>
         </div>
         {connectors.length > 0 && (
           <Button variant="outline" size="sm" onClick={() => setWizardOpen(true)}>
             <Plug className="h-4 w-4" />
-            Add integration
+            {t("addIntegration")}
           </Button>
         )}
       </div>
@@ -114,8 +111,7 @@ export function ReusableIntegrations({ targets }: ReusableIntegrationsProps) {
         <p className="text-muted-foreground text-xs">{t("loadingIntegrations")}</p>
       ) : integrations.length === 0 ? (
         <p className="text-muted-foreground border-border rounded-xl border border-dashed px-4 py-3 text-xs">
-          Nothing here yet. Add one to connect a source before you know which knowledge bases will
-          need it.
+          {t("nothingHereYetAdd")}
         </p>
       ) : (
         <ul className="border-border bg-card divide-border divide-y overflow-hidden rounded-xl border">
@@ -180,7 +176,7 @@ function IntegrationRow({
       </div>
       <Button variant="outline" size="sm" onClick={onClone} disabled={!canClone}>
         <Copy className="h-3.5 w-3.5" />
-        Use in…
+        {t("use")}
       </Button>
       <AlertDialog>
         <AlertDialogTrigger asChild>
@@ -196,10 +192,7 @@ function IntegrationRow({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Remove {source.name}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Knowledge bases already using it keep their own copy - this only removes the one
-              nothing is syncing from.
-            </AlertDialogDescription>
+            <AlertDialogDescription>{t("knowledgeBasesAlreadyUsing")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
@@ -207,7 +200,7 @@ function IntegrationRow({
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={onDelete}
             >
-              Remove
+              {t("remove")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -261,16 +254,13 @@ function CloneIntoDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Use “{source.name}” in a knowledge base</DialogTitle>
-          <DialogDescription>
-            Its credentials are copied into an independent source. The original stays here for the
-            next knowledge base that needs it.
-          </DialogDescription>
+          <DialogDescription>{t("itsCredentialsAreCopied")}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-1.5">
             <Label className="text-foreground/80 text-xs font-medium tracking-wider uppercase">
-              Knowledge base
+              {t("knowledgeBase")}
             </Label>
             <Select value={targetId} onValueChange={setTargetId}>
               <SelectTrigger className="h-10 rounded-xl" aria-label={t("knowledgeBase")}>
@@ -291,7 +281,7 @@ function CloneIntoDialog({
               htmlFor="clone-target-name"
               className="text-foreground/80 text-xs font-medium tracking-wider uppercase"
             >
-              Name for the copy
+              {t("nameCopy")}
             </Label>
             <Input
               id="clone-target-name"
@@ -305,7 +295,7 @@ function CloneIntoDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
-            Cancel
+            {t("cancel3")}
           </Button>
           <Button onClick={handleSubmit} disabled={!target || submitting}>
             {submitting && <Spinner className="h-3.5 w-3.5" />}

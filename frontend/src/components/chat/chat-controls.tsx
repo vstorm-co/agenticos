@@ -131,8 +131,7 @@ export function ChatControls({
                   lines of prose that pushed the models themselves below the
                   fold on a laptop. */}
               <p className="text-foreground/55 mb-3 text-xs leading-relaxed">
-                Run this conversation on a different model. Everything else about the agent stays as
-                it is.
+                {t("runConversationDifferentModel")}
               </p>
               <ChatModelPicker
                 value={profileId}
@@ -153,7 +152,7 @@ export function ChatControls({
                   }}
                   className="text-foreground/55 hover:text-foreground mt-3 text-[11px] underline-offset-2 hover:underline"
                 >
-                  Back to the agent&apos;s own model
+                  {t("backAgentAposS")}
                 </button>
               )}
             </div>
@@ -298,8 +297,7 @@ function SettingsPanel({
       </div>
 
       <p className="text-foreground/45 text-[10px] leading-relaxed">
-        Settings persist for the current chat session. Some controls are no-ops on models that
-        don&apos;t support them.
+        {t("settingsPersistCurrentChat")}
       </p>
     </div>
   );

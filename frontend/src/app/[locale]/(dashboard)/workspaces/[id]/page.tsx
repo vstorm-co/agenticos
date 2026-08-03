@@ -1,5 +1,7 @@
 import { PageHeader } from "@/components/dashboard/page-header";
 import { WorkspaceExplorer } from "@/components/sandboxes/workspace-explorer";
+import { getTranslations } from "next-intl/server";
+import { useTranslations } from "next-intl";
 
 /**
  * One workspace, browsable.
@@ -15,14 +17,12 @@ import { WorkspaceExplorer } from "@/components/sandboxes/workspace-explorer";
  * the explorer already shows whose files these are.
  */
 export default async function WorkspacePage({ params }: { params: Promise<{ id: string }> }) {
+  const t = await getTranslations("pages.workspaces");
   const { id } = await params;
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Workspace"
-        description="What one agent is keeping, folder by folder. Search covers every folder, not just the one on screen."
-      />
+      <PageHeader title={t("workspace")} description={t("whatOneAgentKeeping")} />
       <WorkspaceExplorer workspaceId={id} />
     </div>
   );

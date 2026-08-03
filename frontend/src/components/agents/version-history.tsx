@@ -164,7 +164,7 @@ export function VersionHistory({
               className={cn(leftId === version.id && "bg-accent")}
             >
               <GitCompare className="h-4 w-4" />
-              Compare
+              {t("compareLabel")}
             </Button>
             {onPromote && canRestore && (
               <PromoteMenu
@@ -182,7 +182,7 @@ export function VersionHistory({
                 onClick={() => onRestore(version.id)}
               >
                 <Undo2 className="h-4 w-4" />
-                Restore
+                {t("restore2")}
               </Button>
             )}
           </li>

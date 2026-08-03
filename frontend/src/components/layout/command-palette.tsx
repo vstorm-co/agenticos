@@ -177,13 +177,13 @@ export function CommandPalette() {
           className="text-foreground placeholder:text-foreground/45 flex-1 bg-transparent text-sm outline-none"
         />
         <kbd className="border-foreground/15 text-foreground/55 hidden rounded-md border px-1.5 py-0.5 font-mono text-[10px] sm:inline-block">
-          ESC
+          {t("esc")}
         </kbd>
       </div>
 
       <Command.List className="max-h-[60vh] overflow-y-auto px-2 py-2">
         <Command.Empty className="text-foreground/55 px-4 py-10 text-center text-sm">
-          No matches.
+          {t("noMatches")}
         </Command.Empty>
 
         <Group heading={t("quickActions")}>
@@ -275,11 +275,11 @@ export function CommandPalette() {
       <div className="border-foreground/10 text-foreground/45 flex items-center justify-between border-t px-4 py-2 font-mono text-[10px] tracking-wider uppercase">
         <span className="inline-flex items-center gap-1.5">
           <kbd className="border-foreground/15 rounded border px-1 py-0.5">↑↓</kbd>
-          Navigate
+          {t("navigate")}
         </span>
         <span className="inline-flex items-center gap-1.5">
           <kbd className="border-foreground/15 rounded border px-1 py-0.5">↵</kbd>
-          Open
+          {t("open")}
         </span>
       </div>
     </Command.Dialog>

@@ -72,12 +72,7 @@ export function ObservabilityCard({
     <Card>
       <CardHeader>
         <CardTitle>{t("tracing")}</CardTitle>
-        <CardDescription>
-          Every run is already traced into the Logfire project this deployment is configured with.
-          Pick a write token to send this agent&apos;s runs to a project of its own instead - an
-          agent built for a client traces into the client&apos;s project, with their retention and
-          their alerting.
-        </CardDescription>
+        <CardDescription>{t("everyRunAlreadyTraced")}</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4 sm:grid-cols-3">
         <div className="space-y-2">
@@ -101,9 +96,7 @@ export function ObservabilityCard({
               ))}
             </SelectContent>
           </Select>
-          <p className="text-muted-foreground text-xs">
-            Stored in the vault under Tracing. The spec keeps the reference, never the token.
-          </p>
+          <p className="text-muted-foreground text-xs">{t("storedVaultUnderTracing")}</p>
           {/* Here rather than as a sentence pointing at the Vault: the answer to
               "no tokens stored yet" is a form, and a picker with nothing in it and
               nowhere to go is a dead end. */}
@@ -138,9 +131,7 @@ export function ObservabilityCard({
             placeholder={t("production")}
             onChange={(event) => update({ environment: event.target.value || null })}
           />
-          <p className="text-muted-foreground text-xs">
-            Separates staging traffic from the real thing in the same project.
-          </p>
+          <p className="text-muted-foreground text-xs">{t("separatesStagingTrafficFrom")}</p>
         </div>
       </CardContent>
     </Card>

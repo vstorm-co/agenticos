@@ -77,7 +77,7 @@ export function WorkspaceFileViewer({ source, path, onClose }: WorkspaceFileView
           )}
           <Button variant="outline" size="sm" onClick={() => download(path)}>
             <Download className="h-3.5 w-3.5" />
-            Download
+            {t("download2")}
           </Button>
         </div>
 

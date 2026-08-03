@@ -450,7 +450,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
             }
           >
             <Plus className="mr-1 h-3.5 w-3.5" />
-            Add a custom server
+            {t("addCustomServer")}
           </Button>
         )}
       </div>
@@ -505,9 +505,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                       // Prose, so it is set as prose. Monospacing this sentence
                       // and then truncating it produced "Self-hosted - you supply
                       // the…", which reads as a URL that got cut off.
-                      <p className="text-muted-foreground text-xs">
-                        Self-hosted - you supply the URL when connecting
-                      </p>
+                      <p className="text-muted-foreground text-xs">{t("selfHostedYouSupply")}</p>
                     ) : (
                       // Truncated rather than wrapped: spelled out, the URL is the
                       // tallest thing on the card, and the full editable copy is
@@ -694,7 +692,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                 // its credential under another envelope and changing who may
                 // revoke it. Disconnect and connect again is the honest path.
                 <p className="text-muted-foreground mt-1 text-xs">
-                  An existing connection cannot change owner.
+                  {t("existingConnectionCannotChange")}
                 </p>
               )}
             </div>
@@ -733,11 +731,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                 // there stops the organization's server working until somebody
                 // authorizes it again - which is why a shared service account is
                 // the right thing to consent with.
-                <p className="text-muted-foreground mt-1.5 text-xs">
-                  Whoever signs in grants it. If their access at the provider is revoked, this
-                  server stops working for every agent until somebody signs in again - so use an
-                  account the organization controls.
-                </p>
+                <p className="text-muted-foreground mt-1.5 text-xs">{t("whoeverSignsGrantsIf")}</p>
               )}
             </div>
 
@@ -780,7 +774,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                     onCheckedChange={setClearToken}
                   />
                   <Label htmlFor="mcp-clear-token" className="text-xs font-normal">
-                    Remove the stored credential
+                    {t("removeStoredCredential")}
                   </Label>
                 </div>
               )}
@@ -788,7 +782,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setDraft(null)} disabled={submitting}>
-              Cancel
+              {t("cancel")}
             </Button>
             <Button onClick={handleSubmit} disabled={submitting}>
               {submitting ? "Saving…" : draft?.existing ? "Save" : "Connect & check"}
@@ -842,7 +836,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
           </ul>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setToolPicker(null)} disabled={submitting}>
-              Cancel
+              {t("cancel2")}
             </Button>
             <Button
               onClick={handleSaveTools}
@@ -985,7 +979,7 @@ function ConnectionMenu({
           className="text-destructive focus:text-destructive"
           onSelect={() => onDisconnect(connection)}
         >
-          Disconnect
+          {t("disconnect")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -269,7 +269,8 @@ export function ChatInput({
       {isDragging && (
         <div className="border-foreground/40 bg-card/95 text-foreground absolute inset-0 z-30 flex items-center justify-center rounded-2xl border-2 border-dashed text-sm font-medium backdrop-blur-sm">
           <span className="flex items-center gap-2">
-            <Upload className="h-4 w-4" /> Drop files to attach
+            <Upload className="h-4 w-4" />
+            {t("dropFilesAttach")}
           </span>
         </div>
       )}

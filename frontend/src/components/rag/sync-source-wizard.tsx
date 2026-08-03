@@ -196,7 +196,7 @@ export function SyncSourceWizard({
                 )}
               >
                 <Plus className="h-3 w-3" />
-                Create new
+                {t("createNew")}
               </button>
               <button
                 type="button"
@@ -209,7 +209,7 @@ export function SyncSourceWizard({
                 )}
               >
                 <Copy className="h-3 w-3" />
-                Use existing
+                {t("useExisting")}
               </button>
             </div>
           )}
@@ -293,7 +293,7 @@ export function SyncSourceWizard({
               className="text-foreground/65 hover:text-foreground inline-flex items-center gap-1.5 text-sm font-medium"
             >
               <ArrowLeft className="h-4 w-4" />
-              Back
+              {t("back")}
             </button>
           ) : (
             <button
@@ -301,7 +301,7 @@ export function SyncSourceWizard({
               onClick={() => onOpenChange(false)}
               className="text-foreground/65 hover:text-foreground text-sm font-medium"
             >
-              Cancel
+              {t("cancel")}
             </button>
           )}
 
@@ -350,13 +350,10 @@ function CloneStep({
   const t = useTranslations("rag");
   return (
     <div className="space-y-5">
-      <p className="text-foreground/65 text-sm">
-        Pick an existing org integration to use in this knowledge base. Its credentials are copied
-        independently &mdash; you can adjust the schedule separately.
-      </p>
+      <p className="text-foreground/65 text-sm">{t("pickExistingOrgIntegration")}</p>
       <div className="space-y-2">
         <Label className="text-foreground/80 text-xs font-medium tracking-wider uppercase">
-          Org integrations
+          {t("orgIntegrations")}
         </Label>
         <div className="space-y-2">
           {integrations.map((src) => {
@@ -408,7 +405,7 @@ function CloneStep({
             htmlFor="clone-name"
             className="text-foreground/80 text-xs font-medium tracking-wider uppercase"
           >
-            Name for this KB&apos;s copy
+            {t("nameKbAposS")}
           </Label>
           <Input
             id="clone-name"
@@ -440,7 +437,7 @@ function ConnectorStep({
           htmlFor="source-name"
           className="text-foreground/80 text-xs font-medium tracking-wider uppercase"
         >
-          Source name
+          {t("sourceName")}
         </Label>
         <Input
           id="source-name"
@@ -453,11 +450,11 @@ function ConnectorStep({
 
       <div className="space-y-2">
         <Label className="text-foreground/80 text-xs font-medium tracking-wider uppercase">
-          Connector
+          {t("connector")}
         </Label>
         {connectors.length === 0 ? (
           <p className="border-foreground/10 bg-foreground/[0.03] text-foreground/65 rounded-xl border px-4 py-3 text-sm">
-            No connectors enabled.
+            {t("noConnectorsEnabled")}
           </p>
         ) : (
           <div className="grid gap-2 sm:grid-cols-2">
@@ -627,7 +624,7 @@ function ScheduleStep({
       {!defaultCollection && collections.length > 0 && (
         <div className="space-y-1.5">
           <Label className="text-foreground/80 text-xs font-medium tracking-wider uppercase">
-            Target collection
+            {t("targetCollection")}
           </Label>
           <Select
             value={form.collection_name ?? ""}
@@ -653,15 +650,13 @@ function ScheduleStep({
               ))}
             </SelectContent>
           </Select>
-          <p className="text-foreground/45 text-xs">
-            Leave empty to save as org-level integration.
-          </p>
+          <p className="text-foreground/45 text-xs">{t("leaveEmptySaveAs")}</p>
         </div>
       )}
 
       <div className="space-y-2">
         <Label className="text-foreground/80 text-xs font-medium tracking-wider uppercase">
-          Sync mode
+          {t("syncMode")}
         </Label>
         <div className="grid gap-2 sm:grid-cols-3">
           {SYNC_MODES.map((mode) => {
@@ -688,7 +683,7 @@ function ScheduleStep({
 
       <div className="space-y-2">
         <Label className="text-foreground/80 text-xs font-medium tracking-wider uppercase">
-          Schedule
+          {t("schedule")}
         </Label>
         <div className="flex flex-wrap gap-2">
           {SCHEDULE_PRESETS.map((p) => {
@@ -714,7 +709,7 @@ function ScheduleStep({
         </div>
         <div className="flex items-center gap-2 pt-1">
           <Label htmlFor="custom-schedule" className="text-foreground/55 text-xs">
-            Custom (minutes):
+            {t("customMinutes")}
           </Label>
           <Input
             id="custom-schedule"

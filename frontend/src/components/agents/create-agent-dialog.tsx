@@ -110,9 +110,7 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{t("newAgent")}</DialogTitle>
-          <DialogDescription>
-            It starts as a draft. Nothing runs until you publish it.
-          </DialogDescription>
+          <DialogDescription>{t("startsAsDraftNothing")}</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <FormField
@@ -122,8 +120,8 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
             description={
               <>
                 It will be mentioned as{" "}
-                <span className="font-mono">@{deriveHandle(name || "your agent")}</span>, which is
-                fixed once created and is how Slack and the API address it.
+                <span className="font-mono">@{deriveHandle(name || "your agent")}</span>
+                {t("whichFixedOnceCreated")}
               </>
             }
           >
@@ -150,10 +148,10 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
+            {t("cancel2")}
           </Button>
           <Button onClick={handleCreate} disabled={!name.trim() || create.isPending}>
-            Create
+            {t("create")}
           </Button>
         </DialogFooter>
       </DialogContent>

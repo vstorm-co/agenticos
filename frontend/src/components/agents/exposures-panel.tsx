@@ -140,9 +140,7 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
                   {SURFACE_LABEL[exposure.surface]} - {exposure.channel_bot_name}
                 </p>
                 {!exposure.is_active && (
-                  <p className="text-muted-foreground text-xs">
-                    Paused - the handle answers nothing here.
-                  </p>
+                  <p className="text-muted-foreground text-xs">{t("pausedHandleAnswersNothing")}</p>
                 )}
               </div>
               {namedEnvironments.length > 0 && (
@@ -251,7 +249,7 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
               </div>
               <Button disabled={!selectedBotId || expose.isPending} onClick={addExposure}>
                 <Plus className="mr-2 h-4 w-4" />
-                Add
+                {t("add2")}
               </Button>
             </div>
           ) : (

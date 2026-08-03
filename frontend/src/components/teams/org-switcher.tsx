@@ -43,7 +43,7 @@ export function OrgSwitcher() {
         onClick={() => router.push("/orgs")}
       >
         <Building2 className="mr-2 h-4 w-4" />
-        Select org
+        {t("selectOrg")}
       </Button>
     );
   }
@@ -88,11 +88,11 @@ export function OrgSwitcher() {
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => router.push("/orgs")} className="gap-2">
           <Building2 className="h-4 w-4" />
-          Manage organizations
+          {t("manageOrganizations")}
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => router.push("/orgs?create=1")} className="gap-2">
           <Plus className="h-4 w-4" />
-          New organization
+          {t("newOrganization")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -112,10 +112,7 @@ export function SkillWorkbench({
             onChange={(event) => setDescription(event.target.value)}
             readOnly={!canEdit}
           />
-          <p className="text-muted-foreground text-xs">
-            The only part the model reads before deciding whether to open the skill at all. Write
-            when it applies, not what is inside it.
-          </p>
+          <p className="text-muted-foreground text-xs">{t("onlyPartModelReads2")}</p>
         </div>
         <div className="w-56 shrink-0 space-y-1.5">
           <Label htmlFor="skill-category">{t("category2")}</Label>
@@ -127,9 +124,7 @@ export function SkillWorkbench({
             maxLength={64}
             readOnly={!canEdit}
           />
-          <p className="text-muted-foreground text-xs">
-            Groups the listing. Never reaches the model.
-          </p>
+          <p className="text-muted-foreground text-xs">{t("groupsListingNeverReaches")}</p>
         </div>
         <div className="shrink-0 space-y-1.5">
           <Label htmlFor="skill-enabled">{t("enabled")}</Label>
@@ -162,7 +157,7 @@ export function SkillWorkbench({
                 }}
               >
                 <FilePlus className="h-3.5 w-3.5" />
-                New
+                {t("new2")}
               </Button>
               <UploadButton icon={Upload} label={t("files3")} onPick={upload} />
               {/* A directory picker sends every file with its relative path,
@@ -229,10 +224,7 @@ export function SkillWorkbench({
               canEdit={canEdit}
               onChange={setContent}
               footer={
-                <p className="text-muted-foreground text-xs">
-                  Markdown. Loaded only after the description convinced the model to, so length
-                  costs nothing until it is needed.
-                </p>
+                <p className="text-muted-foreground text-xs">{t("markdownLoadedOnlyAfter")}</p>
               }
             />
           )}
@@ -242,10 +234,7 @@ export function SkillWorkbench({
       {changed && (
         <Alert variant="warning">
           <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>
-            Saving reaches every agent bound to this skill on its next run. There is no draft and no
-            publish step.
-          </AlertDescription>
+          <AlertDescription>{t("savingReachesEveryAgent")}</AlertDescription>
         </Alert>
       )}
 
@@ -258,7 +247,7 @@ export function SkillWorkbench({
             onClick={() => onSave({ description, content, enabled, category: editedCategory })}
             disabled={!changed || !description.trim() || isSaving}
           >
-            Save
+            {t("save")}
           </Button>
         )}
       </DialogFooter>

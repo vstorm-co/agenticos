@@ -27,6 +27,7 @@ import {
 import { ROUTES } from "@/lib/constants";
 import { cn, formatDate } from "@/lib/utils";
 import type { Agent } from "@/types/agents";
+import { useTranslations } from "next-intl";
 
 /** Chip labels for the surfaces an agent answers on. Unknown values pass through. */
 const CHANNEL_LABEL: Record<string, string> = {
@@ -75,6 +76,7 @@ export function AgentCard({
   actions: AgentCardActions;
   busy?: boolean;
 }) {
+  const t = useTranslations("agents");
   const archived = agent.status === "archived";
 
   return (
@@ -141,17 +143,17 @@ export function AgentCard({
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onSelect={actions.onDuplicate}>
                   <Copy className="h-4 w-4" />
-                  Duplicate
+                  {t("duplicate")}
                 </DropdownMenuItem>
                 {archived ? (
                   <DropdownMenuItem onSelect={actions.onRestore}>
                     <ArchiveRestore className="h-4 w-4" />
-                    Restore
+                    {t("restore")}
                   </DropdownMenuItem>
                 ) : (
                   <DropdownMenuItem onSelect={actions.onArchive}>
                     <Archive className="h-4 w-4" />
-                    Archive
+                    {t("archive")}
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
@@ -160,7 +162,7 @@ export function AgentCard({
                   onSelect={actions.onDelete}
                 >
                   <Trash2 className="h-4 w-4" />
-                  Delete permanently
+                  {t("deletePermanently")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

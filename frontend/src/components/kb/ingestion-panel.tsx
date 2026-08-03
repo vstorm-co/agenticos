@@ -11,6 +11,7 @@ import {
   labelOf,
 } from "@/lib/ingestion-config";
 import type { KnowledgeBase } from "@/types";
+import { useTranslations } from "next-intl";
 
 interface IngestionPanelProps {
   kb: KnowledgeBase;
@@ -30,6 +31,7 @@ interface IngestionPanelProps {
  * fact and nowhere as a control, because it cannot be changed at all.
  */
 export function IngestionPanel({ kb, onEdit }: IngestionPanelProps) {
+  const t = useTranslations("kb");
   const config = kb.ingestion_config;
 
   return (
@@ -41,12 +43,12 @@ export function IngestionPanel({ kb, onEdit }: IngestionPanelProps) {
     >
       <div className="flex items-center justify-between gap-2 border-b px-4 py-3">
         <h2 id="kb-ingestion-heading" className="text-foreground text-sm font-semibold">
-          How documents are read
+          {t("howDocumentsAreRead")}
         </h2>
         {onEdit && (
           <Button variant="outline" size="sm" onClick={onEdit}>
             <SlidersHorizontal className="h-4 w-4" />
-            Edit
+            {t("edit")}
           </Button>
         )}
       </div>
