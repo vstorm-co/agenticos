@@ -575,7 +575,7 @@ class SandboxWorkspaceService:
         # container-backed host raises the same way for "no such file" as for "this
         # host cannot be read", so without this a missing file is reported as a
         # configuration problem - and 400 is the wrong answer to a typo in a path.
-        if _absent(contents, path):
+        if _absent(row, contents, path):
             raise NotFoundError(
                 message="No such file",
                 details={"workspace_id": str(workspace_id), "path": path},
@@ -610,7 +610,7 @@ class SandboxWorkspaceService:
     async def read_file_of(self, ctx: AuthContext, workspace_id: UUID, *, path: str) -> str | None:
         """One file's text from a workspace addressed by its own id."""
         row, contents = await self.files_of(ctx, workspace_id)
-        if _absent(contents, path):
+        if _absent(row, contents, path):
             return None
         return await self._read_from(ctx, row, path)
 
@@ -638,11 +638,7 @@ class SandboxWorkspaceService:
 
     async def _entries(self, ctx: AuthContext, row: AgentWorkspace) -> WorkspaceContents:
         if row.backend == "state":
-            from pydantic_ai_backends import StateBackend
-
-            return WorkspaceContents(
-                entries=list(StateBackend(files=dict(row.files or {})).glob_info("**/*"))
-            )
+            return WorkspaceContents(entries=stored_entries(dict(row.files or {})))
         return await self._remote_entries(ctx, row)
 
     async def _remote_entries(self, ctx: AuthContext, row: AgentWorkspace) -> WorkspaceContents:
@@ -784,12 +780,20 @@ the answer there is no.
 """
 
 
-def _absent(contents: WorkspaceContents, path: str) -> bool:
+def _absent(row: AgentWorkspace, contents: WorkspaceContents, path: str) -> bool:
     """Whether a listing that could be read says this path is not in it.
 
-    An unreadable listing answers `False`: it knows nothing, and reporting "no such
-    file" on the strength of a listing that failed would be a confident wrong answer.
+    Only asked of a workspace kept on a host. A stored one has an authoritative
+    oracle - `StateBackend.exists` - and using a *listing* as one there is wrong:
+    `glob_info` does not match dotfiles, so `/​.env` exists, reads fine, and is not
+    in any listing. Answering "no such file" for it would be a confident wrong
+    answer built on a pattern's blind spot.
+
+    An unreadable listing also answers `False`: it knows nothing, and the same
+    argument applies.
     """
+    if row.backend == "state":
+        return False
     if contents.unreadable_reason is not None or not contents.entries:
         return False
     return all(str(entry.get("path")) != path for entry in contents.entries)
@@ -799,6 +803,29 @@ def _is_textual(path: str) -> bool:
     from pathlib import PurePosixPath
 
     return PurePosixPath(path).suffix.lower() in TEXTUAL_SUFFIXES
+
+
+def stored_entries(files: dict[str, Any]) -> list[FileInfo]:
+    """Every file in a stored workspace, dotfiles included.
+
+    Two patterns, because one is not enough: `**/*` does not match a name beginning
+    with a dot, so an agent that wrote `/​.env` or `/​.gitignore` had it absent from
+    every listing - the chat panel, the browser, the flat view - while `read` served
+    it happily. A listing that claims to be "what the agent is keeping" cannot quietly
+    omit a class of filename.
+
+    A file *inside* a dot-directory (`/​.git/config`) is still absent, and that is the
+    one omission worth keeping: an agent that ran `git init` would otherwise fill the
+    panel with object files nobody asked to see.
+    """
+    from pydantic_ai_backends import StateBackend
+
+    backend = StateBackend(files=files)
+    seen: dict[str, FileInfo] = {}
+    for pattern in ("**/*", "**/.*"):
+        for entry in backend.glob_info(pattern):
+            seen[str(entry.get("path"))] = entry
+    return sorted(seen.values(), key=lambda entry: str(entry.get("path")))
 
 
 def _reason(exc: Exception) -> str:

@@ -622,6 +622,56 @@ class TestWorkspacesAreScopedToTheirReader:
         listed.assert_not_called()
 
 
+class TestListingAStoredWorkspace:
+    """What "what the agent is keeping" has to include.
+
+    `glob_info("**/*")` does not match a name beginning with a dot, so every listing
+    on this branch quietly omitted `.env` and `.gitignore` while `read` served them.
+    A listing that claims to be the whole workspace cannot drop a class of filename.
+    """
+
+    def test_a_dotfile_is_listed(self):
+        from app.services.sandbox_workspace import stored_entries
+
+        stored = StateBackend()
+        stored.write("/.env", "A=1")
+        stored.write("/notes.md", "x")
+
+        assert [str(entry["path"]) for entry in stored_entries(dict(stored.files))] == [
+            "/.env",
+            "/notes.md",
+        ]
+
+    def test_a_dotfile_in_a_subdirectory_is_listed_too(self):
+        from app.services.sandbox_workspace import stored_entries
+
+        stored = StateBackend()
+        stored.write("/skills/refunds/.keep", "")
+
+        assert [str(entry["path"]) for entry in stored_entries(dict(stored.files))] == [
+            "/skills/refunds/.keep"
+        ]
+
+    def test_nothing_is_listed_twice_when_both_patterns_match(self):
+        from app.services.sandbox_workspace import stored_entries
+
+        stored = StateBackend()
+        stored.write("/report.csv", "a,b")
+
+        assert len(stored_entries(dict(stored.files))) == 1
+
+    def test_a_file_inside_a_dot_directory_stays_out(self):
+        """The one omission worth keeping: an agent that ran `git init` would
+        otherwise fill the panel with object files nobody asked to see."""
+        from app.services.sandbox_workspace import stored_entries
+
+        stored = StateBackend()
+        stored.write("/.git/config", "[core]")
+        stored.write("/notes.md", "x")
+
+        assert [str(entry["path"]) for entry in stored_entries(dict(stored.files))] == ["/notes.md"]
+
+
 class TestServingAFileAsBytes:
     """Downloads and image previews, and why text is not enough.
 
@@ -776,6 +826,23 @@ class TestServingAFileAsBytes:
             )
 
         assert "could not be read" in refused.value.message
+
+    async def test_a_dotfile_is_readable_even_though_no_pattern_lists_it(
+        self, monkeypatch, mock_db_session
+    ):
+        """`glob_info("**/*")` does not match a leading dot, so using a *listing* as
+        an existence oracle answered "no such file" for a file that reads fine. A
+        stored workspace has a real oracle - `exists` - and that is what decides."""
+        stored = StateBackend()
+        stored.write("/.env", "OPENAI_API_KEY=sk-x")
+        row = _row(files=dict(stored.files))
+        monkeypatch.setattr(workspace_repo, "get", AsyncMock(return_value=row))
+
+        data = await SandboxWorkspaceService(mock_db_session).read_bytes_of(
+            _ctx(), row.id, path="/.env"
+        )
+
+        assert data == b"OPENAI_API_KEY=sk-x"
 
     def test_a_file_with_no_suffix_is_not_assumed_to_be_text(self):
         """Guessing wrong here is silent, and the file that has no suffix is exactly
@@ -1304,18 +1371,31 @@ class TestShowingTheFilesToAPerson:
         assert text is not None
         assert "month,total" in text
 
-    async def test_reading_by_id_a_path_the_listing_does_not_have_is_nothing(
+    async def test_reading_by_id_a_path_a_host_did_not_list_is_nothing(
         self, monkeypatch, mock_db_session
     ):
-        """The text path answers the same way the byte path does, from the listing."""
-        stored = StateBackend()
-        stored.write("/report.csv", "month,total")
-        row = _row(files=dict(stored.files))
+        """The text path answers the same way the byte path does, from the listing -
+        and only for a workspace kept on a host, because a stored one has `exists`."""
+        from pydantic_ai_backends import remote as remote_module
+
+        class _Archive:
+            def __init__(self, url, token=""):
+                pass
+
+            def ls(self, session_id):
+                return [{"path": "/run.py", "size": 8, "is_dir": False}]
+
+            def read(self, session_id, path):
+                raise AssertionError("the listing should have answered first")
+
+        monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
+        _serve(monkeypatch, _resolved())
+        row = _row(backend="service", session_id="dc-1", connection_id=uuid4())
         monkeypatch.setattr(workspace_repo, "get", AsyncMock(return_value=row))
 
         assert (
             await SandboxWorkspaceService(mock_db_session).read_file_of(
-                _ctx(), row.id, path="/typo.csv"
+                _ctx(), row.id, path="/typo.py"
             )
             is None
         )

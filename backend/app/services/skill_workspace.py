@@ -167,8 +167,16 @@ def _read_tree(backend: BackendProtocol) -> dict[str, str]:
     cannot be right.
     """
     tree: dict[str, str] = {}
-    for entry in backend.glob_info(f"{SKILLS_ROOT}/**/*"):
-        path = entry["path"]
+    # Two patterns: `**/*` does not match a name beginning with a dot, so a skill the
+    # agent gave a `.gitignore` or a dot-prefixed resource would have that file
+    # dropped from the proposal without a word - and a proposal is supposed to be
+    # everything the agent left different.
+    listed = {
+        str(entry["path"]): entry
+        for pattern in (f"{SKILLS_ROOT}/**/*", f"{SKILLS_ROOT}/**/.*")
+        for entry in backend.glob_info(pattern)
+    }
+    for path, entry in sorted(listed.items()):
         if entry.get("is_dir"):
             continue
         # `or 0`, not a default on `get`: `size` is `int | None` and a listing that

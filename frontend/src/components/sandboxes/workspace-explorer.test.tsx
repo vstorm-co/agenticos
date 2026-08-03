@@ -13,6 +13,7 @@ const state = vi.hoisted(() => ({
   fileLoading: false,
   fileError: null as string | null,
   bytesUrl: null as string | null,
+  bytesIsImage: true,
   bytesLoading: false,
   bytesError: null as string | null,
   downloaded: [] as [string, string][],
@@ -31,6 +32,7 @@ vi.mock("@/hooks", () => ({
   }),
   useWorkspaceBytes: () => ({
     url: state.bytesUrl,
+    isImage: state.bytesIsImage,
     isLoading: state.bytesLoading,
     error: state.bytesError,
   }),
@@ -70,6 +72,7 @@ beforeEach(() => {
   state.fileLoading = false;
   state.fileError = null;
   state.bytesUrl = "blob:chart";
+  state.bytesIsImage = true;
   state.bytesLoading = false;
   state.bytesError = null;
   state.downloaded = [];
@@ -189,6 +192,19 @@ describe("the workspace explorer", () => {
       "src",
       "blob:chart",
     );
+  });
+
+  it("offers the download when the server did not serve it as an image", async () => {
+    // Whatever the suffix suggested. A broken `<img>` with nothing saying why is the
+    // worst of the three answers.
+    state.bytesIsImage = false;
+    render(<WorkspaceExplorer workspaceId="w-1" />);
+
+    await userEvent.click(screen.getByRole("button", { name: "chart.png" }));
+
+    expect(await screen.findByText(/serves it as a file/)).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: /Download it$/ }));
+    expect(state.downloaded).toEqual([["w-1", "/chart.png"]]);
   });
 
   it("offers a download without opening the file first", async () => {

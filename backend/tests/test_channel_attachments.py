@@ -216,6 +216,17 @@ class TestChoosingWhatToSendBack:
         assert [a.filename for a in delivered.attachments] == ["report.csv"]
         assert delivered.attachments[0].content == b"month,total"
 
+    def test_a_dotfile_that_was_already_there_is_not_sent_again(self):
+        """`glob_info("**/*")` does not match a leading dot, so a `.env` written
+        before the turn was absent from the snapshot - and rewriting it during the
+        turn read as new and would have been posted into the channel."""
+        backend = StateBackend()
+        backend.write("/.env", "A=1")
+        before = workspace_snapshot(backend)
+        backend.write("/.env", "A=2")
+
+        assert files_written(backend, before).attachments == []
+
     def test_a_file_that_was_already_there_is_not_sent_again(self):
         """Rewriting a script it is iterating on is ordinary work, and posting it
         every turn would fill the channel with the same attachment."""

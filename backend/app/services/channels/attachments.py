@@ -245,4 +245,16 @@ def workspace_snapshot(backend: BackendProtocol) -> set[str]:
 
 
 def _workspace_paths(backend: BackendProtocol) -> set[str]:
-    return {str(entry["path"]) for entry in backend.glob_info("**/*") if not entry.get("is_dir")}
+    """Every file in the workspace, dotfiles included.
+
+    Two patterns, because `**/*` does not match a name beginning with a dot. Here it
+    matters in the *safe* direction and still matters: a `.env` the agent wrote before
+    the turn would be absent from the snapshot, so writing it again during the turn
+    would read as new and get posted into the channel.
+    """
+    return {
+        str(entry["path"])
+        for pattern in ("**/*", "**/.*")
+        for entry in backend.glob_info(pattern)
+        if not entry.get("is_dir")
+    }

@@ -141,6 +141,17 @@ export function useWorkspaceFile(
 interface UseWorkspaceBytesResult {
   /** A blob URL for the bytes, or null while it is being fetched or on a failure. */
   url: string | null;
+  /**
+   * Whether the server served this as an image.
+   *
+   * Read off the response rather than guessed from the suffix. The API decides what
+   * may be displayed inline - raster images only, never SVG or HTML, because either
+   * one served inline from this origin is stored XSS written by the agent - and a
+   * second list of suffixes in the client is a second answer to that question. When
+   * the two disagreed, `<img>` got a blob typed `application/octet-stream` and showed
+   * a broken image with nothing saying why.
+   */
+  isImage: boolean;
   isLoading: boolean;
   error: string | null;
 }
@@ -183,6 +194,7 @@ export function useWorkspaceBytes(
 
   return {
     url,
+    isImage: blob !== null && blob.type.startsWith("image/"),
     isLoading: workspaceId !== null && path !== null && isLoading,
     error: error === null ? null : error.message,
   };
@@ -196,7 +208,10 @@ export async function downloadWorkspaceFile(workspaceId: string, path: string): 
   link.href = url;
   link.download = path.split("/").filter(Boolean).pop() ?? "file";
   link.click();
-  // Immediately: the click has already handed the bytes to the download, and a URL
-  // left alive keeps the whole file in memory for the life of the page.
-  URL.revokeObjectURL(url);
+  // On the next tick, not immediately. A blob URL left alive keeps the whole file in
+  // memory for the life of the page, so it has to be revoked - but Firefox and Safari
+  // read the URL *after* the click handler returns, and revoking synchronously
+  // cancels the download there. Chrome tolerates it, which is exactly how this ships
+  // broken for half the users.
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }

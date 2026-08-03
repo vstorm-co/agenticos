@@ -15,16 +15,42 @@ import { downloadWorkspaceFile, useWorkspaceBytes, useWorkspaceFile } from "@/ho
  * have been forgotten in the second copy.
  */
 export function FilePreview({ workspaceId, path }: { workspaceId: string; path: string }) {
+  // The suffix decides which *request* to make - bytes or text - and nothing more.
+  // Whether what came back is displayable is the server's answer, read off the
+  // response: it decides what may be served inline (raster images only, never SVG or
+  // HTML), and a second list of suffixes here would be a second answer to the same
+  // question that drifts the first time either moves.
   if (isPreviewable(path)) return <ImagePreview workspaceId={workspaceId} path={path} />;
   return <TextPreview workspaceId={workspaceId} path={path} />;
 }
 
 function ImagePreview({ workspaceId, path }: { workspaceId: string; path: string }) {
-  const { url, isLoading, error } = useWorkspaceBytes(workspaceId, path);
+  const { url, isImage, isLoading, error } = useWorkspaceBytes(workspaceId, path);
 
   if (isLoading) return <Skeleton className="m-3 h-32" />;
   if (error !== null) return <p className="text-destructive px-3 pb-3 text-xs">{error}</p>;
   if (url === null) return null;
+
+  // The server did not serve it as an image, whatever the suffix suggested. A broken
+  // `<img>` with nothing saying why is the worst of the three answers; the download
+  // is the one that works.
+  if (!isImage)
+    return (
+      <div className="px-3 pb-3">
+        <p className="text-muted-foreground text-xs">
+          This one cannot be shown here — the server serves it as a file.
+        </p>
+        <Button
+          variant="outline"
+          size="sm"
+          className="mt-2"
+          onClick={() => void downloadWorkspaceFile(workspaceId, path)}
+        >
+          <Download className="h-3.5 w-3.5" />
+          Download it
+        </Button>
+      </div>
+    );
 
   return (
     <div className="px-3 pb-3">

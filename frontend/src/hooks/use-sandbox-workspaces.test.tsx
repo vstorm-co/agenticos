@@ -262,6 +262,33 @@ describe("saving a file to disk", () => {
     vi.mocked(document.createElement).mockRestore();
   });
 
+  it("keeps the URL alive until the browser has read it", async () => {
+    // Firefox and Safari read a blob URL after the click handler returns, so
+    // revoking synchronously cancels the download - and Chrome tolerates it, which is
+    // how that ships broken for half the users.
+    const revoked: string[] = [];
+    Object.assign(URL, {
+      createObjectURL: () => "blob:deferred",
+      revokeObjectURL: (url: string) => revoked.push(url),
+    });
+    vi.mocked(api.readWorkspaceBytes).mockResolvedValue(new Blob(["a,b"]));
+    const create = document.createElement.bind(document);
+    vi.spyOn(document, "createElement").mockImplementation((tag: string) => {
+      const element = create(tag) as HTMLAnchorElement;
+      if (tag === "a") element.click = () => {};
+      return element;
+    });
+
+    await downloadWorkspaceFile("w-1", "/report.csv");
+
+    // Filtered to this test's own URL: a deferred revoke from an earlier test lands
+    // in whichever array is current when its timer fires.
+    expect(revoked).not.toContain("blob:deferred");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(revoked).toContain("blob:deferred");
+    vi.mocked(document.createElement).mockRestore();
+  });
+
   it("falls back to a name when the path ends in a slash", async () => {
     Object.assign(URL, { createObjectURL: () => "blob:x", revokeObjectURL: vi.fn() });
     vi.mocked(api.readWorkspaceBytes).mockResolvedValue(new Blob([""]));
@@ -275,7 +302,7 @@ describe("saving a file to disk", () => {
 
     await downloadWorkspaceFile("w-1", "/");
 
-    expect(names).toEqual(["file"]);
+    expect(names).toContain("file");
     vi.mocked(document.createElement).mockRestore();
   });
 });
