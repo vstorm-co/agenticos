@@ -66,35 +66,56 @@ describe("what a stored message says it cost", () => {
 
 describe("the newest measured answer in a transcript", () => {
   it("is what the strip shows on a conversation nobody has sent to yet", () => {
-    const usage = latestUsage([
-      message({ id: "m-1", input_tokens: 10, output_tokens: 10, cost_usd: "0.01" }),
-      message({ id: "m-2", input_tokens: 900, output_tokens: 90, cost_usd: "0.09" }),
-    ]);
+    const usage = latestUsage(
+      [
+        message({ id: "m-1", input_tokens: 10, output_tokens: 10, cost_usd: "0.01" }),
+        message({ id: "m-2", input_tokens: 900, output_tokens: 90, cost_usd: "0.09" }),
+      ],
+      "c-1",
+    );
 
     expect(usage).toMatchObject({ input_tokens: 900 });
   });
 
   it("skips the trailing message when it is the person's own", () => {
     // A transcript often ends with a question nobody has answered yet.
-    const usage = latestUsage([
-      message({ id: "m-1", input_tokens: 10, output_tokens: 10, cost_usd: "0.01" }),
-      message({ id: "m-2", role: "user", content: "and again?" }),
-    ]);
+    const usage = latestUsage(
+      [
+        message({ id: "m-1", input_tokens: 10, output_tokens: 10, cost_usd: "0.01" }),
+        message({ id: "m-2", role: "user", content: "and again?" }),
+      ],
+      "c-1",
+    );
 
     expect(usage).toMatchObject({ input_tokens: 10 });
   });
 
   it("skips an answer that was never measured", () => {
-    const usage = latestUsage([
-      message({ id: "m-1", input_tokens: 10, output_tokens: 10, cost_usd: "0.01" }),
-      message({ id: "m-2" }),
-    ]);
+    const usage = latestUsage(
+      [
+        message({ id: "m-1", input_tokens: 10, output_tokens: 10, cost_usd: "0.01" }),
+        message({ id: "m-2" }),
+      ],
+      "c-1",
+    );
 
     expect(usage).toMatchObject({ input_tokens: 10 });
   });
 
   it("says nothing about a transcript with nothing measured in it", () => {
-    expect(latestUsage([message({ role: "user", content: "hi" })])).toBeNull();
-    expect(latestUsage([])).toBeNull();
+    expect(latestUsage([message({ role: "user", content: "hi" })], "c-1")).toBeNull();
+    expect(latestUsage([], "c-1")).toBeNull();
+  });
+
+  it("says nothing while the transcript on hand belongs to the conversation just left", () => {
+    // The store keeps the last transcript it loaded, so for the moment between the
+    // click and the fetch landing, these messages are another thread's - and the strip
+    // reported its tokens and its money under the new conversation.
+    const measured = [
+      message({ id: "m-1", input_tokens: 10, output_tokens: 10, cost_usd: "0.01" }),
+    ];
+
+    expect(latestUsage(measured, "c-2")).toBeNull();
+    expect(latestUsage(measured, null)).toBeNull();
   });
 });

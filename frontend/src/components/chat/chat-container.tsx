@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useCallback } from "react";
 import { useTranslations } from "next-intl";
-import { useChat } from "@/hooks";
+import { useChat, useConversationWorkspace } from "@/hooks";
 import { AgentPicker } from "./agent-picker";
 import { ChatControls } from "./chat-controls";
 import { ChatEmptyState } from "./chat-empty-state";
@@ -195,7 +195,7 @@ export function ChatContainer() {
       // The live turn's cost while there is one, and the newest measured answer in
       // the transcript otherwise - which is what makes the strip appear on a
       // conversation somebody has just reopened instead of after their next message.
-      lastUsage={lastUsage ?? latestUsage(currentMessages)}
+      lastUsage={lastUsage ?? latestUsage(currentMessages, currentConversationId)}
       conversationId={currentConversationId}
       turns={turns}
       isLoadingConversation={
@@ -289,26 +289,33 @@ function ChatUI({
   onStop,
 }: ChatUIProps) {
   const tc = useTranslations("common");
+  // The same query the file panel beside the transcript makes, so the fill under the
+  // input costs nothing extra - and appears when a conversation is *opened* rather than
+  // after the next turn reports one.
+  const { workspace } = useConversationWorkspace(conversationId);
   return (
     <div className="flex h-full w-full">
-      <div className="mx-auto flex h-full max-w-5xl min-w-0 flex-1 flex-col">
-        <div
-          ref={scrollContainerRef}
-          className="flex-1 scrollbar-thin overflow-y-auto px-2 py-4 sm:px-4 sm:py-6"
-        >
-          {isLoadingConversation ? (
-            <ConversationSkeleton />
-          ) : messages.length === 0 ? (
-            <div className="flex h-full items-center">
-              <ChatEmptyState onPick={(prompt) => sendMessage(prompt)} />
-            </div>
-          ) : (
-            <MessageList messages={messages} onRegenerate={onRegenerate} />
-          )}
-          <div ref={messagesEndRef} />
-        </div>{" "}
+      {/* The column no longer carries the width. The scroller does, and the
+          content is centred inside it - so the scrollbar sits at the edge of the
+          pane where a scrollbar belongs, rather than a hundred pixels to the
+          right of the text with white on both sides of it. */}
+      <div className="flex h-full min-w-0 flex-1 flex-col">
+        <div ref={scrollContainerRef} className="flex-1 scrollbar-thin overflow-y-auto">
+          <div className="mx-auto max-w-5xl px-2 py-4 sm:px-4 sm:py-6">
+            {isLoadingConversation ? (
+              <ConversationSkeleton />
+            ) : messages.length === 0 ? (
+              <div className="flex h-full items-center">
+                <ChatEmptyState onPick={(prompt) => sendMessage(prompt)} />
+              </div>
+            ) : (
+              <MessageList messages={messages} onRegenerate={onRegenerate} />
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+        </div>
         {pendingApproval && onResumeDecisions && (
-          <div className="px-2 pb-2 sm:px-4 sm:pb-2">
+          <div className="mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
             <ToolApprovalDialog
               actionRequests={pendingApproval.actionRequests}
               reviewConfigs={pendingApproval.reviewConfigs}
@@ -318,7 +325,7 @@ function ChatUI({
           </div>
         )}
         {pendingQuestions && pendingQuestions.length > 0 && onAnswerQuestions && (
-          <div className="px-2 pb-2 sm:px-4 sm:pb-2">
+          <div className="mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
             <QuestionPrompt
               questions={pendingQuestions}
               disabled={!isConnected}
@@ -326,7 +333,7 @@ function ChatUI({
             />
           </div>
         )}
-        <div className="px-2 pb-2 sm:px-4 sm:pb-4">
+        <div className="mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-4">
           {queuedMessages && queuedMessages.length > 0 && onCancelQueued && (
             <PendingMessages messages={queuedMessages} onCancel={onCancelQueued} />
           )}
@@ -340,7 +347,7 @@ function ChatUI({
               {/* Under the input rather than over the transcript: it is about
                   the turn that just finished, and a strip above the messages
                   would move the conversation every time a number changed. */}
-              <UsageStrip usage={lastUsage} />
+              <UsageStrip usage={lastUsage} workspace={workspace} />
               <ChatInput
                 onSend={sendMessage}
                 disabled={

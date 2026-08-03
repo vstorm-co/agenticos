@@ -422,18 +422,26 @@
 }
 
 /* Custom scrollbar - theme-aware, derived from --color-foreground.
-   Subtle at rest, more visible while the user is hovering the scroll area. */
+   Subtle at rest, a little clearer while the user is hovering the scroll area.
+
+   Two properties describe the same bar because browsers disagree about which one
+   they read. `scrollbar-width` / `scrollbar-color` are the standard pair, and
+   Safari honours them *instead of* the `::-webkit-scrollbar` rules below - so the
+   colours have to be right on their own, without the 2px inset and the rounding
+   the pseudo-elements add. That is why they are this pale: a 7px square bar at
+   35% of the foreground reads as a scrollbar somebody drew on purpose, in a place
+   nothing else is that dark. */
 @layer utilities {
   .scrollbar-thin {
     scrollbar-width: thin;
     /* Firefox: thumb + track. Colors are derived from the foreground so the
        scrollbar reads correctly on both light cream and dark surfaces. */
-    scrollbar-color: oklch(from var(--color-foreground) l c h / 0.18) transparent;
+    scrollbar-color: oklch(from var(--color-foreground) l c h / 0.1) transparent;
     transition: scrollbar-color 150ms ease;
   }
 
   .scrollbar-thin:hover {
-    scrollbar-color: oklch(from var(--color-foreground) l c h / 0.35) transparent;
+    scrollbar-color: oklch(from var(--color-foreground) l c h / 0.2) transparent;
   }
 
   .scrollbar-thin::-webkit-scrollbar {
@@ -446,7 +454,7 @@
   }
 
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    background: oklch(from var(--color-foreground) l c h / 0.18);
+    background: oklch(from var(--color-foreground) l c h / 0.15);
     border-radius: 9999px;
     /* 2px transparent border + background-clip:padding-box gives a visible
        thumb width of ~4px while keeping a wider hit target. */
@@ -456,7 +464,7 @@
   }
 
   .scrollbar-thin:hover::-webkit-scrollbar-thumb {
-    background: oklch(from var(--color-foreground) l c h / 0.35);
+    background: oklch(from var(--color-foreground) l c h / 0.28);
     background-clip: padding-box;
   }
 
@@ -549,7 +557,8 @@
 
 /* =========================================================================
    Agent step animations - used by ToolCallCard.
-   step-card-in  : card entrance (tool call appears in the timeline)
+   step-card-in  : card entrance (a panel appears in the timeline)
+   step-in       : step entrance (one line joins the run of steps)
    step-progress : indeterminate shimmer bar on the card bottom while running
    pop-in        : small icon pop (outcome marker ✓ / ✕)
    ========================================================================= */
@@ -568,6 +577,20 @@
   100% {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+.step-in {
+  animation: step-in var(--duration-base) var(--ease-out) both;
+}
+@keyframes step-in {
+  0% {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
