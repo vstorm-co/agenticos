@@ -243,8 +243,15 @@ why an attachment arrives as a handle rather than as content:
 | Telegram | `getFile` resolves a `file_id` to a path that expires, then the file API. A photo arrives as several sizes; the largest is the one kept |
 | Mattermost | `/files/{id}` on that bot's own server. A bot whose server is not recorded says so rather than guessing which company's server to send a token to |
 
-A file that is refused — unsupported type, too large, a download that failed — is
-**named in the reply**. One bad file among three does not lose the other two or the
+**Recordings are not supported yet.** Telegram puts each kind of media in its own
+field, so a voice note arrives with no text at all — and until this change it parsed
+as nothing and vanished with no log line. It is now read, refused, and the refusal
+says what is actually true: the recording arrived and nothing here can listen to it
+yet. Transcription is [#54](https://github.com/vstorm-co/agenticos/issues/54); when
+it lands, audio joins the allowlist and that refusal goes.
+
+A file that is refused — unsupported type, a recording, too large, a download that
+failed — is **named in the reply**. One bad file among three does not lose the other two or the
 question that came with them, and a bot that silently ignores an attachment looks
 exactly like a bot that read it.
 

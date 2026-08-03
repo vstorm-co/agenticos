@@ -26,6 +26,19 @@ logger = logging.getLogger(__name__)
 _telegram_router = Router()
 
 
+# Every field Telegram puts a file in, with a name and a type for the kinds that
+# arrive without one. A voice note has neither: it is `voice.ogg` by convention and
+# `audio/ogg` by format, and inventing them here is better than storing a file
+# nothing downstream can identify.
+_MEDIA_FIELDS: tuple[tuple[str, str, str], ...] = (
+    ("document", "file", "application/octet-stream"),
+    ("voice", "voice.ogg", "audio/ogg"),
+    ("audio", "audio", "audio/mpeg"),
+    ("video", "video.mp4", "video/mp4"),
+    ("video_note", "video-note.mp4", "video/mp4"),
+)
+
+
 class TelegramAdapter(ChannelAdapter):
     """Concrete Telegram adapter using aiogram v3."""
 
@@ -247,23 +260,29 @@ class TelegramAdapter(ChannelAdapter):
     def _attachments(msg_data: dict[str, Any]) -> list[IncomingAttachment]:
         """The files on a Telegram message, as handles.
 
-        `document` is the ordinary case. A `photo` arrives as a list of the same
-        image in several sizes and the last is the largest, which is the one worth
-        having - the others are thumbnails Telegram generated.
+        Telegram does not put files in one list. Each kind is its own field, and a
+        message carrying only one of them has no text at all - which is why a voice
+        note used to parse as nothing and vanish without a log line. Every kind it
+        can send is read here, and one it cannot yet do anything with is refused
+        further down *by name* rather than dropped.
 
-        Telegram sends no MIME type for a photo, so one is stated rather than
-        guessed from bytes we do not have yet: every entry in `photo` is a JPEG.
+        A `photo` arrives as the same image in several sizes and the last is the
+        largest, which is the one worth having - the rest are thumbnails Telegram
+        generated. It also sends no MIME type for one, so a JPEG is stated rather
+        than guessed from bytes nobody has yet.
         """
         found: list[IncomingAttachment] = []
 
-        document = msg_data.get("document")
-        if isinstance(document, dict) and document.get("file_id"):
+        for field, fallback_name, fallback_mime in _MEDIA_FIELDS:
+            media = msg_data.get(field)
+            if not isinstance(media, dict) or not media.get("file_id"):
+                continue
             found.append(
                 IncomingAttachment(
-                    filename=document.get("file_name") or "file",
-                    mime_type=document.get("mime_type") or "application/octet-stream",
-                    size=int(document.get("file_size") or 0),
-                    handle=str(document["file_id"]),
+                    filename=media.get("file_name") or fallback_name,
+                    mime_type=media.get("mime_type") or fallback_mime,
+                    size=int(media.get("file_size") or 0),
+                    handle=str(media["file_id"]),
                 )
             )
 

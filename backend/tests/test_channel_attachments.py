@@ -132,6 +132,36 @@ class TestReceivingWhatSomebodySent:
         assert "too large" in refused[0].lower()
         service.uploads.upload.assert_not_called()
 
+    async def test_a_voice_note_is_refused_by_what_it_is_rather_than_by_its_type(self):
+        """ "File type 'audio/ogg' is not supported" reads as a platform that cannot
+        handle files. The truth is narrower and more useful: it arrived, and nothing
+        here can listen to it yet."""
+        service = _service()
+        adapter = _adapter()
+
+        stored, refused = await service.receive(
+            adapter,
+            "t",
+            [_attachment(filename="voice.ogg", mime_type="audio/ogg", size=4211)],
+            user_id=uuid.uuid4(),
+        )
+
+        assert stored == []
+        assert "cannot listen to recordings yet" in refused[0]
+        adapter.download_attachment.assert_not_called()
+
+    async def test_a_video_is_refused_the_same_way(self):
+        service = _service()
+
+        _stored, refused = await service.receive(
+            _adapter(),
+            "t",
+            [_attachment(filename="clip.mp4", mime_type="video/mp4")],
+            user_id=uuid.uuid4(),
+        )
+
+        assert "cannot listen to recordings yet" in refused[0]
+
     async def test_a_platform_this_build_cannot_fetch_from_says_so(self):
         """Rather than a bot that ignores an attachment, which looks exactly like
         a bot that read it."""

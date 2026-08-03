@@ -119,7 +119,7 @@ class ChannelAttachmentService:
             # reject it is the thing worth not doing.
             valid, error = self.uploads.validate_upload(attachment.mime_type, attachment.size)
             if not valid:
-                refusals.append(f"{attachment.filename}: {error}")
+                refusals.append(f"{attachment.filename}: {_why(attachment, error)}")
                 continue
             try:
                 data = await adapter.download_attachment(bot_token, attachment)
@@ -145,7 +145,7 @@ class ChannelAttachmentService:
             # or a handle that resolved to something else, gets caught here.
             valid, error = self.uploads.validate_upload(attachment.mime_type, len(data))
             if not valid:
-                refusals.append(f"{attachment.filename}: {error}")
+                refusals.append(f"{attachment.filename}: {_why(attachment, error)}")
                 continue
 
             stored.append(
@@ -158,6 +158,25 @@ class ChannelAttachmentService:
             )
 
         return stored, refusals
+
+
+def _why(attachment: IncomingAttachment, error: str | None) -> str:
+    """Why a file was turned away, in terms of what somebody actually sent.
+
+    Voice notes are the case this exists for. Somebody sends one, and "File type
+    'audio/ogg' is not supported" reads as a platform that cannot handle files -
+    when the truth is narrower and more useful: the file arrived, and nothing here
+    can listen to it yet.
+
+    Delete this along with the branch once transcription lands (#54); until then a
+    generic message would send people looking for a bug that is not there.
+    """
+    if attachment.mime_type.startswith(("audio/", "video/")):
+        return (
+            "I cannot listen to recordings yet - transcription is not wired up. "
+            "Type it out, or send a file."
+        )
+    return error or "not supported."
 
 
 def files_written(backend: Any, before: set[str]) -> DeliveredFiles:

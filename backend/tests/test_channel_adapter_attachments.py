@@ -93,6 +93,30 @@ class TestTelegramReceiving:
         # Telegram sends no MIME type for a photo, and every entry is a JPEG.
         assert parsed.attachments[0].mime_type == "image/jpeg"
 
+    @pytest.mark.parametrize(
+        ("field", "payload", "filename", "mime"),
+        [
+            ("voice", {"file_id": "v", "duration": 7}, "voice.ogg", "audio/ogg"),
+            ("audio", {"file_id": "a", "file_name": "song.mp3"}, "song.mp3", "audio/mpeg"),
+            ("video", {"file_id": "m"}, "video.mp4", "video/mp4"),
+            ("video_note", {"file_id": "n"}, "video-note.mp4", "video/mp4"),
+        ],
+    )
+    def test_every_kind_of_media_telegram_sends_is_seen(
+        self, field: str, payload: dict, filename: str, mime: str
+    ):
+        """Telegram puts each kind in its own field, and a message carrying only one
+        has no text - which is why a voice note used to parse as nothing and vanish
+        without a log line."""
+        parsed = TelegramAdapter().parse_incoming(
+            {"message": {"chat": {"id": 1, "type": "private"}, "from": {"id": 2}, field: payload}},
+            "bot-1",
+        )
+
+        assert parsed is not None
+        assert parsed.attachments[0].filename == filename
+        assert parsed.attachments[0].mime_type == mime
+
     def test_a_message_with_neither_text_nor_a_file_is_still_nothing(self):
         assert (
             TelegramAdapter().parse_incoming(
