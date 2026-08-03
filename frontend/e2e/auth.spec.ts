@@ -42,19 +42,23 @@ test.describe("Authentication", () => {
     await expect(page).toHaveURL(/\/pl\/login$/);
   });
 
-  test("a deep link survives the login round trip", async ({ page }) => {
+  test("a deep link survives the login round trip, fragment included", async ({ page }) => {
     await page.context().clearCookies();
-    await page.goto("/agents");
+    await page.goto("/agents?tab=all#list");
 
     // Landing on the default page after signing in would mean the link the
-    // visitor followed - from an email, a doc - was silently swallowed.
-    await expect(page).toHaveURL(/\/login\?returnTo=%2Fagents/, { timeout: 30_000 });
+    // visitor followed - from an email, a doc - was silently swallowed. The
+    // query and the fragment are part of the link: an anchored section that
+    // comes back unanchored was swallowed too, just more quietly.
+    await expect(page).toHaveURL(/\/login\?returnTo=%2Fagents%3Ftab%3Dall%23list/, {
+      timeout: 30_000,
+    });
 
     await page.getByLabel("Email").fill(OWNER_EMAIL);
     await page.getByLabel("Password").fill(OWNER_PASSWORD);
     await page.getByRole("button", { name: "Login" }).click();
 
-    await expect(page).toHaveURL(/\/agents(\?.*)?$/, { timeout: 30_000 });
+    await expect(page).toHaveURL(/\/agents\?tab=all#list$/, { timeout: 30_000 });
   });
 
   test.describe("Login Page", () => {

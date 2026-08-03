@@ -34,8 +34,8 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       } catch {
         // Off `window.location`, not the navigation hooks: a hook here would
         // tie the verify effect to every navigation this guard sits above.
-        const { pathname, search } = window.location;
-        router.replace(`${ROUTES.LOGIN}?returnTo=${encodeURIComponent(pathname + search)}`);
+        const { pathname, search, hash } = window.location;
+        router.replace(`${ROUTES.LOGIN}?returnTo=${encodeURIComponent(pathname + search + hash)}`);
       } finally {
         setChecking(false);
       }

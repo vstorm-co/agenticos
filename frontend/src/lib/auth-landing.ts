@@ -23,7 +23,17 @@ export function postSignInDestination(returnTo?: string | null): string {
  * ("https://evil.example"), a protocol-relative one ("//evil.example") or a
  * backslash variant ("/\evil.example", which browsers normalise to "//")
  * would turn ?returnTo= into an open redirect off the login form.
+ *
+ * Both checks are load-bearing. The regex alone misses control characters:
+ * the URL parser strips tab, LF and CR before parsing, so "/\t/evil.example"
+ * resolves to "https://evil.example". The origin check alone would accept a
+ * relative path like "agents", which resolves same-origin but against
+ * wherever the visitor happens to stand.
  */
 function isSafeReturnPath(path: string | null | undefined): path is string {
-  return typeof path === "string" && /^\/(?![/\\])/.test(path);
+  return (
+    typeof path === "string" &&
+    /^\/(?![/\\])/.test(path) &&
+    new URL(path, window.location.origin).origin === window.location.origin
+  );
 }
