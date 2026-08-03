@@ -71,7 +71,9 @@ dev: sandbox-token
 	@echo "   Admin:    http://localhost:8000/admin"
 	@echo "   Frontend: http://localhost:3000  (run 'make dev-frontend' or 'cd frontend && bun dev')"
 	@echo ""
-	@echo "First time? Run 'make seed' to create the default admin user."
+	@echo "First time? Run 'make platform-bootstrap BOOTSTRAP_API_KEY=sk-...' —"
+	@echo "an organization, an owner, a model and a published agent in one step."
+	@echo "('make seed' is the older path: an admin login and nothing else.)"
 
 # === First-time setup: seed default admin user (one-shot) ===
 # Skipped when admin@example.com already exists. Safe to run again — exits
