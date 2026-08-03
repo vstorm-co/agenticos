@@ -31,55 +31,53 @@ interface AlertsPanelProps {
   disabled?: boolean;
 }
 
-/** How many people are named, in words rather than a bare digit. */
-function chosenCount(count: number): string {
-  if (count === 0) return "Choose people";
-  return count === 1 ? "1 person" : `${count} people`;
+/**
+ * How many people are named, in words rather than a bare digit.
+ *
+ * Takes the translator rather than reading one: it is called from a prop, so it runs
+ * outside any component of its own.
+ */
+function chosenCount(t: (key: string, values?: Record<string, number>) => string) {
+  return (count: number): string => {
+    if (count === 0) return t("choosePeople");
+    return count === 1 ? t("onePerson") : t("peopleCount", { count });
+  };
 }
 
 /** Which alert, and everything that has to be said about it in the UI. */
 interface AlertKindMeta {
   key: keyof NotificationSpec;
-  label: string;
-  trigger: string;
+  /** Catalog key for this alert's name; its trigger is the same key plus `Trigger`. */
+  words: string;
   icon: LucideIcon;
   /** `initiator` is refused on a usage report: it covers a period, not a run. */
   audiences: AlertAudience[];
 }
 
-const AUDIENCE_LABEL: Record<AlertAudience, string> = {
+/** Each audience's words live in the catalog; the table names which key. */
+const AUDIENCE_KEY: Record<AlertAudience, string> = {
   admins: "Admins",
-  owner: "The agent's owner",
-  initiator: "Whoever started the run",
-  chosen: "Specific people",
-};
-
-const AUDIENCE_HINT: Record<AlertAudience, string> = {
-  admins: "This organization's owners and admins, plus the deployment's app admins.",
-  owner: "The person who would fix this agent's configuration.",
-  initiator: "Nobody, for a run a schedule or a channel started.",
-  chosen: "A standing list, whoever happened to run it.",
+  owner: "Owner",
+  initiator: "Initiator",
+  chosen: "Chosen",
 };
 
 const ALERTS: readonly AlertKindMeta[] = [
   {
     key: "budget",
-    label: "Budget alerts",
-    trigger: "A run stopped because this agent reached its own monthly cap.",
+    words: "alertBudget",
     icon: CircleDollarSign,
     audiences: ["admins", "owner", "initiator", "chosen"],
   },
   {
     key: "approvals",
-    label: "Approval requests",
-    trigger: "A tool call parked, and the run is waiting on a person to decide.",
+    words: "alertApprovals",
     icon: Hand,
     audiences: ["admins", "owner", "initiator", "chosen"],
   },
   {
     key: "usage",
-    label: "Usage reports",
-    trigger: "Weekly and monthly, what this agent alone has spent.",
+    words: "alertUsage",
     icon: PieChart,
     // No `initiator`: a report covers a period rather than a run, so there is
     // no such person. The backend refuses it, and offering it here would be
@@ -201,13 +199,15 @@ function AlertRow({
           <meta.icon className="h-4 w-4" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium">{meta.label}</p>
-          <p className="text-muted-foreground mt-0.5 text-xs leading-relaxed">{meta.trigger}</p>
+          <p className="text-sm font-medium">{t(meta.words)}</p>
+          <p className="text-muted-foreground mt-0.5 text-xs leading-relaxed">
+            {t(`${meta.words}Trigger`)}
+          </p>
         </div>
         <Switch
           checked={alert.enabled}
           disabled={disabled}
-          aria-label={meta.label}
+          aria-label={t(meta.words)}
           onCheckedChange={(enabled) =>
             onChange(
               // Switching on with no audience left would save a spec the backend
@@ -242,14 +242,19 @@ function AlertRow({
                     // offer the same four audiences, so the label alone is not a
                     // unique name - a screen reader would announce four identical
                     // "Specific people" and none of them would say which alert.
-                    aria-label={`${meta.label}: ${AUDIENCE_LABEL[audience]}`}
+                    aria-label={t("alertAudience", {
+                      alert: t(meta.words),
+                      audience: t(`audience${AUDIENCE_KEY[audience]}`),
+                    })}
                     onCheckedChange={() => toggleAudience(audience)}
                   />
                   <div className="-mt-0.5 min-w-0">
                     <Label htmlFor={id} className="text-sm font-normal">
-                      {AUDIENCE_LABEL[audience]}
+                      {t(`audience${AUDIENCE_KEY[audience]}`)}
                     </Label>
-                    <p className="text-muted-foreground text-xs">{AUDIENCE_HINT[audience]}</p>
+                    <p className="text-muted-foreground text-xs">
+                      {t(`audience${AUDIENCE_KEY[audience]}Hint`)}
+                    </p>
                   </div>
                 </div>
               );
@@ -265,8 +270,8 @@ function AlertRow({
                   members={members}
                   selected={alert.user_ids}
                   onToggle={toggleMember}
-                  label={chosenCount}
-                  scope={meta.label}
+                  label={chosenCount(t)}
+                  scope={t(meta.words)}
                   disabled={disabled}
                 />
 
@@ -295,7 +300,7 @@ function AlertRow({
                             variant="ghost"
                             size="sm"
                             disabled={disabled}
-                            aria-label={`${meta.label}: remove ${label}`}
+                            aria-label={t("audienceRemove", { alert: t(meta.words), name: label })}
                             onClick={() => toggleMember(userId)}
                           >
                             <X className="h-3.5 w-3.5" />

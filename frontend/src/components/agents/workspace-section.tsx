@@ -41,46 +41,20 @@ interface WorkspaceSectionProps {
  */
 const BACKENDS: {
   id: Backend;
-  label: string;
-  detail: string;
+  /** Catalog key for this backend's name; its sentence is the same key plus `Detail`. */
+  words: string;
   icon: typeof FileText;
 }[] = [
-  {
-    id: "state",
-    label: "Files",
-    detail: "Files but no shell, stored here. Works on every deployment.",
-    icon: FileText,
-  },
-  {
-    id: "service",
-    label: "Container",
-    detail: "Files and a shell, on a sandbox connection your operator registered.",
-    icon: Boxes,
-  },
+  { id: "state", words: "backendState", icon: FileText },
+  { id: "service", words: "backendService", icon: Boxes },
 ];
 
-const SCOPES: { id: Scope; label: string; detail: string }[] = [
-  { id: "run", label: "Nobody", detail: "A fresh workspace every turn." },
-  {
-    id: "conversation",
-    label: "This conversation",
-    detail: "Everyone in the chat. On Slack a thread is a chat, so threads do not share.",
-  },
-  {
-    id: "channel",
-    label: "This channel",
-    detail: "Every thread in one channel shares. Direct messages stay separate.",
-  },
-  {
-    id: "user",
-    label: "Each person",
-    detail: "One workspace per person, across every surface they reach this agent on.",
-  },
-  {
-    id: "agent",
-    label: "Everyone using this agent",
-    detail: "One shared workspace for the whole organization.",
-  },
+const SCOPES: { id: Scope; words: string }[] = [
+  { id: "run", words: "scopeRun" },
+  { id: "conversation", words: "scopeConversation" },
+  { id: "channel", words: "scopeChannel" },
+  { id: "user", words: "scopeUser" },
+  { id: "agent", words: "scopeAgent" },
 ];
 
 /** Which connection this binding will actually run on, spec or default. */
@@ -174,9 +148,9 @@ export function WorkspaceSection({
             >
               <span className="flex items-center gap-1.5 text-sm font-medium">
                 <option.icon className="h-3.5 w-3.5" />
-                {option.label}
+                {t(`${option.words}Label`)}
               </span>
-              <span className="text-muted-foreground text-xs">{option.detail}</span>
+              <span className="text-muted-foreground text-xs">{t(`${option.words}Detail`)}</span>
             </button>
           ))}
         </div>
@@ -198,14 +172,14 @@ export function WorkspaceSection({
                 <SelectContent>
                   {SCOPES.map((option) => (
                     <SelectItem key={option.id} value={option.id}>
-                      {option.label}
+                      {t(`${option.words}Label`)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               <p className="text-muted-foreground text-xs">
-                {SCOPES.find((option) => option.id === scope)?.detail} Each channel this agent is
-                published to can override it.
+                {t(`${SCOPES.find((option) => option.id === scope)?.words ?? "scopeRun"}Detail`)}{" "}
+                Each channel this agent is published to can override it.
               </p>
             </div>
 

@@ -44,10 +44,11 @@ interface CapabilitySettingsProps {
   disabled?: boolean;
 }
 
-const APPROVAL_OPTIONS: { value: ApprovalMode; label: string }[] = [
-  { value: "default", label: "Follow the capability" },
-  { value: "required", label: "Always ask" },
-  { value: "never", label: "Never ask" },
+/** The three modes, in order. Their words live in the catalog under `approval*`. */
+const APPROVAL_OPTIONS: { value: ApprovalMode; words: string }[] = [
+  { value: "default", words: "approvalFollow" },
+  { value: "required", words: "approvalAlways" },
+  { value: "never", words: "approvalNever" },
 ];
 
 /** What approval comes out to once every rule has been applied: ask, or don't. */
@@ -64,28 +65,26 @@ type ToolTextField = "name" | "description";
  */
 const TOOL_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
-/** Why this name will not do, or null when it will. Empty is not a name. */
+/**
+ * Why this name will not do, as a catalog key, or null when it will.
+ *
+ * A key rather than a sentence: this is a pure function, called from a form field and
+ * from its own tests, and threading a translator through it to produce two fixed
+ * strings would put the words further from the catalog rather than closer.
+ */
 export function toolNameError(name: string): string | null {
-  if (name.length === 0) return "The model calls the tool by this name, so it cannot be blank.";
-  if (!TOOL_NAME_PATTERN.test(name)) {
-    return "Letters, digits and underscores only - the model calls this name verbatim.";
-  }
+  if (name.length === 0) return "toolNameBlank";
+  if (!TOOL_NAME_PATTERN.test(name)) return "toolNamePattern";
   return null;
 }
 
-/** What the chosen mode means for *this* capability, in one line. */
+/** What the chosen mode means for *this* capability, as a catalog key. */
 export function approvalHint(mode: ApprovalMode, sideEffecting: boolean): string {
-  if (mode === "required") {
-    return "A person approves every call before it runs.";
-  }
+  if (mode === "required") return "approvalHintRequired";
   if (mode === "never") {
-    return sideEffecting
-      ? "The agent acts unattended. Only for actions your organization has decided are safe."
-      : "No approval, which is what this capability would do anyway.";
+    return sideEffecting ? "approvalHintNeverSideEffecting" : "approvalHintNeverReadOnly";
   }
-  return sideEffecting
-    ? "Held for approval, because this capability changes something outside the agent."
-    : "Runs without approval, because this capability only reads.";
+  return sideEffecting ? "approvalHintDefaultSideEffecting" : "approvalHintDefaultReadOnly";
 }
 
 /**
@@ -254,13 +253,13 @@ export function CapabilityDetail({
             <SelectContent>
               {APPROVAL_OPTIONS.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
-                  {option.label}
+                  {t(option.words)}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
           <p className="text-muted-foreground text-xs">
-            {approvalHint(binding.approval, definition.side_effecting)}
+            {t(approvalHint(binding.approval, definition.side_effecting))}
             {definition.tools.length > 0 &&
               " Every tool below follows this until you answer for it separately."}
           </p>
@@ -324,13 +323,14 @@ export function secretProblem(
   requirement: SecretRequirement,
   secretId: string | null,
   secrets: readonly Secret[],
+  t: (key: string) => string,
 ): string | null {
   if (secretId === null) {
     return `No secret selected. This capability needs one of kind ${requirement.kind}, and the agent cannot be published until it has one.`;
   }
   const secret = secrets.find((candidate) => candidate.id === secretId);
   if (secret === undefined) {
-    return "The secret selected here is not in this organization's vault - it was deleted, or the spec was written against another organization. Publishing refuses it.";
+    return t("secretMissingFromVault");
   }
   if (secret.kind !== requirement.kind) {
     return `"${secret.name}" is of kind ${secret.kind}; this capability needs ${requirement.kind}. Publishing refuses it.`;
@@ -419,7 +419,7 @@ function SecretField({ binding, requirement, onChange, disabled }: SecretFieldPr
   const vaultWasRead = state === "ready" || state === "empty";
   const problem =
     binding.secret_id === null || vaultWasRead
-      ? secretProblem(requirement, binding.secret_id, secrets)
+      ? secretProblem(requirement, binding.secret_id, secrets, t)
       : null;
 
   return (
@@ -444,7 +444,7 @@ function SecretField({ binding, requirement, onChange, disabled }: SecretFieldPr
           aria-invalid={problem !== null}
           aria-describedby={problem === null ? undefined : errorId}
         >
-          <SelectValue placeholder={placeholderFor(state, requirement)} />
+          <SelectValue placeholder={placeholderFor(state, requirement, t)} />
         </SelectTrigger>
         <SelectContent>
           {usable.map((secret) => (
@@ -541,16 +541,20 @@ function vaultState(isLoading: boolean, listError: Error | null, usableCount: nu
 }
 
 /** What the trigger says while nothing is chosen, which is not the same in each state. */
-function placeholderFor(state: VaultState, requirement: SecretRequirement): string {
+function placeholderFor(
+  state: VaultState,
+  requirement: SecretRequirement,
+  t: (key: string) => string,
+): string {
   switch (state) {
     case "loading":
-      return "Reading the vault…";
+      return t("readingVault");
     case "unreadable":
-      return "The vault could not be read";
+      return t("vaultCouldNotBeRead");
     case "empty":
       return `No ${requirement.kind} secret in the vault`;
     case "ready":
-      return "Choose a secret";
+      return t("chooseSecret");
   }
 }
 
@@ -665,7 +669,8 @@ function ToolRow({ binding, tool, contract, sideEffecting, onChange, disabled }:
   const fieldId = (suffix: string) => `${binding.id}-tool-${tool.id}-${suffix}`;
   const approval = overrideFor(binding, tool.id);
   const name = effectiveText(binding, tool, "name");
-  const nameError = toolNameError(name);
+  const nameKey = toolNameError(name);
+  const nameError = nameKey === null ? null : t(nameKey);
   const changed = isToolOverridden(binding, tool.id);
 
   const edit = (field: ToolTextField, value: string) =>
@@ -734,7 +739,7 @@ function ToolRow({ binding, tool, contract, sideEffecting, onChange, disabled }:
               </SelectItem>
               {APPROVAL_OPTIONS.filter((option) => option.value !== "default").map((option) => (
                 <SelectItem key={option.value} value={option.value}>
-                  {option.label}
+                  {t(option.words)}
                 </SelectItem>
               ))}
             </SelectContent>

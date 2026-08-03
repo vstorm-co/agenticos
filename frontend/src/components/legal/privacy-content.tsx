@@ -12,7 +12,7 @@ export function PrivacyBodyEn() {
         uses, shares, and protects information when you use the Service.
       </p>
 
-      <h2>1. What we collect</h2>
+      <h2>{t("n1WhatWeCollect")}</h2>
       <h3>{t("informationYouProvide")}</h3>
       <ul>
         <li>
@@ -48,7 +48,7 @@ export function PrivacyBodyEn() {
         </li>
       </ul>
 
-      <h2>2. Why we use it</h2>
+      <h2>{t("n2WhyWeUse")}</h2>
       <ul>
         <li>{t("operateMaintainImproveService")}</li>
         <li>{t("processSubscriptionsPreventFraud")}</li>
@@ -57,13 +57,13 @@ export function PrivacyBodyEn() {
         <li>{t("detectAbuseEnforceOur")}</li>
       </ul>
 
-      <h2>3. AI processing</h2>
+      <h2>{t("n3AiProcessing")}</h2>
       <p>{t("whenYouUseAi")}</p>
       <p>
         <strong>{t("weDonAposT2")}</strong>
       </p>
 
-      <h2>4. Data sharing</h2>
+      <h2>{t("n4DataSharing")}</h2>
       <p>{t("weShareDataOnly")}</p>
       <ul>
         <li>
@@ -80,10 +80,10 @@ export function PrivacyBodyEn() {
         </li>
       </ul>
 
-      <h2>5. Retention</h2>
+      <h2>{t("n5Retention")}</h2>
       <p>{t("weKeepCustomerData")}</p>
 
-      <h2>6. Your rights</h2>
+      <h2>{t("n6YourRights")}</h2>
       <p>
         Depending on where you live, you may have rights to access, correct, delete, or export your
         personal data, and to object to or restrict certain processing. Email{" "}
@@ -91,19 +91,19 @@ export function PrivacyBodyEn() {
         {t("exerciseThemWeRespond")}
       </p>
 
-      <h2>7. International transfers</h2>
+      <h2>{t("n7InternationalTransfers")}</h2>
       <p>{t("weHostPrimarilyEu")}</p>
 
-      <h2>8. Security</h2>
+      <h2>{t("n8Security")}</h2>
       <p>{t("weUseTlsTransit")}</p>
 
-      <h2>9. Children</h2>
+      <h2>{t("n9Children")}</h2>
       <p>{t("serviceIsnAposT")}</p>
 
-      <h2>10. Changes</h2>
+      <h2>{t("n10Changes")}</h2>
       <p>{t("weAposLlNotify")}</p>
 
-      <h2>11. Contact</h2>
+      <h2>{t("n11Contact")}</h2>
       <p>
         Questions or requests: <a href="mailto:privacy@example.com">{t("privacyExampleCom4")}</a>.
       </p>
@@ -120,7 +120,7 @@ export function PrivacyBodyPl() {
         &bdquo;nas&rdquo;) zbiera, używa, udostępnia i chroni informacje gdy korzystasz z Usługi.
       </p>
 
-      <h2>1. Co zbieramy</h2>
+      <h2>{t("n1CoZbieramy")}</h2>
       <h3>{t("informacjeKtRePodajesz")}</h3>
       <ul>
         <li>
@@ -156,7 +156,7 @@ export function PrivacyBodyPl() {
         </li>
       </ul>
 
-      <h2>2. Po co tego używamy</h2>
+      <h2>{t("n2PoCoTego")}</h2>
       <ul>
         <li>{t("byObsUgiwaUtrzymywa")}</li>
         <li>{t("byPrzetwarzaSubskrypcjeI")}</li>
@@ -165,13 +165,13 @@ export function PrivacyBodyPl() {
         <li>{t("byWykrywaNaduYcia")}</li>
       </ul>
 
-      <h2>3. Przetwarzanie AI</h2>
+      <h2>{t("n3PrzetwarzanieAi")}</h2>
       <p>{t("gdyKorzystaszZFunkcji")}</p>
       <p>
         <strong>{t("nieTrenujemyAdnegoZ")}</strong>
       </p>
 
-      <h2>4. Udostępnianie danych</h2>
+      <h2>{t("n4UdostPnianieDanych")}</h2>
       <p>{t("udostPniamyDaneTylko")}</p>
       <ul>
         <li>
@@ -188,10 +188,10 @@ export function PrivacyBodyPl() {
         </li>
       </ul>
 
-      <h2>5. Retencja</h2>
+      <h2>{t("n5Retencja")}</h2>
       <p>{t("przechowujemyDaneKlientaTak")}</p>
 
-      <h2>6. Twoje prawa</h2>
+      <h2>{t("n6TwojePrawa")}</h2>
       <p>
         W zależności od miejsca zamieszkania, możesz mieć prawo do dostępu, sprostowania, usunięcia
         lub eksportu swoich danych osobowych, a także do sprzeciwu lub ograniczenia określonego
@@ -199,19 +199,19 @@ export function PrivacyBodyPl() {
         {t("byJeZrealizowaOdpowiadamy")}
       </p>
 
-      <h2>7. Transfery międzynarodowe</h2>
+      <h2>{t("n7TransferyMiDzynarodowe")}</h2>
       <p>{t("hostujemyGWnieW")}</p>
 
-      <h2>8. Bezpieczeństwo</h2>
+      <h2>{t("n8BezpieczeStwo")}</h2>
       <p>{t("uYwamyTlsTransit")}</p>
 
-      <h2>9. Dzieci</h2>
+      <h2>{t("n9Dzieci")}</h2>
       <p>{t("usUgaNieJest")}</p>
 
-      <h2>10. Zmiany</h2>
+      <h2>{t("n10Zmiany")}</h2>
       <p>{t("powiadomimyCiWAplikacji")}</p>
 
-      <h2>11. Kontakt</h2>
+      <h2>{t("n11Kontakt")}</h2>
       <p>
         Pytania lub żądania: <a href="mailto:privacy@example.com">{t("privacyExampleCom6")}</a>.
       </p>
