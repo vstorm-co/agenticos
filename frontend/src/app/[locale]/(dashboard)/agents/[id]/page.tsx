@@ -656,37 +656,45 @@ export default function AgentBuilderPage({ params }: PageProps) {
             <CardHeader>
               <CardTitle>Capabilities</CardTitle>
               <CardDescription>
-                What this agent can do. Anything that acts on the outside world needs a human
-                approval before it runs.
+                What this agent can do, and where it keeps what it produces. Anything that acts on
+                the outside world needs a human approval before it runs.
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <CapabilityWorkbench
-                catalog={grantable}
-                selected={spec.capabilities}
-                onToggle={toggleCapability}
-                onChange={updateCapability}
-                disabled={!canEdit}
-              />
-            </CardContent>
-          </Card>
+            <CardContent className="space-y-6">
+              {/* Above the picker, and inside the same card: the workspace is
+                  where the tools below put things, so reading it first is the
+                  order somebody configures in. It keeps its own controls rather
+                  than becoming a row - four backends with different
+                  infrastructure behind them, one of which shares files between
+                  people, is not the same kind of decision as switching on a
+                  chart tool. */}
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <h3 className="text-sm font-medium">Workspace</h3>
+                  <p className="text-muted-foreground text-sm">
+                    Where this agent keeps files between turns, and who else can read them.
+                    Attachments land here too, so a large file stops being pasted into every
+                    message.
+                  </p>
+                </div>
+                <WorkspaceSection
+                  definition={capabilities.find((entry) => entry.id === SANDBOX_ID)}
+                  binding={spec.capabilities.find((binding) => binding.id === SANDBOX_ID)}
+                  onToggle={toggleCapability}
+                  onChange={updateCapability}
+                  disabled={!canEdit}
+                />
+              </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Workspace</CardTitle>
-              <CardDescription>
-                Where this agent keeps files between turns, and who else can read them. Attachments
-                land here too, so a large file stops being pasted into every message.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <WorkspaceSection
-                definition={capabilities.find((entry) => entry.id === SANDBOX_ID)}
-                binding={spec.capabilities.find((binding) => binding.id === SANDBOX_ID)}
-                onToggle={toggleCapability}
-                onChange={updateCapability}
-                disabled={!canEdit}
-              />
+              <div className="border-border border-t pt-6">
+                <CapabilityWorkbench
+                  catalog={grantable}
+                  selected={spec.capabilities}
+                  onToggle={toggleCapability}
+                  onChange={updateCapability}
+                  disabled={!canEdit}
+                />
+              </div>
             </CardContent>
           </Card>
 
