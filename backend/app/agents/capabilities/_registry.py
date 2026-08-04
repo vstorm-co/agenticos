@@ -245,6 +245,24 @@ class CapabilityDef:
     # The credential this capability needs, declared as a *kind* - never as an
     # instance. Code says "I need an API key"; configuration says which one.
     secret: SecretRequirement | None = None
+    drift_config: Mapping[str, Any] = field(default_factory=dict)
+    """The configuration under which this capability offers every tool it declares.
+
+    Empty for almost every capability, because `tools` and what the model is
+    offered are the same list however it is configured. Set it when they are not:
+    a capability whose config switches a tool on has to declare that tool - a
+    tool absent from `tools` cannot be gated or renamed, and the dangerous half
+    of that is silent - but with the default config it then offers fewer tools
+    than it declares.
+
+    That is exactly the drift `tests/test_capability_registry.py` exists to
+    catch, and it compares the two for equality. Without this field the choice
+    would be between declaring less than the capability has (ungateable tools)
+    and loosening the comparison (a test that no longer catches the thing it is
+    for). This is the third option: the test builds with *this* configuration,
+    equality stays exact, and a tool the author's config leaves off stays
+    invisible to that agent's model while remaining declared.
+    """
 
     def needs_secret(self, config: BaseModel | None) -> bool:
         """Whether a binding with this configuration must name a secret.
@@ -333,6 +351,7 @@ def register(
     side_effecting: bool = False,
     scopes: Iterable[str] = (),
     secret: SecretRequirement | None = None,
+    drift_config: Mapping[str, Any] | None = None,
 ) -> Callable[[CapabilityBuilder], CapabilityBuilder]:
     """Register a capability builder.
 
