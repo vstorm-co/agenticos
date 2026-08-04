@@ -298,6 +298,33 @@ class TestTheStorageCeiling:
         assert result.occurrences == 1
         assert "hello there" in backend.read("/notes.txt")
 
+    def test_the_advice_names_only_what_the_agent_can_actually_do(self):
+        """It used to say "Delete or shorten something first".
+
+        There is no delete: `StateBackend` exposes none and `WORKSPACE_TOOLS`
+        declares none, so the first half of the advice sent the model looking for
+        a tool that does not exist. Shortening and overwriting are the two moves
+        it has.
+        """
+        backend = CappedStateBackend(StateBackend(), max_bytes=400)
+
+        result = backend.write("/huge.txt", "x" * 5000)
+
+        assert result.error is not None
+        assert "delete" not in result.error.lower()
+        assert "Shorten or overwrite" in result.error
+
+    def test_overwriting_a_big_file_with_a_small_one_frees_the_room(self):
+        """The move the message now recommends, so it had better work - the check
+        is on the resulting size, so a write that shrinks the document passes."""
+        backend = CappedStateBackend(StateBackend(), max_bytes=400)
+        backend.write("/big.txt", "x" * 200)
+
+        result = backend.write("/big.txt", "small")
+
+        assert result.error is None
+        assert backend.read("/big.txt").strip().endswith("small")
+
     def test_a_failing_write_is_reported_rather_than_measured(self):
         """A path the backend rejects never reaches the ceiling check."""
         backend = CappedStateBackend(StateBackend(), max_bytes=400)

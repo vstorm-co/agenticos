@@ -57,11 +57,14 @@ class CappedStateBackend:
     def _snapshot(self) -> dict[str, FileData]:
         """A restorable copy of the document.
 
-        One level deep is enough and worth the precision: `StateBackend` replaces
-        an entry's `content` list rather than mutating it, so copying each entry's
-        mapping preserves the previous value while the line lists stay shared.
-        Deep-copying a four-megabyte document on every write would cost more than
-        the write.
+        One level deep is enough and worth the precision, and it holds because of
+        what the library does rather than by luck: `StateBackend.write` builds a
+        fresh `FileData` and rebinds `files[path]`, and `edit` assigns
+        `stored["content"] = ...` - both replace the list rather than mutating it,
+        so copying each entry's mapping preserves the previous value while the
+        line lists stay shared. `files` is the live dict too, so `_restore`
+        reaches the backend rather than a copy of it. Deep-copying a
+        four-megabyte document on every write would cost more than the write.
         """
         return {path: cast(FileData, dict(entry)) for path, entry in self._backend.files.items()}
 
@@ -70,12 +73,25 @@ class CappedStateBackend:
         self._backend.files.update(snapshot)
 
     def _too_large(self) -> str | None:
+        """Whether the document is now over the line, and what to tell the model.
+
+        The measure is the absolute size rather than the change, so a document
+        that is *already* over the ceiling can only be brought back under in one
+        move - a partial cleanup is refused and rolled back with it. Left that way
+        deliberately: getting there needs `SANDBOX_STATE_MAX_BYTES` lowered
+        beneath a document that was stored under the old value, which is an
+        operator's change and not something an agent can do to itself. A delta
+        check would be more code for a case that only a downgrade reaches.
+        """
         size = document_size(self._backend.files)
         if size <= self._max_bytes:
             return None
+        # "Shorten or overwrite", not "delete": `StateBackend` exposes no delete
+        # and `WORKSPACE_TOOLS` declares none, so there is no tool for it. Naming
+        # one would send the model looking for something that is not there.
         return (
             f"The workspace is full: this would take it to {size} bytes, over the "
-            f"{self._max_bytes}-byte limit. Delete or shorten something first, or "
+            f"{self._max_bytes}-byte limit. Shorten or overwrite something first, or "
             "keep large intermediate results out of the workspace."
         )
 
