@@ -61,5 +61,16 @@ def file_response(data: bytes, *, path: str, download: bool) -> Response:
             # this is what stops a browser deciding such a body is HTML after all -
             # sniffing would hand back the inline-script hole the list refuses.
             "X-Content-Type-Options": "nosniff",
+            # Belt to the allowlist's braces. `sandbox` with no allow-list drops the
+            # response into a unique opaque origin, so script inside a document an
+            # agent produced cannot reach this application's DOM, cookies or storage
+            # even if a viewer would have run it.
+            #
+            # It is here for `.pdf`, the one entry above that is a *document* rather
+            # than a raster image: a PDF may carry JavaScript, and while every
+            # current browser viewer refuses to run it, "the agent wrote it" is not
+            # a trust boundary and the header costs nothing. Chrome and Firefox both
+            # still render a sandboxed PDF in their own viewer.
+            "Content-Security-Policy": "sandbox",
         },
     )

@@ -232,6 +232,9 @@ class TestReadingOneFileAsBytes:
         assert response.headers["content-type"] == "application/pdf"
         assert response.headers["content-disposition"].startswith("inline")
         assert response.content == b"%PDF-1.7"
+        # A PDF may carry JavaScript, and this is what makes a viewer that ran it
+        # harmless: an opaque origin cannot reach the application's DOM or cookies.
+        assert response.headers["content-security-policy"] == "sandbox"
 
     async def test_the_same_disposition_rule_applies_here(self, client: AsyncClient):
         """Decided in one module for both routes. The second copy is where `.svg`
