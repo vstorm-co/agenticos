@@ -274,35 +274,6 @@ class AgentSession:
                     },
                 )
 
-            # Before `complete`, so a client that draws the panel has it while the
-            # turn is still on screen. The queue and the email carry the same rows;
-            # this is a shortcut for whoever is already looking at the tab.
-            if turn.parked:
-                await send_event(
-                    self.websocket,
-                    "tool_approval_required",
-                    {
-                        "run_id": str(turn.run_id),
-                        "action_requests": [
-                            {
-                                "id": str(parked.approval_id),
-                                "tool_call_id": parked.tool_call_id,
-                                "tool_name": parked.tool_name,
-                                "args": parked.tool_args,
-                            }
-                            for parked in turn.parked
-                        ],
-                        # Editing a parked call is not offered: the arguments were
-                        # already recorded on the row the approver is deciding
-                        # about, and letting the chat rewrite them would mean
-                        # approving something other than what was asked.
-                        "review_configs": [
-                            {"tool_name": parked.tool_name, "allow_edit": False}
-                            for parked in turn.parked
-                        ],
-                    },
-                )
-
             await send_event(
                 self.websocket,
                 "complete",
