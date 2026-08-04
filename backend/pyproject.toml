@@ -60,7 +60,7 @@ dependencies = [
     "tavily-python>=0.7.27",
     "pydantic-monty>=0.0.19",
     "pydantic-ai-skills>=0.11.0",
-    "cryptography>=44.0.0",
+    "cryptography>=50.0.0",
     "aiogram>=3.17,<4.0",
     "slack-sdk>=3.35.0",
 ]
