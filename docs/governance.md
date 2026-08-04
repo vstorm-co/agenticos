@@ -45,6 +45,74 @@ one expensive call every time.
     to the session context - which rolls back on any exception and is never
     reached at all on cancellation.
 
+### Delegation spends the parent's budget
+
+A run can contain another agent's whole conversation - see
+[delegate vs inline specialist](concepts.md#delegate-vs-inline-specialist). One run
+has **one spend ledger**, and every delegate records into it. That is what makes
+the parent's cap see a delegation's spend before its next model request, at
+precisely the moment delegation multiplies what a turn can cost.
+
+It follows that **the caps that bind inside a delegation are the parent's**. A
+delegate's own `budget.monthly_usd` is not enforced mid-parent-run: two guards
+metering one ledger would double-count every request, and the ceiling that matters
+is the one on the run somebody started. The delegate's own cap still governs runs
+*of the delegate itself*.
+
+Each delegate prices its own requests, though, because a guard prices what it
+records: a delegate on Anthropic metered through a guard built for OpenAI would be
+priced against the wrong catalog - silently, and usually as unpriced.
+
+Three further ceilings exist because a budget is a poor way to stop a fan-out - it
+only notices after the money is gone. `max_depth` bounds nesting, `max_fanout`
+bounds how many delegations run at once, and each delegate's own `max_steps` bounds
+its loop. See the
+[`subagents` capability](reference/capabilities.md#delegation).
+
+### What a delegated run is recorded as
+
+A delegation to a **published** agent gets an `agent_runs` row of its own, carrying
+`parent_run_id` and the delegation's task id. An **inline specialist** gets none: it
+has no agent to attribute one to, so its cost is the parent's and the tool call in
+the transcript is the record.
+
+!!! important "The parent's row is the authority; a child's share is indicative"
+
+    A delegate spends into the shared ledger, so the only honest description of what
+    one delegation cost is *what the shared total grew by while it ran*. That is
+    exact for a `sync` delegation, which holds the parent's run loop - nothing else
+    in the run could have spent. Two background delegations overlap, and each then
+    reports a window that contains some of the other's spend.
+
+    Splitting it exactly would need a ledger per agent, which is the design that
+    stops the parent's cap binding at all. So the approximation is stated rather
+    than hidden.
+
+The child row is what makes two different questions answerable, and they want
+opposite arithmetic:
+
+| The question | Child rows |
+|---|---|
+| **What does the organization owe?** | **excluded** - the parent's row already contains these tokens, so counting both bills the organization twice for one request |
+| **What did *this agent* cost this month?** | **included** - a delegate's rows are the only place its own spend is recorded |
+
+The second is what makes "the researcher cost $40 this month" answerable, and it is
+what a usage report or a budget alert on that agent fires on. The organization's
+monthly number also carries ingestion spend, which the per-agent number does not:
+indexing a shared knowledge base is nobody's agent's spend.
+
+### A pinned delegate does not move on its own
+
+A delegate is pinned to a version, so its author shipping a fix changes nothing for
+its callers until somebody republishes the parent against the new pin. That is the
+same guarantee publishing gives everywhere else here, and it cuts both ways: a bug
+fixed in a delegate is a bug still live in every parent that has not moved.
+
+The Builder is where that is surfaced - it compares each pin against what the
+delegate publishes now and offers to move it - because staleness nothing surfaces is
+a bug frozen in place. A pin whose version no longer exists **fails the run** and
+names the delegate; never a quiet fall back to the current version.
+
 ### Step limits
 
 The other kind of runaway is a tool loop: cheap per call, and it never finishes. A
@@ -78,6 +146,31 @@ Three properties worth knowing:
 - **`required` works on any capability**, not only side-effecting ones. "This only
   reads, but in my organization somebody approves it anyway" is a real decision
   and is expressible.
+
+### An approval inside a delegation
+
+A delegate's tools are gated by the delegate's own spec, and it reaches the same
+queue the parent's caller is already waiting on - a specialist that needs a person
+needs the person who is standing there. The entry names the **delegate's** tool and
+the arguments it proposed, because the delegate's own gate is what wrote it.
+
+What the parent's run does is park, rather than be handed something that looks like
+a finished delegation. That is worth stating because it used to be otherwise: every
+agent built here declares an output type that lets a run end with its parked calls
+as *output* instead of raising, and the delegation library used to serialise that
+object and hand the parent's model `{"calls": [], "approvals": [...]}` as the
+specialist's report, task marked completed. It was the default path rather than an
+edge case, and it is fixed in the pinned version.
+
+!!! warning "A gated tool inside a delegate cannot be resumed yet"
+
+    A resume replays the parked run from its stored conversation, and the parent's
+    conversation holds the delegation's tool call and no record of what the delegate
+    said - so continuing re-runs the delegation from the start rather than picking up
+    inside it, and the approval that was granted matches nothing in the new attempt.
+
+    Until that is closed, keep tools that need a person on the agent somebody is
+    talking to rather than behind a delegation.
 
 !!! warning "MCP tools are outside the approval gate"
 
