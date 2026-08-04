@@ -27,6 +27,7 @@ function exposure(overrides: Partial<Exposure> = {}): Exposure {
     channel_bot_id: "b1",
     channel_bot_name: "Acme Support",
     environment_id: null,
+    session_scope: null,
     is_active: true,
     created_at: null,
     ...overrides,
@@ -132,6 +133,23 @@ describe("useExposures", () => {
     });
   });
 
+  it("sends only session_scope when a surface overrides who shares a workspace", async () => {
+    // The same rule the other patches follow: the server applies exactly what it
+    // was sent, so a field read back and returned would overwrite whatever
+    // somebody changed in between.
+    vi.mocked(apiClient.patch).mockResolvedValue(exposure({ session_scope: "channel" }));
+    const result = await hook();
+
+    await result.current.setSessionScope.mutateAsync({
+      exposureId: "e1",
+      sessionScope: "channel",
+    });
+
+    expect(apiClient.patch).toHaveBeenCalledWith("/agents/a1/exposures/e1", {
+      session_scope: "channel",
+    });
+  });
+
   it("re-reads the bindings after one is removed", async () => {
     const { toast } = await import("sonner");
     vi.mocked(apiClient.delete).mockResolvedValue(undefined);
@@ -161,9 +179,12 @@ describe("useExposures", () => {
     await expect(
       result.current.setEnvironment.mutateAsync({ exposureId: "e1", environmentId: "env-1" }),
     ).rejects.toThrow(refused);
+    await expect(
+      result.current.setSessionScope.mutateAsync({ exposureId: "e1", sessionScope: "channel" }),
+    ).rejects.toThrow(refused);
     await expect(result.current.revoke.mutateAsync("e1")).rejects.toThrow(refused);
 
-    expect(toast.error).toHaveBeenCalledTimes(4);
+    expect(toast.error).toHaveBeenCalledTimes(5);
     expect(toast.error).toHaveBeenCalledWith("You cannot publish this agent");
   });
 });

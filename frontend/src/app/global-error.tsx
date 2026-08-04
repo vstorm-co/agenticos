@@ -9,7 +9,12 @@ export default function GlobalError({
 }) {
   return (
     <html lang="en">
-      <body style={{ margin: 0, fontFamily: "Inter, system-ui, sans-serif" }}>
+      <body
+        style={{
+          margin: 0,
+          fontFamily: "Inter, system-ui, sans-serif" /* i18n-exempt: a CSS font stack */,
+        }}
+      >
         <div
           style={{
             minHeight: "100vh",

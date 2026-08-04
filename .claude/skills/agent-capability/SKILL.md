@@ -42,9 +42,28 @@ backend/app/agents/capabilities/<name>/
 only fires if something imports that module, which is how a capability vanishes
 from the Builder with every test still green.
 
+A capability whose tools come from a library has no `_toolset.py` — `skills` and
+`sandbox` are both in the test's `EXTERNAL_TOOLSET` set. The tool *text* is still
+this repository's: declare it once in `_capability.py` and hand the same
+descriptions to the library, so the catalog and the model read the same sentence
+rather than two copies drifting in two repositories.
+
 Read `clock/` for the smallest complete example, `knowledge/` for one with a config
 schema, resources and a scope, `web_research/` for a conditional secret
-requirement.
+requirement, `sandbox/` for per-tool approval and a resource the runner resolves.
+
+## When one flag cannot describe the whole capability
+
+`side_effecting` on `@register` is the capability's answer, and
+`CapabilityToolInfo.side_effecting` overrides it per tool. Use the per-tool form
+when a capability genuinely both reads and writes: marking the whole of `sandbox`
+side-effecting makes an agent ask permission to list a directory, and not marking
+it lets a write run unattended. An author would then hand-write a `tool_approval`
+override per tool in every spec, and the one they forget is the dangerous one.
+
+`None` — the default — defers to the capability, so every capability that
+declares nothing behaves exactly as it did. A binding's `tool_approval` still
+beats both: that is the operator's decision, and it wins over the code's.
 
 ## The three things that fail silently
 

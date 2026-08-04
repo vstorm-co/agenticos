@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { useQuery } from "@tanstack/react-query";
 import { IngestionSettings } from "@/components/kb/ingestion-settings";
+import { InlineSecret } from "@/components/vault/inline-secret";
 import { useKnowledgeBases, useSecrets } from "@/hooks";
 import { apiClient } from "@/lib/api-client";
 import { submitFailure } from "@/lib/api-error";
@@ -34,6 +35,7 @@ import {
   sameIngestion,
 } from "@/lib/ingestion-config";
 import type { CreateKnowledgeBaseInput, IngestionConfig, KBScope } from "@/types";
+import { useTranslations } from "next-intl";
 
 /** What the backend accepts, so an over-long value is refused before it is sent. */
 const MAX_NAME = 128;
@@ -57,6 +59,7 @@ interface CreateKBDialogProps {
 }
 
 export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialogProps) {
+  const t = useTranslations("kb");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [scope, setScope] = useState<KBScope>("personal");
@@ -141,22 +144,22 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
           pushes Create off the bottom of the screen. */}
       <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Create knowledge base</DialogTitle>
+          <DialogTitle>{t("createKnowledgeBase")}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-4">
           <div className="-mx-1 min-h-0 flex-1 space-y-4 overflow-y-auto px-1">
-            <FormField label="Name" htmlFor="kb-name" error={errors.name}>
+            <FormField label={t("name")} htmlFor="kb-name" error={errors.name}>
               <Input
                 id="kb-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Product docs"
+                placeholder={t("productDocs")}
                 maxLength={MAX_NAME}
                 autoFocus
               />
             </FormField>
             <FormField
-              label="Description (optional)"
+              label={t("descriptionOptional")}
               htmlFor="kb-description"
               error={errors.description}
             >
@@ -164,20 +167,20 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                 id="kb-description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="What documents will this KB contain?"
+                placeholder={t("whatDocumentsWillKb")}
                 maxLength={MAX_DESCRIPTION}
                 rows={2}
               />
             </FormField>
             <div className="space-y-1.5">
-              <Label htmlFor="kb-scope">Scope</Label>
+              <Label htmlFor="kb-scope">{t("scope")}</Label>
               <Select value={scope} onValueChange={(v) => setScope(v as KBScope)}>
                 <SelectTrigger id="kb-scope">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="personal">Personal - only you</SelectItem>
-                  <SelectItem value="org">Organization - all members</SelectItem>
+                  <SelectItem value="personal">{t("personalOnlyYou")}</SelectItem>
+                  <SelectItem value="org">{t("organizationAllMembers")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -194,24 +197,20 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                 <span className="text-muted-foreground ml-auto text-xs">
                   {embeddingModel && embeddingModel !== embeddingModels?.default
                     ? embeddingModel
-                    : "deployment default"}
+                    : t("deploymentDefault")}
                 </span>
               </summary>
               <div className="space-y-4 border-t p-4">
-                <p className="text-muted-foreground text-xs">
-                  Frozen at creation: the collection&apos;s vectors are produced by this model and
-                  cannot be re-indexed under another one later. The key decides whose account pays
-                  for embedding.
-                </p>
+                <p className="text-muted-foreground text-xs">{t("frozenAtCreationCollection")}</p>
                 <div className="space-y-1.5">
-                  <Label htmlFor="kb-embedding-model">Model</Label>
+                  <Label htmlFor="kb-embedding-model">{t("model")}</Label>
                   <Select
                     value={embeddingModel ?? embeddingModels?.default ?? ""}
                     onValueChange={setEmbeddingModel}
                     disabled={!embeddingModels}
                   >
                     <SelectTrigger id="kb-embedding-model">
-                      <SelectValue placeholder="Loading models…" />
+                      <SelectValue placeholder={t("loadingModels")} />
                     </SelectTrigger>
                     <SelectContent>
                       {(embeddingModels?.models ?? []).map((entry) => (
@@ -224,7 +223,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="kb-embedding-key">Key</Label>
+                  <Label htmlFor="kb-embedding-key">{t("key")}</Label>
                   <Select
                     value={embeddingSecretId ?? DEPLOYMENT_KEY}
                     onValueChange={(v) => setEmbeddingSecretId(v === DEPLOYMENT_KEY ? null : v)}
@@ -233,7 +232,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={DEPLOYMENT_KEY}>Deployment key</SelectItem>
+                      <SelectItem value={DEPLOYMENT_KEY}>{t("deploymentKey")}</SelectItem>
                       {embeddingKeys.map((secret) => (
                         <SelectItem key={secret.id} value={secret.id}>
                           {secret.name}
@@ -241,11 +240,17 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                       ))}
                     </SelectContent>
                   </Select>
-                  {embeddingKeys.length === 0 && (
-                    <p className="text-muted-foreground text-xs">
-                      Add an OpenRouter key in the vault to bill embeddings to this organization.
-                    </p>
-                  )}
+                  <p className="text-muted-foreground text-xs">{t("keyHereBillsEmbeddings")}</p>
+                  {/* Rather than only telling somebody to go and add one: a picker
+                      with nothing in it and no way to fill it is a dead end, and
+                      the answer to "add a key in the vault" is a form, not a
+                      sentence. */}
+                  <InlineSecret
+                    kind="api_key"
+                    purpose={EMBEDDING_KEY_PURPOSE}
+                    suggestedName={t("embeddingsKeyName")}
+                    onCreated={setEmbeddingSecretId}
+                  />
                 </div>
               </div>
             </details>
@@ -261,16 +266,11 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                 <ChevronRight className="h-3.5 w-3.5 transition-transform group-open:rotate-90" />
                 How documents are parsed
                 <span className="text-muted-foreground ml-auto text-xs">
-                  {chosen ? "customized" : "deployment defaults"}
+                  {chosen ? "customized" : t("deploymentDefaults")}
                 </span>
               </summary>
               <div className="space-y-4 border-t p-4">
-                <p className="text-muted-foreground text-xs">
-                  Left alone, this collection inherits whatever defaults the deployment is
-                  configured with. The values below are the platform&apos;s; changing any one of
-                  them sends all of them, and they become this collection&apos;s until somebody
-                  edits them.
-                </p>
+                <p className="text-muted-foreground text-xs">{t("leftAloneCollectionInherits")}</p>
                 <IngestionSettings
                   idPrefix="kb-new"
                   value={ingestion}
@@ -284,10 +284,10 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
+              {t("cancel")}
             </Button>
             <Button type="submit" disabled={!canSubmit || isSubmitting}>
-              {isSubmitting ? "Creating..." : "Create"}
+              {isSubmitting ? t("creating") : t("create")}
             </Button>
           </DialogFooter>
         </form>

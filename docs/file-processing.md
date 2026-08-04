@@ -36,6 +36,61 @@ When a user uploads a file in the chat interface, the following pipeline runs:
 | **DOCX** | application/vnd.openxmlformats-officedocument.wordprocessingml.document | .docx | Paragraphs extracted via `python-docx`. Appended to prompt as context. |
 | **Text** | text/plain, text/markdown | .txt, .md | UTF-8 decoded directly. Appended to prompt as context. |
 
+### Where an attachment goes depends on the agent
+
+The "appended to prompt" column above is what happens to an agent with **no
+workspace**, and it is the whole file, on every turn. A two-hundred page report
+costs its full token weight when the user asks the first question and again when
+they ask "and what about March"; a fifty-megabyte CSV cannot be attached at all.
+
+An agent with the [`sandbox` capability](reference/capabilities.md#files--shell)
+gets the file instead of the text:
+
+| Attachment | No workspace | With a workspace |
+|---|---|---|
+| text, csv, md, json | parsed text pasted inline | written to `/uploads/`, message carries a reference and a 20-line head |
+| pdf, docx | parsed text pasted inline | the original **and** a `.txt` beside it; reference |
+| image | `BinaryContent` | `BinaryContent` **and** written; reference names the path |
+
+The reference is what the model actually reads:
+
+```
+Attached file: raport.csv (/uploads/3f2a1b9c-raport.csv, 2.4 MB, text)
+First 20 lines:
+month,total
+jan,10
+...
+```
+
+Enough to tell a sales export from a log and to see the column names — which is
+what the model needs in order to decide whether reading the rest is worth a tool
+call. The file has stopped being context and become data.
+
+Four things about it are deliberate:
+
+- **Images go both ways.** The model must still *see* the picture — that is what
+  a multimodal model is for, and a path string is not a substitute — and it must
+  also be able to resize or crop it, which needs bytes on a filesystem. Above
+  `SANDBOX_INLINE_IMAGE_MAX_BYTES` only the file is kept, because past that point
+  paying for the bytes twice stops being worth it.
+- **A PDF gets both halves.** The bytes are what a person asked to be given; the
+  text this platform already extracted is the half a shell can actually read.
+- **The same file is written once.** The path is derived from the `ChatFile` id,
+  so re-attaching it on turn five resolves to the path it already has — an upload
+  costs one write, not one per turn for the rest of the conversation.
+- **The filename is not trusted.** `../../etc/passwd` becomes `etc_passwd`; two
+  files called `report.csv` cannot overwrite each other.
+
+A file that cannot be stored — a full workspace — falls back to the inline path
+rather than vanishing, and one the file store cannot load is skipped rather than
+failing the turn: the person asked a question, and answering without the
+attachment beats not answering.
+
+Routing happens in `app/services/attachments.py`, called from the chat runner
+rather than from each surface. It has to be there: where a file goes depends on
+whether the agent has a workspace, and that is decided by `prepare`, which has
+not run when a surface is assembling its prompt.
+
 ### PDF Parsing (Chat)
 
 Chat attachments are read with **PyMuPDF**, and that is not configurable. An
@@ -226,3 +281,14 @@ describe images using LLM vision capabilities. Image description is a
 per-collection setting: turn it on in the knowledge base's ingestion
 configuration and pick a vision-capable model profile there. The generated
 descriptions are included in the document text for better semantic search.
+
+## From a channel
+
+A file sent to a Slack, Telegram or Mattermost bot enters here, not beside here.
+The adapter fetches it with the bot's own credential, it goes through the same
+validation a browser upload does, and it becomes the same `ChatFile` row — so the
+routing above applies unchanged and a channel cannot become the lenient path.
+
+What differs is only what a refusal looks like: there is no form to show an error
+in, so a file that was too large or of an unsupported type is named in the bot's
+reply. See [Channels](channels.md#files).

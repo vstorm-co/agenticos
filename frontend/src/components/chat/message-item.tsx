@@ -2,15 +2,18 @@
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { cn } from "@/lib/utils";
-import type { ChatMessage, ChatMessageFile } from "@/types";
+import type { ChatMessage, ChatMessageFile, MessagePart } from "@/types";
 import type { Agent } from "@/types/agents";
 import { ToolCallCard } from "./tool-call-card";
+import { AgentSteps } from "./agent-step";
 import { MarkdownContent } from "./markdown-content";
 import { CopyButton } from "./copy-button";
+import { MessageCost } from "./message-cost";
 import { RatingButtons } from "./rating-buttons";
 import { useChatStore, useFilePreviewStore } from "@/stores";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
-import { Bot, FileText, Globe, Paperclip, RefreshCw, User } from "lucide-react";
+import { Bot, FileText, Globe, Paperclip, RefreshCw, Sparkles, User } from "lucide-react";
+import { useTranslations } from "next-intl";
 import Image from "next/image";
 import { useAuthStore } from "@/stores";
 import { getFileUrl } from "@/lib/file-api";
@@ -27,24 +30,36 @@ function ThinkingBlock({
   isStreaming: boolean;
 }) {
   return (
-    <details
-      className="border-foreground/10 bg-muted/40 group rounded-2xl rounded-tl-sm border px-3 py-2 sm:px-4"
-      open={open}
-    >
-      <summary className="text-foreground/55 hover:text-foreground/80 flex cursor-pointer items-center gap-2 font-mono text-[10px] tracking-wider uppercase select-none">
-        <span className="bg-foreground/30 inline-block h-1.5 w-1.5 rounded-full" />
-        Thinking
+    <details className="group" open={open}>
+      {/* A line, not a box. The reasoning is an aside on the way to an answer, and a
+          bordered panel around it gives it more weight on the page than the answer
+          itself - which is backwards, and was the loudest thing in every turn. */}
+      <summary className="text-muted-foreground hover:text-foreground/80 flex cursor-pointer items-center gap-2 text-[13px] select-none">
+        <Sparkles className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden />
+        Thought about it
         {isStreaming && (
           <span className="bg-foreground/40 inline-block h-1 w-1 animate-pulse rounded-full" />
         )}
       </summary>
-      <pre className="text-foreground/65 mt-2 max-h-72 overflow-y-auto font-mono text-[11px] leading-relaxed whitespace-pre-wrap">
+      <pre className="text-muted-foreground border-foreground/10 mt-2 max-h-72 overflow-y-auto border-l pl-3.5 text-[12px] leading-relaxed whitespace-pre-wrap">
         {text}
       </pre>
     </details>
   );
 }
 
+/**
+ * What was said, by whichever side said it.
+ *
+ * **Only the person gets a bubble.** An assistant turn is prose - headings, lists,
+ * code, a table - and a rounded grey box around it makes every answer look like a
+ * chat message from 2016: the fill fights the code blocks nested inside it, the
+ * padding eats the width a table needs, and a turn made of three parts arrives as
+ * three separate boxes with hairlines between them. Unwrapped, the answer is the
+ * page, which is what every tool of this kind settled on. The user's message keeps
+ * its bubble precisely because it is the short one, and the contrast is what makes a
+ * long transcript scannable at all.
+ */
 function TextBubble({
   text,
   showCursor,
@@ -56,28 +71,26 @@ function TextBubble({
   isUser: boolean;
   onCiteClick?: (index: number) => void;
 }) {
-  return (
-    <div
-      className={cn(
-        "relative rounded-2xl px-3 py-2 sm:px-4 sm:py-2.5",
-        isUser ? "bg-foreground text-background rounded-tr-sm" : "bg-muted rounded-tl-sm",
-      )}
-    >
-      {isUser ? (
+  if (isUser) {
+    return (
+      <div className="bg-foreground text-background relative rounded-2xl rounded-tr-sm px-3 py-2 sm:px-4 sm:py-2.5">
         <p className="text-sm break-words whitespace-pre-wrap">{text}</p>
-      ) : (
-        <div className="prose-sm max-w-none text-sm">
-          <MarkdownContent content={text} onCiteClick={onCiteClick} />
-          {showCursor && (
-            <span className="ml-1 inline-block h-4 w-1.5 animate-pulse rounded-full bg-current" />
-          )}
-        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="prose-sm max-w-none text-[15px] leading-relaxed">
+      <MarkdownContent content={text} onCiteClick={onCiteClick} />
+      {showCursor && (
+        <span className="ml-1 inline-block h-4 w-1.5 animate-pulse rounded-full bg-current" />
       )}
     </div>
   );
 }
 
 function SourcesButton({ sources, onClick }: { sources: SourceItem[]; onClick: () => void }) {
+  const t = useTranslations("chat");
   const ragCount = sources.filter((s) => s.type === "rag").length;
   const webCount = sources.filter((s) => s.type === "web").length;
 
@@ -100,14 +113,74 @@ function SourcesButton({ sources, onClick }: { sources: SourceItem[]; onClick: (
         )}
       </span>
       <span className="text-foreground/60 text-[11px] font-medium">
-        {sources.length} source{sources.length !== 1 ? "s" : ""}
+        {t("sourceCount", { count: sources.length })}
       </span>
     </button>
   );
 }
 
+/**
+ * One stretch of a turn: a run of tool steps, or a single part of another kind.
+ *
+ * The two shapes are separate so the render has nothing to defend against - a run of
+ * tools always has a first step, and a part of another kind always has the text that
+ * earned it a run.
+ */
+type PartRun =
+  | {
+      kind: "tools";
+      /** Never empty: the run exists because a call opened it. */
+      parts: [MessagePart, ...MessagePart[]];
+      /** Whether this run ends the turn, which is what may still be streaming. */
+      isLast: boolean;
+    }
+  | { kind: "other"; part: MessagePart; content: string; isLast: boolean };
+
+/**
+ * The turn's parts, with consecutive tool calls gathered into one run.
+ *
+ * Grouping is what makes the steps read as one thread: the rail they hang from has to
+ * be a single element, because a border on each row leaves gaps between them and a
+ * dashed line says something this does not mean. A part of any other kind - text, or
+ * thinking - closes the run, which is right: the agent said something, so what follows
+ * is a new stretch of work.
+ *
+ * Empty text and thinking parts are dropped rather than rendered as empty bubbles,
+ * which is what the flat map did with them.
+ */
+export function runsOf(parts: MessagePart[]): PartRun[] {
+  const runs: PartRun[] = [];
+  for (const part of parts) {
+    if (part.type === "tool" && part.toolCall) {
+      const open = runs.at(-1);
+      if (open?.kind === "tools") open.parts.push(part);
+      else runs.push({ kind: "tools", parts: [part], isLast: false });
+      continue;
+    }
+    if (
+      (part.type === "text" || part.type === "thinking") &&
+      part.content !== undefined &&
+      part.content !== ""
+    ) {
+      runs.push({ kind: "other", part, content: part.content, isLast: false });
+    }
+  }
+  const last = runs.at(-1);
+  if (last !== undefined) last.isLast = true;
+  return runs;
+}
+
 interface MessageItemProps {
   message: ChatMessage;
+  /**
+   * Open this turn's last tool step on mount.
+   *
+   * Set for the most recent turn that used a tool - see `lastToolTurnIndex`. The last
+   * thing the agent did stays open when somebody comes back to the chat, and everything
+   * before it is one line. Opening every finished call made a reopened conversation a
+   * wall of results; opening none of them hid the thing that was asked for.
+   */
+  openLastStep?: boolean;
   /** The published agent that answered. Absent for the general assistant. */
   /** The agent that produced this turn, when one did. */
   agent?: Agent;
@@ -115,7 +188,14 @@ interface MessageItemProps {
   onRegenerate?: () => void;
 }
 
-export function MessageItem({ message, agent, groupPosition, onRegenerate }: MessageItemProps) {
+export function MessageItem({
+  message,
+  agent,
+  groupPosition,
+  openLastStep = false,
+  onRegenerate,
+}: MessageItemProps) {
+  const t = useTranslations("chat");
   const isUser = message.role === "user";
   const updateMessage = useChatStore((state) => state.updateMessage);
   const openPreview = useFilePreviewStore((s) => s.open);
@@ -130,7 +210,7 @@ export function MessageItem({ message, agent, groupPosition, onRegenerate }: Mes
   return (
     <div
       className={cn(
-        "group relative flex gap-2 overflow-visible sm:gap-4",
+        t("groupRelativeFlexGap"),
         isGrouped ? "py-2 sm:py-3" : "py-3 sm:py-4",
         isUser && "flex-row-reverse",
       )}
@@ -181,7 +261,7 @@ export function MessageItem({ message, agent, groupPosition, onRegenerate }: Mes
       <div
         className={cn(
           "max-w-[88%] flex-1 space-y-2 overflow-hidden sm:max-w-[85%]",
-          isUser && "flex flex-col items-end",
+          isUser && t("flexFlexColItems"),
         )}
       >
         {/* Which agent answered, on the turn it answered. A conversation that
@@ -215,7 +295,7 @@ export function MessageItem({ message, agent, groupPosition, onRegenerate }: Mes
                       key={att.file.id}
                       onClick={() => openPreview(att.file)}
                       className="hover:ring-foreground/30 block overflow-hidden rounded-xl border ring-2 ring-transparent transition-all"
-                      title={`Open ${att.file.filename}`}
+                      title={t("openFile", { name: att.file.filename })}
                     >
                       <Image
                         src={getFileUrl(att.file.id)}
@@ -234,7 +314,7 @@ export function MessageItem({ message, agent, groupPosition, onRegenerate }: Mes
                       onClick={() => openPreview(att.file)}
                     />
                   ) : (
-                    <FileChip key={att.id} filename="Attached file" href={getFileUrl(att.id)} />
+                    <FileChip key={att.id} filename={t("attachedFile")} href={getFileUrl(att.id)} />
                   ),
                 )}
               </div>
@@ -242,9 +322,9 @@ export function MessageItem({ message, agent, groupPosition, onRegenerate }: Mes
           })()}
 
         {(() => {
-          const rawParts = message.parts ?? [];
-          const parts = rawParts;
+          const parts = message.parts ?? [];
           const useParts = !isUser && parts.length > 0;
+          const legacyCalls = message.toolCalls ?? [];
 
           // "Thinking…" placeholder - shown until anything streams in.
           const showPlaceholder =
@@ -252,58 +332,67 @@ export function MessageItem({ message, agent, groupPosition, onRegenerate }: Mes
             message.isStreaming &&
             !message.content &&
             parts.length === 0 &&
-            (!message.toolCalls || message.toolCalls.length === 0);
+            legacyCalls.length === 0;
 
           return (
             <>
               {showPlaceholder && (
-                <div
-                  className="bg-muted flex items-center gap-2 rounded-2xl rounded-tl-sm px-4 py-2.5"
-                  role="status"
-                  aria-live="polite"
-                >
+                <div className="flex items-center gap-2 py-1" role="status" aria-live="polite">
                   <div className="flex gap-1" aria-hidden="true">
                     <span className="bg-muted-foreground/40 h-1.5 w-1.5 animate-bounce rounded-full [animation-delay:0ms]" />
                     <span className="bg-muted-foreground/40 h-1.5 w-1.5 animate-bounce rounded-full [animation-delay:150ms]" />
                     <span className="bg-muted-foreground/40 h-1.5 w-1.5 animate-bounce rounded-full [animation-delay:300ms]" />
                   </div>
-                  <span className="text-muted-foreground text-xs">Thinking...</span>
+                  <span className="text-muted-foreground text-xs">{t("thinking")}</span>
                 </div>
               )}
 
               {useParts ? (
-                /* Ordered timeline: render each part in arrival order. */
-                parts.map((part, i) => {
-                  if (part.type === "thinking" && part.content) {
-                    return (
-                      <ThinkingBlock
-                        key={part.id}
-                        text={part.content}
-                        open={Boolean(message.isStreaming) && i === parts.length - 1}
-                        isStreaming={Boolean(message.isStreaming)}
-                      />
-                    );
-                  }
-                  if (part.type === "tool" && part.toolCall) {
-                    return (
-                      <div key={part.id} className="w-full">
-                        <ToolCallCard toolCall={part.toolCall} />
-                      </div>
-                    );
-                  }
-                  if (part.type === "text" && part.content) {
-                    return (
-                      <TextBubble
-                        key={part.id}
-                        text={part.content}
-                        showCursor={Boolean(message.isStreaming) && i === parts.length - 1}
-                        isUser={isUser}
-                        onCiteClick={onCiteClick}
-                      />
-                    );
-                  }
-                  return null;
-                })
+                /* Ordered timeline: render each part in arrival order, with runs of
+                   tool calls on one rail - see `runsOf`. */
+                runsOf(parts).map((run) =>
+                  run.kind === "tools" ? (
+                    <div key={run.parts[0].id} className="w-full">
+                      {/* The rail folds its own earlier steps away, but it cannot see
+                          what is in them - so whether this run holds something a person
+                          has to answer is decided here, where the statuses are. */}
+                      <AgentSteps
+                        showAll={run.parts.some(
+                          (part) =>
+                            part.toolCall?.status === "error" ||
+                            part.toolCall?.status === "awaiting_approval",
+                        )}
+                        done={run.parts.length > 1 && !message.isStreaming}
+                      >
+                        {run.parts.map((part, step) => (
+                          <ToolCallCard
+                            key={part.id}
+                            toolCall={part.toolCall!}
+                            conversationId={message.conversationId}
+                            // The last call of that turn, which is the one whose result
+                            // the reader is here for.
+                            startOpen={openLastStep && run.isLast && step === run.parts.length - 1}
+                          />
+                        ))}
+                      </AgentSteps>
+                    </div>
+                  ) : run.part.type === "thinking" ? (
+                    <ThinkingBlock
+                      key={run.part.id}
+                      text={run.content}
+                      open={Boolean(message.isStreaming) && run.isLast}
+                      isStreaming={Boolean(message.isStreaming)}
+                    />
+                  ) : (
+                    <TextBubble
+                      key={run.part.id}
+                      text={run.content}
+                      showCursor={Boolean(message.isStreaming) && run.isLast}
+                      isUser={isUser}
+                      onCiteClick={onCiteClick}
+                    />
+                  ),
+                )
               ) : (
                 /* Legacy fallback: user / pre-parts messages. */
                 <>
@@ -322,11 +411,18 @@ export function MessageItem({ message, agent, groupPosition, onRegenerate }: Mes
                       onCiteClick={onCiteClick}
                     />
                   )}
-                  {message.toolCalls && message.toolCalls.length > 0 && (
-                    <div className="w-full space-y-2">
-                      {message.toolCalls.map((toolCall) => (
-                        <ToolCallCard key={toolCall.id} toolCall={toolCall} />
-                      ))}
+                  {legacyCalls.length > 0 && (
+                    <div className="w-full">
+                      <AgentSteps>
+                        {legacyCalls.map((toolCall, step) => (
+                          <ToolCallCard
+                            key={toolCall.id}
+                            toolCall={toolCall}
+                            conversationId={message.conversationId}
+                            startOpen={openLastStep && step === legacyCalls.length - 1}
+                          />
+                        ))}
+                      </AgentSteps>
                     </div>
                   )}
                 </>
@@ -351,6 +447,7 @@ export function MessageItem({ message, agent, groupPosition, onRegenerate }: Mes
                 })}
               </span>
             )}
+            {!isUser && message.usage && <MessageCost usage={message.usage} />}
             <CopyButton
               text={message.content}
               className={cn(
@@ -362,8 +459,8 @@ export function MessageItem({ message, agent, groupPosition, onRegenerate }: Mes
               <button
                 type="button"
                 onClick={onRegenerate}
-                title="Regenerate response"
-                aria-label="Regenerate response"
+                title={t("regenerate")}
+                aria-label={t("regenerate")}
                 className="bg-muted hover:bg-muted/80 text-foreground/70 hover:text-foreground inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors sm:opacity-0 sm:group-hover:opacity-100"
               >
                 <RefreshCw className="h-3 w-3" />
@@ -408,14 +505,18 @@ function FileChip({
   hint,
   onClick,
   href,
-}: {
-  filename: string;
-  hint?: string;
-  /** When provided, clicking opens the file in the preview panel. */
-  onClick?: () => void;
-  /** Fallback for legacy attachments without full metadata - opens in new tab. */
-  href?: string;
-}) {
+}: { filename: string } & (
+  | {
+      /** Clicking opens the file in the preview panel. */
+      onClick: () => void;
+      /** The MIME type, which the preview panel does not show. */
+      hint: string;
+      href?: never;
+    }
+  /* A legacy attachment, stored without the metadata the panel needs to render it,
+     so the only thing to offer is the file itself. */
+  | { href: string; onClick?: never; hint?: never }
+)) {
   const ext = filename.includes(".") ? filename.split(".").pop()!.toLowerCase() : null;
   const className =
     "border-foreground/15 bg-card hover:border-foreground/40 inline-flex max-w-xs items-center gap-2 rounded-xl border px-3 py-2 transition-colors text-left";
@@ -435,21 +536,15 @@ function FileChip({
       <Paperclip className="text-foreground/40 h-3.5 w-3.5 shrink-0" />
     </>
   );
-  if (onClick) {
+  if (onClick !== undefined) {
     return (
-      <button type="button" onClick={onClick} className={className} title={hint ?? filename}>
+      <button type="button" onClick={onClick} className={className} title={hint}>
         {inner}
       </button>
     );
   }
   return (
-    <a
-      href={href ?? "#"}
-      target="_blank"
-      rel="noopener noreferrer"
-      className={className}
-      title={hint ?? filename}
-    >
+    <a href={href} target="_blank" rel="noopener noreferrer" className={className} title={filename}>
       {inner}
     </a>
   );

@@ -55,6 +55,12 @@ export interface ChatMessage {
    *  correctly. `content`/`thinking`/`toolCalls` are kept in sync as
    *  flat aggregates for copy/persist/rating. */
   parts?: MessagePart[];
+  /** What this turn cost, on the turn that cost it.
+   *
+   *  Live turns only, and deliberately: it is measured when the run finishes and
+   *  is not persisted per message, so a reloaded conversation has none. Absent
+   *  therefore means "not recorded", never "free". */
+  usage?: TurnUsage;
 }
 
 export interface ToolCall {
@@ -62,7 +68,12 @@ export interface ToolCall {
   name: string;
   args: Record<string, unknown>;
   result?: unknown;
-  status: "pending" | "running" | "completed" | "error";
+  status: "pending" | "running" | "completed" | "error" | "awaiting_approval";
+  /**
+   * `awaiting_approval` is its own state, not a kind of running. A parked call
+   * produces no result *ever* until somebody decides, so a spinner is a lie that
+   * never resolves — which is what the card did before.
+   */
 }
 
 export type MessagePartType = "thinking" | "text" | "tool" | "research";
@@ -138,6 +149,30 @@ export type WSEventType =
   | "llm_started"
   | "llm_completed";
 
+/**
+ * What one turn cost, and how full the workspace behind it is.
+ *
+ * Numbers rather than a formatted line: the chat draws a bar and a tooltip, and a
+ * server-composed string would have to be parsed back apart. `null` is "nothing
+ * was measured", which is a different thing to draw from zero.
+ */
+export interface TurnUsage {
+  input_tokens: number;
+  output_tokens: number;
+  cost_usd: number;
+  budget_percent: number | null;
+  /** This agent's own monthly cap, which is the one an author can raise. */
+  agent_budget_percent: number | null;
+  sandbox: {
+    kind: string;
+    percent: number | null;
+    bytes_used: number | null;
+    bytes_limit: number | null;
+    memory_bytes: number | null;
+    memory_limit_bytes: number | null;
+  } | null;
+}
+
 export interface WSEvent {
   type: WSEventType;
   data?: unknown;
@@ -182,7 +217,10 @@ export interface ChatState {
 }
 
 export interface ActionRequest {
+  /** The `approvals` row. What a decision is recorded against. */
   id: string;
+  /** The model's own id for the call, so the card drawn for it can be resolved. */
+  tool_call_id: string;
   tool_name: string;
   args: Record<string, unknown>;
 }
@@ -198,6 +236,8 @@ export interface ReviewConfig {
 export interface PendingApproval {
   actionRequests: ActionRequest[];
   reviewConfigs: ReviewConfig[];
+  /** The run to continue once every call has been decided. */
+  runId: string;
 }
 
 export type DecisionType = "approve" | "edit" | "reject";

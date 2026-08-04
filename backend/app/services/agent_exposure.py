@@ -110,6 +110,7 @@ class AgentExposureService:
                 # anyone can persist. Naming it beats rendering a blank row.
                 channel_bot_name=names.get(exposure.channel_bot_id, "(removed)"),
                 environment_id=exposure.environment_id,
+                session_scope=exposure.session_scope,
                 is_active=exposure.is_active,
                 created_at=exposure.created_at,
             )
@@ -187,6 +188,7 @@ class AgentExposureService:
             channel_bot_id=bot.id,
             created_by_user_id=ctx.user_id,
             environment_id=data.environment_id,
+            session_scope=data.session_scope,
         )
         await record_audit(
             self.db,

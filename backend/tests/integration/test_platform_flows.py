@@ -1714,7 +1714,11 @@ class TestPublishAndRollback:
 
         assert agent.current_version_id == published.id
         stored = await db.get(AgentVersion, published.id)
-        assert stored.spec["instructions"] == ""
+        # The published version keeps what it was published with - which is the
+        # starting prompt a new agent is created with, not the rewrite that only
+        # ever reached the draft.
+        assert stored.spec["instructions"] != "rewritten"
+        assert stored.spec["instructions"].startswith("You are a helpful assistant.")
 
     async def test_rolling_back_writes_a_new_version_instead_of_moving_the_pointer(
         self, db
@@ -2745,7 +2749,17 @@ class TestMentioningAnAgentFromAChannel:
     @staticmethod
     def _router(db) -> tuple[ChannelAgentRouter, AsyncMock]:
         router = ChannelAgentRouter(db)
-        execute = AsyncMock(return_value=("answered", None))
+        # A run row, not `None`: the answer now carries what the turn cost, and
+        # the real `execute` always returns one. A stub that did not would be
+        # testing a state this platform cannot reach.
+        run = MagicMock(
+            id=uuid.uuid4(),
+            conversation_id=None,
+            input_tokens=120,
+            output_tokens=40,
+            cost_usd=Decimal("0.0012"),
+        )
+        execute = AsyncMock(return_value=("answered", run))
         router.runner.execute = execute
         return router, execute
 
@@ -2769,7 +2783,7 @@ class TestMentioningAnAgentFromAChannel:
             user_id=tenant.user.id,
         )
 
-        assert answer == "answered"
+        assert answer.text == "answered"
         assert execute.call_args.args[1] == agent.id
         assert execute.call_args.args[2] == "what is the refund window"
 

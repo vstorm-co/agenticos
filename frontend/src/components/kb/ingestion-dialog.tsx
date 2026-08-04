@@ -17,6 +17,7 @@ import { submitFailure } from "@/lib/api-error";
 import { INGESTION_FORM_FIELDS, ingestionProblems, sameIngestion } from "@/lib/ingestion-config";
 import type { IngestionConfig } from "@/types";
 import { useChanged } from "@/hooks/use-changed";
+import { useTranslations } from "next-intl";
 
 interface IngestionDialogProps {
   open: boolean;
@@ -42,6 +43,7 @@ export function IngestionDialog({
   collectionName,
   onSave,
 }: IngestionDialogProps) {
+  const t = useTranslations("kb");
   const [draft, setDraft] = useState<IngestionConfig>(config);
   const [isSaving, setIsSaving] = useState(false);
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
@@ -86,11 +88,11 @@ export function IngestionDialog({
           because the settings form lays its fields out in columns. */}
       <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Ingestion settings</DialogTitle>
+          <DialogTitle>{t("ingestionSettings")}</DialogTitle>
           <DialogDescription>
             How documents added to{" "}
-            <span className="text-foreground font-mono text-xs">{collectionName}</span> are read
-            from here on. Nothing already indexed is re-parsed.
+            <span className="text-foreground font-mono text-xs">{collectionName}</span>
+            {t("areReadFromHere")}
           </DialogDescription>
         </DialogHeader>
 
@@ -106,10 +108,10 @@ export function IngestionDialog({
 
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
+            {t("cancel2")}
           </Button>
           <Button type="button" onClick={handleSave} disabled={!canSave || isSaving}>
-            {isSaving ? "Saving…" : "Save"}
+            {isSaving ? t("saving") : t("save")}
           </Button>
         </DialogFooter>
       </DialogContent>

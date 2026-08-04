@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { useAuthStore } from "@/stores";
 import type { User } from "@/types";
+import { useTranslations } from "next-intl";
 
 /**
  * Every toggle on this page controls a real send.
@@ -32,76 +33,33 @@ type PreferenceKey = "notify_budget_alerts" | "notify_approval_requests" | "noti
 
 interface OptionalEmail {
   key: PreferenceKey;
-  label: string;
-  trigger: string;
-  audience: string;
+  /** Catalog key: the name, plus `Trigger` and `Audience` for its two sentences. */
+  words: string;
   icon: LucideIcon;
 }
 
 const OPTIONAL_EMAILS: readonly OptionalEmail[] = [
-  {
-    key: "notify_budget_alerts",
-    label: "Budget alerts",
-    trigger: "An agent run stops because a spending limit was reached.",
-    audience:
-      "An agent's own cap goes to whoever that agent names - by default the admins and its owner. The organization's cap always goes to the admins, because no agent's author can raise it.",
-    icon: CircleDollarSign,
-  },
-  {
-    key: "notify_approval_requests",
-    label: "Approval requests",
-    trigger: "A run parks because a tool call is waiting for a person to approve it.",
-    audience:
-      "Whoever the agent names - by default the person who started the run, plus the admins so a scheduled run's queue is not left unwatched.",
-    icon: Hand,
-  },
-  {
-    key: "notify_usage_reports",
-    label: "Usage reports",
-    trigger: "Weekly and monthly, when your organization's agents ran anything at all.",
-    audience:
-      "The organization's report goes to owners and admins. An agent can also ask for a report of its own. A period with zero runs sends nothing.",
-    icon: PieChart,
-  },
+  { key: "notify_budget_alerts", words: "optionalBudget", icon: CircleDollarSign },
+  { key: "notify_approval_requests", words: "optionalApprovals", icon: Hand },
+  { key: "notify_usage_reports", words: "optionalUsage", icon: PieChart },
 ];
 
 interface SentEmail {
   key: string;
-  label: string;
-  trigger: string;
-  /** Why this is not a preference. Every entry needs one; that is the point. */
-  reason: string;
+  /** Catalog key: the name, plus `Trigger` and `Reason`. Every entry needs a reason;
+   * that is the point of the section. */
+  words: string;
   icon: LucideIcon;
 }
 
 const SENT_EMAILS: readonly SentEmail[] = [
-  {
-    key: "welcome",
-    label: "Welcome",
-    trigger: "Once, when your account is created - and again for each sign-in link you request.",
-    reason:
-      "It is sent while the account is being created, before there is anywhere to record a preference, and the sign-in link is how you get in.",
-    icon: Mail,
-  },
-  {
-    key: "password_reset",
-    label: "Password reset",
-    trigger: "Each time someone asks for a reset link for your address.",
-    reason:
-      "Security mail is not a preference. Switching this off would leave you unable to recover your own account, so the control does not exist rather than existing and being dangerous.",
-    icon: KeyRound,
-  },
-  {
-    key: "invitation",
-    label: "Organization invitation",
-    trigger: "When a member invites an email address to an organization.",
-    reason:
-      "It goes to the person being invited, who often has no account here yet - there is no recipient whose preference could be consulted.",
-    icon: UserPlus,
-  },
+  { key: "welcome", words: "sentWelcome", icon: Mail },
+  { key: "password_reset", words: "sentPasswordReset", icon: KeyRound },
+  { key: "invitation", words: "sentInvitation", icon: UserPlus },
 ];
 
 export default function NotificationsSettingsPage() {
+  const t = useTranslations("pages.settings");
   const { user } = useAuth();
   const { setUser } = useAuthStore();
   const [saving, setSaving] = useState<PreferenceKey | null>(null);
@@ -116,7 +74,7 @@ export default function NotificationsSettingsPage() {
       const updated = await apiClient.patch<User>("/users/me", { [key]: enabled });
       setUser(updated);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Failed to save preference");
+      toast.error(err instanceof ApiError ? err.message : t("failedSavePreference"));
     } finally {
       setSaving(null);
     }
@@ -124,10 +82,7 @@ export default function NotificationsSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <SectionCard
-        title="Agent activity"
-        description="Emails about runs nobody is watching. Each switch is checked before the email is sent. These are your own opt-outs and only ever subtract: an agent decides who should hear about it, and switching one off here removes you from that list whatever the agent says. Who an agent tells is set on the agent, under Limits."
-      >
+      <SectionCard title={t("agentActivity")} description={t("emailsAboutRunsNobody")}>
         <ul className="divide-border divide-y">
           {OPTIONAL_EMAILS.map((email) => (
             <li key={email.key} className="flex items-start gap-3 py-4 first:pt-0 last:pb-0">
@@ -135,12 +90,16 @@ export default function NotificationsSettingsPage() {
                 <email.icon className="h-4 w-4" />
               </span>
               <div className="min-w-0 flex-1 space-y-1">
-                <p className="text-foreground text-sm font-medium">{email.label}</p>
-                <p className="text-muted-foreground text-xs leading-relaxed">{email.trigger}</p>
-                <p className="text-muted-foreground text-xs leading-relaxed">{email.audience}</p>
+                <p className="text-foreground text-sm font-medium">{t(email.words)}</p>
+                <p className="text-muted-foreground text-xs leading-relaxed">
+                  {t(`${email.words}Trigger`)}
+                </p>
+                <p className="text-muted-foreground text-xs leading-relaxed">
+                  {t(`${email.words}Audience`)}
+                </p>
               </div>
               <Switch
-                aria-label={email.label}
+                aria-label={t(email.words)}
                 checked={user[email.key] ?? true}
                 disabled={saving !== null}
                 onCheckedChange={(enabled) => handleToggle(email.key, enabled)}
@@ -150,10 +109,7 @@ export default function NotificationsSettingsPage() {
         </ul>
       </SectionCard>
 
-      <SectionCard
-        title="Always sent"
-        description="The transactional emails, what triggers each, and why none of them is optional."
-      >
+      <SectionCard title={t("alwaysSent")} description={t("transactionalEmailsWhatTriggers")}>
         <ul className="divide-border divide-y">
           {SENT_EMAILS.map((email) => (
             <li key={email.key} className="flex gap-3 py-4 first:pt-0 last:pb-0">
@@ -161,11 +117,13 @@ export default function NotificationsSettingsPage() {
                 <email.icon className="h-4 w-4" />
               </span>
               <div className="min-w-0 space-y-1">
-                <p className="text-foreground text-sm font-medium">{email.label}</p>
-                <p className="text-muted-foreground text-xs leading-relaxed">{email.trigger}</p>
+                <p className="text-foreground text-sm font-medium">{t(email.words)}</p>
                 <p className="text-muted-foreground text-xs leading-relaxed">
-                  <span className="text-foreground/70 font-medium">Not optional - </span>
-                  {email.reason}
+                  {t(`${email.words}Trigger`)}
+                </p>
+                <p className="text-muted-foreground text-xs leading-relaxed">
+                  <span className="text-foreground/70 font-medium">{t("notOptional")}</span>
+                  {t(`${email.words}Reason`)}
                 </p>
               </div>
             </li>
@@ -173,22 +131,19 @@ export default function NotificationsSettingsPage() {
         </ul>
       </SectionCard>
 
-      <SectionCard
-        title="What is not sent"
-        description="Absences worth stating, because a settings page implies the opposite."
-      >
+      <SectionCard title={t("whatNotSent")} description={t("absencesWorthStatingBecause")}>
         <ul className="text-muted-foreground space-y-2 text-xs leading-relaxed">
           <li>
-            <span className="text-foreground/70 font-medium">No marketing email.</span> This is a
-            self-hosted deployment. There is no newsletter and no subscriber list.
+            <span className="text-foreground/70 font-medium">{t("noMarketingEmail")}</span>
+            {t("selfHostedDeploymentThere")}
           </li>
           <li>
-            <span className="text-foreground/70 font-medium">No billing email.</span> Nothing here
-            charges you, so there are no renewals, payment failures or credit warnings.
+            <span className="text-foreground/70 font-medium">{t("noBillingEmail")}</span>
+            {t("nothingHereChargesYou")}
           </li>
           <li>
-            <span className="text-foreground/70 font-medium">No in-app notifications.</span> There
-            is no notification feed to route anything to; activity lives on the pages that own it.
+            <span className="text-foreground/70 font-medium">{t("noAppNotifications")}</span>
+            {t("thereNoNotificationFeed")}
           </li>
         </ul>
       </SectionCard>

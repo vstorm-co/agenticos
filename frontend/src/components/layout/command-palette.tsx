@@ -162,7 +162,7 @@ export function CommandPalette() {
     <Command.Dialog
       open={open}
       onOpenChange={setOpen}
-      label="Command palette"
+      label={t("commandPalette")}
       shouldFilter
       overlayClassName="bg-background/50 fixed inset-0 z-[60] backdrop-blur-sm"
       contentClassName="border-foreground/15 bg-card text-foreground fixed left-1/2 top-[12vh] z-[61] w-[min(92vw,640px)] -translate-x-1/2 overflow-hidden rounded-2xl border shadow-2xl"
@@ -173,21 +173,21 @@ export function CommandPalette() {
           autoFocus
           value={search}
           onValueChange={setSearch}
-          placeholder="Search or jump to…"
+          placeholder={t("searchJump")}
           className="text-foreground placeholder:text-foreground/45 flex-1 bg-transparent text-sm outline-none"
         />
         <kbd className="border-foreground/15 text-foreground/55 hidden rounded-md border px-1.5 py-0.5 font-mono text-[10px] sm:inline-block">
-          ESC
+          {t("esc")}
         </kbd>
       </div>
 
       <Command.List className="max-h-[60vh] overflow-y-auto px-2 py-2">
         <Command.Empty className="text-foreground/55 px-4 py-10 text-center text-sm">
-          No matches.
+          {t("noMatches")}
         </Command.Empty>
 
-        <Group heading="Quick actions">
-          <PaletteItem icon={Plus} label="Start new chat" onSelect={() => go(ROUTES.CHAT)} />
+        <Group heading={t("quickActions")}>
+          <PaletteItem icon={Plus} label={t("startNewChat")} onSelect={() => go(ROUTES.CHAT)} />
           <PaletteItem
             icon={BookOpen}
             label={t("apiDocs")}
@@ -250,7 +250,7 @@ export function CommandPalette() {
               <PaletteItem
                 key={c.id}
                 icon={MessageSquare}
-                label={c.title?.trim() || "Untitled conversation"}
+                label={c.title?.trim() || t("untitledConversation")}
                 onSelect={() => go(`${ROUTES.CHAT}?id=${c.id}`)}
               />
             ))}
@@ -275,11 +275,11 @@ export function CommandPalette() {
       <div className="border-foreground/10 text-foreground/45 flex items-center justify-between border-t px-4 py-2 font-mono text-[10px] tracking-wider uppercase">
         <span className="inline-flex items-center gap-1.5">
           <kbd className="border-foreground/15 rounded border px-1 py-0.5">↑↓</kbd>
-          Navigate
+          {t("navigate")}
         </span>
         <span className="inline-flex items-center gap-1.5">
           <kbd className="border-foreground/15 rounded border px-1 py-0.5">↵</kbd>
-          Open
+          {t("open")}
         </span>
       </div>
     </Command.Dialog>

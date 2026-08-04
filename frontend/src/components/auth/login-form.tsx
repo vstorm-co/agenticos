@@ -33,7 +33,7 @@ export function LoginForm() {
       await login({ email, password });
       toast.success(t("loginSuccess"));
     } catch (err) {
-      const message = err instanceof ApiError ? err.message : "Login failed. Please try again.";
+      const message = err instanceof ApiError ? err.message : t("loginFailedPleaseTry");
       setError(message);
       toast.error(message);
       setIsLoading(false);
@@ -45,7 +45,7 @@ export function LoginForm() {
       <div className="space-y-2">
         <span className="eyebrow text-foreground/55">{t("welcomeBack")}</span>
         <h1 className="text-display-md text-foreground [&_em]:font-normal [&_em]:italic">
-          Sign in to <em>your workspace.</em>
+          Sign in to <em>{t("yourWorkspace")}</em>
         </h1>
         <p className="text-foreground/65 text-sm">
           {t("noAccount")}{" "}

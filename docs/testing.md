@@ -2,33 +2,29 @@
 
 ## Running Tests
 
+While writing, run what covers the change — a file answers in about a second where
+the suite takes a minute and a half, and says the same thing:
+
 ```bash
 cd backend
 
-# Run all tests
-pytest
-
-# Run with coverage
-pytest --cov=app --cov-report=term-missing
-
-# Run specific test file
-pytest tests/api/test_health.py -v
-
-# Run specific test
-pytest tests/api/test_health.py::test_health_check -v
-
-# Run only unit tests
-pytest tests/unit/
-
-# Run only integration tests
-pytest tests/integration/
-
-# Run with verbose output
-pytest -v
-
-# Stop on first failure
-pytest -x
+uv run pytest tests/test_capability_registry.py -q         # one file
+uv run pytest tests/test_capability_registry.py -k drift   # one behaviour
+uv run pytest tests/api/test_workspace_routes.py -x -v     # stop at the first failure
+uv run pytest tests/integration -v --no-cov                # the ones needing a database
 ```
+
+Once, before pushing — this is what CI applies, and `make check` runs all of it:
+
+```bash
+make lint               # ruff, ty, eslint, tsc, and the i18n guard
+make test               # the suite plus the 100% gate on the platform layer
+make test-frontend-cov  # the frontend suite plus its own gate
+```
+
+`make test-fast` skips coverage, which makes it the wrong last word before a push:
+the gate is most of what these commands are for. `pytest` without `uv run` picks up
+whatever interpreter is on the path rather than the pinned 3.12.
 
 ## Test Structure
 
@@ -94,21 +90,23 @@ def test_protected_endpoint(auth_client):
 
 ## Frontend Tests
 
+Run these from `frontend/`. At the repository root vitest finds no configuration,
+reports well over a hundred phantom failures and leaves a stray `node_modules/`.
+
 ```bash
 cd frontend
 
-# Run unit tests
-bun test
-
-# Run with watch mode
-bun test --watch
-
-# Run E2E tests
-bun test:e2e
-
-# Run E2E in headed mode (see browser)
-bun test:e2e --headed
+bunx vitest run src/components/chat/usage-strip.test.tsx   # one spec, ~2s
+bunx vitest run src/components/chat                        # one directory
+bun run test                                               # watch mode
+bun run test:coverage                                      # the suite plus the gate CI applies
+bun run test:e2e                                           # Playwright
+bun run test:e2e --headed                                  # ...with a browser to watch
 ```
+
+**`bun run test:run` measures no coverage**, so it cannot answer whether the
+`test-frontend` job will pass: the gate wants 100% lines, statements and functions and
+97.5% branches over `src/{app/api,lib,stores,hooks}` and most of `src/components`.
 
 Playwright starts what the suite needs: the frontend, and an OpenAI-compatible
 **stub model server** (`frontend/e2e/stub-model-server.ts`) on `127.0.0.1:4010`.

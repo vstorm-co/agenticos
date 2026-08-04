@@ -15,6 +15,7 @@ import {
 } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import type { JsonSchema, JsonSchemaProperty } from "@/types/agents";
+import { useTranslations } from "next-intl";
 
 /**
  * The option standing for "this field was left alone".
@@ -120,6 +121,7 @@ function SchemaField({
   error,
   onChange,
 }: SchemaFieldProps) {
+  const t = useTranslations("agents");
   const label = property.title ?? humanise(name);
   const choices = enumChoices(property);
   const kind = resolveKind(property);
@@ -180,7 +182,7 @@ function SchemaField({
               such state and offering it would produce a spec the backend
               refuses.
             */}
-            {!required && <SelectItem value={UNSET}>Not set</SelectItem>}
+            {!required && <SelectItem value={UNSET}>{t("notSet")}</SelectItem>}
             {choices.map((choice) => (
               <SelectItem key={choice} value={choice}>
                 {choice}

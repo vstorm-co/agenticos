@@ -6,6 +6,7 @@ import { Code2, Eye } from "lucide-react";
 import { MarkdownContent } from "@/components/chat/markdown-content";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 
 interface MarkdownEditorProps {
   value: string;
@@ -40,22 +41,23 @@ export function MarkdownEditor({
   disabled,
   id,
 }: MarkdownEditorProps) {
+  const t = useTranslations("ui");
   const [mode, setMode] = useState<"source" | "preview">("source");
 
   return (
     <div className="border-input rounded-md border">
       <div className="border-input flex items-center justify-between gap-2 border-b px-2 py-1.5">
-        <span className="text-muted-foreground text-xs">Markdown</span>
+        <span className="text-muted-foreground text-xs">{t("markdown")}</span>
         <div className="border-input flex items-center gap-0.5 rounded-md border p-0.5">
           <ModeButton
             icon={Code2}
-            label="Source"
+            label={t("source")}
             active={mode === "source"}
             onClick={() => setMode("source")}
           />
           <ModeButton
             icon={Eye}
-            label="Preview"
+            label={t("preview")}
             active={mode === "preview"}
             onClick={() => setMode("preview")}
           />
@@ -89,7 +91,7 @@ export function MarkdownEditor({
           style={{ minHeight: `${rows * 1.5}rem` }}
         >
           {value.trim() === "" ? (
-            <p className="text-muted-foreground text-sm">Nothing written yet.</p>
+            <p className="text-muted-foreground text-sm">{t("nothingWrittenYet")}</p>
           ) : (
             <MarkdownContent content={value} />
           )}

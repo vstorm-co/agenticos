@@ -12,6 +12,7 @@ import { getParsedKBDocument } from "@/lib/rag-api";
 import { cn } from "@/lib/utils";
 import type { KBParsedContent } from "@/types";
 import { useChanged } from "@/hooks/use-changed";
+import { useTranslations } from "next-intl";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Viewer type detection
@@ -111,6 +112,7 @@ interface FileViewerProps {
 }
 
 export function FileViewer({ kbId, doc, open, onClose }: FileViewerProps) {
+  const t = useTranslations("kb");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
@@ -194,7 +196,7 @@ export function FileViewer({ kbId, doc, open, onClose }: FileViewerProps) {
           }
         }
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load file");
+        if (!cancelled) setError(e instanceof Error ? e.message : t("failedLoadFile"));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -218,7 +220,7 @@ export function FileViewer({ kbId, doc, open, onClose }: FileViewerProps) {
         if (!cancelled) setParsed(data);
       } catch (e) {
         if (!cancelled) {
-          setParsedError(e instanceof Error ? e.message : "Failed to load parsed content");
+          setParsedError(e instanceof Error ? e.message : t("failedLoadParsedContent"));
         }
       } finally {
         if (!cancelled) setParsedLoading(false);
@@ -292,7 +294,7 @@ export function FileViewer({ kbId, doc, open, onClose }: FileViewerProps) {
                       : "text-muted-foreground hover:text-foreground",
                   )}
                 >
-                  {choice === "original" ? "Original" : "Parsed"}
+                  {choice === "original" ? t("original") : t("parsed")}
                 </button>
               ))}
             </div>
@@ -304,7 +306,7 @@ export function FileViewer({ kbId, doc, open, onClose }: FileViewerProps) {
                     size="sm"
                     className="text-muted-foreground hover:text-foreground h-7 w-7 p-0"
                     onClick={handleOpenExternal}
-                    title="Open in new browser tab"
+                    title={t("openNewBrowserTab")}
                   >
                     <ExternalLink className="h-3.5 w-3.5" />
                   </Button>
@@ -313,7 +315,7 @@ export function FileViewer({ kbId, doc, open, onClose }: FileViewerProps) {
                     size="sm"
                     className="text-muted-foreground hover:text-foreground h-7 w-7 p-0"
                     onClick={handleDownload}
-                    title="Download file"
+                    title={t("downloadFile")}
                   >
                     <Download className="h-3.5 w-3.5" />
                   </Button>
@@ -324,7 +326,7 @@ export function FileViewer({ kbId, doc, open, onClose }: FileViewerProps) {
                   variant="ghost"
                   size="sm"
                   className="text-muted-foreground hover:text-foreground h-7 w-7 p-0"
-                  title="Close"
+                  title={t("close")}
                 >
                   <X className="h-3.5 w-3.5" />
                 </Button>
@@ -414,18 +416,16 @@ export function FileViewer({ kbId, doc, open, onClose }: FileViewerProps) {
 
             {tab === "original" && !loading && !error && viewerKind === "unknown" && blobUrl && (
               <div className="flex h-full flex-col items-center justify-center gap-4 px-8 text-center">
-                <p className="text-muted-foreground text-sm">
-                  This file type cannot be previewed inline.
-                </p>
+                <p className="text-muted-foreground text-sm">{t("fileTypeCannotBe")}</p>
                 <p className="text-muted-foreground text-xs">{doc?.filetype || mimeType}</p>
                 <div className="flex gap-2">
                   <Button size="sm" variant="outline" onClick={handleOpenExternal}>
                     <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
-                    Open in browser
+                    {t("openBrowser")}
                   </Button>
                   <Button size="sm" onClick={handleDownload}>
                     <Download className="mr-1.5 h-3.5 w-3.5" />
-                    Download
+                    {t("download")}
                   </Button>
                 </div>
               </div>
@@ -457,6 +457,7 @@ function ParsedView({
   loading: boolean;
   error: string | null;
 }) {
+  const t = useTranslations("kb");
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -470,7 +471,7 @@ function ParsedView({
     // ingestion failed. A refusal to show a parse is not a broken screen.
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 px-8 text-center">
-        <p className="text-foreground text-sm font-medium">No parsed content to show</p>
+        <p className="text-foreground text-sm font-medium">{t("noParsedContentShow")}</p>
         <p className="text-muted-foreground max-w-md text-xs">{error}</p>
       </div>
     );
@@ -485,13 +486,9 @@ function ParsedView({
           <ScanText className="h-5 w-5" />
         </span>
         <div>
-          <p className="text-foreground text-sm font-medium">
-            Nothing readable came out of this parse
-          </p>
+          <p className="text-foreground text-sm font-medium">{t("nothingReadableCameOut")}</p>
           <p className="text-muted-foreground mx-auto mt-1 max-w-md text-xs">
-            {parsed.chunk_count > 0
-              ? "Every page came back as empty scaffolding, which is what an unreadable scan looks like. If this file is a scan or a photo, turn on reading scanned pages in the parse options and upload it again."
-              : "Nothing is indexed for this document. Its vectors may have been removed since it was ingested."}
+            {parsed.chunk_count > 0 ? t("everyPageCameBack") : t("nothingIndexedDocumentIts")}
           </p>
           {parsed.parser && (
             <p className="text-muted-foreground mt-2 font-mono text-xs">
@@ -508,7 +505,7 @@ function ParsedView({
   return (
     <div className="h-full overflow-auto">
       <div className="text-muted-foreground border-border bg-card sticky top-0 z-10 border-b px-6 py-2 text-xs">
-        What was indexed: {parsed.chunk_count} {parsed.chunk_count === 1 ? "chunk" : "chunks"}
+        {t("whatWasIndexed", { count: parsed.chunk_count })}
         {parsed.parser && (
           <>
             {" "}
@@ -528,7 +525,7 @@ function ParsedView({
             )}
             {!page.has_text && (
               <p className="text-muted-foreground border-border mb-2 rounded-lg border border-dashed px-3 py-2 text-xs">
-                This page parsed to nothing readable - likely an unreadable scan.
+                {t("pageParsedNothingReadable")}
               </p>
             )}
             <div className="divide-border divide-y">

@@ -65,13 +65,13 @@ export function MobileTabBar() {
   return (
     <nav
       role="navigation"
-      aria-label="Primary"
+      aria-label={t("primary")}
       className="border-foreground/10 bg-background/95 supports-[backdrop-filter]:bg-background/85 fixed inset-x-0 bottom-0 z-40 flex items-stretch justify-around border-t pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden"
     >
       {items.map((item) => {
         const active = isActive(item);
         const className = cn(
-          "flex flex-1 flex-col items-center justify-center gap-1 py-2.5 text-[10px] font-medium uppercase tracking-wider transition-colors min-h-[56px]",
+          t("flexFlex1Flex"),
           active ? "text-brand" : "text-foreground/55 hover:text-foreground",
         );
         const inner = (

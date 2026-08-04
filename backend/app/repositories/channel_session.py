@@ -115,8 +115,14 @@ async def count_by_bot(db: AsyncSession, bot_id: UUID) -> int:
 
 
 async def touch(db: AsyncSession, db_session: ChannelSession) -> ChannelSession:
-    """Update last_message_at to now (UTC)."""
+    """Record activity on this chat, and that it had a turn.
+
+    One statement for both: the turn counter exists so a bot can say "every tenth
+    message" without counting a table that grows forever, and a counter written
+    by a second `UPDATE` would be a second thing to forget.
+    """
     db_session.last_message_at = datetime.now(UTC)
+    db_session.turn_count = (db_session.turn_count or 0) + 1
     db.add(db_session)
     await db.flush()
     await db.refresh(db_session)

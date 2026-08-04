@@ -90,6 +90,16 @@ class AgentExposure(Base, TimestampMixin):
     # Turned off without being forgotten. Unbinding and rebinding loses who
     # bound it and when, which is the first question asked after an agent
     # answers somewhere nobody expected.
+    session_scope: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    """How this binding wants an agent's workspace shared, when it disagrees with the spec.
+
+    The spec carries the default and stays portable by not knowing what surfaces
+    exist. This is where "on *this* bot, one workspace per channel" belongs -
+    beside `environment_id`, which is already the statement "this bot serves dev".
+
+    Null means the spec decides, which is what every existing binding says.
+    """
+
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(

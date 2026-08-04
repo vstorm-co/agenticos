@@ -81,3 +81,22 @@ export interface CostSummary {
   /** Which key it went through, which is how a leaked or misused one is found. */
   by_key: CostByKey[];
 }
+
+/**
+ * What `POST /runs/{id}/resume` answers with.
+ *
+ * The continuation itself, not an acknowledgement: resuming *executes* the agent,
+ * so `output` is what it said after the approval - and it comes back over HTTP to
+ * whoever asked, never over the conversation's WebSocket. A caller that discards
+ * this leaves the reply nowhere, which is what made an approval look like it had
+ * done nothing until the page was reloaded.
+ */
+export interface ResumedRun {
+  run_id: string;
+  output: string;
+  status: RunStatus;
+  /** Serialised Decimal - never parse into a float for arithmetic. */
+  cost_usd: string;
+  input_tokens: number;
+  output_tokens: number;
+}

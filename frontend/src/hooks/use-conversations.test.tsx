@@ -660,6 +660,31 @@ describe("starting a new chat", () => {
     expect(window.location.search).toBe("");
   });
 
+  it("leaves a conversation that has answered but was never fetched", async () => {
+    // The one this got wrong. A conversation created over the websocket never has
+    // its messages fetched, so `currentMessages` stays empty for a thread that has
+    // just answered - and judging emptiness on that list alone reused it: the
+    // transcript was cleared while the id and the `?id=` survived, so the strip
+    // under the input went on reporting the previous turn's cost and its workspace
+    // fill, and the next message landed in the conversation the user had left.
+    const result = await hook();
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useConversationStore.getState().setCurrentMessages([]);
+    useChatStore.setState({
+      messages: [{ id: "m-live", role: "assistant", content: "there" } as never],
+      isStreaming: false,
+    });
+    window.history.replaceState({}, "", "/chat?id=c-1");
+
+    await act(async () => {
+      await result.current.startNewChat();
+    });
+
+    expect(useConversationStore.getState().currentConversationId).toBeNull();
+    expect(useChatStore.getState().messages).toEqual([]);
+    expect(window.location.search).toBe("");
+  });
+
   it("starts a fresh chat when nothing was open", async () => {
     const result = await hook();
 

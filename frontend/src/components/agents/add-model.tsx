@@ -19,6 +19,7 @@ import {
 import { useModelProviders, useProviderModels, useSecretPurposes, useSecrets } from "@/hooks";
 import { getErrorMessage } from "@/lib/utils";
 import type { ModelProfile } from "@/types/providers";
+import { useTranslations } from "next-intl";
 
 interface AddModelProps {
   /** Called with the new model once it exists, so the picker can select it. */
@@ -60,17 +61,33 @@ interface AddModelProps {
  * form was filled in, which is the wrong end of the interaction for something
  * this mechanical.
  */
-export function modelPlaceholder(providerId: string | undefined): string {
-  if (providerId === undefined) return "Pick a provider first";
+/**
+ * What to show in the empty model field.
+ *
+ * A catalog key when there is something to say, and the *example ids themselves*
+ * otherwise: `openai/gpt-5` is not English, it is what the provider calls the model,
+ * and asking the catalog for it produced a missing-message error per keystroke.
+ */
+export function modelPlaceholder(providerId: string | undefined): { key: string } | string {
+  if (providerId === undefined) return { key: "pickProviderFirst" };
   if (providerId === "openrouter") return "openai/gpt-5";
-  return "gpt-5, claude-opus-5, gemini-3-pro…";
+  return "gpt-5, claude-opus-5, gemini-3-pro…"; // i18n-exempt: example model ids
 }
 
+/** Catalog key for the hint under the field. */
 export function modelHint(providerId: string | undefined): string {
   if (providerId === "openrouter") {
-    return "Namespaced by origin, as OpenRouter lists it - openai/gpt-5, anthropic/claude-opus-5.";
+    return "modelIdOpenRouterHint";
   }
-  return "As the provider names it. Free text, because they ship new ones faster than any list here could be updated.";
+  return "modelIdProviderHint";
+}
+
+/** A placeholder is either a key to translate or a literal example. */
+export function placeholderWords(
+  placeholder: { key: string } | string,
+  t: (key: string) => string,
+): string {
+  return typeof placeholder === "string" ? placeholder : t(placeholder.key);
 }
 
 /** The same rule the backend applies, so the button says no before the server does. */
@@ -79,6 +96,7 @@ export function modelIdIsWellFormed(providerId: string, model: string): boolean 
 }
 
 export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
+  const t = useTranslations("agents");
   const { createProfile, catalog } = useModelProviders();
   const { purposes } = useSecretPurposes();
   const { secrets } = useSecrets();
@@ -114,9 +132,7 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
   // catalog changes when a provider ships a model, not while a form is open.
   const { models: suggestions, source, isLoading: loadingModels } = useProviderModels(providerId);
   const derivedLabel =
-    provider && model.trim()
-      ? `${provider.label} · ${model.trim()}`
-      : "How agents refer to this model";
+    provider && model.trim() ? `${provider.label} · ${model.trim()}` : t("howAgentsReferModel");
 
   const canSubmit =
     provider !== undefined &&
@@ -155,7 +171,7 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
     <div className="border-border bg-muted/20 space-y-4 rounded-xl border p-4">
       <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
         <div className="space-y-1.5">
-          <Label htmlFor="add-model-provider">Provider</Label>
+          <Label htmlFor="add-model-provider">{t("provider")}</Label>
           <Select
             value={providerId}
             onValueChange={(value) => {
@@ -167,7 +183,7 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
             }}
           >
             <SelectTrigger id="add-model-provider">
-              <SelectValue placeholder="Choose a provider" />
+              <SelectValue placeholder={t("chooseProvider")} />
             </SelectTrigger>
             <SelectContent className="max-h-80">
               {providers.map((entry) => {
@@ -187,7 +203,7 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="add-model-id">Model</Label>
+          <Label htmlFor="add-model-id">{t("model")}</Label>
           {/*
             The provider's catalog, searchable, and still able to carry an id
             that is not in it. The list is never authoritative - providers ship
@@ -208,7 +224,7 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
             source={source}
             loading={loadingModels}
             disabled={provider === undefined}
-            placeholder={modelPlaceholder(provider?.id)}
+            placeholder={placeholderWords(modelPlaceholder(provider?.id), t)}
           />
           {failure !== null && <p className="text-destructive text-xs">{failure}</p>}
         </div>
@@ -229,7 +245,7 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
 
           {keys.length > 1 && (
             <>
-              <Label htmlFor="add-model-key">Key</Label>
+              <Label htmlFor="add-model-key">{t("key")}</Label>
               <Select value={chosenKey} onValueChange={setSecretId}>
                 <SelectTrigger id="add-model-key">
                   <SelectValue />
@@ -269,7 +285,7 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
           it - which is the right refusal and a pointless one to walk into. */}
       {provider !== undefined && acceptsEndpoint && (
         <div className="space-y-1.5">
-          <Label htmlFor="add-model-endpoint">Endpoint</Label>
+          <Label htmlFor="add-model-endpoint">{t("endpoint")}</Label>
           <Input
             id="add-model-endpoint"
             value={baseUrl}
@@ -280,15 +296,15 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
             placeholder={
               capabilities?.keyless === true
                 ? "http://localhost:11434/v1"
-                : "Leave empty for the provider's own API"
+                : t("leaveEmptyProviderS")
             }
             autoComplete="off"
             spellCheck={false}
           />
           <p className="text-muted-foreground text-xs">
             {capabilities?.keyless === true
-              ? "A gateway, a LiteLLM proxy, or a model server on this network. Give one and the key becomes optional — there is nothing to authenticate against on your own hardware."
-              : "Optional. Point this model at a gateway or proxy instead of the provider's own API; the key is still what authenticates."}
+              ? t("gatewayLitellmProxyModel")
+              : t("optionalPointModelAt")}
           </p>
         </div>
       )}
@@ -298,7 +314,7 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
           apart. Behind a disclosure rather than in the way. */}
       {naming ? (
         <div className="space-y-1.5">
-          <Label htmlFor="add-model-label">Name</Label>
+          <Label htmlFor="add-model-label">{t("name")}</Label>
           <Input
             id="add-model-label"
             value={label}
@@ -312,7 +328,7 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
           onClick={() => setNaming(true)}
           className="text-muted-foreground hover:text-foreground text-xs underline underline-offset-4"
         >
-          Name it something else
+          {t("nameSomethingElse")}
         </button>
       )}
 
@@ -324,11 +340,11 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
           onClick={submit}
         >
           <Plus className="h-4 w-4" />
-          Add model
+          {t("addModel")}
         </Button>
         {onCancel && (
           <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
-            Cancel
+            {t("cancel")}
           </Button>
         )}
       </div>

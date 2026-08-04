@@ -209,6 +209,211 @@ it is about to wait.
   organization's.
 - **Charts render as images** where the platform supports them, and fall back to
   a text table where it does not.
+- **What a turn cost**, said or only recorded — see below.
+- **Files, both directions** — see below.
+- **Who shares a workspace, per surface.** An agent's spec sets the default; each
+  binding may override it, because a web chat and a Slack channel are not the same
+  sharing question.
+
+### What a turn looks like in web chat
+
+**The work is a narration, not a stack of cards.** Each tool call is one line — *Wrote
+test1.md*, *Searched for TODO in app.py*, *Ran pytest -q*, *Linear · Create issue* —
+written in the tense it is true in: present while the call runs, past once it has. The
+line names the *subject* rather than the function, because `write_file` is not what
+anybody wants to read. Every line opens into what the call actually produced, and the
+raw arguments and output stay one click further in for whoever is debugging one.
+
+Consecutive calls hang from one rail, and **only the last row stays visible**: earlier
+ones fold into "4 earlier steps", which says work happened without pushing the answer off
+the screen. A run holding a failure or a call parked for approval is never folded — that
+is the one line in the turn that is asking for something. Nothing marks a step that
+simply worked, so a marker means what it says.
+
+**What opens itself follows what somebody is watching.** A call that finishes while the
+turn is streaming opens on the spot — a chart, code that ran, a file that was written is
+the answer, not a footnote to it. A conversation *reopened* shows one line per past call
+and keeps open exactly one: the last call of the most recent turn that **used a tool**,
+which is the result the reader came back for. The most recent *turn* is the wrong anchor
+and was the first way this was written - an agent that writes a file and then answers
+about it in prose ends the transcript with text, and the file it had just written was
+folded away. Opening every finished call on mount turned a reopened chat into a wall; opening
+none of them hid the thing that was asked for.
+
+**A write ends in the file, not in a sentence about it.** `write_file` answers "Wrote 1
+lines to /workspace/test1.md"; what the transcript shows is a card naming the file, with
+*Open* — the same viewer the Workspaces screen uses — and *Download*. The path is
+resolved against the conversation's own listing rather than trusted from the arguments,
+because a tool called with `test1.md` reports `/workspace/test1.md` and the workspace may
+store either; with no match the card is drawn without controls that would fail.
+
+**An MCP call is named by its server.** Nothing on a tool call records where it came
+from — the only trace is the prefix the backend puts on a connection's tools, which is
+the connection's name — so the frontend matches that prefix against the servers the
+caller can see and shows the server's own logo beside the step. A miss reads as the
+humanised tool name, which is what it read as before.
+
+The assistant's answer is **not** in a bubble; only the person's message is. An answer
+is prose with headings, code and tables in it, and a rounded fill around that fights
+every one of them.
+
+**Every word on any of these screens comes from `frontend/messages/en.json`.** English
+is the source language and `pl.json` holds only what has actually been translated -
+`src/i18n.ts` merges English underneath every locale, so a missing translation renders
+English rather than the key. `make lint` runs `scripts/check_i18n.py`, which fails both
+ways: on copy left in a component, and on a key a component reads that the catalog does
+not hold.
+
+### Files
+
+Somebody dropping a spreadsheet on a bot used to have it discarded: `IncomingMessage`
+had no attachment field, so no adapter parsed one and the agent answered about a
+document it never received. Now a message with a file — with or without a caption —
+reaches the agent the same way a web upload does.
+
+**Inbound** is the web upload path reached differently. The bytes come from a
+platform instead of a browser and then go through exactly what a web upload gets:
+the MIME allowlist, `MAX_UPLOAD_SIZE`, the parser, storage, and a `ChatFile` row.
+A bot is the most permissive edge this platform has — anyone in a channel can drop
+a file on it — so it must not also be the lenient one. From there the file follows
+the routing in [File processing](file-processing.md): pasted inline for an agent
+with no workspace, written to `/uploads` with a reference for one that has it.
+
+The size is checked twice on purpose: against what the platform *claims* before
+anything is fetched, because downloading a gigabyte to then reject it is the
+attack, and against the bytes afterwards, because a claim is not a measurement.
+
+Fetching a file needs a second authenticated request on every platform, which is
+why an attachment arrives as a handle rather than as content:
+
+| | |
+|---|---|
+| Slack | The private URL on the event, fetched with the bot token. Slack answers **200 with a sign-in page** rather than 401 when the token cannot read a file, so the content type is checked — otherwise a login page would be stored as the user's spreadsheet |
+| Telegram | `getFile` resolves a `file_id` to a path that expires, then the file API. A photo arrives as several sizes; the largest is the one kept |
+| Mattermost | `/files/{id}` on that bot's own server. A bot whose server is not recorded says so rather than guessing which company's server to send a token to |
+
+**Recordings are not supported yet.** Telegram puts each kind of media in its own
+field, so a voice note arrives with no text at all — and until this change it parsed
+as nothing and vanished with no log line. It is now read, refused, and the refusal
+says what is actually true: the recording arrived and nothing here can listen to it
+yet. Transcription is [#54](https://github.com/vstorm-co/agenticos/issues/54); when
+it lands, audio joins the allowlist and that refusal goes.
+
+A file that is refused — unsupported type, a recording, too large, a download that
+failed — is **named in the reply**. One bad file among three does not lose the other two or the
+question that came with them, and a bot that silently ignores an attachment looks
+exactly like a bot that read it.
+
+**Outbound** is what the agent wrote this turn, compared against a snapshot taken
+when the workspace opened. Not a diff of everything: `/uploads` is the user's own
+file — posting it back is quoting somebody their own attachment — and `/skills` is
+know-how the platform materialised, not the agent's work. A file it *overwrote* is
+not sent either: rewriting a script it is iterating on is ordinary, and posting it
+every turn would fill the channel with the same attachment.
+
+**If that snapshot could not be taken, nothing is posted.** The comparison is
+"everything now, minus everything then", so treating an unreadable workspace as an
+empty one would make every file already in it read as this turn's output — and under
+`agent` or `channel` scope those files belong to other people. A missing attachment
+is the failure worth having; a colleague's spreadsheet in a shared channel is not.
+
+Each file carries the type its name implies rather than a flat
+`application/octet-stream`, so a chart an agent wrote arrives as a picture on the
+platforms that read the field instead of as a blob somebody has to download to
+identify.
+
+Capped at 3 files and 8 MB each, below every platform's own limit so the refusal is
+ours and can be explained rather than arriving as an opaque API error. Anything past
+the cap is named in the reply and stays in the workspace.
+
+A chart stays separate from all of this. It is a *photo* on these platforms,
+rendered inline, which is the whole point of the `charts` capability — folding it
+into the attachment list would make every chart arrive as a download.
+
+### Saying what a turn cost
+
+A bot that stops answering because its organization hit its monthly cap looks
+broken. The only difference between "broken" and "out of budget" is somebody
+having said so beforehand, so a bot can report what a turn spent: tokens, cost,
+how much of the month is gone, and how full the workspace behind it is.
+
+In web chat the same two numbers sit under the composer, and they come from
+different places because they measure different things. **The cost** is the newest
+measured answer *in the conversation on screen* — read from the transcript, so it is
+there when a thread is reopened rather than after the next message, and filtered by
+conversation id because the store still holds the previous thread's messages for the
+moment between the click and the fetch landing. It reported those under the new
+conversation until it was. **The fill** is the workspace as it stands now: a live turn
+reports it (a container's resident memory can only come from its host), and a reopened
+conversation reads it from the workspace listing, which carries the ceiling a stored
+workspace fills up against. Without that, "workspace 0% full" appeared only after
+somebody sent a message — the one moment nobody needs it.
+
+Per bot, in the channel bots panel:
+
+| Mode | |
+|---|---|
+| `log only` | Recorded and not said. Unspoken is not unmeasured — "the bot went quiet" is a question somebody asks days later |
+| `near a limit` | Said once the budget or the workspace passes a threshold (80% by default). **The default** |
+| `every n messages` | Said every n-th turn *of that chat*, not of the bot |
+| `every reply` | Said every turn |
+
+`near a limit` is the default rather than `log only`, because defaulting to
+silence would leave every already-registered bot in exactly the state this exists
+to prevent. And rather than `every reply`, because a footer under every message in
+a busy channel is the other way to make a warning useless.
+
+The workspace counts as well as the money. A stored workspace that fills up starts
+*refusing writes*, which the agent reports as a tool error in the middle of doing
+something — a bot that only watched the budget would go quiet on the other limit
+with nothing said.
+
+Measuring costs something for a container: its memory is a round trip to the host
+per sandbox. So `log only` never asks, and every other mode asks about one session
+rather than listing them all.
+
+In `/chat` there is no noise argument, so the numbers are always sent — the client
+draws them under the input and decides what to show. Three things it shows that a
+channel footer does not:
+
+- **The agent's own cap first**, and the organization's only past 80%. The
+  organization's stops every agent at once and belongs to somebody else; the
+  agent's own is the one whoever is looking at it can raise.
+- **Input and output separately**, under each answer as well as under the input.
+  They are priced an order of magnitude apart, so a total cannot say whether a turn
+  was expensive because of a long context or a long answer — and the strip only ever
+  describes the *last* turn, which in a long conversation hides which answer cost
+  the money. Live turns only: usage is measured when a run finishes and is not
+  stored per message, so a reloaded conversation shows none.
+- **The files themselves**, in a panel beside the transcript reading
+  `GET /conversations/{id}/workspace`. It re-reads when a turn ends rather than on a
+  timer, and it is absent entirely — not empty — for an agent that keeps no files,
+  which is most of them. It names whose files these are, because under `agent` scope
+  one workspace is shared and finding a file you never created reads as a leak until
+  something on screen explains it. A file is a tile, and opening one opens the same
+  viewer the Workspaces screen uses — a picture, a PDF, markdown as preview or
+  source, and always a download — reading `…/workspace/file` for text and
+  `…/workspace/raw` for bytes. Through the *conversation* rather than the
+  workspace id, deliberately: that is what keeps these files reachable for
+  somebody the chat was shared with.
+
+### Overriding who shares the workspace
+
+On Slack, `thread_ts` is folded into the chat id — so a thread *is* a
+conversation, and an agent whose spec says `conversation` gets one workspace per
+thread. In a busy channel that is fifty containers and a `429` for the fifty-first
+person to reply. The binding can say `channel` instead, and every thread in that
+channel shares one.
+
+The choices are the same as the spec's (`run`, `conversation`, `channel`, `user`,
+`agent`), plus "as the agent says", which is the default and stores nothing. The
+control is on the binding in the Builder, and it appears only for an agent that
+keeps files at all.
+
+`user` scope is what carries a workspace *across* surfaces: a person who starts in
+web chat and continues in Slack is one `ChannelIdentity` linked to one account, so
+they find the same files. `conversation` and `channel` deliberately do not — those
+name a place, and a place does not follow somebody to another platform.
 
 ## Choosing
 

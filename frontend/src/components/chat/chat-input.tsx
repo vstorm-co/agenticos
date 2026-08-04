@@ -15,6 +15,7 @@ import {
 } from "./slash-commands";
 import { SlashCommandPalette } from "./slash-command-palette";
 import { useChanged } from "@/hooks/use-changed";
+import { useTranslations } from "next-intl";
 
 interface ChatInputProps {
   onSend: (message: string, fileIds?: string[], files?: FileUploadResponse[]) => void;
@@ -36,6 +37,7 @@ export function ChatInput({
   slashContext,
   commands,
 }: ChatInputProps) {
+  const t = useTranslations("chat.input");
   const [message, setMessage] = useState("");
   const [attachedFiles, setAttachedFiles] = useState<FileUploadResponse[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -101,37 +103,37 @@ export function ChatInput({
 
     const fileIds = attachedFiles.length > 0 ? attachedFiles.map((f) => f.id) : undefined;
     const files = attachedFiles.length > 0 ? attachedFiles : undefined;
-    onSend(trimmed || "Analyze the attached file(s)", fileIds, files);
+    onSend(trimmed || t("analyzeFiles"), fileIds, files);
     setMessage("");
     setAttachedFiles([]);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (showPalette && filteredCommands.length > 0) {
-      if (e.key === "ArrowDown") {
+      if (e.key === t("arrowdown")) {
         e.preventDefault();
         setPaletteIndex((i) => (i + 1) % filteredCommands.length);
         return;
       }
-      if (e.key === "ArrowUp") {
+      if (e.key === t("arrowup")) {
         e.preventDefault();
         setPaletteIndex((i) => (i - 1 + filteredCommands.length) % filteredCommands.length);
         return;
       }
-      if (e.key === "Tab") {
+      if (e.key === t("tab")) {
         // Tab autocompletes to the highlighted command name.
         e.preventDefault();
         const cmd = filteredCommands[paletteIndex];
         if (cmd) setMessage("/" + cmd.name + " ");
         return;
       }
-      if (e.key === "Escape") {
+      if (e.key === t("escape2")) {
         e.preventDefault();
         setMessage("");
         return;
       }
     }
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === t("enter2") && !e.shiftKey) {
       e.preventDefault();
       handleSubmit(e);
     }
@@ -146,7 +148,7 @@ export function ChatInput({
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      toast.info("Voice input is only supported in Chrome. Use Chrome for speech-to-text.");
+      toast.info(t("voiceUnsupported"));
       return;
     }
 
@@ -180,7 +182,7 @@ export function ChatInput({
 
     recognition.onerror = () => {
       setIsListening(false);
-      toast.error("Speech recognition error");
+      toast.error(t("speechError"));
     };
 
     recognitionRef.current = recognition;
@@ -194,7 +196,7 @@ export function ChatInput({
     if (files.length === 0) return;
     for (const file of files) {
       if (file.size > MAX_UPLOAD_SIZE_MB * 1024 * 1024) {
-        toast.error(`${file.name}: File too large. Maximum ${MAX_UPLOAD_SIZE_MB}MB.`);
+        toast.error(t("fileTooLarge", { file: file.name, max: MAX_UPLOAD_SIZE_MB }));
         continue;
       }
 
@@ -203,7 +205,7 @@ export function ChatInput({
         const result = await uploadFile(file);
         setAttachedFiles((prev) => [...prev, result]);
       } catch (err) {
-        toast.error(`${file.name}: ${getErrorMessage(err, "Upload failed")}`);
+        toast.error(`${file.name}: ${getErrorMessage(err, t("uploadFailed"))}`);
       } finally {
         setIsUploading(false);
       }
@@ -224,7 +226,7 @@ export function ChatInput({
   // dragenter/dragleave so the overlay doesn't flicker over child elements.
   const [isDragging, setIsDragging] = useState(false);
   const dragDepth = useRef(0);
-  const isFileDrag = (e: React.DragEvent) => Array.from(e.dataTransfer.types).includes("Files");
+  const isFileDrag = (e: React.DragEvent) => Array.from(e.dataTransfer.types).includes(t("files"));
   const handleDragEnter = (e: React.DragEvent) => {
     if (!isFileDrag(e)) return;
     e.preventDefault();
@@ -267,7 +269,8 @@ export function ChatInput({
       {isDragging && (
         <div className="border-foreground/40 bg-card/95 text-foreground absolute inset-0 z-30 flex items-center justify-center rounded-2xl border-2 border-dashed text-sm font-medium backdrop-blur-sm">
           <span className="flex items-center gap-2">
-            <Upload className="h-4 w-4" /> Drop files to attach
+            <Upload className="h-4 w-4" />
+            {t("dropFilesAttach")}
           </span>
         </div>
       )}
@@ -329,7 +332,7 @@ export function ChatInput({
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Type a message..."
+          placeholder={t("placeholder")}
           disabled={disabled}
           rows={1}
           className="placeholder:text-muted-foreground min-h-[40px] flex-1 resize-none scrollbar-thin bg-transparent py-2.5 text-sm focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 sm:text-base"
@@ -343,8 +346,8 @@ export function ChatInput({
             onClick={toggleMic}
             disabled={disabled}
             className="h-9 w-9"
-            title={isListening ? "Stop recording" : "Voice input"}
-            aria-label={isListening ? "Stop recording" : "Voice input"}
+            title={isListening ? t("stopRecording") : t("voiceInput")}
+            aria-label={isListening ? t("stopRecording") : t("voiceInput")}
           >
             {isListening ? (
               <MicOff className="text-destructive h-4 w-4 animate-pulse" />
@@ -360,8 +363,8 @@ export function ChatInput({
             onClick={() => fileInputRef.current?.click()}
             disabled={disabled || isUploading}
             className="h-9 w-9"
-            title="Attach file"
-            aria-label="Attach file"
+            title={t("attachFile")}
+            aria-label={t("attachFile")}
           >
             {isUploading ? (
               <Spinner className="text-muted-foreground h-4 w-4" />
@@ -384,10 +387,10 @@ export function ChatInput({
               size="icon"
               onClick={onStop}
               className="h-9 w-9 rounded-lg"
-              title="Stop generating"
+              title={t("stopGenerating")}
             >
               <span className="h-3 w-3 rounded-[3px] bg-current" aria-hidden="true" />
-              <span className="sr-only">Stop generating</span>
+              <span className="sr-only">{t("stopGenerating")}</span>
             </Button>
           ) : (
             <Button
@@ -396,7 +399,7 @@ export function ChatInput({
               disabled={disabled || isUploading || (!message.trim() && attachedFiles.length === 0)}
             >
               {isProcessing ? <Spinner className="h-4 w-4" /> : <Send className="h-4 w-4" />}
-              <span className="sr-only">Send message</span>
+              <span className="sr-only">{t("send")}</span>
             </Button>
           )}
         </div>

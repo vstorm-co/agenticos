@@ -36,16 +36,16 @@ export function RegisterForm() {
     setError("");
 
     if (!EMAIL_RE.test(email)) {
-      setError("Please enter a valid email address");
+      setError(t("pleaseEnterValidEmail2"));
       return;
     }
     if (password.length < 8) {
-      setError("Password must be at least 8 characters");
+      setError(t("passwordMustBeAt"));
       return;
     }
     if (password !== confirmPassword) {
-      setError("Passwords do not match");
-      toast.error("Passwords do not match");
+      setError(t("passwordsDoNotMatch2"));
+      toast.error(t("passwordsDoNotMatch3"));
       return;
     }
 
@@ -55,8 +55,7 @@ export function RegisterForm() {
       toast.success(t("registerSuccess"));
       router.push(ROUTES.LOGIN + "?registered=true");
     } catch (err) {
-      const message =
-        err instanceof ApiError ? err.message : "Registration failed. Please try again.";
+      const message = err instanceof ApiError ? err.message : t("registrationFailedPleaseTry");
       setError(message);
       toast.error(message);
     } finally {
@@ -69,7 +68,7 @@ export function RegisterForm() {
       <div className="space-y-2">
         <span className="eyebrow text-foreground/55">{t("getStarted")}</span>
         <h1 className="text-display-md text-foreground [&_em]:font-normal [&_em]:italic">
-          Create your <em>workspace.</em>
+          Create your <em>{t("workspace")}</em>
         </h1>
         <p className="text-foreground/65 text-sm">
           {t("hasAccount")}{" "}
@@ -136,7 +135,7 @@ export function RegisterForm() {
           <Input
             id="password"
             type="password"
-            placeholder="At least 8 characters"
+            placeholder={t("atLeast8Characters")}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
@@ -164,12 +163,12 @@ export function RegisterForm() {
                   {password.length >= 8 ? (
                     <span className="text-brand inline-flex items-center gap-1">
                       <Check className="h-3 w-3" />
-                      8+ chars
+                      {t("n8Chars")}
                     </span>
                   ) : (
                     <span className="text-foreground/55 inline-flex items-center gap-1">
                       <X className="h-3 w-3" />
-                      8+ chars
+                      {t("n8Chars2")}
                     </span>
                   )}
                 </div>
@@ -188,7 +187,7 @@ export function RegisterForm() {
           <Input
             id="confirmPassword"
             type="password"
-            placeholder="Repeat the password"
+            placeholder={t("repeatPassword")}
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             required
@@ -231,14 +230,14 @@ export function RegisterForm() {
             href={ROUTES.LEGAL_TERMS}
             className="text-foreground/70 hover:text-foreground underline-offset-4 hover:underline"
           >
-            Terms
+            {t("terms")}
           </Link>{" "}
           and{" "}
           <Link
             href={ROUTES.LEGAL_PRIVACY}
             className="text-foreground/70 hover:text-foreground underline-offset-4 hover:underline"
           >
-            Privacy Policy
+            {t("privacyPolicy")}
           </Link>
           .
         </p>

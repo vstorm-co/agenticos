@@ -10,6 +10,19 @@ import {
 } from "./capability-settings";
 import type { CapabilityBindingSpec, CapabilityCatalogEntry } from "@/types/agents";
 import type { Secret, SecretRequirement } from "@/types/secrets";
+import en from "../../../messages/en.json";
+
+/** The English catalog, so the suites below keep asserting the words on screen. */
+// The catalog, read the way the component reads it - some of these messages take a
+// name or a kind, and a stub that ignored them would assert against a message no
+// reader ever sees.
+const words = (key: string, values?: Record<string, string>): string => {
+  const message = (en.agents as Record<string, string>)[key] ?? key;
+  return Object.entries(values ?? {}).reduce(
+    (filled, [name, value]) => filled.replaceAll(`{${name}}`, value),
+    message,
+  );
+};
 
 const KNOWLEDGE: CapabilityCatalogEntry = {
   id: "knowledge",
@@ -740,22 +753,22 @@ describe("toolNameError", () => {
   });
 
   it("refuses a name with a space, because the call would name nothing", () => {
-    expect(toolNameError("search documents")).toMatch(/underscores only/);
+    expect(toolNameError("search documents")).toBe("toolNamePattern");
   });
 
   it("refuses punctuation an identifier cannot carry", () => {
     // Hyphens are the near miss: they read like a name and are not one.
-    expect(toolNameError("search-documents")).toMatch(/underscores only/);
-    expect(toolNameError("search.documents")).toMatch(/underscores only/);
-    expect(toolNameError("search()")).toMatch(/underscores only/);
+    expect(toolNameError("search-documents")).toBe("toolNamePattern");
+    expect(toolNameError("search.documents")).toBe("toolNamePattern");
+    expect(toolNameError("search()")).toBe("toolNamePattern");
   });
 
   it("refuses a leading digit", () => {
-    expect(toolNameError("2nd_search")).toMatch(/underscores only/);
+    expect(toolNameError("2nd_search")).toBe("toolNamePattern");
   });
 
   it("refuses nothing at all", () => {
-    expect(toolNameError("")).toMatch(/cannot be blank/);
+    expect(toolNameError("")).toBe("toolNameBlank");
   });
 });
 
@@ -828,19 +841,19 @@ describe("secretProblem", () => {
   };
 
   it("accepts a secret of the kind the capability declared", () => {
-    expect(secretProblem(API_KEY, "sec-1", [stored])).toBeNull();
+    expect(secretProblem(API_KEY, "sec-1", [stored], words)).toBeNull();
   });
 
   it("says that nothing selected is what blocks publishing", () => {
     // The refusal an author reaches by doing nothing, which is why it is said at
     // the control rather than left to the publish attempt.
-    expect(secretProblem(API_KEY, null, [stored])).toMatch(/cannot be published/);
+    expect(secretProblem(API_KEY, null, [stored], words)).toMatch(/cannot be published/);
   });
 
   it("says a reference the organization cannot satisfy is refused", () => {
     // A deleted secret, or a spec imported from another organization - the
     // binding keeps an id that resolves to nothing.
-    expect(secretProblem(API_KEY, "sec-gone", [stored])).toMatch(/not in this organization/);
+    expect(secretProblem(API_KEY, "sec-gone", [stored], words)).toMatch(/not in this organization/);
   });
 
   it("names the mismatch when the secret is the wrong shape", () => {
@@ -853,7 +866,7 @@ describe("secretProblem", () => {
       kind: "aws_credentials",
       hint: "AKIA",
     };
-    expect(secretProblem(API_KEY, "sec-2", [aws])).toMatch(
+    expect(secretProblem(API_KEY, "sec-2", [aws], words)).toMatch(
       /"Ingest role" is of kind aws_credentials; this capability needs api_key/,
     );
   });

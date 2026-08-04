@@ -15,20 +15,27 @@ by default looks like from a test.
 from __future__ import annotations
 
 import uuid
+from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
-from app.core.permissions import OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import RunSurface
 from app.services.channels.mentions import (
     ChannelAgentRouter,
     UnaddressedMessage,
     parse_mention,
 )
+from app.services.usage_report import UsageReport
 
 pytestmark = pytest.mark.anyio
+
+
+def _ctx() -> AuthContext:
+    return AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.OWNER)
+
 
 _BOT_ID = uuid.uuid4()
 
@@ -36,6 +43,131 @@ _BOT_ID = uuid.uuid4()
 def _bound(*, is_active: bool = True) -> AsyncMock:
     """An exposure lookup that says this agent answers on this bot."""
     return AsyncMock(return_value=MagicMock(is_active=is_active))
+
+
+class TestTheChannelAWorkspaceSharesAcross:
+    """`channel` scope keys on the chat with the thread stripped.
+
+    Slack folds `thread_ts` into `platform_chat_id`, so the raw id identifies a
+    *thread*. Keying a channel-scoped workspace on it would give one workspace
+    per thread - which is what `conversation` scope already does, and under a
+    container backend it is fifty containers in a busy channel.
+    """
+
+    @pytest.mark.parametrize(
+        ("platform_chat_id", "expected"),
+        [
+            ("C0123456:1717171717.001", "C0123456"),
+            ("C0123456", "C0123456"),
+            ("-1001234567890", "-1001234567890"),
+        ],
+    )
+    def test_a_thread_resolves_to_the_channel_that_holds_it(
+        self, platform_chat_id: str, expected: str
+    ):
+        assert ChannelAgentRouter._channel_key(platform_chat_id) == expected
+
+    def test_two_threads_in_one_channel_agree_on_the_key(self):
+        first = ChannelAgentRouter._channel_key("C0123456:1717171717.001")
+        second = ChannelAgentRouter._channel_key("C0123456:1818181818.002")
+
+        assert first == second
+
+
+class TestWhatTheBotSaysAboutWhatItCost:
+    """The footer, and the fact that it never costs an answer.
+
+    A bot that stops answering because its organization hit a cap looks broken,
+    so the report exists - but it hangs off a reply somebody is already waiting
+    for, and an accounting read that failed must not take that reply with it.
+    """
+
+    async def test_a_failed_report_returns_the_answer_unchanged(self):
+        router = ChannelAgentRouter(MagicMock())
+        router.usage = MagicMock(for_run=AsyncMock(side_effect=RuntimeError("no")))
+        router.runner = MagicMock(monthly_spend=AsyncMock(return_value=None))
+
+        answered = await router._with_usage(
+            _ctx(), "here you go", MagicMock(id=uuid.uuid4()), usage_reporting=None, turn=1
+        )
+
+        assert answered == "here you go"
+
+    async def test_an_empty_answer_stays_empty(self):
+        """That is the parked-approval contract, and a footer under nothing would
+        look like the reply."""
+        router = ChannelAgentRouter(MagicMock())
+        router.usage = MagicMock(
+            for_run=AsyncMock(
+                return_value=UsageReport(input_tokens=1, output_tokens=1, cost_usd=Decimal("0.01"))
+            )
+        )
+        router.runner = MagicMock(monthly_spend=AsyncMock(return_value=None))
+        router._budget = AsyncMock(return_value=None)
+
+        assert (
+            await router._with_usage(
+                _ctx(), "", MagicMock(id=uuid.uuid4()), usage_reporting={"mode": "always"}, turn=1
+            )
+            == ""
+        )
+
+    async def test_always_puts_the_line_under_the_answer(self):
+        router = ChannelAgentRouter(MagicMock())
+        router.usage = MagicMock(
+            for_run=AsyncMock(
+                return_value=UsageReport(
+                    input_tokens=1000, output_tokens=200, cost_usd=Decimal("0.02")
+                )
+            )
+        )
+        router.runner = MagicMock(monthly_spend=AsyncMock(return_value=None))
+        router._budget = AsyncMock(return_value=None)
+
+        answered = await router._with_usage(
+            _ctx(),
+            "here you go",
+            MagicMock(id=uuid.uuid4()),
+            usage_reporting={"mode": "always"},
+            turn=1,
+        )
+
+        assert answered.startswith("here you go")
+        assert "1,200 tokens" in answered
+
+    async def test_off_records_it_and_says_nothing(self):
+        router = ChannelAgentRouter(MagicMock())
+        router.usage = MagicMock(
+            for_run=AsyncMock(
+                return_value=UsageReport(input_tokens=1, output_tokens=1, cost_usd=Decimal("0.01"))
+            )
+        )
+        router.runner = MagicMock(monthly_spend=AsyncMock(return_value=None))
+        router._budget = AsyncMock(return_value=None)
+
+        answered = await router._with_usage(
+            _ctx(),
+            "here you go",
+            MagicMock(id=uuid.uuid4()),
+            usage_reporting={"mode": "off"},
+            turn=1,
+        )
+
+        assert answered == "here you go"
+
+    async def test_the_organizations_cap_is_what_it_compares_against(self):
+        """An agent's own cap is its author's to raise; this one stops every agent
+        at once, which is the one worth warning a channel about."""
+        organization = MagicMock(monthly_budget_usd=Decimal("100"))
+        db = MagicMock(get=AsyncMock(return_value=organization))
+        router = ChannelAgentRouter(db)
+
+        assert await router._budget(_ctx()) == Decimal("100")
+
+    async def test_an_organization_that_vanished_has_no_cap(self):
+        router = ChannelAgentRouter(MagicMock(get=AsyncMock(return_value=None)))
+
+        assert await router._budget(_ctx()) is None
 
 
 class TestParseMention:
@@ -356,7 +488,7 @@ class TestAnswer:
 
         assert execute.call_args.args[2] == "what is the refund window"
         assert execute.call_args.kwargs["conversation_id"] == conversation_id
-        assert answer == "42 days"
+        assert answer.text == "42 days"
 
 
 def _serving(*slugs: str) -> AsyncMock:
@@ -472,4 +604,4 @@ class TestAnswerDefault:
         assert execute.call_args.kwargs["conversation_id"] == conversation_id
         assert execute.call_args.kwargs["message_history"] is history
         assert execute.call_args.kwargs["exposure"] is exposure
-        assert answer == "42 days"
+        assert answer.text == "42 days"

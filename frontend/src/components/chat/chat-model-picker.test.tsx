@@ -19,7 +19,7 @@ vi.mock("@/hooks", () => ({
   }),
   useProviderModels: () => ({ models: listedModels(), source: "curated", isLoading: false }),
   useSecretPurposes: () => ({ purposes: PURPOSES, isLoading: false }),
-  useSecrets: () => ({ secrets: listedSecrets() }),
+  useSecrets: () => ({ secrets: listedSecrets(), create: { mutate: vi.fn(), isPending: false } }),
 }));
 
 const purpose = (
@@ -127,9 +127,31 @@ describe("the chat's two-step model picker", () => {
     await userEvent.type(screen.getByLabelText("Model"), "gpt-6");
     await userEvent.click(screen.getByRole("button", { name: "Run on this model" }));
 
-    expect(screen.getByText(/No OpenAI key in the vault/)).toBeInTheDocument();
+    expect(screen.getByText(/No OpenAI key in the vault yet/)).toBeInTheDocument();
     expect(mutateAsync).not.toHaveBeenCalled();
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("offers to add the missing key here rather than on another page", async () => {
+    // A picker that can only offer what is already stored, and answers "add one in
+    // the Vault" when nothing is, is a dead end - and the provider is chosen, so the
+    // purpose the key needs is known.
+    listedSecrets.mockReturnValue([]);
+    render(<ChatModelPicker value={null} onChange={vi.fn()} />);
+
+    await pickProvider("OpenAI");
+
+    expect(screen.getByRole("button", { name: /Add a key/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Open the Vault/ })).toBeInTheDocument();
+  });
+
+  it("offers nothing once the provider has a key", async () => {
+    listedSecrets.mockReturnValue([{ id: "s-1", purpose: "openai" }]);
+    render(<ChatModelPicker value={null} onChange={vi.fn()} />);
+
+    await pickProvider("OpenAI");
+
+    expect(screen.queryByRole("button", { name: /Add a key/ })).toBeNull();
   });
 
   it("will not apply a bare OpenRouter id, same rule as the Builder", async () => {

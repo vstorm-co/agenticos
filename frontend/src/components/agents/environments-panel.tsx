@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAgentEnvironments } from "@/hooks";
+import { useTranslations } from "next-intl";
 
 /** The backend's slug rule, checked before the request leaves. */
 const NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
@@ -21,6 +22,7 @@ const NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
  * bot to bind to, removing an environment a client no longer has.
  */
 export function EnvironmentsPanel({ agentId, canManage }: { agentId: string; canManage: boolean }) {
+  const t = useTranslations("agents");
   const { environments, isLoading, create, remove } = useAgentEnvironments(agentId);
   const [name, setName] = useState("");
 
@@ -49,7 +51,7 @@ export function EnvironmentsPanel({ agentId, canManage }: { agentId: string; can
                 {environment.is_default && " - what publish repoints"}
               </p>
             </div>
-            {environment.is_default && <Badge variant="secondary">default</Badge>}
+            {environment.is_default && <Badge variant="secondary">{t("default2")}</Badge>}
             {canManage && !environment.is_default && (
               <Button
                 variant="ghost"
@@ -68,18 +70,18 @@ export function EnvironmentsPanel({ agentId, canManage }: { agentId: string; can
       {canManage && (
         <div className="flex items-end gap-3">
           <div className="flex-1 space-y-1">
-            <Label htmlFor="env-name">New environment</Label>
+            <Label htmlFor="env-name">{t("newEnvironment")}</Label>
             <Input
               id="env-name"
               value={name}
               onChange={(event) => setName(event.target.value)}
-              placeholder="dev, staging, a client's name…"
+              placeholder={t("devStagingClientS")}
               maxLength={64}
             />
           </div>
           <Button onClick={add} disabled={!nameOk || create.isPending}>
             <Plus className="h-4 w-4" />
-            Add
+            {t("add")}
           </Button>
         </div>
       )}

@@ -26,6 +26,7 @@ tools listed.
 | `skills` | Skills | knowledge | `list_skills`, `load_skill`, `read_skill_resource` | `knowledge:read` | — |
 | `web_research` | Web search | research | `web_search` | `web:read` | for paid services |
 | `code_execution` | Run Python | analysis | `run_python` | `code:execute` | — |
+| `sandbox` | Files & shell | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | for Daytona |
 | `charts` | Charts | analysis | `create_chart` | — | — |
 | `thinking` | Thinking | reasoning | none, by design | — | — |
 | `clock` | Date and time | utility | none, by design | — | — |
@@ -108,6 +109,135 @@ Capped rather than open-ended, and per agent rather than per deployment: an auth
 raising a limit for one data-heavy agent should not need an operator or a
 redeploy.
 
+## Files & shell
+
+`ls`, `read_file`, `glob`, `grep` — *reading.*
+`write_file`, `edit_file`, `execute` — *writing and running.*
+
+A workspace that survives between turns. `code_execution` computes and forgets;
+this remembers, and on a container-backed backend it has a real shell. An agent
+granted both computes with one and keeps its work in the other — which is the
+normal pairing on the `state` backend, because that one has no shell at all.
+
+| Config | Default | Values |
+|---|---|---|
+| `backend` | `state` | `state`, `service` |
+| `connection_id` | null | a registered sandbox connection; null takes the organization's default. `service` only |
+| `session_scope` | `conversation` | `run`, `conversation`, `channel`, `user`, `agent` |
+| `runtime` | null | an alias that connection's service allows; `service` only |
+| `include_execute` | `true` | removes the shell entirely when off, rather than gating it |
+
+There is no `docker` or `daytona` backend to choose. *Where* a sandbox runs is a
+property of the connection an operator registered — Sandboxes in the app — so
+naming the connection is naming the kind. Choosing them separately made it
+possible to choose two things that disagree.
+
+**`backend` is infrastructure; `session_scope` is a data-sharing policy.** Getting
+the first wrong costs a feature. Getting the second wrong shows one person
+another person's files, so it is worth reading twice:
+
+| Scope | Who shares the workspace |
+|---|---|
+| `run` | Nobody — a fresh one every turn |
+| `conversation` | Everyone in that chat. On Slack a thread *is* a chat, so threads do not share |
+| `channel` | Every thread in one channel. A direct message has its own chat id, so people still get their own |
+| `user` | One person, across every surface they reach this agent on |
+| `agent` | **Everyone who talks to this agent**, across the organization |
+
+`conversation` and `channel` exist as separate answers because a chat platform
+makes them different things. `SlackAdapter` folds `thread_ts` into the chat id, so
+`conversation` on Slack means one workspace per thread — fifty threads in a busy
+channel is fifty containers and a `429` for the fifty-first person to reply.
+
+The scope in the spec is the **default**. Each channel the agent is published to
+can override it, on the exposure: an agent reached in web chat and on a Slack bot
+is one agent in two situations, and one value for both was the wrong shape.
+`user` scope is what carries a workspace across surfaces — the same person picking
+up in Slack a conversation they started in web chat finds their files there.
+
+`agent` is the one that crosses a boundary between people. The Builder warns at
+the field, the file panel labels whose workspace it is rather than calling it "this
+conversation's files", and setting it is recorded in the audit log — because a user
+who sees a file they did not create should be able to find out why.
+
+**Changing the backend or the connection starts a fresh workspace rather than
+reattaching to the old one.** A stored document, a container's volume and a
+Daytona sandbox are three different things, and two `sandboxd` installations are
+two different things — so each gets its own workspace, and the previous one stays
+where it is, still listed and still readable. Moving a live agent is therefore not
+a way to carry its files across; the agent finds an empty workspace on the new
+host. Since `connection_id: null` means "the organization's default", marking a
+different connection as default has the same effect without any spec changing.
+
+A spec chooses a connection and never an image, a mount, a network mode or a
+ceiling. Those belong to whoever runs the deployment: a spec is authored in a
+browser by anyone holding `edit` on the agent, and one that could name a container
+image could name one whose entrypoint mounts the host. `runtime` is an alias, and
+the Builder offers only the aliases that connection's service reports — read live,
+because a stored copy would offer one the service has since stopped allowing.
+
+What each backend costs to run:
+
+| Backend | Needs | Shell | Where files live |
+|---|---|---|---|
+| `state` | nothing | no | this database, capped at `SANDBOX_STATE_MAX_BYTES` |
+| `service` | a registered connection | yes | a container on that host, or Daytona's cloud on the organization's own account |
+
+An operator can see what is running: Sandboxes lists this organization's open
+sandboxes on its default host with their runtimes, idle times and memory, and the
+activity log per sandbox. See [Configuration](../configuration.md#agent-workspaces).
+
+Publishing is refused for a `service` workspace when the organization has
+registered no connection, when the one it names is gone, or when that connection
+has no credential — each by name, because all three are states a deployment
+reaches *after* an agent was published and the fix is an operator's rather than the
+author's.
+
+**Only `execute` asks.** Side-effecting is declared per tool, and of the seven only
+running a command is: a workspace is scratch space deleted with the conversation it
+belongs to, so writing a file in it is not the class of act sending an email is —
+and an agent that has to ask before every `write_file` cannot do multi-step work at
+all, which is how an author ends up turning the gate off entirely and losing the one
+that mattered. `execute` runs arbitrary commands on somebody's host.
+
+A binding that wants the stricter behaviour sets it per tool:
+`tool_approval: {"write_file": "required"}`. See [Governance](../governance.md) for
+how an approval is put to a person.
+
+**Some paths are refused whatever the approval policy says.** Credentials
+(`**/.env`, `**/*.pem`, `**/*.key`, `**/credentials*`, `**/.ssh/**`, `**/.aws/**`)
+and the system tree (`/etc/**`, `/usr/**`, `/proc/**` and their siblings) cannot be
+read, written or edited — the agent gets a readable refusal and can carry on. `grep`
+is filtered rather than refused, since a pattern over `/` legitimately covers the
+workspace: matches inside an off-limits file are dropped, so a search cannot return
+a line from one. Names are not secret, so `ls` and `glob` still show what is there;
+only the contents are withheld.
+
+A command that *names* one of those paths is refused too, so `cat /etc/shadow`
+does not get round the rule by asking a different tool. That is defence in depth
+and not a boundary, and the difference matters: a shell reaches a file in ways
+string inspection cannot see, so what actually makes execution safe is the
+container's isolation and the operator's network mode. There is no allowlist of
+command strings, because one is defeated by `sh -c`.
+
+And none of it is a substitute for the approval gate: refusal here is the code's
+flat no, while `execute` asking a person is the decision an operator owns.
+
+Files somebody attaches to a message land in `/uploads` — see
+[File processing](../file-processing.md).
+
+**Skills become files too.** An agent with both a workspace and skills gets each
+skill as `/skills/<name>/SKILL.md` with its resources beside it, which is what
+makes a skill's script runnable at all: it is on disk next to the shell that can
+run it. There is deliberately no `run_skill_script` — `execute` already has the
+approval gate and the operator's ceilings behind it, and a second execution path
+would be a second set of rules to get wrong.
+
+Those files are writable, and what the agent writes does **not** become a skill. A
+skill is instructions every agent bound to it follows on every run, so a change is
+recorded as a proposal and somebody holding `skills:edit` accepts or discards it —
+see [Skills](../skills.md).
+
 ## Charts
 
 `create_chart` — *Draw a chart of numbers you already have, so the user can see
@@ -180,8 +310,9 @@ the agent is assembled:
 | `knowledge:read` | `knowledge`, `skills` |
 | `web:read` | `web_research` |
 | `code:execute` | `code_execution` |
+| `sandbox:execute` | `sandbox` |
 
-All three are granted by default today (`DEFAULT_GRANTED_SCOPES` in
+All four are granted by default today (`DEFAULT_GRANTED_SCOPES` in
 `app/services/agent_registry.py`). Per-organization scope management is
 [roadmap](../ROADMAP.md) work; the check is live and honest in the meantime rather
 than disabled and forgotten.
