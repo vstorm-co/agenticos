@@ -120,3 +120,7 @@ backend/requirements-audit.txt
 
 # Audit notes are working documents about unfixed vulnerabilities. They stay local.
 docs/audits/
+
+# Only frontend/.gitignore covered this, so a `bunx vitest` run from the repository
+# root left a root-level cache that `git add -A` happily staged.
+node_modules/

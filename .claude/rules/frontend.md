@@ -70,7 +70,22 @@ network before the component, and never write a test that asserts only on chrome
 
 ## Verify
 
+From `frontend/` — at the repository root vitest finds no config and reports phantom
+failures. While writing, run only what covers the change:
+
 ```bash
-cd frontend
-bun run type-check && bun run lint && bun run test:run
+bunx vitest run src/components/chat/usage-strip.test.tsx
 ```
+
+Once, before the push:
+
+```bash
+bun run type-check && bun run lint && bun run test:coverage
+```
+
+**`test:coverage`, not `test:run`.** The job CI runs measures coverage and fails under
+100% lines/statements/functions or 97.5% branches on `src/{app/api,lib,stores,hooks}`
+and most of `src/components`, so a suite where every test passes can still be red. A
+dead branch is easier to delete than to cover: a `?? ""` behind a check that already
+proved the value, or an optional prop two callers always pass, is one the gate is
+right to notice.

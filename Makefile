@@ -292,7 +292,12 @@ test-e2e:
 	cd frontend && bun run test:e2e
 
 # What CI runs. Run this before opening a pull request.
-check: lint test test-frontend
+#
+# `test-frontend-cov`, not `test-frontend`: the CI job runs `bun run test:coverage`
+# and fails under 100% lines/statements/functions or 97.5% branches. This target
+# used to run the suite without coverage and print "All checks passed" over a
+# branch the job would refuse - which is exactly what happened on feat/sandbox.
+check: lint test test-frontend-cov
 	@echo "All checks passed."
 
 # === Documentation ===
