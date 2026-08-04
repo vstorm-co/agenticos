@@ -73,6 +73,10 @@ beforeEach(async () => {
 
 afterEach(() => {
   vi.useRealTimers();
+  // `clearAllMocks` in beforeEach clears calls but does not undo a `spyOn`;
+  // without this, a test that spies on `window.location` freezes it for
+  // every test after it.
+  vi.restoreAllMocks();
 });
 
 describe("checking the session on load", () => {

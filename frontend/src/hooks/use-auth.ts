@@ -181,6 +181,10 @@ export function useAuth() {
           // next@16.2's segment cache appends the fragment a second time on a
           // soft navigation (/path#x becomes /path#x#x in a production build),
           // so a destination with a fragment must load the document instead.
+          // The branches are not equivalent: a document load drops the
+          // in-memory access token (re-adopted via /auth/me on arrival), and
+          // anything the caller runs after login() fires into an unloading
+          // page.
           window.location.assign(destination);
         } else {
           router.push(destination);

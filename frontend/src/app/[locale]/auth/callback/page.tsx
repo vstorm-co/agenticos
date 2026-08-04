@@ -49,8 +49,10 @@ export default function AuthCallbackPage() {
         );
         if (cancelled) return;
         adoptSession(data.user, data.access_token);
-        // No deep link here: carrying one through the provider round trip
-        // needs the OAuth `state` parameter, which this flow does not use yet.
+        // No deep link here yet - nothing carries a returnTo through the
+        // provider round trip. It would not need the OAuth `state` parameter:
+        // the trip starts and ends in the same tab on this origin, so
+        // sessionStorage set beside the provider link is enough.
         router.replace(postSignInDestination());
       } catch {
         if (!cancelled) {
