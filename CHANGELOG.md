@@ -19,6 +19,30 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.6] - 2026-08-04
+
+Dependencies only. No behaviour change, no schema change, `SPEC_VERSION` unchanged
+at 7 — this is here so the version literals and the lockfiles move together rather
+than drifting until somebody notices.
+
+### Changed
+
+- **TypeScript 5.9.3 → 6.0.3** (dev). A major, so it was checked rather than
+  assumed: `tsc --noEmit`, `eslint --max-warnings 0`, the coverage gate and
+  `next build` all pass with no source change.
+
+  Dependabot bumped `frontend/package.json` and left `bun.lock` alone, which two CI
+  jobs would have refused — they run `bun install --frozen-lockfile`, and that fails
+  outright when the manifest and the lock disagree. The lock is updated here, so the
+  next such bump should be checked for the same omission.
+
+- **ruff 0.15.0 → 0.16.1** (dev). Ruff is the formatter as well as the linter, so a
+  new rule or a changed format would have turned `make lint` red *after* the merge
+  rather than before it. `ruff format --check` reports 476 files already formatted
+  and `ruff check` passes, so nothing in the tree needed touching.
+
+- **boto3 1.43.59 → 1.43.62.**
+
 ## [0.0.5] - 2026-08-04
 
 **Every sign-in lands on the dashboard**, and a deep link interrupted by the login
@@ -448,7 +472,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.5...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.6...HEAD
+[0.0.6]: https://github.com/vstorm-co/agenticos/compare/v0.0.5...v0.0.6
 [0.0.5]: https://github.com/vstorm-co/agenticos/compare/v0.0.4...v0.0.5
 [0.0.4]: https://github.com/vstorm-co/agenticos/compare/v0.0.3...v0.0.4
 [0.0.3]: https://github.com/vstorm-co/agenticos/compare/v0.0.2...v0.0.3
