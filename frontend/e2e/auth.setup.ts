@@ -24,9 +24,9 @@ setup("authenticate as the bootstrapped owner", async ({ page }) => {
   await page.getByLabel("Password").fill(OWNER_PASSWORD);
   await page.getByRole("button", { name: "Login" }).click();
 
-  // Login lands on /chat for a normal owner and /dashboard for a platform
-  // superadmin. Either is proof the credentials were accepted; staying on
-  // /login is proof they were not.
+  // Login lands on /dashboard for every role — one landing page, shared by
+  // every sign-in path. Arriving there is proof the credentials were accepted;
+  // staying on /login is proof they were not.
   //
   // The timeout is raised from the 5s default because this is the run's first
   // navigation into the dashboard, and against `bun run dev` that route is
@@ -36,7 +36,7 @@ setup("authenticate as the bootstrapped owner", async ({ page }) => {
   // reads exactly like rejected credentials; the login request had in fact
   // returned 200 and the redirect was still compiling. Raising it does not
   // weaken the check: staying on /login for 30s is still a failure.
-  await expect(page).toHaveURL(/\/(chat|dashboard)(\?.*)?$/, { timeout: 30_000 });
+  await expect(page).toHaveURL(/\/dashboard(\?.*)?$/, { timeout: 30_000 });
 
   // A URL change alone would also be satisfied by a client-side redirect that
   // bounces straight back. The dashboard shell renders behind `AuthGuard`, so
