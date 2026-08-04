@@ -122,11 +122,6 @@ interface McpServerListProps {
   canManageOrganization: boolean;
 }
 
-/** How many servers the catalog holds, in words rather than a bare digit. */
-function serverCount(count: number): string {
-  return count === 1 ? "1 server" : `${count} servers`;
-}
-
 /**
  * The catalog's frame, drawn whether or not there is anything in it - the
  * always-visible container the vault draws around its keys. The page uses it
@@ -143,7 +138,7 @@ export function ServersCard({ count, children }: { count: number | null; childre
           <CardDescription className="text-xs">
             {/* `null` is "the request has not answered". Rendering "0 servers"
                 there would state something nothing has said yet. */}
-            {count === null ? <Skeleton className="h-3 w-20" /> : serverCount(count)}
+            {count === null ? <Skeleton className="h-3 w-20" /> : t("serverCount", { count })}
           </CardDescription>
         </div>
       </CardHeader>
@@ -795,7 +790,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
       >
         <DialogContent className="max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Tools from &quot;{toolPicker?.connection.name}&quot;</DialogTitle>
+            <DialogTitle>{t("toolsFrom", { name: toolPicker?.connection.name ?? "" })}</DialogTitle>
           </DialogHeader>
           <p className="text-foreground/55 text-xs">
             Which tools this connection exposes. Selecting all keeps tools the server adds later

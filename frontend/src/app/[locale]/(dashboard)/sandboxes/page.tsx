@@ -29,10 +29,6 @@ import { useTranslations } from "next-intl";
  */
 const SANDBOXES_DESCRIPTION = "pageDescription";
 
-function registeredCount(count: number): string {
-  return count === 1 ? "1 connection" : `${count} connections`;
-}
-
 function ConnectionsCard({ count, children }: { count: number | null; children: ReactNode }) {
   const t = useTranslations("pages.sandboxes");
   return (
@@ -41,7 +37,7 @@ function ConnectionsCard({ count, children }: { count: number | null; children: 
         <div className="space-y-1">
           <CardTitle className="text-sm">{t("sandboxConnections")}</CardTitle>
           <CardDescription className="text-xs">
-            {count === null ? <Skeleton className="h-3 w-24" /> : registeredCount(count)}
+            {count === null ? <Skeleton className="h-3 w-24" /> : t("registeredCount", { count })}
           </CardDescription>
         </div>
       </CardHeader>

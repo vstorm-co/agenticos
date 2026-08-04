@@ -279,9 +279,7 @@ function CapabilityRow({
           {subtitle ??
             (entry.tools.length === 0
               ? t("noToolsChangesHow")
-              : entry.tools.length === 1
-                ? "1 tool"
-                : `${entry.tools.length} tools`)}
+              : t("toolCount", { count: entry.tools.length }))}
         </span>
       </button>
 

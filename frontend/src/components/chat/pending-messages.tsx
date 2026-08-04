@@ -45,7 +45,7 @@ export function PendingMessages({ messages, onCancel }: PendingMessagesProps) {
               {m.files && m.files.length > 0 && (
                 <p className="text-foreground/55 mt-0.5 inline-flex items-center gap-1 font-mono text-[10px] tracking-wider uppercase">
                   <Paperclip className="h-3 w-3" />
-                  {m.files.length} file{m.files.length === 1 ? "" : "s"}
+                  {t("fileCount", { count: m.files.length })}
                 </p>
               )}
             </div>

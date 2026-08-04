@@ -31,11 +31,6 @@ const SCOPE_META: Record<KBScope, { label: string; icon: LucideIcon }> = {
   app: { label: "App-wide", icon: Sparkles },
 };
 
-/** How many bases there are, in words rather than a bare digit. */
-function storedCount(count: number): string {
-  return count === 1 ? "1 knowledge base" : `${count} knowledge bases`;
-}
-
 /**
  * The list's frame, drawn whether or not there is anything in it - the same
  * always-visible container the vault draws around its keys. Same header, same
@@ -51,7 +46,7 @@ function BasesCard({ count, children }: { count: number | null; children: ReactN
           <CardDescription className="text-xs">
             {/* `null` is "the request has not answered". Rendering "0 knowledge
                 bases" there would state something nothing has said yet. */}
-            {count === null ? <Skeleton className="h-3 w-32" /> : storedCount(count)}
+            {count === null ? <Skeleton className="h-3 w-32" /> : t("storedCount", { count })}
           </CardDescription>
         </div>
       </CardHeader>

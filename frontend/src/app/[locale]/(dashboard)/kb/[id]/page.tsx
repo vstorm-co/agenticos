@@ -365,11 +365,10 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
       {overrideCount > 0 && (
         <div className="border-brand-line bg-brand-subtle mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3">
           <p className="text-foreground text-sm">
-            The next files you add are parsed with{" "}
-            <span className="font-medium">
-              {overrideCount === 1 ? "1 change" : `${overrideCount} changes`}
-            </span>{" "}
-            from this collection&apos;s settings, and will say so.{" "}
+            {t.rich("parsedWithOverrides", {
+              count: overrideCount,
+              strong: (chunks) => <span className="font-medium">{chunks}</span>,
+            })}{" "}
             <span className="text-muted-foreground">{t("collectionItselfUnchanged")}</span>
           </p>
           <div className="flex shrink-0 items-center gap-2">
@@ -632,7 +631,7 @@ function SyncSourceRow({
             <p className="text-foreground truncate text-sm font-medium">{source.name}</p>
           </div>
           <div className="text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-2 text-xs">
-            <span>Last sync · {lastSync}</span>
+            <span>{t("lastSyncAt", { when: lastSync })}</span>
             {source.schedule_minutes && source.schedule_minutes > 0 && (
               <>
                 <span>·</span>

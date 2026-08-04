@@ -130,8 +130,8 @@ export function CollectionPicker({
                   <span className="inline-flex items-center gap-1">
                     <Database className="h-3 w-3" />
                     {collection.document_count === 0
-                      ? "empty"
-                      : `${collection.document_count} ${collection.document_count === 1 ? "document" : "documents"}`}
+                      ? t("empty")
+                      : t("documentCount", { count: collection.document_count })}
                   </span>
                   {collection.chunk_count > 0 && (
                     <span className="inline-flex items-center gap-1">
@@ -171,9 +171,8 @@ export function CollectionPicker({
 
       {orphaned.length > 0 && (
         <p className="text-muted-foreground text-xs">
-          This agent also references {orphaned.length} collection
-          {orphaned.length === 1 ? "" : "s"} this organization no longer has. Publishing is refused
-          until they are cleared: <span className="font-mono break-all">{orphaned.join(", ")}</span>
+          {t("orphanedCollections", { count: orphaned.length })}{" "}
+          <span className="font-mono break-all">{orphaned.join(", ")}</span>
         </p>
       )}
 

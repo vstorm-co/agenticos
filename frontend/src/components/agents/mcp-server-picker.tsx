@@ -260,12 +260,12 @@ function ServerCard({
 
 /** Spec references this Builder cannot resolve - named, so they are not lost silently. */
 function OrphanedIds({ ids }: { ids: string[] }) {
+  const t = useTranslations("agents");
   if (ids.length === 0) return null;
   return (
     <p className="text-muted-foreground text-xs">
-      This agent also references {ids.length} server{ids.length === 1 ? "" : "s"} this organization
-      does not offer - removed since, or carried in from an imported spec. Publishing is refused
-      until they are cleared: <span className="font-mono break-all">{ids.join(", ")}</span>
+      {t("orphanedServers", { count: ids.length })}{" "}
+      <span className="font-mono break-all">{ids.join(", ")}</span>
     </p>
   );
 }

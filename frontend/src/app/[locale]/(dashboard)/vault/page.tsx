@@ -33,11 +33,6 @@ import { useTranslations } from "next-intl";
  */
 const VAULT_DESCRIPTION = "pageDescription";
 
-/** How many keys are in there, in words rather than a bare digit. */
-function storedCount(count: number): string {
-  return count === 1 ? "1 key stored" : `${count} keys stored`;
-}
-
 /**
  * The list's frame, drawn whether or not there is anything in it.
  *
@@ -58,7 +53,7 @@ function KeysCard({ count, children }: { count: number | null; children: ReactNo
                 stored" there would state something about the organization that
                 nothing has said yet - and it is the one number somebody would
                 read as fact. */}
-            {count === null ? <Skeleton className="h-3 w-24" /> : storedCount(count)}
+            {count === null ? <Skeleton className="h-3 w-24" /> : t("storedCount", { count })}
           </CardDescription>
         </div>
       </CardHeader>
@@ -177,7 +172,7 @@ export default function VaultPage() {
       <Dialog open={sharing !== null} onOpenChange={(open) => !open && setSharing(null)}>
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Access to {sharing?.name}</DialogTitle>
+            <DialogTitle>{t("accessTo", { name: sharing?.name ?? "" })}</DialogTitle>
             <DialogDescription>{t("whoCanBindKey")}</DialogDescription>
           </DialogHeader>
           {sharing && (

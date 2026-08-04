@@ -151,10 +151,7 @@ export function SharingPanel({ resourceType, resourceId, canManage }: SharingPan
       <Card>
         <CardHeader>
           <CardTitle>{t("visibility")}</CardTitle>
-          <CardDescription>
-            Who reaches this {noun} without being named. Sharing adds people on top of this; it
-            never takes access away.
-          </CardDescription>
+          <CardDescription>{t("visibilityReaches", { noun })}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
           {[...VISIBILITY_OPTIONS, ...(sharing.visibility === "team" ? [LEGACY_TEAM] : [])].map(
@@ -187,11 +184,7 @@ export function SharingPanel({ resourceType, resourceId, canManage }: SharingPan
       <Card>
         <CardHeader>
           <CardTitle>{t("people")}</CardTitle>
-          <CardDescription>
-            A share lifts one person&apos;s access to this {noun} without changing their role
-            anywhere else. Can view sees the configuration, can use also runs it, can edit also
-            changes it.
-          </CardDescription>
+          <CardDescription>{t("peopleReaches", { noun })}</CardDescription>
           {RUNTIME_NOTE[resourceType] && (
             <p className="text-muted-foreground border-border mt-2 border-l-2 pl-3 text-sm">
               {t(RUNTIME_NOTE[resourceType]!)}
@@ -199,7 +192,9 @@ export function SharingPanel({ resourceType, resourceId, canManage }: SharingPan
           )}
         </CardHeader>
         <CardContent className="space-y-3">
-          {ownerEmail && <p className="text-muted-foreground text-sm">Owned by {ownerEmail}</p>}
+          {ownerEmail && (
+            <p className="text-muted-foreground text-sm">{t("ownedBy", { email: ownerEmail })}</p>
+          )}
 
           {sharing.grants.length === 0 && (
             <p className="text-muted-foreground text-sm">{t("notSharedWithAnyone")}</p>
@@ -212,7 +207,7 @@ export function SharingPanel({ resourceType, resourceId, canManage }: SharingPan
               <div key={grant.id} className="flex items-center gap-3 rounded-md border p-3">
                 <span className="min-w-0 flex-1 truncate text-sm">{name}</span>
                 <Label htmlFor={id} className="sr-only">
-                  Access for {name}
+                  {t("accessFor", { name })}
                 </Label>
                 <Select
                   value={grant.level}

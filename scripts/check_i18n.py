@@ -14,7 +14,10 @@ What it looks for, in `frontend/src/**/*.tsx`:
 * a word-bearing string in an attribute a person reads: `placeholder`,
   `aria-label`, `title`, `alt`, and the label-ish props components take;
 * `toast.success("…")` and friends, which are as user-facing as anything on
-  screen and read like plumbing.
+  screen and read like plumbing;
+* a text node holding an interpolation as well as words - `Owned by {email}` - and
+  the plural somebody rolled by hand beside it, `{n} file{n === 1 ? "" : "s"}`, which
+  is a sentence only English can build that way.
 
 What it deliberately does not look at:
 
@@ -68,6 +71,16 @@ NOT_A_SENTENCE = re.compile(
     r"^(?:[A-Z][a-z]+(?:\s[A-Z][a-z]+)*\s?[-/]\s?|"  # "Foo / Bar" style tokens
     r"[A-Z]{2,}\s|.*\b(?:px|rem|vh|vw|deg)\b)"
 )
+# Copy in a text node that also holds an interpolation - `Owned by {email}`,
+# `Showing {n} of {m} rows`. `JSX_TEXT` excludes braces by construction, so the first
+# sweep read straight past this whole class and left it in English.
+MIXED = re.compile(r">([^<>\n]*\{[^{}\n]*\}[^<>\n]*)<")
+# A plural somebody rolled by hand: `{n} chunk{n === 1 ? "" : "s"}`. English is the
+# only language where this works, which is the point of `plural` in an ICU message.
+PLURAL = re.compile(r'\?\s*"([A-Za-z]*)"\s*:\s*"([A-Za-z]*)"')
+# The other half of the same habit, where the singular is spelled out: `count === 1 ?
+# "1 skill" : ...`. Caught by its digit, which `SENTENCE` requires a capital instead of.
+NUMBERED = re.compile(r'"(\d+\s+[A-Za-z][^"\n]*)"')
 EXEMPT = re.compile(r"i18n-exempt:\s*\S")
 WORDS = re.compile(r"[A-Za-z]{2,}")
 # A word-bearing string that is still not copy: an icon name, a CSS-ish token, a
@@ -84,6 +97,17 @@ def is_copy(value: str) -> bool:
     if len(stripped) < 2 or not WORDS.search(stripped):
         return False
     return not NOT_COPY.match(stripped)
+
+
+def is_plural_pair(first: str, second: str) -> bool:
+    """Whether two ternary branches are one word and its plural.
+
+    Narrow on purpose: `dir === "asc" ? "desc" : "asc"` is two tokens, not copy, and
+    only the `s` shapes - `"" : "s"`, `"file" : "files"` - are a plural in disguise.
+    """
+    if {first, second} == {"", "s"}:
+        return True
+    return bool(first) and bool(second) and (second == f"{first}s" or first == f"{second}s")
 
 
 def offences(path: Path) -> list[tuple[int, str]]:
@@ -122,6 +146,16 @@ def offences(path: Path) -> list[tuple[int, str]]:
             # An operator between the angle brackets means it is an expression.
             if is_copy(match.group(1)) and not re.search(r"&&|\|\||=>", match.group(1)):
                 found.append((number, f"text {match.group(1)!r}"))
+        for match in (() if typescript else MIXED.finditer(line)):
+            rest = re.sub(r"\{[^{}]*\}", " ", match.group(1))
+            if len(WORDS.findall(rest)) >= 2 and not re.search(r"&&|\|\||=>", rest):
+                found.append((number, f"text {' '.join(match.group(1).split())!r}"))
+        for match in PLURAL.finditer(line):
+            if is_plural_pair(match.group(1), match.group(2)):
+                found.append((number, f"plural {match.group(0)!r}"))
+        for match in NUMBERED.finditer(line):
+            if is_copy(match.group(1)):
+                found.append((number, f"string {match.group(1)!r}"))
         for match in TOASTS.finditer(line):
             if is_copy(match.group(1)):
                 found.append((number, f"toast {match.group(1)!r}"))

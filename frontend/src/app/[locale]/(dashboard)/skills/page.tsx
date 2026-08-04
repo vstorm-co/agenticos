@@ -44,11 +44,6 @@ import { Perm } from "@/types/permissions";
 import type { SkillSummary } from "@/types/providers";
 import { useTranslations } from "next-intl";
 
-/** How many skills are in there, in words rather than a bare digit. */
-function skillCount(count: number): string {
-  return count === 1 ? "1 skill" : `${count} skills`;
-}
-
 /**
  * One pressed-or-not control, used for the sort.
  *
@@ -108,7 +103,7 @@ function SkillsCard({
           <CardDescription className="text-xs">
             {/* Rendering "0 skills" before the request answers would state
                 something about the organization nothing has said yet. */}
-            {count === null ? <Skeleton className="h-3 w-24" /> : skillCount(count)}
+            {count === null ? <Skeleton className="h-3 w-24" /> : t("skillCount", { count })}
           </CardDescription>
         </div>
         {controls}

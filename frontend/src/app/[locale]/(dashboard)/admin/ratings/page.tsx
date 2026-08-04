@@ -283,7 +283,7 @@ export default function AdminRatingsPage() {
         </div>
         {ratings && !ratingsPending && (
           <span className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
-            {ratings.total.toLocaleString()} result{ratings.total === 1 ? "" : "s"}
+            {t("resultCount", { count: ratings.total })}
           </span>
         )}
       </div>

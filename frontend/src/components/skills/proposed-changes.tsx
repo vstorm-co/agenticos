@@ -26,11 +26,6 @@ interface ProposedChangesProps {
   canEdit: boolean;
 }
 
-/** How many are waiting, in words rather than a bare digit. */
-function waitingCount(count: number): string {
-  return count === 1 ? "1 change is waiting" : `${count} changes are waiting`;
-}
-
 /**
  * Skill changes an agent wrote, waiting for somebody to accept them.
  *
@@ -61,8 +56,8 @@ export function ProposedChanges({ canEdit }: ProposedChangesProps) {
             {t("changesAgentProposed")}
           </CardTitle>
           <CardDescription className="text-xs">
-            {waitingCount(changes.length)}. Accepting one rewrites the skill, which reaches every
-            agent bound to it on its next run.
+            {t("waitingCount", { count: changes.length })}. Accepting one rewrites the skill, which
+            reaches every agent bound to it on its next run.
           </CardDescription>
         </div>
       </CardHeader>

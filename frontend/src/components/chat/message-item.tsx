@@ -90,6 +90,7 @@ function TextBubble({
 }
 
 function SourcesButton({ sources, onClick }: { sources: SourceItem[]; onClick: () => void }) {
+  const t = useTranslations("chat");
   const ragCount = sources.filter((s) => s.type === "rag").length;
   const webCount = sources.filter((s) => s.type === "web").length;
 
@@ -112,7 +113,7 @@ function SourcesButton({ sources, onClick }: { sources: SourceItem[]; onClick: (
         )}
       </span>
       <span className="text-foreground/60 text-[11px] font-medium">
-        {sources.length} source{sources.length !== 1 ? "s" : ""}
+        {t("sourceCount", { count: sources.length })}
       </span>
     </button>
   );

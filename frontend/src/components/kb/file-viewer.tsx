@@ -505,7 +505,7 @@ function ParsedView({
   return (
     <div className="h-full overflow-auto">
       <div className="text-muted-foreground border-border bg-card sticky top-0 z-10 border-b px-6 py-2 text-xs">
-        What was indexed: {parsed.chunk_count} {parsed.chunk_count === 1 ? "chunk" : "chunks"}
+        {t("whatWasIndexed", { count: parsed.chunk_count })}
         {parsed.parser && (
           <>
             {" "}

@@ -22,11 +22,6 @@ import { ROUTES } from "@/lib/constants";
 import { useChanged } from "@/hooks/use-changed";
 import { useTranslations } from "next-intl";
 
-/** How many workspaces the account belongs to, in words rather than a bare digit. */
-function storedCount(count: number): string {
-  return count === 1 ? "1 workspace" : `${count} workspaces`;
-}
-
 /**
  * The list's frame, drawn whether or not there is anything in it - the same
  * always-visible container the vault draws around its keys. Same header, same
@@ -42,7 +37,7 @@ function WorkspacesCard({ count, children }: { count: number | null; children: R
           <CardDescription className="text-xs">
             {/* `null` is "the request has not answered". Rendering "0 workspaces"
                 there would state something nothing has said yet. */}
-            {count === null ? <Skeleton className="h-3 w-24" /> : storedCount(count)}
+            {count === null ? <Skeleton className="h-3 w-24" /> : t("storedCount", { count })}
           </CardDescription>
         </div>
       </CardHeader>

@@ -398,7 +398,9 @@ export default function RAGPage() {
 
       if (successCount > 0) {
         toast.success(
-          `${successCount} file${successCount > 1 ? "s" : ""} ingested${errorCount > 0 ? `, ${errorCount} failed` : ""}`,
+          errorCount > 0
+            ? t("ingestedWithFailures", { count: successCount, failed: errorCount })
+            : t("ingested", { count: successCount }),
         );
       }
 
@@ -574,7 +576,9 @@ export default function RAGPage() {
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Delete collection &ldquo;{selected}&rdquo;?</AlertDialogTitle>
+                    <AlertDialogTitle>
+                      {t("deleteCollectionNamed", { name: selected })}
+                    </AlertDialogTitle>
                     <AlertDialogDescription>{t("allDocumentsVectorsWill")}</AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>

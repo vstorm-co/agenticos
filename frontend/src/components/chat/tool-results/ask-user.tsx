@@ -37,7 +37,7 @@ export function AskUserResult({ args, resultText }: { args: unknown; resultText:
     <div className="space-y-2.5 py-1">
       <div>
         <p className="text-foreground/55 font-mono text-[10px] tracking-wider uppercase">
-          {questions.length > 1 ? "Questions" : "Question"}
+          {t("questionHeading", { count: questions.length })}
         </p>
         {questions.length > 0 ? (
           <ul className="text-foreground/85 mt-0.5 space-y-1 text-sm leading-relaxed">

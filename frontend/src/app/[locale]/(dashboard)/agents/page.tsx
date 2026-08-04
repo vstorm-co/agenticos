@@ -39,12 +39,6 @@ const FILTERS: { label: string; value: Filter }[] = [
   { label: "Archived", value: "archived" },
 ];
 
-/** The gallery count, in words, honest about a filter narrowing the view. */
-function shownCount(visible: number, total: number): string {
-  if (visible === total) return total === 1 ? "1 agent" : `${total} agents`;
-  return `${visible} of ${total} shown`;
-}
-
 /**
  * The gallery's frame, drawn whether or not anything is in it - the same
  * bargain as the vault's KeysCard: one panel with one header in every state,
@@ -66,7 +60,14 @@ function AgentsCard({
         <div className="space-y-1">
           <CardTitle className="text-sm">{t("catalog")}</CardTitle>
           <CardDescription className="text-xs">
-            {visible === null ? <Skeleton className="h-3 w-24" /> : shownCount(visible, total)}
+            {visible === null ? (
+              <Skeleton className="h-3 w-24" />
+            ) : visible === total ? (
+              t("shownCount", { count: total })
+            ) : (
+              /* Honest about a filter narrowing the view. */
+              t("shownOfTotal", { visible, total })
+            )}
           </CardDescription>
         </div>
       </CardHeader>

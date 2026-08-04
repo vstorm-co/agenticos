@@ -48,16 +48,15 @@ function purposeLabel(
  * shared with nobody. Collapsing them into one number is how somebody deletes
  * the wrong key.
  */
-function reach(secret: Secret): { label: string; detail: string | null } {
+function reach(
+  secret: Secret,
+  t: (key: string, values?: Record<string, number>) => string,
+): { label: string; detail: string | null } {
   const shared = secret.shared_with ?? 0;
-  const people = shared === 1 ? "1 person" : `${shared} people`;
-  if (secret.visibility === "private") {
-    return { label: "Private", detail: shared === 0 ? null : `shared with ${people}` };
-  }
-  if (secret.visibility === "team") {
-    return { label: "Team", detail: shared === 0 ? null : `shared with ${people}` };
-  }
-  return { label: "Organization", detail: null };
+  const sharedWith = shared === 0 ? null : t("sharedWithPeople", { count: shared });
+  if (secret.visibility === "private") return { label: t("visibilityPrivate"), detail: sharedWith };
+  if (secret.visibility === "team") return { label: t("visibilityTeam"), detail: sharedWith };
+  return { label: t("visibilityOrg"), detail: null };
 }
 
 /** Two letters for a face nobody uploaded, and nothing at all for nobody. */
@@ -107,7 +106,7 @@ export function SecretsTable({
       </TableHeader>
       <TableBody>
         {secrets.map((secret) => {
-          const access = reach(secret);
+          const access = reach(secret, t);
           const used = secret.used_by ?? [];
           return (
             <TableRow key={secret.id}>

@@ -263,7 +263,7 @@ export default function RunsPage() {
           <Card>
             <CardHeader>
               <CardTitle>{t("spendByAgent")}</CardTitle>
-              <CardDescription>Last {spend?.period_days ?? 30} days.</CardDescription>
+              <CardDescription>{t("lastDays", { days: spend?.period_days ?? 30 })}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
               {!spend || spend.by_agent.length === 0 ? (

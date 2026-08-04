@@ -269,7 +269,7 @@ function SpecDiff({ before, after }: { before: AgentSpec; after: AgentSpec }) {
               row.kind === "gap" ? (
                 <tr key={`gap-${index}`} className="bg-muted/40">
                   <td colSpan={2} className="text-muted-foreground px-3 py-1 text-center">
-                    {row.hidden} unchanged {row.hidden === 1 ? "line" : "lines"}
+                    {t("unchangedLines", { count: row.hidden })}
                   </td>
                 </tr>
               ) : (

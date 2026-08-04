@@ -253,7 +253,7 @@ function CloneIntoDialog({
     <Dialog open onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Use “{source.name}” in a knowledge base</DialogTitle>
+          <DialogTitle>{t("useSourceInCollection", { name: source.name })}</DialogTitle>
           <DialogDescription>{t("itsCredentialsAreCopied")}</DialogDescription>
         </DialogHeader>
 

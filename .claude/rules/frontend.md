@@ -40,6 +40,12 @@ There is no `(marketing)` route group.
   component - a text node, a readable attribute, a toast, a sentence in a ternary -
   and on the reverse, a key a component reads that `messages/en.json` does not hold.
   A genuine non-string takes `i18n-exempt: <reason>`; the reason is required.
+- **A count is an ICU `plural`, never a ternary.** `{n} file{n === 1 ? "" : "s"}`
+  and `count === 1 ? "1 skill" : \`${count} skills\`` are sentences only English
+  builds that way, so they are refused too - the message holds
+  `{count, plural, =1 {1 skill} other {# skills}}` and the component passes `count`.
+  Same for a text node that mixes words with an interpolation (`Owned by {email}`):
+  it is one message with a named parameter, not English with a hole in it.
 - **English is the source language, and `pl.json` holds only what is translated.**
   `src/i18n.ts` merges `en.json` underneath every locale, so a missing translation
   renders English instead of the key. A module-level table of labels cannot call a

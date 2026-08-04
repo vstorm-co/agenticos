@@ -129,9 +129,8 @@ export function SkillGallery({
 
       {orphaned.length > 0 && (
         <p className="text-muted-foreground text-xs">
-          This agent also references {orphaned.length} skill
-          {orphaned.length === 1 ? "" : "s"} this organization no longer has. Publishing is refused
-          until they are cleared: <span className="font-mono break-all">{orphaned.join(", ")}</span>
+          {t("orphanedSkills", { count: orphaned.length })}{" "}
+          <span className="font-mono break-all">{orphaned.join(", ")}</span>
         </p>
       )}
 

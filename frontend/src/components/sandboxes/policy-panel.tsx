@@ -53,7 +53,7 @@ export function PolicyPanel({ connection, onOpenChange }: PolicyPanelProps) {
     <Dialog open={connection !== null} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>What {connection?.name} allows</DialogTitle>
+          <DialogTitle>{t("whatConnectionAllows", { name: connection?.name ?? "" })}</DialogTitle>
           <DialogDescription>{t("readFromServiceItself")}</DialogDescription>
         </DialogHeader>
 
