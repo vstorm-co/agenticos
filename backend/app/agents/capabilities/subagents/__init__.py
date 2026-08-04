@@ -70,7 +70,11 @@ class SubagentsConfig(BaseModel):
             "task from what the model says about it (auto). The author's choice, "
             "not the model's: the delegation tool's own mode argument defaults to "
             "sync, so a model that says nothing and a model that chose sync are "
-            "the same call - auto is how you hand the decision to the model."
+            "the same call - auto is how you hand the decision to the model. One "
+            "thing a background delegation cannot do is wait for a person: a "
+            "specialist's tool that needs approval is refused rather than queued, "
+            "because the delegation has already handed back a task id and there is "
+            "nobody left holding the run. Keep that work on sync."
         ),
     )
     allow_dynamic: bool = Field(

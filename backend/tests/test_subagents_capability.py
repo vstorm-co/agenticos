@@ -6,6 +6,15 @@ that does not bind lets one turn start a dozen agents; a mode nobody enforces
 turns a blocking delegation into a background one whose answer arrives after the
 run has ended. None of those look like errors, so each one is pinned here.
 
+The background path adds three more of the same kind, and each has its own class:
+a delegation nobody collects (`TestBackgroundDelegations`), a lifecycle tool whose
+description promises something it does not do (`TestTaskLifecycle`), and a
+delegate that stops for a person nobody can ask
+(`TestApprovalInsideADelegation`). Cancellation is deliberately *not* here: the
+cancel that matters arrives from outside the run, so it is asserted through the
+surface that sends it, in
+`tests/test_agent_session.py::TestStoppingATurnMidDelegation`.
+
 Every model is `TestModel` or `FunctionModel`: a delegation is a whole second
 agent run, and this suite would otherwise be the most expensive one in the
 repository.
@@ -1025,6 +1034,58 @@ class TestTaskLifecycle:
         assert sink.frames[-1].kind == "subagent_complete"
         assert capability.journal.in_flight() == 0
 
+    async def test_two_background_delegations_started_in_one_step_settle_separately(self):
+        """Pydantic AI runs the tool calls in one model response concurrently, so
+        two `task` calls overlap however the mode is configured - and the sweep that
+        settles finished delegations mutates the same dict it is walking. Two
+        distinct task ids, two outcomes, and a fan-out count back at zero is what
+        says the bookkeeping is per delegation rather than per run."""
+        ledger = SpendLedger()
+        recorder = Recorder()
+        capability = a_capability(
+            a_runtime(a_delegate(model=answering(ledger=ledger)), ledger=ledger, record=recorder),
+            {"mode": "async", "max_fanout": 2},
+        )
+        ctx = a_context()
+        started: list[str] = []
+
+        async def once() -> None:
+            started.append(await delegate_to(capability, ctx))
+
+        async with anyio.create_task_group() as group:
+            group.start_soon(once)
+            group.start_soon(once)
+
+        task_ids = [task_id_in(answer) for answer in started]
+        assert len(set(task_ids)) == 2
+        await call_tool(capability, ctx, "wait_tasks", {"task_ids": task_ids})
+        await ends_the_run(capability, ctx)
+
+        assert [outcome.status for outcome in recorder.outcomes] == ["completed", "completed"]
+        assert {outcome.task_id for outcome in recorder.outcomes} == set(task_ids)
+        assert capability.journal.in_flight() == 0
+
+    async def test_answering_a_delegate_finds_nothing_to_answer(self):
+        """`answer_subagent` is declared, offered, and inert here - deliberately.
+
+        The library injects its `ask_parent` tool only into agents it built itself,
+        and every delegate on this platform arrives pre-built, so no specialist can
+        ask a question and this tool can never have one to answer. It stays
+        declared because a tool absent from `tools=` cannot be gated or renamed, and
+        because the shape is what would change if a delegate ever could ask. What it
+        must not do is invent an answer.
+        """
+        capability = a_capability(a_runtime(a_delegate(model=blocking())), {"mode": "async"})
+        ctx = a_context()
+        task_id = task_id_in(await delegate_to(capability, ctx))
+
+        answer = await call_tool(
+            capability, ctx, "answer_subagent", {"task_id": task_id, "answer": "in EUR"}
+        )
+
+        assert "is not waiting for an answer" in answer
+        await ends_the_run(capability, ctx)
+
     @pytest.mark.parametrize("tool", ["soft_cancel_task", "hard_cancel_task"])
     async def test_cancelling_a_delegation_that_already_finished_explains_itself(self, tool: str):
         """ "Not found" would invite the model to conclude the work was lost, when
@@ -1377,11 +1438,11 @@ class TestApproval:
 
 
 class TestOtherTools:
-    """The six tools that read or steer what a run already started."""
+    """Only `task` is intercepted; what the other six do is `TestTaskLifecycle`."""
 
     async def test_they_pass_through_untouched(self):
-        """Nothing here decides anything about them: they read and steer tasks this
-        run already started, and the approval gate covers the two that act."""
+        """Nothing here decides anything about them, and the accounting must not
+        move either: a call that starts no delegation cannot open or close one."""
         capability = a_capability(a_runtime(a_delegate()))
 
         answer = await call_tool(capability, a_context(), "list_active_tasks", {})

@@ -226,6 +226,13 @@ class DelegationJournal:
         must not be handed the parent's approval channel: the tool call that
         started it has returned, so nothing is left to park, and asking would
         write an approval row on a session the parent is still using.
+
+        No delegation in flight answers `False`, which is the same answer a sync
+        one gets. That is only reachable through an entry point this capability
+        does not intercept, and such a delegation has already escaped the mode,
+        the fan-out ceiling and the recording - so a defensive branch here would
+        guard the smallest of four holes that all close the same way, by routing
+        the entry point through `_toolset.py`.
         """
         delegation = _CURRENT.get()
         return delegation is not None and delegation.mode == "async"
