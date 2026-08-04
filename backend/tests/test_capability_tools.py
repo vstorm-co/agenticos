@@ -8,9 +8,11 @@ broken tool means it is built and then answers wrongly.
 from __future__ import annotations
 
 import json
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic_ai_backends import StateBackend
 
 from app.agents.capabilities.charts import ChartsToolset
 from app.agents.capabilities.charts._spec import ChartSeries, parse_chart_spec
@@ -19,6 +21,8 @@ from app.agents.capabilities.code_execution import CodeExecution
 from app.agents.capabilities.code_execution._sandbox import _clip, _format_result, run_python
 from app.agents.capabilities.knowledge._search import _format_results
 from app.agents.capabilities.knowledge._toolset import build_knowledge_toolset
+from app.agents.capabilities.sandbox._capability import build_workspace
+from app.agents.capabilities.sandbox._permissions import GuardedBackend, workspace_ruleset
 from app.agents.capabilities.web_research._search import parse_web_search
 from app.agents.deps import AgentDeps
 
@@ -206,3 +210,131 @@ class TestChartTool:
 class TestWebSearchParsing:
     def test_parsing_junk_returns_nothing(self):
         assert parse_web_search("not results") is None
+
+
+class TestTheWorkspaceRefusesAnOffLimitsPath:
+    """The ruleset only means something if something evaluates it.
+
+    It used to mean nothing. `ConsoleCapability(permissions=...)` reads each
+    operation's *default action* and never its per-path `rules`, so twenty deny
+    patterns per operation sat there while an agent read `/etc/passwd` and
+    `**/.env` as freely as its own scratch files. These assert the consequence
+    rather than the shape of the ruleset - a test that checked the rules were
+    present passed throughout.
+    """
+
+    pytestmark = pytest.mark.anyio
+
+    @staticmethod
+    def _guarded() -> GuardedBackend:
+        backend = StateBackend()
+        backend.write("/notes.txt", "ordinary work")
+        backend.write("/.env", "OPENAI_API_KEY=sk-live-secret")
+        backend.write("/sub/.env", "NESTED=sk-live-secret")
+        backend.write("/credentials.txt", "PASSWORD=hunter2")
+        backend.write("/etc/passwd", "root:x:0:0")
+        return GuardedBackend(backend, workspace_ruleset())
+
+    @pytest.mark.parametrize("path", ["/.env", "/sub/.env", "/credentials.txt", "/etc/passwd"])
+    async def test_reading_a_credential_or_the_system_is_refused(self, path: str):
+        with pytest.raises(PermissionError):
+            await self._guarded().read(path)
+
+    @pytest.mark.parametrize("path", ["/.env", "/sub/.env", "/credentials.txt", "/etc/passwd"])
+    async def test_reading_one_as_bytes_is_refused_too(self, path: str):
+        """`read_file` on an image goes through `read_bytes`, so a guard on
+        `read` alone would leave the same file readable by asking differently."""
+        with pytest.raises(PermissionError):
+            await self._guarded().read_bytes(path)
+
+    async def test_the_workspaces_own_files_still_read(self):
+        assert "ordinary work" in await self._guarded().read("/notes.txt")
+
+    async def test_the_workspaces_own_files_still_read_as_bytes(self):
+        """The path `read_file` takes for an image, so it needs its own case -
+        a guard that only let text through would stop an agent seeing a chart."""
+        assert await self._guarded().read_bytes("/notes.txt") == b"ordinary work"
+
+    async def test_writing_over_a_credential_is_refused_as_a_value(self):
+        """An error result, not a raise: it is what the model reads and acts on,
+        and the protocol has a place for it."""
+        result = await self._guarded().write("/sub/.env", "x")
+        assert result.error is not None
+        assert "Permission denied" in result.error
+
+    async def test_an_ordinary_write_still_lands(self):
+        assert (await self._guarded().write("/report.csv", "a,b")).error is None
+
+    async def test_editing_a_credential_is_refused_as_a_value(self):
+        result = await self._guarded().edit("/.env", "sk-live-secret", "x")
+        assert result.error is not None
+
+    async def test_an_ordinary_edit_still_applies(self):
+        assert (await self._guarded().edit("/notes.txt", "ordinary", "usual")).error is None
+
+    async def test_grep_does_not_return_a_line_from_a_file_it_may_not_read(self):
+        """The one that matters most, and the one a guard on `read` misses.
+
+        `GrepMatch` carries the matching *line*, so an unfiltered grep hands over
+        the contents of exactly the files the ruleset exists to protect - by a
+        different tool, with no refusal anywhere.
+        """
+        backend = StateBackend()
+        backend.write("/credentials.txt", "PASSWORD=hunter2")
+        backend.write("/notes.txt", "PASSWORD is stored elsewhere")
+        guarded = GuardedBackend(backend, workspace_ruleset())
+
+        found = await guarded.grep_raw("PASSWORD")
+
+        assert [match["path"] for match in found] == ["/notes.txt"]
+
+    async def test_a_grep_that_answers_with_a_string_is_passed_through(self):
+        """ "No matches" and a backend error are strings, not result sets."""
+
+        class _Backend:
+            def grep_raw(self, *_args: object, **_kwargs: object) -> str:
+                return "No matches for 'x'"
+
+        guarded = GuardedBackend(cast("Any", _Backend()), workspace_ruleset())
+        assert await guarded.grep_raw("x") == "No matches for 'x'"
+
+    async def test_names_are_not_secret_so_discovery_delegates(self):
+        """`exists`, `ls` and `glob` answer about names rather than contents.
+
+        Deliberate, and worth a test so a later reader does not "fix" it: `ls
+        /etc` saying what is there while every read of it refuses is the stated
+        boundary, not an oversight.
+        """
+        guarded = self._guarded()
+        assert await guarded.exists("/etc/passwd") is True
+        assert [entry["path"] for entry in await guarded.glob_info("**/.env")]
+        assert await guarded.ls_info("/")
+
+    async def test_anything_the_protocol_does_not_name_passes_through(self):
+        """A container-backed workspace has `execute` and `stop`, and a stored one
+        has `files` that the flush reads. An explicit method list would have
+        dropped all three."""
+
+        class _Backend:
+            files = {"/a.txt": {}}
+
+            def execute(self, command: str, timeout: int | None = None) -> str:
+                return f"ran {command}"
+
+        guarded = GuardedBackend(cast("Any", _Backend()), workspace_ruleset())
+        assert await guarded.execute("ls") == "ran ls"
+        assert guarded.files == {"/a.txt": {}}
+
+    def test_it_says_what_it_wraps(self):
+        assert "GuardedBackend" in repr(self._guarded())
+
+    async def test_the_capability_is_built_with_the_guard_in_place(self):
+        """The assertion that would have caught the original defect: not that the
+        ruleset exists, but that the toolset the model is handed refuses."""
+        backend = StateBackend()
+        backend.write("/etc/passwd", "root:x:0:0")
+
+        capability = build_workspace(backend=backend, include_execute=False)
+
+        with pytest.raises(PermissionError):
+            await capability.backend.read("/etc/passwd")

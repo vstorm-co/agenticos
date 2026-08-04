@@ -195,6 +195,21 @@ A binding that wants the stricter behaviour sets it per tool:
 `tool_approval: {"write_file": "required"}`. See [Governance](../governance.md) for
 how an approval is put to a person.
 
+**Some paths are refused whatever the approval policy says.** Credentials
+(`**/.env`, `**/*.pem`, `**/*.key`, `**/credentials*`, `**/.ssh/**`, `**/.aws/**`)
+and the system tree (`/etc/**`, `/usr/**`, `/proc/**` and their siblings) cannot be
+read, written or edited — the agent gets a readable refusal and can carry on. `grep`
+is filtered rather than refused, since a pattern over `/` legitimately covers the
+workspace: matches inside an off-limits file are dropped, so a search cannot return
+a line from one. Names are not secret, so `ls` and `glob` still show what is there;
+only the contents are withheld.
+
+Two things this is *not*. It is not a filter on commands — `execute` runs a shell,
+an allowlist of command strings is defeated by `sh -c`, and what makes execution
+safe is the container's isolation and the operator's network mode, not a pattern.
+And it is not a substitute for the approval gate: refusal here is the code's flat
+no, while `execute` asking a person is the decision an operator owns.
+
 Files somebody attaches to a message land in `/uploads` — see
 [File processing](../file-processing.md).
 
@@ -202,8 +217,8 @@ Files somebody attaches to a message land in `/uploads` — see
 skill as `/skills/<name>/SKILL.md` with its resources beside it, which is what
 makes a skill's script runnable at all: it is on disk next to the shell that can
 run it. There is deliberately no `run_skill_script` — `execute` already has the
-workspace's permission rules and the operator's ceilings behind it, and a second
-execution path would be a second set of rules to get wrong.
+approval gate and the operator's ceilings behind it, and a second execution path
+would be a second set of rules to get wrong.
 
 Those files are writable, and what the agent writes does **not** become a skill. A
 skill is instructions every agent bound to it follows on every run, so a change is
