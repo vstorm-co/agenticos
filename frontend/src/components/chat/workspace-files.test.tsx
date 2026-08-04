@@ -94,6 +94,24 @@ describe("the workspace panel", () => {
     await waitFor(() => expect(container).toBeEmptyDOMElement());
   });
 
+  it("draws nothing until the listing has answered", async () => {
+    // The flicker this fixes: the button used to render while the query was in
+    // flight, so the first message of a conversation showed it as the id arrived,
+    // hid it when the listing said there was no workspace yet - there is no row
+    // until the first turn flushes one - and showed it again when the turn ended.
+    // Three states in one turn for a panel whose job is to sit still.
+    let answer: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.get).mockImplementation(() => new Promise((resolve) => (answer = resolve)));
+
+    const { container } = draw(<WorkspaceFiles conversationId="c1" revision={0} />);
+
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalled());
+    expect(container).toBeEmptyDOMElement();
+
+    answer(workspace());
+    expect(await screen.findByRole("button", { name: /^Show the files/ })).toBeVisible();
+  });
+
   it("is absent before a conversation exists", () => {
     const { container } = draw(<WorkspaceFiles conversationId={null} revision={0} />);
 

@@ -6,7 +6,6 @@ import { AlertTriangle, FolderOpen, Info, X } from "lucide-react";
 
 import { FileIcon } from "@/components/sandboxes/file-tile";
 import { WorkspaceFileViewer } from "@/components/sandboxes/file-viewer";
-import { Skeleton } from "@/components/ui";
 import { useConversationWorkspace } from "@/hooks";
 import type { FileSource } from "@/lib/workspace-files";
 
@@ -44,7 +43,7 @@ function size(bytes: number | null): string {
  */
 export function WorkspaceFiles({ conversationId, revision }: WorkspaceFilesProps) {
   const t = useTranslations("chat.files");
-  const { workspace, isLoading, error, refresh } = useConversationWorkspace(conversationId);
+  const { workspace, error, refresh } = useConversationWorkspace(conversationId);
   const [open, setOpen] = useState(false);
   const [reading, setReading] = useState<string | null>(null);
   // The chat addresses files through its conversation, not through the workspace's
@@ -66,8 +65,17 @@ export function WorkspaceFiles({ conversationId, revision }: WorkspaceFilesProps
   if (conversationId === null) return null;
   // An agent with no workspace is the default, so a button would be a permanent
   // control that opens an empty box.
-  if (!isLoading && error === null && (workspace === null || workspace.backend === "none"))
-    return null;
+  //
+  // **Nothing is drawn until the listing has answered.** Rendering while the query
+  // was in flight put the button on screen for the length of a round trip and took
+  // it away again: a workspace has no row until the first turn flushes one, so the
+  // first message of a conversation showed the button as the id arrived, hid it when
+  // the listing said `none`, and showed it again when the turn ended. Three states
+  // in one turn for a panel whose whole job is to sit still. An error is the one
+  // thing worth a button with no workspace behind it - it is the only way to read
+  // what went wrong.
+  const hasWorkspace = workspace !== null && workspace.backend !== "none";
+  if (!hasWorkspace && error === null) return null;
 
   const files = workspace?.items.filter((file) => !file.is_dir) ?? [];
 
@@ -119,8 +127,6 @@ export function WorkspaceFiles({ conversationId, revision }: WorkspaceFilesProps
           </p>
         )}
       </div>
-
-      {isLoading && <Skeleton className="h-16 w-full" />}
 
       {error !== null && (
         <div className="text-destructive flex items-start gap-2 text-xs">
