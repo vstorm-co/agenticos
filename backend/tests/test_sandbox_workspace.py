@@ -12,6 +12,7 @@ refusals worth more than the feature itself:
 
 from __future__ import annotations
 
+import logging
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
 
@@ -456,6 +457,77 @@ class TestOpeningAndClosing:
 
     async def test_closing_nothing_is_not_an_error(self, mock_db_session):
         await SandboxWorkspaceService(mock_db_session).close(None)
+
+    async def test_a_flush_overtaken_by_another_run_says_which_paths_it_dropped(
+        self, monkeypatch, mock_db_session, caplog
+    ):
+        """The last flush wins, and this is what stops it winning silently.
+
+        Reachable under the scopes whose purpose is sharing - `agent`, `channel`,
+        `user` - where two runs hold one workspace and the socket's own guard does
+        not apply. `version` documented this detection long before anything read
+        the column.
+        """
+        opened = _row(version=4)
+        monkeypatch.setattr(workspace_repo, "get_by_key", AsyncMock(return_value=opened))
+        monkeypatch.setattr(workspace_repo, "touch", AsyncMock(return_value=opened))
+        monkeypatch.setattr(workspace_repo, "save_files", AsyncMock(return_value=opened))
+        service = SandboxWorkspaceService(mock_db_session)
+
+        workspace = await service.open(
+            _spec(session_scope="agent"), ctx=_ctx(), identity=_identity()
+        )
+        assert workspace is not None
+        workspace.backend.write("/mine.txt", "this run's work")
+        # Somebody else finished in between: the committed row has moved on, and
+        # holds a file this run never saw.
+        overtaken = _row(version=5, files={"/theirs.txt": {"content": ["gone"]}})
+        mock_db_session.get = AsyncMock(return_value=overtaken)
+
+        with caplog.at_level(logging.WARNING):
+            await service.close(workspace)
+
+        [record] = [r for r in caplog.records if r.message == "workspace_flush_overtaken"]
+        assert record.opened_version == 4
+        assert record.found_version == 5
+        assert record.paths_lost == ["/theirs.txt"]
+        assert record.scope == "agent"
+
+    async def test_an_uncontested_flush_says_nothing(self, monkeypatch, mock_db_session, caplog):
+        """The log is for the race, so an ordinary turn must not produce one -
+        otherwise the line means nothing when it matters."""
+        row = _row(version=4)
+        monkeypatch.setattr(workspace_repo, "get_by_key", AsyncMock(return_value=row))
+        monkeypatch.setattr(workspace_repo, "touch", AsyncMock(return_value=row))
+        monkeypatch.setattr(workspace_repo, "save_files", AsyncMock(return_value=row))
+        mock_db_session.get = AsyncMock(return_value=_row(version=4))
+        service = SandboxWorkspaceService(mock_db_session)
+
+        workspace = await service.open(_spec(), ctx=_ctx(), identity=_identity())
+        assert workspace is not None
+        workspace.backend.write("/mine.txt", "work")
+
+        with caplog.at_level(logging.WARNING):
+            await service.close(workspace)
+
+        assert not [r for r in caplog.records if r.message == "workspace_flush_overtaken"]
+
+    async def test_the_committed_row_is_read_rather_than_the_one_already_loaded(
+        self, monkeypatch, mock_db_session
+    ):
+        """`populate_existing`, or the identity map answers with the row as it was
+        at `open` and another session's commit is invisible by construction."""
+        row = _row(version=1)
+        monkeypatch.setattr(workspace_repo, "get_by_key", AsyncMock(return_value=row))
+        monkeypatch.setattr(workspace_repo, "touch", AsyncMock(return_value=row))
+        monkeypatch.setattr(workspace_repo, "save_files", AsyncMock(return_value=row))
+        mock_db_session.get = AsyncMock(return_value=row)
+        service = SandboxWorkspaceService(mock_db_session)
+
+        workspace = await service.open(_spec(), ctx=_ctx(), identity=_identity())
+        await service.close(workspace)
+
+        assert mock_db_session.get.await_args.kwargs["populate_existing"] is True
 
     async def test_a_run_scoped_state_workspace_is_not_stored(self, monkeypatch, mock_db_session):
         """It has no row by design, so there is nowhere for it to persist to -

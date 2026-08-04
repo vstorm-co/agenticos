@@ -115,6 +115,14 @@ class OpenWorkspace:
     connection_id: UUID | None = None
     """Which registered connection it runs on, for a workspace that is not `state`."""
 
+    opened_version: int | None = None
+    """What `version` said when this run loaded the document.
+
+    Carried so the flush can tell whether somebody else stored one in between.
+    `None` where there is no row to compare against - a run-scoped workspace, or a
+    container-backed one, which keeps its files on the host rather than here.
+    """
+
 
 def sandbox_config(spec: AgentSpec) -> SandboxConfig | None:
     """This spec's workspace configuration, or `None` if it has no workspace.
@@ -200,6 +208,7 @@ class SandboxWorkspaceService:
             scope=scope,
             scope_key=key,
             row_id=row.id if row is not None else None,
+            opened_version=row.version if row is not None else None,
         )
 
     async def _open_service(
@@ -332,16 +341,51 @@ class SandboxWorkspaceService:
             logger.exception("workspace_close_failed", extra={"scope_key": workspace.scope_key})
 
     async def _flush_state(self, workspace: OpenWorkspace) -> None:
-        if workspace.row_id is None:
-            return
-        row = await self.db.get(AgentWorkspace, workspace.row_id)
+        # `populate_existing`, so this is a read of what is *committed* rather than
+        # of what this session loaded at `open`. Without it the identity map answers
+        # with the row as it was, and a flush by another run - another person under
+        # `agent` scope, the same person on a second surface - is invisible by
+        # construction. One SELECT per finish is what the detection below costs.
+        row = (
+            None
+            if workspace.row_id is None
+            else await self.db.get(AgentWorkspace, workspace.row_id, populate_existing=True)
+        )
         if row is None:
             # The conversation was deleted while the run was in flight. The files
             # belonged to it, so there is nothing to keep.
             return
+        self._warn_if_overtaken(workspace, row)
         files = dict(workspace.backend.files)
         await workspace_repo.save_files(
             self.db, workspace=row, files=files, bytes_total=document_size(files)
+        )
+
+    @staticmethod
+    def _warn_if_overtaken(workspace: OpenWorkspace, row: AgentWorkspace) -> None:
+        """Say so when this flush is about to overwrite somebody else's.
+
+        The write still happens - see `save_files` for why refusing it would lose
+        the finished turn's work to protect a turn that already finished - so this
+        is the whole of the mechanism, and without it the overwrite was silent.
+
+        The paths it lost are named rather than counted. "A file went missing" is
+        the report that arrives, and the only thing that makes it actionable is
+        knowing which file and which two workspaces.
+        """
+        opened = workspace.opened_version
+        if opened is None or row.version == opened:
+            return
+        overwritten = sorted(set(row.files or {}) - set(workspace.backend.files))
+        logger.warning(
+            "workspace_flush_overtaken",
+            extra={
+                "scope_key": workspace.scope_key,
+                "scope": workspace.scope,
+                "opened_version": opened,
+                "found_version": row.version,
+                "paths_lost": overwritten,
+            },
         )
 
     async def _release(self, workspace: OpenWorkspace) -> None:

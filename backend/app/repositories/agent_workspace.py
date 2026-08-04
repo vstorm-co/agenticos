@@ -72,8 +72,13 @@ async def save_files(
     The version is written unconditionally rather than compared: the caller is a
     `finally` block finishing a run, and refusing to save because somebody else
     saved first would lose the turn's work to protect a turn that already
-    finished. The service logs the overlap; see
-    :class:`~app.db.models.agent_workspace.AgentWorkspace.version`.
+    finished.
+
+    Comparing it is the *service's* job, and it does it before calling this -
+    `_flush_state` re-reads the committed row and logs `workspace_flush_overtaken`
+    with the paths the write is about to drop. See
+    :class:`~app.db.models.agent_workspace.AgentWorkspace.version` for which scopes
+    can reach the race at all.
     """
     workspace.files = files
     workspace.bytes_total = bytes_total

@@ -119,12 +119,31 @@ class AgentWorkspace(Base, TimestampMixin):
     measuring the document on every read."""
 
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    """Bumped on every flush.
+    """Bumped on every flush, and compared against on the next one.
 
-    Two turns of one conversation cannot normally run at once - the WebSocket
-    refuses a second while one is in flight - so this is not a retry loop. It is
-    how a concurrent flush is *noticed*: the loser logs rather than silently
-    overwriting the other turn's files.
+    A run loads the document at `open` and stores it at `finish`, so two runs
+    holding one workspace is a read-modify-write race and **the last flush wins**.
+    That is the accepted behaviour, not an oversight: refusing the write would lose
+    a finished turn's work to protect a turn that had already finished, and merging
+    two documents needs a rule about what a conflict means that nothing here can
+    supply. What this column buys is that the overwrite is *not silent* -
+    `SandboxWorkspaceService._flush_state` re-reads the committed row, and logs
+    `workspace_flush_overtaken` with the paths it is about to drop.
+
+    Where the race actually happens is worth naming, because it is not where the
+    guard is. `agent_session` refuses a second turn on a socket while one is in
+    flight, which covers `conversation` scope in web chat - one socket, one turn.
+    It covers none of the scopes whose purpose is sharing:
+
+    * `agent` - one workspace across every user of the agent, so two people
+      chatting at once are two sockets and two runs.
+    * `channel` - a Slack or Telegram chat, where two mentions arrive through the
+      router and never touch that guard.
+    * `user` - one person on web and on Slack at the same time.
+
+    A real fix is a merge or a lock, and #119's review is where the trade is
+    argued. Until then the log is the record, and it names the paths so "a file
+    went missing" is answerable.
     """
 
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
