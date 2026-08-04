@@ -52,7 +52,7 @@ dependencies = [
     "liteparse>=2.10.1",
     "google-api-python-client>=2.0.0",
     "google-auth>=2.0.0",
-    "boto3>=1.43.59",
+    "boto3>=1.43.62",
     "httpx>=0.28.0",
     "click>=8.1.0",
     "tabulate>=0.9.0",
@@ -79,7 +79,7 @@ dev = [
     "anyio[trio]>=4.14.2",
     "pytest-cov>=6.1.0",
     "httpx>=0.28.0",
-    "ruff>=0.15.0",
+    "ruff>=0.16.1",
     "ty>=0.0.65",
     "pre-commit>=4.0.0",
 ]
