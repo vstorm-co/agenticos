@@ -27,6 +27,7 @@ delivered when it was not will confidently tell the user the same.
 from __future__ import annotations
 
 import logging
+import mimetypes
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -222,7 +223,14 @@ def files_written(backend: BackendProtocol, before: set[str]) -> DeliveredFiles:
             OutgoingAttachment(
                 filename=path.rsplit("/", 1)[-1],
                 content=data,
-                mime_type="application/octet-stream",
+                # Guessed from the name, not fixed at `application/octet-stream`.
+                # A chart is the commonest thing an agent produces, and a PNG
+                # posted as an opaque blob is a file somebody has to download to
+                # find out it was the picture they asked for. Guessing from the
+                # extension rather than sniffing the bytes: the name is what the
+                # agent chose, and a wrong guess here costs a preview rather than
+                # anything a platform acts on.
+                mime_type=mimetypes.guess_type(path)[0] or "application/octet-stream",
             )
         )
 

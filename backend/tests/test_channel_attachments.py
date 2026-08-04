@@ -215,6 +215,28 @@ class TestChoosingWhatToSendBack:
 
         assert [a.filename for a in delivered.attachments] == ["report.csv"]
         assert delivered.attachments[0].content == b"month,total"
+        assert delivered.attachments[0].mime_type == "text/csv"
+
+    def test_a_produced_file_carries_its_own_type(self):
+        """A chart is the commonest thing an agent writes, and every file used to
+        go out as `application/octet-stream` - so the picture somebody asked for
+        arrived as a blob they had to download to identify."""
+        backend = StateBackend()
+        before = workspace_snapshot(backend)
+        backend.write("/chart.png", b"\x89PNG\r\n")
+
+        delivered = files_written(backend, before)
+
+        assert delivered.attachments[0].mime_type == "image/png"
+
+    def test_a_name_with_no_recognisable_suffix_stays_opaque(self):
+        backend = StateBackend()
+        before = workspace_snapshot(backend)
+        backend.write("/dump", "raw")
+
+        delivered = files_written(backend, before)
+
+        assert delivered.attachments[0].mime_type == "application/octet-stream"
 
     def test_a_dotfile_that_was_already_there_is_not_sent_again(self):
         """`glob_info("**/*")` does not match a leading dot, so a `.env` written
