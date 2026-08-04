@@ -12,13 +12,16 @@ import type {
   AskUserQuestion,
   ChatMessageFile,
   Decision,
+  Delegation,
   PendingApproval,
   ReviewConfig,
+  SubagentFrame,
   ToolCall,
   TurnUsage,
   WSEvent,
 } from "@/types";
 import type { ResumedRun } from "@/types/runs";
+import { applyDelegationFrame, closeOpenDelegations } from "@/lib/delegations";
 import { WS_URL } from "@/lib/constants";
 import { toast } from "sonner";
 
@@ -103,6 +106,16 @@ export function useChat(options: UseChatOptions = {}) {
 
   const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null);
   const [pendingQuestions, setPendingQuestions] = useState<AskUserQuestion[] | null>(null);
+  // The delegations of the turn on screen, keyed by their own `task_id` and held
+  // *outside* the assistant message on purpose.
+  //
+  // This is what fixes the teardown bug rather than working around it. `complete`
+  // clears `currentMessageIdRef`, and a background delegation reports after the
+  // parent's answer - so anything hung off the streaming message loses the last
+  // thing a specialist said, silently, in exactly the case the delegation was
+  // started to handle. Here the panels simply outlive `complete`, and each closes
+  // on its own `subagent_complete`.
+  const [delegations, setDelegations] = useState<Delegation[]>([]);
 
   const handleWebSocketMessage = useCallback(
     (event: MessageEvent) => {
@@ -278,6 +291,20 @@ export function useChat(options: UseChatOptions = {}) {
           break;
         }
 
+        case "subagent_start":
+        case "subagent_text_delta":
+        case "subagent_thinking_delta":
+        case "subagent_tool_call":
+        case "subagent_tool_result":
+        case "subagent_complete": {
+          // One branch for six frames: the envelope's `type` is the frame's own
+          // `kind` (see `AgentSession._subagent_event`), so the payload narrows
+          // itself and the six cases share one reducer instead of six copies of
+          // "find the task, change one field".
+          setDelegations((current) => applyDelegationFrame(current, wsEvent.data as SubagentFrame));
+          break;
+        }
+
         case "error": {
           // Handle error
           if (currentMessageIdRef.current) {
@@ -290,6 +317,10 @@ export function useChat(options: UseChatOptions = {}) {
             updateMessage(id, (msg) => ({ ...msg, isStreaming: false }));
           }
           setIsProcessing(false);
+          // The turn is over and no `subagent_complete` is coming for whatever was
+          // still running. A panel left open past that spins forever - the state a
+          // parked tool call used to sit in.
+          setDelegations(closeOpenDelegations);
           break;
         }
 
@@ -342,7 +373,18 @@ export function useChat(options: UseChatOptions = {}) {
           // Absent is left absent, rather than clearing a number the previous
           // turn legitimately reported: the strip would flicker to nothing.
           {
-            const { usage } = wsEvent.data as { usage?: TurnUsage | null };
+            const { usage, stopped } = wsEvent.data as {
+              usage?: TurnUsage | null;
+              stopped?: boolean;
+            };
+            // **`complete` is not the cue to tear a delegation down.** It says the
+            // *parent* is finished, and a background delegation reports after that -
+            // so the panels are left exactly as they are and each closes on its own
+            // `subagent_complete`. The one exception is the cancelled path, which
+            // sends `stopped` (`AgentSession._run_turn`): nothing more is coming for
+            // a run that was cancelled, so whatever was open is closed here. Until
+            // now the frontend never read this field at all.
+            if (stopped) setDelegations(closeOpenDelegations);
             if (usage) {
               setLiveUsage({
                 // From the store rather than the render closure: a turn that created
@@ -453,6 +495,11 @@ export function useChat(options: UseChatOptions = {}) {
 
   const doSend = useCallback(
     (content: string, fileIds?: string[], files?: ChatMessageFile[]) => {
+      // The previous turn's panels belong to the previous turn. Cleared here rather
+      // than on `complete` so they survive it - which is the whole point - and a
+      // late frame from a background delegation of the turn before is dropped by
+      // `applyDelegationFrame` rather than opening a nameless panel.
+      setDelegations([]);
       const userMessageId = nanoid();
       addMessage({
         id: userMessageId,
@@ -531,6 +578,9 @@ export function useChat(options: UseChatOptions = {}) {
     clearQueued();
     setPendingApproval(null);
     setPendingQuestions(null);
+    // A delegation belongs to a run in one organization. Left on screen it would
+    // show the previous tenant's specialist names and prompts to the new one.
+    setDelegations([]);
   }, [tenantId, clearQueued]);
 
   /** Record one decision on the `approvals` row it belongs to. */
@@ -633,6 +683,11 @@ export function useChat(options: UseChatOptions = {}) {
     setIsProcessing(false);
     setPendingApproval(null);
     setPendingQuestions(null);
+    // Optimistic, and it has to be: the `stop` frame cancels the turn task and the
+    // server's own `complete` carries `stopped`, but nothing guarantees it arrives -
+    // the socket may be what went away. Closing here means the panels never outlive
+    // the run that fed them.
+    setDelegations(closeOpenDelegations);
   }, [sendMessage, updateMessage, setCurrentMessageId]);
 
   // Drain message queue when processing finishes AND we're back online.
@@ -660,6 +715,8 @@ export function useChat(options: UseChatOptions = {}) {
     isConnected,
     isProcessing,
     lastUsage: onThisConversation ? liveUsage.usage : null,
+    /** The turn's delegations, in the order they started. See `DelegationPanels`. */
+    delegations,
     connect,
     disconnect,
     sendMessage: sendChatMessage,

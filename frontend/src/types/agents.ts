@@ -141,6 +141,87 @@ export interface ModelSettingsSpec {
   timeout?: number;
 }
 
+/**
+ * When a delegation hands control back.
+ *
+ * `sync` blocks the parent until the delegate answers, `async` starts it and
+ * lets the parent carry on, `auto` leaves the choice to the parent's model.
+ */
+export type DelegationMode = "sync" | "async" | "auto";
+
+/**
+ * One published agent this agent may delegate to, pinned to a version.
+ *
+ * Two ids rather than one, and the second is the point. A reference naming only
+ * the agent would let a delegate's behaviour change under a published parent
+ * with nothing recording that anything had changed - so a fix to a delegate
+ * reaches its callers when somebody says so, which is the guarantee publishing
+ * gives everywhere else here.
+ *
+ * The cost is paid in the Builder: a parent whose delegate has moved on is
+ * stale, and staleness nothing surfaces is a bug frozen in place. `pinStatus` in
+ * `lib/agent-spec.ts` is what surfaces it.
+ */
+export interface SubagentRef {
+  agent_id: string;
+  agent_version_id: string;
+  /** Overrides the capability's `mode` for this delegate alone; null follows it. */
+  preferred_mode?: DelegationMode | null;
+}
+
+/**
+ * A specialist defined inside another agent rather than published.
+ *
+ * An agent in every way except the one that matters: **it is not versioned.** It
+ * has no version row, it cannot be pinned, nothing else can reference it, and
+ * editing the parent changes it. That is the whole difference from
+ * `SubagentRef`, and it is why the Builder presents the two as different things
+ * rather than two tabs of one.
+ *
+ * A typed subset of `AgentSpec` on purpose, using the same
+ * `CapabilityBindingSpec` - so one editor serves both and there is no second
+ * notion of "agent" for publish validation to miss. `budget`, `notifications`,
+ * `observability`, `mcp_server_ids` and `subagents` are deliberately absent:
+ * each only means something for a thing with a version, an owner, or a depth
+ * left to spend.
+ */
+export interface SpecialistSpec {
+  /** How the parent's model addresses it. `^[a-zA-Z0-9_-]+$`, at most 64 characters. */
+  name: string;
+  /** What the parent's model reads when deciding whether to delegate here. */
+  description: string;
+  instructions: string;
+  model_profile_id?: string | null;
+  model_settings: ModelSettingsSpec;
+  capabilities: CapabilityBindingSpec[];
+  collection_ids: string[];
+  skill_ids: string[];
+  max_steps?: number | null;
+  preferred_mode?: DelegationMode | null;
+}
+
+/**
+ * The delegation capability's own configuration: policy, and the specialists.
+ *
+ * Delegate *references* are not here - they live on `AgentSpec.subagents`, for
+ * the same reason `collection_ids` does: a reference to another row in this
+ * organization is a property of the agent, and it is what publish validation
+ * walks. What is left is policy, plus the inline specialists, which are not
+ * references at all.
+ */
+export interface SubagentsConfig {
+  inline: SpecialistSpec[];
+  mode: DelegationMode;
+  /** Whether the model may invent a specialist mid-run. Off by default. */
+  allow_dynamic: boolean;
+  max_depth: number;
+  max_fanout: number;
+  include_general_purpose: boolean;
+  max_result_chars: number;
+  /** Capability ids the parent is bound to that its delegates inherit. */
+  share_with_delegates: string[];
+}
+
 export interface AgentSpec {
   /**
    * Stamped by the server, never authored here.
@@ -161,6 +242,15 @@ export interface AgentSpec {
   collection_ids: string[];
   skill_ids: string[];
   mcp_server_ids: string[];
+  /**
+   * Delegates, each pinned to a published version.
+   *
+   * Optional here, always present on the wire - exactly like `notifications`.
+   * The field is defaulted server side, so an agent published before delegation
+   * existed reads back with an empty list rather than with nothing; it is
+   * optional in this type because `create` does not send one.
+   */
+  subagents?: SubagentRef[];
   /** Model requests one run may make; null uses the platform default of 100. */
   max_steps?: number | null;
   budget?: BudgetSpec | null;

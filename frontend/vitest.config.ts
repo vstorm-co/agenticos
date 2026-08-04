@@ -34,6 +34,7 @@ export default defineConfig({
         "src/components/chat/chat-controls.tsx",
         "src/components/chat/chat-empty-state.tsx",
         "src/components/chat/copy-button.tsx",
+        "src/components/chat/delegation-panel.tsx",
         "src/components/chat/file-preview-card.tsx",
         "src/components/chat/file-preview-panel.tsx",
         "src/components/chat/markdown-content.impl.tsx",

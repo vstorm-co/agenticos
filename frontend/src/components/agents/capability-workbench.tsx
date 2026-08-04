@@ -4,11 +4,12 @@ import { useMemo, useState } from "react";
 import { ShieldAlert } from "lucide-react";
 
 import { CapabilityDetail } from "@/components/agents/capability-settings";
+import { SubagentsSection } from "@/components/agents/subagents-section";
 import { WorkspaceSection } from "@/components/agents/workspace-section";
 import { SearchInput, Switch } from "@/components/ui";
-import { SANDBOX_ID } from "@/lib/agent-spec";
+import { readSubagentsConfig, SANDBOX_ID, SUBAGENTS_ID } from "@/lib/agent-spec";
 import { cn } from "@/lib/utils";
-import type { CapabilityBindingSpec, CapabilityCatalogEntry } from "@/types/agents";
+import type { CapabilityBindingSpec, CapabilityCatalogEntry, SubagentRef } from "@/types/agents";
 import { useTranslations } from "next-intl";
 
 interface CapabilityWorkbenchProps {
@@ -16,6 +17,16 @@ interface CapabilityWorkbenchProps {
   selected: CapabilityBindingSpec[];
   onToggle: (capabilityId: string) => void;
   onChange: (binding: CapabilityBindingSpec) => void;
+  /**
+   * `spec.subagents`, which delegation edits from inside its own panel.
+   *
+   * A capability whose configuration is partly *not* in its config blob is the
+   * one thing that makes this workbench pass a slice of the spec through. The
+   * references live top level because they are references to other rows, like
+   * `collection_ids`, and that is what publish validation walks.
+   */
+  subagents: SubagentRef[];
+  onSubagentsChange: (subagents: SubagentRef[]) => void;
   disabled?: boolean;
 }
 
@@ -67,6 +78,8 @@ export function CapabilityWorkbench({
   selected,
   onToggle,
   onChange,
+  subagents,
+  onSubagentsChange,
   disabled,
 }: CapabilityWorkbenchProps) {
   const t = useTranslations("agents");
@@ -152,7 +165,18 @@ export function CapabilityWorkbench({
                           selected.find((binding) => binding.id === entry.id),
                           enabled.has(entry.id),
                         )
-                      : undefined
+                      : entry.id === SUBAGENTS_ID
+                        ? // Who it hands work to, which is the only thing about
+                          // delegation worth scanning a list for. "10 tools" is
+                          // true of every agent that has it.
+                          t("delegateCount", {
+                            count:
+                              subagents.length +
+                              readSubagentsConfig(
+                                selected.find((binding) => binding.id === entry.id),
+                              ).inline.length,
+                          })
+                        : undefined
                   }
                   onFocus={() => setFocusedId(entry.id)}
                   onToggle={() => onToggle(entry.id)}
@@ -207,6 +231,23 @@ export function CapabilityWorkbench({
                 definition={focused}
                 binding={bound}
                 onChange={onChange}
+                disabled={disabled || !isOn}
+              />
+            ) : /* Delegation is three decisions, only one of which is a set of
+                  fields: a list of other agents pinned to versions, a list of
+                  specialists that are not versioned at all, and the policy
+                  bounding both. The pins are the reason - a delegate that has
+                  moved on is stale, and staleness nothing surfaces is a bug
+                  frozen in place under a published parent. */
+            focused.id === SUBAGENTS_ID ? (
+              <SubagentsSection
+                definition={focused}
+                binding={bound}
+                catalog={catalog}
+                parentCapabilities={selected}
+                subagents={subagents}
+                onChange={onChange}
+                onSubagentsChange={onSubagentsChange}
                 disabled={disabled || !isOn}
               />
             ) : (

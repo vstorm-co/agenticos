@@ -37,6 +37,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
 from app.agents.deps import AgentDeps, AskUserCallback
+from app.agents.subagent_events import SubagentEventSink
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import AuthContext
 from app.db.models.agent_run import RunStatus, RunSurface
@@ -236,6 +237,7 @@ class ChatAgentRunner:
         conversation_id: UUID | None,
         ask_user: AskUserCallback,
         stream: ChatStream,
+        subagent_events: SubagentEventSink | None = None,
         model_profile_id: UUID | None = None,
         environment_id: UUID | None = None,
     ) -> ChatTurn:
@@ -258,6 +260,12 @@ class ChatAgentRunner:
             ask_user: How the agent puts a question to the person who is sitting
                 there. Only a live surface can offer this.
             stream: Iterates the run and forwards its events to the client.
+            subagent_events: Where a delegation's frames go, for a surface that
+                can draw one. Defaults to `None`, and the default is load-bearing
+                rather than convenient: attaching a handler makes the library open
+                a *streamed* request for every child, so a delegate whose provider
+                cannot stream works from the API and breaks the moment somebody
+                watches it. A surface passes this only if it can show the frames.
 
         Returns:
             The answer to show and persist, and the model that produced it. A
@@ -283,10 +291,12 @@ class ChatAgentRunner:
             # how a dev environment is exercised from the chat before promotion.
             environment_id=environment_id,
         )
-        # The approval channel was wired by `prepare`; this is the half only a
-        # live surface can provide. Without it, an agent whose instructions tell
-        # it to ask first has no way to ask.
+        # The approval channel was wired by `prepare`; these are the halves only a
+        # live surface can provide. Without `ask_user`, an agent whose instructions
+        # tell it to ask first has no way to ask; without `subagent_events`, a
+        # delegation is a tool call named `task` that goes quiet for thirty seconds.
         prepared.deps.ask_user = ask_user
+        prepared.deps.subagent_events = subagent_events
 
         if attachments:
             router = AttachmentRouter(
