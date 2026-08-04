@@ -26,10 +26,11 @@ month list its files after the session was reaped.
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, Response, status
+from fastapi import APIRouter, Query, Response
 
 from app.api.deps import Auth, WorkspaceSvc
 from app.api.routes.v1._workspace_bytes import file_response
+from app.core.exceptions import NotFoundError
 from app.schemas.workspace import (
     FlatFileList,
     FlatFileRead,
@@ -169,5 +170,8 @@ async def read_file(
     """
     content = await workspaces.read_file_of(ctx, workspace_id, path=path)
     if content is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No such file")
+        raise NotFoundError(
+            message="No such file",
+            details={"workspace_id": str(workspace_id), "path": path},
+        )
     return WorkspaceFileContent(path=path, content=content)

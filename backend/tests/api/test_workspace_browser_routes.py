@@ -338,13 +338,25 @@ class TestOpeningOne:
         assert response.status_code == 200
         assert response.json()["content"] == "month,total"
 
-    async def test_a_path_that_is_not_there_is_a_404(self, client, service) -> None:
+    async def test_a_path_that_is_not_there_is_a_404_in_the_platforms_own_shape(
+        self, client, service
+    ) -> None:
+        """The envelope, not only the status.
+
+        This route raised `HTTPException` while its twin on the conversation
+        raised `NotFoundError` for the identical condition, so the same missing
+        file answered `{"detail": ...}` here and `{"error": {"code": ...}}` there
+        - and a client reading `error.code` worked against one and broke against
+        the other. Asserting the status alone is what let the two drift.
+        """
         service.read_file_of = AsyncMock(return_value=None)
 
         async with client() as opened:
             response = await opened.get(_url(f"/{_WORKSPACE_ID}/file"), params={"path": "/nope"})
 
         assert response.status_code == 404
+        assert response.json()["error"]["code"] == "NOT_FOUND"
+        assert response.json()["error"]["details"]["path"] == "/nope"
 
     async def test_the_path_is_a_query_parameter_because_paths_have_slashes(self, client) -> None:
         """A path parameter would need escaping the client has to get right, or a
