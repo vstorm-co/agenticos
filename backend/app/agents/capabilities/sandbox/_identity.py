@@ -98,7 +98,12 @@ class WorkspaceIdentity:
     """
 
 
-def scope_key(identity: WorkspaceIdentity, scope: SessionScope, backend: BackendKind) -> str:
+def scope_key(
+    identity: WorkspaceIdentity,
+    scope: SessionScope,
+    backend: BackendKind,
+    connection_id: UUID | None = None,
+) -> str:
     """The workspace this run attaches to.
 
     The organization prefix is for reading a dashboard, **not** for isolation -
@@ -114,15 +119,39 @@ def scope_key(identity: WorkspaceIdentity, scope: SessionScope, backend: Backend
     different shape - a `StateBackend` document and a container's volume are not
     the same thing wearing different names.
 
+    **And so is which host it runs on**, for exactly the same reason and by the
+    same argument. Two `sandboxd` installations are not the same thing wearing
+    different names either, and neither is a container and a Daytona sandbox -
+    both of which were `service`, and so both got the letter `x` and the same
+    key. Without this, moving an agent from one connection to another reattached
+    to the row created for the first: the run wrote to the new host while the row
+    still named the old one, and every read - the file panel, the browser, the
+    purge when a conversation is deleted - resolves the host *from the row*. The
+    likeliest way in was not even editing a spec, since `connection_id=None`
+    means "the organization's default", so registering a second host and marking
+    it default moved every existing workspace without anybody touching an agent.
+
+    `None` for a `state` workspace, which runs on no host at all.
+
+    Args:
+        connection_id: The connection this run resolved to - the resolved one,
+            not what the spec named, so a spec that defers to the organization's
+            default keys on the default it actually got.
+
     Raises:
         WorkspaceScopeUnavailable: If the scope needs an id this run does not
             have - `conversation` on a stateless API call, `user` on an
             anonymous surface.
     """
     subject = _subject(identity, scope)
-    key = f"{_BACKEND_LETTER[backend]}{_SCOPE_LETTER[scope]}-{identity.organization_id.hex[:8]}-{subject}"
-    # 1 + 1 + 1 + 8 + 1 + 32 = 44 for a UUID subject; a channel identity string
-    # can be longer, so the bound is enforced rather than reasoned about.
+    host = "" if connection_id is None else f"-{connection_id.hex[:8]}"
+    key = (
+        f"{_BACKEND_LETTER[backend]}{_SCOPE_LETTER[scope]}"
+        f"-{identity.organization_id.hex[:8]}{host}-{subject}"
+    )
+    # 44 for a stored workspace and 53 with a host folded in, both inside the 64
+    # the service allows; a channel identity string can be longer, so the bound is
+    # enforced rather than reasoned about.
     return key[:MAX_SESSION_ID]
 
 

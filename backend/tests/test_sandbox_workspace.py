@@ -176,12 +176,50 @@ class TestWhoSharesAWorkspace:
             identity, "conversation", "service"
         )
 
+    def test_changing_the_host_does_not_reattach_to_the_old_ones_workspace(self):
+        """Two `sandboxd` installations are not the same thing either.
+
+        Both were `service`, so both got the letter `x` and the same key -
+        a moved agent found the row created for the host it had left. The run
+        then wrote to the new host while every read (the file panel, the browser,
+        the purge on delete) resolved the host *from that row*.
+        """
+        identity = _identity()
+
+        assert scope_key(identity, "conversation", "service", uuid4()) != scope_key(
+            identity, "conversation", "service", uuid4()
+        )
+
+    def test_the_same_host_still_reattaches(self):
+        """The point of a key is that a second turn finds the first turn's files."""
+        identity = _identity()
+        host = uuid4()
+
+        assert scope_key(identity, "conversation", "service", host) == scope_key(
+            identity, "conversation", "service", host
+        )
+
+    def test_a_stored_workspace_keys_on_no_host_at_all(self):
+        """It runs on none, so folding one in would be inventing a distinction."""
+        identity = _identity()
+
+        assert scope_key(identity, "conversation", "state") == scope_key(
+            identity, "conversation", "state", None
+        )
+
     @pytest.mark.parametrize("scope", ["run", "conversation", "channel", "user", "agent"])
     def test_every_key_fits_what_the_service_accepts(self, scope: str):
-        """`sandboxd` rejects an id over 64 characters, on the first tool call."""
+        """`sandboxd` rejects an id over 64 characters, on the first tool call.
+
+        53 with a host folded in, against the 44 a stored workspace takes - so
+        this is the case that has to be checked, not the shorter one.
+        """
         identity = _identity(user_id="U" * 200, channel_key="C" * 200)
 
-        assert len(scope_key(identity, scope, "service")) <= MAX_SESSION_ID  # type: ignore[arg-type]
+        assert (
+            len(scope_key(identity, scope, "service", uuid4()))  # type: ignore[arg-type]
+            <= MAX_SESSION_ID
+        )
 
     def test_a_conversation_scope_with_no_conversation_is_refused(self):
         with pytest.raises(WorkspaceScopeUnavailable):
@@ -1274,6 +1312,59 @@ class TestContainerBackedWorkspaces:
         # connection is recorded for the same reason: nothing later has the spec.
         assert created.await_args.kwargs["session_id"] == workspace.scope_key
         assert created.await_args.kwargs["connection_id"] == resolved.row.id
+
+    async def test_moving_an_agent_to_another_host_opens_a_new_workspace(
+        self, monkeypatch, mock_db_session
+    ):
+        """The row records which host holds the files, and every read trusts it.
+
+        `touch` only moves `last_used_at`, so reattaching kept the old
+        `connection_id` - the run wrote to the new host while the file panel, the
+        browser and the purge on delete all resolved the old one. Since the key
+        now carries the host, the two no longer collide and there is nothing to
+        re-point.
+
+        `connection_id=None` means "the organization's default", so this is
+        reached by marking a second connection default, without editing a spec.
+        """
+        from pydantic_ai_backends import remote as remote_module
+
+        class _Sandbox:
+            def __init__(self, url, **kwargs):
+                pass
+
+        monkeypatch.setattr(remote_module, "RemoteSandbox", _Sandbox)
+        monkeypatch.setattr(workspace_repo, "get_by_key", AsyncMock(return_value=None))
+        monkeypatch.setattr(
+            workspace_repo, "create", AsyncMock(return_value=_row(backend="service"))
+        )
+        identity = _identity()
+        service = SandboxWorkspaceService(mock_db_session)
+
+        _serve(monkeypatch, _resolved())
+        first = await service.open(_spec(backend="service"), ctx=_ctx(), identity=identity)
+        _serve(monkeypatch, _resolved(base_url="http://sandboxd-two:8080"))
+        second = await SandboxWorkspaceService(mock_db_session).open(
+            _spec(backend="service"), ctx=_ctx(), identity=identity
+        )
+
+        assert first is not None and second is not None
+        assert first.scope_key != second.scope_key
+
+    async def test_a_scope_it_cannot_key_is_refused_before_a_host_is_resolved(
+        self, monkeypatch, mock_db_session
+    ):
+        """Otherwise a run that was never going to work reports what is wrong with
+        a host it would not have used - and pays a query and a vault unwrap first."""
+        _serve(monkeypatch, RuntimeError("the connection should not have been resolved"))
+        service = SandboxWorkspaceService(mock_db_session)
+
+        with pytest.raises(BadRequestError):
+            await service.open(
+                _spec(backend="service", session_scope="user"),
+                ctx=_ctx(),
+                identity=_identity(user_id=None),
+            )
 
     async def test_the_connections_runtime_is_used_when_the_spec_names_none(
         self, monkeypatch, mock_db_session

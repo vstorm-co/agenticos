@@ -160,6 +160,15 @@ the field, the file panel labels whose workspace it is rather than calling it "t
 conversation's files", and setting it is recorded in the audit log — because a user
 who sees a file they did not create should be able to find out why.
 
+**Changing the backend or the connection starts a fresh workspace rather than
+reattaching to the old one.** A stored document, a container's volume and a
+Daytona sandbox are three different things, and two `sandboxd` installations are
+two different things — so each gets its own workspace, and the previous one stays
+where it is, still listed and still readable. Moving a live agent is therefore not
+a way to carry its files across; the agent finds an empty workspace on the new
+host. Since `connection_id: null` means "the organization's default", marking a
+different connection as default has the same effect without any spec changing.
+
 A spec chooses a connection and never an image, a mount, a network mode or a
 ceiling. Those belong to whoever runs the deployment: a spec is authored in a
 browser by anyone holding `edit` on the agent, and one that could name a container

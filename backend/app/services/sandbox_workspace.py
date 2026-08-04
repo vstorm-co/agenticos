@@ -178,17 +178,38 @@ class SandboxWorkspaceService:
             return None
 
         scope = scope_override or config.session_scope
+        if config.backend == "state":
+            return await self._open_state(
+                config, identity, self._key(identity, scope, "state"), scope
+            )
+
+        # The scope is checked before the connection is resolved, so an agent
+        # reached from a surface it cannot be keyed on says so rather than
+        # reporting whatever is wrong with a host it was never going to use.
+        self._key(identity, scope, "service")
+        # Then resolved *before* the real key, because which host this runs on
+        # belongs in the key - see `scope_key`. Two connections are two
+        # workspaces, so a moved agent opens a new one instead of reattaching to
+        # a row that names the host it has left.
+        resolved = await self.connections.resolve(ctx, config.connection_id)
+        key = self._key(identity, scope, "service", resolved.row.id)
+        return await self._open_service(config, identity, key, scope, resolved)
+
+    @staticmethod
+    def _key(
+        identity: WorkspaceIdentity,
+        scope: SessionScope,
+        backend: BackendKind,
+        connection_id: UUID | None = None,
+    ) -> str:
+        """`scope_key`, with the one failure it has turned into an HTTP answer."""
         try:
-            key = scope_key(identity, scope, config.backend)
+            return scope_key(identity, scope, backend, connection_id)
         except WorkspaceScopeUnavailable as exc:
             raise BadRequestError(
                 message=str(exc),
                 details={"session_scope": scope},
             ) from exc
-
-        if config.backend == "state":
-            return await self._open_state(config, identity, key, scope)
-        return await self._open_service(ctx, config, identity, key, scope)
 
     async def _open_state(
         self,
@@ -216,11 +237,11 @@ class SandboxWorkspaceService:
 
     async def _open_service(
         self,
-        ctx: AuthContext,
         config: SandboxConfig,
         identity: WorkspaceIdentity,
         key: str,
         scope: SessionScope,
+        resolved: ResolvedConnection,
     ) -> OpenWorkspace:
         """A workspace on one of the organization's registered connections.
 
@@ -228,12 +249,12 @@ class SandboxWorkspaceService:
         operation, so an agent granted a workspace it never touches costs no
         container and not even a round trip.
 
-        The connection is resolved rather than read from settings, which is what
-        makes two hosts possible and what keeps the credential in the vault. It
-        can fail here for reasons that were fine at publish time - a key rotated
-        away, a host switched off - and each says which.
+        The connection arrives resolved rather than being read from settings,
+        which is what makes two hosts possible and what keeps the credential in
+        the vault. It is resolved by the caller because the key depends on it -
+        resolving can fail for reasons that were fine at publish time (a key
+        rotated away, a host switched off) and each of those says which.
         """
-        resolved = await self.connections.resolve(ctx, config.connection_id)
         if resolved.kind == "daytona":
             backend = self._daytona(key, resolved)
         else:
