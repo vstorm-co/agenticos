@@ -152,7 +152,12 @@ Three properties worth knowing:
 A delegate's tools are gated by the delegate's own spec, and it reaches the same
 queue the parent's caller is already waiting on - a specialist that needs a person
 needs the person who is standing there. The entry names the **delegate's** tool and
-the arguments it proposed, because the delegate's own gate is what wrote it.
+the arguments it proposed, because the delegate's own gate is what wrote it, **and
+which delegate is calling it**. Without that last part the queue says `send_email`
+without saying whether the agent somebody is talking to or a specialist called
+`researcher` is sending it, which is a queue people approve blind - and in a
+delegation the thing being approved is often more consequential than the agent the
+reviewer thinks they are dealing with.
 
 What the parent's run does is park, rather than be handed something that looks like
 a finished delegation. That is worth stating because it used to be otherwise: every
@@ -162,15 +167,17 @@ object and hand the parent's model `{"calls": [], "approvals": [...]}` as the
 specialist's report, task marked completed. It was the default path rather than an
 edge case, and it is fixed in the pinned version.
 
-!!! warning "A gated tool inside a delegate cannot be resumed yet"
+Approving it **continues the delegate**, rather than delegating again. The parked
+state is a tree - one level per agent, each with its own conversation and its own
+parked calls - so granting the approval resumes the suspended delegate from where it
+stopped, with the verdict attached to the call the reviewer actually saw. The
+parent's `task` call is replayed, and the delegation finds the place it left. A
+specialist inside a delegate behaves the same way, one level further down.
 
-    A resume replays the parked run from its stored conversation, and the parent's
-    conversation holds the delegation's tool call and no record of what the delegate
-    said - so continuing re-runs the delegation from the start rather than picking up
-    inside it, and the approval that was granted matches nothing in the new attempt.
-
-    Until that is closed, keep tools that need a person on the agent somebody is
-    talking to rather than behind a delegation.
+That matters because the alternative is not a slower resume, it is a different
+answer. Re-running the delegation would start the delegate's conversation from
+nothing and let its model call a different tool the second time round, so what a
+reviewer approved would not be what executed.
 
 !!! warning "MCP tools are outside the approval gate"
 

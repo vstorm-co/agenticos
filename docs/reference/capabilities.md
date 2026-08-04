@@ -269,7 +269,7 @@ the YAML export and the permission model can all see it.
 | `inline` | none | specialists defined inside this agent |
 | `mode` | `sync` | `sync`, `async`, `auto` |
 | `allow_dynamic` | `false` | |
-| `max_depth` | 1 | 0–3 |
+| `max_depth` | 1 | 1–3 |
 | `max_fanout` | 3 | 1–10 |
 | `include_general_purpose` | `false` | |
 | `max_result_chars` | 2000 | 200–20000 |
@@ -287,10 +287,20 @@ running in the background.
 
 **Fan-out and nesting are ceilings, not errors.** Past `max_fanout` the next
 delegation comes back as a tool result the model can act on — wait, or do the work
-itself — because a pacing limit should not end a run. `max_depth` bounds nesting,
-and at the bound a delegate is built *without* the delegation capability rather
-than with one that can only refuse: a tool that always answers "no delegates
-available" is a description the model pays for on every turn and tries anyway.
+itself — because a pacing limit should not end a run. `max_depth` counts levels of
+delegation **including the configured agent's own**: 1 is this agent delegating and
+its delegates not, 2 allows one nested level. At the bound a delegate is built
+*without* the delegation capability rather than with one that can only refuse - a
+tool that always answers "no delegates available" is a description the model pays
+for on every turn and tries anyway. There is deliberately no 0: turning delegation
+off is disabling the binding, and a second spelling of the same switch is one that
+disagrees with the first.
+
+**A sync delegation can stop to ask a person, and is continued in place.** A gated
+tool inside one parks the whole run; approving it resumes that delegate from where
+it stopped rather than delegating again, which is what makes the approval apply to
+the call the reviewer actually saw. [Governance](../governance.md) has the shape of
+the stored state and why re-running would answer differently.
 
 **A background delegation cannot stop to ask a person.** A gated tool inside one
 is refused rather than parked, and the refusal tells the model to delegate that

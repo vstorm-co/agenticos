@@ -70,7 +70,10 @@ A run that fails still records what it spent. A run that stops on its budget is
 recorded as `budget_exceeded` rather than `failed`, so an operator filtering for
 problems does not wade through the platform working correctly. A run that parks on
 an approval is `awaiting_approval` and is resumable - its message history is
-stored so the decision can be applied to the conversation it belongs to.
+stored so the decision can be applied to the conversation it belongs to. A run that
+parks *inside a delegation* stores one level per agent, each with its own
+conversation, so approving continues the delegate that stopped rather than starting
+its work again.
 
 A run can also contain another run. When an agent delegates to a published agent,
 that delegation gets an `agent_runs` row of its own carrying `parent_run_id` - so
