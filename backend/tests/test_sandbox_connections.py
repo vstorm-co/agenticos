@@ -25,6 +25,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from pydantic import ValidationError
 
 from app.core.config import settings
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
@@ -996,6 +997,68 @@ def test_the_read_model_carries_the_reference_and_not_the_secret():
 
     assert read.secret_id == row.secret_id
     assert read.base_url == "http://sandboxd:8080"
+
+
+class TestAnAddressThePlatformWillFetch:
+    """What `base_url` refuses, and what it deliberately still allows.
+
+    This field is the input to a server-side GET that carries the connection's
+    token and hands the body back, so an unvalidated string made the API container
+    a fetch proxy for its own network. One validator covers all three schemas
+    that carry an address - a connection created, one edited, and the probe, which
+    is the only one taking an address straight from a request body.
+    """
+
+    @pytest.mark.parametrize(
+        "address",
+        [
+            "http://sandboxd:8080",
+            "http://localhost:8080",
+            "https://sandbox.internal.example.com",
+            # RFC1918 stays allowed on purpose: a sandbox service's legitimate
+            # address is private, so refusing this range would refuse the
+            # deployment this project documents.
+            "http://10.1.2.3:8080",
+        ],
+    )
+    def test_a_real_service_address_is_accepted(self, address):
+        assert SandboxProbeRequest(base_url=address).base_url == address
+
+    @pytest.mark.parametrize(
+        ("address", "because"),
+        [
+            ("file:///etc/passwd", "http"),
+            ("gopher://x/1", "http"),
+            ("http://", "host"),
+            ("not-a-url", "http"),
+            # The one target where a single unauthenticated GET is worth
+            # something, blocked by address and by every name that means it.
+            ("http://169.254.169.254/latest/meta-data/", "link-local"),
+            ("http://metadata.google.internal/computeMetadata/v1/", "metadata"),
+            ("http://[fe80::1]:8080", "link-local"),
+        ],
+    )
+    def test_an_address_the_platform_must_not_fetch_is_refused(self, address, because):
+        with pytest.raises(ValidationError) as refused:
+            SandboxProbeRequest(base_url=address)
+
+        assert because in str(refused.value)
+
+    def test_the_same_rule_applies_to_a_stored_connection(self):
+        """Not only to the probe. The probe is the loud one, but `create` and
+        `update` store an address that `resolve` then fetches on every run."""
+        with pytest.raises(ValidationError):
+            SandboxConnectionCreate(
+                name="Metadata", kind="docker", base_url="http://169.254.169.254"
+            )
+        with pytest.raises(ValidationError):
+            SandboxConnectionUpdate(base_url="http://169.254.169.254")
+
+    def test_an_unset_address_is_still_allowed(self):
+        """A Daytona connection has no address at all, and `update` means
+        unchanged rather than empty."""
+        assert SandboxConnectionCreate(name="Cloud", kind="daytona").base_url is None
+        assert SandboxConnectionUpdate().base_url is None
 
 
 class _Response:

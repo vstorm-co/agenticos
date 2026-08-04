@@ -257,6 +257,22 @@ deployment can hold several hosts — so the API probes the unauthenticated
 answered. Nothing is decided by asking: no service means an empty field, and a
 connection already pointing there is named so nobody registers one host twice.
 
+**The address is fetched by this API, so it is validated as one.** Registering or
+probing a connection makes the API container issue an authenticated `GET` and hands
+the JSON body back, which is a request-forgery primitive if the address is taken on
+trust. So `base_url` refuses anything that is not `http(s)` with a host, and refuses
+link-local addresses and the instance-metadata hostnames outright —
+`169.254.169.254` and `metadata.google.internal` are never a sandbox service.
+
+Private addresses stay allowed, and have to: `http://sandboxd:8080` inside compose
+and `http://localhost:8080` for a developer running the API on their host are both
+private, so a private-range denylist would refuse the deployment this page
+describes. That means the validator narrows the hole rather than closing it — a
+hostname that resolves to something internal still resolves. **The boundary that
+actually holds is `connections:manage` plus egress policy on the API container**:
+whoever may register a host is trusted with one, and a deployment on a network
+holding unauthenticated internal APIs should say so at the network rather than here.
+
 The service runs behind the `sandbox` compose profile, which is on by default in
 local dev and off elsewhere until an operator opts in — mounting the Docker socket
 on a shared host is a deliberate act. `COMPOSE_DEV_PROFILES` in the Makefile is
