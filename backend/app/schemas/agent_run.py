@@ -32,6 +32,24 @@ class AgentRunRead(BaseSchema):
     error: str | None = None
     started_at: datetime | None = None
     ended_at: datetime | None = None
+    parent_run_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The run this one was delegated from, or null for a run somebody "
+            "started. Sent because otherwise nothing outside the database can "
+            "tell a delegated run from a top-level one, and the two must not be "
+            "read the same way: a parent's cost already contains its children's, "
+            "so a surface that sums a page of rows double-counts every delegation."
+        ),
+    )
+    subagent_task_id: str | None = Field(
+        default=None,
+        description=(
+            "Which delegation produced this run, matching the task id the "
+            "streamed `subagent_*` frames carry - so a delegation panel in a "
+            "chat and a row in run history can be shown to be the same thing."
+        ),
+    )
 
 
 class AgentRunList(BaseSchema):

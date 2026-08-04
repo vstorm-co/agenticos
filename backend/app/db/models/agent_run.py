@@ -53,7 +53,14 @@ class RunStatus(enum.StrEnum):
 
 
 class RunSurface(enum.StrEnum):
-    """Where a run came from. The same agent, many faces."""
+    """Where a run came from. The same agent, many faces.
+
+    A delegation is deliberately not one of them: a Slack mention that delegated
+    to a researcher is still Slack, and adding a member here would make "where
+    did this come from" and "was this delegated" the same column with room for
+    only one answer. `parent_run_id IS NOT NULL` is the second question, and it
+    is the one people actually ask.
+    """
 
     PLAYGROUND = "playground"
     WEB = "web"
@@ -123,6 +130,30 @@ class AgentRun(Base, TimestampMixin):
         ForeignKey("agent_environments.id", ondelete="SET NULL"),
         nullable=True,
     )
+
+    # The run this one was delegated from, and the delegation's own id inside it.
+    # Both null for a run somebody started, which is every run except a
+    # delegation to a published agent - an inline specialist has no agent to
+    # attribute a row to, so it gets none.
+    #
+    # `SET NULL`, not `CASCADE`, and the reason is arithmetic rather than
+    # sentiment. The parent's row already contains the delegation's tokens (one
+    # shared ledger per run), which is why the organization's monthly total
+    # counts only rows where this is null. Delete the parent and that containment
+    # is gone: the child's cost is no longer inside anything, and a row that
+    # becomes top-level is exactly what should start counting. Cascading would
+    # instead delete the record of money that was spent.
+    parent_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("agent_runs.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    # The task id the delegation library handed the parent's model, so a row
+    # joins to the handle the parent saw - `check_task('4f2a1b8c')` in a
+    # transcript and this row are then the same delegation rather than two
+    # things that look related.
+    subagent_task_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
     surface: Mapped[str] = mapped_column(String(16), nullable=False, default=RunSurface.WEB.value)
     status: Mapped[str] = mapped_column(

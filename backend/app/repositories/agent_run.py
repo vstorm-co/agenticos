@@ -27,6 +27,8 @@ async def create_run(
     environment_id: UUID | None = None,
     provider: str | None = None,
     secret_id: UUID | None = None,
+    parent_run_id: UUID | None = None,
+    subagent_task_id: str | None = None,
 ) -> AgentRun:
     run = AgentRun(
         organization_id=organization_id,
@@ -40,6 +42,8 @@ async def create_run(
         model_label=model_label,
         provider=provider,
         secret_id=secret_id,
+        parent_run_id=parent_run_id,
+        subagent_task_id=subagent_task_id,
         status=RunStatus.RUNNING.value,
         started_at=started_at,
     )
@@ -75,6 +79,77 @@ async def finish_run(
     run.paused_state = paused_state
     if logfire_trace_id is not None:
         run.logfire_trace_id = logfire_trace_id
+    db.add(run)
+    await db.flush()
+    await db.refresh(run)
+    return run
+
+
+async def record_delegated_run(
+    db: AsyncSession,
+    *,
+    run_id: UUID,
+    organization_id: UUID,
+    agent_id: UUID,
+    agent_version_id: UUID,
+    parent_run_id: UUID,
+    subagent_task_id: str,
+    user_id: UUID | None,
+    conversation_id: UUID | None,
+    exposure_id: UUID | None,
+    surface: str,
+    model_label: str | None,
+    provider: str | None,
+    secret_id: UUID | None,
+    status: str,
+    input_tokens: int,
+    output_tokens: int,
+    cost_usd: Decimal,
+    cost_is_partial: bool,
+    started_at: datetime,
+    ended_at: datetime,
+    error: str | None = None,
+) -> AgentRun:
+    """Write a delegated run that is already over, in one insert.
+
+    A delegation is reported to the runner *finished*: it has a status, a cost and
+    both ends of its window before any row exists. So it is written complete
+    rather than opened with `create_run` and closed with `finish_run` - a
+    `running` row that no process is running, even for the length of one
+    transaction, is a state the run history would have to explain.
+
+    `run_id` is supplied rather than defaulted, because the id is handed to the
+    parent's model as the delegation's identity while the run is still going and
+    the row is written after it ends. See
+    `AgentRunnerService._delegation_recorder` for why the write waits.
+
+    `environment_id` is deliberately absent: that column says which environment
+    resolved the version this run answered with, and a delegate's version comes
+    from a pin.
+    """
+    run = AgentRun(
+        id=run_id,
+        organization_id=organization_id,
+        agent_id=agent_id,
+        agent_version_id=agent_version_id,
+        parent_run_id=parent_run_id,
+        subagent_task_id=subagent_task_id,
+        user_id=user_id,
+        conversation_id=conversation_id,
+        exposure_id=exposure_id,
+        surface=surface,
+        model_label=model_label,
+        provider=provider,
+        secret_id=secret_id,
+        status=status,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        cost_usd=cost_usd,
+        cost_is_partial=cost_is_partial,
+        started_at=started_at,
+        ended_at=ended_at,
+        error=error,
+    )
     db.add(run)
     await db.flush()
     await db.refresh(run)
@@ -140,6 +215,7 @@ async def sum_cost_since(
     organization_id: UUID,
     since: datetime,
     agent_id: UUID | None = None,
+    include_delegations: bool = False,
 ) -> Decimal:
     """Total run spend in a window - what a monthly budget is checked against.
 
@@ -147,6 +223,23 @@ async def sum_cost_since(
     to be measured against the spend it is a cap *on*: checked against the
     organization's total it would be exhausted by the neighbours' runs while
     the agent's own spend stayed invisible in it.
+
+    `include_delegations` decides whether the runs a delegation opened count, and
+    the two callers want opposite answers because they are asking different
+    questions.
+
+    Left out by default, which is the organization's question - the bill. Every
+    run shares one spend ledger, so a delegate's requests are already inside the
+    parent run's `cost_usd`; a child row is the same money written down a second
+    time, and summing both bills the organization twice for one request. That
+    also makes the default the safe one for a caller added later: a total that
+    does not double-count.
+
+    Included when the question is one agent's month, because a delegate's rows
+    are the only place its own spend is recorded. That cap does not stop a run
+    mid-delegation - inside a delegation the parent's caps bind, see
+    `app/agents/factory.py` - but it is what makes "the researcher agent cost $40
+    this month" answerable and what a budget alert on that agent fires on.
     """
     query = select(func.coalesce(func.sum(AgentRun.cost_usd), 0)).where(
         AgentRun.organization_id == organization_id,
@@ -154,6 +247,8 @@ async def sum_cost_since(
     )
     if agent_id is not None:
         query = query.where(AgentRun.agent_id == agent_id)
+    if not include_delegations:
+        query = query.where(AgentRun.parent_run_id.is_(None))
     result = await db.scalar(query)
     return Decimal(result or 0)
 
