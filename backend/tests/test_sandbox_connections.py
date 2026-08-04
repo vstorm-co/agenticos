@@ -445,6 +445,23 @@ class TestReadingThePolicy:
 
         assert "503" in refused.value.message
 
+    async def test_a_200_that_is_not_json_names_the_port_rather_than_raising(self, monkeypatch):
+        """A web server on the wrong port is the commonest way to reach this.
+
+        `response.json()` used to sit outside the guard, so it answered with a
+        500 - the one outcome the rest of these messages exist to avoid.
+        """
+        row = _row()
+        service = _service(monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok")))
+        monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
+        _serve(monkeypatch, _NotJson())
+
+        with pytest.raises(BadRequestError) as refused:
+            await service.policy(_ctx(), row.id)
+
+        assert "not with JSON" in refused.value.message
+        assert "port" in refused.value.message
+
 
 class TestWhatThisDeploymentCanAlreadySee:
     """The prefill, and the reason it is a probe rather than a setting.
@@ -988,6 +1005,20 @@ class _Response:
 
     def json(self) -> Any:
         return self._payload
+
+
+class _NotJson(_Response):
+    """A 200 whose body is not JSON, which is what a web server answers.
+
+    `httpx` raises `json.JSONDecodeError` here, and that is a `ValueError` - so
+    the guard catches the class rather than importing the library's own.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(200)
+
+    def json(self) -> Any:
+        raise ValueError("Expecting value: line 1 column 1 (char 0)")
 
 
 def _serve(monkeypatch, answer: _Response | Exception | list[_Response]) -> dict[str, Any]:

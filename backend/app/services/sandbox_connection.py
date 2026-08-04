@@ -689,5 +689,20 @@ class SandboxConnectionService:
                 message=f"The sandbox service answered {response.status_code}",
                 details=details,
             )
-        payload: dict[str, Any] = response.json()
+        # Inside a guard, because a 200 is not a promise of JSON. The commonest
+        # way to reach this is an address pointing at the wrong port: plenty of
+        # things answer 200 with HTML, and an uncaught `JSONDecodeError` would
+        # hand the operator the one answer this function exists to avoid - a 500
+        # in place of a sentence naming what to fix.
+        try:
+            payload: dict[str, Any] = response.json()
+        except ValueError as exc:
+            raise BadRequestError(
+                message=(
+                    f"The service at {base} answered, but not with JSON. Check the "
+                    "address and the port - this is what a web server rather than a "
+                    "sandbox service looks like."
+                ),
+                details=details,
+            ) from exc
         return payload
