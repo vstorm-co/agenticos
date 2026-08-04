@@ -1411,7 +1411,11 @@ class TestContainerBackedWorkspaces:
     async def test_a_backend_that_cannot_be_stopped_is_left_alone(
         self, monkeypatch, mock_db_session
     ):
-        """A Daytona sandbox exposes no `stop`, and `close` must not care."""
+        """A backend with no `stop` at all, and `close` must not care.
+
+        Not Daytona - that one does expose `stop`, which is what the test below
+        is about. This is the branch for a `state`-shaped object arriving here.
+        """
         import pydantic_ai_backends as backends_module
 
         class _Sandbox:
@@ -1426,6 +1430,66 @@ class TestContainerBackedWorkspaces:
             _spec(backend="service", session_scope="run"), ctx=_ctx(), identity=_identity()
         )
         await service.close(workspace)
+
+    async def test_a_daytona_sandbox_is_stopped_with_the_signature_it_has(
+        self, monkeypatch, mock_db_session
+    ):
+        """`DaytonaSandbox.stop()` takes no arguments and deletes the sandbox.
+
+        Calling it as `stop(purge=True)` raised a `TypeError` that `close`
+        swallowed as `workspace_close_failed` - so the one backend with no idle
+        reaper behind it was never released, once per run, on the organization's
+        own Daytona account. The old fake here exposed no `stop` at all and so
+        proved the early return rather than this.
+        """
+        import pydantic_ai_backends as backends_module
+
+        stopped: list[str] = []
+
+        class _Sandbox:
+            def __init__(self, api_key=None, sandbox_id=None):
+                self._id = sandbox_id
+
+            def stop(self) -> None:
+                stopped.append("deleted")
+
+        monkeypatch.setattr(backends_module, "DaytonaSandbox", _Sandbox, raising=False)
+        _serve(monkeypatch, _resolved(kind="daytona", base_url=None))
+        service = SandboxWorkspaceService(mock_db_session)
+
+        workspace = await service.open(
+            _spec(backend="service", session_scope="run"), ctx=_ctx(), identity=_identity()
+        )
+        await service.close(workspace)
+
+        assert stopped == ["deleted"]
+
+    async def test_a_container_session_is_still_purged_when_it_is_stopped(
+        self, monkeypatch, mock_db_session
+    ):
+        """The other side of the same call: `RemoteSandbox.stop` does take
+        `purge`, and a run-scoped container's files go with its session."""
+        from pydantic_ai_backends import remote as remote_module
+
+        stopped: list[bool] = []
+
+        class _Sandbox:
+            def __init__(self, url, **kwargs):
+                pass
+
+            def stop(self, purge=False):
+                stopped.append(purge)
+
+        monkeypatch.setattr(remote_module, "RemoteSandbox", _Sandbox)
+        _serve(monkeypatch, _resolved())
+        service = SandboxWorkspaceService(mock_db_session)
+
+        workspace = await service.open(
+            _spec(backend="service", session_scope="run"), ctx=_ctx(), identity=_identity()
+        )
+        await service.close(workspace)
+
+        assert stopped == [True]
 
 
 class TestDeletingAConversation:

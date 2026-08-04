@@ -27,6 +27,8 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from functools import partial
+from inspect import signature
 from typing import Any
 from uuid import UUID
 
@@ -393,15 +395,29 @@ class SandboxWorkspaceService:
         """Stop a run-scoped sandbox, as a courtesy rather than a guarantee.
 
         `sandboxd` reaps idle sessions on its own, which is what makes this safe
-        to be best-effort: a run that crashes between opening a sandbox and
-        getting here leaves one behind for the idle timeout and no longer.
+        to be best-effort for a container: a run that crashes between opening a
+        sandbox and getting here leaves one behind for the idle timeout and no
+        longer.
+
+        A Daytona sandbox has no such net. It is a cloud resource on the
+        organization's own account, so the courtesy is the only thing that ends
+        it, which is why the call has to actually land.
         """
         stop = getattr(workspace.backend, "stop", None)
         if stop is None:
             return
-        # Off the loop: `RemoteSandbox.stop` is a synchronous `DELETE` to the
-        # service, and it also closes the client's own connection pool.
-        await asyncio.to_thread(stop, purge=True)
+        # `RemoteSandbox.stop` takes `purge`; `DaytonaSandbox.stop` takes nothing
+        # and deletes the sandbox outright. Passing `purge` to the second raised a
+        # `TypeError` that `close` swallowed as `workspace_close_failed`, so the
+        # one backend with no idle reaper behind it was the one never released -
+        # a sandbox per run, on somebody's invoice, until a human noticed.
+        #
+        # Asked of the signature rather than the type: `getattr` above is already
+        # duck-typing this, and an `isinstance` check would mean importing an SDK
+        # that `_daytona` deliberately imports lazily.
+        keywords = {"purge": True} if "purge" in signature(stop).parameters else {}
+        # Off the loop either way: both are synchronous HTTP to somebody else.
+        await asyncio.to_thread(partial(stop, **keywords))
 
     async def purge_for_conversation(self, ctx: AuthContext, *, conversation_id: UUID) -> int:
         """Drop every workspace belonging to a conversation being deleted.
