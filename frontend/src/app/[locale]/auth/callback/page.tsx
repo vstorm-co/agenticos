@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Spinner } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
 import { useAdoptSession } from "@/hooks/use-auth";
+import { postSignInDestination } from "@/lib/auth-landing";
 import type { User } from "@/types";
 import { useTranslations } from "next-intl";
 
@@ -48,7 +49,11 @@ export default function AuthCallbackPage() {
         );
         if (cancelled) return;
         adoptSession(data.user, data.access_token);
-        router.replace("/dashboard");
+        // No deep link here yet - nothing carries a returnTo through the
+        // provider round trip. It would not need the OAuth `state` parameter:
+        // the trip starts and ends in the same tab on this origin, so
+        // sessionStorage set beside the provider link is enough.
+        router.replace(postSignInDestination());
       } catch {
         if (!cancelled) {
           setExchangeFailed(true);

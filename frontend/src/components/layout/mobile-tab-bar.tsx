@@ -6,10 +6,9 @@ import { useTranslations } from "next-intl";
 import { Database, LayoutDashboard, MessageSquare, Search, Settings } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-import { useAuth } from "@/hooks";
 import { stripLocale } from "@/lib/active-route";
 import { ROUTES } from "@/lib/constants";
-import { cn, isAppAdmin } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 interface TabItem {
   label: string;
@@ -23,7 +22,6 @@ interface TabItem {
 export function MobileTabBar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { user } = useAuth();
   const t = useTranslations("nav");
 
   // `stripLocale`, not a two-letter regex. The regex matched *any* two letters,
@@ -35,11 +33,7 @@ export function MobileTabBar() {
   const items: TabItem[] = [
     { label: t("chat"), href: ROUTES.CHAT, icon: MessageSquare, startsWith: true },
     { label: t("kb"), href: ROUTES.KB, icon: Database, startsWith: true },
-    {
-      label: t("home"),
-      href: isAppAdmin(user) ? ROUTES.DASHBOARD : ROUTES.CHAT,
-      icon: LayoutDashboard,
-    },
+    { label: t("home"), href: ROUTES.DASHBOARD, icon: LayoutDashboard },
     {
       label: t("search"),
       icon: Search,

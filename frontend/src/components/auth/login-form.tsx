@@ -30,7 +30,10 @@ export function LoginForm() {
     setError("");
 
     try {
-      await login({ email, password });
+      // Read off the URL at submit time: useSearchParams would demand a
+      // Suspense boundary around a form that renders statically.
+      const returnTo = new URLSearchParams(window.location.search).get("returnTo");
+      await login({ email, password }, returnTo);
       toast.success(t("loginSuccess"));
     } catch (err) {
       const message = err instanceof ApiError ? err.message : t("loginFailedPleaseTry");
