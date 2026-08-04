@@ -22,6 +22,7 @@ module exists rather than a helper on the capability:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -398,7 +399,9 @@ class SandboxWorkspaceService:
         stop = getattr(workspace.backend, "stop", None)
         if stop is None:
             return
-        stop(purge=True)
+        # Off the loop: `RemoteSandbox.stop` is a synchronous `DELETE` to the
+        # service, and it also closes the client's own connection pool.
+        await asyncio.to_thread(stop, purge=True)
 
     async def purge_for_conversation(self, ctx: AuthContext, *, conversation_id: UUID) -> int:
         """Drop every workspace belonging to a conversation being deleted.
@@ -426,12 +429,16 @@ class SandboxWorkspaceService:
             resolved = await self._connection(ctx, row.connection_id)
             if resolved.kind != "docker" or not resolved.row.base_url:
                 return
-            RemoteSandbox(
+            sandbox = RemoteSandbox(
                 resolved.row.base_url,
                 token=resolved.token,
                 session_id=row.session_id or row.scope_key,
                 reuse=True,
-            ).stop(purge=True)
+            )
+            # A synchronous `DELETE`, so off the loop - and this runs in a loop over
+            # every workspace the conversation held, which is where one blocking
+            # round trip becomes several.
+            await asyncio.to_thread(sandbox.stop, purge=True)
         except Exception:
             # A service that is down must not stop a user deleting their chat.
             # The workspace TTL is the net under exactly this.
@@ -722,7 +729,12 @@ class SandboxWorkspaceService:
             async with self._archive(ctx, row) as archive:
                 if archive is None:
                     return WorkspaceContents(entries=[])
-                return WorkspaceContents(entries=list(archive.ls(row.session_id or row.scope_key)))
+                # `to_thread`, because `WorkspaceArchive` is a synchronous
+                # `httpx.Client` and this is a round trip to the host. `flat_files`
+                # runs it for up to 25 workspaces in one request, so the loop was
+                # held for all 25 - and not only for that request.
+                entries = await asyncio.to_thread(archive.ls, row.session_id or row.scope_key)
+                return WorkspaceContents(entries=list(entries))
         except Exception as exc:
             # Carried, not raised. "There are no files" and "this host cannot be
             # read" must stay distinguishable - an empty folder is what a user
@@ -773,7 +785,7 @@ class SandboxWorkspaceService:
             if archive is None:
                 return None
             try:
-                return archive.read(row.session_id or row.scope_key, path)
+                return await asyncio.to_thread(archive.read, row.session_id or row.scope_key, path)
             except Exception as exc:
                 # A 400 naming the reason, rather than the 500 this used to be or
                 # the 404 that "no such file" would have been. Both of those tell
@@ -812,7 +824,10 @@ class SandboxWorkspaceService:
         try:
             yield archive
         finally:
-            archive.close()
+            # Closing a pool shuts sockets rather than waiting on the network, but it
+            # is still the sync client's own call and there is no reason for the loop
+            # to make it.
+            await asyncio.to_thread(archive.close)
 
     async def _connection(self, ctx: AuthContext, connection_id: UUID) -> ResolvedConnection:
         """A connection, resolved at most once per service instance.

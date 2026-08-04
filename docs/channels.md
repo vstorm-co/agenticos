@@ -311,6 +311,17 @@ know-how the platform materialised, not the agent's work. A file it *overwrote* 
 not sent either: rewriting a script it is iterating on is ordinary, and posting it
 every turn would fill the channel with the same attachment.
 
+**If that snapshot could not be taken, nothing is posted.** The comparison is
+"everything now, minus everything then", so treating an unreadable workspace as an
+empty one would make every file already in it read as this turn's output — and under
+`agent` or `channel` scope those files belong to other people. A missing attachment
+is the failure worth having; a colleague's spreadsheet in a shared channel is not.
+
+Each file carries the type its name implies rather than a flat
+`application/octet-stream`, so a chart an agent wrote arrives as a picture on the
+platforms that read the field instead of as a blob somebody has to download to
+identify.
+
 Capped at 3 files and 8 MB each, below every platform's own limit so the refusal is
 ours and can be explained rather than arriving as an opaque API error. Anything past
 the cap is named in the reply and stays in the workspace.

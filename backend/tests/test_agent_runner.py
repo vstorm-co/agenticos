@@ -585,11 +585,11 @@ class TestFilesAcrossOneTurn:
         prepared.outbound_refused = []
         prepared.workspace_at_start = {"/run.py"}
 
-        with patch("app.services.agent_runner.files_written") as written:
+        with patch("app.services.agent_runner.files_written", new_callable=AsyncMock) as written:
             written.return_value = MagicMock(attachments=["a file"], refused=["/huge.csv"])
-            service._collect_outbound(prepared)
+            await service._collect_outbound(prepared)
 
-        assert written.call_args.args[1] == {"/run.py"}
+        assert written.await_args.args[1] == {"/run.py"}
         assert prepared.outbound == ["a file"]
         assert prepared.outbound_refused == ["/huge.csv"]
 

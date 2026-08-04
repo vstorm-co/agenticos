@@ -33,7 +33,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 
-from pydantic_ai_backends import BackendProtocol
+from pydantic_ai_backends import AsyncBackendProtocol, BackendProtocol, ensure_async
 from pydantic_ai_skills import parse_skill_md
 
 from app.db.models.skill import Skill
@@ -93,13 +93,22 @@ def render_body(skill: Skill) -> str:
     return f"---\nname: {skill.name}\ndescription: {skill.description}\n---\n\n{skill.content}\n"
 
 
-def materialise(backend: BackendProtocol, skills: list[Skill]) -> MaterialisedSkills:
+async def materialise(
+    backend: BackendProtocol | AsyncBackendProtocol, skills: list[Skill]
+) -> MaterialisedSkills:
     """Write each skill into the workspace, and remember what was written.
 
     Never raises. A workspace that refuses a write - past its storage ceiling,
     holding a path the backend rejects - must not stop the run: the skills are
     still in the prompt, which is how they worked before this existed.
+
+    Awaited, and that matters more here than anywhere else this wraps a backend.
+    This runs inside `prepare`, once per file per skill, before the model has seen
+    a token - so on a container-backed workspace an agent with five skills and
+    three resources each paid fifteen synchronous round trips on the event loop
+    before its first word.
     """
+    writer = ensure_async(backend)
     state = MaterialisedSkills()
     for skill in skills:
         state.owners[skill.name] = skill.id
@@ -107,15 +116,15 @@ def materialise(backend: BackendProtocol, skills: list[Skill]) -> MaterialisedSk
         for resource in skill.resources:
             files[f"{skill_dir(skill.name)}/{resource.name}"] = resource.content
         for path, content in files.items():
-            if _write(backend, path, content):
+            if await _write(writer, path, content):
                 state.written[path] = content
     return state
 
 
-def _write(backend: BackendProtocol, path: str, content: str) -> bool:
+async def _write(backend: AsyncBackendProtocol, path: str, content: str) -> bool:
     """Whether the file made it. A refusal is logged rather than raised."""
     try:
-        result = backend.write(path, content)
+        result = await backend.write(path, content)
     except Exception:
         logger.warning("skill_materialise_failed", extra={"path": path}, exc_info=True)
         return False
@@ -126,7 +135,9 @@ def _write(backend: BackendProtocol, path: str, content: str) -> bool:
     return True
 
 
-def collect_changes(backend: BackendProtocol, state: MaterialisedSkills) -> list[SkillChange]:
+async def collect_changes(
+    backend: BackendProtocol | AsyncBackendProtocol, state: MaterialisedSkills
+) -> list[SkillChange]:
     """What the agent left under `/skills` that is not what was put there.
 
     Compared against what this run wrote rather than against the database: the
@@ -140,7 +151,7 @@ def collect_changes(backend: BackendProtocol, state: MaterialisedSkills) -> list
     guessing wrong silently drops organizational know-how.
     """
     try:
-        present = _read_tree(backend)
+        present = await _read_tree(ensure_async(backend))
     except Exception:
         # A remote workspace that cannot be listed is a run that proposes
         # nothing, which is the same as one that changed nothing.
@@ -159,7 +170,7 @@ def collect_changes(backend: BackendProtocol, state: MaterialisedSkills) -> list
     return changes
 
 
-def _read_tree(backend: BackendProtocol) -> dict[str, str]:
+async def _read_tree(backend: AsyncBackendProtocol) -> dict[str, str]:
     """Every file under `/skills`, by path.
 
     Oversized files are dropped rather than truncated: half a script is not a
@@ -174,7 +185,7 @@ def _read_tree(backend: BackendProtocol) -> dict[str, str]:
     listed = {
         str(entry["path"]): entry
         for pattern in (f"{SKILLS_ROOT}/**/*", f"{SKILLS_ROOT}/**/.*")
-        for entry in backend.glob_info(pattern)
+        for entry in await backend.glob_info(pattern)
     }
     for path, entry in sorted(listed.items()):
         if entry.get("is_dir"):
@@ -189,7 +200,7 @@ def _read_tree(backend: BackendProtocol) -> dict[str, str]:
         # `read_bytes`, not `read`: the toolset's `read` numbers lines for a
         # model to quote, and a proposal built from that would store the line
         # numbers as part of the skill.
-        tree[path] = backend.read_bytes(path).decode("utf-8", errors="replace")
+        tree[path] = (await backend.read_bytes(path)).decode("utf-8", errors="replace")
     return tree
 
 

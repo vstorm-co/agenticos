@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from pydantic_ai.messages import BinaryContent
-from pydantic_ai_backends import BackendProtocol
+from pydantic_ai_backends import AsyncBackendProtocol, BackendProtocol, ensure_async
 
 from app.core.config import settings
 from app.db.models.chat_file import ChatFile
@@ -127,8 +127,15 @@ class AttachmentRouter:
     three different things.
     """
 
-    def __init__(self, backend: BackendProtocol | None = None) -> None:
-        self._backend = backend
+    def __init__(self, backend: BackendProtocol | AsyncBackendProtocol | None = None) -> None:
+        # Wrapped here rather than at each `await` below, and rather than being the
+        # caller's problem. A container-backed workspace is a synchronous
+        # `httpx.Client`, so writing an upload into one from this coroutine blocked
+        # the whole worker for the length of the transfer - a 50 MB CSV stalling
+        # every other request in the process, which is the exact case a workspace
+        # exists to make possible. `ensure_async` is the library's own answer and is
+        # idempotent, so an already-async backend passes through untouched.
+        self._backend = None if backend is None else ensure_async(backend)
 
     async def build_prompt(self, user_message: str, files: list[ChatFile]) -> str | list[Any]:
         """The user's message, with everything they attached folded in."""
@@ -183,21 +190,21 @@ class AttachmentRouter:
         return AttachmentPlan(reference=None, inline=None)
 
     async def _into_workspace(
-        self, backend: BackendProtocol, chat_file: ChatFile
+        self, backend: AsyncBackendProtocol, chat_file: ChatFile
     ) -> AttachmentPlan:
         path = workspace_path(chat_file)
         data: bytes | None = None
 
-        if not backend.exists(path):
+        if not await backend.exists(path):
             data = await get_file_storage().load(chat_file.storage_path)
-            result = backend.write(path, data)
+            result = await backend.write(path, data)
             if result.error is not None:
                 # A full workspace, most likely. The file is still worth
                 # mentioning - and for a parsed one the text is still usable -
                 # so this degrades to the inline path rather than vanishing.
                 logger.info("attachment_not_written", extra={"path": path, "reason": result.error})
                 return await self._without_workspace(chat_file)
-            self._write_extracted_text(backend, chat_file, path)
+            await self._write_extracted_text(backend, chat_file, path)
 
         if chat_file.file_type != "image":
             return AttachmentPlan(reference=_referenced(chat_file, path), inline=None)
@@ -206,8 +213,8 @@ class AttachmentRouter:
             inline=await self._inline_image(chat_file, data),
         )
 
-    def _write_extracted_text(
-        self, backend: BackendProtocol, chat_file: ChatFile, path: str
+    async def _write_extracted_text(
+        self, backend: AsyncBackendProtocol, chat_file: ChatFile, path: str
     ) -> None:
         """Put the parse beside the original, for a format a shell cannot read.
 
@@ -217,7 +224,7 @@ class AttachmentRouter:
         conversion or a page count needs.
         """
         if chat_file.file_type in {"pdf", "docx"} and chat_file.parsed_content:
-            backend.write(f"{path}.txt", chat_file.parsed_content)
+            await backend.write(f"{path}.txt", chat_file.parsed_content)
 
     async def _inline_image(self, chat_file: ChatFile, data: bytes | None) -> BinaryContent | None:
         """The picture itself, when it is small enough to be worth sending twice.

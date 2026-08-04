@@ -501,10 +501,10 @@ class AgentRunnerService:
             # resource is a script was previously handed to the model as text it
             # could quote and not execute, while the same agent had `execute` one
             # tool call away.
-            materialised = materialise_skills(workspace.backend, resources["skills"])
+            materialised = await materialise_skills(workspace.backend, resources["skills"])
             # After the skills are written, so materialising them does not read as
             # the turn's own output.
-            started_with = workspace_snapshot(workspace.backend)
+            started_with = await workspace_snapshot(workspace.backend)
 
         channel = ApprovalChannel(
             approvals=self.approvals,
@@ -550,7 +550,7 @@ class AgentRunnerService:
         )
 
     @staticmethod
-    def _collect_outbound(prepared: PreparedRun) -> None:
+    async def _collect_outbound(prepared: PreparedRun) -> None:
         """Read what the turn wrote, for a surface that can deliver it.
 
         Read for every run rather than only for the channels that use it, because
@@ -561,7 +561,7 @@ class AgentRunnerService:
         """
         if prepared.workspace is None:
             return
-        delivered = files_written(prepared.workspace.backend, prepared.workspace_at_start)
+        delivered = await files_written(prepared.workspace.backend, prepared.workspace_at_start)
         prepared.outbound.extend(delivered.attachments)
         prepared.outbound_refused.extend(delivered.refused)
 
@@ -583,7 +583,7 @@ class AgentRunnerService:
         if workspace is None or state is None or prepared.ctx is None:
             return
         try:
-            changes = collect_changes(workspace.backend, state)
+            changes = await collect_changes(workspace.backend, state)
             if changes:
                 await self.proposals.record(
                     prepared.ctx,
@@ -621,7 +621,7 @@ class AgentRunnerService:
         """
         # Both before the workspace closes, because a run-scoped one is released
         # by `close` and its files are gone afterwards.
-        self._collect_outbound(prepared)
+        await self._collect_outbound(prepared)
         await self._propose_skill_changes(prepared)
 
         # Before the run row is written, so a workspace flush that fails cannot

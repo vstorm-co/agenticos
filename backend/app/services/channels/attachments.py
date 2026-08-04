@@ -31,7 +31,7 @@ import mimetypes
 from dataclasses import dataclass
 from uuid import UUID
 
-from pydantic_ai_backends import BackendProtocol
+from pydantic_ai_backends import AsyncBackendProtocol, BackendProtocol, ensure_async
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.chat_file import ChatFile
@@ -180,7 +180,9 @@ def _why(attachment: IncomingAttachment, error: str | None) -> str:
     return error or "not supported."
 
 
-def files_written(backend: BackendProtocol, before: set[str] | None) -> DeliveredFiles:
+async def files_written(
+    backend: BackendProtocol | AsyncBackendProtocol, before: set[str] | None
+) -> DeliveredFiles:
     """What the agent produced this turn, ready to post.
 
     `before` is the set of paths the workspace held when the turn started, so this
@@ -204,8 +206,9 @@ def files_written(backend: BackendProtocol, before: set[str] | None) -> Delivere
     """
     if before is None:
         return DeliveredFiles(attachments=[], refused=[])
+    reader = ensure_async(backend)
     try:
-        paths = _workspace_paths(backend)
+        paths = await _workspace_paths(reader)
     except Exception:
         logger.warning("outbound_attachment_scan_failed", exc_info=True)
         return DeliveredFiles(attachments=[], refused=[])
@@ -221,7 +224,7 @@ def files_written(backend: BackendProtocol, before: set[str] | None) -> Delivere
             refused.append(path)
             continue
         try:
-            data = backend.read_bytes(path)
+            data = await reader.read_bytes(path)
         except Exception:
             logger.info("outbound_attachment_unreadable", extra={"path": path})
             continue
@@ -246,7 +249,9 @@ def files_written(backend: BackendProtocol, before: set[str] | None) -> Delivere
     return DeliveredFiles(attachments=attachments, refused=refused)
 
 
-def workspace_snapshot(backend: BackendProtocol) -> set[str] | None:
+async def workspace_snapshot(
+    backend: BackendProtocol | AsyncBackendProtocol,
+) -> set[str] | None:
     """Every path the workspace holds right now, or `None` if it could not be read.
 
     Taken before the turn so what it added can be told from what it already had.
@@ -264,23 +269,27 @@ def workspace_snapshot(backend: BackendProtocol) -> set[str] | None:
     one.
     """
     try:
-        return _workspace_paths(backend)
+        return await _workspace_paths(ensure_async(backend))
     except Exception:
         logger.warning("workspace_snapshot_failed", exc_info=True)
         return None
 
 
-def _workspace_paths(backend: BackendProtocol) -> set[str]:
+async def _workspace_paths(backend: AsyncBackendProtocol) -> set[str]:
     """Every file in the workspace, dotfiles included.
 
     Two patterns, because `**/*` does not match a name beginning with a dot. Here it
     matters in the *safe* direction and still matters: a `.env` the agent wrote before
     the turn would be absent from the snapshot, so writing it again during the turn
     would read as new and get posted into the channel.
+
+    Awaited rather than called: a container-backed workspace answers a glob over the
+    network with a synchronous client, so two of them from a coroutine held the event
+    loop for two round trips - once before the turn and once after.
     """
     return {
         str(entry["path"])
         for pattern in ("**/*", "**/.*")
-        for entry in backend.glob_info(pattern)
+        for entry in await backend.glob_info(pattern)
         if not entry.get("is_dir")
     }

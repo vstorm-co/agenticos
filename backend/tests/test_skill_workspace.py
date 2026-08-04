@@ -13,6 +13,12 @@ organizational know-how.
 
 *Nothing is proposed unless something actually differs.* Otherwise every turn of
 every conversation would leave a reviewer another copy of the same skill.
+
+Both entry points are awaited. Materialising happens inside `prepare`, once per
+file per skill, and on a container-backed workspace each of those writes is a
+synchronous HTTP round trip - so an agent with a few skills held the event loop
+for a dozen of them before the model saw a token. The backends below stay
+synchronous, which is the production arrangement too: `ensure_async` wraps one.
 """
 
 from __future__ import annotations
@@ -29,6 +35,8 @@ from app.services.skill_workspace import (
     materialise,
     render_body,
 )
+
+pytestmark = pytest.mark.anyio
 
 
 class _Resource:
@@ -57,20 +65,20 @@ def _backend() -> StateBackend:
 
 
 class TestWritingSkillsIntoTheWorkspace:
-    def test_the_body_and_every_resource_land_beside_each_other(self):
+    async def test_the_body_and_every_resource_land_beside_each_other(self):
         """Beside each other because that is the whole feature: a script the model
         could previously only quote is now a path its shell can run."""
         skill = _Skill(resources=[_Resource("reconcile.py", "print(1)")])
         backend = _backend()
 
-        materialise(backend, [skill])
+        await materialise(backend, [skill])
 
         assert "Ask for the order id." in backend.read(f"{SKILLS_ROOT}/refunds/SKILL.md")
         # `read_bytes` because the toolset's `read` numbers lines for a model to
         # quote, and the script has to be exactly what the shell will run.
         assert backend.read_bytes(f"{SKILLS_ROOT}/refunds/reconcile.py") == b"print(1)"
 
-    def test_the_body_carries_the_name_and_description_the_library_parses(self):
+    async def test_the_body_carries_the_name_and_description_the_library_parses(self):
         """The description is what every other agent reads before deciding whether
         to load the skill at all, so it has to be editable - which means it has to
         be in the file rather than implied by the directory."""
@@ -79,103 +87,103 @@ class TestWritingSkillsIntoTheWorkspace:
         assert body.startswith("---\nname: refunds\n")
         assert "description: How refunds work." in body
 
-    def test_a_workspace_that_refuses_a_write_still_runs_the_agent(self):
+    async def test_a_workspace_that_refuses_a_write_still_runs_the_agent(self):
         """The skills are in the prompt either way, which is how they worked
         before this existed. Failing the run over a file would be a regression
         caused by a convenience."""
         backend = CappedStateBackend(StateBackend(), max_bytes=10)
 
-        state = materialise(backend, [_Skill()])
+        state = await materialise(backend, [_Skill()])
 
         assert state.written == {}
         assert state.owners == {"refunds": state.owners["refunds"]}
 
-    def test_a_backend_that_raises_is_survived_too(self):
+    async def test_a_backend_that_raises_is_survived_too(self):
         class _Broken:
             def write(self, path, content):
                 raise RuntimeError("no")
 
-        assert materialise(_Broken(), [_Skill()]).written == {}
+        assert (await materialise(_Broken(), [_Skill()])).written == {}
 
 
 class TestCollectingWhatTheAgentChanged:
-    def test_an_untouched_workspace_proposes_nothing(self):
+    async def test_an_untouched_workspace_proposes_nothing(self):
         backend = _backend()
-        state = materialise(backend, [_Skill(resources=[_Resource("notes.md", "hello")])])
+        state = await materialise(backend, [_Skill(resources=[_Resource("notes.md", "hello")])])
 
-        assert collect_changes(backend, state) == []
+        assert await collect_changes(backend, state) == []
 
-    def test_an_edited_body_comes_back_as_the_new_body(self):
+    async def test_an_edited_body_comes_back_as_the_new_body(self):
         skill = _Skill()
         backend = _backend()
-        state = materialise(backend, [skill])
+        state = await materialise(backend, [skill])
 
         backend.write(
             f"{SKILLS_ROOT}/refunds/SKILL.md",
             "---\nname: refunds\ndescription: How refunds work now.\n---\n\nAsk for the receipt.",
         )
-        [change] = collect_changes(backend, state)
+        [change] = await collect_changes(backend, state)
 
         assert change.skill_id == skill.id
         assert change.is_new is False
         assert change.description == "How refunds work now."
         assert change.content == "Ask for the receipt."
 
-    def test_a_new_resource_comes_back_with_the_skill_it_sits_in(self):
+    async def test_a_new_resource_comes_back_with_the_skill_it_sits_in(self):
         skill = _Skill()
         backend = _backend()
-        state = materialise(backend, [skill])
+        state = await materialise(backend, [skill])
 
         backend.write(f"{SKILLS_ROOT}/refunds/checklist.md", "- ask for the id")
-        [change] = collect_changes(backend, state)
+        [change] = await collect_changes(backend, state)
 
         assert change.resources == {"checklist.md": "- ask for the id"}
 
-    def test_a_skill_the_agent_invented_has_no_id_to_edit(self):
+    async def test_a_skill_the_agent_invented_has_no_id_to_edit(self):
         """It becomes a *new* skill on approval rather than overwriting one, and
         the difference is a missing id rather than a flag somebody sets."""
         backend = _backend()
-        state = materialise(backend, [_Skill()])
+        state = await materialise(backend, [_Skill()])
 
         backend.write(
             f"{SKILLS_ROOT}/escalation/SKILL.md",
             "---\nname: escalation\ndescription: When to escalate.\n---\n\nPage the lead.",
         )
-        [change] = collect_changes(backend, state)
+        [change] = await collect_changes(backend, state)
 
         assert change.name == "escalation"
         assert change.is_new is True
 
-    def test_a_deleted_resource_is_not_a_proposal(self):
+    async def test_a_deleted_resource_is_not_a_proposal(self):
         """Absence cannot be read: a model that never touched the file and one
         that meant to delete it leave the same workspace."""
         backend = _backend()
-        state = materialise(
+        state = await materialise(
             backend, [_Skill(resources=[_Resource("a.md", "one"), _Resource("b.md", "two")])]
         )
 
         backend.write(f"{SKILLS_ROOT}/refunds/a.md", "one")  # unchanged
         # b.md is simply never mentioned again, which is what a delete looks like.
-        changes = collect_changes(backend, state)
+        changes = await collect_changes(backend, state)
 
         assert changes == []
 
-    def test_a_directory_with_no_body_is_refused_rather_than_filled_in(self):
+    async def test_a_directory_with_no_body_is_refused_rather_than_filled_in(self):
         """Inventing an empty body would propose replacing real instructions with
         nothing."""
         backend = _backend()
-        state = materialise(backend, [_Skill()])
+        state = await materialise(backend, [_Skill()])
 
         backend.write(f"{SKILLS_ROOT}/stray/notes.md", "just a file")
 
-        assert collect_changes(backend, state) == []
+        assert await collect_changes(backend, state) == []
 
-    def test_a_host_that_did_not_measure_a_file_does_not_break_the_read(self):
+    async def test_a_host_that_did_not_measure_a_file_does_not_break_the_read(self):
         """`size` is `int | None`, and a listing carrying the key with `None` - a
         host that could not measure the file - compared `None` to the cap and raised
         inside the ingestion of a proposal. Found by typing the backend properly."""
         backend = _backend()
-        state = materialise(backend, [_Skill()])
+        state = await materialise(backend, [_Skill()])
 
         class _Unmeasured:
             """A listing whose sizes are absent rather than zero."""
@@ -183,7 +191,7 @@ class TestCollectingWhatTheAgentChanged:
             def __init__(self, inner):
                 self._inner = inner
 
-            def glob_info(self, pattern):
+            def glob_info(self, pattern, path="/"):
                 return [{**entry, "size": None} for entry in self._inner.glob_info(pattern)]
 
             def __getattr__(self, name):
@@ -191,60 +199,60 @@ class TestCollectingWhatTheAgentChanged:
 
         backend.write(f"{SKILLS_ROOT}/refunds/SKILL.md", "---\nname: refunds\n---\n\nrewritten")
 
-        [change] = collect_changes(_Unmeasured(backend), state)
+        [change] = await collect_changes(_Unmeasured(backend), state)
 
         assert change.content == "rewritten"
 
-    def test_frontmatter_the_model_mangled_is_refused_rather_than_guessed_at(self):
+    async def test_frontmatter_the_model_mangled_is_refused_rather_than_guessed_at(self):
         """The description is what other agents read first; a guess at it is a
         guess at what this skill claims to be."""
         backend = _backend()
-        state = materialise(backend, [_Skill()])
+        state = await materialise(backend, [_Skill()])
 
         backend.write(f"{SKILLS_ROOT}/refunds/SKILL.md", "---\n: : :\nnot: [yaml\n---\n\nbody")
 
-        assert collect_changes(backend, state) == []
+        assert await collect_changes(backend, state) == []
 
-    def test_a_body_with_no_frontmatter_proposes_an_empty_description(self):
+    async def test_a_body_with_no_frontmatter_proposes_an_empty_description(self):
         """Accepted rather than refused: the instructions are there and readable,
         and a reviewer can see the description is missing and fill it in."""
         backend = _backend()
-        state = materialise(backend, [_Skill()])
+        state = await materialise(backend, [_Skill()])
 
         backend.write(f"{SKILLS_ROOT}/refunds/SKILL.md", "Ask for the receipt.")
-        [change] = collect_changes(backend, state)
+        [change] = await collect_changes(backend, state)
 
         assert change.description == ""
         assert change.content == "Ask for the receipt."
 
-    def test_a_file_nested_deeper_than_a_skill_belongs_to_no_skill(self):
+    async def test_a_file_nested_deeper_than_a_skill_belongs_to_no_skill(self):
         """A skill is a directory of files. Treating `/skills/a/b/c` as `a`'s
         would flatten two paths onto one resource name."""
         backend = _backend()
-        state = materialise(backend, [_Skill()])
+        state = await materialise(backend, [_Skill()])
 
         backend.write(f"{SKILLS_ROOT}/refunds/deep/nested.md", "hidden")
 
-        assert collect_changes(backend, state) == []
+        assert await collect_changes(backend, state) == []
 
-    def test_a_file_past_the_ceiling_is_dropped_rather_than_truncated(self):
+    async def test_a_file_past_the_ceiling_is_dropped_rather_than_truncated(self):
         """Half a script is not a script, and storing it would offer a reviewer
         something that cannot be right."""
         backend = _backend()
-        state = materialise(backend, [_Skill()])
+        state = await materialise(backend, [_Skill()])
 
         backend.write(f"{SKILLS_ROOT}/refunds/huge.md", "x" * (300 * 1024))
-        changes = collect_changes(backend, state)
+        changes = await collect_changes(backend, state)
 
         assert changes == []
 
-    def test_a_directory_in_the_listing_is_not_read_as_a_file(self):
+    async def test_a_directory_in_the_listing_is_not_read_as_a_file(self):
         """`StateBackend` reports only files; a container-backed workspace lists a
         real filesystem, where `/skills/refunds` is itself an entry. Reading it
         would raise where nothing is wrong."""
 
         class _WithDirectories:
-            def glob_info(self, pattern):
+            def glob_info(self, pattern, path="/"):
                 return [
                     {"path": f"{SKILLS_ROOT}/refunds", "is_dir": True, "size": 0},
                     {"path": f"{SKILLS_ROOT}/refunds/SKILL.md", "is_dir": False, "size": 4},
@@ -254,23 +262,23 @@ class TestCollectingWhatTheAgentChanged:
                 assert path.endswith("SKILL.md")
                 return b"body"
 
-        state = materialise(_backend(), [_Skill()])
+        state = await materialise(_backend(), [_Skill()])
 
-        [change] = collect_changes(_WithDirectories(), state)
+        [change] = await collect_changes(_WithDirectories(), state)
 
         assert change.content == "body"
 
-    def test_a_workspace_that_cannot_be_listed_proposes_nothing(self):
+    async def test_a_workspace_that_cannot_be_listed_proposes_nothing(self):
         """Which is the same as one that changed nothing - and it runs in the
         `finally` that records what the run cost, so it cannot raise."""
 
         class _Broken:
-            def glob_info(self, pattern):
+            def glob_info(self, pattern, path="/"):
                 raise RuntimeError("the service is down")
 
-        state = materialise(_backend(), [_Skill()])
+        state = await materialise(_backend(), [_Skill()])
 
-        assert collect_changes(_Broken(), state) == []
+        assert await collect_changes(_Broken(), state) == []
 
 
 @pytest.mark.parametrize(
