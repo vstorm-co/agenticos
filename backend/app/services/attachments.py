@@ -118,6 +118,20 @@ def _referenced(chat_file: ChatFile, path: str) -> str:
     return "".join(parts)
 
 
+def _too_large_to_show(chat_file: ChatFile) -> str:
+    """An image past the inline ceiling, with no workspace to put it in instead.
+
+    Said rather than skipped: the person attached a picture and asked about it, so
+    silence reads as the model ignoring them. Naming the limit is what tells them
+    the fix is a smaller image rather than a better question.
+    """
+    return (
+        f"\n---\nAttached image: {chat_file.filename} ({_size(chat_file)}) - too large "
+        "to show, and this agent has no workspace to read it from. Attach a smaller "
+        "version, or give the agent the Files & shell capability."
+    )
+
+
 def _unstored(chat_file: ChatFile) -> str:
     """Named and sampled, with no path offered because there is nothing at one.
 
@@ -200,13 +214,25 @@ class AttachmentRouter:
         return await self._into_workspace(backend, chat_file)
 
     async def _without_workspace(self, chat_file: ChatFile) -> AttachmentPlan:
-        """The old behaviour, kept exactly, for an agent with nowhere to put files."""
+        """What an agent with nowhere to put files gets.
+
+        The image ceiling applies here too. It used not to: this path inlined an
+        image of any size while `_inline_image` beside it honoured
+        `SANDBOX_INLINE_IMAGE_MAX_BYTES`, so the same 40 MB screenshot was refused
+        by an agent *with* a workspace and loaded whole by one without - the wrong
+        way round, since the one with a workspace has a path to offer instead and
+        this one has nothing to fall back to.
+
+        Past the ceiling the model is told the picture is there and too large,
+        rather than being sent it or being told nothing. There is no path to give,
+        so a person asking "what is in this screenshot" gets an answer about why it
+        cannot be looked at instead of silence.
+        """
         if chat_file.file_type == "image":
-            data = await get_file_storage().load(chat_file.storage_path)
-            return AttachmentPlan(
-                reference=None,
-                inline=BinaryContent(data=data, media_type=chat_file.mime_type),
-            )
+            inline = await self._inline_image(chat_file, None)
+            if inline is None:
+                return AttachmentPlan(reference=_too_large_to_show(chat_file), inline=None)
+            return AttachmentPlan(reference=None, inline=inline)
         if chat_file.parsed_content:
             return AttachmentPlan(reference=_pasted(chat_file), inline=None)
         return AttachmentPlan(reference=None, inline=None)

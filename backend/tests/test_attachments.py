@@ -213,6 +213,36 @@ class TestWithAWorkspace:
         assert isinstance(prompt, str)
         assert workspace_path(chat_file) not in prompt
 
+    async def test_an_oversized_image_is_not_inlined_without_a_workspace_either(
+        self, storage, monkeypatch
+    ):
+        """The ceiling used to apply only to the workspace path.
+
+        So the same screenshot was refused by an agent *with* a workspace and loaded
+        whole by one without - the wrong way round, since the first has a path to
+        offer instead and the second has nothing to fall back to.
+        """
+        from app.core import config as config_module
+
+        monkeypatch.setattr(config_module.settings, "SANDBOX_INLINE_IMAGE_MAX_BYTES", 10)
+        chat_file = _file(file_type="image", mime_type="image/png", filename="big.png", size=5000)
+
+        prompt = await AttachmentRouter().build_prompt("what is this", [chat_file])
+
+        assert isinstance(prompt, str)
+        assert "big.png" in prompt
+        assert "too large to show" in prompt
+
+    async def test_an_image_inside_the_ceiling_is_still_inlined_without_a_workspace(self, storage):
+        """The case that has to keep working: no workspace, and a picture the model
+        can simply be shown."""
+        chat_file = _file(file_type="image", mime_type="image/png", filename="small.png", size=64)
+
+        prompt = await AttachmentRouter().build_prompt("what is this", [chat_file])
+
+        assert isinstance(prompt, list)
+        assert any(isinstance(part, BinaryContent) for part in prompt)
+
     async def test_an_image_too_large_to_store_is_still_shown_to_the_model(self, storage):
         """The exception, for the reason images go both ways at all: a path is no
         substitute for looking at the picture, and the inline ceiling is its own."""
