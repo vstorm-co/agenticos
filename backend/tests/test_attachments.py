@@ -161,7 +161,7 @@ class TestWithAWorkspace:
         assert backend.exists(workspace_path(first))
         assert backend.exists(workspace_path(second))
 
-    async def test_a_full_workspace_falls_back_to_the_inline_path(self, storage):
+    async def test_a_full_workspace_still_names_and_samples_the_file(self, storage):
         """The file is still worth mentioning; it just cannot be stored."""
         backend = _workspace(max_bytes=1)
         chat_file = _file()
@@ -169,7 +169,59 @@ class TestWithAWorkspace:
         prompt = await AttachmentRouter(backend).build_prompt("summarise", [chat_file])
 
         assert "month,total" in prompt
+        assert chat_file.filename in prompt
         assert not backend.exists(workspace_path(chat_file))
+
+    async def test_a_file_too_large_to_store_is_not_pasted_whole(self, storage):
+        """The degradation used to run backwards.
+
+        A write is refused when the document has no room, so this branch only
+        runs for a file too large to store - and with a 50 MB upload limit
+        against a 4 MB document, falling back to the paste put up to fifty
+        megabytes of text into one message. A file small enough to paste safely
+        would have fitted in the workspace in the first place.
+        """
+        body = "\n".join(f"row-{n},{n}" for n in range(500))
+        chat_file = _file(parsed_content=body)
+
+        prompt = await AttachmentRouter(_workspace(max_bytes=1)).build_prompt("go", [chat_file])
+
+        assert isinstance(prompt, str)
+        assert "row-0" in prompt
+        # The head, not the file: twenty lines of it and no more.
+        assert "row-499" not in prompt
+        assert "not stored" in prompt
+
+    async def test_an_unparsed_file_too_large_to_store_is_still_named(self, storage):
+        """A zip has no text to sample, so all there is to say is that it arrived
+        and could not be kept - which still beats the model never hearing of it."""
+        chat_file = _file(filename="dump.zip", file_type="other", parsed_content=None)
+
+        prompt = await AttachmentRouter(_workspace(max_bytes=1)).build_prompt("go", [chat_file])
+
+        assert isinstance(prompt, str)
+        assert "dump.zip" in prompt
+        assert "not stored" in prompt
+
+    async def test_a_file_that_was_not_stored_is_given_no_path_to_open(self, storage):
+        """Naming a path the write did not create costs the agent a tool call to
+        find out the file is not there."""
+        chat_file = _file()
+
+        prompt = await AttachmentRouter(_workspace(max_bytes=1)).build_prompt("go", [chat_file])
+
+        assert isinstance(prompt, str)
+        assert workspace_path(chat_file) not in prompt
+
+    async def test_an_image_too_large_to_store_is_still_shown_to_the_model(self, storage):
+        """The exception, for the reason images go both ways at all: a path is no
+        substitute for looking at the picture, and the inline ceiling is its own."""
+        chat_file = _file(file_type="image", mime_type="image/png", filename="chart.png")
+
+        prompt = await AttachmentRouter(_workspace(max_bytes=1)).build_prompt("look", [chat_file])
+
+        assert isinstance(prompt, list)
+        assert any(isinstance(part, BinaryContent) for part in prompt)
 
     async def test_a_file_the_store_cannot_load_is_skipped_rather_than_fatal(self, monkeypatch):
         """The person asked a question; answering without the file beats not

@@ -118,6 +118,28 @@ def _referenced(chat_file: ChatFile, path: str) -> str:
     return "".join(parts)
 
 
+def _unstored(chat_file: ChatFile) -> str:
+    """Named and sampled, with no path offered because there is nothing at one.
+
+    Never `_pasted`. This is only reached when the workspace refused the write,
+    which for a full workspace means the file was too large to store - and a file
+    too large for a four-megabyte document is too large to put in a prompt. The
+    head is the usable part; the whole thing is the paste this module exists to
+    replace.
+
+    And no path, because the write failed: naming one the agent cannot open would
+    cost it a tool call to discover a file that is not there.
+    """
+    parts = [
+        f"\n---\nAttached file: {chat_file.filename} "
+        f"({_size(chat_file)}, {chat_file.file_type}) - too large for the workspace, "
+        "so it was not stored and cannot be opened as a file"
+    ]
+    if chat_file.parsed_content:
+        parts.append(f"\nFirst {HEAD_LINES} lines:\n```\n{_head(chat_file.parsed_content)}\n```")
+    return "".join(parts)
+
+
 class AttachmentRouter:
     """Turns attached files into a prompt, and into files an agent can open.
 
@@ -199,11 +221,21 @@ class AttachmentRouter:
             data = await get_file_storage().load(chat_file.storage_path)
             result = await backend.write(path, data)
             if result.error is not None:
-                # A full workspace, most likely. The file is still worth
-                # mentioning - and for a parsed one the text is still usable -
-                # so this degrades to the inline path rather than vanishing.
+                # A full workspace, most likely - and that is exactly why this
+                # must not fall back to pasting the file. The write is refused
+                # when the document has no room for it, so this branch only ever
+                # runs for a file too large to store; with a 50 MB upload limit
+                # against a 4 MB document, pasting it would have put up to fifty
+                # megabytes of text into one message. A file small enough to paste
+                # safely would have fitted in the workspace.
+                #
+                # An image is the exception, and the reason is the same one that
+                # makes images go both ways: the model can still *see* it, and
+                # `_inline_image` has its own, much smaller ceiling.
                 logger.info("attachment_not_written", extra={"path": path, "reason": result.error})
-                return await self._without_workspace(chat_file)
+                if chat_file.file_type == "image":
+                    return await self._without_workspace(chat_file)
+                return AttachmentPlan(reference=_unstored(chat_file), inline=None)
             await self._write_extracted_text(backend, chat_file, path)
 
         if chat_file.file_type != "image":
