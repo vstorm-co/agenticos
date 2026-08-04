@@ -211,12 +211,17 @@ class PreparedRun:
     the run.
     """
 
-    workspace_at_start: set[str] = field(default_factory=set)
+    workspace_at_start: set[str] | None = None
     """Every path the workspace held before the turn ran.
 
     What the turn *added* is the difference against this. Compared against a
     snapshot rather than modification times: a `state` workspace has none, and a
     container's clock is not ours to trust.
+
+    `None` means there was no readable workspace to snapshot - no sandbox at all,
+    or a host that would not answer - and nothing is posted back. It is not an
+    empty set: the difference is computed against this, so an empty one would make
+    every file already in the workspace read as the turn's own output.
     """
 
     outbound: list[OutgoingAttachment] = field(default_factory=list)
@@ -489,7 +494,7 @@ class AgentRunnerService:
             ),
         )
         materialised: MaterialisedSkills | None = None
-        started_with: set[str] = set()
+        started_with: set[str] | None = None
         if workspace is not None:
             resources[WORKSPACE_BACKEND_RESOURCE] = workspace.backend
             # Skills as files, beside the shell that can run them. A skill whose

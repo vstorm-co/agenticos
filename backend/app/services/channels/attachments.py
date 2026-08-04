@@ -180,13 +180,20 @@ def _why(attachment: IncomingAttachment, error: str | None) -> str:
     return error or "not supported."
 
 
-def files_written(backend: BackendProtocol, before: set[str]) -> DeliveredFiles:
+def files_written(backend: BackendProtocol, before: set[str] | None) -> DeliveredFiles:
     """What the agent produced this turn, ready to post.
 
     `before` is the set of paths the workspace held when the turn started, so this
     is what the turn *added*. Compared against a snapshot rather than against
     modification times: a state backend has none, and a container's clock is not
     ours to trust.
+
+    `None` means the snapshot could not be taken, and nothing is posted. It cannot
+    be treated as "the workspace was empty": this function answers
+    `paths - before`, so an empty `before` makes *every file in the workspace* read
+    as this turn's output - and under `agent` or `channel` scope those are
+    somebody else's files, on their way into a shared channel. Posting nothing is
+    the failure worth having.
 
     A file the agent overwrote is deliberately not included. Rewriting a file it
     already had is ordinary work - a script it is iterating on - and posting it on
@@ -195,6 +202,8 @@ def files_written(backend: BackendProtocol, before: set[str]) -> DeliveredFiles:
     Never raises. This runs after an answer somebody is waiting for; a workspace
     that cannot be listed means a reply with no attachments, not a lost reply.
     """
+    if before is None:
+        return DeliveredFiles(attachments=[], refused=[])
     try:
         paths = _workspace_paths(backend)
     except Exception:
@@ -237,19 +246,28 @@ def files_written(backend: BackendProtocol, before: set[str]) -> DeliveredFiles:
     return DeliveredFiles(attachments=attachments, refused=refused)
 
 
-def workspace_snapshot(backend: BackendProtocol) -> set[str]:
-    """Every path the workspace holds right now.
+def workspace_snapshot(backend: BackendProtocol) -> set[str] | None:
+    """Every path the workspace holds right now, or `None` if it could not be read.
 
     Taken before the turn so what it added can be told from what it already had.
-    An unreadable workspace answers with an empty set, which makes the turn's
-    output look entirely new - the safe direction, because the alternative is
-    posting nothing at all.
+
+    `None` rather than an empty set, which is the whole point of the return type.
+    An empty set does not mean "nothing to compare against" - it means "the
+    workspace was empty", and `files_written` answers `paths - before`, so every
+    file already in the workspace would read as this turn's output. Under `agent`
+    or `channel` scope those files belong to other people, and up to
+    `MAX_OUTBOUND_FILES` of them would be posted into a shared channel.
+
+    This needs only a *transient* failure to happen: both functions call
+    `_workspace_paths`, so a persistently broken listing fails both and posts
+    nothing. A remote host reached over HTTP is exactly what supplies a transient
+    one.
     """
     try:
         return _workspace_paths(backend)
     except Exception:
         logger.warning("workspace_snapshot_failed", exc_info=True)
-        return set()
+        return None
 
 
 def _workspace_paths(backend: BackendProtocol) -> set[str]:

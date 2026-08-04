@@ -323,15 +323,34 @@ class TestChoosingWhatToSendBack:
 
         assert files_written(_Broken(), set()) == DeliveredFiles(attachments=[], refused=[])
 
-    def test_a_snapshot_of_an_unreadable_workspace_is_empty(self):
-        """Which makes the turn's output look entirely new - the safe direction,
-        because the alternative is posting nothing at all."""
+    def test_a_snapshot_of_an_unreadable_workspace_is_not_an_empty_one(self):
+        """It used to answer `set()`, and that is the unsafe direction.
+
+        `files_written` answers `paths - before`, so an empty `before` does not
+        mean "nothing to compare against" - it means "the workspace was empty",
+        and every file already in it reads as this turn's output.
+        """
 
         class _Broken:
             def glob_info(self, pattern):
                 raise RuntimeError("no")
 
-        assert workspace_snapshot(_Broken()) == set()
+        assert workspace_snapshot(_Broken()) is None
+
+    def test_a_turn_whose_snapshot_failed_posts_nothing(self):
+        """The refusal the return type exists for.
+
+        Under `agent` or `channel` scope the files already in the workspace belong
+        to other people, so treating them as this turn's output would post a
+        colleague's work into a shared channel. It needs only a transient failure:
+        both calls read the same workspace, so a persistently broken listing fails
+        both and posts nothing anyway.
+        """
+        backend = StateBackend()
+        backend.write("/someone-elses.csv", "month,total")
+        backend.write("/another.txt", "private")
+
+        assert files_written(backend, None) == DeliveredFiles(attachments=[], refused=[])
 
     def test_directories_are_not_files(self):
         class _WithDirectories:
