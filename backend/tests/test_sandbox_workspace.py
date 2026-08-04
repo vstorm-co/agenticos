@@ -830,9 +830,14 @@ class TestServingAFileAsBytes:
     """Downloads and image previews, and why text is not enough.
 
     A chart is the commonest thing a workspace holds that nobody can read as a
-    string, and a PNG decoded as UTF-8 and re-encoded is a corrupt PNG. So this path
-    exists, and its one refusal is the honest one: a container-backed workspace is
-    read through an archive whose only reader is textual.
+    string, and a PNG decoded as UTF-8 and re-encoded is a corrupt PNG that
+    downloads successfully - the worst of the three outcomes.
+
+    Both backends serve any file now. A container-backed one used to serve text and
+    refuse the rest by suffix, because `WorkspaceArchive` could only `read` - which
+    left the backend you would use for real work as the one whose outputs could not
+    be fetched. `read_bytes` arrived in pydantic-ai-backend 0.2.25 and the
+    allowlist went with it.
     """
 
     async def test_a_stored_file_comes_back_as_the_bytes_it_was_written_as(
@@ -870,8 +875,8 @@ class TestServingAFileAsBytes:
             def ls(self, session_id):
                 return []
 
-            def read(self, session_id, path):
-                return "print(1)"
+            def read_bytes(self, session_id, path):
+                return b"print(1)"
 
         monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
         _serve(monkeypatch, _resolved())
@@ -884,20 +889,38 @@ class TestServingAFileAsBytes:
 
         assert data == b"print(1)"
 
-    async def test_a_binary_on_a_container_host_is_refused_rather_than_mangled(
+    async def test_a_binary_on_a_container_host_is_served_byte_for_byte(
         self, monkeypatch, mock_db_session
     ):
-        """The archive reads text only, and a PNG that has been through `str` is a
-        corrupt PNG that downloads successfully - the worst of the three outcomes."""
+        """This used to be a refusal, and the refusal was the honest answer at the
+        time: the archive read text only, so a PNG could be mangled or refused and
+        refusing was better. It can be read now, and the bytes have to survive
+        exactly - a chart that arrives one byte different is a chart that will not
+        open."""
+        from pydantic_ai_backends import remote as remote_module
+
+        png = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
+
+        class _Archive(_ClosesItsClient):
+            def __init__(self, url, token=""):
+                pass
+
+            def ls(self, session_id):
+                return []
+
+            def read_bytes(self, session_id, path):
+                return png
+
+        monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
+        _serve(monkeypatch, _resolved())
         row = _row(backend="service", session_id="dc-1", connection_id=uuid4())
         monkeypatch.setattr(workspace_repo, "get", AsyncMock(return_value=row))
-        service = SandboxWorkspaceService(mock_db_session)
-        service.connections = MagicMock(resolve=AsyncMock(return_value=_resolved()))
 
-        with pytest.raises(BadRequestError) as refused:
-            await service.read_bytes_of(_ctx(), row.id, path="/chart.png")
+        data = await SandboxWorkspaceService(mock_db_session).read_bytes_of(
+            _ctx(), row.id, path="/chart.png"
+        )
 
-        assert "can only read text" in refused.value.message
+        assert data == png
 
     async def test_a_text_file_a_container_host_does_not_have_is_missing(
         self, monkeypatch, mock_db_session
@@ -998,14 +1021,34 @@ class TestServingAFileAsBytes:
 
         assert data == b"OPENAI_API_KEY=sk-x"
 
-    def test_a_file_with_no_suffix_is_not_assumed_to_be_text(self):
-        """Guessing wrong here is silent, and the file that has no suffix is exactly
-        where a guess is least informed."""
-        from app.services.sandbox_workspace import _is_textual
+    async def test_a_file_with_no_suffix_is_served_like_any_other(
+        self, monkeypatch, mock_db_session
+    ):
+        """There is no suffix allowlist any more, and this is the case that made it
+        worth deleting rather than extending: `Makefile`, `Dockerfile` and `LICENSE`
+        were all refused as "not text", and guessing wrong was silent."""
+        from pydantic_ai_backends import remote as remote_module
 
-        assert _is_textual("/notes.md") is True
-        assert _is_textual("/Makefile") is False
-        assert _is_textual("/chart.PNG") is False
+        class _Archive(_ClosesItsClient):
+            def __init__(self, url, token=""):
+                pass
+
+            def ls(self, session_id):
+                return []
+
+            def read_bytes(self, session_id, path):
+                return b"all:\n\tpytest -q\n"
+
+        monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
+        _serve(monkeypatch, _resolved())
+        row = _row(backend="service", session_id="dc-1", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "get", AsyncMock(return_value=row))
+
+        data = await SandboxWorkspaceService(mock_db_session).read_bytes_of(
+            _ctx(), row.id, path="/Makefile"
+        )
+
+        assert data.startswith(b"all:")
 
 
 class TestServingAConversationsFileAsBytes:
@@ -1042,18 +1085,34 @@ class TestServingAConversationsFileAsBytes:
                 _ctx(), conversation_id=uuid4(), path="/report.csv"
             )
 
-    async def test_the_container_limit_is_the_same_one(self, monkeypatch, mock_db_session):
-        """Stated once, in the shared half: the archive reads text only, whichever
-        way the workspace was addressed."""
+    async def test_a_container_binary_is_served_this_way_too(self, monkeypatch, mock_db_session):
+        """The shared half is shared, so a chart that downloads from the Workspaces
+        screen cannot be refused in the chat panel. This used to assert the refusal
+        both ways; now it asserts the file, both ways."""
+        from pydantic_ai_backends import remote as remote_module
+
+        png = b"\x89PNG\r\n\x1a\n"
+
+        class _Archive(_ClosesItsClient):
+            def __init__(self, url, token=""):
+                pass
+
+            def ls(self, session_id):
+                return []
+
+            def read_bytes(self, session_id, path):
+                return png
+
+        monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
+        _serve(monkeypatch, _resolved())
         row = _row(backend="service", session_id="dc-1", connection_id=uuid4())
         monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
-        service = SandboxWorkspaceService(mock_db_session)
-        service.connections = MagicMock(resolve=AsyncMock(return_value=_resolved()))
 
-        with pytest.raises(BadRequestError) as refused:
-            await service.read_bytes(_ctx(), conversation_id=uuid4(), path="/chart.png")
+        data = await SandboxWorkspaceService(mock_db_session).read_bytes(
+            _ctx(), conversation_id=uuid4(), path="/chart.png"
+        )
 
-        assert "can only read text" in refused.value.message
+        assert data == png
 
 
 class TestOneFlatListOfFiles:
@@ -1568,8 +1627,8 @@ class TestContainerBackedWorkspaces:
             def __init__(self, api_key=None, sandbox_id=None):
                 self._id = sandbox_id
 
-            def stop(self) -> None:
-                stopped.append("deleted")
+            def stop(self, purge: bool = False) -> None:
+                stopped.append(f"deleted purge={purge}")
 
         monkeypatch.setattr(backends_module, "DaytonaSandbox", _Sandbox, raising=False)
         _serve(monkeypatch, _resolved(kind="daytona", base_url=None))
@@ -1580,7 +1639,7 @@ class TestContainerBackedWorkspaces:
         )
         await service.close(workspace)
 
-        assert stopped == ["deleted"]
+        assert stopped == ["deleted purge=True"]
 
     async def test_a_container_session_is_still_purged_when_it_is_stopped(
         self, monkeypatch, mock_db_session
@@ -1730,7 +1789,7 @@ class TestDeletingAConversation:
                 self._key = api_key
                 self._id = sandbox_id
 
-            def stop(self) -> None:
+            def stop(self, purge: bool = False) -> None:
                 deleted_sandboxes.append((self._key, self._id))
 
         monkeypatch.setattr(backends_module, "DaytonaSandbox", _Sandbox, raising=False)
@@ -1795,7 +1854,7 @@ class TestDeletingAConversation:
             def __init__(self, api_key=None, sandbox_id=None):
                 pass
 
-            def stop(self) -> None:
+            def stop(self, purge: bool = False) -> None:
                 raise RuntimeError("daytona unreachable")
 
         monkeypatch.setattr(backends_module, "DaytonaSandbox", _Sandbox, raising=False)

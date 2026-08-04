@@ -27,8 +27,6 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from functools import partial
-from inspect import signature
 from typing import Any
 from uuid import UUID
 
@@ -427,18 +425,16 @@ class SandboxWorkspaceService:
         stop = getattr(workspace.backend, "stop", None)
         if stop is None:
             return
-        # `RemoteSandbox.stop` takes `purge`; `DaytonaSandbox.stop` takes nothing
-        # and deletes the sandbox outright. Passing `purge` to the second raised a
-        # `TypeError` that `close` swallowed as `workspace_close_failed`, so the
-        # one backend with no idle reaper behind it was the one never released -
-        # a sandbox per run, on somebody's invoice, until a human noticed.
+        # One signature across every backend as of pydantic-ai-backend 0.2.25
+        # (vstorm-co/pydantic-ai-backend#98). Before it, `RemoteSandbox.stop` took
+        # `purge` and `DaytonaSandbox.stop` took nothing, so this call raised a
+        # `TypeError` that `close` swallowed as `workspace_close_failed` - and the
+        # one backend with no idle reaper behind it was the one never released, a
+        # sandbox per run on somebody's invoice. An `inspect.signature` check stood
+        # here until the library stopped needing one.
         #
-        # Asked of the signature rather than the type: `getattr` above is already
-        # duck-typing this, and an `isinstance` check would mean importing an SDK
-        # that `_daytona` deliberately imports lazily.
-        keywords = {"purge": True} if "purge" in signature(stop).parameters else {}
-        # Off the loop either way: both are synchronous HTTP to somebody else.
-        await asyncio.to_thread(partial(stop, **keywords))
+        # Off the loop: both are synchronous HTTP to somebody else.
+        await asyncio.to_thread(stop, purge=True)
 
     async def purge_for_conversation(self, ctx: AuthContext, *, conversation_id: UUID) -> int:
         """Drop every workspace belonging to a conversation being deleted.
@@ -476,12 +472,15 @@ class SandboxWorkspaceService:
                 from pydantic_ai_backends import DaytonaSandbox
 
                 # The organization's own key, as everywhere else - never the SDK's
-                # `DAYTONA_API_KEY` fallback. `stop()` deletes the sandbox and takes
-                # no arguments; see `_release` for the signature difference.
+                # `DAYTONA_API_KEY` fallback. `purge` is accepted and makes no
+                # difference here: Daytona has no "end it but keep the files" state,
+                # so stopping is deleting. Passed anyway, because this call site is
+                # about discarding the conversation's workspace and saying so is
+                # better than relying on the default meaning the same thing.
                 cloud = DaytonaSandbox(
                     api_key=resolved.token, sandbox_id=row.session_id or row.scope_key
                 )
-                await asyncio.to_thread(cloud.stop)
+                await asyncio.to_thread(cloud.stop, purge=True)
                 return
 
             from pydantic_ai_backends.remote import RemoteSandbox
@@ -723,8 +722,14 @@ class SandboxWorkspaceService:
         """One file's bytes out of a workspace already resolved and authorised.
 
         Shared by the two ways a workspace is addressed, so a file that downloads
-        one way cannot be refused the other - and so the container-backed limit
-        below is stated once.
+        one way cannot be refused the other.
+
+        Both backends serve any file now. A container-backed one used to serve only
+        text and refuse the rest by suffix, because `WorkspaceArchive` could only
+        `read` - which meant the backend you would use for real work was the one
+        whose charts and PDFs could not be fetched. `read_bytes` arrived in
+        pydantic-ai-backend 0.2.25 (vstorm-co/pydantic-ai-backend#96) and the
+        allowlist went with it.
         """
         details = {"workspace_id": str(row.id), "path": path}
         # Answered from the listing rather than from the read that follows. A
@@ -741,19 +746,33 @@ class SandboxWorkspaceService:
                 raise NotFoundError(message="No such file", details=details)
             return backend.read_bytes(path)
 
-        if not _is_textual(path):
-            raise BadRequestError(
-                message=(
-                    "This host keeps its files in a container, and the workspace "
-                    "archive can only read text - so this file cannot be downloaded "
-                    "from here. A stored workspace serves any file."
-                ),
-                details=details,
-            )
-        text = await self._read_from(ctx, row, path)
-        if text is None:
+        raw = await self._read_bytes_from(ctx, row, path)
+        if raw is None:
             raise NotFoundError(message="No such file", details=details)
-        return text.encode()
+        return raw
+
+    async def _read_bytes_from(
+        self, ctx: AuthContext, row: AgentWorkspace, path: str
+    ) -> bytes | None:
+        """One file's bytes off a container-backed host's volume.
+
+        The byte-wise sibling of `_read_from`, and not a wrapper around it: a PNG
+        decoded to text and re-encoded is a corrupt PNG, which is the whole reason
+        the archive grew a `read_bytes`.
+        """
+        async with self._archive(ctx, row) as archive:
+            if archive is None:
+                return None
+            try:
+                return await asyncio.to_thread(
+                    archive.read_bytes, row.session_id or row.scope_key, path
+                )
+            except Exception as exc:
+                # A 400 naming the reason rather than a 404: the file is listed, so
+                # "missing" is the one thing this is not.
+                raise BadRequestError(
+                    message=_reason(exc), details={"workspace_id": str(row.id), "path": path}
+                ) from exc
 
     async def read_file_of(self, ctx: AuthContext, workspace_id: UUID, *, path: str) -> str | None:
         """One file's text from a workspace addressed by its own id."""
@@ -914,68 +933,12 @@ class SandboxWorkspaceService:
         return cached
 
 
-TEXTUAL_SUFFIXES = frozenset(
-    {
-        ".txt",
-        ".md",
-        ".markdown",
-        ".csv",
-        ".tsv",
-        ".json",
-        ".jsonl",
-        ".yaml",
-        ".yml",
-        ".toml",
-        ".ini",
-        ".cfg",
-        ".conf",
-        ".env",
-        ".log",
-        ".sql",
-        ".py",
-        ".js",
-        ".ts",
-        ".tsx",
-        ".jsx",
-        ".html",
-        ".htm",
-        ".css",
-        ".scss",
-        ".xml",
-        ".svg",
-        ".sh",
-        ".bash",
-        ".zsh",
-        ".rs",
-        ".go",
-        ".java",
-        ".kt",
-        ".rb",
-        ".php",
-        ".c",
-        ".h",
-        ".cpp",
-        ".hpp",
-        ".patch",
-        ".diff",
-    }
-)
-"""Suffixes a text-only reader can serve without corrupting the file.
-
-An allowlist rather than a guess at the bytes: the question being answered is "may
-this be read as a string", and a file with no suffix or an unknown one is exactly
-the case where guessing wrong is silent. `.svg` is here because it *is* text -
-whether it may be *displayed* inline is a separate decision the route makes, and
-the answer there is no.
-"""
-
-
 def _absent(row: AgentWorkspace, contents: WorkspaceContents, path: str) -> bool:
     """Whether a listing that could be read says this path is not in it.
 
     Only asked of a workspace kept on a host. A stored one has an authoritative
     oracle - `StateBackend.exists` - and using a *listing* as one there is wrong:
-    `glob_info` does not match dotfiles, so `/​.env` exists, reads fine, and is not
+    `glob_info` does not match dotfiles, so `/.env` exists, reads fine, and is not
     in any listing. Answering "no such file" for it would be a confident wrong
     answer built on a pattern's blind spot.
 
@@ -987,12 +950,6 @@ def _absent(row: AgentWorkspace, contents: WorkspaceContents, path: str) -> bool
     if contents.unreadable_reason is not None or not contents.entries:
         return False
     return all(str(entry.get("path")) != path for entry in contents.entries)
-
-
-def _is_textual(path: str) -> bool:
-    from pathlib import PurePosixPath
-
-    return PurePosixPath(path).suffix.lower() in TEXTUAL_SUFFIXES
 
 
 def stored_entries(files: dict[str, Any]) -> list[FileInfo]:

@@ -63,7 +63,7 @@ dependencies = [
     # `console` for the toolset, `remote` for the sandboxd client. Deliberately
     # not `docker`: this container never touches the socket, so the Docker SDK
     # has no business in the image. The service runs beside us as `sandboxd`.
-    "pydantic-ai-backend[console,remote]>=0.2.24",
+    "pydantic-ai-backend[console,remote]>=0.2.25",
     "cryptography>=50.0.0",
     "aiogram>=3.17,<4.0",
     "slack-sdk>=3.35.0",

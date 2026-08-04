@@ -23,7 +23,7 @@ from pydantic_ai_backends import (
 from pydantic_ai_backends.toolsets import descriptions as console_text
 
 from app.agents.capabilities._registry import CapabilityToolInfo
-from app.agents.capabilities.sandbox._permissions import GuardedBackend, workspace_ruleset
+from app.agents.capabilities.sandbox._permissions import workspace_ruleset
 
 WORKSPACE_TOOLS: tuple[CapabilityToolInfo, ...] = (
     CapabilityToolInfo(id="ls", description=console_text.LS_DESCRIPTION, side_effecting=False),
@@ -90,20 +90,8 @@ def build_workspace(
             rather than gating it, which is a different decision from "ask
             first" and belongs to whoever configured the agent.
     """
-    ruleset = workspace_ruleset()
     return ConsoleCapability(
-        # Guarded here, at the one seam where a backend meets the model's tools.
-        # Everything the *platform* writes - an upload into `/uploads`, a skill
-        # into `/skills` - holds the unwrapped backend the runner opened and is
-        # deliberately not filtered: the ruleset constrains what the agent asks
-        # for, not what this application already decided to put there.
-        #
-        # `permissions=` stays as well, and is not the same job: it drives the
-        # write and execute approval flags and would drop a tool outright if an
-        # operation's default ever became `"deny"`. What it never did was read
-        # the per-path rules - see `_permissions` for the two lines of library
-        # that explain why this wrapper has to exist.
-        backend=GuardedBackend(backend if backend is not None else StateBackend(), ruleset),
+        backend=backend if backend is not None else StateBackend(),
         include_execute=include_execute,
         # Four more tools, none of them declared above, and a process left
         # running in a sandbox nobody watches finish. Not offered, so not a
@@ -116,7 +104,14 @@ def build_workspace(
         document_support=True,
         # No `descriptions=`: what the library registers is what the catalog
         # declares, so there is nothing to override and no second copy to drift.
-        permissions=ruleset,
+        #
+        # `permissions=` is what enforces the off-limits paths, as of
+        # pydantic-ai-backend 0.2.25. It used to reach only the approval flags and
+        # the drop-a-denied-operation's-tools check, so this repository wrapped the
+        # backend itself to make the patterns mean anything; vstorm-co/pydantic-ai-backend#97
+        # moved that into the library, where it also covers `grep` filtering and
+        # the command-argument check, and the wrapper here was deleted.
+        permissions=workspace_ruleset(),
         # Nothing in the ruleset is `"ask"`; this is the backstop for one
         # arriving anyway. Refusing beats raising - a raise ends the run, and
         # this platform's own approval gate is what should be asking.

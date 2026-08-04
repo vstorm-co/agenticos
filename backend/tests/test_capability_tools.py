@@ -7,12 +7,14 @@ broken tool means it is built and then answers wrongly.
 
 from __future__ import annotations
 
+import asyncio
 import json
-from typing import Any, cast
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from pydantic_ai_backends import StateBackend
+from pydantic_ai_backends.permissions import PermissionChecker
 
 from app.agents.capabilities.charts import ChartsToolset
 from app.agents.capabilities.charts._spec import ChartSeries, parse_chart_spec
@@ -22,7 +24,7 @@ from app.agents.capabilities.code_execution._sandbox import _clip, _format_resul
 from app.agents.capabilities.knowledge._search import _format_results
 from app.agents.capabilities.knowledge._toolset import build_knowledge_toolset
 from app.agents.capabilities.sandbox._capability import build_workspace
-from app.agents.capabilities.sandbox._permissions import GuardedBackend, workspace_ruleset
+from app.agents.capabilities.sandbox._permissions import workspace_ruleset
 from app.agents.capabilities.web_research._search import parse_web_search
 from app.agents.deps import AgentDeps
 
@@ -213,128 +215,69 @@ class TestWebSearchParsing:
 
 
 class TestTheWorkspaceRefusesAnOffLimitsPath:
-    """The ruleset only means something if something evaluates it.
+    """Our ruleset, applied to the toolset the model is actually handed.
 
-    It used to mean nothing. `ConsoleCapability(permissions=...)` reads each
-    operation's *default action* and never its per-path `rules`, so twenty deny
-    patterns per operation sat there while an agent read `/etc/passwd` and
-    `**/.env` as freely as its own scratch files. These assert the consequence
-    rather than the shape of the ruleset - a test that checked the rules were
-    present passed throughout.
+    The mechanics of applying a ruleset are the library's now and tested there -
+    `pydantic-ai-backend` 0.2.25 grew `GuardedBackend` after
+    vstorm-co/pydantic-ai-backend#97, which is where a wrapper of ours used to
+    live. What is still worth asserting here is the wiring and the *contents* of
+    the ruleset this repository writes: that `build_workspace` passes it, that a
+    credential and the system tree are in it, and that a chart an agent produced
+    is not.
+
+    Kept because that is exactly what a library upgrade could quietly take away.
+    A test of the wrapper would now be a test of somebody else's code; this is a
+    test that our agent cannot read `/etc/passwd`.
     """
 
     pytestmark = pytest.mark.anyio
 
     @staticmethod
-    def _guarded() -> GuardedBackend:
+    def _workspace() -> StateBackend:
         backend = StateBackend()
         backend.write("/notes.txt", "ordinary work")
+        backend.write("/chart.png", "not really a png")
         backend.write("/.env", "OPENAI_API_KEY=sk-live-secret")
         backend.write("/sub/.env", "NESTED=sk-live-secret")
         backend.write("/credentials.txt", "PASSWORD=hunter2")
         backend.write("/etc/passwd", "root:x:0:0")
-        return GuardedBackend(backend, workspace_ruleset())
+        return backend
+
+    async def _call(self, name: str, **kwargs: Any) -> Any:
+        capability = build_workspace(backend=self._workspace(), include_execute=False)
+        result = capability._toolset.tools[name].function(MagicMock(), **kwargs)
+        return await result if asyncio.iscoroutine(result) else result
 
     @pytest.mark.parametrize("path", ["/.env", "/sub/.env", "/credentials.txt", "/etc/passwd"])
     async def test_reading_a_credential_or_the_system_is_refused(self, path: str):
-        with pytest.raises(PermissionError):
-            await self._guarded().read(path)
+        """Through the registered tool, which is the only thing the model can
+        reach - not through the ruleset object, which was correct all along and
+        was never consulted."""
+        assert "Permission denied" in await self._call("read_file", path=path)
 
-    @pytest.mark.parametrize("path", ["/.env", "/sub/.env", "/credentials.txt", "/etc/passwd"])
-    async def test_reading_one_as_bytes_is_refused_too(self, path: str):
-        """`read_file` on an image goes through `read_bytes`, so a guard on
-        `read` alone would leave the same file readable by asking differently."""
-        with pytest.raises(PermissionError):
-            await self._guarded().read_bytes(path)
+    async def test_writing_over_a_credential_is_refused(self):
+        assert "Permission denied" in await self._call("write_file", path="/sub/.env", content="x")
 
-    async def test_the_workspaces_own_files_still_read(self):
-        assert "ordinary work" in await self._guarded().read("/notes.txt")
+    async def test_the_agents_own_files_are_untouched(self):
+        """The half that has to keep working: a ruleset that refused everything
+        would pass every test above and make the capability useless."""
+        assert "ordinary work" in await self._call("read_file", path="/notes.txt")
+        assert "Wrote" in await self._call("write_file", path="/report.csv", content="a,b")
 
-    async def test_the_workspaces_own_files_still_read_as_bytes(self):
-        """The path `read_file` takes for an image, so it needs its own case -
-        a guard that only let text through would stop an agent seeing a chart."""
-        assert await self._guarded().read_bytes("/notes.txt") == b"ordinary work"
+    async def test_a_search_does_not_return_a_line_from_a_credential(self):
+        """`grep` carries the matching line, so an unfiltered one hands over the
+        contents of exactly the files the ruleset protects."""
+        answer = await self._call("grep", pattern="PASSWORD")
 
-    async def test_writing_over_a_credential_is_refused_as_a_value(self):
-        """An error result, not a raise: it is what the model reads and acts on,
-        and the protocol has a place for it."""
-        result = await self._guarded().write("/sub/.env", "x")
-        assert result.error is not None
-        assert "Permission denied" in result.error
+        assert "/credentials.txt" not in answer
 
-    async def test_an_ordinary_write_still_lands(self):
-        assert (await self._guarded().write("/report.csv", "a,b")).error is None
+    async def test_the_ruleset_covers_what_we_meant_it_to(self):
+        """The contents rather than the mechanism. A library upgrade cannot change
+        which patterns we chose, but a careless edit here could - and the
+        consequence would be an agent reading a private key."""
+        checker = PermissionChecker(workspace_ruleset())
 
-    async def test_editing_a_credential_is_refused_as_a_value(self):
-        result = await self._guarded().edit("/.env", "sk-live-secret", "x")
-        assert result.error is not None
-
-    async def test_an_ordinary_edit_still_applies(self):
-        assert (await self._guarded().edit("/notes.txt", "ordinary", "usual")).error is None
-
-    async def test_grep_does_not_return_a_line_from_a_file_it_may_not_read(self):
-        """The one that matters most, and the one a guard on `read` misses.
-
-        `GrepMatch` carries the matching *line*, so an unfiltered grep hands over
-        the contents of exactly the files the ruleset exists to protect - by a
-        different tool, with no refusal anywhere.
-        """
-        backend = StateBackend()
-        backend.write("/credentials.txt", "PASSWORD=hunter2")
-        backend.write("/notes.txt", "PASSWORD is stored elsewhere")
-        guarded = GuardedBackend(backend, workspace_ruleset())
-
-        found = await guarded.grep_raw("PASSWORD")
-
-        assert [match["path"] for match in found] == ["/notes.txt"]
-
-    async def test_a_grep_that_answers_with_a_string_is_passed_through(self):
-        """ "No matches" and a backend error are strings, not result sets."""
-
-        class _Backend:
-            def grep_raw(self, *_args: object, **_kwargs: object) -> str:
-                return "No matches for 'x'"
-
-        guarded = GuardedBackend(cast("Any", _Backend()), workspace_ruleset())
-        assert await guarded.grep_raw("x") == "No matches for 'x'"
-
-    async def test_names_are_not_secret_so_discovery_delegates(self):
-        """`exists`, `ls` and `glob` answer about names rather than contents.
-
-        Deliberate, and worth a test so a later reader does not "fix" it: `ls
-        /etc` saying what is there while every read of it refuses is the stated
-        boundary, not an oversight.
-        """
-        guarded = self._guarded()
-        assert await guarded.exists("/etc/passwd") is True
-        assert [entry["path"] for entry in await guarded.glob_info("**/.env")]
-        assert await guarded.ls_info("/")
-
-    async def test_anything_the_protocol_does_not_name_passes_through(self):
-        """A container-backed workspace has `execute` and `stop`, and a stored one
-        has `files` that the flush reads. An explicit method list would have
-        dropped all three."""
-
-        class _Backend:
-            files = {"/a.txt": {}}
-
-            def execute(self, command: str, timeout: int | None = None) -> str:
-                return f"ran {command}"
-
-        guarded = GuardedBackend(cast("Any", _Backend()), workspace_ruleset())
-        assert await guarded.execute("ls") == "ran ls"
-        assert guarded.files == {"/a.txt": {}}
-
-    def test_it_says_what_it_wraps(self):
-        assert "GuardedBackend" in repr(self._guarded())
-
-    async def test_the_capability_is_built_with_the_guard_in_place(self):
-        """The assertion that would have caught the original defect: not that the
-        ruleset exists, but that the toolset the model is handed refuses."""
-        backend = StateBackend()
-        backend.write("/etc/passwd", "root:x:0:0")
-
-        capability = build_workspace(backend=backend, include_execute=False)
-
-        with pytest.raises(PermissionError):
-            await capability.backend.read("/etc/passwd")
+        for path in ("/.env", "/deploy/id_rsa.pem", "/x/.ssh/config", "/etc/shadow", "/usr/bin/x"):
+            assert checker.check_sync("read", path) == "deny", path
+        for path in ("/notes.txt", "/uploads/report.csv", "/chart.png"):
+            assert checker.check_sync("read", path) == "allow", path

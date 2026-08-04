@@ -213,11 +213,15 @@ workspace: matches inside an off-limits file are dropped, so a search cannot ret
 a line from one. Names are not secret, so `ls` and `glob` still show what is there;
 only the contents are withheld.
 
-Two things this is *not*. It is not a filter on commands — `execute` runs a shell,
-an allowlist of command strings is defeated by `sh -c`, and what makes execution
-safe is the container's isolation and the operator's network mode, not a pattern.
-And it is not a substitute for the approval gate: refusal here is the code's flat
-no, while `execute` asking a person is the decision an operator owns.
+A command that *names* one of those paths is refused too, so `cat /etc/shadow`
+does not get round the rule by asking a different tool. That is defence in depth
+and not a boundary, and the difference matters: a shell reaches a file in ways
+string inspection cannot see, so what actually makes execution safe is the
+container's isolation and the operator's network mode. There is no allowlist of
+command strings, because one is defeated by `sh -c`.
+
+And none of it is a substitute for the approval gate: refusal here is the code's
+flat no, while `execute` asking a person is the decision an operator owns.
 
 Files somebody attaches to a message land in `/uploads` — see
 [File processing](../file-processing.md).
