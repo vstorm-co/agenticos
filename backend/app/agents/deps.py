@@ -49,11 +49,6 @@ class AgentDeps:
     # everywhere else, so the delegation still runs and simply is not narrated.
     subagent_events: SubagentEventSink | None = None
 
-    # How much further this run may delegate. Zero - the default - is an agent
-    # that cannot delegate at all, which is every agent whose spec does not bind
-    # the `subagents` capability.
-    delegation_depth_remaining: int = 0
-
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def clone_for_subagent(self, max_depth: int = 0) -> AgentDeps:
@@ -88,9 +83,27 @@ class AgentDeps:
         one `depth` further in.
 
         What it does **not** inherit: `kb_collection_names`. Those come from the
-        delegate's own spec, resolved by the runner when it builds the delegate,
-        and inheriting the parent's would hand a specialist a collection nobody
-        granted it.
+        delegate's own spec, and inheriting the parent's would hand a specialist a
+        collection nobody granted it. The delegate's own are put back by the
+        delegation capability, from `ResolvedSubagent.collection_names` - because
+        the deps our factory built for the child are *this* object's replacement,
+        so the collections resolved for it would otherwise be resolved and never
+        read.
+
+        Args:
+            max_depth: How much further the library will let this delegate
+                delegate, one less than the parent's `max_nesting_depth`.
+                Deliberately not stored, and this is worth saying because storing
+                it looks obviously right. Enforcement is not ours to do here: a
+                delegate's own delegates have to be resolved from the database -
+                their pinned versions, their collections, their secrets, each
+                behind `resolve_access` - and this method runs mid-run on a
+                session shared with the rest of the request, which is not
+                concurrency-safe. So the bound is applied where the resolution
+                happens, by walking the tree once before the run starts, and at
+                the bound the child is simply built without the delegation
+                capability. A copy of the number here would be a second answer
+                that nothing consults.
         """
         return AgentDeps(
             organization_id=self.organization_id,
@@ -101,10 +114,5 @@ class AgentDeps:
             ask_user=self.ask_user,
             request_approval=self.request_approval,
             subagent_events=self.subagent_events,
-            # Floored at zero rather than passed through: the library documents
-            # that it threads this number without enforcing it, and a negative
-            # budget arriving from `max_nesting_depth - 1` would read as "some
-            # depth remaining" to anything doing a truthiness check.
-            delegation_depth_remaining=max(max_depth, 0),
             metadata=dict(self.metadata),
         )
