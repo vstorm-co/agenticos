@@ -18,6 +18,7 @@ import type {
   TurnUsage,
   WSEvent,
 } from "@/types";
+import type { ResumedRun } from "@/types/runs";
 import { WS_URL } from "@/lib/constants";
 import { toast } from "sonner";
 
@@ -539,8 +540,15 @@ export function useChat(options: UseChatOptions = {}) {
     [],
   );
 
-  /** Continue a run whose parked calls have all been decided. */
-  const resumeRun = useCallback((runId: string) => apiClient.post(`/runs/${runId}/resume`), []);
+  /** Continue a run whose parked calls have all been decided.
+   *
+   * Answers with the resumed turn, not an acknowledgement: `resume_run` executes
+   * the agent and returns its output, so the continuation is in this response and
+   * nothing needs to be waited for. */
+  const resumeRun = useCallback(
+    (runId: string) => apiClient.post<ResumedRun>(`/runs/${runId}/resume`),
+    [],
+  );
 
   const sendResumeDecisions = useCallback(
     async (decisions: Decision[]) => {
@@ -572,8 +580,29 @@ export function useChat(options: UseChatOptions = {}) {
         // Once, after all of them: the run continues when nothing is left
         // parked, and resuming per decision would start it while calls it has
         // not been told about are still waiting.
-        await resumeRun(parked.runId);
-        toast.success("Continuing the run");
+        const resumed = await resumeRun(parked.runId);
+        // **The answer is shown, not discarded.** `resume_run` runs the agent and
+        // returns what it said, but it returns it *here* - over HTTP, to the caller
+        // - and not over the socket this conversation is streaming. So the reply
+        // used to exist and be thrown away: the panel vanished, a toast said the
+        // run was continuing, and the chat then sat unchanged forever. Reloading
+        // the page showed the finished turn, which is how this looked like an
+        // approval that did nothing.
+        // Truthiness, and it is the right test for this one: an empty answer is
+        // nothing to show, and a run that resumed into a refusal has none.
+        if (resumed.output) {
+          // A finished assistant message, which is also what makes the file panel
+          // re-read: `turns` counts those, and a resumed call is usually the one
+          // that was gated - an `execute`, a write - so the workspace beside the
+          // transcript is exactly what changed.
+          addMessage({
+            id: nanoid(),
+            role: "assistant",
+            content: resumed.output,
+            timestamp: new Date(),
+            conversationId: conversationId || undefined,
+          });
+        }
       } catch (error) {
         // Put it back rather than swallowing it. A decision that failed to
         // record is a run still parked, and a panel that vanished is a person
@@ -582,7 +611,7 @@ export function useChat(options: UseChatOptions = {}) {
         toast.error(getErrorMessage(error));
       }
     },
-    [pendingApproval, updateToolCallPart, decideApproval, resumeRun],
+    [pendingApproval, updateToolCallPart, decideApproval, resumeRun, addMessage, conversationId],
   );
 
   const sendAskUserResponses = useCallback(

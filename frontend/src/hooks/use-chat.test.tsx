@@ -615,6 +615,52 @@ describe("useChat - approvals and questions", () => {
     expect(result.current.pendingApproval).toBeNull();
   });
 
+  it("shows what the resumed run answered, rather than discarding it", async () => {
+    // `resume_run` executes the agent and returns its output - over HTTP, to whoever
+    // asked, never over this conversation's socket. Throwing that away is what made an
+    // approval look like it had done nothing: the panel vanished, a toast said the run
+    // was continuing, and the transcript then sat unchanged until a page reload.
+    post.mockImplementation((url: string) =>
+      url.endsWith("/resume")
+        ? Promise.resolve({ run_id: "r-9", output: "Done - 3 rows deleted.", status: "completed" })
+        : Promise.resolve({}),
+    );
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("tool_approval_required", {
+      run_id: "r-9",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "delete_row", args: {} }],
+      review_configs: [],
+    });
+
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "approve" }]);
+    });
+
+    const answers = useChatStore
+      .getState()
+      .messages.filter((message) => message.role === "assistant");
+    expect(answers.at(-1)?.content).toBe("Done - 3 rows deleted.");
+  });
+
+  it("adds nothing when the resumed run answered with nothing", async () => {
+    // A refusal resumes into an empty output, and an empty bubble in the transcript
+    // is worse than no bubble.
+    post.mockResolvedValue({ run_id: "r-9", output: "", status: "completed" });
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("tool_approval_required", {
+      run_id: "r-9",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "delete_row", args: {} }],
+      review_configs: [],
+    });
+
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "reject" }]);
+    });
+
+    expect(useChatStore.getState().messages).toEqual([]);
+  });
+
   it("puts the panel back when a decision could not be recorded", async () => {
     // A decision that failed to record is a run still parked, and a panel that
     // vanished is a person believing they unblocked it.
