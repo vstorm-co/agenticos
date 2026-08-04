@@ -19,6 +19,49 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.5] - 2026-08-04
+
+**Every sign-in lands on the dashboard**, and a deep link interrupted by the login
+form is resumed rather than dropped.
+
+### Changed
+
+- **One post-sign-in destination, decided in one place.** Password sign-in forked
+  on `is_app_admin`, the OAuth callback always went to `/dashboard`, and the magic
+  link always to `/chat` — three call sites that each decided on their own and
+  disagreed, so which door somebody came through decided where they landed.
+  `postSignInDestination()` in `src/lib/auth-landing.ts` is now the only answer.
+
+  The default is the same for every role on purpose. What a role may not see is
+  handled by not rendering the widget, never by a different landing page — a role
+  fork there quietly splits one product into two.
+
+- The mobile tab bar's Home tab targets `/dashboard` for every role, and its unused
+  `useAuth` dependency is gone.
+
+### Added
+
+- **`?returnTo=` survives the login round trip.** `AuthGuard` appends the path it
+  refused when it sends a visitor to `/login`, and the visitor resumes there after
+  signing in instead of being dumped on the dashboard having lost where they were
+  going.
+
+  Deliberately not for OAuth: that needs the `state` parameter round trip, and the
+  flow is being rewritten separately.
+
+### Security
+
+- **The `returnTo` guard refuses anything off-origin**, so the login form cannot be
+  turned into an open redirect. Two checks, both load-bearing: a pattern that
+  demands a single leading slash, and an origin comparison after parsing. The
+  pattern alone misses control characters, because the URL parser strips tab, LF
+  and CR before parsing — so `/<tab>/evil.example` resolves off-origin. The origin
+  check alone would accept a bare relative path like `agents`, which resolves
+  against wherever the visitor happens to stand.
+
+  Refused values are not sanitised into something safe. A fixed-up open redirect is
+  still an open redirect, so anything suspect falls back to the dashboard.
+
 ## [0.0.4] - 2026-08-04
 
 **An agent can have a workspace: files, and on a container-backed host a shell.**
@@ -405,7 +448,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.4...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.5...HEAD
+[0.0.5]: https://github.com/vstorm-co/agenticos/compare/v0.0.4...v0.0.5
 [0.0.4]: https://github.com/vstorm-co/agenticos/compare/v0.0.3...v0.0.4
 [0.0.3]: https://github.com/vstorm-co/agenticos/compare/v0.0.2...v0.0.3
 [0.0.2]: https://github.com/vstorm-co/agenticos/compare/v0.0.1...v0.0.2
