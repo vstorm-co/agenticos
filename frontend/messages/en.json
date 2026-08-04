@@ -647,8 +647,10 @@
     "fileCount": "{count, plural, =1 {1 file} other {# files}}",
     "filePreview": "File preview",
     "files": {
+      "attached": "Attached to the chat",
       "close": "Close the file panel",
       "empty": "Nothing yet. Files the agent writes, and anything you attach, appear here.",
+      "noWorkspace": "This agent keeps no files. Give it the Files & shell capability to let it write, read and run things here.",
       "show": "Show the files",
       "showWithCount": "Show the files ({count})",
       "storedSuffix": "{size} stored",

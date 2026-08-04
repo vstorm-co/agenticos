@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useMemo } from "react";
 import { useTranslations } from "next-intl";
+import type { ChatMessageFile } from "@/types";
 import { useChat, useConversationWorkspace } from "@/hooks";
 import { AgentPicker } from "./agent-picker";
 import { ChatControls } from "./chat-controls";
@@ -80,6 +81,16 @@ export function ChatContainer() {
   const turns = messages.filter(
     (message) => message.role === "assistant" && !message.isStreaming,
   ).length;
+
+  // Everything attached to this conversation, deduplicated by id and in the order it
+  // arrived. Derived from the messages rather than fetched: they carry their
+  // attachments both live and after a reload, so the file panel can list what
+  // somebody dragged in without a request for what is already on screen.
+  const attachments = useMemo(() => {
+    const seen = new Map<string, ChatMessageFile>();
+    for (const message of messages) for (const file of message.files ?? []) seen.set(file.id, file);
+    return [...seen.values()];
+  }, [messages]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -198,6 +209,7 @@ export function ChatContainer() {
       lastUsage={lastUsage ?? latestUsage(currentMessages, currentConversationId)}
       conversationId={currentConversationId}
       turns={turns}
+      attachments={attachments}
       isLoadingConversation={
         currentConversationId !== null && isConversationLoading && messages.length === 0
       }
@@ -236,6 +248,8 @@ interface ChatUIProps {
    * about.
    */
   turns: number;
+  /** What people attached, for the file panel to list beside the agent's own. */
+  attachments: ChatMessageFile[];
   /** True while a saved conversation is being loaded - show a skeleton, not empty state. */
   isLoadingConversation?: boolean;
   /** True for an archived conversation - the composer is closed with a notice. */
@@ -269,6 +283,7 @@ function ChatUI({
   lastUsage,
   conversationId,
   turns,
+  attachments,
   isLoadingConversation,
   isArchived,
   sendMessage,
@@ -404,7 +419,11 @@ function ChatUI({
           narrow screen, where there is no room for either, and absent entirely for
           an agent with no workspace. */}
       <div className="hidden lg:block">
-        <WorkspaceFiles conversationId={conversationId} revision={turns} />
+        <WorkspaceFiles
+          conversationId={conversationId}
+          revision={turns}
+          attachments={attachments}
+        />
       </div>
     </div>
   );

@@ -7,12 +7,27 @@ import { AlertTriangle, FolderOpen, Info, X } from "lucide-react";
 import { FileIcon } from "@/components/sandboxes/file-tile";
 import { WorkspaceFileViewer } from "@/components/sandboxes/file-viewer";
 import { useConversationWorkspace } from "@/hooks";
+import { useFilePreviewStore } from "@/stores";
 import type { FileSource } from "@/lib/workspace-files";
+import type { ChatMessageFile } from "@/types";
 
 interface WorkspaceFilesProps {
   conversationId: string | null;
   /** Bumped when a turn ends, because a turn is what changes the files. */
   revision: number;
+  /**
+   * What people attached to this conversation, newest last.
+   *
+   * Listed beside what the agent wrote because "Files" in a chat means the files in
+   * that chat, and somebody who has just dragged in a CSV looks for it here. Passed
+   * in rather than fetched: the messages already carry their attachments, both live
+   * and after a reload, so a request would be asking for what is on screen.
+   *
+   * They are also *not* the same thing as the workspace's `/uploads` copy. An agent
+   * with a workspace gets one written there and can open it; an agent without one
+   * gets nothing, and before this the panel had nothing to show either.
+   */
+  attachments: ChatMessageFile[];
 }
 
 /** Bytes as a person reads them. */
@@ -41,9 +56,10 @@ function size(bytes: number | null): string {
  * chart or a PDF, and the panel used to answer "open this" with the first 60
  * characters of a line.
  */
-export function WorkspaceFiles({ conversationId, revision }: WorkspaceFilesProps) {
+export function WorkspaceFiles({ conversationId, revision, attachments }: WorkspaceFilesProps) {
   const t = useTranslations("chat.files");
   const { workspace, error, refresh } = useConversationWorkspace(conversationId);
+  const openAttachment = useFilePreviewStore((state) => state.open);
   const [open, setOpen] = useState(false);
   const [reading, setReading] = useState<string | null>(null);
   // The chat addresses files through its conversation, not through the workspace's
@@ -63,21 +79,37 @@ export function WorkspaceFiles({ conversationId, revision }: WorkspaceFilesProps
   }, [revision, refresh]);
 
   if (conversationId === null) return null;
-  // An agent with no workspace is the default, so a button would be a permanent
-  // control that opens an empty box.
-  //
-  // **Nothing is drawn until the listing has answered.** Rendering while the query
-  // was in flight put the button on screen for the length of a round trip and took
-  // it away again: a workspace has no row until the first turn flushes one, so the
-  // first message of a conversation showed the button as the id arrived, hid it when
-  // the listing said `none`, and showed it again when the turn ended. Three states
-  // in one turn for a panel whose whole job is to sit still. An error is the one
-  // thing worth a button with no workspace behind it - it is the only way to read
-  // what went wrong.
-  const hasWorkspace = workspace !== null && workspace.backend !== "none";
-  if (!hasWorkspace && error === null) return null;
 
+  // **Always drawn, once there is a conversation to draw it for.** It used to wait
+  // for the listing to report a workspace, and the reasoning was about flicker: a
+  // workspace has no row until a turn flushes one, so the button appeared as the id
+  // arrived, vanished when the listing said `none`, and came back when the turn
+  // ended - three states in one turn for a panel whose job is to sit still.
+  //
+  // Hiding it fixed the flicker by making the panel unreachable exactly when
+  // somebody wants it. A turn that writes a file and then parks for approval has
+  // not flushed anything, so the strip was absent for the whole time the file was
+  // the thing on screen; a page reload was the only way to get it back. The same
+  // gap swallowed uploads, which are written into the workspace before the agent
+  // has done anything at all.
+  //
+  // A strip holding one icon costs 44 pixels and answers "does this agent keep
+  // files" the moment somebody wonders. Flicker is solved where it belongs: the
+  // count only appears once there is something to count, so the button itself never
+  // changes shape.
   const files = workspace?.items.filter((file) => !file.is_dir) ?? [];
+
+  // An attachment an agent *with* a workspace already has as `/uploads/<id8>-<name>`
+  // is one file, not two. `workspace_path` on the server builds that name from the
+  // first eight hex of the file's id, so matching on it is exact rather than a guess
+  // about names - and a name match would collide the moment two people attach
+  // `report.csv`, which is the case the id prefix exists to keep apart.
+  const stored = new Set(files.map((file) => file.path));
+  const unstored = attachments.filter((file) => {
+    const prefix = file.id.replaceAll("-", "").slice(0, 8);
+    return ![...stored].some((path) => path.startsWith(`/uploads/${prefix}-`));
+  });
+  const count = files.length + unstored.length;
 
   if (!open)
     return (
@@ -87,14 +119,14 @@ export function WorkspaceFiles({ conversationId, revision }: WorkspaceFilesProps
       <div className="border-border flex w-11 shrink-0 flex-col items-center border-l pt-3">
         <button
           type="button"
-          aria-label={files.length === 0 ? t("show") : t("showWithCount", { count: files.length })}
+          aria-label={count === 0 ? t("show") : t("showWithCount", { count })}
           onClick={() => setOpen(true)}
           className="text-muted-foreground hover:text-foreground hover:bg-accent/60 relative rounded-md p-2"
         >
           <FolderOpen className="h-4 w-4" />
-          {files.length > 0 && (
+          {count > 0 && (
             <span className="bg-foreground text-background absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px]">
-              {files.length}
+              {count}
             </span>
           )}
         </button>
@@ -118,7 +150,7 @@ export function WorkspaceFiles({ conversationId, revision }: WorkspaceFilesProps
             <X className="h-4 w-4" />
           </button>
         </div>
-        {workspace !== null && (
+        {workspace !== null && workspace.backend !== "none" && (
           <p className="text-muted-foreground text-xs">
             {workspace.owner_label}
             {workspace.backend === "state" && workspace.bytes_total > 0 && (
@@ -145,8 +177,13 @@ export function WorkspaceFiles({ conversationId, revision }: WorkspaceFilesProps
         </div>
       )}
 
-      {workspace !== null && workspace.unreadable_reason == null && files.length === 0 && (
-        <p className="text-muted-foreground text-xs">{t("empty")}</p>
+      {/* Two different answers, and they were one. "Nothing yet" is right for a
+          workspace that is empty; for an agent that has none it describes a wait
+          that will never end, since no turn is going to put a file there. */}
+      {workspace !== null && workspace.unreadable_reason == null && count === 0 && (
+        <p className="text-muted-foreground text-xs">
+          {workspace.backend === "none" ? t("noWorkspace") : t("empty")}
+        </p>
       )}
 
       {/* Tiles rather than rows. The name is what somebody scans for and the icon
@@ -171,6 +208,34 @@ export function WorkspaceFiles({ conversationId, revision }: WorkspaceFilesProps
             </li>
           ))}
         </ul>
+      )}
+
+      {/* What people attached and the agent has no copy of. Its own group, under its
+          own heading, because where a file came from changes what it means: the agent
+          wrote the ones above and can read them back, while these are only in the
+          chat - so an agent with no workspace can be *shown* one and cannot open it.
+          Opened through the shared preview panel, which is what the attachment chips
+          on the messages already use, rather than the workspace viewer that would
+          have nothing to read. */}
+      {unstored.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-muted-foreground text-[11px] font-medium">{t("attached")}</p>
+          <ul className="grid grid-cols-2 gap-2">
+            {unstored.map((file) => (
+              <li key={file.id}>
+                <button
+                  type="button"
+                  onClick={() => openAttachment(file)}
+                  title={file.filename}
+                  className="border-border hover:bg-accent/60 flex h-full w-full flex-col items-start gap-1.5 rounded-lg border p-2.5 text-left"
+                >
+                  <FileIcon path={file.filename} className="text-muted-foreground h-4 w-4" />
+                  <span className="w-full truncate font-mono text-[11px]">{file.filename}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {source !== null && reading !== null && (
