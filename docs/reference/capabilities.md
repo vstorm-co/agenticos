@@ -292,6 +292,23 @@ and at the bound a delegate is built *without* the delegation capability rather
 than with one that can only refuse: a tool that always answers "no delegates
 available" is a description the model pays for on every turn and tries anyway.
 
+**A background delegation cannot stop to ask a person.** A gated tool inside one
+is refused rather than parked, and the refusal tells the model to delegate that
+work with `mode="sync"` instead. The reason is not policy but lifetime: the
+approval channel closes over the request's database session, and a background
+delegation outlives the tool call that started it, so by the time it wanted to ask,
+there is nothing left to write the question with. A background delegation that
+suspends anyway — a shape the library documents as undeliverable — is recorded
+`failed` with that same message, because the alternative is a task that reports
+"still running" for as long as the process lives: its spend attributed to nothing,
+its fan-out slot never released, and the panel a surface opened never closed.
+
+**`wait_tasks` truncates, and says so.** A completed task's result is cut at
+`max_result_chars` with an explicit marker pointing at `check_task`, which always
+returns the full text. The marker is the load-bearing half: a silent cut reads as a
+short answer, and an orchestrator handed half a report re-delegates work it already
+has.
+
 **Switching delegation off is disabling the binding, not lowering a number.** A
 disabled binding is not delegation: nothing is built, so nothing reads the pins or
 the specialists it carries — and publishing is then refused for an agent that still
