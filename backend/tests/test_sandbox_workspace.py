@@ -1590,13 +1590,97 @@ class TestDeletingAConversation:
         assert count == 1
         deleted.assert_awaited_once()
 
-    async def test_a_daytona_workspace_is_dropped_without_a_sandboxd_call(
+    async def test_a_daytona_sandbox_is_deleted_rather_than_left_running(
         self, monkeypatch, mock_db_session
     ):
-        """Its sandbox lives on the organization's own Daytona account, which
-        keeps no session of ours to purge - so the row goes and nothing is
-        called. Reaching for `RemoteSandbox` here would send a Daytona key to a
-        `sandboxd` that does not exist."""
+        """It is billed to the organization and nothing else will end it.
+
+        This used to assert the opposite - that "nothing is called" - on the
+        grounds that Daytona "keeps no session of ours to purge". The first half
+        was right and the conclusion did not follow: the reason not to reach for
+        `RemoteSandbox` here is that it would send a Daytona key to a `sandboxd`
+        that does not exist, which is an argument for calling `DaytonaSandbox`
+        instead, not for calling nothing. A container has `sandboxd`'s TTL under
+        it; a cloud sandbox has only this.
+        """
+        import pydantic_ai_backends as backends_module
+
+        deleted_sandboxes: list[tuple[str, str]] = []
+
+        class _Sandbox:
+            def __init__(self, api_key=None, sandbox_id=None):
+                self._key = api_key
+                self._id = sandbox_id
+
+            def stop(self) -> None:
+                deleted_sandboxes.append((self._key, self._id))
+
+        monkeypatch.setattr(backends_module, "DaytonaSandbox", _Sandbox, raising=False)
+        _serve(monkeypatch, _resolved(kind="daytona", base_url=None, token="dtn-live-key"))
+        monkeypatch.setattr(
+            workspace_repo,
+            "list_for_conversation",
+            AsyncMock(
+                return_value=[_row(backend="service", session_id="dt-1", connection_id=uuid4())]
+            ),
+        )
+        deleted = AsyncMock()
+        monkeypatch.setattr(workspace_repo, "delete", deleted)
+
+        count = await SandboxWorkspaceService(mock_db_session).purge_for_conversation(
+            _ctx(), conversation_id=uuid4()
+        )
+
+        assert count == 1
+        deleted.assert_awaited_once()
+        # The organization's own key, and the session the row recorded.
+        assert deleted_sandboxes == [("dtn-live-key", "dt-1")]
+
+    async def test_a_container_connection_with_no_address_is_not_called(
+        self, monkeypatch, mock_db_session
+    ):
+        """`RemoteSandbox("")` would post the organization's service token at
+        whatever an empty base URL resolves to, so a row with no address is left
+        alone and the workspace row still goes."""
+        from pydantic_ai_backends import remote as remote_module
+
+        def _explode(*_args: object, **_kwargs: object) -> None:
+            raise AssertionError("no address, so nothing should have been built")
+
+        monkeypatch.setattr(remote_module, "RemoteSandbox", _explode)
+        _serve(monkeypatch, _resolved(base_url=None))
+        monkeypatch.setattr(
+            workspace_repo,
+            "list_for_conversation",
+            AsyncMock(
+                return_value=[_row(backend="service", session_id="dc-1", connection_id=uuid4())]
+            ),
+        )
+        deleted = AsyncMock()
+        monkeypatch.setattr(workspace_repo, "delete", deleted)
+
+        count = await SandboxWorkspaceService(mock_db_session).purge_for_conversation(
+            _ctx(), conversation_id=uuid4()
+        )
+
+        assert count == 1
+        deleted.assert_awaited_once()
+
+    async def test_a_daytona_host_that_is_down_still_lets_the_chat_go(
+        self, monkeypatch, mock_db_session
+    ):
+        """Same net as the container path: a cloud provider having a bad day must
+        not be the reason somebody cannot delete their own conversation."""
+        import pydantic_ai_backends as backends_module
+
+        class _Sandbox:
+            def __init__(self, api_key=None, sandbox_id=None):
+                pass
+
+            def stop(self) -> None:
+                raise RuntimeError("daytona unreachable")
+
+        monkeypatch.setattr(backends_module, "DaytonaSandbox", _Sandbox, raising=False)
         _serve(monkeypatch, _resolved(kind="daytona", base_url=None))
         monkeypatch.setattr(
             workspace_repo,

@@ -437,13 +437,41 @@ class SandboxWorkspaceService:
         return len(rows)
 
     async def _purge_remote(self, ctx: AuthContext, row: AgentWorkspace) -> None:
+        """Delete the sandbox behind a workspace whose conversation is going.
+
+        Both kinds are reached, and the cloud one matters more. A container has
+        `sandboxd`'s TTL behind it, so failing here costs a host some disk until
+        it sweeps. A Daytona sandbox has nothing behind it: this platform is the
+        only thing that knows the conversation is gone, and the organization pays
+        for the sandbox until somebody deletes it. This used to return early for
+        anything that was not Docker, so that was never.
+        """
         if row.connection_id is None:
             return
-        from pydantic_ai_backends.remote import RemoteSandbox
 
         try:
             resolved = await self._connection(ctx, row.connection_id)
-            if resolved.kind != "docker" or not resolved.row.base_url:
+            if resolved.kind == "daytona":
+                from pydantic_ai_backends import DaytonaSandbox
+
+                # The organization's own key, as everywhere else - never the SDK's
+                # `DAYTONA_API_KEY` fallback. `stop()` deletes the sandbox and takes
+                # no arguments; see `_release` for the signature difference.
+                cloud = DaytonaSandbox(
+                    api_key=resolved.token, sandbox_id=row.session_id or row.scope_key
+                )
+                await asyncio.to_thread(cloud.stop)
+                return
+
+            from pydantic_ai_backends.remote import RemoteSandbox
+
+            # Only the address is checked. The kind used to be too, which is how
+            # Daytona fell through here and was never purged at all; now that it
+            # returns above, `docker` is the only kind left - a connection is one
+            # or the other - and an address it has no value for is the one thing
+            # still worth refusing, because `RemoteSandbox("")` would post the
+            # organization's token at whatever a relative URL resolves to.
+            if not resolved.row.base_url:
                 return
             sandbox = RemoteSandbox(
                 resolved.row.base_url,
