@@ -23,6 +23,7 @@ from app.core.permissions import AuthContext, Perm
 from app.db.models.skill import Skill, SkillResource
 from app.repositories import resource_grant_repo, skill_repo
 from app.repositories.skill import SkillSort
+from app.schemas.skill import SkillList, SkillSummary
 from app.services import skill_library
 from app.services.access import SKILL, resolve_access, visible_resource_ids
 
@@ -41,6 +42,25 @@ SUGGESTED_CATEGORIES: tuple[str, ...] = catalog.load(
 # it cannot read is not a smaller feature - it is a file the agent is told
 # about and then cannot use.
 MAX_RESOURCE_BYTES = 512 * 1024
+
+
+def _summary(skill: Skill, bundled_names: frozenset[str]) -> SkillSummary:
+    """A skill as the listing shows it.
+
+    `built_in` is a name match against the shipped library because that is
+    all installing keeps: an install copies the folder into an ordinary row,
+    and the name - unique per organization, never editable - is the one trace
+    of where it came from.
+    """
+    return SkillSummary(
+        id=skill.id,
+        name=skill.name,
+        description=skill.description,
+        category=skill.category,
+        enabled=skill.enabled,
+        file_count=len(skill.resources),
+        built_in=skill.name in bundled_names,
+    )
 
 
 def _clean_resource_path(raw: str) -> str:
@@ -145,6 +165,36 @@ class SkillService:
             sort=sort,
             skip=skip,
             limit=limit,
+        )
+
+    async def list_readable(
+        self,
+        ctx: AuthContext,
+        *,
+        search: str | None = None,
+        categories: Sequence[str] | None = None,
+        sort: SkillSort = "name",
+        skip: int = 0,
+        limit: int = 50,
+    ) -> SkillList:
+        """The listing: a page of skills, and everything the page around it needs.
+
+        Three things that are not the page itself travel with it. `total` is the
+        count before paging, which a pager needs and a page cannot supply.
+        `categories` is the whole organization's rather than the page's - a
+        filter chip that vanished with the page it filtered would strand
+        whoever pressed it. `suggested_categories` is the shipped list, for an
+        organization that has not invented its own yet.
+        """
+        items, total = await self.list_skills(
+            ctx, search=search, categories=categories, sort=sort, skip=skip, limit=limit
+        )
+        bundled_names = frozenset(entry.name for entry in skill_library.library())
+        return SkillList(
+            items=[_summary(skill, bundled_names) for skill in items],
+            total=total,
+            categories=await self.list_categories(ctx),
+            suggested_categories=list(SUGGESTED_CATEGORIES),
         )
 
     async def list_categories(self, ctx: AuthContext) -> list[str]:

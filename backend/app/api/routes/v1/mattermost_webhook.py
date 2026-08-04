@@ -11,14 +11,13 @@ once.
 
 import asyncio
 import logging
-from typing import Any
-from urllib.parse import parse_qs
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request, Response
 
 from app.api.deps import ChannelBotSvc
 from app.services.channels import get_adapter
+from app.services.channels.mattermost import decode_webhook_body
 from app.worker.background.channel import process_channel_event
 
 logger = logging.getLogger(__name__)
@@ -26,19 +25,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 _background_tasks: set[asyncio.Task[None]] = set()
-
-
-def _payload(raw: str, content_type: str) -> dict[str, Any]:
-    """Mattermost sends JSON or form encoding depending on how it was set up."""
-    if content_type.startswith("application/json"):
-        import json
-
-        try:
-            parsed = json.loads(raw)
-        except (ValueError, TypeError):
-            return {}
-        return parsed if isinstance(parsed, dict) else {}
-    return {key: values[0] for key, values in parse_qs(raw).items()}
 
 
 @router.post("/{bot_id}/webhook", status_code=200, response_model=None)
@@ -66,9 +52,7 @@ async def mattermost_webhook(
     ):
         raise HTTPException(status_code=403, detail="Invalid webhook token")
 
-    incoming = adapter.parse_incoming(
-        _payload(raw, request.headers.get("content-type", "")), str(bot_id)
-    )
+    incoming = adapter.parse_incoming(decode_webhook_body(raw), str(bot_id))
     if incoming is None:
         return Response(status_code=200)
 

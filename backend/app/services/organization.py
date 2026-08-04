@@ -13,10 +13,36 @@ from app.core.exceptions import (
 from app.core.permissions import Perm, role_has
 from app.db.models.organization import Organization, OrganizationMember, OrgRole
 from app.repositories import member_repo, organization_repo
-from app.schemas.organization import OrganizationCreate, OrganizationUpdate
+from app.schemas.organization import (
+    OrganizationCreate,
+    OrganizationList,
+    OrganizationRead,
+    OrganizationUpdate,
+)
 from app.services.file_storage import get_file_storage
 
 logger = logging.getLogger(__name__)
+
+
+def _org_read(org: Organization, member_count: int, role: str) -> OrganizationRead:
+    """One organization as a member of it sees it.
+
+    `member_count` and `role` are not on the row - the first is a count over
+    the membership table, the second is the caller's own membership - so every
+    response has to carry them in alongside it.
+    """
+    return OrganizationRead(
+        id=org.id,
+        name=org.name,
+        slug=org.slug,
+        is_personal=org.is_personal,
+        avatar_url=org.avatar_url,
+        member_count=member_count,
+        role=role,
+        monthly_budget_usd=org.monthly_budget_usd,
+        created_at=org.created_at,
+        updated_at=org.updated_at,
+    )
 
 
 class OrganizationService:
@@ -43,8 +69,25 @@ class OrganizationService:
             raise NotFoundError(message="Organization not found", details={"org_id": str(org_id)})
         return org, membership
 
-    async def get_member_count(self, org_id: UUID) -> int:
-        return await organization_repo.count_members(self.db, org_id)
+    async def read_for_user(self, org_id: UUID, user_id: UUID) -> OrganizationRead:
+        """One organization, shaped for the member asking for it.
+
+        Every route answering with a single organization ends here, including
+        the ones that just changed it: a PATCH answers with the row as it now
+        stands, and its member count and the caller's role are part of that.
+        Two of them used to reach that by listing *every* organization the
+        caller belongs to and scanning for the one they already held - a query
+        per organization, to re-find one row.
+        """
+        org, membership = await self.get_for_user(org_id, user_id)
+        count = await organization_repo.count_members(self.db, org_id)
+        return _org_read(org, member_count=count, role=membership.role)
+
+    async def list_readable_for_user(self, user_id: UUID) -> OrganizationList:
+        """Every organization the caller belongs to, each with role and size."""
+        rows = await self.list_for_user(user_id)
+        items = [_org_read(row["org"], row["member_count"], row["role"]) for row in rows]
+        return OrganizationList(items=items, total=len(items))
 
     async def list_for_user(self, user_id: UUID) -> list[dict]:
         orgs = await organization_repo.list_for_user(self.db, user_id)
