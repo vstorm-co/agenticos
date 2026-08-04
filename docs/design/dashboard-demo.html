@@ -1,0 +1,1161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AgenticOS dashboard — design demo (#37)</title>
+<style>
+  :root {
+    /* Mirrored from frontend/src/app/globals.css (light theme) - the same
+       oklch values, so the demo and the product disagree nowhere. Notably:
+       `primary` is INK, not the accent - the primary button is near-black;
+       the blue (brand hue 259) keeps the quieter jobs: selection, links,
+       focus, charts. */
+    --bg: oklch(97.5% 0.003 250);
+    --card: oklch(100% 0 0);
+    --border: oklch(89% 0.004 250);
+    --text: oklch(15% 0 0);
+    --muted: oklch(45% 0 0);
+    --faint: oklch(62% 0.004 250);
+    --ink: oklch(21% 0.01 250);            /* --color-primary */
+    --ink-hover: oklch(30% 0.01 250);
+    --brand: oklch(48% 0.186 259);         /* --color-brand = brand-700 */
+    --brand-subtle: oklch(97% 0.011 259);  /* brand-50 */
+    --brand-line: oklch(79% 0.095 259);    /* brand-300 */
+    --chart-1: oklch(55% 0.19 259);        /* --color-chart = brand-600 */
+    --grid: oklch(93.5% 0.003 250);
+    --ok: oklch(60% 0.15 150);             /* --color-success */
+    --ok-bg: oklch(60% 0.15 150 / 0.1);
+    --warn: oklch(62% 0.136 68);           /* --color-warning */
+    --warn-bg: oklch(62% 0.136 68 / 0.1);
+    --err: oklch(57.7% 0.245 27.325);      /* --color-destructive */
+    --err-bg: oklch(57.7% 0.245 27.325 / 0.08);
+    --shadow-card: 0 1px 2px 0 oklch(0% 0 0 / 0.05), 0 1px 3px 0 oklch(0% 0 0 / 0.03);
+    --body-font: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --display: "Bricolage Grotesque", Inter, -apple-system, sans-serif;
+    --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.5 var(--body-font);
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--brand); text-decoration: none; }
+
+  /* ---- demo chrome (not part of the designed page) ---- */
+  .demo-bar {
+    background: #17171c;
+    color: #d9d9e0;
+    padding: 14px 24px 16px;
+    border-bottom: 3px solid var(--brand);
+  }
+  .demo-bar .explain { font-size: 12.5px; max-width: 1060px; color: #a5a5b1; }
+  .demo-bar .explain strong { color: #fff; font-weight: 600; }
+  .controls { display: flex; flex-wrap: wrap; gap: 22px; margin-top: 12px; align-items: flex-end; }
+  .control-group > .cg-label {
+    font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em;
+    color: #808090; margin-bottom: 5px;
+  }
+  .seg { display: inline-flex; background: #24242b; border: 1px solid #3a3a44; border-radius: 8px; padding: 2px; }
+  .seg button {
+    border: 0; background: transparent; color: #c0c0cb; font: inherit; font-size: 12.5px;
+    padding: 5px 11px; border-radius: 6px; cursor: pointer; white-space: nowrap;
+  }
+  .seg button:hover { color: #fff; }
+  .seg button[aria-pressed="true"] { background: var(--brand); color: #fff; }
+  .identity-groups { display: flex; gap: 14px; flex-wrap: wrap; }
+  .identity-group > .ig-label { font-size: 10.5px; color: #808090; margin-bottom: 5px; text-transform: uppercase; letter-spacing: .07em; }
+
+  /* ---- the designed page ---- */
+  main { max-width: 1180px; margin: 0 auto; padding: 28px 24px 64px; }
+  .page-header { margin-bottom: 22px; }
+  .page-header h1 { font: 650 22px/1.3 var(--display); letter-spacing: -0.01em; }
+  .page-header p { color: var(--muted); margin-top: 3px; }
+
+  /* The product's own filter row - one row, above everything it scopes. */
+  .filter-bar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-bottom: 22px; }
+  .fwrap { position: relative; display: inline-block; }
+  .fbtn {
+    display: inline-flex; align-items: center; gap: 8px;
+    font: inherit; font-size: 12.5px; font-weight: 550; color: var(--text);
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 12px; cursor: pointer;
+  }
+  .fbtn:hover { border-color: var(--faint); }
+  .fbtn .chev { color: var(--faint); font-size: 10px; }
+  .fbtn .fmuted { color: var(--muted); font-weight: 450; }
+  /* The product's primary action is ink, not the accent (globals.css:
+     `primary` is a near-black button; blue keeps selection/links/charts). */
+  .fbtn.primary { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .fbtn.primary:hover { background: var(--ink-hover); border-color: var(--ink-hover); }
+  .fbtn .cnt {
+    background: var(--brand-subtle); color: var(--brand); border-radius: 999px;
+    font-size: 10.5px; font-weight: 700; padding: 1px 6px;
+  }
+  /* Quick actions ride the filter row, pushed right: scoping on the left,
+     doing on the right. */
+  .filter-bar .actions { display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; align-items: center; }
+  .forg {
+    font: inherit; font-size: 12.5px; font-weight: 520; color: var(--text);
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px;
+  }
+  .popover {
+    position: absolute; top: calc(100% + 6px); left: 0; z-index: 30;
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    box-shadow: 0 4px 6px -2px oklch(0% 0 0 / 0.05), 0 10px 15px -3px oklch(0% 0 0 / 0.08);
+    padding: 8px; display: flex;
+  }
+  .pop-presets { display: flex; flex-direction: column; gap: 1px; min-width: 138px; border-right: 1px solid var(--border); padding-right: 8px; margin-right: 12px; }
+  .pop-presets button {
+    text-align: left; border: 0; background: none; font: inherit; font-size: 13px;
+    color: var(--text); padding: 8px 11px; border-radius: 7px; cursor: pointer; white-space: nowrap;
+  }
+  .pop-presets button:hover { background: var(--bg); }
+  .pop-presets button[aria-pressed="true"] { background: var(--brand-subtle); color: var(--brand); font-weight: 600; }
+  .cal { display: flex; gap: 20px; padding: 4px 8px 6px 0; }
+  .cal-month { width: 226px; }
+  .cal-head { position: relative; text-align: center; font-weight: 600; font-size: 13px; padding: 6px 0 8px; }
+  .cal-nav {
+    position: absolute; top: 1px; border: 0; background: none; cursor: pointer;
+    font-size: 14px; color: var(--muted); padding: 4px 8px; border-radius: 6px;
+  }
+  .cal-nav:hover:not(:disabled) { background: var(--bg); color: var(--text); }
+  .cal-nav:disabled { color: var(--border); cursor: default; }
+  .cal-nav.prev { left: 0; } .cal-nav.next { right: 0; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 32px); justify-content: center; row-gap: 2px; }
+  .cal-grid .dow { font-size: 10.5px; font-weight: 600; color: var(--faint); text-align: center; padding: 3px 0 5px; }
+  .cal-grid button.day {
+    width: 32px; height: 29px; border: 0; background: none; font: inherit; font-size: 12.5px;
+    color: var(--text); cursor: pointer; border-radius: 7px; font-variant-numeric: tabular-nums;
+  }
+  .cal-grid button.day:hover:not(:disabled) { box-shadow: inset 0 0 0 1px var(--brand-line); }
+  .cal-grid button.day:disabled { color: var(--faint); cursor: default; }
+  .cal-grid button.day.in { background: var(--brand-subtle); border-radius: 0; }
+  .cal-grid button.day.edge { background: var(--brand); color: #fff; }
+  .cal-grid button.day.start { border-radius: 7px 0 0 7px; }
+  .cal-grid button.day.end { border-radius: 0 7px 7px 0; }
+  .cal-grid button.day.start.end { border-radius: 7px; }
+  .checks { display: flex; flex-direction: column; min-width: 190px; padding: 2px; }
+  .checks label {
+    display: flex; align-items: center; gap: 9px; font-size: 13px; color: var(--text);
+    padding: 8px 10px; border-radius: 7px; cursor: pointer;
+  }
+  .checks label:hover { background: var(--bg); }
+  .checks input { accent-color: var(--brand); width: 14px; height: 14px; }
+  /* App admin only: the boundary between deployment-wide data above and one
+     organization's data below. The select scopes what follows, so it sits
+     here, not in the top filter row. */
+  .org-divider {
+    display: flex; align-items: center; gap: 12px;
+    margin: 10px 0 18px; padding-top: 24px; border-top: 1px solid var(--border);
+  }
+  .org-divider .od-label { font: 680 18px/1.3 var(--display); letter-spacing: -0.015em; }
+  .org-divider .od-note { font-size: 12px; color: var(--faint); }
+
+  section.zone { margin-bottom: 30px; }
+  .zone-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+  .zone-head h2 {
+    font-size: 12.5px; font-weight: 620; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .zone-head .zone-note { font-size: 12px; color: var(--faint); }
+  /* The page's spine: Deployment and the Organization divider mark where one
+     kind of data ends and another begins, so they sit a full level above both
+     card titles and the plain zone labels. */
+  section.zone.major { padding-top: 24px; border-top: 1px solid var(--border); }
+  #zones > section.zone.major:first-child,
+  .org-divider + section.zone.major { padding-top: 0; border-top: none; }
+  section.zone.major .zone-head { margin-bottom: 14px; }
+  section.zone.major .zone-head h2 {
+    font: 680 18px/1.3 var(--display); letter-spacing: -0.015em;
+    text-transform: none; color: var(--text);
+  }
+
+  .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 14px; }
+  .card {
+    grid-column: span 12;
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+    box-shadow: var(--shadow-card);
+    padding: 18px 20px 15px; display: flex; flex-direction: column; min-width: 0;
+  }
+  @media (min-width: 760px) {
+    .s3 { grid-column: span 3; } .s4 { grid-column: span 4; } .s5 { grid-column: span 5; }
+    .s6 { grid-column: span 6; } .s7 { grid-column: span 7; } .s8 { grid-column: span 8; }
+    .s12 { grid-column: span 12; }
+  }
+  .card-head { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; margin-bottom: 12px; }
+  .card-head h3 { font-size: 15.5px; font-weight: 640; letter-spacing: -0.01em; }
+  /* Column flex with centering: a card stretched by a taller row-sibling
+     centres its content instead of leaving the slack below it. */
+  .card-body { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; }
+  .card-foot {
+    margin-top: 12px; padding-top: 8px; border-top: 1px dashed var(--border);
+    display: flex; justify-content: space-between; gap: 8px; align-items: center;
+  }
+
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .chip {
+    font: 10.5px/1.4 var(--mono); color: var(--muted); background: var(--bg);
+    border: 1px solid var(--border); border-radius: 5px; padding: 3px 6px;
+    max-width: 100%; overflow-wrap: anywhere;
+  }
+  .badge-new {
+    font-size: 10px; font-weight: 600; color: var(--warn); background: var(--warn-bg);
+    border: 1px solid oklch(62% 0.136 68 / 0.3); border-radius: 5px; padding: 3px 6px; white-space: nowrap;
+  }
+  .gate { font: 10.5px/1 var(--mono); color: var(--faint); }
+
+  /* Annotations off: the page as the product would ship it - no endpoint
+     chips, no gate footers, no zone notes. */
+  main.clean .chips, main.clean .card-foot, main.clean .zone-note, main.clean .qa-note { display: none; }
+
+  .big { font-size: 28px; font-weight: 650; letter-spacing: -0.02em; }
+  .delta-up { color: var(--ok); font-size: 12px; font-weight: 600; }
+  .delta-down { color: var(--err); font-size: 12px; font-weight: 600; }
+  .sub { color: var(--muted); font-size: 12px; }
+
+  .stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; }
+  .stat-row > div { padding: 2px 16px; border-left: 1px solid var(--border); }
+  .stat-row > div:first-child { border-left: 0; padding-left: 0; }
+  .stat-row .lbl { font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+
+  .bar-row { display: flex; align-items: center; gap: 10px; margin: 7px 0; }
+  .bar-row .bl { width: 98px; flex: none; font-size: 13px; color: var(--text); }
+  .bar-row .track { flex: 1; height: 8px; background: var(--bg); border-radius: 4px; }
+  /* Rounded at the data end only - the baseline edge stays square. */
+  .bar-row .fill { display: block; height: 100%; border-radius: 0 4px 4px 0; background: var(--chart-1); }
+  .bar-row .bv { width: 52px; flex: none; text-align: right; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  table.mini { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.mini th { text-align: left; font-weight: 500; color: var(--muted); font-size: 11.5px; padding: 4px 8px 6px 0; border-bottom: 1px solid var(--border); }
+  table.mini td { padding: 7px 8px 7px 0; border-bottom: 1px solid #f1f1f3; font-variant-numeric: tabular-nums; }
+  table.mini tr:last-child td { border-bottom: 0; }
+  table.mini .num { text-align: right; color: var(--muted); }
+
+  .list-row { display: flex; justify-content: space-between; gap: 10px; padding: 9px 0; border-bottom: 1px solid #f1f1f3; align-items: center; }
+  .list-row:last-child { border-bottom: 0; }
+  .list-row .lr-main { min-width: 0; }
+  .list-row .lr-title { font-weight: 550; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .list-row .lr-sub { font-size: 12px; color: var(--muted); }
+
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 7px; }
+  .dot.ok { background: var(--ok); } .dot.warn { background: var(--warn); } .dot.err { background: var(--err); }
+
+  .pill { font-size: 11px; padding: 2px 7px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
+  .pill.ok { color: var(--ok); background: var(--ok-bg); border-color: oklch(60% 0.15 150 / 0.25); }
+  .pill.warn { color: var(--warn); background: var(--warn-bg); border-color: oklch(62% 0.136 68 / 0.3); }
+  .pill.err { color: var(--err); background: var(--err-bg); border-color: oklch(57.7% 0.245 27.325 / 0.25); }
+  .pill.brand { color: var(--brand); background: var(--brand-subtle); border-color: var(--brand-line); }
+
+  .btn {
+    font: 12.5px/1 inherit; font-weight: 550; border-radius: 8px; padding: 7px 12px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--card); color: var(--text);
+  }
+  .btn:hover { border-color: var(--faint); }
+  .btn.primary { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .btn.primary:hover { background: var(--ink-hover); border-color: var(--ink-hover); }
+  .btn.small { padding: 5px 9px; font-size: 12px; }
+
+  .agent-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+  .agent-card { border: 1px solid var(--border); border-radius: 8px; padding: 11px 12px; }
+  .agent-card .an { font-weight: 550; font-size: 13px; margin-bottom: 1px; }
+
+  .state-block { padding: 26px 12px; text-align: center; }
+  .state-block .si { color: var(--faint); margin-bottom: 8px; }
+  .state-block.error .si { color: var(--err); }
+  .state-block .st { font-weight: 600; font-size: 13px; }
+  .state-block .sd { color: var(--muted); font-size: 12.5px; margin: 4px auto 0; max-width: 340px; }
+  .state-block.error { background: oklch(57.7% 0.245 27.325 / 0.03); border: 1px dashed oklch(57.7% 0.245 27.325 / 0.25); border-radius: 8px; }
+  .state-block.error .st { color: var(--err); }
+  .state-block .btn { margin-top: 12px; }
+
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 8px; font-size: 12px; color: var(--muted); }
+  .legend .sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; }
+
+  /* Axis type is fixed and small; the hover readout is set separately in the
+     chart so the two never track each other. */
+  svg text { font: 10.5px var(--body-font); fill: var(--faint); }
+
+  footer { text-align: center; color: var(--faint); font-size: 12px; padding: 20px 0 40px; }
+</style>
+</head>
+<body>
+
+<header class="demo-bar">
+  <div class="explain">
+    <strong>Design demo for issue #37 — not product code.</strong>
+    Every number is fake. Each card names the <span style="font-family:var(--mono)">permission</span> that reveals it
+    and the endpoint that feeds it; an amber badge means the endpoint does not exist yet.
+    A card the caller's permissions do not reveal is <strong>absent</strong> — never greyed out, never a 403.
+    Visibility below is computed from a mirror of <span style="font-family:var(--mono)">ROLE_PERMS</span>, not hardcoded per screen.
+    Layout — order, width, emphasis — follows the audience; presence always follows the permission.
+  </div>
+  <div class="controls">
+    <div class="control-group">
+      <div class="cg-label">Identity</div>
+      <div class="identity-groups" id="identity-groups"></div>
+    </div>
+    <div class="control-group">
+      <div class="cg-label">Data state</div>
+      <div class="seg" id="state-seg"></div>
+    </div>
+    <div class="control-group">
+      <div class="cg-label">Endpoints &amp; gates</div>
+      <div class="seg" id="annot-seg"></div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="page-header">
+    <h1>Dashboard</h1>
+    <p id="page-sub"></p>
+  </div>
+  <div class="filter-bar" id="filter-bar"></div>
+  <div id="zones"></div>
+</main>
+
+<footer>Stage 1 artifact for vstorm-co/agenticos#37 · fake data · hand-rolled SVG · zero dependencies · see dashboard-demo.md for the map</footer>
+
+<script>
+"use strict";
+
+/* ================================================================
+   Permission mirror.
+   Must track backend/app/core/permissions.py ROLE_PERMS - only the
+   permissions the dashboard gates on. Scopes are omitted: a widget
+   asks "held at all?", and scope shows up as which rows the data
+   contains, not as whether the card renders.
+   ================================================================ */
+const ROLE_PERMS = {
+  owner:    ["runs:view", "approvals:decide", "members:manage", "agents:view", "agents:edit", "agents:run"],
+  admin:    ["runs:view", "approvals:decide", "members:manage", "agents:view", "agents:edit", "agents:run"],
+  builder:  ["runs:view", "agents:view", "agents:edit", "agents:run", "mcp:manage", "connections:manage"],
+  operator: ["runs:view", "approvals:decide", "agents:view", "agents:run"],
+  member:   ["agents:view", "agents:edit", "agents:run"],
+  viewer:   ["agents:view"],
+};
+
+const IDENTITIES = [
+  { id: "app_admin", label: "App admin", audience: "Deployment admin", role: "owner", isAppAdmin: true,
+    layout: "app_admin", sub: "The whole deployment first, then {org} — same page, more answers." },
+  { id: "owner",    label: "Owner",    audience: "Org steward", role: "owner",
+    layout: "steward", sub: "{org} — adoption, cost, and what needs a decision." },
+  { id: "admin",    label: "Admin",    audience: "Org steward", role: "admin",
+    layout: "steward", sub: "{org} — adoption, cost, and what needs a decision." },
+  { id: "builder",  label: "Builder",  audience: "Operations", role: "builder",
+    layout: "builder", sub: "Are the agents you build actually used — and are they healthy?" },
+  { id: "operator", label: "Operator", audience: "Operations", role: "operator",
+    layout: "operator", sub: "Is everything running, and what is waiting on you?" },
+  { id: "member",   label: "Member",   audience: "Everyday user", role: "member",
+    layout: "member", sub: "Pick up where you left off." },
+  { id: "viewer",   label: "Viewer",   audience: "Everyday user", role: "viewer",
+    layout: "viewer", sub: "What has been shared with you." },
+];
+
+const STATES = [
+  { id: "normal", label: "Normal" },
+  { id: "empty",  label: "Empty" },
+  { id: "error",  label: "Error" },
+];
+/* ---- the date range: presets + a two-month calendar ---- */
+const DAY_MS = 86400000;
+const day0 = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
+const today0 = () => day0(new Date());
+const addDays = (d, n) => day0(new Date(d.getTime() + n * DAY_MS));
+const isoDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const parseIsoDay = (s) => { const [y, m, dd] = s.split("-").map(Number); return new Date(y, m - 1, dd); };
+const fmtDay = (d) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+
+const PRESETS = [
+  { id: "1d",  label: "Today",        range: () => [today0(), today0()] },
+  { id: "7d",  label: "Last 7 days",  range: () => [addDays(today0(), -6), today0()] },
+  { id: "30d", label: "Last 30 days", range: () => [addDays(today0(), -29), today0()] },
+  { id: "90d", label: "Last 90 days", range: () => [addDays(today0(), -89), today0()] },
+  { id: "tm",  label: "This month",   range: () => { const t = today0(); return [new Date(t.getFullYear(), t.getMonth(), 1), t]; } },
+  { id: "lm",  label: "Last month",   range: () => { const t = today0(); return [new Date(t.getFullYear(), t.getMonth() - 1, 1), new Date(t.getFullYear(), t.getMonth(), 0)]; } },
+];
+
+function periodRange() {
+  if (current.period.preset) return PRESETS.find((p) => p.id === current.period.preset).range();
+  return [parseIsoDay(current.period.from), parseIsoDay(current.period.to)];
+}
+function periodDays() {
+  const [from, to] = periodRange();
+  return Math.round((to - from) / DAY_MS) + 1;
+}
+function periodLabel() {
+  if (current.period.preset) return PRESETS.find((p) => p.id === current.period.preset).label;
+  const [from, to] = periodRange();
+  return `${fmtDay(from)} – ${fmtDay(to)}`;
+}
+
+const ANNOTATIONS = [
+  { id: "on", label: "Shown" },
+  { id: "off", label: "Hidden" },
+];
+/* The organization filter is app-admin-only: everyone else's dashboard is
+   scoped to their active organization, which the sidebar switcher owns. */
+const ORGS = [
+  { id: "acme", name: "Acme Corp", scale: 1 },
+  { id: "globex", name: "Globex", scale: 0.62 },
+  { id: "initech", name: "Initech", scale: 0.31 },
+];
+
+let current = {
+  identity: IDENTITIES[1], state: "normal", period: { preset: "30d" }, annotations: "on",
+  org: ORGS[0], sections: null, // null = every zone the identity can see
+};
+
+/* Deep-linkable demo state (#identity=member&state=error&period=7d), so a
+   review comment can point at the exact view it means. */
+function readHash() {
+  const p = new URLSearchParams(location.hash.slice(1));
+  const ident = IDENTITIES.find((i) => i.id === p.get("identity"));
+  if (ident) current.identity = ident;
+  if (STATES.some((s) => s.id === p.get("state"))) current.state = p.get("state");
+  const period = p.get("period") || "";
+  if (PRESETS.some((x) => x.id === period)) {
+    current.period = { preset: period };
+  } else if (/^\d{4}-\d{2}-\d{2}\.\.\d{4}-\d{2}-\d{2}$/.test(period)) {
+    const [from, to] = period.split("..");
+    if (parseIsoDay(from) <= parseIsoDay(to)) current.period = { from, to };
+  }
+  if (ANNOTATIONS.some((a) => a.id === p.get("annotations"))) current.annotations = p.get("annotations");
+  const org = ORGS.find((o) => o.id === p.get("org"));
+  if (org) current.org = org;
+  if (p.get("sections")) {
+    const valid = LAYOUTS[current.identity.layout].map((s) => s.id);
+    const ids = p.get("sections").split(",").filter((z) => valid.includes(z));
+    if (ids.length) current.sections = new Set(ids);
+  }
+}
+function writeHash() {
+  const period = current.period.preset || `${current.period.from}..${current.period.to}`;
+  let h = `identity=${current.identity.id}&state=${current.state}&period=${period}` +
+    `&annotations=${current.annotations}&org=${current.org.id}`;
+  if (current.sections) h += `&sections=${[...current.sections].join(",")}`;
+  history.replaceState(null, "", "#" + h);
+}
+
+function can(perm) {
+  if (current.identity.isAppAdmin) return true;
+  return (ROLE_PERMS[current.identity.role] || []).includes(perm);
+}
+
+/* ---- deterministic fake data ---- */
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function genData(range) {
+  const orgIdx = ORGS.indexOf(current.org);
+  const scale = current.org.scale;
+  const rnd = mulberry32(range * 7919 + orgIdx * 104729);
+  const days = [];
+  for (let i = 0; i < range; i++) {
+    const growth = (52 + (i / range) * 46) * scale;
+    const weekday = (i % 7 === 5 || i % 7 === 6) ? 0.55 : 1;
+    days.push(Math.round(growth * weekday * (0.82 + rnd() * 0.4)));
+  }
+  const total = days.reduce((a, b) => a + b, 0);
+  const prevTotal = Math.round(total * 0.81);
+  const pct = (p) => Math.round(total * p);
+  return {
+    days, total, prevTotal,
+    surfaces: [
+      { name: "Web chat",  v: pct(0.41) }, { name: "HTTP API",  v: pct(0.24) },
+      { name: "Slack",     v: pct(0.18) }, { name: "Telegram",  v: pct(0.09) },
+      { name: "Widget",    v: pct(0.06) }, { name: "Scheduled", v: pct(0.02) },
+    ],
+    outcomes: [
+      { name: "Completed", v: pct(0.91), cls: "ok" },
+      { name: "Failed", v: pct(0.06), cls: "err" },
+      { name: "Budget exceeded", v: pct(0.03), cls: "warn" },
+    ],
+    agents: [
+      { name: "Support triage", v: pct(0.28), mine: false },
+      { name: "Docs writer", v: pct(0.19), mine: true },
+      { name: "Lead qualifier", v: pct(0.14), mine: false },
+      { name: "Meeting recap", v: pct(0.08), mine: true },
+      { name: "SQL explainer", v: pct(0.04), mine: false },
+    ],
+    idleAgents: ["Invoice checker", "Release notes"],
+    models: [
+      { name: "claude-sonnet-5", v: pct(0.44) },
+      { name: "gpt-5-mini", v: pct(0.27) },
+      { name: "claude-haiku-4.5", v: pct(0.18) },
+      { name: "gemini-2.5-flash", v: pct(0.11) },
+    ],
+    failures: [
+      { agent: "SQL explainer", err: "run_sql timed out after 30 s", when: "38 min ago" },
+      { agent: "Support triage", err: "budget exceeded mid-run", when: "2 h ago" },
+      { agent: "Docs writer", err: "provider answered 529 — retried, then gave up", when: "5 h ago" },
+    ],
+    shared: { agents: 4, collections: 3, skills: 6 },
+    latency: { p50: 3.2, p95: 14.8 },
+    activeUsers: { active: 14, ofTotal: 23, days: days.map((v, i) => 8 + Math.round(6 * (i / range)) + (v % 3)) },
+    spend: {
+      mtd: 142.63 * scale, prev: 118.4 * scale,
+      providers: [ { name: "Anthropic", v: 87.2 * scale }, { name: "OpenAI", v: 38.9 * scale }, { name: "Google", v: 16.5 * scale } ],
+    },
+    approvals: [
+      { agent: "Support triage", what: "wants to call send_email", who: "run for k.nowak", waited: "2 h" },
+      { agent: "SQL explainer", what: "wants to call run_sql (writes)", who: "run for j.wisniewski", waited: "5 h" },
+      { agent: "Meeting recap", what: "wants to call post_message", who: "run for m.zajac", waited: "1 d" },
+    ],
+    members: { total: 23, invited: 2, split: [["owner",1],["admin",2],["builder",4],["operator",2],["member",12],["viewer",2]] },
+    ratings: { pos: 91, count: 214, series: days.map(() => Math.round(88 + rnd() * 6)) },
+    platform: {
+      orgs: 12, users: 247, active24h: 41, agents: 86, conversations: 1912,
+      health: [ ["API", "ok"], ["Database", "ok"], ["Redis", "ok"], ["Worker", "degraded"] ],
+      topOrgs: [ ["Acme Corp", 23, 14], ["Globex", 17, 11], ["Initech", 12, 9], ["Umbrella Labs", 9, 4], ["Stark Industries", 6, 3] ],
+      ratings: { pos: 87, count: 1204, series: days.map(() => Math.round(84 + rnd() * 6)) },
+    },
+    myActivity: { runs: 18, pending: 2, days: days.map((v) => Math.max(0, Math.round(v / 12) - 1)), last: "2 h ago" },
+    myTopAgents: [
+      { name: "Docs writer", v: 9 }, { name: "Meeting recap", v: 5 },
+      { name: "Support triage", v: 3 }, { name: "SQL explainer", v: 1 },
+    ],
+    myQuality: { pos: 89, count: 37, series: days.map(() => Math.round(86 + rnd() * 6)) },
+    myAgents: [
+      { name: "Docs writer", tag: "yours", runs: pct(0.19) },
+      { name: "Meeting recap", tag: "yours", runs: pct(0.08) },
+      { name: "Support triage", tag: "shared", runs: pct(0.28) },
+      { name: "Onboarding buddy", tag: "shared", runs: pct(0.03) },
+    ],
+    conversations: [
+      { title: "Q3 pipeline summary", agent: "Lead qualifier", when: "2 h ago" },
+      { title: "Refund policy wording", agent: "Docs writer", when: "yesterday" },
+      { title: "Standup notes 28 Jul", agent: "Meeting recap", when: "6 d ago" },
+      { title: "Churn query walkthrough", agent: "SQL explainer", when: "8 d ago" },
+    ],
+  };
+}
+
+/* ---- tiny render helpers ---- */
+const fmt = (n) => n.toLocaleString("en-US");
+const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+
+/* Inline icons from the lucide set the product already uses - no emoji,
+   which the rest of the UI never uses either. */
+const ICON_PATHS = {
+  inbox: '<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
+  "triangle-alert": '<path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+  "message-circle": '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>',
+  bot: '<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/>',
+  mail: '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>',
+  "circle-check": '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
+  clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+  calendar: '<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>',
+};
+const icon = (name, size = 16) =>
+  `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor"
+    stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
+
+/* One label per day of the current period; the last says "today" when the
+   range ends now. */
+function dayLabels(n) {
+  const [from, to] = periodRange();
+  const lab = [];
+  for (let i = 0; i < n; i++) lab.push(fmtDay(addDays(from, i)));
+  if (+to === +today0()) lab[n - 1] = "today";
+  return lab;
+}
+
+/* The inner width a card of a given span actually renders at (1180px page,
+   12 columns, 14px gaps, 20px card padding). Charts are generated at that
+   width so 1 SVG unit ≈ 1 CSS pixel and type inside a chart stays the same
+   size as type outside it, whatever the card's span. */
+const SPAN_W = { s3: 230, s4: 326, s5: 420, s6: 516, s7: 612, s8: 708, s12: 1090 };
+const chartW = (id) => SPAN_W[(LIVE[id] || {}).span] || 560;
+
+/* Clean y ticks: a 1/2/5×10^k step, so a small chart says 0/1/2 instead of
+   rounding thirds into "0 0 1 1". */
+function niceTicks(min, max) {
+  const step0 = (max - min) / 3;
+  const mag = Math.pow(10, Math.floor(Math.log10(step0)));
+  const step = [1, 2, 5, 10].map((m) => m * mag).find((s) => s >= step0);
+  const ticks = [];
+  for (let v = Math.ceil(min / step) * step; v <= max + 1e-9; v += step) ticks.push(v);
+  return ticks;
+}
+
+/* A line chart with labelled axes and a hover crosshair. Values, labels and
+   geometry ride data attributes so ONE delegated mousemove listener serves
+   every chart on the page and survives innerHTML re-renders. */
+function lineChart(vals, { w = 560, h = null, unit = "", yMin = 0, yMax = null, labels = null } = {}) {
+  h = h ?? Math.round(Math.min(170, Math.max(100, w * 0.3)));
+  if (vals.length === 1) vals = [vals[0], vals[0]];
+  const lab = labels || dayLabels(vals.length);
+  if (lab.length === 1) lab.push(lab[0]);
+  const min = yMin;
+  const max = yMax ?? Math.max(Math.max(...vals) * 1.15, min + 1);
+  const padL = 40, padR = 12, padT = 12, padB = 24;
+  const px = (i) => padL + (i / (vals.length - 1)) * (w - padL - padR);
+  const py = (v) => padT + (1 - (v - min) / (max - min)) * (h - padT - padB);
+  const line = vals.map((v, i) => `${i ? "L" : "M"}${px(i).toFixed(1)},${py(v).toFixed(1)}`).join(" ");
+  const area = `${line} L${px(vals.length - 1).toFixed(1)},${(h - padB).toFixed(1)} L${px(0).toFixed(1)},${(h - padB).toFixed(1)} Z`;
+  const grid = `<line x1="${padL}" x2="${w - padR}" y1="${py(min).toFixed(1)}" y2="${py(min).toFixed(1)}" stroke="var(--border)"/>
+    <text x="${padL - 6}" y="${(py(min) + 3.5).toFixed(1)}" text-anchor="end">${fmt(min)}${unit}</text>` +
+    niceTicks(min, max).filter((v) => v > min).map((v) => {
+      const y = py(v);
+      return `<line x1="${padL}" x2="${w - padR}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="var(--grid)"/>
+        <text x="${padL - 6}" y="${(y + 3.5).toFixed(1)}" text-anchor="end">${fmt(Math.round(v))}${unit}</text>`;
+    }).join("");
+  const mid = Math.floor((vals.length - 1) / 2);
+  const xLabs = [[0, "start"], ...(vals.length > 9 ? [[mid, "middle"]] : []), [vals.length - 1, "end"]]
+    .map(([i, a]) => `<text x="${px(i).toFixed(1)}" y="${h - 6}" text-anchor="${a}">${lab[i]}</text>`).join("");
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" role="img" data-chart
+      data-vals="${vals.join(",")}" data-labs="${lab.join("|")}" data-unit="${unit}"
+      data-geom="${w},${h},${padL},${padR},${padT},${padB},${min},${max}">
+    <defs><linearGradient id="ag" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="var(--chart-1)" stop-opacity=".12"/><stop offset="1" stop-color="var(--chart-1)" stop-opacity="0"/>
+    </linearGradient></defs>
+    ${grid}
+    <path d="${area}" fill="url(#ag)"/>
+    <path d="${line}" fill="none" stroke="var(--chart-1)" stroke-width="2" stroke-linejoin="round"/>
+    ${xLabs}
+    <g class="hv" style="display:none">
+      <line y1="${padT}" y2="${h - padB}" stroke="var(--brand-line)"/>
+      <circle r="4" fill="var(--chart-1)" stroke="var(--card)" stroke-width="2"/>
+      <text text-anchor="middle" style="fill:var(--text);font-size:12.5px;font-weight:600;paint-order:stroke;stroke:var(--card);stroke-width:3px"></text>
+    </g>
+  </svg>`;
+}
+
+document.addEventListener("mousemove", (e) => {
+  const svg = e.target instanceof Element ? e.target.closest("svg[data-chart]") : null;
+  document.querySelectorAll("svg[data-chart] .hv").forEach((g) => {
+    if (g.closest("svg") !== svg) g.style.display = "none";
+  });
+  if (!svg) return;
+  const [w, h, padL, padR, padT, padB, min, max] = svg.dataset.geom.split(",").map(Number);
+  const vals = svg.dataset.vals.split(",").map(Number);
+  const labs = svg.dataset.labs.split("|");
+  const rect = svg.getBoundingClientRect();
+  const step = (w - padL - padR) / (vals.length - 1);
+  const mx = (e.clientX - rect.left) * (w / rect.width);
+  const i = Math.max(0, Math.min(vals.length - 1, Math.round((mx - padL) / step)));
+  const cx = padL + i * step;
+  const cy = padT + (1 - (vals[i] - min) / (max - min)) * (h - padT - padB);
+  const hv = svg.querySelector(".hv");
+  hv.style.display = "";
+  const ln = hv.querySelector("line"); ln.setAttribute("x1", cx); ln.setAttribute("x2", cx);
+  const c = hv.querySelector("circle"); c.setAttribute("cx", cx); c.setAttribute("cy", cy);
+  const t = hv.querySelector("text");
+  t.setAttribute("x", Math.max(padL + 44, Math.min(w - 56, cx)));
+  t.setAttribute("y", padT + 2);
+  t.textContent = `${labs[i]} · ${fmt(vals[i])}${svg.dataset.unit}`;
+});
+
+/* The shared shape of every answer-quality card: the headline percentage,
+   then how it moved across the period. */
+function qualityBlock(q, sub, w) {
+  const lo = Math.max(0, Math.floor(Math.min(...q.series)) - 3);
+  const hi = Math.min(100, Math.ceil(Math.max(...q.series)) + 2);
+  return `<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px">
+    <span class="big">${q.pos}%</span><span class="sub">${sub}</span></div>` +
+    lineChart(q.series, { w, unit: "%", yMin: lo, yMax: hi });
+}
+
+function donut(segs, centre, sub) {
+  const total = segs.reduce((a, s) => a + s.v, 0);
+  const C = 2 * Math.PI * 42;
+  const GAP = 2.5; // surface gap between segments - red/green alone is a CVD trap
+  let off = 0;
+  const colors = { ok: "var(--ok)", err: "var(--err)", warn: "var(--warn)" };
+  const rings = segs.map((s) => {
+    const len = (s.v / total) * C;
+    const el = `<circle r="42" cx="60" cy="60" fill="none" stroke="${colors[s.cls]}" stroke-width="12"
+      stroke-dasharray="${Math.max(len - GAP, 1).toFixed(1)} ${(C - len + GAP).toFixed(1)}" stroke-dashoffset="${(-off).toFixed(1)}"
+      transform="rotate(-90 60 60)"><title>${s.name}: ${fmt(s.v)} (${Math.round((s.v / total) * 100)}%)</title></circle>`;
+    off += len;
+    return el;
+  }).join("");
+  return `<div style="display:flex;align-items:center;gap:22px;justify-content:center">
+    <svg viewBox="0 0 120 120" width="150" height="150" style="flex:none">${rings}
+      <text x="60" y="57" text-anchor="middle" style="font-size:19px;font-weight:650;fill:var(--text)">${centre}</text>
+      <text x="60" y="73" text-anchor="middle">${sub}</text>
+    </svg>
+    <div style="min-width:0">${segs.map((s) => `<div class="bar-row" style="margin:7px 0">
+      <span class="dot ${s.cls === "ok" ? "ok" : s.cls === "err" ? "err" : "warn"}"></span>
+      <span style="font-size:12.5px;flex:1">${s.name}</span>
+      <span class="bv">${fmt(s.v)}</span></div>`).join("")}
+    </div></div>`;
+}
+
+function barList(items, unit = "", labelW = 98) {
+  const max = Math.max(...items.map((i) => i.v), 1);
+  return items.map((i) => `<div class="bar-row" title="${esc(i.name)}: ${fmt(i.v)}${unit}">
+    <span class="bl" style="width:${labelW}px">${esc(i.name)}</span>
+    <span class="track"><span class="fill" style="width:${(i.v / max) * 100}%"></span></span>
+    <span class="bv">${fmt(i.v)}${unit}</span>
+  </div>`).join("");
+}
+
+/* ================================================================
+   Widget registry. gate() decides presence; source names the feed.
+   Order, width and heading come from the audience layout below.
+   ================================================================ */
+const WIDGETS = [
+  /* ---- deployment (is_app_admin only) ---- */
+  { id: "platform", title: "Platform at a glance",
+    source: { path: "GET /api/v1/admin/stats", exists: true }, gate: () => current.identity.isAppAdmin, gateLabel: "is_app_admin",
+    emptyT: "Nothing here yet", emptyD: "A fresh deployment: no organizations beyond bootstrap, no runs.",
+    render: (d) => `<div class="stat-row">
+      <div><div class="lbl">Organizations</div><div class="big">${d.platform.orgs}</div></div>
+      <div><div class="lbl">Users</div><div class="big">${d.platform.users}</div><div class="sub">${d.platform.active24h} active in 24 h</div></div>
+      <div><div class="lbl">Agents</div><div class="big">${d.platform.agents}</div></div>
+      <div><div class="lbl">Conversations</div><div class="big">${fmt(d.platform.conversations)}</div></div>
+    </div>` },
+  { id: "health", title: "Service health",
+    source: { path: "GET /api/v1/admin/system", exists: true }, gate: () => current.identity.isAppAdmin, gateLabel: "is_app_admin",
+    emptyT: "No services report", emptyD: "The health probe has not answered yet.",
+    render: (d) => d.platform.health.map(([name, st]) => `<div class="list-row" style="padding:6px 0">
+      <span><span class="dot ${st === "ok" ? "ok" : "warn"}"></span>${name}</span>
+      <span class="pill ${st === "ok" ? "ok" : "warn"}">${st}</span>
+    </div>`).join("") },
+  { id: "top-orgs", title: "Top organizations",
+    source: { path: "GET /api/v1/admin/organizations", exists: true }, gate: () => current.identity.isAppAdmin, gateLabel: "is_app_admin",
+    emptyT: "No organizations yet", emptyD: "Only the bootstrap organization exists.",
+    render: (d) => `<table class="mini"><tr><th>Organization</th><th class="num">Members</th><th class="num">Agents</th></tr>
+      ${d.platform.topOrgs.map(([n, m, a]) => `<tr><td>${n}</td><td class="num">${m}</td><td class="num">${a}</td></tr>`).join("")}</table>` },
+  { id: "platform-ratings", title: "Answer quality, deployment-wide",
+    source: { path: "GET /api/v1/admin/ratings/summary", exists: true }, gate: () => current.identity.isAppAdmin, gateLabel: "is_app_admin",
+    emptyT: "No ratings yet", emptyD: "Nobody has rated an answer anywhere on the deployment.",
+    render: (d) => qualityBlock(d.platform.ratings,
+      `rated positive · ${fmt(d.platform.ratings.count)} ratings across all organizations`, chartW("platform-ratings")) },
+
+  /* ---- org usage & cost (runs:view) ---- */
+  { id: "runs", title: "Runs over time",
+    source: { path: "GET /api/v1/stats/usage", exists: false }, gate: () => can("runs:view"), gateLabel: "runs:view",
+    emptyT: "No runs in this period", emptyD: "Publish an agent and give it a surface — adoption shows up here.",
+    render: (d) => {
+      const up = Math.round(((d.total - d.prevTotal) / d.prevTotal) * 100);
+      return `<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px">
+        <span class="big">${fmt(d.total)}</span><span class="sub">runs</span>
+        <span class="delta-up">▲ ${up}% vs the previous ${periodDays()} days</span></div>` +
+        lineChart(d.days, { w: chartW("runs") });
+    } },
+  { id: "outcomes", title: "Outcomes",
+    source: { path: "GET /api/v1/stats/usage", exists: false }, gate: () => can("runs:view"), gateLabel: "runs:view",
+    emptyT: "No runs in this period", emptyD: "Outcome split appears with the first run.",
+    render: (d) => {
+      const bad = d.outcomes[1].v + d.outcomes[2].v;
+      return donut(d.outcomes, Math.round((d.outcomes[0].v / d.total) * 100) + "%", "completed") +
+        `<div class="sub" style="text-align:center;margin-top:14px">1 in ${Math.round(d.total / bad)} runs needed attention this period</div>`;
+    } },
+  { id: "surfaces", title: "Where runs come from",
+    source: { path: "GET /api/v1/stats/usage", exists: false }, gate: () => can("runs:view"), gateLabel: "runs:view",
+    emptyT: "No runs in this period", emptyD: "Web chat, API, Slack, Telegram, widget and schedules land here.",
+    render: (d) => barList(d.surfaces) },
+  { id: "agents", title: "Agents: adopted and forgotten",
+    source: { path: "GET /api/v1/stats/usage", exists: false }, gate: () => can("runs:view"), gateLabel: "runs:view",
+    emptyT: "No published agents", emptyD: "Nothing has been published in this organization yet.",
+    render: (d) => barList(d.agents) + `<div class="sub" style="margin-top:10px">
+      Published but idle this period: ${d.idleAgents.map((a) => `<span class="pill warn">${a}</span>`).join(" ")}</div>` },
+  { id: "latency", title: "Latency",
+    source: { path: "GET /api/v1/stats/usage", exists: false }, gate: () => can("runs:view"), gateLabel: "runs:view",
+    emptyT: "No completed runs", emptyD: "Latency needs at least one finished run.",
+    render: (d) => `<div class="stat-row" style="grid-template-columns:1fr 1fr">
+      <div><div class="lbl">Median (p50)</div><div class="big">${d.latency.p50}s</div></div>
+      <div><div class="lbl">Slowest 5% (p95)</div><div class="big">${d.latency.p95}s</div></div></div>
+      <div class="sub" style="margin-top:8px">Started → finished, over every run in the period.</div>` },
+  { id: "active-users", title: "Active people",
+    source: { path: "GET /api/v1/stats/usage", exists: false }, gate: () => can("runs:view"), gateLabel: "runs:view",
+    emptyT: "Nobody has run anything", emptyD: "Adoption starts with the first person's first run.",
+    render: (d) => `<div class="big">${d.activeUsers.active} <span style="font-size:14px;color:var(--muted);font-weight:400">of ${d.activeUsers.ofTotal} members</span></div>
+      <div class="sub" style="margin:4px 0 10px">ran an agent in this period — a count, deliberately not a table of names</div>
+      ${lineChart(d.activeUsers.days, { w: chartW("active-users") })}` },
+  { id: "spend", title: "Spend, month to date",
+    source: { path: "GET /api/v1/spend", exists: true }, gate: () => can("runs:view"), gateLabel: "runs:view",
+    emptyT: "Nothing spent yet", emptyD: "Model cost lands here run by run.",
+    render: (d) => `<div class="big">$${d.spend.mtd.toFixed(2)}</div>
+      <div class="sub" style="margin:4px 0 10px">last month at this point: $${d.spend.prev.toFixed(2)}</div>
+      ${barList(d.spend.providers.map((p) => ({ name: p.name, v: Math.round(p.v) })), " $")}` },
+
+  /* ---- governance & health ---- */
+  { id: "approvals", title: "Waiting on a decision",
+    source: { path: "GET /api/v1/approvals", exists: true }, gate: () => can("approvals:decide"), gateLabel: "approvals:decide",
+    emptyT: "Nothing waiting", emptyD: "Every approval has been decided. This card earns its place by being empty.",
+    render: (d) => d.approvals.map((a) => `<div class="list-row">
+      <div class="lr-main"><div class="lr-title">${a.agent} <span style="font-weight:400;color:var(--muted)">${a.what}</span></div>
+      <div class="lr-sub">${a.who} · waiting ${a.waited}</div></div>
+      <span style="display:flex;gap:6px"><button class="btn small primary">Review</button></span>
+    </div>`).join("") },
+  { id: "members", title: "Members",
+    source: { path: "GET /api/v1/organizations/{id}/members", exists: true }, gate: () => can("members:manage"), gateLabel: "members:manage",
+    emptyT: "Just you", emptyD: "Invite somebody — adoption needs people.",
+    render: (d) => `<div style="display:flex;align-items:baseline;gap:10px">
+      <span class="big">${d.members.total}</span><span class="sub">${d.members.invited} invitations pending</span></div>
+      <div style="margin:10px 0 2px">${barList(d.members.split.map(([r, n]) => ({ name: r, v: n })), "", 70)}</div>
+      <button class="btn small" style="margin-top:10px;align-self:flex-start">View members</button>` },
+  { id: "org-ratings", title: "Answer quality",
+    source: { path: "GET /api/v1/ratings/summary", exists: false }, gate: () => can("runs:view"), gateLabel: "runs:view",
+    emptyT: "No ratings yet", emptyD: "Thumbs on answers land here.",
+    render: (d) => qualityBlock(d.ratings,
+      `of ${fmt(d.ratings.count)} rated answers were positive this period`, chartW("org-ratings")) },
+  { id: "recent-failures", title: "Recent failures",
+    source: { path: "GET /api/v1/runs?status=failed", exists: true }, gate: () => can("runs:view"), gateLabel: "runs:view",
+    emptyT: "No failures", emptyD: "Every run in this period finished cleanly.",
+    render: (d) => d.failures.map((f) => `<div class="list-row">
+      <div class="lr-main"><div class="lr-title">${f.agent}</div><div class="lr-sub">${f.err} · ${f.when}</div></div>
+      <button class="btn small">Open run</button></div>`).join("") },
+  { id: "model-mix", title: "Models behind the runs",
+    source: { path: "GET /api/v1/stats/usage", exists: false }, gate: () => can("runs:view"), gateLabel: "runs:view",
+    emptyT: "No runs in this period", emptyD: "The model mix appears with the first run.",
+    render: (d) => barList(d.models, "", 132) +
+      `<div class="sub" style="margin-top:10px">As recorded on each run (<span style="font-family:var(--mono)">model_label</span>).</div>` },
+
+  /* ---- personal ---- */
+  { id: "my-agents", title: "Your agents",
+    source: { path: "GET /api/v1/agents", exists: true }, gate: () => can("agents:view"), gateLabel: "agents:view",
+    emptyT: "No agents yet", emptyD: "Nothing is shared with you yet — ask a builder, or create your own.",
+    render: (d) => {
+      const list = can("agents:edit") ? d.myAgents : d.myAgents.filter((a) => a.tag === "shared");
+      return `<div class="agent-grid">${list.map((a) => `<div class="agent-card">
+      <div class="an">${a.name}</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:2px">
+        <span class="pill ${a.tag === "yours" ? "brand" : ""}">${a.tag}</span>
+        ${can("runs:view") ? `<span class="sub" title="runs by anyone, this period">${fmt(a.runs)} runs</span>` : ""}
+      </div>
+      ${can("agents:run") ? `<button class="btn small" style="margin-top:9px;width:100%">Open chat</button>` : ""}
+    </div>`).join("")}</div>`;
+    } },
+  { id: "conversations", title: "Continue where you left off",
+    source: { path: "GET /api/v1/conversations", exists: true }, gate: () => can("agents:run"), gateLabel: "agents:run — a conversation is a run you started",
+    emptyT: "No conversations yet", emptyD: "Start one from an agent card — it will be waiting here.",
+    render: (d) => d.conversations.map((c) => `<div class="list-row">
+      <div class="lr-main"><div class="lr-title">${c.title}</div><div class="lr-sub">${c.agent} · ${c.when}</div></div>
+      <button class="btn small">Continue</button></div>`).join("") },
+  { id: "my-activity", title: "Your activity",
+    source: { path: "GET /api/v1/stats/usage?scope=own", exists: false }, gate: () => can("agents:run"), gateLabel: "agents:run (own rows only)",
+    emptyT: "No runs of yours yet", emptyD: "Run any agent — your own history shows here, and only to you.",
+    render: (d) => `<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px">
+      <span class="big">${d.myActivity.runs}</span><span class="sub">runs by you in this period · last one ${d.myActivity.last}</span></div>
+      ${d.myActivity.pending ? `<div style="display:flex;align-items:center;gap:7px;margin-bottom:12px;color:var(--warn);font-size:12.5px">
+        ${icon("clock", 14)} ${d.myActivity.pending} of your runs are waiting on someone's decision</div>` : ""}
+      ${lineChart(d.myActivity.days, { w: chartW("my-activity"), h: 150 })}` },
+  { id: "my-top-agents", title: "Agents you use most",
+    source: { path: "GET /api/v1/stats/usage?scope=own", exists: false }, gate: () => can("agents:run"), gateLabel: "agents:run (own rows)",
+    emptyT: "No runs of yours yet", emptyD: "Run any agent — your favourites show up here.",
+    render: (d) => barList(d.myTopAgents, "", 110) +
+      `<div class="sub" style="margin-top:10px">Your own runs in this period — nobody else's.</div>` },
+  { id: "my-quality", title: "Answer quality in your chats",
+    source: { path: "GET /api/v1/ratings/summary?scope=own", exists: false }, gate: () => can("agents:run"), gateLabel: "agents:run (own rows)",
+    emptyT: "No rated answers yet", emptyD: "Rate answers with a thumbs up or down — your own trend lands here.",
+    render: (d) => qualityBlock(d.myQuality, `of ${d.myQuality.count} rated answers in your conversations`, chartW("my-quality")) },
+  { id: "shared-with-you", title: "Shared with you",
+    source: { path: "GET /api/v1/agents · /collections · /skills", exists: true },
+    gate: () => can("agents:view"), gateLabel: "agents:view · collections:view · skills:view (shared scope)",
+    emptyT: "Nothing shared yet", emptyD: "When somebody shares an agent, a collection or a skill, it counts here.",
+    render: (d) => `<div class="stat-row" style="grid-template-columns:repeat(3,1fr)">
+      <div><div class="lbl">Agents</div><div class="big">${d.shared.agents}</div></div>
+      <div><div class="lbl">Collections</div><div class="big">${d.shared.collections}</div></div>
+      <div><div class="lbl">Skills</div><div class="big">${d.shared.skills}</div></div></div>
+      <div class="sub" style="margin-top:8px">Everything somebody shared with you — browse it from the sidebar.</div>` },
+];
+
+/* ================================================================
+   Audience layouts. A layout decides ORDER, WIDTH and HEADING only -
+   presence is still each widget's gate(). The same card can sit in a
+   different row, at a different width, under a different heading
+   depending on who is looking; it can never appear for somebody whose
+   permissions do not reveal it. A Phase-2 custom role gets the layout
+   of the nearest audience, and the gates keep that honest.
+   ================================================================ */
+const STEWARD_SECTIONS = [
+  { id: "attention", title: "Needs attention", note: "actionable first — approvals to decide, failures worth a look",
+    widgets: [["approvals", "s7"], ["recent-failures", "s5"]] },
+  { id: "usage", title: "Usage & cost", note: "everything here gates on runs:view",
+    widgets: [["runs", "s8"], ["outcomes", "s4"], ["surfaces", "s6"], ["agents", "s6"],
+              ["spend", "s6"], ["model-mix", "s6"], ["latency", "s4"], ["active-users", "s8"]] },
+  { id: "people", title: "People & quality", note: "each card gates on its own permission",
+    widgets: [["members", "s6"], ["org-ratings", "s6"]] },
+  { id: "workspace", title: "Your workspace", note: "personal — your own agents, chats and runs",
+    widgets: [["my-agents", "s6"], ["conversations", "s6"], ["my-activity", "s12"]] },
+];
+
+const LAYOUTS = {
+  app_admin: [
+    { id: "platform", title: "Deployment", major: true, note: "only with is_app_admin — an org admin never sees this strip",
+      widgets: [["platform", "s8"], ["health", "s4"], ["top-orgs", "s7"], ["platform-ratings", "s5"]] },
+    ...STEWARD_SECTIONS,
+  ],
+  steward: STEWARD_SECTIONS,
+  operator: [
+    { id: "attention", title: "Needs attention", note: "the operator's queue — approvals to decide, failures to look at",
+      widgets: [["approvals", "s7"], ["recent-failures", "s5"]] },
+    { id: "health", title: "Health", note: "everything here gates on runs:view",
+      widgets: [["outcomes", "s4"], ["latency", "s3"], ["org-ratings", "s5"]] },
+    { id: "usage", title: "Usage", note: "everything here gates on runs:view",
+      widgets: [["runs", "s8"], ["surfaces", "s4"], ["agents", "s6"], ["spend", "s6"]] },
+    { id: "workspace", title: "Your workspace", note: "personal — your own agents, chats and runs",
+      widgets: [["my-agents", "s6"], ["conversations", "s6"], ["my-activity", "s12"]] },
+  ],
+  builder: [
+    { id: "build", title: "Your agents", note: "what you build, and the chats you test it in",
+      widgets: [["my-agents", "s7"], ["conversations", "s5"]] },
+    { id: "adoption", title: "How your builds behave", note: "everything here gates on runs:view",
+      widgets: [["agents", "s6"], ["model-mix", "s6"], ["recent-failures", "s7"], ["org-ratings", "s5"]] },
+    { id: "usage", title: "Usage", note: "everything here gates on runs:view",
+      widgets: [["runs", "s8"], ["outcomes", "s4"], ["surfaces", "s4"], ["latency", "s4"], ["active-users", "s4"]] },
+    { id: "activity", title: null, note: "",
+      widgets: [["my-activity", "s12"]] },
+  ],
+  member: [
+    { id: "workspace", title: null, note: "",
+      widgets: [["my-agents", "s7"], ["conversations", "s5"],
+                ["my-activity", "s8"], ["shared-with-you", "s4"],
+                ["my-top-agents", "s6"], ["my-quality", "s6"]] },
+  ],
+  viewer: [
+    { id: "workspace", title: null, note: "",
+      widgets: [["my-agents", "s8", { title: "Agents shared with you" }], ["shared-with-you", "s4"]] },
+  ],
+};
+
+/* ---- rendering ---- */
+let LIVE = {}; // widgetId -> {span, title} resolved from the current layout
+function widgetCard(w, data, forcedState) {
+  const meta = LIVE[w.id];
+  const state = forcedState || current.state;
+  let body;
+  if (state === "empty") {
+    body = `<div class="state-block"><div class="si">${icon("inbox", 22)}</div><div class="st">${w.emptyT}</div><div class="sd">${w.emptyD}</div></div>`;
+  } else if (state === "error") {
+    body = `<div class="state-block error"><div class="si">${icon("triangle-alert", 22)}</div><div class="st">Couldn't load this</div>
+      <div class="sd">The request failed. The rest of the page is unaffected — every card fails alone.</div>
+      <button class="btn small" onclick="retryWidget('${w.id}')">Retry</button></div>`;
+  } else {
+    body = w.render(data);
+  }
+  return `<article class="card ${meta.span}" id="w-${w.id}">
+    <div class="card-head"><h3>${meta.title}</h3>
+      <div class="chips"><span class="chip">${w.source.path}</span>${w.source.exists ? "" : `<span class="badge-new">needs new endpoint</span>`}</div></div>
+    <div class="card-body">${body}</div>
+    <div class="card-foot"><span class="gate">shown because: ${w.gateLabel}</span></div>
+  </article>`;
+}
+
+// Titled sections the current identity actually sees - what the sections
+// filter offers. Untitled sections are structural filler and never filter.
+function visibleSections() {
+  return LAYOUTS[current.identity.layout].filter((sec) =>
+    sec.title && sec.widgets.some(([id]) => WIDGETS.find((w) => w.id === id).gate()));
+}
+
+function renderAll() {
+  document.querySelector("main").classList.toggle("clean", current.annotations === "off");
+  document.getElementById("page-sub").textContent = current.identity.sub.replace("{org}", current.org.name);
+  renderFilterBar();
+  renderSections();
+}
+
+function renderSections() {
+  const data = genData(periodDays());
+  LIVE = {};
+  const rendered = LAYOUTS[current.identity.layout].map((sec) => {
+    if (sec.title && current.sections && !current.sections.has(sec.id)) return null;
+    const items = sec.widgets
+      .map(([id, span, over]) => ({ w: WIDGETS.find((x) => x.id === id), span, over: over || {} }))
+      .filter((it) => it.w.gate());
+    if (!items.length) return null;
+    items.forEach((it) => { LIVE[it.w.id] = { span: it.span, title: it.over.title || it.w.title }; });
+    const head = sec.title
+      ? `<div class="zone-head"><h2>${sec.title}</h2><span class="zone-note">${sec.note}</span></div>` : "";
+    return { id: sec.id, html: `<section class="zone${sec.major ? " major" : ""}">${head}
+      <div class="grid">${items.map((it) => widgetCard(it.w, data)).join("")}</div></section>` };
+  }).filter(Boolean);
+  // The org select marks where deployment-wide data ends and one
+  // organization's begins - so it renders at that boundary, app admin only.
+  const firstOrgSection = rendered.find((z) => z.id !== "platform");
+  const divider = current.identity.isAppAdmin && firstOrgSection
+    ? `<div class="org-divider"><span class="od-label">Organization</span>
+        <select class="forg" id="f-org" aria-label="Organization">${ORGS.map((o) =>
+          `<option value="${o.id}"${o.id === current.org.id ? " selected" : ""}>${o.name}</option>`).join("")}</select>
+        <span class="od-note">everything below is this organization</span></div>`
+    : "";
+  document.getElementById("zones").innerHTML = rendered
+    .map((z) => (z === firstOrgSection ? divider + z.html : z.html)).join("");
+  const sel = document.getElementById("f-org");
+  if (sel) sel.addEventListener("change", () => {
+    current.org = ORGS.find((o) => o.id === sel.value); writeHash(); renderAll();
+  });
+}
+
+/* ---- the two dropdown filters ---- */
+function closePopovers() { document.querySelectorAll(".popover").forEach((p) => p.remove()); }
+document.addEventListener("click", (e) => {
+  // A click that repainted the popover bubbles here from a detached node -
+  // that is an inside click, not an outside one.
+  if (!e.target.isConnected) return;
+  if (!e.target.closest(".fwrap")) closePopovers();
+});
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closePopovers(); });
+
+/* One button per permission - the doing end of the filter row. A viewer
+   holds nothing actionable, so a viewer gets no buttons and no teasers. */
+function quickActions() {
+  const acts = [];
+  if (can("agents:run")) acts.push(["message-circle", "New chat", true]);
+  if (can("agents:edit")) acts.push(["bot", "Create an agent"]);
+  if (can("approvals:decide")) {
+    const n = current.state === "normal" ? genData(periodDays()).approvals.length : 0;
+    acts.push(["circle-check", `Review approvals${n ? ` <span class="cnt">${n}</span>` : ""}`]);
+  }
+  if (can("members:manage")) acts.push(["mail", "Invite a teammate"]);
+  if (!acts.length) return "";
+  return `<div class="actions">${acts.map(([ic, label, primary]) =>
+    `<button class="fbtn${primary ? " primary" : ""}">${icon(ic, 14)} ${label}</button>`).join("")}
+    <span class="gate qa-note">one action per permission</span></div>`;
+}
+
+function renderFilterBar() {
+  const bar = document.getElementById("filter-bar");
+  // A sections dropdown is pointless when only one section is visible at all.
+  const sections = visibleSections().length > 1 ? `<div class="fwrap" id="w-sections-filter">
+      <button class="fbtn" id="f-sections-btn">Sections <span class="fmuted" id="f-sections-count"></span> <span class="chev">▾</span></button>
+    </div>` : "";
+  bar.innerHTML = `<div class="fwrap" id="w-period-filter">
+      <button class="fbtn" id="f-period-btn">${icon("calendar", 14)} <span id="f-period-label">${periodLabel()}</span> <span class="chev">▾</span></button>
+    </div>` + sections + quickActions();
+  updateSectionsCount();
+  document.getElementById("f-period-btn").addEventListener("click", togglePeriodPopover);
+  const sb = document.getElementById("f-sections-btn");
+  if (sb) sb.addEventListener("click", toggleSectionsPopover);
+}
+
+function updateSectionsCount() {
+  const el = document.getElementById("f-sections-count");
+  if (el) el.textContent = current.sections ? `${current.sections.size} of ${visibleSections().length}` : "All";
+}
+
+function toggleSectionsPopover() {
+  const wrap = document.getElementById("w-sections-filter");
+  if (wrap.querySelector(".popover")) { closePopovers(); return; }
+  closePopovers();
+  const zones = visibleSections();
+  const pop = document.createElement("div");
+  pop.className = "popover";
+  pop.innerHTML = `<div class="checks">${zones.map((z) => {
+    const on = !current.sections || current.sections.has(z.id);
+    return `<label><input type="checkbox" data-id="${z.id}"${on ? " checked" : ""}> ${z.title}</label>`;
+  }).join("")}</div>`;
+  wrap.appendChild(pop);
+  pop.querySelectorAll("input").forEach((cb) => cb.addEventListener("change", () => {
+    const all = zones.map((z) => z.id);
+    const set = current.sections ? new Set(current.sections) : new Set(all);
+    if (cb.checked) set.add(cb.dataset.id); else set.delete(cb.dataset.id);
+    if (!set.size) { cb.checked = true; return; } // the page never filters down to nothing
+    current.sections = set.size === all.length ? null : set;
+    writeHash(); updateSectionsCount(); renderSections();
+  }));
+}
+
+/* ---- the date-range popover: presets on the left, two months on the right ---- */
+const addMonths = (d, n) => new Date(d.getFullYear(), d.getMonth() + n, 1);
+let calView = null;    // first day of the RIGHT-hand month
+let calPending = null; // first click of a custom range
+
+function togglePeriodPopover() {
+  const wrap = document.getElementById("w-period-filter");
+  if (wrap.querySelector(".popover")) { closePopovers(); return; }
+  closePopovers();
+  const [, to] = periodRange();
+  calView = new Date(to.getFullYear(), to.getMonth(), 1);
+  calPending = null;
+  const pop = document.createElement("div");
+  pop.className = "popover";
+  wrap.appendChild(pop);
+  paintPeriodPopover(pop);
+}
+
+function applyPeriod(period) {
+  current.period = period;
+  writeHash(); closePopovers(); renderFilterBar(); renderSections();
+}
+
+function paintPeriodPopover(pop) {
+  pop.innerHTML = `<div class="pop-presets">${PRESETS.map((p) =>
+      `<button aria-pressed="${current.period.preset === p.id}" data-id="${p.id}">${p.label}</button>`).join("")}</div>
+    <div class="cal">${calMonth(addMonths(calView, -1), "left")}${calMonth(calView, "right")}</div>`;
+  pop.querySelectorAll(".pop-presets button").forEach((b) =>
+    b.addEventListener("click", () => applyPeriod({ preset: b.dataset.id })));
+  pop.querySelector(".cal-nav.prev").addEventListener("click", () => { calView = addMonths(calView, -1); paintPeriodPopover(pop); });
+  const next = pop.querySelector(".cal-nav.next");
+  if (next) next.addEventListener("click", () => { calView = addMonths(calView, 1); paintPeriodPopover(pop); });
+  pop.querySelectorAll("button.day:not([disabled])").forEach((b) => b.addEventListener("click", () => {
+    const d = parseIsoDay(b.dataset.date);
+    if (!calPending) { calPending = d; paintPeriodPopover(pop); return; }
+    const [from, to] = calPending <= d ? [calPending, d] : [d, calPending];
+    calPending = null;
+    applyPeriod({ from: isoDay(from), to: isoDay(to) });
+  }));
+}
+
+function calMonth(first, side) {
+  const t = today0();
+  // While a start day is pending it is the whole highlight; otherwise the active range is.
+  const [selFrom, selTo] = calPending ? [calPending, calPending] : periodRange();
+  const gridStart = addDays(first, -((first.getDay() + 6) % 7)); // Monday-first
+  let days = "";
+  for (let i = 0; i < 42; i++) {
+    const d = addDays(gridStart, i);
+    const out = d.getMonth() !== first.getMonth();
+    const dead = out || d > t;
+    const isStart = !dead && +d === +selFrom;
+    const isEnd = !dead && +d === +selTo;
+    const inRange = !dead && d > selFrom && d < selTo;
+    const cls = ["day", inRange ? "in" : "", isStart || isEnd ? "edge" : "",
+      isStart ? "start" : "", isEnd ? "end" : ""].filter(Boolean).join(" ");
+    days += `<button class="${cls}" data-date="${isoDay(d)}"${dead ? " disabled" : ""}>${d.getDate()}</button>`;
+  }
+  const atNow = first.getFullYear() === t.getFullYear() && first.getMonth() === t.getMonth();
+  const nav = side === "left"
+    ? `<button class="cal-nav prev" aria-label="Previous month">‹</button>`
+    : `<button class="cal-nav next" aria-label="Next month"${atNow ? " disabled" : ""}>›</button>`;
+  const dows = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].map((x) => `<span class="dow">${x}</span>`).join("");
+  const title = first.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+  return `<div class="cal-month"><div class="cal-head">${nav}${title}</div><div class="cal-grid">${dows}${days}</div></div>`;
+}
+
+function retryWidget(id) {
+  const w = WIDGETS.find((x) => x.id === id);
+  document.getElementById("w-" + id).outerHTML = widgetCard(w, genData(periodDays()), "normal");
+}
+
+/* ---- demo controls ---- */
+function seg(el, items, getId, isActive, onPick) {
+  el.innerHTML = items.map((it) => `<button aria-pressed="${isActive(it)}" data-id="${getId(it)}">${it.label}</button>`).join("");
+  el.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => { onPick(b.dataset.id); writeHash(); renderControls(); renderAll(); }));
+}
+
+function renderControls() {
+  const groupsEl = document.getElementById("identity-groups");
+  const audiences = [...new Set(IDENTITIES.map((i) => i.audience))];
+  groupsEl.innerHTML = audiences.map((a) => `<div class="identity-group"><div class="ig-label">${a}</div>
+    <div class="seg" data-audience="${a}"></div></div>`).join("");
+  audiences.forEach((a) => {
+    seg(groupsEl.querySelector(`[data-audience="${a}"]`), IDENTITIES.filter((i) => i.audience === a),
+      (i) => i.id, (i) => i.id === current.identity.id,
+      (id) => { current.identity = IDENTITIES.find((i) => i.id === id); current.sections = null; });
+  });
+  seg(document.getElementById("state-seg"), STATES, (s) => s.id, (s) => s.id === current.state, (id) => { current.state = id; });
+  seg(document.getElementById("annot-seg"), ANNOTATIONS, (a) => a.id, (a) => a.id === current.annotations, (id) => { current.annotations = id; });
+}
+
+readHash();
+renderControls();
+renderAll();
+</script>
+</body>
+</html>
