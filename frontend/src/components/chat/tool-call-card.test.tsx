@@ -236,9 +236,13 @@ describe("a tool call in the transcript", () => {
   });
 
   it("opens the newest turn's last call, which is the result somebody came back for", () => {
+    // Probed by the card's own control rather than by the written text: a finished
+    // write no longer repeats its contents under a card that opens the file, so
+    // "hej" is absent by design and would make this assert the opposite of expansion.
     render(
       <ToolCallCard
         startOpen
+        conversationId="c-1"
         toolCall={{
           id: "tc-1",
           name: "write_file",
@@ -249,7 +253,7 @@ describe("a tool call in the transcript", () => {
       />,
     );
 
-    expect(screen.getByText("hej")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open" })).toBeInTheDocument();
   });
 
   it("leaves an older call read back from history folded", () => {
@@ -278,12 +282,19 @@ describe("a tool call in the transcript", () => {
     // The live case: the step mounts running and finishes on screen. A file written in
     // front of somebody is the answer to what they asked for.
     const live = { id: "tc-1", name: "write_file", args: { path: "notes.md", content: "hej" } };
-    const { rerender } = render(<ToolCallCard toolCall={{ ...live, status: "running" }} />);
-    expect(screen.queryByText("hej")).toBeNull();
+    const { rerender } = render(
+      <ToolCallCard conversationId="c-1" toolCall={{ ...live, status: "running" }} />,
+    );
+    expect(screen.queryByRole("button", { name: "Open" })).toBeNull();
 
-    rerender(<ToolCallCard toolCall={{ ...live, status: "completed", result: "Wrote 1 lines" }} />);
+    rerender(
+      <ToolCallCard
+        conversationId="c-1"
+        toolCall={{ ...live, status: "completed", result: "Wrote 1 lines" }}
+      />,
+    );
 
-    expect(screen.getByText("hej")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open" })).toBeInTheDocument();
   });
 
   it("leaves code that is still running collapsed", () => {

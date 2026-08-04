@@ -48,12 +48,20 @@ const KIND_KEYS: Record<FileKind, string> = {
  * end of that turn: what it is called, what kind of thing it is, and the two things
  * anybody does next.
  *
- * **The path is resolved against the conversation's own listing, not trusted.** A
- * tool is called with `test1.md` and answers about `/workspace/test1.md`, while the
- * workspace lists it under whichever of those its backend stored - so a button built
- * from the argument opens a file that is not there about a third of the time. Matching
- * the listing by name is what makes Open and Download mean it; with no match the card
- * is still drawn, without controls that would fail.
+ * **The path is preferred from the conversation's own listing, and the argument is
+ * the fallback.** A tool is called with `test1.md` and answers about
+ * `/workspace/test1.md`, while the workspace lists it under whichever of those its
+ * backend stored - so matching the listing by name is what makes Open and Download
+ * open the right thing.
+ *
+ * What it must not do is *withhold* the controls when the listing has not caught up.
+ * It used to, and the listing is behind for the whole of the interesting case: a
+ * workspace has no committed row until a turn flushes one, so a turn that writes a
+ * file and then parks for approval showed a card with no way to open the file it had
+ * just made - until a page reload, at which point both buttons appeared. The card is
+ * drawn because the write *succeeded*; that is the same evidence the buttons need.
+ * If the path turns out to be wrong the viewer says so in a sentence, which is a far
+ * better answer than a control that was never offered.
  */
 function WorkspaceFileCard({
   conversationId,
@@ -73,7 +81,10 @@ function WorkspaceFileCard({
     null;
   const source: FileSource | null =
     conversationId === undefined ? null : { kind: "conversation", id: conversationId };
-  const reachable = source !== null && entry !== null;
+  // The listing's path when it has one, the tool's argument when it does not. Only
+  // the conversation is required, because that is what the file routes address.
+  const target = entry?.path ?? path;
+  const reachable = source !== null;
 
   return (
     <div className="border-foreground/12 flex items-center gap-3 rounded-xl border p-2.5">
@@ -88,10 +99,10 @@ function WorkspaceFileCard({
         </span>
       </span>
       {reachable && (
-        <FileCardActions source={source} path={entry.path} onOpen={() => setOpened(true)} />
+        <FileCardActions source={source} path={target} onOpen={() => setOpened(true)} />
       )}
       {opened && reachable && (
-        <WorkspaceFileViewer source={source} path={entry.path} onClose={() => setOpened(false)} />
+        <WorkspaceFileViewer source={source} path={target} onClose={() => setOpened(false)} />
       )}
     </div>
   );
@@ -175,9 +186,19 @@ export function WorkspaceToolResult({
         </pre>
       )}
 
-      {/* What was put into the file. An edit carries the replacement rather than the
-          whole file, which is the more useful half: an edit is a diff by intent. */}
-      {written !== null && <TextPanel text={written} />}
+      {/* What was put into the file, and not when a card already offers the file.
+          Beside a card that names `main.py` and opens it, the whole contents pasted
+          underneath is the same thing told worse: it pushes the rest of the turn off
+          the screen, and what it duplicates is one click away in the card and one
+          more in the step's raw view.
+          Only a *write* is folded away. An edit keeps its text even with a card,
+          because the argument is the replacement rather than the file - a diff by
+          intent, which the card cannot say and opening the file does not show. And
+          both keep it when there is no card at all: for a failed write or one still
+          in flight, the argument is the only evidence of what was attempted. */}
+      {written !== null && !(showsCard && toolCall.name === "write_file") && (
+        <TextPanel text={written} />
+      )}
 
       {/* What a read answered, which is the file. Kept out of the muted one-liner
           below because it is the point of the call, not a status. */}

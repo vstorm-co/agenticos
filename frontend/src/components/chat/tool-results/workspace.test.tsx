@@ -131,10 +131,16 @@ describe("a workspace tool call", () => {
     expect(screen.getByText("This host can only read text")).toBeVisible();
   });
 
-  it("draws the card without controls for a file the workspace does not list", () => {
-    // The write went to a workspace this conversation cannot address - an agent-scoped
-    // one reached from elsewhere, or a listing that has not caught up. Naming the file
-    // is honest; offering to open it would not be.
+  it("offers the controls even when the listing has not caught up", () => {
+    // It used to withhold them, reasoning that offering to open a file we cannot
+    // confirm is dishonest. But the listing is behind for the whole of the
+    // interesting case: a workspace has no committed row until a turn flushes one, so
+    // a turn that wrote a file and then parked for approval drew a card with no way
+    // to open the file it had just made - and both buttons appeared after a reload.
+    //
+    // The card is drawn because the write *succeeded*, which is the same evidence the
+    // buttons need. A wrong path is a sentence from the viewer, which beats a control
+    // that was never offered.
     state.items = [];
 
     render(
@@ -142,12 +148,31 @@ describe("a workspace tool call", () => {
     );
 
     expect(screen.getByText("test.md")).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Open" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Open" })).toBeVisible();
   });
 
-  it("shows what was written, with a way to copy it", () => {
+  it("does not repeat a written file's contents under the card that opens it", () => {
+    // It used to paste the whole `content` argument beneath the card. Beside a card
+    // that names the file and opens it, that is the same thing told worse: it pushed
+    // the rest of the turn off the screen, and what it duplicated was one click away
+    // in the card and one more in the step's raw view.
     render(
       <WorkspaceToolResult toolCall={call()} resultText="Wrote 1 lines" conversationId="c-1" />,
+    );
+
+    expect(screen.getByText("test.md")).toBeVisible();
+    expect(screen.queryByText("hej")).toBeNull();
+  });
+
+  it("still shows what a failed write tried to put there", () => {
+    // No card, because nothing was written - so the argument is the only evidence of
+    // what was attempted, and folding it away would leave the turn unexplained.
+    render(
+      <WorkspaceToolResult
+        toolCall={call({ status: "error" })}
+        resultText="The workspace is full"
+        conversationId="c-1"
+      />,
     );
 
     expect(screen.getByText("hej")).toBeVisible();
