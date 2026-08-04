@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities import TOOL_NAME_PATTERN, CapabilityDef
 from app.agents.capabilities import get as get_capability
+from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
 from app.agents.spec import AgentSpec, CapabilityBindingSpec
 from app.core.audit import record_audit
 from app.core.exceptions import (
@@ -44,10 +45,12 @@ from app.repositories import (
     member_repo,
     organization_secret_repo,
     resource_grant_repo,
+    sandbox_connection_repo,
 )
 from app.schemas.agent import AgentRead, AgentVersionRead
 from app.services.access import AGENT, COLLECTION, SECRET, resolve_access, visible_resource_ids
 from app.services.file_storage import IMAGE_MIME_TYPES, MAX_AVATAR_SIZE, get_file_storage
+from app.services.sandbox_workspace import sandbox_config
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +60,9 @@ _SLUG_TRIM = re.compile(r"-{2,}")
 # Scopes an organization grants by default. Real per-org scope management is a
 # later concern; hardcoding the safe set here keeps the check honest in the
 # meantime rather than disabling it and forgetting.
-DEFAULT_GRANTED_SCOPES = frozenset({"knowledge:read", "web:read", "code:execute"})
+DEFAULT_GRANTED_SCOPES = frozenset(
+    {"knowledge:read", "web:read", "code:execute", "sandbox:execute"}
+)
 
 # How far the clone naming loop counts before it lets the collision be reported.
 _MAX_COPIES = 50
@@ -71,6 +76,69 @@ def _copy_name(base: str, attempt: int) -> str:
     """What the nth copy of `base` is called."""
     suffix = " (copy)" if attempt == 1 else f" (copy {attempt})"
     return f"{base[: _NAME_LIMIT - len(suffix)].rstrip()}{suffix}"
+
+
+async def _sandbox_problems(db: AsyncSession, ctx: AuthContext, spec: AgentSpec) -> list[str]:
+    """Workspace configurations this organization cannot honour.
+
+    Every one of these fails at run time otherwise, and by then the author is not
+    looking at a form - they are looking at a conversation where an agent stopped
+    answering. Each is also something the spec cannot know on its own: which
+    hosts this organization has registered, and what a backend without containers
+    does with a container's runtime.
+
+    What is deliberately *not* refused here is `session_scope="user"` on an agent
+    that might be reached without one. Publishing cannot know which surfaces an
+    agent will be exposed to, and a web-only agent with a per-user workspace is a
+    perfectly good configuration - as is one whose Slack binding overrides the
+    scope to `channel`. The run refuses instead, by name, when it turns out there
+    is nobody to attribute the workspace to.
+    """
+    config = sandbox_config(spec)
+    if config is None:
+        return []
+
+    problems: list[str] = []
+    if config.backend == "state":
+        if config.runtime is not None:
+            problems.append(
+                "The 'state' workspace runs no container, so it has no runtime to "
+                "choose. Clear the runtime, or put this agent on a sandbox connection."
+            )
+        if config.connection_id is not None:
+            problems.append(
+                "The 'state' workspace is stored by the platform, so it does not run "
+                "on a sandbox connection. Clear the connection, or switch the backend."
+            )
+        return problems
+
+    connection = None
+    if config.connection_id is not None:
+        connection = await sandbox_connection_repo.get(
+            db, config.connection_id, organization_id=ctx.organization_id
+        )
+        if connection is None:
+            problems.append(
+                "The sandbox connection this agent names does not exist in this "
+                "organization. Pick one that does, or leave it unset to use the default."
+            )
+    else:
+        connection = await sandbox_connection_repo.get_default(
+            db, organization_id=ctx.organization_id
+        )
+        if connection is None:
+            problems.append(
+                "This organization has registered no sandbox connection, so an agent "
+                "cannot be given a container-backed workspace. Register one, or use "
+                "the 'state' workspace, which needs nothing."
+            )
+
+    if connection is not None and connection.secret_id is None:
+        problems.append(
+            f"The sandbox connection '{connection.name}' has no credential, so no "
+            "sandbox can be opened on it. Attach its key in the vault."
+        )
+    return problems
 
 
 def _tool_override_problems(binding: CapabilityBindingSpec, definition: CapabilityDef) -> list[str]:
@@ -217,6 +285,14 @@ class AgentRegistryService:
                 mentioned in Slack, so silently disambiguating one would route
                 messages to the wrong agent.
         """
+        # A new agent opens with a prompt rather than an empty box. An agent with
+        # no instructions still answers - as whatever the underlying model is by
+        # default, which is a different product on every provider and changes when
+        # the model is upgraded. Applied here rather than as a field default,
+        # because a spec imported with an empty prompt means an empty prompt.
+        if not spec.instructions.strip():
+            spec = spec.model_copy(update={"instructions": DEFAULT_INSTRUCTIONS})
+
         slug = slugify(spec.name)
         if await agent_repo.get_by_slug(self.db, slug, organization_id=ctx.organization_id):
             raise AlreadyExistsError(
@@ -410,6 +486,8 @@ class AgentRegistryService:
                     "depend on who happens to run it."
                 )
 
+        problems.extend(await _sandbox_problems(self.db, ctx, spec))
+
         if problems:
             raise BadRequestError(
                 message="This agent cannot be published yet",
@@ -518,7 +596,37 @@ class AgentRegistryService:
             target_id=str(agent.id),
             details={"version": number, "note": note},
         )
+        await self._audit_shared_workspace(ctx, agent=agent, spec=spec, version=number)
         return version
+
+    async def _audit_shared_workspace(
+        self, ctx: AuthContext, *, agent: Agent, spec: AgentSpec, version: int
+    ) -> None:
+        """Record that this agent's workspace is now shared between people.
+
+        `session_scope="agent"` means any user of the agent reads what another
+        user wrote. It ships without a permission of its own, so the audit entry
+        is what makes the decision answerable afterwards: a member who opens a
+        chat and finds a file they never created can be told when the sharing
+        started and who chose it, instead of being left to conclude that
+        something leaked.
+        """
+        config = sandbox_config(spec)
+        if config is None or config.session_scope != "agent":
+            return
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="agent.workspace_shared",
+            target_type="agent",
+            target_id=str(agent.id),
+            details={
+                "version": version,
+                "session_scope": config.session_scope,
+                "backend": config.backend,
+            },
+        )
 
     async def _repoint_default_environment(
         self, ctx: AuthContext, *, agent: Agent, version: AgentVersion

@@ -35,6 +35,7 @@ import type {
 } from "@/types/agents";
 import { secretIsRequired } from "@/types/secrets";
 import type { Secret, SecretRequirement } from "@/types/secrets";
+import { useTranslations } from "next-intl";
 
 interface CapabilitySettingsProps {
   catalog: CapabilityCatalogEntry[];
@@ -43,10 +44,11 @@ interface CapabilitySettingsProps {
   disabled?: boolean;
 }
 
-const APPROVAL_OPTIONS: { value: ApprovalMode; label: string }[] = [
-  { value: "default", label: "Follow the capability" },
-  { value: "required", label: "Always ask" },
-  { value: "never", label: "Never ask" },
+/** The three modes, in order. Their words live in the catalog under `approval*`. */
+const APPROVAL_OPTIONS: { value: ApprovalMode; words: string }[] = [
+  { value: "default", words: "approvalFollow" },
+  { value: "required", words: "approvalAlways" },
+  { value: "never", words: "approvalNever" },
 ];
 
 /** What approval comes out to once every rule has been applied: ask, or don't. */
@@ -63,28 +65,26 @@ type ToolTextField = "name" | "description";
  */
 const TOOL_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
-/** Why this name will not do, or null when it will. Empty is not a name. */
+/**
+ * Why this name will not do, as a catalog key, or null when it will.
+ *
+ * A key rather than a sentence: this is a pure function, called from a form field and
+ * from its own tests, and threading a translator through it to produce two fixed
+ * strings would put the words further from the catalog rather than closer.
+ */
 export function toolNameError(name: string): string | null {
-  if (name.length === 0) return "The model calls the tool by this name, so it cannot be blank.";
-  if (!TOOL_NAME_PATTERN.test(name)) {
-    return "Letters, digits and underscores only - the model calls this name verbatim.";
-  }
+  if (name.length === 0) return "toolNameBlank";
+  if (!TOOL_NAME_PATTERN.test(name)) return "toolNamePattern";
   return null;
 }
 
-/** What the chosen mode means for *this* capability, in one line. */
+/** What the chosen mode means for *this* capability, as a catalog key. */
 export function approvalHint(mode: ApprovalMode, sideEffecting: boolean): string {
-  if (mode === "required") {
-    return "A person approves every call before it runs.";
-  }
+  if (mode === "required") return "approvalHintRequired";
   if (mode === "never") {
-    return sideEffecting
-      ? "The agent acts unattended. Only for actions your organization has decided are safe."
-      : "No approval, which is what this capability would do anyway.";
+    return sideEffecting ? "approvalHintNeverSideEffecting" : "approvalHintNeverReadOnly";
   }
-  return sideEffecting
-    ? "Held for approval, because this capability changes something outside the agent."
-    : "Runs without approval, because this capability only reads.";
+  return sideEffecting ? "approvalHintDefaultSideEffecting" : "approvalHintDefaultReadOnly";
 }
 
 /**
@@ -165,6 +165,16 @@ interface CapabilityDetailProps {
   definition: CapabilityCatalogEntry;
   onChange: (binding: CapabilityBindingSpec) => void;
   disabled?: boolean;
+  /**
+   * Suppress the generated configuration form.
+   *
+   * For a capability whose configuration is a decision rather than a set of
+   * fields - the workspace, where the choice of backend and of who shares it
+   * are presented as what they are and one of them carries a warning a schema
+   * cannot express. Everything else here (the secret, approval, tool text) is
+   * the same for every capability and is not worth a second implementation.
+   */
+  hideConfigForm?: boolean;
 }
 
 /**
@@ -179,7 +189,9 @@ export function CapabilityDetail({
   definition,
   onChange,
   disabled,
+  hideConfigForm,
 }: CapabilityDetailProps) {
+  const t = useTranslations("agents");
   return (
     // Grouped and named, so the tool rows below are read as belonging to
     // this capability rather than to the page.
@@ -191,14 +203,14 @@ export function CapabilityDetail({
           {definition.side_effecting && (
             <Badge variant="outline" className="gap-1">
               <ShieldAlert className="h-3 w-3" />
-              acts on the outside world
+              {t("actsOutsideWorld")}
             </Badge>
           )}
         </div>
 
         <p className="text-muted-foreground text-sm">{definition.description}</p>
 
-        {definition.config_schema && (
+        {definition.config_schema && !hideConfigForm && (
           <SchemaForm
             idPrefix={binding.id}
             schema={definition.config_schema}
@@ -227,7 +239,7 @@ export function CapabilityDetail({
         )}
 
         <div className="space-y-2">
-          <Label htmlFor={`${binding.id}-approval`}>Human approval</Label>
+          <Label htmlFor={`${binding.id}-approval`}>{t("humanApproval")}</Label>
           <Select
             value={binding.approval}
             disabled={disabled}
@@ -241,13 +253,13 @@ export function CapabilityDetail({
             <SelectContent>
               {APPROVAL_OPTIONS.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
-                  {option.label}
+                  {t(option.words)}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
           <p className="text-muted-foreground text-xs">
-            {approvalHint(binding.approval, definition.side_effecting)}
+            {t(approvalHint(binding.approval, definition.side_effecting))}
             {definition.tools.length > 0 &&
               " Every tool below follows this until you answer for it separately."}
           </p>
@@ -278,11 +290,12 @@ export function CapabilityDetail({
  * and telling those apart without the source is guesswork.
  */
 function SchemaPreview({ schema }: { schema: JsonSchema }) {
+  const t = useTranslations("agents");
   return (
     <details className="group">
       <summary className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-1.5 text-xs">
         <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
-        Configuration schema
+        {t("configurationSchema")}
       </summary>
       <pre className="text-muted-foreground bg-muted/50 mt-1.5 max-h-64 overflow-auto rounded-md p-3 text-xs">
         {JSON.stringify(schema, null, 2)}
@@ -310,16 +323,21 @@ export function secretProblem(
   requirement: SecretRequirement,
   secretId: string | null,
   secrets: readonly Secret[],
+  t: (key: string, values?: Record<string, string>) => string,
 ): string | null {
   if (secretId === null) {
-    return `No secret selected. This capability needs one of kind ${requirement.kind}, and the agent cannot be published until it has one.`;
+    return t("noSecretSelected", { kind: requirement.kind });
   }
   const secret = secrets.find((candidate) => candidate.id === secretId);
   if (secret === undefined) {
-    return "The secret selected here is not in this organization's vault - it was deleted, or the spec was written against another organization. Publishing refuses it.";
+    return t("secretMissingFromVault");
   }
   if (secret.kind !== requirement.kind) {
-    return `"${secret.name}" is of kind ${secret.kind}; this capability needs ${requirement.kind}. Publishing refuses it.`;
+    return t("secretOfWrongKind", {
+      name: secret.name,
+      kind: secret.kind,
+      needed: requirement.kind,
+    });
   }
   return null;
 }
@@ -388,6 +406,7 @@ function fitsPurpose(secret: Secret, purpose: string | null, selectedId: string 
  * by choosing, so offering it would be offering a way to break the agent.
  */
 function SecretField({ binding, requirement, onChange, disabled }: SecretFieldProps) {
+  const t = useTranslations("agents");
   const { secrets, isLoading, listError } = useSecrets();
   const fieldId = `${binding.id}-secret`;
   const errorId = `${fieldId}-error`;
@@ -404,13 +423,13 @@ function SecretField({ binding, requirement, onChange, disabled }: SecretFieldPr
   const vaultWasRead = state === "ready" || state === "empty";
   const problem =
     binding.secret_id === null || vaultWasRead
-      ? secretProblem(requirement, binding.secret_id, secrets)
+      ? secretProblem(requirement, binding.secret_id, secrets, t)
       : null;
 
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
-        <Label htmlFor={fieldId}>Secret</Label>
+        <Label htmlFor={fieldId}>{t("secret")}</Label>
         <span className="text-muted-foreground font-mono text-xs">{requirement.kind}</span>
       </div>
 
@@ -429,7 +448,7 @@ function SecretField({ binding, requirement, onChange, disabled }: SecretFieldPr
           aria-invalid={problem !== null}
           aria-describedby={problem === null ? undefined : errorId}
         >
-          <SelectValue placeholder={placeholderFor(state, requirement)} />
+          <SelectValue placeholder={placeholderFor(state, requirement, t)} />
         </SelectTrigger>
         <SelectContent>
           {usable.map((secret) => (
@@ -481,7 +500,7 @@ function SecretField({ binding, requirement, onChange, disabled }: SecretFieldPr
       {state === "empty" && requirement.kind !== "api_key" && (
         <p className="text-muted-foreground text-xs">
           <Link href={ROUTES.VAULT} className="underline">
-            Store one in the vault
+            {t("storeOneVault")}
           </Link>{" "}
           and it appears here - this shape has several fields, so it is filled in there. The value
           stays in the vault; an agent records which secret to use, never the secret.
@@ -526,16 +545,20 @@ function vaultState(isLoading: boolean, listError: Error | null, usableCount: nu
 }
 
 /** What the trigger says while nothing is chosen, which is not the same in each state. */
-function placeholderFor(state: VaultState, requirement: SecretRequirement): string {
+function placeholderFor(
+  state: VaultState,
+  requirement: SecretRequirement,
+  t: (key: string, values?: Record<string, string>) => string,
+): string {
   switch (state) {
     case "loading":
-      return "Reading the vault…";
+      return t("readingVault");
     case "unreadable":
-      return "The vault could not be read";
+      return t("vaultCouldNotBeRead");
     case "empty":
-      return `No ${requirement.kind} secret in the vault`;
+      return t("noSecretOfKind", { kind: requirement.kind });
     case "ready":
-      return "Choose a secret";
+      return t("chooseSecret");
   }
 }
 
@@ -555,19 +578,17 @@ interface StaleSecretNoticeProps {
  * be nothing on this page able to undo it.
  */
 function StaleSecretNotice({ binding, onChange, disabled }: StaleSecretNoticeProps) {
+  const t = useTranslations("agents");
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3">
-      <p className="text-destructive text-xs">
-        This capability uses no secret, so the one selected for it would be stored and never read.
-        Publishing refuses it.
-      </p>
+      <p className="text-destructive text-xs">{t("capabilityUsesNoSecret")}</p>
       <Button
         variant="ghost"
         size="sm"
         disabled={disabled}
         onClick={() => onChange({ ...binding, secret_id: null })}
       >
-        Clear secret
+        {t("clearSecret")}
       </Button>
     </div>
   );
@@ -592,12 +613,15 @@ interface ToolListProps {
  * them stopped following it.
  */
 function ToolList({ binding, tools, contracts, sideEffecting, onChange, disabled }: ToolListProps) {
+  const t = useTranslations("agents");
   const changed = tools.filter((tool) => isToolOverridden(binding, tool.id));
 
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Tools</p>
+        <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+          {t("tools")}
+        </p>
         {changed.length > 0 && (
           <Button
             variant="ghost"
@@ -605,16 +629,16 @@ function ToolList({ binding, tools, contracts, sideEffecting, onChange, disabled
             disabled={disabled}
             onClick={() => onChange({ ...binding, tool_approval: {}, tool_overrides: {} })}
           >
-            {changed.length === 1 ? "Clear 1 override" : `Clear ${changed.length} overrides`}
+            {changed.length === 1 ? t("clear1Override") : `Clear ${changed.length} overrides`}
           </Button>
         )}
       </div>
 
       <p className="text-muted-foreground text-xs">
         A tool&apos;s name and description are the prompt the model reads before it decides to call
-        it, so both steer it: <span className="font-mono">search_refund_policy</span> is reached for
-        on questions <span className="font-mono">search_documents</span> is passed over for. Edits
-        here apply to this agent alone.
+        it, so both steer it: <span className="font-mono">{t("searchRefundPolicy")}</span> is
+        reached for on questions <span className="font-mono">{t("searchDocuments")}</span>
+        {t("passedOverEditsHere")}
       </p>
 
       <ul className="divide-y rounded-md border">
@@ -645,10 +669,12 @@ interface ToolRowProps {
 }
 
 function ToolRow({ binding, tool, contract, sideEffecting, onChange, disabled }: ToolRowProps) {
+  const t = useTranslations("agents");
   const fieldId = (suffix: string) => `${binding.id}-tool-${tool.id}-${suffix}`;
   const approval = overrideFor(binding, tool.id);
   const name = effectiveText(binding, tool, "name");
-  const nameError = toolNameError(name);
+  const nameKey = toolNameError(name);
+  const nameError = nameKey === null ? null : t(nameKey);
   const changed = isToolOverridden(binding, tool.id);
 
   const edit = (field: ToolTextField, value: string) =>
@@ -675,14 +701,14 @@ function ToolRow({ binding, tool, contract, sideEffecting, onChange, disabled }:
     >
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-muted-foreground font-mono text-xs">{tool.id}</span>
-        {changed && <Badge variant="secondary">overridden</Badge>}
+        {changed && <Badge variant="secondary">{t("overridden")}</Badge>}
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <ToolField
           htmlFor={fieldId("name")}
-          label="Name"
-          reset={resetFor("name", "Reset name")}
+          label={t("name2")}
+          reset={resetFor("name", t("resetName"))}
           error={nameError}
           disabled={disabled}
         >
@@ -698,7 +724,7 @@ function ToolRow({ binding, tool, contract, sideEffecting, onChange, disabled }:
           />
         </ToolField>
 
-        <ToolField htmlFor={fieldId("approval")} label="Approval" disabled={disabled}>
+        <ToolField htmlFor={fieldId("approval")} label={t("approval")} disabled={disabled}>
           <Select
             value={approval ?? "default"}
             disabled={disabled}
@@ -712,12 +738,12 @@ function ToolRow({ binding, tool, contract, sideEffecting, onChange, disabled }:
             <SelectContent>
               <SelectItem value="default">
                 {resolveCapabilityApproval(binding.approval, sideEffecting) === "required"
-                  ? "Follow the capability - always ask"
-                  : "Follow the capability - never ask"}
+                  ? t("followCapabilityAlwaysAsk")
+                  : t("followCapabilityNeverAsk")}
               </SelectItem>
               {APPROVAL_OPTIONS.filter((option) => option.value !== "default").map((option) => (
                 <SelectItem key={option.value} value={option.value}>
-                  {option.label}
+                  {t(option.words)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -727,8 +753,8 @@ function ToolRow({ binding, tool, contract, sideEffecting, onChange, disabled }:
 
       <ToolField
         htmlFor={fieldId("description")}
-        label="Description the model reads"
-        reset={resetFor("description", "Reset description")}
+        label={t("descriptionModelReads")}
+        reset={resetFor("description", t("resetDescription"))}
         disabled={disabled}
       >
         {/* One field, holding the whole text. An override replaces everything
@@ -765,6 +791,7 @@ function ToolRow({ binding, tool, contract, sideEffecting, onChange, disabled }:
  * cannot rename them.
  */
 function ToolContract({ contract }: { contract: CapabilityToolContract }) {
+  const t = useTranslations("agents");
   const properties = contract.parameters.properties ?? {};
   const names = Object.keys(properties);
   const required = new Set(contract.parameters.required ?? []);
@@ -784,7 +811,9 @@ function ToolContract({ contract }: { contract: CapabilityToolContract }) {
                 <span className="text-muted-foreground font-mono">
                   {jsonSchemaType(properties[name])}
                 </span>
-                {required.has(name) && <span className="text-muted-foreground">required</span>}
+                {required.has(name) && (
+                  <span className="text-muted-foreground">{t("required")}</span>
+                )}
               </li>
             ))}
           </ul>

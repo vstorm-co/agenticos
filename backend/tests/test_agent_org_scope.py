@@ -219,3 +219,66 @@ class TestPersistUserTurnOrgScope:
                 current_conversation_id=None,
                 organization_id=uuid.uuid4(),
             )
+
+
+class TestPersistAssistantTurnRecordsWhatItCost:
+    """The cost of an answer is asked about afterwards.
+
+    It used to live in the `complete` frame alone, so it existed for exactly as long
+    as the tab did: a reopened conversation showed no cost under the input and none
+    under any message, and the numbers came back only after sending something new.
+    """
+
+    def _conv_service(self):
+        service = MagicMock()
+        service.add_message = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
+        service.start_tool_call = AsyncMock()
+        return service
+
+    @pytest.mark.anyio
+    async def test_the_split_and_the_money_are_written_to_the_message(self):
+        from decimal import Decimal
+
+        from app.services.agent import persist_assistant_turn
+        from app.services.usage_report import UsageReport
+
+        service = self._conv_service()
+
+        with (
+            patch("app.services.agent.get_db_context", _fake_db_context),
+            patch("app.services.agent.get_conversation_service", return_value=service),
+        ):
+            await persist_assistant_turn(
+                str(uuid.uuid4()),
+                "answered",
+                "gpt-4.1",
+                [],
+                organization_id=uuid.uuid4(),
+                usage=UsageReport(input_tokens=1200, output_tokens=300, cost_usd=Decimal("0.0125")),
+            )
+
+        written = service.add_message.await_args.kwargs["data"]
+        assert (written.input_tokens, written.output_tokens) == (1200, 300)
+        assert written.cost_usd == Decimal("0.0125")
+
+    @pytest.mark.anyio
+    async def test_a_turn_nobody_could_measure_records_nothing_rather_than_zero(self):
+        """Null reads back as "not recorded". Zeroes would say the answer was free."""
+        from app.services.agent import persist_assistant_turn
+
+        service = self._conv_service()
+
+        with (
+            patch("app.services.agent.get_db_context", _fake_db_context),
+            patch("app.services.agent.get_conversation_service", return_value=service),
+        ):
+            await persist_assistant_turn(
+                str(uuid.uuid4()), "answered", None, [], organization_id=uuid.uuid4()
+            )
+
+        written = service.add_message.await_args.kwargs["data"]
+        assert (written.input_tokens, written.output_tokens, written.cost_usd) == (
+            None,
+            None,
+            None,
+        )

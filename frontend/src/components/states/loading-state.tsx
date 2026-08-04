@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 
 /**
  * The shape a wait stands in for.
@@ -101,8 +102,9 @@ function Bar({ className }: { className?: string }) {
  * hears "Loading" once instead of narrating twenty decorative bars.
  */
 function Shell({ className, children }: { className?: string; children: ReactNode }) {
+  const t = useTranslations("states");
   return (
-    <div role="status" aria-label="Loading" className={className}>
+    <div role="status" aria-label={t("loading")} className={className}>
       {children}
     </div>
   );

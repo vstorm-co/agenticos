@@ -21,6 +21,7 @@ import {
 import { useMembers, useSharing } from "@/hooks";
 import { useOrgStore } from "@/stores";
 import type { GrantLevel, ResourceGrant, SharingResourceType, Visibility } from "@/types/sharing";
+import { useTranslations } from "next-intl";
 
 interface SharingPanelProps {
   resourceType: SharingResourceType;
@@ -54,29 +55,15 @@ const NOUN: Record<SharingResourceType, string> = {
  */
 const VISIBILITY_OPTIONS: {
   value: Visibility;
-  label: string;
-  reaches: (noun: string) => string;
+  /** Catalog key for this visibility's name; `<key>Reaches` says who it reaches. */
+  words: string;
 }[] = [
-  {
-    value: "private",
-    label: "Private",
-    reaches: (noun) =>
-      `Only you and the people listed below. Nobody else finds this ${noun} in their list - and if it has no owner yet, it becomes yours.`,
-  },
-  {
-    value: "org",
-    label: "Organization",
-    reaches: (noun) => `Everyone in the organization who can view ${noun}s at all.`,
-  },
+  { value: "private", words: "visibilityPrivate" },
+  { value: "org", words: "visibilityOrg" },
 ];
 
 /** Shown only for a row already set to it, so it can be seen and moved off. */
-const LEGACY_TEAM = {
-  value: "team" as Visibility,
-  label: "Team (no longer offered)",
-  reaches: (noun: string) =>
-    `Anyone whose role reaches team ${noun}s. This organization has no teams - pick one of the two above.`,
-};
+const LEGACY_TEAM = { value: "team" as Visibility, words: "visibilityTeam" };
 
 /**
  * What a share actually reaches, per resource type.
@@ -91,21 +78,21 @@ const LEGACY_TEAM = {
  * get wrong, so it is written down where the decision is made.
  */
 const RUNTIME_NOTE: Partial<Record<SharingResourceType, string>> = {
-  secret:
-    "Sharing controls who can bind this key to an agent and who can rotate it - not who benefits from it. Once an agent uses this key, it runs with it for everyone who can run that agent, including people who cannot see the key here.",
-  collection:
-    "Sharing controls who can pick this collection in the Builder and who can change it. An agent connected to it searches it for everyone who can run that agent, including people who cannot open the collection themselves.",
+  secret: "secretRuntimeNote",
+  collection: "collectionRuntimeNote",
 };
 
-const LEVEL_OPTIONS: { value: GrantLevel; label: string }[] = [
-  { value: "read", label: "Can view" },
-  { value: "use", label: "Can use" },
-  { value: "edit", label: "Can edit" },
+/** Each level's word is in the catalog; `words` names the key. */
+const LEVEL_OPTIONS: { value: GrantLevel; words: string }[] = [
+  { value: "read", words: "levelRead" },
+  { value: "use", words: "levelUse" },
+  { value: "edit", words: "levelEdit" },
 ];
 
 /** Radix hands back a plain string; a level the catalog does not know is a bug, not a default. */
 export function toLevel(value: string): GrantLevel {
   const option = LEVEL_OPTIONS.find((candidate) => candidate.value === value);
+  // i18n-exempt: a bug in the caller, never shown to a reader
   if (!option) throw new Error(`Unknown grant level: ${value}`);
   return option.value;
 }
@@ -129,6 +116,7 @@ function subjectLabel(grant: ResourceGrant): string {
  * would drift from the first the day either one is fixed.
  */
 export function SharingPanel({ resourceType, resourceId, canManage }: SharingPanelProps) {
+  const t = useTranslations("sharing");
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const { members } = useMembers(activeOrgId ?? "");
   const { sharing, isLoading, share, revoke, setVisibility } = useSharing(resourceType, resourceId);
@@ -163,11 +151,8 @@ export function SharingPanel({ resourceType, resourceId, canManage }: SharingPan
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Visibility</CardTitle>
-          <CardDescription>
-            Who reaches this {noun} without being named. Sharing adds people on top of this; it
-            never takes access away.
-          </CardDescription>
+          <CardTitle>{t("visibility")}</CardTitle>
+          <CardDescription>{t("visibilityReaches", { noun })}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
           {[...VISIBILITY_OPTIONS, ...(sharing.visibility === "team" ? [LEGACY_TEAM] : [])].map(
@@ -185,8 +170,10 @@ export function SharingPanel({ resourceType, resourceId, canManage }: SharingPan
                     onChange={() => setVisibility.mutate(option.value)}
                   />
                   <div className="space-y-1">
-                    <Label htmlFor={id}>{option.label}</Label>
-                    <p className="text-muted-foreground text-sm">{option.reaches(noun)}</p>
+                    <Label htmlFor={id}>{t(option.words)}</Label>
+                    <p className="text-muted-foreground text-sm">
+                      {t(`${option.words}Reaches`, { noun })}
+                    </p>
                   </div>
                 </div>
               );
@@ -197,23 +184,21 @@ export function SharingPanel({ resourceType, resourceId, canManage }: SharingPan
 
       <Card>
         <CardHeader>
-          <CardTitle>People</CardTitle>
-          <CardDescription>
-            A share lifts one person&apos;s access to this {noun} without changing their role
-            anywhere else. Can view sees the configuration, can use also runs it, can edit also
-            changes it.
-          </CardDescription>
+          <CardTitle>{t("people")}</CardTitle>
+          <CardDescription>{t("peopleReaches", { noun })}</CardDescription>
           {RUNTIME_NOTE[resourceType] && (
             <p className="text-muted-foreground border-border mt-2 border-l-2 pl-3 text-sm">
-              {RUNTIME_NOTE[resourceType]}
+              {t(RUNTIME_NOTE[resourceType]!)}
             </p>
           )}
         </CardHeader>
         <CardContent className="space-y-3">
-          {ownerEmail && <p className="text-muted-foreground text-sm">Owned by {ownerEmail}</p>}
+          {ownerEmail && (
+            <p className="text-muted-foreground text-sm">{t("ownedBy", { email: ownerEmail })}</p>
+          )}
 
           {sharing.grants.length === 0 && (
-            <p className="text-muted-foreground text-sm">Not shared with anyone yet.</p>
+            <p className="text-muted-foreground text-sm">{t("notSharedWithAnyone")}</p>
           )}
 
           {sharing.grants.map((grant) => {
@@ -223,7 +208,7 @@ export function SharingPanel({ resourceType, resourceId, canManage }: SharingPan
               <div key={grant.id} className="flex items-center gap-3 rounded-md border p-3">
                 <span className="min-w-0 flex-1 truncate text-sm">{name}</span>
                 <Label htmlFor={id} className="sr-only">
-                  Access for {name}
+                  {t("accessFor", { name })}
                 </Label>
                 <Select
                   value={grant.level}
@@ -241,7 +226,7 @@ export function SharingPanel({ resourceType, resourceId, canManage }: SharingPan
                   <SelectContent>
                     {LEVEL_OPTIONS.map((option) => (
                       <SelectItem key={option.value} value={option.value}>
-                        {option.label}
+                        {t(option.words)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -264,7 +249,7 @@ export function SharingPanel({ resourceType, resourceId, canManage }: SharingPan
           {canManage && (
             <div className="flex flex-wrap items-end gap-3 border-t pt-4">
               <div className="min-w-56 flex-1 space-y-2">
-                <Label htmlFor="share-with">Add someone</Label>
+                <Label htmlFor="share-with">{t("addSomeone")}</Label>
                 <Select
                   value={subjectUserId}
                   onValueChange={setSubjectUserId}
@@ -273,7 +258,7 @@ export function SharingPanel({ resourceType, resourceId, canManage }: SharingPan
                   <SelectTrigger id="share-with">
                     <SelectValue
                       placeholder={
-                        candidates.length === 0 ? "Everyone already has access" : "Choose a member"
+                        candidates.length === 0 ? t("everyoneAlreadyHasAccess") : t("chooseMember")
                       }
                     />
                   </SelectTrigger>
@@ -287,7 +272,7 @@ export function SharingPanel({ resourceType, resourceId, canManage }: SharingPan
                 </Select>
               </div>
               <div className="w-40 space-y-2">
-                <Label htmlFor="share-level">Access</Label>
+                <Label htmlFor="share-level">{t("access")}</Label>
                 <Select value={level} onValueChange={(value) => setLevel(toLevel(value))}>
                   <SelectTrigger id="share-level">
                     <SelectValue />
@@ -295,7 +280,7 @@ export function SharingPanel({ resourceType, resourceId, canManage }: SharingPan
                   <SelectContent>
                     {LEVEL_OPTIONS.map((option) => (
                       <SelectItem key={option.value} value={option.value}>
-                        {option.label}
+                        {t(option.words)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -303,7 +288,7 @@ export function SharingPanel({ resourceType, resourceId, canManage }: SharingPan
               </div>
               <Button onClick={addShare} disabled={subjectUserId === "" || share.isPending}>
                 <UserPlus className="h-4 w-4" />
-                Share
+                {t("share")}
               </Button>
             </div>
           )}

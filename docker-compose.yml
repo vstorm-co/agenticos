@@ -43,6 +43,9 @@ services:
       - POSTGRES_HOST=db
       - REDIS_HOST=redis
       - PREFECT_API_URL=http://prefect-server:4200/api
+      # Empty outside compose, so a bare `uvicorn` run degrades to "no container
+      # workspace available" rather than erroring. Note what is absent here:
+      # no docker.sock, which is the whole point of the service below.
     # --ws websockets-sansio: uvicorn's `auto` picks the legacy websockets impl,
     # which is broken with websockets >=14 (handshake → HTTP 500). The sansio
     # implementation is the modern, compatible one. Required for the chat WS.
@@ -142,6 +145,68 @@ services:
         condition: service_healthy
       db:
         condition: service_healthy
+    restart: unless-stopped
+
+  # The only service that holds the Docker socket, and the reason an agent can
+  # be given a container without this application ever having Docker access.
+  # Behind a profile so a host that will not have the socket mounted turns it
+  # off by editing one variable rather than deleting a service.
+  #
+  # The socket is an unauthenticated API for root on the host. Read-only does
+  # not help: the API alone is enough. So the service is never published, and
+  # its token is worth exactly as much as the socket is.
+  sandboxd:
+    image: ghcr.io/vstorm-co/sandboxd:0.2
+    container_name: agenticos_sandboxd
+    profiles: [sandbox]
+    # The token comes from the same file every other secret in this stack comes
+    # from, rather than through compose interpolation. Interpolation reads the
+    # project root, not `backend/.env`, so a token generated where the
+    # application reads it would have been invisible here - and every other
+    # variable in this file carries a default precisely so the stack starts with
+    # no env file at all. The service exits naming the variable when it is
+    # missing, which `docker compose logs sandboxd` shows.
+    env_file:
+      - ./backend/.env
+    environment:
+      SANDBOXD_HOST: 0.0.0.0
+      SANDBOXD_PORT: "8080"
+      # One host path, mounted at the same location on both sides, which is the
+      # only arrangement that works: this service creates the directory and then
+      # asks the *daemon* to bind-mount it, and the daemon resolves the path on
+      # the host. A named volume, or any path existing only inside this
+      # container, is refused with "mounts denied: the path is not shared from
+      # the host".
+      #
+      # Without it the service keeps nothing on disk, and then a workspace can
+      # only be read by starting a container - which browsing deliberately never
+      # does, so the Files panel could show a conversation's files only as
+      # "this host's files could not be read". `persist_containers` did keep them
+      # alive; it did not make them readable.
+      #
+      # `/tmp` rather than the `/var/lib` of the server files: it is shared by
+      # Docker Desktop by default, so this works on a laptop with no host setup,
+      # and it is world-writable, so the service's uid 10001 needs no `install
+      # -d -o`. The cost is that a reboot sweeps it - fine for local dev, wrong
+      # for a host somebody's work lives on. See docker-compose-prod.yml.
+      SANDBOXD_WORKSPACE_ROOT: ${SANDBOX_WORKSPACE_ROOT:-/tmp/agenticos-sandbox-workspaces}
+      SANDBOXD_PERSIST_CONTAINERS: "true"
+      # One organization cannot occupy the pool of the whole installation.
+      SANDBOXD_MAX_SESSIONS_PER_TENANT: "5"
+      SANDBOXD_NETWORK_MODE: none
+      # Its own dashboard asks a human to paste a root-equivalent token into a
+      # browser. AgenticOS proxies the same data behind its own authorization.
+      SANDBOXD_UI_ENABLED: "0"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${SANDBOX_WORKSPACE_ROOT:-/tmp/agenticos-sandbox-workspaces}:${SANDBOX_WORKSPACE_ROOT:-/tmp/agenticos-sandbox-workspaces}
+    # Reaches the daemon by supplementary group rather than by running as root.
+    # `stat -c '%g' /var/run/docker.sock` on the host; 0 on Docker Desktop,
+    # where the socket is proxied and already reachable.
+    group_add:
+      - "${DOCKER_GID:-0}"
+    networks:
+      - backend
     restart: unless-stopped
 
 networks:

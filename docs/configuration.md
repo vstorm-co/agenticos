@@ -207,6 +207,198 @@ refused.
 | `S3_RAG_BUCKET` | `agenticos-rag` | Bucket name |
 | `S3_RAG_REGION` | `us-east-1` | AWS region |
 
+## Agent workspaces
+
+The `state` workspace needs nothing here. It is stored in this database, works on
+every deployment, and is what an agent gets by default — so the settings below
+are only for a container-backed one.
+
+| Variable | Default | Notes |
+|---|---|---|
+| `SANDBOX_STATE_MAX_BYTES` | 4 MiB | Per workspace. Past it a write is refused with a message the model reads |
+| `SANDBOX_INLINE_IMAGE_MAX_BYTES` | 5 MiB | Above this an attached image is written to the workspace and not also sent inline |
+
+**Where sandboxes run is not a setting.** It is a row per organization — Sandboxes
+in the app, `sandbox_connections` in the database — with the service token in the
+vault. Two reasons, and neither is expressible in an environment variable: a
+deployment can hold more than one host, and one address per deployment gave every
+organization the same one; and the token authorises opening a session, which runs
+commands on the host holding the Docker socket, so it belongs where every other
+credential at rest lives.
+
+An operator registers a connection with a name, an address, and a key from the
+vault. An agent names one by id, exactly as it names a model profile, or names
+none and takes the organization's default — so moving to another host is one edit
+rather than a republish of every agent.
+
+**The service token is worth what the Docker socket is worth.** The service holds
+that socket, the socket is an unauthenticated API for root on the host, and the
+token is what opens a session on it. Never in a browser, never in a log, never
+committed — which is why the operator screen shows only that a credential is
+attached, and why `GET /policy` is proxied through this API rather than fetched by
+the browser. The service's own dashboard (`SANDBOXD_UI_ENABLED`) is off in every
+shipped compose file for the same reason: it asks a human to paste this value into
+a browser.
+
+`SANDBOXD_TOKEN` in `backend/.env` is the *service's* own — what the daemon in the
+compose file will accept. `make sandbox-token` generates it, and the connection
+form stores the same value in the vault for you: the API reads this setting for
+exactly one purpose, offering it to the vault, and asking somebody to copy a secret
+out of a file their own stack is already reading is friction with nothing behind
+it. It is never used to reach a host — resolving a connection unseals the vault
+entry that connection names, and that stays the only path — so a deployment that
+leaves it unset loses one button and nothing else, and pastes the token instead.
+
+The same form asks whether a service is already answering, rather than making an
+operator know that a `make dev` sandbox service lives at `http://sandboxd:8080`.
+That address is not configuration and deliberately so — it is a row, because a
+deployment can hold several hosts — so the API probes the unauthenticated
+`/healthz` at the address this project's compose file uses and prefills what
+answered. Nothing is decided by asking: no service means an empty field, and a
+connection already pointing there is named so nobody registers one host twice.
+
+**The address is fetched by this API, so it is validated as one.** Registering or
+probing a connection makes the API container issue an authenticated `GET` and hands
+the JSON body back, which is a request-forgery primitive if the address is taken on
+trust. So `base_url` refuses anything that is not `http(s)` with a host, and refuses
+link-local addresses and the instance-metadata hostnames outright —
+`169.254.169.254` and `metadata.google.internal` are never a sandbox service.
+
+Private addresses stay allowed, and have to: `http://sandboxd:8080` inside compose
+and `http://localhost:8080` for a developer running the API on their host are both
+private, so a private-range denylist would refuse the deployment this page
+describes. That means the validator narrows the hole rather than closing it — a
+hostname that resolves to something internal still resolves. **The boundary that
+actually holds is `connections:manage` plus egress policy on the API container**:
+whoever may register a host is trusted with one, and a deployment on a network
+holding unauthenticated internal APIs should say so at the network rather than here.
+
+The service runs behind the `sandbox` compose profile, which is on by default in
+local dev and off elsewhere until an operator opts in — mounting the Docker socket
+on a shared host is a deliberate act. `COMPOSE_DEV_PROFILES` in the Makefile is
+the one place to change that. `uv run agenticos cmd doctor` probes every registered
+connection: whether it answers, whether it accepts its credential, and whether it
+allows any runtime at all. No connection registered is a warning, not a failure —
+the `state` workspace needs none.
+
+**Browsing what the agents kept.** Workspaces is its own screen — not part of
+Sandboxes, which is about *hosts*. Each row names the agent, the conversation the
+files belong to (or how many chats reach them, for a workspace no single
+conversation owns), who can see them, how big it is and when it was last used.
+**Open** goes to that workspace's own page: folders walked one at a time, a search
+box over the whole tree rather than the folder on screen, tiles for the files, and
+every file downloadable. A second view on the listing flattens every file the reader
+can see into one grid — the "who is holding a copy of that CSV" question the
+per-workspace page cannot answer.
+
+**Clicking a file opens it in a viewer, and it is the same viewer in the chat panel.**
+An image is a picture, a PDF is the browser's own PDF view, markdown offers *Preview*
+and *Source* — both are the file, and a `#` that silently became large type is how
+somebody fails to notice their agent is writing markdown into something nothing reads
+as markdown — and anything else is its text. Download is always there, including for
+what cannot be shown at all. One component, because "open this file" meaning two
+different things on two screens is how the second one ends up missing a case.
+
+Bytes come from `GET /sandbox-workspaces/{id}/raw?path=…`, or from `GET
+/conversations/{id}/workspace/raw?path=…` for the panel beside a chat. Two routes
+rather than one because they authorise different callers — the conversation route is
+reached by fetching the conversation, so somebody a chat was *shared with* keeps
+access — and one module deciding what may be displayed, so the answer cannot differ
+by surface. Almost everything is served as an attachment; **raster images and PDFs**
+are served for display, a raster because it cannot execute and a PDF because the
+browser renders it in its own viewer, which never gets the page's DOM. **SVG and HTML
+are downloadable and never displayable** — an SVG served inline from this origin is
+stored cross-site scripting written by whatever the agent decided to save, and "the
+agent wrote it" is not a trust boundary. Everything else is typed
+`application/octet-stream` with `X-Content-Type-Options: nosniff`, so a browser
+cannot decide such a body is HTML after all. The filename travels as `filename*`
+only, because a workspace path can hold any UTF-8 and the bare form has no way to
+say so.
+
+Only a **stored** workspace can serve arbitrary bytes. A container-backed one is read
+through the workspace archive, whose only reader is textual, so a text file is served
+by encoding it and anything else is refused rather than quietly mangled — the browser
+offers the download beside the refusal so the answer is never a dead end.
+
+Files are read only when a workspace is opened, or when the flat view is switched
+on: a deployment can hold one per warm conversation, so reading each to render the
+table would be a request per row for a page nobody has asked a question of yet. The
+flat view is bounded for the same reason, and says so — how many workspaces it read,
+how many it could not, and whether more exist. A shorter list is otherwise
+indistinguishable from fewer files.
+
+**Who sees which workspace is decided per reader, in the query.** A caller holding
+`connections:manage` sees the organization's — the honest bar for a listing that
+crosses chats that are not theirs. Everybody else sees the workspaces they are part
+of: their own `user`-scoped files, the workspaces of their own conversations, and
+the shared workspace of an agent they have talked to. "Have talked to" rather than
+"could open", deliberately: `agent` scope shares one workspace across an agent's
+users and the chat panel already shows those files to anybody in a conversation
+with it, so being *able* to open the agent is a wider claim than this listing makes.
+
+`channel` scope is visible to an operator only, which is correct rather than an
+oversight — it is keyed on a Slack or Telegram chat, so the people sharing it are
+identified by that platform and not by a row in `users`.
+
+A workspace fetched by id applies the same three predicates and answers **not
+found** rather than forbidden when they fail: an id must not be usable to discover
+which workspaces exist in a colleague's conversation. Nothing here crosses an
+organization — an app admin browsing another tenant's files would be the one read
+this platform refuses, so they switch organization like anybody else.
+
+**A container-backed workspace is read off the host volume, which needs one.** The
+sandbox service serves those files from `SANDBOXD_WORKSPACE_ROOT`, and that is what
+lets a conversation from last month list its files after its session was reaped —
+no container is started to answer. A service configured *without* one keeps nothing
+on disk, so its files exist only while a sandbox is running and cannot be read
+without starting one: the Files panel could then only say so, for a file the agent
+had demonstrably just written.
+
+Every compose file therefore sets one, overridable with `SANDBOX_WORKSPACE_ROOT` (an
+environment variable where compose interpolates it — the project root, not
+`backend/.env`, except on the `dev` and `prod` targets which pass that file
+explicitly) — one host path,
+bind-mounted at the same location on both sides, because the service creates the
+directory and then asks the *daemon* to mount it and the daemon resolves the path on
+the host. A named volume, or any path existing only inside the service's container,
+is refused with "mounts denied". Local dev defaults to
+`/tmp/agenticos-sandbox-workspaces`, which Docker Desktop shares and anybody can
+write to, so a laptop needs no setup; the server files default to
+`/var/lib/agenticos/sandbox-workspaces`, which has to exist and be writable by uid
+10001 (`install -d -o 10001` once) and belongs on storage somebody backs up. A
+reboot sweeps `/tmp`, which is the one reason not to point a real deployment there.
+
+That is reported rather than raised. Every listing carries `unreadable_reason`, and
+a client shows it as an explanation instead of an error, because neither cause is a
+fault: a service keeping nothing on disk is a configuration with a one-line fix the
+message names, and a host that is down will be up later. Raising made it a 500,
+which a browser could only render as "something went wrong" — beside an empty list,
+which reads as "there are no files". Two wrong answers at once. Reading *one file*
+from such a host is refused with the same sentence rather than reported as "no such
+file", which would say the file is missing when it is not.
+
+**What is running is read from the service too.** The Sandboxes screen lists this
+organization's open sandboxes on its default host — runtime, what shares each one,
+idle time, and memory against its own ceiling when asked — plus the activity log
+per sandbox: which paths were read, which commands ran, and how each went. Neither
+file contents nor command output is recorded by the service, which is what keeps
+an audit trail from becoming a way to read another agent's work.
+
+That listing is **filtered, not forwarded**. One `sandboxd` answers for every
+organization that registered a connection at its address, so passing its response
+through would show one tenant another tenant's containers. Sessions are matched on
+the `tenant` label this platform sets when it opens one, and named from
+`agent_workspaces` rather than by decoding the session id — the id encodes the
+scope key, and parsing it back would make that format a schema.
+
+**What the service allows is read from the service.** The runtime allowlist and the
+ceiling behind each alias (`SANDBOXD_RUNTIMES`, `SANDBOXD_MEM_LIMIT`,
+`SANDBOXD_NETWORK_MODE`, `SANDBOXD_MAX_SESSIONS_PER_TENANT` and the rest) are its
+own boot configuration, and there is deliberately no endpoint to write them: a
+browser that could reconfigure the process holding the Docker socket would own the
+host. The Sandboxes screen *reads* them so what is in force is visible, and the
+Builder offers an agent only the aliases the service will actually accept.
+
 ## Messaging Channels
 
 | Variable | Default | Description |

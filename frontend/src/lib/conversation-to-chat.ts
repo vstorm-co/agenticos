@@ -1,3 +1,4 @@
+import { storedUsage } from "./message-usage";
 import type { ChatMessage, ChatMessageFile, MessagePart, ToolCall } from "@/types";
 
 /**
@@ -27,6 +28,10 @@ export interface RawMessage {
   user_rating?: number | null;
   rating_count?: { likes: number; dislikes: number } | null;
   files?: ChatMessageFile[] | null;
+  /** What the turn cost. Absent on a message written before it was recorded. */
+  input_tokens?: number | null;
+  output_tokens?: number | null;
+  cost_usd?: string | null;
 }
 
 /**
@@ -79,6 +84,7 @@ export function conversationMessageToChatMessage(msg: RawMessage): ChatMessage {
     conversationId: msg.conversation_id,
     agentId: msg.agent_id ?? undefined,
     agentVersion: msg.agent_version ?? undefined,
+    usage: storedUsage(msg) ?? undefined,
     toolCalls,
     parts,
     user_rating: msg.user_rating ?? undefined,

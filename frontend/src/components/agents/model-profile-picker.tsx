@@ -8,6 +8,7 @@ import { Badge, Button } from "@/components/ui";
 import { useModelProviders } from "@/hooks";
 import { cn } from "@/lib/utils";
 import type { ModelProfile } from "@/types/providers";
+import { useTranslations } from "next-intl";
 
 interface ModelProfilePickerProps {
   profiles: ModelProfile[];
@@ -57,11 +58,12 @@ export function ModelProfilePicker({
   allowAdd = false,
   disabled,
 }: ModelProfilePickerProps) {
+  const t = useTranslations("agents");
   const { deleteProfile } = useModelProviders();
   const selected = profiles.find((profile) => profile.id === value);
 
   const list = (
-    <div role="radiogroup" aria-label="Model" className="space-y-1">
+    <div role="radiogroup" aria-label={t("model2")} className="space-y-1">
       {profiles.map((profile) => (
         <ProfileRow
           key={profile.id}
@@ -91,9 +93,7 @@ export function ModelProfilePicker({
       return (
         <div className="border-border rounded-lg border border-dashed p-6 text-center">
           <KeyRound className="text-muted-foreground mx-auto h-5 w-5" />
-          <p className="text-muted-foreground mt-2 text-sm">
-            This organization has no models yet. An agent cannot run without one.
-          </p>
+          <p className="text-muted-foreground mt-2 text-sm">{t("organizationHasNoModels")}</p>
         </div>
       );
     }
@@ -113,7 +113,7 @@ export function ModelProfilePicker({
           // nothing distinguishes "what this agent runs on" from "one of the
           // options".
           role="group"
-          aria-label="Current model"
+          aria-label={t("currentModel")}
           className="border-border bg-muted/20 flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2"
         >
           <ProviderIcon provider={selected.provider} />
@@ -124,7 +124,7 @@ export function ModelProfilePicker({
               {selected.provider} · {selected.model}
             </span>
           </span>
-          {!selected.secret_id && <Badge variant="destructive">no key</Badge>}
+          {!selected.secret_id && <Badge variant="destructive">{t("noKey")}</Badge>}
         </div>
       )}
 
@@ -151,9 +151,7 @@ export function ModelProfilePicker({
           </summary>
           <div className="mt-2 space-y-2">
             {list}
-            <p className="text-muted-foreground text-xs">
-              Named, so an organization can rotate a key or repoint every agent at once.
-            </p>
+            <p className="text-muted-foreground text-xs">{t("namedSoOrganizationCan")}</p>
           </div>
         </details>
       )}
@@ -181,6 +179,7 @@ function ProfileRow({
   /** Offered only where models are managed. */
   onRemove?: () => void;
 }) {
+  const t = useTranslations("agents");
   return (
     // The radio and the delete are siblings, not nested: a button inside a
     // button is invalid, and the browser resolves it by dropping one of them.
@@ -202,7 +201,7 @@ function ProfileRow({
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-1.5">
             <span className="truncate text-sm font-medium">{title}</span>
-            {noKey && <Badge variant="destructive">no key</Badge>}
+            {noKey && <Badge variant="destructive">{t("noKey2")}</Badge>}
           </span>
           <span className="text-muted-foreground mt-0.5 block truncate font-mono text-xs">
             {subtitle}

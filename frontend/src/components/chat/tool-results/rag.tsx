@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { ChevronDown, FileText, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 
 interface RAGResultItem {
   index: number;
@@ -34,15 +35,17 @@ export function parseRAGResults(result: string): RAGResultItem[] {
 }
 
 export function RAGSearchResults({ result }: { result: string }) {
+  const t = useTranslations("chat.tools");
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
   const items = parseRAGResults(result);
 
   if (items.length === 0) {
+    // i18n-exempt: matches the backend's own answer, which is not translated
     if (result.includes("No relevant documents")) {
       return (
         <div className="text-muted-foreground flex items-center gap-2 py-2 text-sm">
           <Search className="h-4 w-4" />
-          No relevant documents found
+          {t("noRelevantDocuments")}
         </div>
       );
     }
@@ -64,13 +67,9 @@ export function RAGSearchResults({ result }: { result: string }) {
     <div className="space-y-3 py-1">
       <div className="text-foreground/55 flex items-center gap-2 font-mono text-[10px] tracking-wider uppercase">
         <Search className="h-3 w-3" />
-        <span>
-          {items.length} chunk{items.length !== 1 ? "s" : ""}
-        </span>
+        <span>{t("chunkCount", { count: items.length })}</span>
         <span>·</span>
-        <span>
-          {sourceCount} source{sourceCount !== 1 ? "s" : ""}
-        </span>
+        <span>{t("sourceCount", { count: sourceCount })}</span>
       </div>
 
       <div className="border-foreground/10 divide-foreground/8 divide-y overflow-hidden rounded-xl border">
@@ -99,6 +98,7 @@ function RAGSourceGroup({
   expandedIdx: number | null;
   onToggle: (idx: number) => void;
 }) {
+  const t = useTranslations("chat.tools");
   const collection = chunks[0]?.collection;
   const bestScore = Math.max(...chunks.map((c) => parseFloat(c.score) || 0));
   return (
@@ -109,7 +109,7 @@ function RAGSourceGroup({
           {source}
         </span>
         <span className="text-foreground/45 ml-auto font-mono text-[10px] tracking-wider uppercase">
-          {chunks.length} chunk{chunks.length !== 1 ? "s" : ""}
+          {t("chunkCount", { count: chunks.length })}
         </span>
         <ScoreDot score={bestScore} />
         {collection && (

@@ -66,7 +66,7 @@ export function StatCard({
     );
   }
 
-  const trend = typeof delta === "number" ? (delta > 0 ? "up" : delta < 0 ? "down" : "flat") : null;
+  const trend = typeof delta === "number" ? (delta > 0 ? "up" : delta < 0 ? "down" : "flat") : null; // i18n-exempt: three internal tokens, not words on screen
   const id = sparkId(label);
 
   return (

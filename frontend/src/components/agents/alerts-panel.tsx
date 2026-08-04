@@ -1,16 +1,29 @@
 "use client";
 
 import Link from "next/link";
-import { CircleDollarSign, Hand, PieChart } from "lucide-react";
+import { CircleDollarSign, Hand, PieChart, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, Switch } from "@/components/ui";
+import {
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  Checkbox,
+  Label,
+  Switch,
+} from "@/components/ui";
+import { MemberIdentity, displayName } from "@/components/orgs/member-identity";
+import { MemberPicker } from "@/components/orgs/member-picker";
+import type { IdentifiedMember } from "@/components/orgs/member-identity";
 import { useMembers } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import { DEFAULT_NOTIFICATIONS } from "@/lib/agent-spec";
 import { useOrgStore } from "@/stores";
-import { cn } from "@/lib/utils";
 import type { AlertAudience, AlertSpec, NotificationSpec } from "@/types/agents";
+import { useTranslations } from "next-intl";
 
 interface AlertsPanelProps {
   value: NotificationSpec | undefined;
@@ -18,49 +31,53 @@ interface AlertsPanelProps {
   disabled?: boolean;
 }
 
+/**
+ * How many people are named, in words rather than a bare digit.
+ *
+ * Takes the translator rather than reading one: it is called from a prop, so it runs
+ * outside any component of its own.
+ */
+function chosenCount(t: (key: string, values?: Record<string, number>) => string) {
+  return (count: number): string => {
+    if (count === 0) return t("choosePeople");
+    return count === 1 ? t("onePerson") : t("peopleCount", { count });
+  };
+}
+
 /** Which alert, and everything that has to be said about it in the UI. */
 interface AlertKindMeta {
   key: keyof NotificationSpec;
-  label: string;
-  trigger: string;
+  /** Catalog key for this alert's name; its trigger is the same key plus `Trigger`. */
+  words: string;
   icon: LucideIcon;
   /** `initiator` is refused on a usage report: it covers a period, not a run. */
   audiences: AlertAudience[];
 }
 
-const AUDIENCE_LABEL: Record<AlertAudience, string> = {
+/** Each audience's words live in the catalog; the table names which key. */
+const AUDIENCE_KEY: Record<AlertAudience, string> = {
   admins: "Admins",
-  owner: "The agent's owner",
-  initiator: "Whoever started the run",
-  chosen: "Specific people",
-};
-
-const AUDIENCE_HINT: Record<AlertAudience, string> = {
-  admins: "This organization's owners and admins, plus the deployment's app admins.",
-  owner: "The person who would fix this agent's configuration.",
-  initiator: "Nobody, for a run a schedule or a channel started.",
-  chosen: "A standing list, whoever happened to run it.",
+  owner: "Owner",
+  initiator: "Initiator",
+  chosen: "Chosen",
 };
 
 const ALERTS: readonly AlertKindMeta[] = [
   {
     key: "budget",
-    label: "Budget alerts",
-    trigger: "A run stopped because this agent reached its own monthly cap.",
+    words: "alertBudget",
     icon: CircleDollarSign,
     audiences: ["admins", "owner", "initiator", "chosen"],
   },
   {
     key: "approvals",
-    label: "Approval requests",
-    trigger: "A tool call parked, and the run is waiting on a person to decide.",
+    words: "alertApprovals",
     icon: Hand,
     audiences: ["admins", "owner", "initiator", "chosen"],
   },
   {
     key: "usage",
-    label: "Usage reports",
-    trigger: "Weekly and monthly, what this agent alone has spent.",
+    words: "alertUsage",
     icon: PieChart,
     // No `initiator`: a report covers a period rather than a run, so there is
     // no such person. The backend refuses it, and offering it here would be
@@ -88,6 +105,7 @@ const ALERTS: readonly AlertKindMeta[] = [
  * people who can, and no agent can redirect or silence it.
  */
 export function AlertsPanel({ value, onChange, disabled }: AlertsPanelProps) {
+  const t = useTranslations("agents");
   /* v8 ignore next -- the selector never runs: every test here mocks the store */
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const { members } = useMembers(activeOrgId ?? "");
@@ -101,13 +119,13 @@ export function AlertsPanel({ value, onChange, disabled }: AlertsPanelProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Alerts</CardTitle>
+        <CardTitle>{t("alerts")}</CardTitle>
         <CardDescription>
           Who hears about this agent when nobody is watching it. A run started from chat says what
           happened on screen; the same run started by a schedule, a channel or the API stops
           silently, and this is what closes that gap.{" "}
           <Link href={ROUTES.SETTINGS_NOTIFICATIONS} className="underline underline-offset-4">
-            Your own switches
+            {t("yourOwnSwitches")}
           </Link>{" "}
           still apply on top and can only ever remove you from a list.
         </CardDescription>
@@ -118,20 +136,13 @@ export function AlertsPanel({ value, onChange, disabled }: AlertsPanelProps) {
             key={meta.key}
             meta={meta}
             alert={spec[meta.key]}
-            members={members.map((member) => ({
-              user_id: member.user_id,
-              label: member.full_name ?? member.email,
-            }))}
+            members={members}
             disabled={disabled}
             onChange={(alert) => edit(meta.key, alert)}
           />
         ))}
 
-        <p className="text-muted-foreground text-xs">
-          The organization&apos;s own monthly cap is not here. It stops every agent in the
-          organization and an agent&apos;s author cannot raise it, so its alert always goes to the
-          admins.
-        </p>
+        <p className="text-muted-foreground text-xs">{t("organizationAposSOwn")}</p>
       </CardContent>
     </Card>
   );
@@ -146,10 +157,11 @@ function AlertRow({
 }: {
   meta: AlertKindMeta;
   alert: AlertSpec;
-  members: { user_id: string; label: string }[];
+  members: IdentifiedMember[];
   disabled?: boolean;
   onChange: (alert: AlertSpec) => void;
 }) {
+  const t = useTranslations("agents");
   const toggleAudience = (audience: AlertAudience) => {
     const on = alert.to.includes(audience);
     const to = on ? alert.to.filter((entry) => entry !== audience) : [...alert.to, audience];
@@ -175,7 +187,7 @@ function AlertRow({
   // "Specific people" and name nobody.
   const problem =
     alert.enabled && alert.to.length === 0
-      ? "Nobody is set to hear this. Add an audience, or switch the alert off."
+      ? t("nobodySetHearAdd")
       : alert.to.includes("chosen") && alert.user_ids.length === 0
         ? "“Specific people” is chosen and nobody is named, so this would mail nobody."
         : null;
@@ -187,13 +199,15 @@ function AlertRow({
           <meta.icon className="h-4 w-4" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium">{meta.label}</p>
-          <p className="text-muted-foreground mt-0.5 text-xs leading-relaxed">{meta.trigger}</p>
+          <p className="text-sm font-medium">{t(meta.words)}</p>
+          <p className="text-muted-foreground mt-0.5 text-xs leading-relaxed">
+            {t(`${meta.words}Trigger`)}
+          </p>
         </div>
         <Switch
           checked={alert.enabled}
           disabled={disabled}
-          aria-label={meta.label}
+          aria-label={t(meta.words)}
           onCheckedChange={(enabled) =>
             onChange(
               // Switching on with no audience left would save a spec the backend
@@ -207,76 +221,104 @@ function AlertRow({
       </div>
 
       {alert.enabled && (
-        <div className="mt-4 space-y-3 pl-12">
-          <div className="flex flex-wrap gap-1.5">
+        <div className="mt-4 space-y-4 pl-12">
+          {/* Checkboxes with real labels rather than a row of pills. Four pills
+              with their hints hidden in `title` attributes was the odd one out in
+              this app - nothing else picks several things that way - and a
+              `title` is invisible on a touch screen and to a keyboard. */}
+          <fieldset disabled={disabled} className="space-y-2">
+            <legend className="text-muted-foreground text-xs font-medium">
+              {t("whoHearsAbout")}
+            </legend>
             {meta.audiences.map((audience) => {
-              const on = alert.to.includes(audience);
+              const id = `${meta.key}-${audience}`;
               return (
-                <button
-                  key={audience}
-                  type="button"
-                  role="checkbox"
-                  aria-checked={on}
-                  aria-label={`${meta.label}: ${AUDIENCE_LABEL[audience]}`}
-                  title={AUDIENCE_HINT[audience]}
-                  disabled={disabled}
-                  onClick={() => toggleAudience(audience)}
-                  className={cn(
-                    "rounded-full border px-3 py-1 text-xs transition-colors",
-                    on
-                      ? "border-brand bg-brand/10 text-foreground"
-                      : "border-border text-muted-foreground hover:border-foreground/20",
-                    disabled && "cursor-not-allowed opacity-60",
-                  )}
-                >
-                  {AUDIENCE_LABEL[audience]}
-                </button>
+                <div key={audience} className="flex items-start gap-2.5">
+                  <Checkbox
+                    id={id}
+                    checked={alert.to.includes(audience)}
+                    disabled={disabled}
+                    // Named with the alert as well as the audience. Three alerts
+                    // offer the same four audiences, so the label alone is not a
+                    // unique name - a screen reader would announce four identical
+                    // "Specific people" and none of them would say which alert.
+                    aria-label={t("alertAudience", {
+                      alert: t(meta.words),
+                      audience: t(`audience${AUDIENCE_KEY[audience]}`),
+                    })}
+                    onCheckedChange={() => toggleAudience(audience)}
+                  />
+                  <div className="-mt-0.5 min-w-0">
+                    <Label htmlFor={id} className="text-sm font-normal">
+                      {t(`audience${AUDIENCE_KEY[audience]}`)}
+                    </Label>
+                    <p className="text-muted-foreground text-xs">
+                      {t(`audience${AUDIENCE_KEY[audience]}Hint`)}
+                    </p>
+                  </div>
+                </div>
               );
             })}
-          </div>
+          </fieldset>
 
-          {alert.to.includes("chosen") && (
-            <div className="space-y-1.5">
-              {members.length === 0 ? (
-                <p className="text-muted-foreground text-xs">
-                  No members to choose from - this organization is just you.
-                </p>
-              ) : (
-                <div className="flex flex-wrap gap-1.5">
-                  {members.map((member) => {
-                    const on = alert.user_ids.includes(member.user_id);
-                    return (
-                      <button
-                        key={member.user_id}
-                        type="button"
-                        role="checkbox"
-                        aria-checked={on}
-                        aria-label={`${meta.label}: ${member.label}`}
-                        disabled={disabled}
-                        onClick={() => toggleMember(member.user_id)}
-                        className={cn(
-                          "rounded-full border px-3 py-1 text-xs transition-colors",
-                          on
-                            ? "border-brand bg-brand/10 text-foreground"
-                            : "border-border text-muted-foreground hover:border-foreground/20",
-                          disabled && "cursor-not-allowed opacity-60",
-                        )}
-                      >
-                        {member.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
+          {alert.to.includes("chosen") &&
+            (members.length === 0 ? (
+              <p className="text-muted-foreground text-xs">{t("noMembersChooseFrom")}</p>
+            ) : (
+              <div className="space-y-2">
+                <MemberPicker
+                  members={members}
+                  selected={alert.user_ids}
+                  onToggle={toggleMember}
+                  label={chosenCount(t)}
+                  scope={t(meta.words)}
+                  disabled={disabled}
+                />
+
+                {alert.user_ids.length > 0 && (
+                  <ul className="space-y-1.5">
+                    {alert.user_ids.map((userId) => {
+                      const member = members.find((entry) => entry.user_id === userId);
+                      const label = member === undefined ? userId : displayName(member);
+                      return (
+                        <li
+                          key={userId}
+                          className="border-border flex items-center gap-2 rounded-md border px-2.5 py-1.5"
+                        >
+                          {/* A member the listing no longer has - removed from the
+                              organization since this was saved - still has to be
+                              removable, so the id stands in rather than the row
+                              vanishing and leaving nothing to click. */}
+                          {member === undefined ? (
+                            <span className="min-w-0 flex-1 truncate font-mono text-xs">
+                              {userId}
+                            </span>
+                          ) : (
+                            <MemberIdentity member={member} className="min-w-0 flex-1" />
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={disabled}
+                            aria-label={t("audienceRemove", { alert: t(meta.words), name: label })}
+                            onClick={() => toggleMember(userId)}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            ))}
 
           {problem && (
             // A span rather than a `Badge`: that component renders a `div`, and a
             // `div` inside a `p` is invalid HTML that React resolves by
             // restructuring the DOM - which shows up as a hydration error.
             <p className="text-destructive text-xs">
-              <span className="mr-1.5 font-medium">Refused at save -</span>
+              <span className="mr-1.5 font-medium">{t("refusedAtSave")}</span>
               {problem}
             </p>
           )}

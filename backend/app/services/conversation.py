@@ -433,6 +433,18 @@ class ConversationService:
             thinking=data.thinking,
             model_name=data.model_name,
             tokens_used=data.tokens_used,
+            # Every field the schema carries, and the two at the end were being
+            # dropped here: `persist_assistant_turn` built them, the model documents
+            # why they are per-message, and this call did not forward them - so every
+            # assistant row in the database had a null agent and a null version, and
+            # a reloaded transcript could not say who said what or under which
+            # instructions. A partial forward is the failure mode this shape invites,
+            # which is why it is now all of them.
+            input_tokens=data.input_tokens,
+            output_tokens=data.output_tokens,
+            cost_usd=data.cost_usd,
+            agent_id=data.agent_id,
+            agent_version_id=data.agent_version_id,
         )
 
     async def delete_message(self, message_id: UUID) -> bool:

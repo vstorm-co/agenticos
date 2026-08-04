@@ -7,6 +7,7 @@ import { Badge, Pager, SearchInput, useListControls } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type { SkillSummary } from "@/types/providers";
+import { useTranslations } from "next-intl";
 
 interface SkillGalleryProps {
   skills: SkillSummary[];
@@ -41,6 +42,7 @@ export function SkillGallery({
   onToggle,
   disabled,
 }: SkillGalleryProps) {
+  const t = useTranslations("agents");
   const chosen = new Set(selectedIds);
   const known = new Set(skills.map((skill) => skill.id));
   // Only when this is the whole set. Against a page of it, every skill the
@@ -58,15 +60,13 @@ export function SkillGallery({
     return (
       <div className="border-border rounded-lg border border-dashed p-6 text-center">
         <BookOpen className="text-muted-foreground mx-auto h-6 w-6" />
-        <p className="text-muted-foreground mt-2 text-sm">
-          This organization has written no skills yet.
-        </p>
+        <p className="text-muted-foreground mt-2 text-sm">{t("organizationHasWrittenNo")}</p>
         <Link
           href={ROUTES.SKILLS}
           className="mt-3 inline-flex items-center gap-1.5 text-sm underline underline-offset-4"
         >
           <Plus className="h-3.5 w-3.5" />
-          Write one
+          {t("writeOne")}
         </Link>
       </div>
     );
@@ -75,7 +75,7 @@ export function SkillGallery({
   return (
     <div className="space-y-3">
       {skills.length > 8 && (
-        <SearchInput value={list.query} onChange={list.setQuery} placeholder="Search skills…" />
+        <SearchInput value={list.query} onChange={list.setQuery} placeholder={t("searchSkills")} />
       )}
 
       <div className="grid gap-2 sm:grid-cols-2">
@@ -91,7 +91,7 @@ export function SkillGallery({
               disabled={disabled}
               onClick={() => onToggle(skill.id)}
               className={cn(
-                "flex items-start gap-3 rounded-xl border p-4 text-left transition-colors",
+                t("flexItemsStartGap3"),
                 isOn ? "border-brand bg-brand/5" : "hover:border-foreground/20",
                 disabled && "cursor-not-allowed opacity-60",
               )}
@@ -107,7 +107,7 @@ export function SkillGallery({
               <span className="min-w-0 flex-1">
                 <span className="flex flex-wrap items-center gap-2">
                   <span className="font-mono text-sm font-medium">{skill.name}</span>
-                  {!skill.enabled && <Badge variant="outline">disabled</Badge>}
+                  {!skill.enabled && <Badge variant="outline">{t("disabled")}</Badge>}
                 </span>
                 <span className="text-muted-foreground mt-1 block text-sm">
                   {skill.description}
@@ -129,9 +129,8 @@ export function SkillGallery({
 
       {orphaned.length > 0 && (
         <p className="text-muted-foreground text-xs">
-          This agent also references {orphaned.length} skill
-          {orphaned.length === 1 ? "" : "s"} this organization no longer has. Publishing is refused
-          until they are cleared: <span className="font-mono break-all">{orphaned.join(", ")}</span>
+          {t("orphanedSkills", { count: orphaned.length })}{" "}
+          <span className="font-mono break-all">{orphaned.join(", ")}</span>
         </p>
       )}
 
@@ -139,7 +138,7 @@ export function SkillGallery({
         The agent loads a skill only when it decides one is relevant, so twenty skills cost almost
         nothing in context.{" "}
         <Link href={ROUTES.SKILLS} className="underline underline-offset-4">
-          Manage skills
+          {t("manageSkills")}
         </Link>
       </p>
     </div>

@@ -1,5 +1,6 @@
 "use client";
 import { Globe, Link } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
 interface WebHit {
@@ -44,6 +45,7 @@ export function WebSearchResults({
   /** Deep-dive view (computer panel): show relevance scores and the full snippet. */
   detailed?: boolean;
 }) {
+  const t = useTranslations("chat.tools");
   if (data.results.length === 0) {
     return (
       <div className="text-muted-foreground flex items-center gap-2 py-2 text-sm">
@@ -57,9 +59,7 @@ export function WebSearchResults({
     <div className="space-y-3 py-1">
       <div className="text-foreground/55 flex items-center gap-2 font-mono text-[10px] tracking-wider uppercase">
         <Globe className="h-3 w-3" />
-        <span>
-          {data.results.length} web result{data.results.length !== 1 ? "s" : ""}
-        </span>
+        <span>{t("webResultCount", { count: data.results.length })}</span>
         {detailed && data.query && (
           <span className="text-foreground/40 truncate normal-case">· “{data.query}”</span>
         )}

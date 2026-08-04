@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { ROUTES } from "@/lib/constants";
 import type { KBScope, KnowledgeBase } from "@/types";
 import { Perm } from "@/types/permissions";
+import { useTranslations } from "next-intl";
 
 const SCOPE_META: Record<KBScope, { label: string; icon: LucideIcon }> = {
   personal: { label: "Personal", icon: Lock },
@@ -30,26 +31,22 @@ const SCOPE_META: Record<KBScope, { label: string; icon: LucideIcon }> = {
   app: { label: "App-wide", icon: Sparkles },
 };
 
-/** How many bases there are, in words rather than a bare digit. */
-function storedCount(count: number): string {
-  return count === 1 ? "1 knowledge base" : `${count} knowledge bases`;
-}
-
 /**
  * The list's frame, drawn whether or not there is anything in it - the same
  * always-visible container the vault draws around its keys. Same header, same
  * border, in every state: what changes is what is inside it.
  */
 function BasesCard({ count, children }: { count: number | null; children: ReactNode }) {
+  const t = useTranslations("pages.kb");
   return (
     <Card>
       <CardHeader className="flex-row items-center justify-between space-y-0 border-b px-5 py-4">
         <div className="space-y-1">
-          <CardTitle className="text-sm">Bases</CardTitle>
+          <CardTitle className="text-sm">{t("bases")}</CardTitle>
           <CardDescription className="text-xs">
             {/* `null` is "the request has not answered". Rendering "0 knowledge
                 bases" there would state something nothing has said yet. */}
-            {count === null ? <Skeleton className="h-3 w-32" /> : storedCount(count)}
+            {count === null ? <Skeleton className="h-3 w-32" /> : t("storedCount", { count })}
           </CardDescription>
         </div>
       </CardHeader>
@@ -59,6 +56,7 @@ function BasesCard({ count, children }: { count: number | null; children: ReactN
 }
 
 export default function KBPage() {
+  const t = useTranslations("pages.kb");
   const { kbs, isLoading, fetchKBs, deleteKB } = useKnowledgeBases();
   const [createOpen, setCreateOpen] = useState(false);
   // Presentation, never enforcement - the server refuses regardless. A Viewer
@@ -82,13 +80,13 @@ export default function KBPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Knowledge bases"
-        description="Group related documents into a base. Open one to upload files, then choose in chat which bases the agent should search."
+        title={t("knowledgeBases")}
+        description={t("groupRelatedDocumentsInto")}
         actions={
           mayEdit ? (
             <Button size="sm" onClick={() => setCreateOpen(true)}>
               <Plus className="h-4 w-4" />
-              New knowledge base
+              {t("newKnowledgeBase")}
             </Button>
           ) : undefined
         }
@@ -115,11 +113,9 @@ export default function KBPage() {
             <div className="bg-muted text-muted-foreground mx-auto flex h-11 w-11 items-center justify-center rounded-xl">
               <Database className="h-5 w-5" />
             </div>
-            <p className="text-foreground mt-4 text-sm font-medium">No knowledge bases yet</p>
+            <p className="text-foreground mt-4 text-sm font-medium">{t("noKnowledgeBasesYet")}</p>
             <p className="text-muted-foreground mx-auto mt-1 max-w-sm text-sm">
-              {mayEdit
-                ? "Create one to give your assistant access to documents from your collections."
-                : "Nothing has been shared with you yet."}
+              {mayEdit ? t("createOneGiveYour") : t("nothingHasBeenShared")}
             </p>
             {mayEdit && (
               <Button
@@ -129,7 +125,7 @@ export default function KBPage() {
                 onClick={() => setCreateOpen(true)}
               >
                 <Plus className="h-3.5 w-3.5" />
-                Create knowledge base
+                {t("createKnowledgeBase")}
               </Button>
             )}
           </div>
@@ -152,14 +148,11 @@ export default function KBPage() {
 }
 
 function KBCard({ kb, onDelete }: { kb: KnowledgeBase; onDelete?: () => void }) {
+  const t = useTranslations("pages.kb");
   const meta = SCOPE_META[kb.scope];
 
   return (
-    <div
-      className={cn(
-        "group border-border bg-card hover:border-foreground/30 hover:bg-accent relative flex flex-col rounded-xl border transition-colors",
-      )}
-    >
+    <div className={cn(t("groupBorderBorderBg2"))}>
       {/* Whole-card link, stacked below the interactive controls and above
           nothing else.
 
@@ -195,7 +188,7 @@ function KBCard({ kb, onDelete }: { kb: KnowledgeBase; onDelete?: () => void }) 
           <div className="flex items-center gap-1.5">
             {kb.is_default && (
               <Badge variant="outline" className="border-border text-muted-foreground font-normal">
-                Default
+                {t("default")}
               </Badge>
             )}
             {!kb.is_default && onDelete && (
@@ -213,7 +206,7 @@ function KBCard({ kb, onDelete }: { kb: KnowledgeBase; onDelete?: () => void }) 
                   }
                 }}
                 className="text-muted-foreground hover:bg-accent hover:text-destructive pointer-events-auto relative z-30 inline-flex h-8 w-8 items-center justify-center rounded-lg opacity-0 transition-colors group-hover:opacity-100 focus-visible:opacity-100"
-                aria-label="Delete knowledge base"
+                aria-label={t("deleteKnowledgeBase")}
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>

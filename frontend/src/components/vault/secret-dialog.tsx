@@ -41,6 +41,7 @@ import type {
   SecretVisibility,
 } from "@/types/secrets";
 import type { StorableSecretKind } from "@/types/secrets";
+import { useTranslations } from "next-intl";
 
 /** What the backend accepts, so an over-long value is refused before it is sent. */
 const MAX_NAME = 128;
@@ -70,10 +71,10 @@ interface AddSecretDialogProps {
  * others fit, not a peer of them.
  */
 const PURPOSE_GROUPS = [
-  { id: "model_provider", label: "Model provider", hint: "OpenAI, Anthropic…" },
-  { id: "search", label: "Web search", hint: "Tavily, Brave, Exa" },
-  { id: "observability", label: "Tracing", hint: "Logfire" },
-  { id: "other", label: "Something else", hint: "Any other service" },
+  { id: "model_provider", words: "purposeModelProvider" },
+  { id: "search", words: "purposeSearch" },
+  { id: "observability", words: "purposeObservability" },
+  { id: "other", words: "purposeOther" },
 ] as const;
 
 type PurposeCategory = (typeof PURPOSE_GROUPS)[number]["id"];
@@ -85,6 +86,7 @@ export function AddSecretDialog({
   onSubmit,
   isPending,
 }: AddSecretDialogProps) {
+  const t = useTranslations("vault");
   const { purposes } = useSecretPurposes();
   const [category, setCategory] = useState<PurposeCategory>("model_provider");
   const [purpose, setPurpose] = useState("");
@@ -183,11 +185,8 @@ export function AddSecretDialog({
           belong together sit on one line and the whole thing fits on a screen. */}
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Add a secret</DialogTitle>
-          <DialogDescription>
-            Encrypted and bound to this organization. An agent names it by id, never by value - so
-            it can be rotated without touching a single agent, and it cannot be read back.
-          </DialogDescription>
+          <DialogTitle>{t("addSecret")}</DialogTitle>
+          <DialogDescription>{t("encryptedBoundOrganizationAgent")}</DialogDescription>
         </DialogHeader>
 
         <div className="max-h-[65vh] space-y-5 overflow-y-auto px-1">
@@ -203,7 +202,7 @@ export function AddSecretDialog({
               the heading tells everyone else. */}
           <div className="space-y-2">
             <p id="secret-purpose-family" className="text-sm leading-none font-medium">
-              What is it for
+              {t("what")}
             </p>
             <div
               role="group"
@@ -223,8 +222,10 @@ export function AddSecretDialog({
                       : "border-input hover:bg-accent/50 text-muted-foreground",
                   )}
                 >
-                  <span className="block font-medium">{group.label}</span>
-                  <span className="text-muted-foreground block text-xs">{group.hint}</span>
+                  <span className="block font-medium">{t(group.words)}</span>
+                  <span className="text-muted-foreground block text-xs">
+                    {t(`${group.words}Hint`)}
+                  </span>
                 </button>
               ))}
             </div>
@@ -236,7 +237,7 @@ export function AddSecretDialog({
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="secret-purpose">
-                {category === "other" ? "Service" : "Which one"}
+                {category === "other" ? t("service") : t("whichOne")}
               </Label>
               <Select value={purpose} onValueChange={choosePurpose}>
                 <SelectTrigger id="secret-purpose">
@@ -256,8 +257,7 @@ export function AddSecretDialog({
                 </SelectContent>
               </Select>
               <p className="text-muted-foreground text-xs">
-                {chosen?.description ??
-                  "Naming the service is what lets a model picker offer it and a capability ask for the right key."}
+                {chosen?.description ?? t("namingServiceWhatLets")}
                 {chosen?.help_url && (
                   <>
                     {" "}
@@ -267,7 +267,7 @@ export function AddSecretDialog({
                       rel="noreferrer noopener"
                       className="underline underline-offset-4"
                     >
-                      Where do I get one?
+                      {t("whereDoIGet2")}
                     </a>
                   </>
                 )}
@@ -275,7 +275,7 @@ export function AddSecretDialog({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="secret-visibility">Who can use it</Label>
+              <Label htmlFor="secret-visibility">{t("whoCanUse")}</Label>
               <Select
                 value={visibility}
                 onValueChange={(next) => setVisibility(next as SecretVisibility)}
@@ -284,26 +284,23 @@ export function AddSecretDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="org">Everyone in this organization</SelectItem>
-                  <SelectItem value="private">Only me</SelectItem>
+                  <SelectItem value="org">{t("everyoneOrganization")}</SelectItem>
+                  <SelectItem value="private">{t("onlyMe")}</SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-muted-foreground text-xs">
-                {visibility === "org"
-                  ? "A shared account. Anyone here can bind it to an agent."
-                  : "Yours alone. You can share it with named people afterwards."}{" "}
-                Either way, an agent that uses this key runs with it for everyone who can run that
-                agent.
+                {visibility === "org" ? t("sharedAccountAnyoneHere") : t("yoursAloneYouCan")} Either
+                way, an agent that uses this key runs with it for everyone who can run that agent.
               </p>
             </div>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField
-              label="Name"
+              label={t("name")}
               htmlFor="secret-name"
               error={errors.name}
-              description="How you will recognise it later. Unique in this organization."
+              description={t("howYouWillRecognise")}
               // Full width unless the Kind select is beside it: a lone half-width
               // input with empty space to its right reads as a field that failed
               // to render its neighbour.
@@ -312,7 +309,7 @@ export function AddSecretDialog({
               <Input
                 value={shownName}
                 onChange={(event) => setName(event.target.value)}
-                placeholder="Zendesk API token"
+                placeholder={t("zendeskApiToken")}
                 maxLength={MAX_NAME}
               />
             </FormField>
@@ -322,7 +319,7 @@ export function AddSecretDialog({
                 server. */}
             {isCustom && (
               <div className="space-y-2">
-                <Label htmlFor="secret-kind">Kind</Label>
+                <Label htmlFor="secret-kind">{t("kind")}</Label>
                 <Select value={kind} onValueChange={chooseKind}>
                   <SelectTrigger id="secret-kind">
                     <SelectValue />
@@ -340,10 +337,10 @@ export function AddSecretDialog({
           </div>
 
           <FormField
-            label="Note (optional)"
+            label={t("noteOptional")}
             htmlFor="secret-description"
             error={errors.description}
-            description="Shown next to the picker - which account this is, whose it is, anything the next person needs."
+            description={t("shownNextPickerWhich")}
           >
             <Textarea
               value={description}
@@ -367,10 +364,10 @@ export function AddSecretDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
+            {t("cancel2")}
           </Button>
           <Button onClick={submit} disabled={!complete || isPending}>
-            Store secret
+            {t("storeSecret")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -406,6 +403,7 @@ export function RotateSecretDialog({
   onSubmit,
   isPending,
 }: RotateSecretDialogProps) {
+  const t = useTranslations("vault");
   const [value, setValue] = useState<Record<string, unknown>>({});
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
 
@@ -440,11 +438,7 @@ export function RotateSecretDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Rotate {secret?.name}</DialogTitle>
-          <DialogDescription>
-            The new value replaces the old one the moment you save, and the old one is gone. Every
-            agent bound to this secret keeps working - they name it by id, and the id does not
-            change.
-          </DialogDescription>
+          <DialogDescription>{t("newValueReplacesOld")}</DialogDescription>
         </DialogHeader>
 
         {secret && info && (
@@ -465,10 +459,10 @@ export function RotateSecretDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
+            {t("cancel3")}
           </Button>
           <Button onClick={submit} disabled={!complete || isPending}>
-            Rotate
+            {t("rotate")}
           </Button>
         </DialogFooter>
       </DialogContent>

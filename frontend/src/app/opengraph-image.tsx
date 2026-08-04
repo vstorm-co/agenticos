@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import { ImageResponse } from "next/og";
 
 import { SITE } from "@/lib/seo";
@@ -10,7 +11,8 @@ export const dynamic = "force-static";
 /** Default Open Graph image - what a link to a deployment unfurls as. Black
  *  background, oversized title with a lime highlight on a key word, plus the
  *  brand mark and the tagline. */
-export default function OpengraphImage() {
+export default async function OpengraphImage() {
+  const t = await getTranslations("pages.root");
   return new ImageResponse(
     <div
       style={{
@@ -65,7 +67,7 @@ export default function OpengraphImage() {
             flexWrap: "wrap",
           }}
         >
-          <span>Agents&nbsp;you&nbsp;</span>
+          <span>{`${t("ogTagline")}\u00a0`}</span>
           <span
             style={{
               background:

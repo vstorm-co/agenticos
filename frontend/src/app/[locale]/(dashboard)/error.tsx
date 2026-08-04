@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 
 import { ErrorState } from "@/components/states";
+import { useTranslations } from "next-intl";
 
 export default function DashboardError({
   error,
@@ -11,21 +12,22 @@ export default function DashboardError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const t = useTranslations("pages.root");
   useEffect(() => {
-    console.error("Dashboard error:", error);
+    console.error("Dashboard error:", error); // i18n-exempt: a log line, read in a console
   }, [error]);
 
   return (
     <div className="flex min-h-0 flex-1 items-center justify-center py-10">
       <ErrorState
         className="w-full max-w-md"
-        title="This section failed to load"
+        title={t("sectionFailed")}
         description={
           error.digest
-            ? `An unexpected error occurred. Error ID: ${error.digest}`
-            : "An unexpected error occurred while loading this view. Please try again."
+            ? t("unexpectedWithDigest", { digest: error.digest })
+            : t("unexpectedWhileLoading")
         }
-        cta={{ label: "Try again", onClick: () => reset() }}
+        cta={{ label: t("tryAgain"), onClick: () => reset() }}
       />
     </div>
   );

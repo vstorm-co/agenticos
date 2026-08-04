@@ -27,6 +27,7 @@ import {
 import { ROUTES } from "@/lib/constants";
 import { cn, formatDate } from "@/lib/utils";
 import type { Agent } from "@/types/agents";
+import { useTranslations } from "next-intl";
 
 /** Chip labels for the surfaces an agent answers on. Unknown values pass through. */
 const CHANNEL_LABEL: Record<string, string> = {
@@ -41,12 +42,15 @@ const CHANNEL_LABEL: Record<string, string> = {
  * Visibility answers for the broad settings; the grant count only matters for a
  * private agent, where "Private" and "Shared with 3" are different facts.
  */
-export function accessSummary(agent: Agent): { icon: LucideIcon; label: string } {
-  if (agent.visibility === "org") return { icon: Building2, label: "Organization" };
-  if (agent.visibility === "team") return { icon: Users, label: "Team" };
+export function accessSummary(
+  agent: Agent,
+  t: (key: string, values?: Record<string, number>) => string,
+): { icon: LucideIcon; label: string } {
+  if (agent.visibility === "org") return { icon: Building2, label: t("visibilityOrg") };
+  if (agent.visibility === "team") return { icon: Users, label: t("visibilityTeam") };
   const count = agent.shared_user_count ?? 0;
-  if (count > 0) return { icon: Users, label: `Shared with ${count}` };
-  return { icon: Lock, label: "Private" };
+  if (count > 0) return { icon: Users, label: t("sharedWithCount", { count }) };
+  return { icon: Lock, label: t("visibilityPrivate") };
 }
 
 export interface AgentCardActions {
@@ -75,12 +79,13 @@ export function AgentCard({
   actions: AgentCardActions;
   busy?: boolean;
 }) {
+  const t = useTranslations("agents");
   const archived = agent.status === "archived";
 
   return (
     <div
       className={cn(
-        "group border-border bg-card relative rounded-xl border p-4 transition-colors",
+        t("groupBorderBorderBg"),
         "hover:border-foreground/25",
         archived && "opacity-70",
         busy && "pointer-events-none opacity-50",
@@ -103,7 +108,7 @@ export function AgentCard({
             <AgentStatusBadge status={agent.status} />
           </div>
           <p className="text-muted-foreground mt-2 line-clamp-2 min-h-[2.5rem] text-sm">
-            {agent.description || "No description."}
+            {agent.description || t("noDescription")}
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
             <AccessChip agent={agent} />
@@ -118,7 +123,7 @@ export function AgentCard({
 
       <div className="relative mt-3 flex items-center justify-between gap-2 border-t pt-3">
         <span className="text-muted-foreground pointer-events-none text-xs">
-          {agent.updated_at ? `edited ${formatDate(agent.updated_at)}` : "never edited"}
+          {agent.updated_at ? `edited ${formatDate(agent.updated_at)}` : t("neverEdited")}
         </span>
 
         {canEdit && (
@@ -132,7 +137,7 @@ export function AgentCard({
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  aria-label={`More actions for ${agent.name}`}
+                  aria-label={t("moreActionsFor", { name: agent.name })}
                   className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors outline-none focus-visible:ring-2"
                 >
                   <MoreHorizontal className="h-4 w-4" />
@@ -141,17 +146,17 @@ export function AgentCard({
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onSelect={actions.onDuplicate}>
                   <Copy className="h-4 w-4" />
-                  Duplicate
+                  {t("duplicate")}
                 </DropdownMenuItem>
                 {archived ? (
                   <DropdownMenuItem onSelect={actions.onRestore}>
                     <ArchiveRestore className="h-4 w-4" />
-                    Restore
+                    {t("restore")}
                   </DropdownMenuItem>
                 ) : (
                   <DropdownMenuItem onSelect={actions.onArchive}>
                     <Archive className="h-4 w-4" />
-                    Archive
+                    {t("archive")}
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
@@ -160,7 +165,7 @@ export function AgentCard({
                   onSelect={actions.onDelete}
                 >
                   <Trash2 className="h-4 w-4" />
-                  Delete permanently
+                  {t("deletePermanently")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -172,7 +177,8 @@ export function AgentCard({
 }
 
 function AccessChip({ agent }: { agent: Agent }) {
-  const { icon: Icon, label } = accessSummary(agent);
+  const t = useTranslations("agents");
+  const { icon: Icon, label } = accessSummary(agent, t);
   return (
     <Badge variant="outline" className="text-muted-foreground gap-1 font-normal">
       <Icon className="h-3 w-3" aria-hidden />

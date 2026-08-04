@@ -49,6 +49,7 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
+import { useTranslations } from "next-intl";
 const ROLE_VARIANT: Record<OrgRole, "default" | "secondary" | "outline"> = {
   owner: "default",
   admin: "secondary",
@@ -68,6 +69,7 @@ function getInitials(nameOrEmail: string): string {
 }
 
 export default function OrgMembersPage({ params }: PageProps) {
+  const t = useTranslations("pages.orgs");
   const { id } = use(params);
   const { user } = useAuth();
   const { members, total, isLoading, fetchMembers, changeRole, removeMember } = useMembers(id);
@@ -118,7 +120,7 @@ export default function OrgMembersPage({ params }: PageProps) {
     if (!file) return;
     e.target.value = "";
     if (file.size > MAX_AVATAR_SIZE_BYTES) {
-      toast.error("Avatar too large. Maximum 2MB.");
+      toast.error(t("avatarTooLargeMaximum"));
       return;
     }
     setAvatarUploading(true);
@@ -127,13 +129,13 @@ export default function OrgMembersPage({ params }: PageProps) {
       fd.append("file", file);
       const res = await fetch(`/api/orgs/${id}/avatar`, { method: "POST", body: fd });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: "Upload failed" }));
-        throw new Error(err.detail || "Upload failed");
+        const err = await res.json().catch(() => ({ detail: t("uploadFailed") }));
+        throw new Error(err.detail || t("uploadFailed2"));
       }
-      toast.success("Workspace avatar updated");
+      toast.success(t("workspaceAvatarUpdated"));
       await fetchOrgs(true);
     } catch (err) {
-      toast.error(getErrorMessage(err, "Failed to upload avatar"));
+      toast.error(getErrorMessage(err, t("failedUploadAvatar")));
     } finally {
       setAvatarUploading(false);
     }
@@ -143,7 +145,7 @@ export default function OrgMembersPage({ params }: PageProps) {
     const cols: Column<OrganizationMember>[] = [
       {
         key: "member",
-        header: "Member",
+        header: t("member"),
         cell: (m) => {
           const isSelf = m.user_id === user?.id;
           return (
@@ -156,7 +158,7 @@ export default function OrgMembersPage({ params }: PageProps) {
               <div className="min-w-0">
                 <p className="text-foreground truncate text-sm font-medium">
                   {m.full_name || m.email.split("@")[0]}
-                  {isSelf && <span className="text-muted-foreground font-normal"> (you)</span>}
+                  {isSelf && <span className="text-muted-foreground font-normal"> {t("you")}</span>}
                 </p>
                 <p className="text-muted-foreground truncate text-xs">{m.email}</p>
               </div>
@@ -166,7 +168,7 @@ export default function OrgMembersPage({ params }: PageProps) {
       },
       {
         key: "role",
-        header: "Role",
+        header: t("role2"),
         cell: (m) => {
           const isSelf = m.user_id === user?.id;
           const isOwner = m.role === "owner";
@@ -195,7 +197,7 @@ export default function OrgMembersPage({ params }: PageProps) {
       },
       {
         key: "joined",
-        header: "Joined",
+        header: t("joined"),
         cell: (m) => (
           <span className="text-muted-foreground text-sm">{formatDate(m.joined_at)}</span>
         ),
@@ -233,18 +235,18 @@ export default function OrgMembersPage({ params }: PageProps) {
   return (
     <div className="space-y-6">
       <PageHeader
-        title={org?.name ?? "Members"}
-        description={`${total} ${total === 1 ? "person has" : "people have"} access to this workspace. Owners and admins can invite teammates and adjust roles.`}
+        title={org?.name ?? t("members")}
+        description={t("membersDescription", { count: total })}
         breadcrumbs={[
-          { label: "Organizations", href: ROUTES.ORGS },
-          { label: org?.name ?? "Members" },
+          { label: t("organizations"), href: ROUTES.ORGS },
+          { label: org?.name ?? t("members2") },
         ]}
         actions={
           <div className="flex items-center gap-2">
             <Button variant="outline" asChild>
               <Link href={ROUTES.ORG_ROLES(id)}>
                 <ShieldCheck className="h-4 w-4" />
-                Roles
+                {t("roles")}
               </Link>
             </Button>
             {canManage ? (
@@ -255,11 +257,11 @@ export default function OrgMembersPage({ params }: PageProps) {
                     what most people want most of the time. */}
                 <Button variant="outline" onClick={() => setLinkOpen(true)}>
                   <Link2 className="h-4 w-4" />
-                  Invite link
+                  {t("inviteLink")}
                 </Button>
                 <Button onClick={() => setInviteOpen(true)}>
                   <UserPlus className="h-4 w-4" />
-                  Invite teammate
+                  {t("inviteTeammate")}
                 </Button>
               </>
             ) : null}
@@ -274,7 +276,7 @@ export default function OrgMembersPage({ params }: PageProps) {
             onClick={() => avatarInputRef.current?.click()}
             disabled={!canManage || avatarUploading}
             className="bg-muted text-foreground group relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl disabled:cursor-default"
-            title={canManage ? "Change workspace avatar" : "Only owners and admins can edit"}
+            title={canManage ? t("changeWorkspaceAvatar") : t("onlyOwnersAdminsCan")}
           >
             {org.avatar_url ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -309,11 +311,9 @@ export default function OrgMembersPage({ params }: PageProps) {
           <div className="min-w-0 flex-1 space-y-3">
             <div>
               <p className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
-                Workspace profile
+                {t("workspaceProfile")}
               </p>
-              <p className="text-muted-foreground mt-0.5 text-xs">
-                Name and avatar shown across the app to everyone in this workspace.
-              </p>
+              <p className="text-muted-foreground mt-0.5 text-xs">{t("nameAvatarShownAcross")}</p>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -323,7 +323,7 @@ export default function OrgMembersPage({ params }: PageProps) {
                 onChange={(e) => setName(e.target.value)}
                 disabled={!canManage || savingName}
                 className="min-w-0 flex-1"
-                placeholder="Workspace name"
+                placeholder={t("workspaceName")}
                 maxLength={255}
               />
               {canManage && name.trim() !== org.name && name.trim() !== "" && (
@@ -333,9 +333,7 @@ export default function OrgMembersPage({ params }: PageProps) {
               )}
             </div>
             {!canManage && (
-              <p className="text-muted-foreground text-[11px]">
-                Only owners and admins can edit workspace profile.
-              </p>
+              <p className="text-muted-foreground text-[11px]">{t("onlyOwnersAdminsCan")}</p>
             )}
           </div>
         </section>
@@ -351,10 +349,12 @@ export default function OrgMembersPage({ params }: PageProps) {
       {!isLoading && members.length === 0 ? (
         <EmptyState
           icon={Users}
-          title="No members yet"
-          description="Invite teammates by email to give them access to this workspace."
+          title={t("noMembersYet")}
+          description={t("inviteTeammatesByEmail")}
           cta={
-            canManage ? { label: "Invite teammate", onClick: () => setInviteOpen(true) } : undefined
+            canManage
+              ? { label: t("inviteTeammate"), onClick: () => setInviteOpen(true) }
+              : undefined
           }
         />
       ) : (
@@ -364,7 +364,7 @@ export default function OrgMembersPage({ params }: PageProps) {
           loading={isLoading}
           skeletonRows={4}
           getRowKey={(m) => m.id}
-          empty="No members yet."
+          empty={t("noMembersYet")}
         />
       )}
 
@@ -372,7 +372,7 @@ export default function OrgMembersPage({ params }: PageProps) {
         <section className="space-y-3">
           <div>
             <p className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
-              Pending invitations
+              {t("pendingInvitations")}
             </p>
             <h2 className="text-foreground text-sm font-semibold">
               {pendingInvitations.length} waiting on a response
@@ -386,7 +386,7 @@ export default function OrgMembersPage({ params }: PageProps) {
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="text-foreground truncate text-sm font-medium">
-                    {inv.email ?? "Shareable link"}
+                    {inv.email ?? t("shareableLink")}
                   </p>
                   <p className="text-muted-foreground mt-0.5 truncate text-xs">
                     {/* A link is not waiting on one person, so "invited" is the
@@ -412,7 +412,7 @@ export default function OrgMembersPage({ params }: PageProps) {
                     className="text-muted-foreground hover:text-destructive"
                     onClick={() => revokeInvitation(inv.id)}
                   >
-                    Revoke
+                    {t("revoke")}
                   </Button>
                 )}
               </li>

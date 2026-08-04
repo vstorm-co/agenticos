@@ -1,3 +1,5 @@
+import { getTranslations } from "next-intl/server";
+import { useTranslations } from "next-intl";
 import type { Metadata } from "next";
 import { Construction } from "lucide-react";
 
@@ -12,10 +14,11 @@ export async function generateMetadata({
 }: {
   params: Promise<{ locale: Locale }>;
 }): Promise<Metadata> {
+  const t = await getTranslations("pages.root");
   const { locale } = await params;
   return pageMetadata({
-    title: "Get started",
-    description: "Set up your workspace.",
+    title: t("onboardingTitle"),
+    description: t("onboardingDescription"),
     path: "/onboarding",
     locale,
     noindex: true,
@@ -23,6 +26,7 @@ export async function generateMetadata({
 }
 
 export default function OnboardingPage() {
+  const t = useTranslations("pages.root");
   return (
     <AuthGuard>
       <div className="bg-background text-foreground flex min-h-screen flex-col">
@@ -38,10 +42,10 @@ export default function OnboardingPage() {
         <main className="mx-auto flex w-full max-w-3xl flex-1 items-center px-6 py-12">
           <EmptyState
             icon={Construction}
-            title="Onboarding is under construction"
-            description="The setup wizard is being rebuilt. Nothing is blocking you - head into the workspace and start from there."
-            cta={{ label: "Go to dashboard", href: ROUTES.DASHBOARD }}
-            secondaryCta={{ label: "Start a chat", href: ROUTES.CHAT }}
+            title={t("onboardingUnderConstruction")}
+            description={t("onboardingRebuilt")}
+            cta={{ label: t("goToDashboard"), href: ROUTES.DASHBOARD }}
+            secondaryCta={{ label: t("startAChat"), href: ROUTES.CHAT }}
             className="w-full"
           />
         </main>

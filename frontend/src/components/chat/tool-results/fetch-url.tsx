@@ -1,9 +1,11 @@
 "use client";
 import { ExternalLink, Globe } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { MarkdownContent } from "../markdown-content";
 
 /** Renders a `fetch_url` result as a page card: clickable source link + the fetched content. */
 export function FetchUrlResult({ url, content }: { url: string; content: string }) {
+  const t = useTranslations("chat.tools");
   let host = url;
   try {
     host = new URL(url).hostname.replace(/^www\./, "");
@@ -32,7 +34,7 @@ export function FetchUrlResult({ url, content }: { url: string; content: string 
           <div className="text-foreground/45 border-border/60 flex items-center gap-2 border-b px-3 py-1.5 font-mono text-[10px] tracking-wider uppercase">
             <span>{host}</span>
             <span>·</span>
-            <span>{content.length.toLocaleString()} chars fetched</span>
+            <span>{t("charsFetched", { count: content.length })}</span>
           </div>
           <div className="max-h-80 overflow-y-auto p-3">
             <div className="prose-sm max-w-none text-sm">

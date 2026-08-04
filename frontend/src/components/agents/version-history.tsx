@@ -18,6 +18,7 @@ import { useAgentVersion } from "@/hooks";
 import { collapseUnchanged, diffLines, diffStat } from "@/lib/diff";
 import { cn, formatDate } from "@/lib/utils";
 import type { AgentEnvironment, AgentSpec, AgentVersion } from "@/types/agents";
+import { useTranslations } from "next-intl";
 
 interface VersionHistoryProps {
   agentId: string;
@@ -55,6 +56,7 @@ function PromoteMenu({
   onPromote: (environmentId: string, versionId: string) => void;
   promoting?: boolean;
 }) {
+  const t = useTranslations("agents");
   const targets = environments.filter((environment) => environment.version_id !== version.id);
   if (targets.length === 0) return null;
   return (
@@ -64,7 +66,7 @@ function PromoteMenu({
       onValueChange={(environmentId) => onPromote(environmentId, version.id)}
     >
       <SelectTrigger className="w-36" aria-label={`Promote v${version.version} to…`}>
-        <SelectValue placeholder="Promote to…" />
+        <SelectValue placeholder={t("promote")} />
       </SelectTrigger>
       <SelectContent>
         {targets.map((environment) => (
@@ -100,6 +102,7 @@ export function VersionHistory({
   onPromote,
   promoting,
 }: VersionHistoryProps) {
+  const t = useTranslations("agents");
   // Newest against the one before it: the comparison somebody opening a history
   // almost always wants, and the one that needs no explaining.
   const [rightId, setRightId] = useState<string>(DRAFT);
@@ -112,7 +115,7 @@ export function VersionHistory({
   const comparing = leftId !== null && (rightId === DRAFT || right.version !== undefined);
 
   if (versions.length === 0) {
-    return <p className="text-muted-foreground text-sm">Never published.</p>;
+    return <p className="text-muted-foreground text-sm">{t("neverPublished")}</p>;
   }
 
   return (
@@ -122,7 +125,7 @@ export function VersionHistory({
           <li
             key={version.id}
             className={cn(
-              "flex flex-wrap items-center gap-3 p-3 text-sm",
+              t("flexFlexWrapItems"),
               // The live row is the one fact somebody scans this list for.
               version.id === currentVersionId && "bg-brand-subtle/40",
             )}
@@ -135,10 +138,10 @@ export function VersionHistory({
                   wrote at publish - and the who/when reads under it instead of
                   competing with it on one line. */}
               <p className={cn("truncate", !version.note && "text-muted-foreground italic")}>
-                {version.note ?? "No note"}
+                {version.note ?? t("noNote")}
               </p>
               <p className="text-muted-foreground mt-0.5 text-xs">
-                {version.published_by_email ?? "unknown author"}
+                {version.published_by_email ?? t("unknownAuthor")}
                 {version.created_at ? ` · ${formatDate(version.created_at)}` : ""}
               </p>
             </div>
@@ -151,7 +154,7 @@ export function VersionHistory({
                   {environment.name}
                 </Badge>
               ))}
-            {version.id === currentVersionId && <Badge>live</Badge>}
+            {version.id === currentVersionId && <Badge>{t("live")}</Badge>}
             <Button
               size="sm"
               variant="ghost"
@@ -161,7 +164,7 @@ export function VersionHistory({
               className={cn(leftId === version.id && "bg-accent")}
             >
               <GitCompare className="h-4 w-4" />
-              Compare
+              {t("compareLabel")}
             </Button>
             {onPromote && canRestore && (
               <PromoteMenu
@@ -179,7 +182,7 @@ export function VersionHistory({
                 onClick={() => onRestore(version.id)}
               >
                 <Undo2 className="h-4 w-4" />
-                Restore
+                {t("restore2")}
               </Button>
             )}
           </li>
@@ -188,9 +191,9 @@ export function VersionHistory({
 
       <div className="space-y-2 rounded-md border p-3">
         <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="text-muted-foreground">Comparing</span>
+          <span className="text-muted-foreground">{t("comparing")}</span>
           <Select value={leftId ?? ""} onValueChange={setLeftId}>
-            <SelectTrigger className="w-32" aria-label="Compare from">
+            <SelectTrigger className="w-32" aria-label={t("compareFrom")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -201,15 +204,15 @@ export function VersionHistory({
               ))}
             </SelectContent>
           </Select>
-          <span className="text-muted-foreground">with</span>
+          <span className="text-muted-foreground">{t("with")}</span>
           <Select value={rightId} onValueChange={setRightId}>
-            <SelectTrigger className="w-32" aria-label="Compare to">
+            <SelectTrigger className="w-32" aria-label={t("compare")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {/* The draft is what most comparisons are against: "what have I
                   changed since the version that is running". */}
-              <SelectItem value={DRAFT}>Draft</SelectItem>
+              <SelectItem value={DRAFT}>{t("draft")}</SelectItem>
               {versions.map((version) => (
                 <SelectItem key={version.id} value={version.id}>
                   v{version.version}
@@ -224,7 +227,7 @@ export function VersionHistory({
         ) : comparing && left.version && rightSpec ? (
           <SpecDiff before={left.version.spec} after={rightSpec} />
         ) : (
-          <p className="text-muted-foreground text-sm">Pick two versions to compare.</p>
+          <p className="text-muted-foreground text-sm">{t("pickTwoVersionsCompare")}</p>
         )}
       </div>
     </div>
@@ -242,12 +245,13 @@ export function VersionHistory({
  * change nobody made.
  */
 function SpecDiff({ before, after }: { before: AgentSpec; after: AgentSpec }) {
+  const t = useTranslations("agents");
   const lines = useMemo(() => diffLines(specText(before), specText(after)), [before, after]);
   const stat = diffStat(lines);
   const rows = useMemo(() => collapseUnchanged(lines), [lines]);
 
   if (stat.added === 0 && stat.removed === 0) {
-    return <p className="text-muted-foreground text-sm">Identical - nothing changed.</p>;
+    return <p className="text-muted-foreground text-sm">{t("identicalNothingChanged")}</p>;
   }
 
   return (
@@ -265,7 +269,7 @@ function SpecDiff({ before, after }: { before: AgentSpec; after: AgentSpec }) {
               row.kind === "gap" ? (
                 <tr key={`gap-${index}`} className="bg-muted/40">
                   <td colSpan={2} className="text-muted-foreground px-3 py-1 text-center">
-                    {row.hidden} unchanged {row.hidden === 1 ? "line" : "lines"}
+                    {t("unchangedLines", { count: row.hidden })}
                   </td>
                 </tr>
               ) : (

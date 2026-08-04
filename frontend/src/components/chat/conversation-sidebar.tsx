@@ -82,8 +82,8 @@ function ConversationItem({
           onChange={(e) => setEditTitle(e.target.value)}
           onBlur={handleRename}
           onKeyDown={(e) => {
-            if (e.key === "Enter") handleRename();
-            if (e.key === "Escape") setIsEditing(false);
+            if (e.key === t("enter3")) handleRename();
+            if (e.key === t("escape3")) setIsEditing(false);
           }}
           className="text-foreground flex-1 bg-transparent outline-none"
           autoFocus
@@ -97,13 +97,13 @@ function ConversationItem({
               undefined,
               { month: "short", day: "numeric" },
             )}
-            {/* Which agent this was with. One agent gets its face and its
-                name; a thread that changed agents mid-way shows every face
-                rather than naming only the latest. */}
-            <ConversationAgents
-              agents={conversation.agents}
-              showName={conversation.agents?.length === 1}
-            />
+            {/* Which agent this was with, as a face and nothing more. The name
+                was repeating what the picture already says, in a row that also
+                has to fit a title and a date - and it is on the hover title for
+                the times somebody cannot tell two avatars apart. A thread that
+                changed agents mid-way shows every face rather than naming only
+                the latest. */}
+            <ConversationAgents agents={conversation.agents} showName={false} />
           </span>
         </div>
       )}
@@ -160,7 +160,7 @@ function ConversationItem({
                   }}
                 >
                   <ArchiveRestore className="h-4 w-4" />
-                  Restore
+                  {t("restore")}
                 </button>
               ) : (
                 <button
@@ -224,6 +224,7 @@ function ConversationList({
   onLoadMore,
 }: ConversationListProps) {
   const t = useTranslations("chat");
+  const ts = useTranslations("chat.sidebar");
   const [view, setView] = useState<ConversationView>("active");
   const [shareConversationId, setShareConversationId] = useState<string | null>(null);
 
@@ -260,13 +261,13 @@ function ConversationList({
       <div className="px-3 pb-2">
         <div className="bg-secondary/50 flex rounded-lg p-0.5">
           <ViewTab
-            label="Active"
+            label={ts("active")}
             count={activeCount}
             active={view === "active"}
             onClick={() => setView("active")}
           />
           <ViewTab
-            label="Archived"
+            label={ts("archived")}
             count={archivedCount}
             active={view === "archived"}
             onClick={() => setView("archived")}
@@ -302,10 +303,10 @@ function ConversationList({
               )}
             </span>
             <p className="text-foreground text-sm font-medium">
-              {isArchivedView ? "No archived conversations" : t("noConversations")}
+              {isArchivedView ? ts("noArchived") : t("noConversations")}
             </p>
             <p className="text-muted-foreground mt-1 text-xs">
-              {isArchivedView ? "Conversations you archive will appear here." : t("startNewChat")}
+              {isArchivedView ? ts("archivedHint") : t("startNewChat")}
             </p>
           </div>
         ) : (
@@ -345,6 +346,7 @@ interface ConversationSidebarProps {
 
 export function ConversationSidebar({ className }: ConversationSidebarProps) {
   const t = useTranslations("chat");
+  const ts = useTranslations("chat.sidebar");
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { isOpen, close } = useChatSidebarStore();
   const {
@@ -391,7 +393,7 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
           size="sm"
           className="mb-4 h-10 w-10 p-0"
           onClick={() => setIsCollapsed(false)}
-          aria-label="Expand conversations sidebar"
+          aria-label={ts("expand")}
         >
           <ChevronRight className="h-4 w-4" aria-hidden />
         </Button>
@@ -400,8 +402,8 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
           size="sm"
           className="h-10 w-10 p-0"
           onClick={startNewChat}
-          title="New Chat"
-          aria-label="New chat"
+          title={ts("newChat")}
+          aria-label={ts("newChatLabel")}
         >
           <SquarePen className="h-4 w-4" aria-hidden />
         </Button>
@@ -421,7 +423,7 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
             size="sm"
             className="h-8 w-8 p-0"
             onClick={() => setIsCollapsed(true)}
-            aria-label="Collapse conversations sidebar"
+            aria-label={ts("collapse")}
           >
             <ChevronLeft className="h-4 w-4" aria-hidden />
           </Button>
