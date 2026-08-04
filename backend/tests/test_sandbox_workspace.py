@@ -98,6 +98,23 @@ def _serve(monkeypatch, resolved: ResolvedConnection | Exception) -> None:
     monkeypatch.setattr(SandboxConnectionService, "resolve", _resolve)
 
 
+class _ClosesItsClient:
+    """Base for the archive fakes below, giving them the method the real one has.
+
+    `WorkspaceArchive` builds and owns an `httpx.Client` unless it is handed one,
+    and `close()` is what releases it. Every fake here was a bare class without the
+    method, so nothing in this file could tell a closed client from an abandoned
+    one - which is how `_archive` came to leak a connection pool on every read
+    while the coverage report read as complete. Inheriting it means a fake that
+    would break if the service stopped closing.
+    """
+
+    closed = False
+
+    def close(self) -> None:
+        self.closed = True
+
+
 class TestWhoSharesAWorkspace:
     def test_two_organizations_never_share_a_key(self):
         """The refusal this whole feature is measured against."""
@@ -709,7 +726,7 @@ class TestServingAFileAsBytes:
     async def test_a_text_file_on_a_container_host_is_served(self, monkeypatch, mock_db_session):
         from pydantic_ai_backends import remote as remote_module
 
-        class _Archive:
+        class _Archive(_ClosesItsClient):
             def __init__(self, url, token=""):
                 pass
 
@@ -778,7 +795,7 @@ class TestServingAFileAsBytes:
         reply to a typo in a path."""
         from pydantic_ai_backends import remote as remote_module
 
-        class _Archive:
+        class _Archive(_ClosesItsClient):
             def __init__(self, url, token=""):
                 pass
 
@@ -805,7 +822,7 @@ class TestServingAFileAsBytes:
         is a confident wrong answer."""
         from pydantic_ai_backends import remote as remote_module
 
-        class _Archive:
+        class _Archive(_ClosesItsClient):
             def __init__(self, url, token=""):
                 pass
 
@@ -1012,6 +1029,136 @@ class TestOneFlatListOfFiles:
         [(overview, _entry)] = listing.files
         assert overview.agent_name == "Analyst"
         assert overview.access_label == "Everybody who talks to this agent"
+
+
+class TestWhatReadingAHostCosts:
+    """The resources a read acquires, and that it gives them back.
+
+    Neither of these is visible from the answer a caller gets, which is why they
+    went unnoticed: the archive fakes were instant and had no client to leak, so
+    every one of these paths was covered and neither defect was reachable by a
+    test. Both are asserted directly here rather than inferred.
+    """
+
+    @staticmethod
+    def _archive_recording(monkeypatch, *, ls_fails: bool = False) -> list:
+        from pydantic_ai_backends import remote as remote_module
+
+        made: list = []
+
+        class _Archive(_ClosesItsClient):
+            def __init__(self, url, token=""):
+                made.append(self)
+
+            def ls(self, session_id):
+                if ls_fails:
+                    raise RuntimeError("This service keeps no workspaces on disk.")
+                return [{"path": "/run.py", "size": 8, "is_dir": False}]
+
+            def read(self, session_id, path):
+                return "print(1)"
+
+        monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
+        return made
+
+    async def test_a_listing_closes_the_client_it_opened(self, monkeypatch, mock_db_session):
+        """`WorkspaceArchive` owns an `httpx.Client`, and nothing used to release
+        it - so a connection pool was abandoned on every read."""
+        made = self._archive_recording(monkeypatch)
+        _serve(monkeypatch, _resolved())
+        row = _row(backend="service", session_id="dc-1", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+
+        await SandboxWorkspaceService(mock_db_session).listing(_ctx(), conversation_id=uuid4())
+
+        assert [archive.closed for archive in made] == [True]
+
+    async def test_a_host_that_raises_still_has_its_client_closed(
+        self, monkeypatch, mock_db_session
+    ):
+        """The failing path is the one that matters: a service keeping nothing on
+        disk is the commonest answer here, so it is the commonest leak."""
+        made = self._archive_recording(monkeypatch, ls_fails=True)
+        _serve(monkeypatch, _resolved())
+        row = _row(backend="service", session_id="dc-1", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+
+        found = await SandboxWorkspaceService(mock_db_session).listing(
+            _ctx(), conversation_id=uuid4()
+        )
+
+        assert found is not None
+        assert found[1].unreadable_reason is not None
+        assert [archive.closed for archive in made] == [True]
+
+    async def test_a_read_closes_the_client_it_opened(self, monkeypatch, mock_db_session):
+        made = self._archive_recording(monkeypatch)
+        _serve(monkeypatch, _resolved())
+        row = _row(backend="service", session_id="dc-1", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "get", AsyncMock(return_value=row))
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=[row]))
+
+        await SandboxWorkspaceService(mock_db_session).read_file_of(_ctx(), row.id, path="/run.py")
+
+        assert made
+        assert all(archive.closed for archive in made)
+
+    async def test_one_host_is_resolved_once_however_many_workspaces_it_holds(
+        self, monkeypatch, mock_db_session
+    ):
+        """`resolve` is a query plus a vault unwrap, and this asked it per row - so
+        a reader with twenty workspaces on one host paid twenty of each to read one
+        page."""
+        from app.repositories import agent as agent_repo
+
+        self._archive_recording(monkeypatch)
+        connection = uuid4()
+        resolves = 0
+
+        async def _resolve(self, ctx, connection_id):
+            nonlocal resolves
+            resolves += 1
+            return _resolved()
+
+        monkeypatch.setattr(SandboxConnectionService, "resolve", _resolve)
+        rows = [
+            _row(backend="service", session_id=f"dc-{n}", connection_id=connection)
+            for n in range(4)
+        ]
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=rows))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+
+        listing = await SandboxWorkspaceService(mock_db_session).flat_files(_ctx())
+
+        assert listing.workspaces_read == 4
+        assert resolves == 1
+
+    async def test_two_hosts_are_resolved_separately(self, monkeypatch, mock_db_session):
+        """The cache is keyed on the connection, so a second host is a second
+        answer rather than the first one reused."""
+        from app.repositories import agent as agent_repo
+
+        self._archive_recording(monkeypatch)
+        seen: list = []
+
+        async def _resolve(self, ctx, connection_id):
+            seen.append(connection_id)
+            return _resolved()
+
+        monkeypatch.setattr(SandboxConnectionService, "resolve", _resolve)
+        first, second = uuid4(), uuid4()
+        rows = [
+            _row(backend="service", session_id="dc-1", connection_id=first),
+            _row(backend="service", session_id="dc-2", connection_id=second),
+        ]
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=rows))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+
+        await SandboxWorkspaceService(mock_db_session).flat_files(_ctx())
+
+        assert sorted(map(str, seen)) == sorted(map(str, [first, second]))
 
 
 class TestContainerBackedWorkspaces:
@@ -1426,7 +1573,7 @@ class TestShowingTheFilesToAPerson:
         and only for a workspace kept on a host, because a stored one has `exists`."""
         from pydantic_ai_backends import remote as remote_module
 
-        class _Archive:
+        class _Archive(_ClosesItsClient):
             def __init__(self, url, token=""):
                 pass
 
@@ -1477,7 +1624,7 @@ class TestShowingTheFilesToAPerson:
     ):
         from pydantic_ai_backends import remote as remote_module
 
-        class _Archive:
+        class _Archive(_ClosesItsClient):
             def __init__(self, url, token=""):
                 pass
 
@@ -1515,7 +1662,7 @@ class TestShowingTheFilesToAPerson:
         only while a sandbox runs."""
         from pydantic_ai_backends import remote as remote_module
 
-        class _Archive:
+        class _Archive(_ClosesItsClient):
             def __init__(self, url, token=""):
                 pass
 
@@ -1549,7 +1696,7 @@ class TestShowingTheFilesToAPerson:
         """A 404 would say the file is not there. It is; this host cannot serve it."""
         from pydantic_ai_backends import remote as remote_module
 
-        class _Archive:
+        class _Archive(_ClosesItsClient):
             def __init__(self, url, token=""):
                 pass
 

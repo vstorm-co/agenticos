@@ -23,6 +23,8 @@ module exists rather than a helper on the capability:
 from __future__ import annotations
 
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
@@ -133,6 +135,7 @@ class SandboxWorkspaceService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
         self.connections = SandboxConnectionService(db)
+        self._connections_by_id: dict[UUID, ResolvedConnection] = {}
 
     async def open(
         self,
@@ -376,7 +379,7 @@ class SandboxWorkspaceService:
         from pydantic_ai_backends.remote import RemoteSandbox
 
         try:
-            resolved = await self.connections.resolve(ctx, row.connection_id)
+            resolved = await self._connection(ctx, row.connection_id)
             if resolved.kind != "docker" or not resolved.row.base_url:
                 return
             RemoteSandbox(
@@ -672,10 +675,10 @@ class SandboxWorkspaceService:
 
     async def _remote_entries(self, ctx: AuthContext, row: AgentWorkspace) -> WorkspaceContents:
         try:
-            archive = await self._archive(ctx, row)
-            if archive is None:
-                return WorkspaceContents(entries=[])
-            return WorkspaceContents(entries=list(archive.ls(row.session_id or row.scope_key)))
+            async with self._archive(ctx, row) as archive:
+                if archive is None:
+                    return WorkspaceContents(entries=[])
+                return WorkspaceContents(entries=list(archive.ls(row.session_id or row.scope_key)))
         except Exception as exc:
             # Carried, not raised. "There are no files" and "this host cannot be
             # read" must stay distinguishable - an empty folder is what a user
@@ -722,35 +725,69 @@ class SandboxWorkspaceService:
                 return None
             return backend.read(path)
 
-        archive = await self._archive(ctx, row)
-        if archive is None:
-            return None
-        try:
-            return archive.read(row.session_id or row.scope_key, path)
-        except Exception as exc:
-            # A 400 naming the reason, rather than the 500 this used to be or the
-            # 404 that "no such file" would have been. Both of those tell somebody
-            # the file is missing when the truth is that this host cannot serve it.
-            raise BadRequestError(
-                message=_reason(exc), details={"workspace_id": str(row.id), "path": path}
-            ) from exc
+        async with self._archive(ctx, row) as archive:
+            if archive is None:
+                return None
+            try:
+                return archive.read(row.session_id or row.scope_key, path)
+            except Exception as exc:
+                # A 400 naming the reason, rather than the 500 this used to be or
+                # the 404 that "no such file" would have been. Both of those tell
+                # somebody the file is missing when the truth is that this host
+                # cannot serve it.
+                raise BadRequestError(
+                    message=_reason(exc), details={"workspace_id": str(row.id), "path": path}
+                ) from exc
 
-    async def _archive(self, ctx: AuthContext, row: AgentWorkspace) -> Any | None:
+    @asynccontextmanager
+    async def _archive(self, ctx: AuthContext, row: AgentWorkspace) -> AsyncIterator[Any | None]:
         """A reader for the host volume behind a container-backed workspace.
 
         `None` when the workspace has no connection left to ask - the host was
         forgotten, or this is a Daytona sandbox, which keeps no host volume of
         ours to read. Either way the answer is "no files here", which is true, and
         distinct from the service being misconfigured: that raises.
+
+        A context manager because `WorkspaceArchive` builds and *owns* an
+        `httpx.Client` when it is not handed one, and exposes `close()` to release
+        it. This used to return the archive and nothing ever closed it, so every
+        listing and every read abandoned a connection pool for the garbage
+        collector to notice later - and `flat_files` walks up to 25 workspaces in
+        one request.
         """
         if row.connection_id is None:
-            return None
+            yield None
+            return
         from pydantic_ai_backends.remote import WorkspaceArchive
 
-        resolved = await self.connections.resolve(ctx, row.connection_id)
+        resolved = await self._connection(ctx, row.connection_id)
         if resolved.kind != "docker" or not resolved.row.base_url:
-            return None
-        return WorkspaceArchive(resolved.row.base_url, token=resolved.token)
+            yield None
+            return
+        archive = WorkspaceArchive(resolved.row.base_url, token=resolved.token)
+        try:
+            yield archive
+        finally:
+            archive.close()
+
+    async def _connection(self, ctx: AuthContext, connection_id: UUID) -> ResolvedConnection:
+        """A connection, resolved at most once per service instance.
+
+        `resolve` is a query plus a vault unwrap, and `flat_files` asked it per
+        row - so a reader with twenty workspaces on one host paid twenty of both
+        to read one page. The service is constructed per request by the DI
+        container, so the cache lives exactly as long as the work that needs it.
+
+        It holds an unsealed token for that lifetime, which is not a widening: the
+        caller is already holding one to talk to the host, and it never leaves this
+        process. Keyed on the id rather than the row, so two workspaces on one
+        connection share the answer and two connections do not.
+        """
+        cached = self._connections_by_id.get(connection_id)
+        if cached is None:
+            cached = await self.connections.resolve(ctx, connection_id)
+            self._connections_by_id[connection_id] = cached
+        return cached
 
 
 TEXTUAL_SUFFIXES = frozenset(
