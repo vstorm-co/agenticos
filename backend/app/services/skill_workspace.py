@@ -34,7 +34,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from pydantic_ai_backends import BackendProtocol
-from pydantic_ai_skills._parsing import parse_skill_md
+from pydantic_ai_skills import parse_skill_md
 
 from app.db.models.skill import Skill
 
