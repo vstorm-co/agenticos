@@ -32,7 +32,14 @@ vi.mock("@/hooks", () => ({
   }),
 }));
 vi.mock("@/components/sandboxes/file-viewer", () => ({
-  WorkspaceFileViewer: ({ path }: { path: string }) => <div data-testid="viewer">{path}</div>,
+  WorkspaceFileViewer: ({ path, onClose }: { path: string; onClose: () => void }) => (
+    <div data-testid="viewer">
+      {path}
+      <button type="button" onClick={onClose}>
+        close the viewer
+      </button>
+    </div>
+  ),
 }));
 
 function call(overrides: Partial<ToolCall> = {}): ToolCall {
@@ -247,5 +254,32 @@ describe("a workspace tool call", () => {
     // Anything else has to keep falling through to its own renderer.
     expect(isWorkspaceTool("write_file")).toBe(true);
     expect(isWorkspaceTool("run_python")).toBe(false);
+  });
+
+  it("closes the viewer again", async () => {
+    // The card opens a modal; the way out has to work, and it is a callback the card
+    // owns rather than the viewer.
+    render(
+      <WorkspaceToolResult toolCall={call()} resultText="Wrote 1 lines" conversationId="c-1" />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Open" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "close the viewer" }));
+
+    expect(screen.queryByTestId("viewer")).toBeNull();
+  });
+
+  it("names a file with no suffix by what it is", () => {
+    // `Makefile` has no extension, so the kind line has nothing to append.
+    render(
+      <WorkspaceToolResult
+        toolCall={call({ args: { path: "/Makefile", content: "all:" } })}
+        resultText="Wrote 1 lines"
+        conversationId="c-1"
+      />,
+    );
+
+    expect(screen.getByText("Makefile")).toBeVisible();
+    expect(screen.getByText("Text")).toBeVisible();
   });
 });

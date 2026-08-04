@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -291,6 +291,18 @@ describe("WorkspaceBrowser", () => {
 
       expect(await screen.findByRole("dialog")).toBeVisible();
       expect(state.read).toContain("/report.csv");
+    });
+
+    it("closes the viewer again", async () => {
+      // The flat grid owns the open state, so the way out is its callback.
+      render(<WorkspaceBrowser />);
+      await userEvent.click(screen.getByRole("button", { name: "All files" }));
+      await userEvent.click(screen.getByRole("button", { name: "/report.csv" }));
+      await screen.findByRole("dialog");
+
+      await userEvent.click(screen.getByRole("button", { name: "Close" }));
+
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     });
 
     it("reads a file's size in the units a person uses, or says it is unmeasured", async () => {

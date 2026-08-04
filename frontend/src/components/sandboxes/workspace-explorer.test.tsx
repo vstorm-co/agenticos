@@ -210,6 +210,19 @@ describe("the workspace explorer", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
+  it("shows a PDF in the browser's own viewer", async () => {
+    // An iframe rather than an image: it is the element every browser routes to its
+    // PDF viewer, and that viewer never gets this page's DOM.
+    state.bytesMediaType = "application/pdf";
+    state.files = listing([file("/report.pdf")]);
+    render(<WorkspaceExplorer workspaceId="w-1" />);
+
+    await userEvent.click(screen.getByRole("button", { name: "report.pdf" }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog.querySelector("iframe")).toHaveAttribute("title", "/report.pdf");
+  });
+
   it("previews an image as a picture", async () => {
     render(<WorkspaceExplorer workspaceId="w-1" />);
 

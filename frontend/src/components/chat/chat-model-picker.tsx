@@ -3,7 +3,11 @@
 import { useState } from "react";
 import { Check } from "lucide-react";
 
-import { modelIdIsWellFormed, modelPlaceholder } from "@/components/agents/add-model";
+import {
+  modelIdIsWellFormed,
+  modelPlaceholder,
+  placeholderWords,
+} from "@/components/agents/add-model";
 import { ProviderIcon } from "@/components/vault/provider-icon";
 import {
   Button,
@@ -155,7 +159,7 @@ export function ChatModelPicker({ value, onChange }: ChatModelPickerProps) {
             setFailure(null);
           }}
           disabled={provider === undefined}
-          placeholder={modelPlaceholder(provider?.id)}
+          placeholder={placeholderWords(modelPlaceholder(provider?.id), t)}
           className="font-mono"
         />
         {suggestions.length > 0 && (

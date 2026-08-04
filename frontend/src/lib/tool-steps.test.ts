@@ -168,4 +168,31 @@ describe("reading a call's arguments", () => {
     expect(isWorkspaceTool("edit_file")).toBe(true);
     expect(isWorkspaceTool("create_chart_tool")).toBe(false);
   });
+
+  it("has no subject for a search with no pattern, and reads a command under either name", () => {
+    // A call whose arguments have not streamed in yet, and the shell tool's two
+    // spellings of the same thing.
+    expect(toolStep("grep", {}, true).label).toBe("Searched for…");
+    expect(toolStep("execute", { cmd: "ls -la" }, true).label).toBe("Ran ls -la");
+  });
+
+  it("names a skill only when the call said which", () => {
+    expect(toolStep("load_skill", { skill_name: "  " }, true).label).toBe("Load Skill");
+  });
+
+  it("reads a path under any name a tool gives it, and a query when there is none", () => {
+    expect(toolStep("read_file", { file_path: "/a/b.txt" }, true).label).toBe("Read b.txt");
+    expect(toolStep("read_file", { filename: "c.txt" }, true).label).toBe("Read c.txt");
+    expect(toolStep("post_invoice", { url: "https://a.example/" }, true).detail).toBe(
+      "https://a.example/",
+    );
+    expect(toolStep("load_skill", { skill_name: "refunds" }, false).detail).toBe("refunds");
+  });
+
+  it("finds a write's body under any of the names a tool uses", () => {
+    expect(contentArg({ text: "a" })).toBe("a");
+    expect(contentArg({ new_str: "b" })).toBe("b");
+    expect(contentArg(undefined)).toBeNull();
+    expect(pathArg(undefined)).toBeNull();
+  });
 });

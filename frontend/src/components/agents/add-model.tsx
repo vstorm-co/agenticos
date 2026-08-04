@@ -61,11 +61,17 @@ interface AddModelProps {
  * form was filled in, which is the wrong end of the interaction for something
  * this mechanical.
  */
-/** Catalog key for the placeholder, so the caller translates it. */
-export function modelPlaceholder(providerId: string | undefined): string {
-  if (providerId === undefined) return "pickProviderFirst";
+/**
+ * What to show in the empty model field.
+ *
+ * A catalog key when there is something to say, and the *example ids themselves*
+ * otherwise: `openai/gpt-5` is not English, it is what the provider calls the model,
+ * and asking the catalog for it produced a missing-message error per keystroke.
+ */
+export function modelPlaceholder(providerId: string | undefined): { key: string } | string {
+  if (providerId === undefined) return { key: "pickProviderFirst" };
   if (providerId === "openrouter") return "openai/gpt-5";
-  return "gpt-5, claude-opus-5, gemini-3-pro…";
+  return "gpt-5, claude-opus-5, gemini-3-pro…"; // i18n-exempt: example model ids
 }
 
 /** Catalog key for the hint under the field. */
@@ -74,6 +80,14 @@ export function modelHint(providerId: string | undefined): string {
     return "modelIdOpenRouterHint";
   }
   return "modelIdProviderHint";
+}
+
+/** A placeholder is either a key to translate or a literal example. */
+export function placeholderWords(
+  placeholder: { key: string } | string,
+  t: (key: string) => string,
+): string {
+  return typeof placeholder === "string" ? placeholder : t(placeholder.key);
 }
 
 /** The same rule the backend applies, so the button says no before the server does. */
@@ -210,7 +224,7 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
             source={source}
             loading={loadingModels}
             disabled={provider === undefined}
-            placeholder={t(modelPlaceholder(provider?.id))}
+            placeholder={placeholderWords(modelPlaceholder(provider?.id), t)}
           />
           {failure !== null && <p className="text-destructive text-xs">{failure}</p>}
         </div>

@@ -25,13 +25,20 @@ interface UsageStripProps {
 
 interface Fill {
   percent: number | null;
-  detail: string | null;
+  detail: string;
 }
 
+/** A translator, which the helpers below need because their answers are read. */
+type Translate = (key: string, values?: Record<string, string | number>) => string;
+
 /** How full the workspace is, from whichever source can say. */
-function fillOf(usage: TurnUsage, workspace: ConversationWorkspace | null): Fill | null {
+function fillOf(
+  usage: TurnUsage,
+  workspace: ConversationWorkspace | null,
+  t: Translate,
+): Fill | null {
   const sandbox = usage.sandbox;
-  if (sandbox !== null) return { percent: sandbox.percent, detail: reportedDetail(sandbox) };
+  if (sandbox !== null) return { percent: sandbox.percent, detail: reportedDetail(sandbox, t) };
   // No turn has reported one - a reopened conversation. A stored workspace can still
   // be measured from the listing; a container cannot, and "in use" would claim a
   // sandbox is running when the last one may have been reaped weeks ago.
@@ -39,7 +46,10 @@ function fillOf(usage: TurnUsage, workspace: ConversationWorkspace | null): Fill
     return null;
   return {
     percent: Math.round((workspace.bytes_total * 100) / workspace.bytes_limit),
-    detail: `${size(workspace.bytes_total)} of ${size(workspace.bytes_limit)} stored`,
+    detail: t("storedOf", {
+      used: size(workspace.bytes_total),
+      limit: size(workspace.bytes_limit),
+    }),
   };
 }
 
@@ -51,12 +61,15 @@ function size(bytes: number): string {
 }
 
 /** What the workspace half is measuring, and how much of it is gone. */
-function reportedDetail(sandbox: NonNullable<TurnUsage["sandbox"]>): string | null {
+function reportedDetail(sandbox: NonNullable<TurnUsage["sandbox"]>, t: Translate): string {
   if (sandbox.bytes_used !== null && sandbox.bytes_limit !== null)
-    return `${size(sandbox.bytes_used)} of ${size(sandbox.bytes_limit)} stored`;
+    return t("storedOf", { used: size(sandbox.bytes_used), limit: size(sandbox.bytes_limit) });
   if (sandbox.memory_bytes !== null && sandbox.memory_limit_bytes !== null)
-    return `${size(sandbox.memory_bytes)} of ${size(sandbox.memory_limit_bytes)} in the container`;
-  return "in use — this host did not report a number";
+    return t("inContainer", {
+      used: size(sandbox.memory_bytes),
+      limit: size(sandbox.memory_limit_bytes),
+    });
+  return t("unmeasured");
 }
 
 /**
@@ -71,18 +84,35 @@ function reportedDetail(sandbox: NonNullable<TurnUsage["sandbox"]>): string | nu
  * Absent until a turn has been measured, rather than drawn as zeroes: "0 tokens"
  * under a conversation that has not run anything is a claim, and this has none to
  * make yet.
+ *
+ * **The row it occupies is not absent, though.** The strip sits inside the composer,
+ * so appearing after the first answer grew the box somebody had just typed in and
+ * shifted the whole conversation up a line. The line is reserved whether or not there
+ * is anything to put in it: one line of `text-xs` is 1rem, which is exactly what the
+ * populated row measures, so the composer is the same height before and after.
  */
 export function UsageStrip({ usage, workspace = null }: UsageStripProps) {
-  const t = useTranslations("chat.usage");
-  if (usage === null) return null;
+  return (
+    <div className="text-muted-foreground flex min-h-4 flex-wrap items-center gap-x-4 gap-y-1 px-1 text-xs">
+      {usage !== null && <Measured usage={usage} workspace={workspace} />}
+    </div>
+  );
+}
 
+/** The numbers themselves, once there are some. */
+function Measured({
+  usage,
+  workspace,
+}: {
+  usage: TurnUsage;
+  workspace: ConversationWorkspace | null;
+}) {
+  const t = useTranslations("chat.usage");
   const tokens = usage.input_tokens + usage.output_tokens;
-  const fill = fillOf(usage, workspace);
-  const percent = fill?.percent ?? null;
-  const detail = fill?.detail ?? null;
+  const fill = fillOf(usage, workspace, t);
 
   return (
-    <div className="text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-xs">
+    <>
       <span
         className="flex items-center gap-1.5"
         title={`${usage.input_tokens.toLocaleString()} in · ${usage.output_tokens.toLocaleString()} out`}
@@ -95,30 +125,28 @@ export function UsageStrip({ usage, workspace = null }: UsageStripProps) {
             close. */}
         {usage.agent_budget_percent !== null && (
           <span className={cn(usage.agent_budget_percent >= 80 && "text-amber-600")}>
-            · {usage.agent_budget_percent}% of this agent&apos;s month
+            {t("agentShare", { percent: usage.agent_budget_percent })}
           </span>
         )}
         {usage.budget_percent !== null && usage.budget_percent >= 80 && (
-          <span className="text-amber-600">
-            · {usage.budget_percent}% of the organization&apos;s
-          </span>
+          <span className="text-amber-600">{t("orgShare", { percent: usage.budget_percent })}</span>
         )}
       </span>
 
       {fill !== null && (
-        <span className="flex items-center gap-1.5" title={detail ?? undefined}>
+        <span className="flex items-center gap-1.5" title={fill.detail}>
           <HardDrive className="h-3 w-3" aria-hidden />
-          {percent === null ? (
+          {fill.percent === null ? (
             <span>{t("workspaceInUse")}</span>
           ) : (
             <>
               <span
                 className={cn(
-                  percent >= 90 && "text-destructive",
-                  percent >= 80 && percent < 90 && "text-amber-600",
+                  fill.percent >= 90 && "text-destructive",
+                  fill.percent >= 80 && fill.percent < 90 && "text-amber-600",
                 )}
               >
-                {t("workspaceFull", { percent })}
+                {t("workspaceFull", { percent: fill.percent })}
               </span>
               {/* A bar as well as the number: 84% and 8% read the same at a
                   glance in a line of small grey text, and the whole point of
@@ -126,27 +154,29 @@ export function UsageStrip({ usage, workspace = null }: UsageStripProps) {
               <span
                 className="bg-muted h-1 w-16 overflow-hidden rounded-full"
                 role="progressbar"
-                aria-valuenow={percent}
+                aria-valuenow={fill.percent}
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-label={t("workspaceUsed")}
               >
                 <span
                   className={cn(
-                    t("blockHFullRounded"),
-                    percent >= 90
+                    // Not a message. A class list went into the catalog during the
+                    // i18n sweep, where a translator could break the bar.
+                    "block h-full rounded-full",
+                    fill.percent >= 90
                       ? "bg-destructive"
-                      : percent >= 80
+                      : fill.percent >= 80
                         ? "bg-amber-500"
                         : "bg-foreground/40",
                   )}
-                  style={{ width: `${Math.min(100, percent)}%` }}
+                  style={{ width: `${Math.min(100, fill.percent)}%` }}
                 />
               </span>
             </>
           )}
         </span>
       )}
-    </div>
+    </>
   );
 }

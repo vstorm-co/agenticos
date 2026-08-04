@@ -118,13 +118,22 @@ function SourcesButton({ sources, onClick }: { sources: SourceItem[]; onClick: (
   );
 }
 
-/** One stretch of a turn: a run of tool steps, or a single part of another kind. */
-interface PartRun {
-  kind: "tools" | "other";
-  parts: MessagePart[];
-  /** Whether this run ends the turn, which is what may still be streaming. */
-  isLast: boolean;
-}
+/**
+ * One stretch of a turn: a run of tool steps, or a single part of another kind.
+ *
+ * The two shapes are separate so the render has nothing to defend against - a run of
+ * tools always has a first step, and a part of another kind always has the text that
+ * earned it a run.
+ */
+type PartRun =
+  | {
+      kind: "tools";
+      /** Never empty: the run exists because a call opened it. */
+      parts: [MessagePart, ...MessagePart[]];
+      /** Whether this run ends the turn, which is what may still be streaming. */
+      isLast: boolean;
+    }
+  | { kind: "other"; part: MessagePart; content: string; isLast: boolean };
 
 /**
  * The turn's parts, with consecutive tool calls gathered into one run.
@@ -147,8 +156,12 @@ export function runsOf(parts: MessagePart[]): PartRun[] {
       else runs.push({ kind: "tools", parts: [part], isLast: false });
       continue;
     }
-    if ((part.type === "text" || part.type === "thinking") && part.content) {
-      runs.push({ kind: "other", parts: [part], isLast: false });
+    if (
+      (part.type === "text" || part.type === "thinking") &&
+      part.content !== undefined &&
+      part.content !== ""
+    ) {
+      runs.push({ kind: "other", part, content: part.content, isLast: false });
     }
   }
   const last = runs.at(-1);
@@ -281,7 +294,7 @@ export function MessageItem({
                       key={att.file.id}
                       onClick={() => openPreview(att.file)}
                       className="hover:ring-foreground/30 block overflow-hidden rounded-xl border ring-2 ring-transparent transition-all"
-                      title={`Open ${att.file.filename}`}
+                      title={t("openFile", { name: att.file.filename })}
                     >
                       <Image
                         src={getFileUrl(att.file.id)}
@@ -308,9 +321,9 @@ export function MessageItem({
           })()}
 
         {(() => {
-          const rawParts = message.parts ?? [];
-          const parts = rawParts;
+          const parts = message.parts ?? [];
           const useParts = !isUser && parts.length > 0;
+          const legacyCalls = message.toolCalls ?? [];
 
           // "Thinking…" placeholder - shown until anything streams in.
           const showPlaceholder =
@@ -318,7 +331,7 @@ export function MessageItem({
             message.isStreaming &&
             !message.content &&
             parts.length === 0 &&
-            (!message.toolCalls || message.toolCalls.length === 0);
+            legacyCalls.length === 0;
 
           return (
             <>
@@ -336,9 +349,9 @@ export function MessageItem({
               {useParts ? (
                 /* Ordered timeline: render each part in arrival order, with runs of
                    tool calls on one rail - see `runsOf`. */
-                runsOf(parts).map((run, index) =>
+                runsOf(parts).map((run) =>
                   run.kind === "tools" ? (
-                    <div key={run.parts[0]?.id ?? index} className="w-full">
+                    <div key={run.parts[0].id} className="w-full">
                       {/* The rail folds its own earlier steps away, but it cannot see
                           what is in them - so whether this run holds something a person
                           has to answer is decided here, where the statuses are. */}
@@ -362,17 +375,17 @@ export function MessageItem({
                         ))}
                       </AgentSteps>
                     </div>
-                  ) : run.parts[0]?.type === "thinking" ? (
+                  ) : run.part.type === "thinking" ? (
                     <ThinkingBlock
-                      key={run.parts[0].id}
-                      text={run.parts[0].content ?? ""}
+                      key={run.part.id}
+                      text={run.content}
                       open={Boolean(message.isStreaming) && run.isLast}
                       isStreaming={Boolean(message.isStreaming)}
                     />
                   ) : (
                     <TextBubble
-                      key={run.parts[0]?.id ?? index}
-                      text={run.parts[0]?.content ?? ""}
+                      key={run.part.id}
+                      text={run.content}
                       showCursor={Boolean(message.isStreaming) && run.isLast}
                       isUser={isUser}
                       onCiteClick={onCiteClick}
@@ -397,17 +410,15 @@ export function MessageItem({
                       onCiteClick={onCiteClick}
                     />
                   )}
-                  {message.toolCalls && message.toolCalls.length > 0 && (
+                  {legacyCalls.length > 0 && (
                     <div className="w-full">
                       <AgentSteps>
-                        {message.toolCalls.map((toolCall, step) => (
+                        {legacyCalls.map((toolCall, step) => (
                           <ToolCallCard
                             key={toolCall.id}
                             toolCall={toolCall}
                             conversationId={message.conversationId}
-                            startOpen={
-                              openLastStep && step === (message.toolCalls?.length ?? 0) - 1
-                            }
+                            startOpen={openLastStep && step === legacyCalls.length - 1}
                           />
                         ))}
                       </AgentSteps>
@@ -493,14 +504,18 @@ function FileChip({
   hint,
   onClick,
   href,
-}: {
-  filename: string;
-  hint?: string;
-  /** When provided, clicking opens the file in the preview panel. */
-  onClick?: () => void;
-  /** Fallback for legacy attachments without full metadata - opens in new tab. */
-  href?: string;
-}) {
+}: { filename: string } & (
+  | {
+      /** Clicking opens the file in the preview panel. */
+      onClick: () => void;
+      /** The MIME type, which the preview panel does not show. */
+      hint: string;
+      href?: never;
+    }
+  /* A legacy attachment, stored without the metadata the panel needs to render it,
+     so the only thing to offer is the file itself. */
+  | { href: string; onClick?: never; hint?: never }
+)) {
   const ext = filename.includes(".") ? filename.split(".").pop()!.toLowerCase() : null;
   const className =
     "border-foreground/15 bg-card hover:border-foreground/40 inline-flex max-w-xs items-center gap-2 rounded-xl border px-3 py-2 transition-colors text-left";
@@ -520,21 +535,15 @@ function FileChip({
       <Paperclip className="text-foreground/40 h-3.5 w-3.5 shrink-0" />
     </>
   );
-  if (onClick) {
+  if (onClick !== undefined) {
     return (
-      <button type="button" onClick={onClick} className={className} title={hint ?? filename}>
+      <button type="button" onClick={onClick} className={className} title={hint}>
         {inner}
       </button>
     );
   }
   return (
-    <a
-      href={href ?? "#"}
-      target="_blank"
-      rel="noopener noreferrer"
-      className={className}
-      title={hint ?? filename}
-    >
+    <a href={href} target="_blank" rel="noopener noreferrer" className={className} title={filename}>
       {inner}
     </a>
   );

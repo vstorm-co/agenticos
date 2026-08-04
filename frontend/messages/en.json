@@ -697,6 +697,7 @@
     "nullConstRecognitionrefUseref": "(null); const recognitionRef = useRef",
     "nullConstScrollcontainerrefUseref": "(null); const scrollContainerRef = useRef",
     "nullConstTemperatureSettemperature": "(null); const [temperature, setTemperature] = useState",
+    "openFile": "Open {name}",
     "openNewTab": "Open in new tab",
     "opensourcesSourcesIndexUndefined": "openSources(sources, index) : undefined; return (",
     "palette": {
@@ -787,6 +788,12 @@
       "arguments": "Arguments",
       "date": "Date",
       "failedToLoadSkill": "Failed to load skill.",
+      "kindArchive": "Archive",
+      "kindCode": "Code",
+      "kindDocument": "Document",
+      "kindImage": "Image",
+      "kindSpreadsheet": "Spreadsheet",
+      "kindText": "Text",
       "loading": "Loading…",
       "noArguments": "No arguments",
       "noRelevantDocuments": "No relevant documents found",
@@ -802,7 +809,6 @@
     "unknownError": "Unknown error",
     "usage": {
       "agentShare": "· {percent}% of this agent's month",
-      "blockHFullRounded": "block h-full rounded-full",
       "inContainer": "{used} of {limit} in the container",
       "orgShare": "· {percent}% of the organization's",
       "storedOf": "{used} of {limit} stored",

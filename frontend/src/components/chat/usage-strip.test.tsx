@@ -32,12 +32,20 @@ function workspace(overrides: Partial<ConversationWorkspace> = {}): Conversation
 }
 
 describe("UsageStrip", () => {
-  it("says nothing before a turn has been measured", () => {
+  it("says nothing before a turn has been measured, and still holds its line", () => {
     // "0 tokens" under a conversation that has not run anything is a claim, and
-    // this has none to make yet.
-    const { container } = render(<UsageStrip usage={null} />);
+    // this has none to make yet. The *row* is not optional though: the strip sits
+    // inside the composer, so appearing after the first answer grew the box
+    // somebody had just typed in and shifted the conversation up a line. The row
+    // is the same before and after; only its contents change.
+    const empty = render(<UsageStrip usage={null} />);
+    const emptyRow = empty.container.firstElementChild;
 
-    expect(container).toBeEmptyDOMElement();
+    expect(emptyRow?.textContent).toBe("");
+
+    const measured = render(<UsageStrip usage={usage()} />);
+
+    expect(measured.container.firstElementChild?.className).toBe(emptyRow?.className);
   });
 
   it("reports the tokens and the cost of the last turn", () => {
@@ -51,6 +59,14 @@ describe("UsageStrip", () => {
     render(<UsageStrip usage={usage({ agent_budget_percent: 40 })} />);
 
     expect(screen.getByText(/40% of this agent's month/)).toBeVisible();
+  });
+
+  it("colours the agent's share once it is close to the cap", () => {
+    // The number is the warning; grey is not. A budget breach refuses the next turn
+    // outright, so the last few percent have to look different from the first forty.
+    render(<UsageStrip usage={usage({ agent_budget_percent: 88 })} />);
+
+    expect(screen.getByText(/88% of this agent's month/).className).toContain("text-amber-600");
   });
 
   it("keeps the organization's cap out of the way until it is close", () => {

@@ -5,11 +5,12 @@ import { Download } from "lucide-react";
 
 import { CopyButton } from "../copy-button";
 import { FileIcon, kindOf } from "@/components/sandboxes/file-tile";
+import type { FileKind } from "@/components/sandboxes/file-tile";
 import { WorkspaceFileViewer } from "@/components/sandboxes/file-viewer";
 import { Button } from "@/components/ui";
 import { useConversationWorkspace, useFileDownload } from "@/hooks";
 import { basename, contentArg, pathArg } from "@/lib/tool-steps";
-import type { FileSource } from "@/lib/workspace-files";
+import { suffixOf, type FileSource } from "@/lib/workspace-files";
 import type { ToolCall } from "@/types";
 import { useTranslations } from "next-intl";
 
@@ -29,13 +30,14 @@ function lines(name: string, result: string): string[] | null {
   return found.length === 0 ? null : found;
 }
 
-const KIND_WORDS: Record<string, string> = {
-  doc: "Document",
-  image: "Image",
-  sheet: "Spreadsheet",
-  code: "Code",
-  archive: "Archive",
-  text: "Text",
+/** What each kind is called - keys, because a module table has no translator. */
+const KIND_KEYS: Record<FileKind, string> = {
+  doc: "kindDocument",
+  image: "kindImage",
+  sheet: "kindSpreadsheet",
+  code: "kindCode",
+  archive: "kindArchive",
+  text: "kindText",
 };
 
 /**
@@ -60,9 +62,11 @@ function WorkspaceFileCard({
   conversationId: string | undefined;
   path: string;
 }) {
+  const t = useTranslations("chat.tools");
   const { workspace } = useConversationWorkspace(conversationId ?? null);
   const [opened, setOpened] = useState(false);
   const name = basename(path);
+  const suffix = suffixOf(name);
   const entry =
     workspace?.items.find((file) => !file.is_dir && file.path === path) ??
     workspace?.items.find((file) => !file.is_dir && basename(file.path) === name) ??
@@ -79,8 +83,8 @@ function WorkspaceFileCard({
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-medium">{name}</span>
         <span className="text-muted-foreground text-[11px]">
-          {KIND_WORDS[kindOf(path)] ?? "File"}
-          {name.includes(".") && <> · {name.split(".").pop()?.toUpperCase() ?? ""}</>}
+          {t(KIND_KEYS[kindOf(path)])}
+          {suffix !== "" && <> · {suffix.toUpperCase()}</>}
         </span>
       </span>
       {reachable && (
