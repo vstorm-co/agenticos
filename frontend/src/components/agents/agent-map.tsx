@@ -271,7 +271,7 @@ export function AgentMap({ agentName, instructions, nodes }: AgentMapProps) {
               ref={hub}
               className="border-brand/40 bg-card rounded-xl border-2 p-4 shadow-sm"
               role="group"
-              aria-label={`${agentName}, the agent`}
+              aria-label={t("theAgentItself", { name: agentName })}
             >
               <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
                 {t("agent")}

@@ -323,17 +323,21 @@ export function secretProblem(
   requirement: SecretRequirement,
   secretId: string | null,
   secrets: readonly Secret[],
-  t: (key: string) => string,
+  t: (key: string, values?: Record<string, string>) => string,
 ): string | null {
   if (secretId === null) {
-    return `No secret selected. This capability needs one of kind ${requirement.kind}, and the agent cannot be published until it has one.`;
+    return t("noSecretSelected", { kind: requirement.kind });
   }
   const secret = secrets.find((candidate) => candidate.id === secretId);
   if (secret === undefined) {
     return t("secretMissingFromVault");
   }
   if (secret.kind !== requirement.kind) {
-    return `"${secret.name}" is of kind ${secret.kind}; this capability needs ${requirement.kind}. Publishing refuses it.`;
+    return t("secretOfWrongKind", {
+      name: secret.name,
+      kind: secret.kind,
+      needed: requirement.kind,
+    });
   }
   return null;
 }
@@ -544,7 +548,7 @@ function vaultState(isLoading: boolean, listError: Error | null, usableCount: nu
 function placeholderFor(
   state: VaultState,
   requirement: SecretRequirement,
-  t: (key: string) => string,
+  t: (key: string, values?: Record<string, string>) => string,
 ): string {
   switch (state) {
     case "loading":
@@ -552,7 +556,7 @@ function placeholderFor(
     case "unreadable":
       return t("vaultCouldNotBeRead");
     case "empty":
-      return `No ${requirement.kind} secret in the vault`;
+      return t("noSecretOfKind", { kind: requirement.kind });
     case "ready":
       return t("chooseSecret");
   }

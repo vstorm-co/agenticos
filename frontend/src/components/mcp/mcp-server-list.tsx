@@ -333,8 +333,8 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
         });
         toast.success(
           scope === "organization"
-            ? `${name} is now available to this organization's agents.`
-            : `${name} is connected for your assistant.`,
+            ? t("connectedForOrg", { name })
+            : t("connectedForYou", { name }),
         );
         setDraft(null);
         void handleTools(scope, created);

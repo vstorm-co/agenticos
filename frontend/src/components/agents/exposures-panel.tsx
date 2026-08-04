@@ -154,7 +154,7 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
                 >
                   <SelectTrigger
                     className="w-36"
-                    aria-label={`Environment on ${exposure.channel_bot_name}`}
+                    aria-label={t("environmentOn", { bot: exposure.channel_bot_name })}
                   >
                     <SelectValue />
                   </SelectTrigger>
@@ -184,7 +184,7 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
                 >
                   <SelectTrigger
                     className="w-44"
-                    aria-label={`Workspace sharing on ${exposure.channel_bot_name}`}
+                    aria-label={t("workspaceSharingOn", { bot: exposure.channel_bot_name })}
                   >
                     <SelectValue />
                   </SelectTrigger>
@@ -204,8 +204,8 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
                 disabled={!canManage || setActive.isPending}
                 aria-label={
                   exposure.is_active
-                    ? `Pause on ${exposure.channel_bot_name}`
-                    : `Resume on ${exposure.channel_bot_name}`
+                    ? t("pauseOn", { bot: exposure.channel_bot_name })
+                    : t("resumeOn", { bot: exposure.channel_bot_name })
                 }
                 onClick={() =>
                   setActive.mutate({ exposureId: exposure.id, isActive: !exposure.is_active })
@@ -217,7 +217,7 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
                 variant="ghost"
                 size="sm"
                 disabled={!canManage || revoke.isPending}
-                aria-label={`Remove from ${exposure.channel_bot_name}`}
+                aria-label={t("removeFrom", { bot: exposure.channel_bot_name })}
                 onClick={() => revoke.mutate(exposure.id)}
               >
                 <Trash2 className="h-4 w-4" />

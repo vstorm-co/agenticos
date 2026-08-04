@@ -42,12 +42,15 @@ const CHANNEL_LABEL: Record<string, string> = {
  * Visibility answers for the broad settings; the grant count only matters for a
  * private agent, where "Private" and "Shared with 3" are different facts.
  */
-export function accessSummary(agent: Agent): { icon: LucideIcon; label: string } {
-  if (agent.visibility === "org") return { icon: Building2, label: "Organization" };
-  if (agent.visibility === "team") return { icon: Users, label: "Team" };
+export function accessSummary(
+  agent: Agent,
+  t: (key: string, values?: Record<string, number>) => string,
+): { icon: LucideIcon; label: string } {
+  if (agent.visibility === "org") return { icon: Building2, label: t("visibilityOrg") };
+  if (agent.visibility === "team") return { icon: Users, label: t("visibilityTeam") };
   const count = agent.shared_user_count ?? 0;
-  if (count > 0) return { icon: Users, label: `Shared with ${count}` };
-  return { icon: Lock, label: "Private" };
+  if (count > 0) return { icon: Users, label: t("sharedWithCount", { count }) };
+  return { icon: Lock, label: t("visibilityPrivate") };
 }
 
 export interface AgentCardActions {
@@ -134,7 +137,7 @@ export function AgentCard({
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  aria-label={`More actions for ${agent.name}`}
+                  aria-label={t("moreActionsFor", { name: agent.name })}
                   className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors outline-none focus-visible:ring-2"
                 >
                   <MoreHorizontal className="h-4 w-4" />
@@ -174,7 +177,8 @@ export function AgentCard({
 }
 
 function AccessChip({ agent }: { agent: Agent }) {
-  const { icon: Icon, label } = accessSummary(agent);
+  const t = useTranslations("agents");
+  const { icon: Icon, label } = accessSummary(agent, t);
   return (
     <Badge variant="outline" className="text-muted-foreground gap-1 font-normal">
       <Icon className="h-3 w-3" aria-hidden />

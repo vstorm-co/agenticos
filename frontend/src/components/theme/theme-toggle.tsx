@@ -48,7 +48,7 @@ export function ThemeToggle({ variant = "icon", className }: ThemeToggleProps) {
         size="icon"
         onClick={cycleTheme}
         className={className}
-        aria-label={`Switch theme (current: ${theme})`}
+        aria-label={t("switchThemeCurrent", { theme })}
         title={`Theme: ${theme}`}
       >
         {resolvedTheme === "dark" ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}

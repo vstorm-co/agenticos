@@ -97,13 +97,13 @@ export default function SystemHealthPage() {
       const names = failing.map((check) =>
         META[check.key] ? t(META[check.key]!.words) : check.key,
       );
-      return { tone: "bad" as const, label: `Failing: ${names.join(", ")}` };
+      return { tone: "bad" as const, label: t("failingServices", { names: names.join(", ") }) };
     }
     const unconfigured = checks.filter((check) => check.status !== "healthy");
     if (unconfigured.length) {
       return {
         tone: "mixed" as const,
-        label: `Every service answered · ${unconfigured.length} not configured`,
+        label: t("someUnconfigured", { count: unconfigured.length }),
       };
     }
     return { tone: "good" as const, label: t("everyCheckPassed") };

@@ -42,12 +42,12 @@ function key(file: { workspace_id: string; path: string }): string {
 }
 
 /** When it was last touched, roughly. */
-function used(when: string | null): string {
-  if (when === null) return "never";
+function used(when: string | null, t: (key: string, values?: Record<string, number>) => string) {
+  if (when === null) return t("usedNever");
   const days = Math.floor((Date.now() - new Date(when).getTime()) / 86_400_000);
-  if (days <= 0) return "today";
-  if (days === 1) return "yesterday";
-  return `${days} days ago`;
+  if (days <= 0) return t("usedToday");
+  if (days === 1) return t("usedYesterday");
+  return t("usedDaysAgo", { days });
 }
 
 /**
@@ -168,7 +168,7 @@ export function WorkspaceBrowser() {
                         {workspace.backend === "state" ? size(workspace.bytes_total) : t("host")}
                       </TableCell>
                       <TableCell className="text-muted-foreground text-xs">
-                        {used(workspace.last_used_at)}
+                        {used(workspace.last_used_at, t)}
                       </TableCell>
                       <TableCell className="text-right">
                         {/* A page, not a panel below the table. A workspace with a
@@ -177,7 +177,7 @@ export function WorkspaceBrowser() {
                         <Button variant="ghost" size="sm" asChild>
                           <Link
                             href={ROUTES.WORKSPACE_DETAIL(workspace.id)}
-                            aria-label={`Files of ${workspace.agent_name}`}
+                            aria-label={t("filesOf", { agent: workspace.agent_name })}
                           >
                             {t("open")}
                           </Link>
@@ -280,9 +280,8 @@ function FlatFiles() {
       )}
       {(listing.truncated || listing.unreadable > 0) && (
         <p className="text-muted-foreground text-xs">
-          {listing.truncated && `Read ${listing.workspaces_read} workspaces — there are more. `}
-          {listing.unreadable > 0 &&
-            `${listing.unreadable} could not be read; their host may be down.`}
+          {listing.truncated && t("readSoManyWorkspaces", { count: listing.workspaces_read })}
+          {listing.unreadable > 0 && t("someUnreadable", { count: listing.unreadable })}
         </p>
       )}
     </div>

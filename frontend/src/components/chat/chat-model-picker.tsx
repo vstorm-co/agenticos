@@ -81,7 +81,7 @@ export function ChatModelPicker({ value, onChange }: ChatModelPickerProps) {
     if (key === undefined) {
       // The form below offers to add one, so this says what is missing rather than
       // sending somebody to another page for it.
-      setFailure(`No ${provider.label} key in the vault yet. Add one below.`);
+      setFailure(t("noProviderKey", { provider: provider.label }));
       return;
     }
 

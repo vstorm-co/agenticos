@@ -117,8 +117,11 @@ function SpendingLimitForm({ org }: { org: Organization }) {
       </div>
       <p className="text-foreground/55 mt-3 text-xs">
         {org.monthly_budget_usd === null
-          ? `$${monthToDate.toFixed(2)} spent this month, against no limit.`
-          : `$${monthToDate.toFixed(2)} of $${Number(org.monthly_budget_usd).toFixed(2)} spent this month.`}
+          ? t("spentNoLimit", { spent: monthToDate.toFixed(2) })
+          : t("spentOfLimit", {
+              spent: monthToDate.toFixed(2),
+              limit: Number(org.monthly_budget_usd).toFixed(2),
+            })}
       </p>
     </SettingsSection>
   );

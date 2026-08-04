@@ -1,3 +1,5 @@
+import { useTranslations } from "next-intl";
+
 import type { TurnUsage } from "@/types";
 
 interface MessageCostProps {
@@ -18,10 +20,11 @@ interface MessageCostProps {
  * why absence renders nothing at all rather than zeroes.
  */
 export function MessageCost({ usage }: MessageCostProps) {
+  const t = useTranslations("chat");
   return (
     <span
       className="text-muted-foreground font-mono text-[10px]"
-      title={`${usage.input_tokens.toLocaleString()} input · ${usage.output_tokens.toLocaleString()} output tokens`}
+      title={t("tokensDetail", { input: usage.input_tokens, output: usage.output_tokens })}
     >
       ↓{usage.input_tokens.toLocaleString()} ↑{usage.output_tokens.toLocaleString()} · $
       {usage.cost_usd.toFixed(4)}

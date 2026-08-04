@@ -503,7 +503,9 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
                   size="sm"
                   onClick={() => setSyncSourcesExpanded((v) => !v)}
                 >
-                  {syncSourcesExpanded ? t("showLess") : `Show all ${syncSources.length} sources`}
+                  {syncSourcesExpanded
+                    ? t("showLess")
+                    : t("showAllSources", { count: syncSources.length })}
                 </Button>
               </div>
             )}
@@ -696,14 +698,18 @@ function Provenance({ doc }: { doc: KBDocument }) {
     <div className="flex flex-wrap items-center gap-1.5">
       <span
         className="text-muted-foreground font-mono text-xs"
-        title={doc.embedding_model === null ? undefined : `Embedded with ${doc.embedding_model}`}
+        title={
+          doc.embedding_model === null
+            ? undefined
+            : t("embeddedWith", { model: doc.embedding_model })
+        }
       >
         {doc.parser}
       </span>
       {doc.image_description_model !== null && (
         <span
           className="text-muted-foreground text-xs"
-          title={`Images described by ${doc.image_description_model}`}
+          title={t("imagesDescribedBy", { model: doc.image_description_model })}
         >
           {t("images")}
         </span>

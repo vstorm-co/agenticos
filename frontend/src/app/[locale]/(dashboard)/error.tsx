@@ -24,7 +24,7 @@ export default function DashboardError({
         title={t("sectionFailed")}
         description={
           error.digest
-            ? `An unexpected error occurred. Error ID: ${error.digest}`
+            ? t("unexpectedWithDigest", { digest: error.digest })
             : t("unexpectedWhileLoading")
         }
         cta={{ label: t("tryAgain"), onClick: () => reset() }}

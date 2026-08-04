@@ -85,9 +85,9 @@ export function SessionsPanel({ connection }: SessionsPanelProps) {
             Running on {connection.name}
           </CardTitle>
           <CardDescription className="text-xs">
-            {sessions.length} of this organization&apos;s sandboxes
-            {listing?.tenant_limit ? `, out of ${listing.tenant_limit} allowed` : ""}. Refreshed
-            every ten seconds.
+            {listing?.tenant_limit
+              ? t("sessionsOfLimit", { count: sessions.length, limit: listing.tenant_limit })
+              : t("sessionsCount", { count: sessions.length })}
           </CardDescription>
         </div>
         <label className="flex items-center gap-2 text-xs">
@@ -150,7 +150,7 @@ export function SessionsPanel({ connection }: SessionsPanelProps) {
                       <Button
                         variant="ghost"
                         size="sm"
-                        aria-label={`Activity of ${session.session_id}`}
+                        aria-label={t("activityOf", { id: session.session_id })}
                         onClick={() =>
                           setWatching(watching === session.session_id ? null : session.session_id)
                         }

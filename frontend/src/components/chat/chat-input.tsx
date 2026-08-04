@@ -196,7 +196,7 @@ export function ChatInput({
     if (files.length === 0) return;
     for (const file of files) {
       if (file.size > MAX_UPLOAD_SIZE_MB * 1024 * 1024) {
-        toast.error(`${file.name}: File too large. Maximum ${MAX_UPLOAD_SIZE_MB}MB.`);
+        toast.error(t("fileTooLarge", { file: file.name, max: MAX_UPLOAD_SIZE_MB }));
         continue;
       }
 

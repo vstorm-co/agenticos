@@ -263,7 +263,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
         title: t("budget"),
         icon: MAP_ICONS.budget,
         side: "out",
-        items: spec.budget?.monthly_usd ? [`$${spec.budget.monthly_usd} per month`] : [],
+        items: spec.budget?.monthly_usd ? [t("perMonth", { amount: spec.budget.monthly_usd })] : [],
         empty: t("spendsWithoutCeilingIts"),
       },
     ];

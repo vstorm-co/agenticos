@@ -15,6 +15,8 @@ What it looks for, in `frontend/src/**/*.tsx`:
   `aria-label`, `title`, `alt`, and the label-ish props components take;
 * `toast.success("…")` and friends, which are as user-facing as anything on
   screen and read like plumbing;
+* a sentence built by concatenation - `` `Access to ${name}` `` - which is where
+  copy hides best, being neither a text node nor an attribute nor a plain string;
 * a text node holding an interpolation as well as words - `Owned by {email}` - and
   the plural somebody rolled by hand beside it, `{n} file{n === 1 ? "" : "s"}`, which
   is a sentence only English can build that way.
@@ -81,6 +83,16 @@ PLURAL = re.compile(r'\?\s*"([A-Za-z]*)"\s*:\s*"([A-Za-z]*)"')
 # The other half of the same habit, where the singular is spelled out: `count === 1 ?
 # "1 skill" : ...`. Caught by its digit, which `SENTENCE` requires a capital instead of.
 NUMBERED = re.compile(r'"(\d+\s+[A-Za-z][^"\n]*)"')
+# A sentence built by concatenation - `Access to ${name}`, `${n} of ${total} shown`.
+# A template literal is where copy hides best: it is not a text node, not an attribute
+# and not a plain string, so every other rule here reads past it.
+TEMPLATE = re.compile(r"`([^`\n]*\$\{[^{}`]*\}[^`\n]*)`")
+# Two words with real whitespace between them. `audience${key}Hint` builds a catalog
+# key and reads as two words only because the interpolation was replaced by one.
+TWO_WORDS = re.compile(r"[A-Za-z]{2,}\s+[A-Za-z]{2,}")
+# A URL, a query string, a CSS value, a header - built by interpolation and read by
+# a machine.
+MACHINE_READ = re.compile(r"[/?&=<>#]|\b(?:px|rem|deg|vh|vw|attachment)\b")
 EXEMPT = re.compile(r"i18n-exempt:\s*\S")
 WORDS = re.compile(r"[A-Za-z]{2,}")
 # A word-bearing string that is still not copy: an icon name, a CSS-ish token, a
@@ -150,6 +162,10 @@ def offences(path: Path) -> list[tuple[int, str]]:
             rest = re.sub(r"\{[^{}]*\}", " ", match.group(1))
             if len(WORDS.findall(rest)) >= 2 and not re.search(r"&&|\|\||=>", rest):
                 found.append((number, f"text {' '.join(match.group(1).split())!r}"))
+        for match in (() if "className" in line else TEMPLATE.finditer(line)):
+            body = re.sub(r"\$\{[^{}]*\}", "\x00", match.group(1))
+            if TWO_WORDS.search(body) and not MACHINE_READ.search(body):
+                found.append((number, f"template {match.group(1)!r}"))
         for match in PLURAL.finditer(line):
             if is_plural_pair(match.group(1), match.group(2)):
                 found.append((number, f"plural {match.group(0)!r}"))

@@ -209,8 +209,8 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
               {local?.url != null && (
                 <p className="text-muted-foreground text-xs">
                   {local.registered_connection_id === null
-                    ? `A sandbox service answered at ${local.url}, so that is filled in above.`
-                    : `A sandbox service answered at ${local.url}, and this organization already has a connection pointing there.`}
+                    ? t("localServiceFound", { url: local.url })
+                    : t("localServiceAlreadyConnected", { url: local.url })}
                 </p>
               )}
             </div>

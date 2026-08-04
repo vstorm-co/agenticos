@@ -124,7 +124,7 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
             size="sm"
             onClick={() => setOpen(!open)}
             aria-expanded={open}
-            aria-label={`Show what changed in ${change.name}`}
+            aria-label={t("showWhatChangedIn", { name: change.name })}
           >
             <ChevronDown className="h-4 w-4" aria-hidden />
             {open ? t("hide") : t("review")}
@@ -134,7 +134,7 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
             size="sm"
             disabled={disabled}
             onClick={onDiscard}
-            aria-label={`Discard the change to ${change.name}`}
+            aria-label={t("discardChangeTo", { name: change.name })}
           >
             <X className="h-4 w-4" aria-hidden />
             {t("discard")}
@@ -143,7 +143,7 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
             size="sm"
             disabled={disabled}
             onClick={onApply}
-            aria-label={`Apply the change to ${change.name}`}
+            aria-label={t("applyChangeTo", { name: change.name })}
           >
             <Check className="h-4 w-4" aria-hidden />
             {t("apply")}

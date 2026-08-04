@@ -365,12 +365,12 @@ export default function RAGPage() {
 
         const ext = "." + (file.name.split(".").pop()?.toLowerCase() ?? "");
         if (allowedExts.length > 0 && !allowedExts.includes(ext)) {
-          toast.error(`${file.name}: Unsupported format (${ext})`);
+          toast.error(t("unsupportedFormat", { file: file.name, ext }));
           errorCount++;
           continue;
         }
         if (file.size > MAX_UPLOAD_SIZE_MB * 1024 * 1024) {
-          toast.error(`${file.name}: Too large (max ${MAX_UPLOAD_SIZE_MB}MB)`);
+          toast.error(t("fileTooLarge", { file: file.name, max: MAX_UPLOAD_SIZE_MB }));
           errorCount++;
           continue;
         }
@@ -470,7 +470,7 @@ export default function RAGPage() {
       <DragDropOverlay
         onDrop={handleDrop}
         disabled={!selected || uploading}
-        title={selected ? `Drop files into "${selected}"` : t("dropFilesUpload")}
+        title={selected ? t("dropFilesInto", { collection: selected }) : t("dropFilesUpload")}
         description={selected ? t("filesWillBeIngested") : t("selectCollectionFirst")}
         acceptedFormats={supportedFormats}
       />
@@ -782,7 +782,7 @@ export default function RAGPage() {
               <div className="border-border bg-card rounded-xl border p-4">
                 <div className="flex gap-2">
                   <Input
-                    placeholder={`Search in "${selected}"...`}
+                    placeholder={t("searchInCollection", { collection: selected })}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     onKeyDown={(e) => e.key === t("enter5") && handleSearch()}

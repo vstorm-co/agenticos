@@ -109,7 +109,7 @@ export function IngestionSettings({
           <OptionalSetting
             htmlFor={id("parser")}
             label={t("pdfParser")}
-            description={`${parser?.hint ?? ""} Text, Markdown and Word files use the built-in readers whichever is chosen.`}
+            description={`${parser?.hint ?? ""} ${t("builtInReadersRegardless")}`}
             error={errors.pdf_parser}
             disabled={disabled}
           >

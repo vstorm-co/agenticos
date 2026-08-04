@@ -176,7 +176,9 @@ export function CapabilityWorkbench({
             <div className="border-border bg-card flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3">
               <div className="min-w-0">
                 <p className="text-sm font-medium">
-                  {isOn ? `${focused.name} is on` : `Give this agent ${focused.name}`}
+                  {isOn
+                    ? t("capabilityIsOn", { name: focused.name })
+                    : t("giveThisAgent", { name: focused.name })}
                 </p>
                 <p className="text-muted-foreground mt-0.5 text-xs">
                   {isOn ? t("everythingBelowAppliesAgent") : t("readHereFirstSettings")}
@@ -289,7 +291,7 @@ function CapabilityRow({
       <Switch
         checked={enabled}
         disabled={disabled}
-        aria-label={`Give this agent ${entry.name}`}
+        aria-label={t("giveThisAgent", { name: entry.name })}
         onCheckedChange={onToggle}
         className="mt-0.5 shrink-0"
       />

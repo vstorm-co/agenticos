@@ -18,7 +18,7 @@ export async function generateMetadata({
   const { locale } = await params;
   return pageMetadata({
     title: t("privacyPolicy"),
-    description: `How ${APP_NAME} collects, uses, and protects your data.`,
+    description: t("privacyDescription", { app: APP_NAME }),
     path: "/legal/privacy",
     locale,
   });

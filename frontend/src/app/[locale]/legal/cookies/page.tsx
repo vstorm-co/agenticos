@@ -18,7 +18,7 @@ export async function generateMetadata({
   const { locale } = await params;
   return pageMetadata({
     title: t("cookiePolicy"),
-    description: `How ${APP_NAME} uses cookies and similar technologies.`,
+    description: t("cookiesDescription", { app: APP_NAME }),
     path: "/legal/cookies",
     locale,
   });

@@ -244,7 +244,7 @@ export default function AdminUsersPage() {
         getRowKey={(u) => u.id}
         loading={isLoading && users.length === 0}
         onRowClick={handleOpenUser}
-        empty={search ? `No users match "${search}".` : t("noUsersYet")}
+        empty={search ? t("noUsersMatch", { query: search }) : t("noUsersYet")}
       />
 
       {total > 0 && (

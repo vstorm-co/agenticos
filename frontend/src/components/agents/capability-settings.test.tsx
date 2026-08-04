@@ -13,7 +13,16 @@ import type { Secret, SecretRequirement } from "@/types/secrets";
 import en from "../../../messages/en.json";
 
 /** The English catalog, so the suites below keep asserting the words on screen. */
-const words = (key: string): string => (en.agents as Record<string, string>)[key] ?? key;
+// The catalog, read the way the component reads it - some of these messages take a
+// name or a kind, and a stub that ignored them would assert against a message no
+// reader ever sees.
+const words = (key: string, values?: Record<string, string>): string => {
+  const message = (en.agents as Record<string, string>)[key] ?? key;
+  return Object.entries(values ?? {}).reduce(
+    (filled, [name, value]) => filled.replaceAll(`{${name}}`, value),
+    message,
+  );
+};
 
 const KNOWLEDGE: CapabilityCatalogEntry = {
   id: "knowledge",

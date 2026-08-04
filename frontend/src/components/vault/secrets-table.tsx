@@ -171,7 +171,7 @@ export function SecretsTable({
                     <Button
                       variant="ghost"
                       size="icon"
-                      aria-label={`Manage access to ${secret.name}`}
+                      aria-label={t("manageAccessTo", { name: secret.name })}
                       onClick={() => onShare(secret)}
                     >
                       <Users className="h-4 w-4" />

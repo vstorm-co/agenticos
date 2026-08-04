@@ -236,7 +236,7 @@ export default function OrgMembersPage({ params }: PageProps) {
     <div className="space-y-6">
       <PageHeader
         title={org?.name ?? t("members")}
-        description={`${total} ${total === 1 ? t("personHas") : t("peopleHave")} access to this workspace. Owners and admins can invite teammates and adjust roles.`}
+        description={t("membersDescription", { count: total })}
         breadcrumbs={[
           { label: t("organizations"), href: ROUTES.ORGS },
           { label: org?.name ?? t("members2") },
