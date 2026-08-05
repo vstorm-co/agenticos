@@ -754,7 +754,14 @@ class TestADynamicDelegationIsAccountedForLikeAnyOther:
     async def test_it_is_recorded_with_no_agent_of_its_own(self):
         """An invented specialist has no agent row to attribute a run to, exactly
         as an inline specialist has none: its cost is the parent's, and the tool
-        call in the transcript is the record."""
+        call in the transcript is the record.
+
+        So the money it spends is real and on the run's ledger, but the row it would
+        write bills nothing to itself - it has no row, and directly under the run's
+        own agent its spend bills to the top-level row, which is the whole ledger
+        anyway (agenticos#228). The runner drops this outcome for want of an
+        `agent_id`; what it carries is the billed share, which is zero here.
+        """
         ledger = SpendLedger()
         recorder = Recorder()
         budget = _RunBudget(guard=BudgetGuard(ledger=ledger, provider="openai"))
@@ -767,7 +774,10 @@ class TestADynamicDelegationIsAccountedForLikeAnyOther:
         (outcome,) = recorder.outcomes
         assert (outcome.subagent, outcome.status) == ("summariser", "completed")
         assert (outcome.agent_id, outcome.agent_version_id) == (None, None)
-        assert outcome.cost_usd > 0
+        # The specialist did spend - it is the parent's ledger that holds it - and it
+        # bills to no row of its own.
+        assert ledger.total_usd > 0
+        assert outcome.cost_usd == Decimal(0)
 
     async def test_the_authors_mode_is_forced_on_it_too(self):
         """`delegate` takes a `mode` argument whose default is `sync`, so the

@@ -36,11 +36,16 @@ incomplete.
 
 One ledger per run, and a run can contain several agents: a delegation runs a
 second agent's whole conversation inside a turn of the first, against this ledger,
-which is what makes the parent's cap bind on it. So each entry is stamped with the
-delegation that booked it (`booked_to`, `SpendLedger.share_of`) and `book` is the
-only way in. That is not bookkeeping for its own sake - a delegate's own run row is
-what answers "what did the researcher cost this month", and the alternative
-(subtracting the shared total across the delegation) put the parent's later spend
-on the child and a delegate's delegates inside its own share. Attribution keeps one
-set of prices for both questions; the second lookup that pricing a task handle's
-usage would need is the thing `BudgetGuard.for_delegate` exists to prevent.
+which is what makes the parent's cap bind on it. So each entry is stamped with two
+things and `book` is the only way in: the delegation that booked it (`booked_to`,
+`SpendLedger.share_of`), for the delegation panel, and the nearest agent-row it
+bills to (`billed_to`, `SpendLedger.billed_share_of`), for the month. The two are
+equal for a published delegate's own requests and differ only under an inline
+specialist, which has no row of its own - its spend bills to its nearest published
+ancestor's month while its panel keeps its own share (agenticos#228). That is not
+bookkeeping for its own sake - a delegate's own run row is what answers "what did
+the researcher cost this month", and the alternative (subtracting the shared total
+across the delegation) put the parent's later spend on the child and a delegate's
+delegates inside its own share. Attribution keeps one set of prices for every
+question; the second lookup that pricing a task handle's usage would need is the
+thing `BudgetGuard.for_delegate` exists to prevent.
