@@ -1828,44 +1828,55 @@ class AgentRunnerService:
         delegate deleted mid-run would otherwise turn a completed run into a
         storage error; the money is on the parent's row either way. The same
         reasoning, and the same guard, as :meth:`_propose_skill_changes`.
+
+        Catching the exception is not enough on its own, which is why each row
+        goes in inside its own savepoint. `agent_runs.agent_id` is a foreign key,
+        so a delegate deleted between resolution and here makes the insert fail
+        *in Postgres* - and an aborted transaction refuses every statement after
+        it, including the commit. Guarding the loop with one `try` therefore
+        destroyed exactly what it was written to protect: the parent's finished
+        row and its cost rolled back with the child row that could not be
+        written, and the delegations after it were never attempted. A savepoint
+        per delegation loses that one row and nothing else.
         """
         parent = prepared.run
-        try:
-            for delegation in prepared.delegations:
-                await agent_run_repo.record_delegated_run(
-                    self.db,
-                    run_id=delegation.id,
-                    organization_id=parent.organization_id,
-                    agent_id=delegation.agent_id,
-                    agent_version_id=delegation.agent_version_id,
-                    parent_run_id=parent.id,
-                    subagent_task_id=delegation.task_id,
-                    # Read off the parent's row rather than kept on the queued
-                    # record: they describe the run, not the delegation, and two
-                    # copies of one fact drift.
-                    user_id=parent.user_id,
-                    conversation_id=parent.conversation_id,
-                    # The binding that admitted the run admitted this too, so "what
-                    # has this Slack app spent" keeps a delegated turn.
-                    exposure_id=parent.exposure_id,
-                    surface=parent.surface,
-                    model_label=delegation.model_label,
-                    provider=delegation.provider,
-                    secret_id=delegation.secret_id,
-                    status=delegation.status.value,
-                    input_tokens=delegation.input_tokens,
-                    output_tokens=delegation.output_tokens,
-                    cost_usd=delegation.cost_usd,
-                    cost_is_partial=delegation.cost_is_partial,
-                    started_at=delegation.started_at,
-                    ended_at=delegation.ended_at,
-                    error=delegation.error,
+        for delegation in prepared.delegations:
+            try:
+                async with self.db.begin_nested():
+                    await agent_run_repo.record_delegated_run(
+                        self.db,
+                        run_id=delegation.id,
+                        organization_id=parent.organization_id,
+                        agent_id=delegation.agent_id,
+                        agent_version_id=delegation.agent_version_id,
+                        parent_run_id=parent.id,
+                        subagent_task_id=delegation.task_id,
+                        # Read off the parent's row rather than kept on the queued
+                        # record: they describe the run, not the delegation, and two
+                        # copies of one fact drift.
+                        user_id=parent.user_id,
+                        conversation_id=parent.conversation_id,
+                        # The binding that admitted the run admitted this too, so "what
+                        # has this Slack app spent" keeps a delegated turn.
+                        exposure_id=parent.exposure_id,
+                        surface=parent.surface,
+                        model_label=delegation.model_label,
+                        provider=delegation.provider,
+                        secret_id=delegation.secret_id,
+                        status=delegation.status.value,
+                        input_tokens=delegation.input_tokens,
+                        output_tokens=delegation.output_tokens,
+                        cost_usd=delegation.cost_usd,
+                        cost_is_partial=delegation.cost_is_partial,
+                        started_at=delegation.started_at,
+                        ended_at=delegation.ended_at,
+                        error=delegation.error,
+                    )
+            except Exception:
+                logger.exception(
+                    "delegation_row_not_written",
+                    extra={"run_id": str(parent.id), "delegation_id": str(delegation.id)},
                 )
-        except Exception:
-            logger.exception(
-                "delegation_rows_not_written",
-                extra={"run_id": str(parent.id), "delegations": len(prepared.delegations)},
-            )
 
     @staticmethod
     async def _collect_outbound(prepared: PreparedRun) -> None:

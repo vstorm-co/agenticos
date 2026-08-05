@@ -1341,6 +1341,37 @@ class TestWritingTheQueuedRows:
 
         assert finish_run.await_args.kwargs["status"] == RunStatus.COMPLETED.value
 
+    async def test_a_row_that_cannot_be_written_does_not_take_the_others_with_it(self):
+        """One savepoint and one guard per delegation, not one around the loop.
+
+        Guarding the loop abandoned every delegation after the failure - and on a
+        real database it did worse than that: the failed insert leaves the
+        transaction aborted, so the commit that would have written the parent's
+        finished row raises too.
+        `tests/integration/test_delegation_row_failures.py` is where that half is
+        proven, because a mocked session has no transaction to abort.
+        """
+        prepared = self._prepared([self._queued(), self._queued()])
+        service = AgentRunnerService(_db())
+        attempted: list[uuid.UUID] = []
+
+        async def refuse_the_first(*_args: Any, **kwargs: Any) -> MagicMock:
+            attempted.append(kwargs["run_id"])
+            if len(attempted) == 1:
+                raise RuntimeError("the delegate is gone")
+            return MagicMock()
+
+        with (
+            patch(f"{RUNNER}.agent_run_repo.finish_run", new=AsyncMock()),
+            patch(
+                f"{RUNNER}.agent_run_repo.record_delegated_run",
+                new=AsyncMock(side_effect=refuse_the_first),
+            ),
+        ):
+            await service.finish(prepared, status=RunStatus.COMPLETED)
+
+        assert attempted == [delegation.id for delegation in prepared.delegations]
+
     async def test_a_run_that_delegated_nothing_writes_nothing(self):
         prepared = self._prepared([])
         service = AgentRunnerService(_db())
