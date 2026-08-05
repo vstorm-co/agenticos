@@ -11,6 +11,7 @@ from typing import Any
 
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
+from app import __version__
 from app.api.deps import DBSession, Redis
 from app.core.config import settings
 from app.schemas.base import HealthDetailResponse, HealthResponse
@@ -49,7 +50,12 @@ async def liveness_probe() -> dict[str, Any]:
     return build_health_response(
         status="alive",
         details={
-            "version": getattr(settings, "VERSION", "1.0.0"),
+            # The installed distribution, which is what a release commit moves -
+            # the same source OpenAPI and the CLI read. This used to be
+            # `getattr(settings, "VERSION", "1.0.0")` against a setting that has
+            # never existed, so every deployment told operators 1.0.0 however
+            # many releases it was behind, and the `getattr` made it silent.
+            "version": __version__,
             "environment": settings.ENVIRONMENT,
         },
     )
