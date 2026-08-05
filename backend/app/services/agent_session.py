@@ -23,6 +23,7 @@ from pydantic_ai.messages import (
 )
 
 from app.agents.capabilities.budget import BudgetExceeded
+from app.agents.subagent_events import SubagentEvent
 from app.core.exceptions import AppException, AuthorizationError
 from app.db.models.chat_file import ChatFile
 from app.db.models.organization import Organization
@@ -208,6 +209,7 @@ class AgentSession:
                     ),
                     ask_user=self._ask_user,
                     stream=stream,
+                    subagent_events=self._subagent_event,
                     # The chat may run a published agent on another of the
                     # organization's models. Only the model changes; the run
                     # records which one, and the budget is the agent's.
@@ -313,6 +315,32 @@ class AgentSession:
             return await fut
         finally:
             self._ask_user_future = None
+
+    async def _subagent_event(self, event: SubagentEvent) -> None:
+        """Forward one frame from inside a delegation, under the frame's own name.
+
+        The wire `type` *is* the frame's `kind` rather than a name chosen here.
+        Two spellings of one frame - the literal in the union and a string in this
+        method - is a drift nothing would catch: the client would keep switching on
+        a case the server had stopped sending, and a delegation would simply not
+        appear. `kind` stays in the payload as well, so the client narrows the
+        object it already parsed instead of re-deriving the discriminator from the
+        envelope.
+
+        `cost_usd` is sent as a JSON number. Pydantic serialises a `Decimal` as a
+        string in JSON mode, and this wire already reports a turn's cost as a
+        number (see `usage_report.usage_frame`) - a delegation's share of that cost
+        is the same quantity and must not arrive in a different shape.
+
+        Nothing is awaited on the client's behalf: `send_event` answers `False` on
+        a closed socket rather than raising, so a background delegation whose
+        frames outlive the tab does not take the run down with it.
+        """
+        frame = event.model_dump(mode="json")
+        cost = frame.get("cost_usd")
+        if cost is not None:
+            frame["cost_usd"] = float(cost)
+        await send_event(self.websocket, event.kind, frame)
 
     async def _attached_files(self, file_ids: list[Any]) -> list[ChatFile]:
         """The rows for the files this frame attached.

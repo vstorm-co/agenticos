@@ -19,10 +19,17 @@ from pydantic_ai.usage import RequestUsage
 from app.agents.capabilities.approval import ApprovalGranted, ApprovalRejected
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope, SpendLedger
 from app.agents.spec import AgentSpec, ObservabilitySpec
+from app.agents.subagent_runtime import DelegationSpend, DelegationStash, ParkedDelegation
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import ApprovalStatus, RunStatus, RunSurface
-from app.services.agent_runner import AgentRunnerService, ApprovalChannel, month_start
+from app.services.agent_runner import (
+    AgentRunnerService,
+    ApprovalChannel,
+    ParkedApproval,
+    PausedRunState,
+    month_start,
+)
 from app.services.approvals import ApprovalService
 
 
@@ -47,6 +54,11 @@ def _prepared(ledger: SpendLedger | None = None):
     prepared.built = MagicMock()
     prepared.built.ledger = ledger or SpendLedger()
     prepared.approvals.parked = {}
+    # Real containers, not mocks: `finish` walks both to fold the delegation tree
+    # into whatever parked state the surface reported, and a `MagicMock` is not
+    # iterable. An agent that never delegated leaves them empty.
+    prepared.approvals.requested = []
+    prepared.stash = DelegationStash()
     return prepared
 
 
@@ -845,7 +857,79 @@ class TestParking:
         assert recorded["paused_state"] == {
             "messages": [],
             "tool_call_ids": {"approval-1": "call-1"},
+            # A run that delegated nothing parks with an empty tree, which is what
+            # makes the older two-key payload above still resumable: every field
+            # added for delegation reads as "this run delegated nothing".
+            "delegated_approvals": {},
+            "delegations": [],
         }
+
+    @pytest.mark.anyio
+    async def test_the_delegation_tree_is_folded_in_without_the_surface_supplying_it(self):
+        """A surface reports its own position; the tree underneath is the runner's.
+
+        Both surfaces that park a run construct the state themselves, and a
+        delegation is a tool call named `task` that either answers or does not - so
+        neither can see what a delegate was in the middle of. Folding it in here is
+        the same reasoning as resolving the run's budget caps here: a thing every
+        surface has to remember is a thing the next surface will not, and this one
+        fails by answering a different question rather than by raising.
+        """
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.approvals.parked = {"approval-1": "the-delegates-call"}
+        prepared.approvals.requested = [
+            ParkedApproval(
+                approval_id=uuid.UUID(int=1),
+                tool_call_id="the-delegates-call",
+                tool_name="send_email",
+                tool_args={},
+                subagent="researcher",
+                task_id="4f2a1b8c",
+            )
+        ]
+        prepared.stash = DelegationStash(
+            parked=[
+                ParkedDelegation(
+                    tool_call_id="the-parents-task-call",
+                    task_id="4f2a1b8c",
+                    parent_task_id=None,
+                    subagent="researcher",
+                    agent_id=None,
+                    agent_version_id=None,
+                    child_run_id="a-child-run",
+                    messages=[{"kind": "request", "parts": []}],
+                    spent=DelegationSpend(
+                        cost_usd=Decimal("0.25"), input_tokens=7, output_tokens=3
+                    ),
+                )
+            ]
+        )
+
+        with patch(
+            "app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()
+        ) as finish:
+            await service.finish(
+                prepared,
+                status=RunStatus.AWAITING_APPROVAL,
+                # Exactly what a streaming surface passes: its messages and its
+                # channel's parked calls, and nothing about the delegation.
+                paused_state=PausedRunState(messages=[], tool_call_ids={"approval-1": "x"}),
+            )
+
+        stored = finish.call_args.kwargs["paused_state"]
+        assert [frame["subagent"] for frame in stored["delegations"]] == ["researcher"]
+        assert stored["delegations"][0]["tool_call_id"] == "the-parents-task-call"
+        # And what the delegation had already cost, because the turn that continues
+        # it measures against a ledger of its own - so a frame without this leaves
+        # the child's run row holding the tail of the delegation and none of the
+        # work that led up to the approval.
+        assert stored["delegations"][0]["cost_usd"] == "0.25"
+        assert stored["delegations"][0]["input_tokens"] == 7
+        # And which agent's replay each parked approval belongs to, which is what
+        # keeps a delegate's call out of the parent's continuation - Pydantic AI
+        # refuses a resume whose results name a call the replay does not contain.
+        assert stored["delegated_approvals"] == {str(uuid.UUID(int=1)): "4f2a1b8c"}
 
     @pytest.mark.anyio
     async def test_a_finished_run_stops_being_resumable(self):

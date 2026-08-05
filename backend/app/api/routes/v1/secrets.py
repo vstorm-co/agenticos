@@ -110,8 +110,6 @@ async def create_secret(data: SecretCreate, service: SecretSvc, ctx: Auth) -> An
     )
 
 
-# No gate: this acts on one row, and whether this caller may edit *that* key is
-# a question only its grants can answer. `OrganizationSecretService` resolves it.
 @router.patch("/{secret_id}", response_model=SecretRead)
 async def update_secret(secret_id: UUID, data: SecretUpdate, service: SecretSvc, ctx: Auth) -> Any:
     """Rename, re-describe or rotate. A rotation cannot change the kind."""

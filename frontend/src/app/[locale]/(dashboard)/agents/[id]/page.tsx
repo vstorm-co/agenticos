@@ -639,6 +639,11 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 selected={spec.capabilities}
                 onToggle={toggleCapability}
                 onChange={updateCapability}
+                // Delegates are top level on the spec rather than inside the
+                // delegation capability's config, so the panel that edits them
+                // is handed that slice as well as the binding.
+                subagents={spec.subagents ?? []}
+                onSubagentsChange={(subagents) => update({ subagents })}
                 disabled={!canEdit}
               />
             </CardContent>

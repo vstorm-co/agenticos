@@ -25,6 +25,7 @@ than being guessed at.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Awaitable, Callable, Iterator
 from contextlib import contextmanager
@@ -260,6 +261,33 @@ class SpendLimit:
 
 
 @dataclass
+class RunSpendState:
+    """The part of a budget check that every agent in one run must share.
+
+    One run can build more than one agent: a delegation runs a second agent's
+    whole conversation inside a turn of the first. Those agents share a ledger,
+    which is what makes a delegate's cost count against the cap somebody set -
+    but two things beside the ledger have to be shared too, and both for reasons
+    that are invisible until they break.
+
+    `baselines` is what the month had already booked before this run started,
+    read once from the database. Per guard it would be read once *per agent*, and
+    a fan-out reads it concurrently - on the request's `AsyncSession`, which is
+    not concurrency-safe, so the failure is not a slow query but a corrupted
+    session shared by everything else in the request.
+
+    `check` is what stops that. It serialises the *check*, never the request:
+    holding a lock across a model call would put every delegate's requests in a
+    queue behind the parent's, which is most of what a fan-out is for. It cannot
+    prevent an overshoot - no check knows what a request will cost before it is
+    made, which is what `max_fanout` bounds instead - and it does not try to.
+    """
+
+    baselines: dict[str, Decimal] = field(default_factory=dict)
+    check: asyncio.Lock = field(default_factory=asyncio.Lock)
+
+
+@dataclass
 class BudgetGuard(AbstractCapability[Any]):
     """Stops a run from issuing a model request it cannot afford.
 
@@ -284,7 +312,27 @@ class BudgetGuard(AbstractCapability[Any]):
     ledger: SpendLedger = field(default_factory=SpendLedger)
     provider: str | None = None
     limits: list[SpendLimit] = field(default_factory=list)
-    _baselines: dict[str, Decimal] = field(default_factory=dict, init=False, repr=False)
+    run_state: RunSpendState = field(default_factory=RunSpendState, repr=False)
+
+    def for_delegate(self, *, provider: str | None) -> BudgetGuard:
+        """A guard for a second agent spending against this same run.
+
+        Shares the ledger, the limits and the read baselines, so the delegate's
+        requests are checked against a total the parent is also adding to and the
+        parent's caps are the ones that bind. What it does *not* share is
+        `provider`, and that is the whole reason this is a method rather than
+        passing the same instance around: the guard prices what it records, so a
+        delegate on Anthropic metered through a guard built for OpenAI is priced
+        against the wrong catalog - silently, and usually as unpriced, which
+        under-reports the run and sets `cost_is_partial` on a run that was
+        perfectly priceable.
+        """
+        return BudgetGuard(
+            ledger=self.ledger,
+            provider=provider,
+            limits=self.limits,
+            run_state=self.run_state,
+        )
 
     async def _baseline_for(self, limit: SpendLimit) -> Decimal:
         """What this limit's period had already booked when the run started.
@@ -294,19 +342,31 @@ class BudgetGuard(AbstractCapability[Any]):
         run adds. Cached *per limit* rather than once for the guard, because the
         limits measure different quantities - sharing one cached number is how an
         agent's own cap silently starts reading the organization's total again.
+
+        Cached on `run_state` rather than on the guard, so a delegation reads it
+        once for the whole run instead of once per delegate.
         """
         if limit.period_spend is None:
             return Decimal(0)
-        if limit.scope not in self._baselines:
-            self._baselines[limit.scope] = await limit.period_spend()
-        return self._baselines[limit.scope]
+        if limit.scope not in self.run_state.baselines:
+            self.run_state.baselines[limit.scope] = await limit.period_spend()
+        return self.run_state.baselines[limit.scope]
 
     async def _assert_within_budget(self) -> None:
-        run_total = self.ledger.total_usd
-        for limit in self.limits:
-            spent = await self._baseline_for(limit) + run_total
-            if spent >= limit.limit_usd:
-                raise BudgetExceeded(limit_usd=limit.limit_usd, spent_usd=spent, scope=limit.scope)
+        """Refuse the next request if the run has already reached a ceiling.
+
+        Under `run_state.check`, because `_baseline_for` may query the database on
+        a session that several concurrent delegations are sharing. The lock is
+        released before the model request itself - see :class:`RunSpendState`.
+        """
+        async with self.run_state.check:
+            run_total = self.ledger.total_usd
+            for limit in self.limits:
+                spent = await self._baseline_for(limit) + run_total
+                if spent >= limit.limit_usd:
+                    raise BudgetExceeded(
+                        limit_usd=limit.limit_usd, spent_usd=spent, scope=limit.scope
+                    )
 
     async def wrap_model_request(
         self,

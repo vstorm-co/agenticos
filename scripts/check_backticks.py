@@ -48,6 +48,13 @@ SKIP_DIRS = {
     ".git",
     ".next",
     ".venv",
+    # A git worktree is another checkout of this repository, so scanning one
+    # reports every finding twice - and `SELF` only excludes *this* copy of this
+    # script, not the copies of it living under each worktree, each of which
+    # contains the literal double backticks in its own error message. So with any
+    # worktree checked out the hook fails on itself and nothing else can be
+    # committed. Found the hard way, with six worktrees open at once.
+    "worktrees",
     "__pycache__",
     "node_modules",
     "htmlcov",

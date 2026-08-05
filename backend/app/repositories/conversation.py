@@ -43,6 +43,13 @@ async def agents_in_conversations(
 
     Only `completed` runs. A cancelled or failed one did not answer, and this list is
     read as "who answered here".
+
+    And only *top-level* runs. A delegation gets an `agent_runs` row carrying the
+    parent's `conversation_id` and a terminal status, so without the null test on
+    `parent_run_id` every delegate the orchestrator called would appear as a
+    participant the user never picked. A delegate answered the parent, not the
+    conversation. The message-sourced half needs no such filter: `messages.agent_id`
+    is the agent that produced the visible answer, and a delegation produces none.
     """
     if not conversation_ids:
         return {}
@@ -63,6 +70,7 @@ async def agents_in_conversations(
         .where(
             AgentRun.conversation_id.in_(conversation_ids),
             AgentRun.status == "completed",
+            AgentRun.parent_run_id.is_(None),
         )
         .group_by(AgentRun.conversation_id, Agent.id)
         .order_by(AgentRun.conversation_id, first_run)

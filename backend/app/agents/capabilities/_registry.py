@@ -361,7 +361,9 @@ def register(
     afterwards is the job of the drift test in
     `tests/test_capability_registry.py`, which builds every registered
     capability and compares this list against the tools the model is actually
-    offered. A capability with no tools says so with `tools=()`.
+    offered. A capability with no tools says so with `tools=()`, and one that
+    declares a tool it deliberately does not wire names it in that test's own
+    exception table, where the reason can be a sentence.
     """
 
     def decorator(builder: CapabilityBuilder) -> CapabilityBuilder:
@@ -563,6 +565,7 @@ def load_builtins() -> None:
         knowledge,
         sandbox,
         skills,
+        subagents,
         thinking,
         web_research,
     )

@@ -6,6 +6,7 @@ import { Activity, CheckCircle2, XCircle } from "lucide-react";
 
 import { RunStatusBadge } from "@/components/agents/status-badge";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { ApprovalDelegate } from "@/components/runs/approval-delegate";
 import { EmptyState, LoadingState } from "@/components/states";
 import {
   Badge,
@@ -123,9 +124,16 @@ export default function RunsPage() {
               ) : (
                 approvals.map((approval) => (
                   <div key={approval.id} className="space-y-3 rounded-md border p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="font-mono text-sm">{approval.tool_id}</span>
-                      <span className="text-muted-foreground text-xs">
+                    <div className="flex items-start justify-between gap-3">
+                      {/* The tool and its actor together. Two rows queued from two
+                          different delegates are the same tool name twice, so the
+                          delegate is what tells them apart - and it is the fact that
+                          decides the answer, not a detail a click away. */}
+                      <div className="min-w-0 space-y-1">
+                        <span className="block font-mono text-sm">{approval.tool_id}</span>
+                        <ApprovalDelegate approval={approval} />
+                      </div>
+                      <span className="text-muted-foreground shrink-0 text-xs">
                         {approval.created_at ? formatDate(approval.created_at) : ""}
                       </span>
                     </div>

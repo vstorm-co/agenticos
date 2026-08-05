@@ -220,6 +220,7 @@ async def _run(
     stream: Any = _nothing,
     user_input: Any = "what is the refund window",
     attachments: Any = None,
+    subagent_events: Any = None,
 ):
     return await ChatAgentRunner(db).run(
         user=user or _user(),
@@ -231,6 +232,7 @@ async def _run(
         attachments=attachments,
         ask_user=ask_user or AsyncMock(return_value=[]),
         stream=stream,
+        subagent_events=subagent_events,
     )
 
 
@@ -420,6 +422,32 @@ class TestPausingMidRun:
             await _run(_db(), ask_user=ask_user)
 
         assert prepared.deps.ask_user is ask_user
+
+    async def test_the_surface_that_can_draw_a_delegation_is_the_one_that_hears_it(self):
+        """Wired here rather than by `prepare`, for the same reason `ask_user` is:
+        only a live surface has anywhere to put the frames."""
+        prepared = _prepared()
+
+        async def sink(event: Any) -> None:
+            """Stands in for the WebSocket."""
+
+        with _runner(prepared):
+            await _run(_db(), subagent_events=sink)
+
+        assert prepared.deps.subagent_events is sink
+
+    async def test_a_surface_that_cannot_show_a_delegation_is_given_no_sink(self):
+        """The default is load-bearing, not convenient. Attaching a handler makes
+        the library open a streamed request for every child, so a delegate whose
+        provider cannot stream would work from the API and break in chat -
+        `tests/test_subagents_library_contract.py` pins that. Leaving the sink
+        `None` off-chat is what keeps it contained."""
+        prepared = _prepared()
+
+        with _runner(prepared):
+            await _run(_db())
+
+        assert prepared.deps.subagent_events is None
 
     async def test_a_parked_tool_call_leaves_the_run_resumable(self):
         """The decision arrives later, from the queue - possibly tomorrow, in

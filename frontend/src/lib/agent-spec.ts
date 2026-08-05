@@ -7,7 +7,15 @@
  * binding the server validates slightly differently.
  */
 
-import type { AgentSpec, CapabilityBindingSpec, NotificationSpec } from "@/types/agents";
+import type {
+  AgentSpec,
+  AgentVersion,
+  CapabilityBindingSpec,
+  NotificationSpec,
+  SpecialistSpec,
+  SubagentRef,
+  SubagentsConfig,
+} from "@/types/agents";
 
 /** The capability that turns bound skills into tools the model can call. */
 export const SKILLS_ID = "skills";
@@ -83,9 +91,178 @@ export function withCapability(
  * knew nothing, with nothing anywhere saying why. Nobody wants one half of
  * this, so one function owns both.
  */
-export function withSkills(spec: AgentSpec, skillIds: string[]): Partial<AgentSpec> {
+export function withSkills(
+  // Widened from `AgentSpec` to what this actually reads, so an inline
+  // specialist - which binds skills and the capability that reads them exactly
+  // as an agent does - gets the same rule rather than a second copy of it.
+  spec: { capabilities: CapabilityBindingSpec[] },
+  skillIds: string[],
+): Pick<AgentSpec, "skill_ids" | "capabilities"> {
   return {
     skill_ids: skillIds,
     capabilities: withCapability(spec.capabilities, SKILLS_ID, skillIds.length > 0),
+  };
+}
+
+/**
+ * The delegation capability, which has a section of its own.
+ *
+ * Its configuration is three unrelated things - a list of published agents
+ * pinned to versions, a list of specialists that are not versioned at all, and
+ * the policy bounding both - and only the third is a set of fields a generated
+ * form can render.
+ */
+export const SUBAGENTS_ID = "subagents";
+
+/** What the delegation capability does when nothing has said otherwise. */
+export const DEFAULT_SUBAGENTS_CONFIG: SubagentsConfig = {
+  inline: [],
+  mode: "sync",
+  allow_dynamic: false,
+  max_depth: 1,
+  max_fanout: 3,
+  max_result_chars: 2000,
+  share_with_delegates: [],
+};
+
+/**
+ * A binding's config as delegation reads it, with the shipped defaults filled in.
+ *
+ * Mirrors `SubagentsConfig` in `backend/app/agents/capabilities/subagents/`, and
+ * exists for the one case the server cannot cover: a binding switched on in this
+ * session carries `{}`, and rendering "no specialists, depth 0, no mode" for an
+ * agent that will in fact delegate once, synchronously, is the wrong answer to
+ * every question the panel asks.
+ */
+export function readSubagentsConfig(binding: CapabilityBindingSpec | undefined): SubagentsConfig {
+  return { ...DEFAULT_SUBAGENTS_CONFIG, ...(binding?.config as Partial<SubagentsConfig>) };
+}
+
+/** A specialist with nothing filled in, which is what "add one" produces. */
+export function newSpecialist(): SpecialistSpec {
+  return {
+    name: "",
+    description: "",
+    instructions: "",
+    model_profile_id: null,
+    model_settings: {},
+    capabilities: [],
+    collection_ids: [],
+    skill_ids: [],
+    max_steps: null,
+    preferred_mode: null,
+  };
+}
+
+/** What the parent's model may address a specialist by - it becomes a tool argument. */
+const SPECIALIST_NAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
+
+/**
+ * Why this specialist name will not do, as a catalog key, or null when it will.
+ *
+ * A key rather than a sentence, for the reason `toolNameError` is: this is a pure
+ * function called from a form field and from its own tests, and threading a
+ * translator through it would put the words further from the catalog.
+ */
+export function specialistNameError(name: string): string | null {
+  if (name.length === 0) return "specialistNameBlank";
+  if (name.length > 64) return "specialistNameTooLong";
+  if (!SPECIALIST_NAME_PATTERN.test(name)) return "specialistNamePattern";
+  return null;
+}
+
+/**
+ * Names claimed more than once across the delegates and the specialists.
+ *
+ * The parent's model addresses every subagent by name, so two things answering
+ * to one name means the model cannot say which it meant and the second shadows
+ * the first. Publishing refuses it; saying so here is what stops somebody
+ * finding out from a failed publish half an hour later.
+ *
+ * Delegate names are the delegates' own handles - an agent's slug, which is what
+ * the runtime resolves a `SubagentRef` to.
+ */
+export function delegationNameClashes(
+  delegateNames: readonly string[],
+  specialists: readonly SpecialistSpec[],
+): Set<string> {
+  const seen = new Set<string>();
+  const clashes = new Set<string>();
+  for (const name of [...delegateNames, ...specialists.map((entry) => entry.name)]) {
+    if (name === "") continue;
+    if (seen.has(name)) clashes.add(name);
+    seen.add(name);
+  }
+  return clashes;
+}
+
+/** Agents pinned more than once, which the spec's own validator refuses. */
+export function duplicateDelegateIds(subagents: readonly SubagentRef[]): Set<string> {
+  const seen = new Set<string>();
+  const duplicates = new Set<string>();
+  for (const ref of subagents) {
+    if (seen.has(ref.agent_id)) duplicates.add(ref.agent_id);
+    seen.add(ref.agent_id);
+  }
+  return duplicates;
+}
+
+/**
+ * How a pin stands against the delegate's own history.
+ *
+ * `gone` is the one worth spelling out: a pin whose version no longer exists
+ * fails the run, loudly, naming the delegate - never a quiet fall back to the
+ * current version, because the reason to pin is that nothing changes without a
+ * decision.
+ */
+export type PinStatus =
+  | { kind: "unknown" }
+  | { kind: "current"; version: number }
+  | { kind: "behind"; version: number; latest: number; by: number }
+  | { kind: "gone" };
+
+/**
+ * How many versions the history holds at most.
+ *
+ * `list_versions` in `backend/app/repositories/agent.py` takes `limit: int = 50`
+ * and the route passes no override, so a pin older than fifty publishes is
+ * absent from a history that is nonetheless complete as far as it goes. It reads
+ * as `unknown` rather than as `gone`: "this version was deleted" and "this
+ * version is off the end of the page I could read" have different fixes, and
+ * only one of them is true.
+ */
+export const VERSION_HISTORY_LIMIT = 50;
+
+/**
+ * Where a pinned version sits relative to what the delegate publishes now.
+ *
+ * Reads the agent's `current_version_id` rather than the highest number in the
+ * list, because that is what a run of the unpinned agent would use - a rollback
+ * publishes a new version rather than moving the pointer back, so the two agree,
+ * and trusting the pointer means this keeps telling the truth if they ever stop
+ * agreeing.
+ */
+export function pinStatus(
+  versions: readonly AgentVersion[],
+  pinnedVersionId: string,
+  currentVersionId: string | null,
+): PinStatus {
+  // Before anything is looked up. An empty history is a request in flight or one
+  // that was refused, and every published agent has at least one version - so
+  // reading it as "the pinned version is gone" would flash the worst verdict
+  // this function has onto every row on every load.
+  if (versions.length === 0) return { kind: "unknown" };
+  const pinned = versions.find((version) => version.id === pinnedVersionId);
+  if (pinned === undefined) {
+    return versions.length >= VERSION_HISTORY_LIMIT ? { kind: "unknown" } : { kind: "gone" };
+  }
+  if (pinned.id === currentVersionId) return { kind: "current", version: pinned.version };
+  const current = versions.find((version) => version.id === currentVersionId);
+  if (current === undefined) return { kind: "unknown" };
+  return {
+    kind: "behind",
+    version: pinned.version,
+    latest: current.version,
+    by: current.version - pinned.version,
   };
 }

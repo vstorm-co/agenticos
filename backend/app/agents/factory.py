@@ -105,6 +105,7 @@ def build_agent(
     org_period_spend: PeriodSpendLookup | None = None,
     org_monthly_budget_usd: Decimal | None = None,
     request_approval: ApprovalCallback | None = None,
+    shared_budget: BudgetGuard | None = None,
 ) -> BuiltAgent:
     """Instantiate an agent from its spec.
 
@@ -133,6 +134,21 @@ def build_agent(
             of whatever the agent's own spec asks for.
         request_approval: How to put a gated tool call to a human. Omitted on a
             surface that cannot ask anyone, where the gate refuses instead.
+        shared_budget: The guard - and therefore the ledger - of the run this
+            agent is being built *inside*. Passed only when building a delegate
+            or an inline specialist, and it is what makes a delegation's cost
+            visible: the same guard wraps every child model request, so it checks
+            the same accumulated total before the request and records into it
+            afterwards. Without it a child gets a guard of its own, meters
+            nothing the parent can see, and the parent's cap stops binding at
+            precisely the moment delegation multiplies spend.
+
+            It also decides *whose* caps bind, and the answer is the parent's. A
+            delegate's own `budget.monthly_usd` is not enforced inside a parent
+            run: two guards metering one ledger would double-count every request,
+            and the ceiling that matters is the one on the run somebody started.
+            The delegate's own cap still governs runs of the delegate itself, and
+            its run rows still accumulate against it - see `docs/governance.md`.
 
     Raises:
         BadRequestError: If the spec references an unknown tool, an invalid tool
@@ -164,18 +180,25 @@ def build_agent(
         request_approval=request_approval,
     )
 
-    ledger = SpendLedger(run_id=run_id, agent_id=agent_id, organization_id=organization_id)
-
-    budget = BudgetGuard(
-        ledger=ledger,
-        provider=model_spec.provider,
-        limits=_spend_limits(
-            spec,
-            agent_period_spend=agent_period_spend,
-            org_period_spend=org_period_spend,
-            org_monthly_budget_usd=org_monthly_budget_usd,
-        ),
+    # A child spends against the run's ledger and under the run's caps, but
+    # prices its own requests: `for_delegate` shares the first two and takes this
+    # agent's provider for the third. Sharing the parent's guard outright would
+    # price an Anthropic delegate against OpenAI's catalog.
+    budget = (
+        shared_budget.for_delegate(provider=model_spec.provider)
+        if shared_budget is not None
+        else BudgetGuard(
+            ledger=SpendLedger(run_id=run_id, agent_id=agent_id, organization_id=organization_id),
+            provider=model_spec.provider,
+            limits=_spend_limits(
+                spec,
+                agent_period_spend=agent_period_spend,
+                org_period_spend=org_period_spend,
+                org_monthly_budget_usd=org_monthly_budget_usd,
+            ),
+        )
     )
+    ledger = budget.ledger
 
     # Three capabilities every agent gets, regardless of its spec. Making them
     # configurable would make "an agent with no spending limit" - or one that
