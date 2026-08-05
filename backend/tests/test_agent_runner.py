@@ -8,6 +8,7 @@ it was parked on, with the spend it had already booked.
 
 import asyncio
 import uuid
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
@@ -844,24 +845,24 @@ class TestStoppingANonStreamingRun:
 
         order: list[str] = []
 
-        async def note(name: str, result: object = None):
-            async def call(*_args: Any, **_kwargs: Any) -> object:
+        def note(name: str) -> Callable[..., Awaitable[MagicMock]]:
+            async def call(*_args: Any, **_kwargs: Any) -> MagicMock:
                 order.append(name)
-                return result if result is not None else MagicMock()
+                return MagicMock()
 
             return call
 
-        db.commit = AsyncMock(side_effect=await note("commit"))
+        db.commit = AsyncMock(side_effect=note("commit"))
 
         with (
             patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
             patch(
                 "app.services.agent_runner.agent_run_repo.finish_run",
-                new=AsyncMock(side_effect=await note("parent")),
+                new=AsyncMock(side_effect=note("parent")),
             ),
             patch(
                 "app.services.agent_runner.agent_run_repo.record_delegated_run",
-                new=AsyncMock(side_effect=await note("delegation")),
+                new=AsyncMock(side_effect=note("delegation")),
             ) as write,
             pytest.raises(asyncio.CancelledError),
         ):
