@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING, Literal
 
 from app.core.exceptions import AuthorizationError, ValidationError
 from app.core.permissions import Perm
-from app.repositories import agent_run_repo, member_repo
+from app.repositories import agent_run_repo, member_repo, message_rating_repo
 from app.schemas.stats import (
     ActiveUsers,
     AgentCount,
@@ -36,6 +36,7 @@ from app.schemas.stats import (
     StatusCount,
     SurfaceCount,
     UsageStats,
+    VersionUsageRow,
 )
 
 if TYPE_CHECKING:
@@ -255,4 +256,63 @@ class StatsService:
             cost=cost,
             active_users=active_users,
             pending_approvals=pending_approvals,
+        )
+
+    async def usage_by_version(
+        self,
+        ctx: AuthContext,
+        *,
+        agent_id: UUID,
+        scope: UsageScope = "org",
+        from_date: date | None = None,
+        to_date: date | None = None,
+    ) -> UsageStats:
+        """Per-version rows for one agent - the version-compare card's answer.
+
+        Fills only the envelope and `by_version`: it is a different question
+        about the same window, and computing the composed blocks nobody asked
+        for would be waste. An agent id from another organization matches no
+        rows - the window filter carries the tenant - so the answer is empty
+        rather than a probe.
+        """
+        user_id = self._scope_filter(ctx, scope)
+        window = resolve_window(from_date, to_date)
+
+        rows = await agent_run_repo.usage_by_version(
+            self.db,
+            organization_id=ctx.organization_id,
+            agent_id=agent_id,
+            start=window.start,
+            end=window.end,
+            user_id=user_id,
+        )
+        version_ids = [version_id for version_id, *_ in rows if version_id is not None]
+        ratings: dict[UUID, tuple[int, int]] = {}
+        if version_ids:
+            ratings = await message_rating_repo.rating_counts_by_version(
+                self.db, version_ids=version_ids, start=window.start, end=window.end
+            )
+
+        by_version = []
+        for version_id, version, runs, completed, p95, avg_cost in rows:
+            likes, total = ratings.get(version_id, (0, 0)) if version_id is not None else (0, 0)
+            by_version.append(
+                VersionUsageRow(
+                    agent_version_id=version_id,
+                    version=version,
+                    runs=runs,
+                    completed_runs=completed,
+                    p95_ms=round(p95) if p95 is not None else None,
+                    avg_cost_usd=avg_cost,
+                    like_count=likes,
+                    rating_count=total,
+                )
+            )
+
+        return UsageStats(
+            from_date=window.from_date,
+            to_date=window.to_date,
+            scope=scope,
+            agent_id=agent_id,
+            by_version=by_version,
         )

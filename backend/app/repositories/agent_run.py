@@ -9,7 +9,7 @@ from uuid import UUID
 from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models.agent import Agent
+from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, ToolApproval
 from app.db.models.organization_secret import OrganizationSecret
 
@@ -451,6 +451,55 @@ async def cost_by_provider_window(
         .order_by(func.coalesce(func.sum(AgentRun.cost_usd), 0).desc())
     )
     return [(row[0], Decimal(row[1])) for row in result.all()]
+
+
+async def usage_by_version(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    agent_id: UUID,
+    start: datetime,
+    end: datetime,
+    user_id: UUID | None = None,
+) -> list[tuple[UUID | None, int | None, int, int, float | None, Decimal | None]]:
+    """Per-version aggregates for one agent's runs in the window.
+
+    Returns (agent_version_id, version, runs, completed_runs, p95_ms,
+    avg_cost_usd) rows, oldest version first. LEFT JOIN because the runs'
+    version id SET-NULLs when a version is deleted - the row survives as
+    "version deleted", which is the whole reason the column is kept.
+    """
+    duration_ms = func.extract("epoch", AgentRun.ended_at - AgentRun.started_at) * 1000
+    conditions = _window_conditions(
+        organization_id=organization_id, start=start, end=end, user_id=user_id
+    )
+    result = await db.execute(
+        select(
+            AgentRun.agent_version_id,
+            AgentVersion.version,
+            func.count(AgentRun.id),
+            func.count(AgentRun.id).filter(AgentRun.status == RunStatus.COMPLETED.value),
+            func.percentile_cont(0.95)
+            .within_group(duration_ms)
+            .filter(AgentRun.ended_at.is_not(None)),
+            func.avg(AgentRun.cost_usd),
+        )
+        .join(AgentVersion, AgentVersion.id == AgentRun.agent_version_id, isouter=True)
+        .where(*conditions, AgentRun.agent_id == agent_id)
+        .group_by(AgentRun.agent_version_id, AgentVersion.version)
+        .order_by(AgentVersion.version.asc().nullsfirst())
+    )
+    return [
+        (
+            row[0],
+            row[1],
+            row[2],
+            row[3],
+            float(row[4]) if row[4] is not None else None,
+            Decimal(row[5]) if row[5] is not None else None,
+        )
+        for row in result.all()
+    ]
 
 
 async def count_pending_approval_runs(

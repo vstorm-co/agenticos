@@ -42,6 +42,7 @@ def repos(monkeypatch: pytest.MonkeyPatch) -> dict[str, AsyncMock]:
         ("cost_by_provider_window", []),
         ("count_distinct_users", 0),
         ("count_pending_approval_runs", 0),
+        ("usage_by_version", []),
     ):
         mock = AsyncMock(return_value=value)
         monkeypatch.setattr(f"app.services.stats.agent_run_repo.{name}", mock)
@@ -49,6 +50,11 @@ def repos(monkeypatch: pytest.MonkeyPatch) -> dict[str, AsyncMock]:
     member_count = AsyncMock(return_value=0)
     monkeypatch.setattr("app.services.stats.member_repo.count_for_org", member_count)
     mocks["count_for_org"] = member_count
+    version_ratings = AsyncMock(return_value={})
+    monkeypatch.setattr(
+        "app.services.stats.message_rating_repo.rating_counts_by_version", version_ratings
+    )
+    mocks["rating_counts_by_version"] = version_ratings
     return mocks
 
 
@@ -228,3 +234,56 @@ class TestTheComposedAnswer:
 
         payload = result.model_dump(by_alias=True, mode="json")
         assert (payload["from"], payload["to"]) == ("2026-07-01", "2026-07-03")
+
+
+class TestVersionGrouping:
+    async def test_rows_carry_their_ratings_and_a_deleted_version_stays(self, repos) -> None:
+        v3, v4 = uuid4(), uuid4()
+        repos["usage_by_version"].return_value = [
+            (None, None, 2, 1, None, None),
+            (v3, 3, 10, 9, 16200.0, Decimal("0.048")),
+            (v4, 4, 12, 12, 17100.4, Decimal("0.041")),
+        ]
+        repos["rating_counts_by_version"].return_value = {v3: (7, 8), v4: (11, 12)}
+
+        result = await StatsService(MagicMock()).usage_by_version(_ctx(), agent_id=uuid4())
+
+        assert result.by_version is not None
+        deleted, old, new = result.by_version
+        assert (deleted.agent_version_id, deleted.version) == (None, None)
+        assert (deleted.like_count, deleted.rating_count) == (0, 0)
+        assert (old.version, old.runs, old.completed_runs) == (3, 10, 9)
+        assert (old.like_count, old.rating_count) == (7, 8)
+        assert new.p95_ms == 17100
+        assert new.avg_cost_usd == Decimal("0.041")
+
+    async def test_the_envelope_names_the_agent_and_skips_the_composed_blocks(self, repos) -> None:
+        agent_id = uuid4()
+
+        result = await StatsService(MagicMock()).usage_by_version(_ctx(), agent_id=agent_id)
+
+        assert result.agent_id == agent_id
+        assert result.by_version == []
+        assert result.total_runs is None
+        assert result.by_day is None
+        repos["count_runs"].assert_not_called()
+
+    async def test_no_versions_means_no_ratings_query(self, repos) -> None:
+        repos["usage_by_version"].return_value = [(None, None, 2, 2, None, None)]
+
+        await StatsService(MagicMock()).usage_by_version(_ctx(), agent_id=uuid4())
+
+        repos["rating_counts_by_version"].assert_not_called()
+
+    async def test_own_scope_narrows_the_version_rows_to_the_caller(self, repos) -> None:
+        ctx = _ctx(role=OrgRoleName.MEMBER.value)
+
+        await StatsService(MagicMock()).usage_by_version(ctx, agent_id=uuid4(), scope="own")
+
+        assert repos["usage_by_version"].call_args.kwargs["user_id"] == ctx.user_id
+
+    async def test_org_scope_still_demands_runs_view(self, repos) -> None:
+        with pytest.raises(AuthorizationError):
+            await StatsService(MagicMock()).usage_by_version(
+                _ctx(role=OrgRoleName.MEMBER.value), agent_id=uuid4(), scope="org"
+            )

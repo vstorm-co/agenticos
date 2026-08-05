@@ -16,13 +16,15 @@ from decimal import Decimal
 import pytest
 
 from app.core.permissions import AuthContext, OrgRoleName
-from app.db.models.agent import Agent
+from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun as AgentRunModel
 from app.db.models.agent_run import ApprovalStatus, RunStatus, RunSurface, ToolApproval
+from app.db.models.conversation import Conversation, Message
+from app.db.models.message_rating import MessageRating
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import Visibility
 from app.db.models.user import User
-from app.repositories import agent_run_repo
+from app.repositories import agent_run_repo, message_rating_repo
 from app.services.stats import StatsService
 
 pytestmark = pytest.mark.anyio
@@ -415,3 +417,133 @@ class TestSurfacesAndCost:
 
         assert total == Decimal("2")
         assert by_provider == {"anthropic": Decimal("1.5"), "openai": Decimal("0.5")}
+
+
+class TestVersionRows:
+    async def _version(self, db, agent: Agent, number: int) -> AgentVersion:
+        version = AgentVersion(
+            id=uuid.uuid4(),
+            agent_id=agent.id,
+            organization_id=agent.organization_id,
+            version=number,
+            spec={"name": agent.name},
+        )
+        db.add(version)
+        await db.flush()
+        return version
+
+    async def test_each_version_aggregates_its_own_runs(self, db) -> None:
+        organization, owner = await _org_with_owner(db, "Versions")
+        agent = await _agent(db, organization, owner)
+        v1 = await self._version(db, agent, 1)
+        v2 = await self._version(db, agent, 2)
+
+        for duration, status in ((2, RunStatus.COMPLETED.value), (4, RunStatus.FAILED.value)):
+            run = await _run(
+                db,
+                organization=organization,
+                agent=agent,
+                started_at=START,
+                duration_seconds=duration,
+                status=status,
+            )
+            run.agent_version_id = v1.id
+        for _ in range(3):
+            run = await _run(
+                db,
+                organization=organization,
+                agent=agent,
+                started_at=START,
+                duration_seconds=1,
+            )
+            run.agent_version_id = v2.id
+        # A run whose version was deleted afterwards: the id SET-NULLed.
+        await _run(db, organization=organization, agent=agent, started_at=START)
+        await db.flush()
+
+        rows = await agent_run_repo.usage_by_version(
+            db, organization_id=organization.id, agent_id=agent.id, start=START, end=END
+        )
+
+        assert [(row[1], row[2], row[3]) for row in rows] == [
+            (None, 1, 1),  # the deleted version's run, completed
+            (1, 2, 1),  # v1: two runs, one completed
+            (2, 3, 3),  # v2: three runs, all completed
+        ]
+        v1_row = rows[1]
+        assert v1_row[4] is not None and round(v1_row[4]) == 3900  # p95 of [2000, 4000]
+
+    async def test_ratings_land_on_the_version_that_produced_the_words(self, db) -> None:
+        organization, owner = await _org_with_owner(db, "Rated")
+        agent = await _agent(db, organization, owner)
+        v1 = await self._version(db, agent, 1)
+        v2 = await self._version(db, agent, 2)
+        rater = await _user(db)
+        conversation = Conversation(
+            id=uuid.uuid4(), organization_id=organization.id, user_id=owner.id, title="Chat"
+        )
+        db.add(conversation)
+        await db.flush()
+
+        def message(version_id):
+            row = Message(
+                id=uuid.uuid4(),
+                conversation_id=conversation.id,
+                role="assistant",
+                content="answer",
+                agent_id=agent.id,
+                agent_version_id=version_id,
+            )
+            db.add(row)
+            return row
+
+        liked = message(v2.id)
+        disliked = message(v2.id)
+        old_version = message(v1.id)
+        await db.flush()
+        in_window = START + timedelta(days=1)
+        for row, rating in ((liked, 1), (disliked, -1), (old_version, 1)):
+            db.add(
+                MessageRating(
+                    id=uuid.uuid4(),
+                    message_id=row.id,
+                    user_id=rater.id,
+                    rating=rating,
+                    created_at=in_window,
+                )
+            )
+        await db.flush()
+
+        counts = await message_rating_repo.rating_counts_by_version(
+            db, version_ids=[v1.id, v2.id], start=START, end=END
+        )
+
+        assert counts == {v1.id: (1, 1), v2.id: (1, 2)}
+
+    async def test_the_service_composes_rows_with_their_ratings(self, db) -> None:
+        organization, owner = await _org_with_owner(db, "Composed")
+        agent = await _agent(db, organization, owner)
+        v1 = await self._version(db, agent, 1)
+        run = await _run(
+            db, organization=organization, agent=agent, started_at=START, duration_seconds=2
+        )
+        run.agent_version_id = v1.id
+        await db.flush()
+
+        ctx = AuthContext(
+            user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER.value
+        )
+        result = await StatsService(db).usage_by_version(
+            ctx,
+            agent_id=agent.id,
+            from_date=START.date(),
+            to_date=END.date() - timedelta(days=1),
+        )
+
+        assert result.agent_id == agent.id
+        assert result.total_runs is None
+        assert result.by_version is not None and len(result.by_version) == 1
+        row = result.by_version[0]
+        assert (row.version, row.runs, row.completed_runs) == (1, 1, 1)
+        assert row.p95_ms == 2000
+        assert (row.like_count, row.rating_count) == (0, 0)

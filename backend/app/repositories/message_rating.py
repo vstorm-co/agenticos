@@ -1,5 +1,6 @@
 """Message rating repository for database operations."""
 
+from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
@@ -8,6 +9,7 @@ from sqlalchemy import and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.db.models.conversation import Message
 from app.db.models.message_rating import MessageRating
 from app.db.models.user import User
 
@@ -220,3 +222,34 @@ async def get_rating_summary(
         "with_comments": row.with_comments or 0,
         "ratings_by_day": ratings_by_day,
     }
+
+
+async def rating_counts_by_version(
+    db: AsyncSession,
+    *,
+    version_ids: Sequence[UUID],
+    start: datetime,
+    end: datetime,
+) -> dict[UUID, tuple[int, int]]:
+    """(likes, total) per agent version, over ratings given in the window.
+
+    Joined through the message rather than the run: `Message.agent_version_id`
+    records which frozen spec produced the words a thumb was given to. The
+    caller supplies the version ids it is comparing, which is also the tenant
+    bound - version ids come off that organization's own version rows.
+    """
+    result = await db.execute(
+        select(
+            Message.agent_version_id,
+            func.sum(case((MessageRating.rating == 1, 1), else_=0)),
+            func.count(MessageRating.id),
+        )
+        .join(Message, Message.id == MessageRating.message_id)
+        .where(
+            Message.agent_version_id.in_(version_ids),
+            MessageRating.created_at >= start,
+            MessageRating.created_at < end,
+        )
+        .group_by(Message.agent_version_id)
+    )
+    return {row[0]: (int(row[1] or 0), int(row[2] or 0)) for row in result.all()}

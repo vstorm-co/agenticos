@@ -105,6 +105,27 @@ class CostBlock(BaseSchema):
     by_provider: list[ProviderCost]
 
 
+class VersionUsageRow(BaseSchema):
+    """One published version's share of the window - the compare card's row.
+
+    `agent_version_id` survives on runs after the version is deleted (the
+    foreign key SET-NULLs), so a null id with a null number is "a deleted
+    version" - kept as a row rather than dropped, because the runs happened.
+    Ratings count thumbs given in the window on messages this version
+    produced; a version that predates message-level version stamping shows
+    zero rather than borrowing a neighbour's numbers.
+    """
+
+    agent_version_id: UUID | None
+    version: int | None
+    runs: int
+    completed_runs: int
+    p95_ms: int | None
+    avg_cost_usd: Decimal | None
+    like_count: int
+    rating_count: int
+
+
 class UsageStats(BaseSchema):
     """The answer of `GET /stats/usage` - one envelope, sections per question.
 
@@ -132,3 +153,5 @@ class UsageStats(BaseSchema):
     cost: CostBlock | None = None
     active_users: ActiveUsers | None = None
     pending_approvals: int | None = None
+    agent_id: UUID | None = None
+    by_version: list[VersionUsageRow] | None = None
