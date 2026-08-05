@@ -59,6 +59,14 @@ what the shared total grew by while it ran. That is exact for a sync delegation,
 which holds the run loop, and overlapping for concurrent ones — stated in
 `DelegationOutcome` rather than hidden.
 
+A delegation that **parked** is more than one such window, because its turns ran
+against different ledgers in different processes. So the park keeps a running total
+and `_spent` adds this turn's delta to it; one row is written, by the turn where the
+delegation ends. Left out, the row held what the delegate spent after the last
+resume — the small half, on the ordinary shape of doing the work and then asking
+permission to act on it — and nothing anywhere disagreed, because the money was in
+the parent's row all along.
+
 **A delegate that stopped for a person keeps its place.** See below; it is the one
 decision here that is a correctness fix rather than a policy.
 
@@ -111,8 +119,8 @@ raises.
 So a parked run is a tree, and three pieces carry it:
 
 - **`DelegationJournal.park`** writes the delegate's conversation, the `task` call
-  that identifies the delegation, and the delegation's parent into
-  `DelegationStash`. Called from `_toolset.py`, where the suspension propagates
+  that identifies the delegation, the delegation's parent and what it has spent so
+  far into `DelegationStash`. Called from `_toolset.py`, where the suspension propagates
   past — the only point at which the delegation record, the library's task handle
   and the parent's tool call id all exist at once. The library keeps the history on
   that handle and deliberately does *not* save it as a chat trace, because a trace
@@ -137,7 +145,10 @@ column, while `request_approval` closes over a service holding the request's
 Two things degrade rather than failing. A frame whose `messages` are empty — the
 library's history is best-effort telemetry — re-runs the delegation instead of
 continuing it, but the `task` call is still answered, because a parked call left
-without a result makes the whole run unresumable. And a suspension arriving without
+without a result makes the whole run unresumable. Its **spend is still carried**,
+which is why the two are separate fields on the stash rather than one: how to
+continue is best-effort, what it already cost is not, and a delegation re-run from
+the start has still spent it. And a suspension arriving without
 a task id keeps nothing at all: the library assigns one before it runs anything, so
 no delegate can have suspended, and a frame invented there would claim the run's own
 parked calls as a delegate's.

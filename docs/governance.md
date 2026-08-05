@@ -69,6 +69,12 @@ bounds how many delegations run at once, and each delegate's own `max_steps` bou
 its loop. See the
 [`subagents` capability](reference/capabilities.md#delegation).
 
+Two of those three are the delegate's own, which is the line the budget does not
+cross: `max_steps` is read off the delegate's spec, and its `max_depth` caps how
+deep *it* may go however much room its caller had left. A cap on spend is a cap on
+the run somebody started; a cap on nesting is a decision the delegate's author made
+and its reviewers read, so a caller cannot widen it.
+
 ### What a delegated run is recorded as
 
 A delegation to a **published** agent gets an `agent_runs` row of its own, carrying
@@ -87,6 +93,19 @@ the transcript is the record.
     Splitting it exactly would need a ledger per agent, which is the design that
     stops the parent's cap binding at all. So the approximation is stated rather
     than hidden.
+
+**A delegation that parked on an approval is more than one window.** Its turns ran
+in different processes against different ledgers, so what the child row records is
+every segment added together: the parked state keeps what the delegation had cost
+when it stopped, and the turn that finishes it adds its own. One row is written,
+once, by the turn where the delegation ends - a delegate that parked twice leaves
+three segments and one row.
+
+That is worth stating because the failure it replaces was invisible. The row used to
+hold only what the delegate spent *after* the last resume, which on the ordinary
+shape - do the work, then ask permission to act on the result - is the small half.
+Nothing failed to add up, because the money was in the parent's row all along; what
+was wrong was every number that answers "what did this delegate cost".
 
 The child row is what makes two different questions answerable, and they want
 opposite arithmetic:
@@ -193,6 +212,15 @@ That matters because the alternative is not a slower resume, it is a different
 answer. Re-running the delegation would start the delegate's conversation from
 nothing and let its model call a different tool the second time round, so what a
 reviewer approved would not be what executed.
+
+What the delegate had already spent travels with its place, so the row written when
+the delegation finally ends covers all of it - see
+[what a delegated run is recorded as](#what-a-delegated-run-is-recorded-as). Both
+halves of the tree are kept per delegation rather than per run, which is what lets a
+specialist three levels down park and still be accounted to its own agent. The spend
+is kept even when the delegate's *place* could not be - the library's message history
+is best-effort telemetry, and a delegation re-run from the start has still spent what
+it spent.
 
 !!! warning "MCP tools are outside the approval gate"
 

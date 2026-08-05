@@ -34,6 +34,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from decimal import Decimal
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -61,12 +62,16 @@ from app.agents.capabilities.approval import (
     ApprovalGranted,
     ApprovalRejected,
 )
+from app.agents.capabilities.budget import SpendEntry, SpendLedger
 from app.agents.capabilities.subagents import Delegation
 from app.agents.capabilities.subagents._capability import _LazyAgent
 from app.agents.capabilities.subagents._journal import DelegationJournal
 from app.agents.deps import AgentDeps
 from app.agents.subagent_runtime import (
     SUBAGENT_RUNTIME_RESOURCE,
+    DelegationOutcome,
+    DelegationRecorder,
+    DelegationSpend,
     DelegationStash,
     ResolvedSubagent,
     ResumedDelegation,
@@ -88,6 +93,56 @@ MIDDLE = "editor"
 GATED_TOOL = "look_up"
 
 _TRACE = re.compile(r"\s*Chat Trace ID: [0-9a-f]+", re.MULTILINE)
+
+Charge = Callable[[], None]
+"""Spends one request's worth into a run's ledger. See :func:`_charging`."""
+
+INPUT_TOKENS = 7
+OUTPUT_TOKENS = 3
+"""What one request costs in tokens here - fixed, so a turn's usage is countable."""
+
+
+@dataclass(frozen=True)
+class _Metering:
+    """What one turn meters with: the run's single ledger, a charge, and the recorder.
+
+    Bundled because every level of a delegation tree needs all three and they belong
+    to the *turn* rather than to a delegate: the ledger is the run's one ledger, the
+    recorder writes a row per delegation whatever depth it was at, and the charge is
+    what one model request costs in this turn.
+    """
+
+    ledger: SpendLedger
+    charge: Charge
+    record: DelegationRecorder
+
+
+def _charging(ledger: SpendLedger, cost: Decimal) -> Charge:
+    """A stand-in for the budget guard, charging a known amount per request.
+
+    A fixed entry rather than a real price lookup, for the reason the rest of this
+    file stands in for a database: the number under test is what the *journal*
+    reports for a delegation, and an unpriced model reports zero however correctly
+    it is measured.
+
+    Every agent in a run charges into one ledger, delegates included - that is what
+    makes a delegate's spend visible to the parent's cap before its next request,
+    and it is why what one delegation cost has to be worked out rather than read
+    off a ledger of its own.
+    """
+
+    def charge() -> None:
+        ledger.entries.append(
+            SpendEntry(
+                model_name="test",
+                input_tokens=INPUT_TOKENS,
+                output_tokens=OUTPUT_TOKENS,
+                cost_usd=cost,
+                priced=True,
+            )
+        )
+
+    return charge
 
 
 def _answer(result: AgentRunResult[Any]) -> str:
@@ -133,38 +188,61 @@ class _Looking(AbstractCapability[AgentDeps]):
         return FunctionToolset([look_up], id="looking")
 
 
-def _tool_then_report(prefix: str, tool: ToolCallPart) -> FunctionModel:
-    """A model that calls one tool, then reports what it answered.
+def _tools_then_report(
+    prefix: str, *tools: ToolCallPart, charge: Charge | None = None
+) -> FunctionModel:
+    """A model that calls each tool in turn, then reports what they all answered.
 
-    Reporting the tool's own words rather than a fixed sentence is what makes "the
+    Reporting the tools' own words rather than a fixed sentence is what makes "the
     same answer" mean something: an answer that did not depend on the gated call
     would be identical whether or not the approval ever arrived.
+
+    Several tools rather than one because a delegate can need a person more than
+    once, and each call is a park of its own - which is the only way to reach a
+    delegation whose cost is spread over three turns.
+
+    `charge` spends into the run's ledger, standing in for the budget guard that
+    records a real request. One call per request, which is what makes a turn's
+    spend a number a test can name.
     """
 
     def respond(messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
+        if charge is not None:
+            charge()
         returned = _returned(messages)
-        if returned:
-            return ModelResponse(parts=[TextPart(f"{prefix}: {returned[-1]}")])
-        return ModelResponse(parts=[tool])
+        if len(returned) < len(tools):
+            return ModelResponse(parts=[tools[len(returned)]])
+        return ModelResponse(parts=[TextPart(f"{prefix}: {' | '.join(returned)}")])
 
     return FunctionModel(respond)
 
 
-def _delegating_model(prefix: str, subagent: str) -> FunctionModel:
+def _delegating_model(prefix: str, subagent: str, *, charge: Charge | None = None) -> FunctionModel:
     """A model that delegates once and then answers from what came back."""
-    return _tool_then_report(
+    return _tools_then_report(
         prefix,
         ToolCallPart("task", {"description": "the weather in Krakow", "subagent_type": subagent}),
+        charge=charge,
     )
 
 
-def _specialist_agent(*, gated: bool, calls: list[dict[str, Any]]) -> PydanticAgent[Any, Any]:
+def _specialist_agent(
+    *,
+    gated: bool,
+    calls: list[dict[str, Any]],
+    cities: tuple[str, ...] = ("Krakow",),
+    charge: Charge | None = None,
+) -> PydanticAgent[Any, Any]:
     looking = _Looking(calls=calls)
     # Stamped the way `app.agents.capabilities.build` stamps it: `capability_id` on
     # the tool definition is what the gate keys on.
     looking.id = "looking"
     return PydanticAgent(
-        _tool_then_report("weather", ToolCallPart(GATED_TOOL, {"city": "Krakow"})),
+        _tools_then_report(
+            "weather",
+            *(ToolCallPart(GATED_TOOL, {"city": city}) for city in cities),
+            charge=charge,
+        ),
         # What `build_agent` gives every agent this platform builds, delegates
         # included. It is why a parked delegate ends its run with an output object
         # instead of raising, which is the route the library reports as suspended.
@@ -177,9 +255,22 @@ def _specialist_agent(*, gated: bool, calls: list[dict[str, Any]]) -> PydanticAg
     )
 
 
-def _capability(*delegates: ResolvedSubagent, stash: DelegationStash, depth: int = 0) -> Delegation:
+def _capability(
+    *delegates: ResolvedSubagent,
+    stash: DelegationStash,
+    depth: int = 0,
+    ledger: SpendLedger | None = None,
+    record: DelegationRecorder | None = None,
+) -> Delegation:
     """The delegation capability as the registry builds it, over a shared stash."""
-    runtime = SubagentRuntime(subagents=delegates, depth_remaining=0, depth=depth, stash=stash)
+    runtime = SubagentRuntime(
+        subagents=delegates,
+        depth_remaining=0,
+        depth=depth,
+        stash=stash,
+        ledger=ledger,
+        record=record,
+    )
     built = build(
         [CapabilityBinding(capability_id="subagents", config={})],
         resources={SUBAGENT_RUNTIME_RESOURCE: runtime},
@@ -198,21 +289,38 @@ def _resolved(
 
 
 def _specialist_delegate(
-    *, gated: bool, calls: list[dict[str, Any]], agent_id: UUID | None = None
+    *,
+    gated: bool,
+    calls: list[dict[str, Any]],
+    agent_id: UUID | None = None,
+    cities: tuple[str, ...] = ("Krakow",),
+    charge: Charge | None = None,
 ) -> ResolvedSubagent:
     return _resolved(
-        SPECIALIST, lambda: _specialist_agent(gated=gated, calls=calls), agent_id=agent_id
+        SPECIALIST,
+        lambda: _specialist_agent(gated=gated, calls=calls, cities=cities, charge=charge),
+        agent_id=agent_id,
     )
 
 
 def _middle_delegate(
-    *, gated: bool, calls: list[dict[str, Any]], stash: DelegationStash
+    *,
+    gated: bool,
+    calls: list[dict[str, Any]],
+    stash: DelegationStash,
+    metering: _Metering | None = None,
 ) -> ResolvedSubagent:
     """A delegate that delegates on, so the gated tool sits two levels down.
 
     Built the way the runner builds one: its own delegation capability, its own
     runtime, and the *same* stash - which is what lets the run somebody started be
     continued from a place two levels below it.
+
+    The metering goes to the *specialist* and to the middle's own capability, and
+    deliberately not to the middle's model: the specialist is the level whose spend
+    is being followed across a park, and a middle that charged as well would put its
+    own requests inside its subtree's total, which is a different defect
+    (agenticos#180) and not this one.
     """
 
     def build_it() -> PydanticAgent[Any, Any]:
@@ -220,7 +328,17 @@ def _middle_delegate(
             _delegating_model("edited", SPECIALIST),
             output_type=[str, DeferredToolRequests],
             capabilities=[
-                _capability(_specialist_delegate(gated=gated, calls=calls), stash=stash, depth=1)
+                _capability(
+                    _specialist_delegate(
+                        gated=gated,
+                        calls=calls,
+                        charge=None if metering is None else metering.charge,
+                    ),
+                    stash=stash,
+                    depth=1,
+                    ledger=None if metering is None else metering.ledger,
+                    record=None if metering is None else metering.record,
+                )
             ],
         )
 
@@ -228,13 +346,19 @@ def _middle_delegate(
 
 
 def _orchestrator(
-    delegate: ResolvedSubagent, *, stash: DelegationStash, channel: ApprovalChannel
+    delegate: ResolvedSubagent,
+    *,
+    stash: DelegationStash,
+    channel: ApprovalChannel,
+    ledger: SpendLedger | None = None,
+    record: DelegationRecorder | None = None,
+    charge: Charge | None = None,
 ) -> tuple[PydanticAgent[Any, Any], AgentDeps]:
     """The run somebody started: it delegates once and answers from the report."""
     agent = PydanticAgent(
-        _delegating_model("answer", delegate.name),
+        _delegating_model("answer", delegate.name, charge=charge),
         output_type=[str, DeferredToolRequests],
-        capabilities=[_capability(delegate, stash=stash)],
+        capabilities=[_capability(delegate, stash=stash, ledger=ledger, record=record)],
     )
     deps = AgentDeps(organization_id=uuid4(), run_id=uuid4(), request_approval=channel)
     return agent, deps
@@ -326,7 +450,25 @@ async def _park(delegate: ResolvedSubagent, stash: DelegationStash) -> _Parked:
     agent, deps = _orchestrator(delegate, stash=stash, channel=channel)
     result = await agent.run("what is the weather in Krakow", deps=deps)
     assert isinstance(result.output, DeferredToolRequests), result.output
-    state = PausedRunState(
+    return _Parked(
+        state=_parked_state(result, channel=channel, stash=stash),
+        queue=queue,
+        channel=channel,
+        result=result,
+    )
+
+
+def _parked_state(
+    result: AgentRunResult[Any], *, channel: ApprovalChannel, stash: DelegationStash
+) -> PausedRunState:
+    """The row a parked turn leaves, assembled the way `_run` and `finish` assemble it.
+
+    The surface supplies the messages and its channel's parked calls; the runner
+    folds in the delegation tree and which delegate each approval came from. Shared
+    by every turn of a run that parks more than once, because the second park is
+    written by exactly the same code as the first.
+    """
+    return PausedRunState(
         messages=ModelMessagesTypeAdapter.dump_python(result.all_messages(), mode="json"),
         tool_call_ids=channel.parked,
         delegated_approvals={
@@ -336,15 +478,16 @@ async def _park(delegate: ResolvedSubagent, stash: DelegationStash) -> _Parked:
         },
         delegations=_delegation_frames(stash.parked),
     )
-    return _Parked(state=state, queue=queue, channel=channel, result=result)
 
 
-def _verdicts(parked: _Parked) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
+def _verdicts(
+    state: PausedRunState, queue: _Queue
+) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
     """The decisions on a parked run's calls, the way `_decisions` derives them."""
-    by_call = {str(row.id): row for row in parked.queue.rows}
+    by_call = {str(row.id): row for row in queue.rows}
     decided: dict[str, Any] = {}
     approved_args: dict[str, dict[str, Any]] = {}
-    for approval_id, tool_call_id in parked.state.tool_call_ids.items():
+    for approval_id, tool_call_id in state.tool_call_ids.items():
         row = by_call[approval_id]
         decided[tool_call_id] = (
             ApprovalGranted(tool_args=row.tool_args)
@@ -363,9 +506,9 @@ async def _resume(parked: _Parked, delegate: Callable[[DelegationStash], Resolve
     factory here rather than handed over - a stash that only worked against the
     objects that filled it would work in a test and nowhere else.
     """
-    decided, approved_args = _verdicts(parked)
+    decided, approved_args = _verdicts(parked.state, parked.queue)
     plan = _resume_plan(parked.state, approved_args)
-    stash = DelegationStash(resuming=plan.delegations)
+    stash = DelegationStash(resuming=plan.delegations, spent=plan.spent)
     agent, deps = _orchestrator(
         delegate(stash), stash=stash, channel=_channel(parked.queue, decided=decided)
     )
@@ -600,7 +743,12 @@ class TestWhenAPlaceCannotBeKept:
             tool_call_ids={},
             delegations=[
                 DelegationFrame(
-                    tool_call_id="the-task-call", task_id="4f2a1b8c", subagent=SPECIALIST
+                    tool_call_id="the-task-call",
+                    task_id="4f2a1b8c",
+                    subagent=SPECIALIST,
+                    cost_usd=Decimal("0.25"),
+                    input_tokens=INPUT_TOKENS,
+                    output_tokens=OUTPUT_TOKENS,
                 )
             ],
         )
@@ -609,6 +757,17 @@ class TestWhenAPlaceCannotBeKept:
 
         assert list(plan.results.approvals) == ["the-task-call"]
         assert plan.delegations == {}, "nothing to continue, so nothing is offered"
+        # But what it cost is still carried, which is the half that does not depend
+        # on the library having kept the conversation. The delegation runs again
+        # from the start and the row written when it ends covers both attempts,
+        # because the organization paid for both.
+        assert plan.spent == {
+            "the-task-call": DelegationSpend(
+                cost_usd=Decimal("0.25"),
+                input_tokens=INPUT_TOKENS,
+                output_tokens=OUTPUT_TOKENS,
+            )
+        }
 
 
 class TestAnOlderParkedRun:
@@ -726,3 +885,204 @@ class TestTwoLevelsDown:
         (row,) = parked.queue.rows
         assert row.subagent_name == SPECIALIST
         assert parked.state.delegated_approvals == {str(row.id): inner.task_id}
+
+
+class Recorder:
+    """Stands in for the runner, which writes a child `AgentRun` row per delegation.
+
+    One recorder for a whole sequence of turns, because that is the question a park
+    raises: a delegation that stopped twice must leave **one** row, holding
+    everything it spent. A row per turn would divide one delegate's work into two
+    agents' worth of history and bill neither of them correctly.
+    """
+
+    def __init__(self) -> None:
+        self.outcomes: list[DelegationOutcome] = []
+
+    async def __call__(self, outcome: DelegationOutcome) -> UUID | None:
+        self.outcomes.append(outcome)
+        return None
+
+
+async def _until_it_answers(
+    delegate: Callable[[DelegationStash, _Metering], ResolvedSubagent],
+    *,
+    turn_costs: tuple[Decimal, ...],
+    parent_cost: Decimal,
+    recorder: Recorder,
+) -> tuple[list[PausedRunState], str]:
+    """Drive the orchestrator through however many parks it takes, and answer.
+
+    One delegate cost per turn, and they differ deliberately: a sum is only provable
+    when no single segment can pass for the total, and neither can the ledger any one
+    turn ends with - the parent charges into it too.
+
+    Every turn is rebuilt from nothing but the stored state, exactly as `resume`
+    rebuilds one: a fresh ledger, a fresh stash, a fresh capability, a fresh agent.
+    That is the whole of the defect being pinned - a turn cannot see the ledger the
+    previous turn measured against, so anything it needs from that turn has to have
+    been written down.
+
+    Returns the state each park left, in order, and the answer the last turn gave.
+    """
+    queue = _Queue()
+    parked: list[PausedRunState] = []
+    state: PausedRunState | None = None
+    for cost in turn_costs:
+        ledger = SpendLedger()
+        decided: dict[str, Any] = {}
+        stash = DelegationStash()
+        history: list[ModelMessage] | None = None
+        results: DeferredToolResults | None = None
+        if state is not None:
+            decided, approved_args = _verdicts(state, queue)
+            plan = _resume_plan(state, approved_args)
+            stash = DelegationStash(resuming=plan.delegations, spent=plan.spent)
+            history = ModelMessagesTypeAdapter.validate_python(state.messages)
+            results = plan.results
+        channel = _channel(queue, decided=decided)
+        metering = _Metering(ledger=ledger, charge=_charging(ledger, cost), record=recorder)
+        agent, deps = _orchestrator(
+            delegate(stash, metering),
+            stash=stash,
+            channel=channel,
+            ledger=ledger,
+            record=recorder,
+            charge=_charging(ledger, parent_cost),
+        )
+        result = await agent.run(
+            "what is the weather in Krakow" if state is None else None,
+            deps=deps,
+            message_history=history,
+            deferred_tool_results=results,
+        )
+        if not isinstance(result.output, DeferredToolRequests):
+            return parked, _answer(result)
+        queue.decide(approved=True)
+        # Through the column and back, because that is the trip a park actually
+        # makes: `paused_state` is JSONB, so a cost is stored as the string
+        # `model_dump(mode="json")` writes and the next turn resumes from whatever
+        # validates out of it.
+        state = PausedRunState.model_validate(
+            _parked_state(result, channel=channel, stash=stash).model_dump(mode="json")
+        )
+        parked.append(state)
+    pytest.fail(f"still parked after {len(turn_costs)} turns: {parked[-1].tool_call_ids}")
+
+
+class TestWhatADelegateSpentBeforeItParked:
+    """A delegation's cost is every turn it ran in, not the last one.
+
+    The shape of the failure this class exists for: a delegate does the work, then
+    asks permission to act on the result. So by the time it parks it has spent nearly
+    everything it is going to spend - and each turn measures against a ledger of its
+    own, which the next turn never sees. The delegation was recorded at what it spent
+    *after* the last resume.
+
+    Nothing failed to add up, which is why it survived: the money was in the parent's
+    row all along. What was wrong is every number that answers "what did this
+    delegate cost" - its `AgentRun` row, the `monthly_spend` that sums those rows, and
+    the budget alert that fires on the total.
+    """
+
+    async def test_a_delegation_that_parked_is_recorded_with_both_halves(self):
+        """One park: the work before the approval, and the work after it.
+
+        The two turns spend different amounts so that neither can be mistaken for the
+        sum, and the parent spends as well so that neither can the ledger.
+        """
+        calls: list[dict[str, Any]] = []
+        recorder = Recorder()
+
+        parked, answer = await _until_it_answers(
+            lambda _stash, metering: _specialist_delegate(
+                gated=True, calls=calls, charge=metering.charge, agent_id=uuid4()
+            ),
+            turn_costs=(Decimal("0.25"), Decimal("0.75")),
+            parent_cost=Decimal("0.10"),
+            recorder=recorder,
+        )
+
+        assert answer == "answer: weather: Krakow: 21C and clear"
+        assert calls == [{"city": "Krakow"}], "continued, so the gated call ran once"
+        assert len(parked) == 1
+        (outcome,) = recorder.outcomes
+        assert outcome.status == "completed"
+        assert outcome.cost_usd == Decimal("1.00")
+        assert (outcome.input_tokens, outcome.output_tokens) == (
+            INPUT_TOKENS * 2,
+            OUTPUT_TOKENS * 2,
+        )
+
+    async def test_two_parks_count_all_three_segments_once_each(self):
+        """A delegate can need a person twice, and the totals have to keep adding up.
+
+        The park has to carry a *running* total rather than the turn that wrote it:
+        carrying only the last turn's delta would record the second and third
+        segments and drop the first, which is the same bug one level along and would
+        pass the test above.
+
+        Three distinct costs, so every wrong combination is a different number:
+        $0.75 is the last two, $1.25 the first and last, $1.00 the first two, and
+        only $1.50 is all three.
+        """
+        calls: list[dict[str, Any]] = []
+        recorder = Recorder()
+
+        parked, answer = await _until_it_answers(
+            lambda _stash, metering: _specialist_delegate(
+                gated=True, calls=calls, cities=("Krakow", "Warsaw"), charge=metering.charge
+            ),
+            turn_costs=(Decimal("0.25"), Decimal("0.75"), Decimal("0.50")),
+            parent_cost=Decimal("0.10"),
+            recorder=recorder,
+        )
+
+        assert answer == ("answer: weather: Krakow: 21C and clear | Warsaw: 21C and clear"), (
+            "both approved calls have to reach the answer"
+        )
+        assert calls == [{"city": "Krakow"}, {"city": "Warsaw"}]
+        (outcome,) = recorder.outcomes
+        assert outcome.cost_usd == Decimal("1.50")
+        assert (outcome.input_tokens, outcome.output_tokens) == (
+            INPUT_TOKENS * 3,
+            OUTPUT_TOKENS * 3,
+        )
+        # And the intermediate park carries the running sum rather than its own turn,
+        # which is what makes the third turn's arithmetic possible at all.
+        assert [frame.cost_usd for state in parked for frame in state.delegations] == [
+            Decimal("0.25"),
+            Decimal("1.00"),
+        ]
+
+    async def test_a_specialist_two_levels_down_keeps_its_own_spend(self):
+        """The parked state is a tree, so what each level spent belongs to that level.
+
+        The middle delegate parks for a reason of its own - its `task` call suspends
+        exactly as the run's did - so a carry stored per run rather than per delegation
+        would attribute the specialist's work to the editor, or to nothing.
+        """
+        calls: list[dict[str, Any]] = []
+        recorder = Recorder()
+
+        parked, answer = await _until_it_answers(
+            lambda stash, metering: _middle_delegate(
+                gated=True, calls=calls, stash=stash, metering=metering
+            ),
+            turn_costs=(Decimal("0.25"), Decimal("0.75")),
+            parent_cost=Decimal("0.10"),
+            recorder=recorder,
+        )
+
+        assert answer == "answer: edited: weather: Krakow: 21C and clear"
+        assert calls == [{"city": "Krakow"}]
+        # The specialist's own row holds what the specialist spent across both turns.
+        # The editor's holds its subtree, which is the separate defect agenticos#180
+        # is about and is deliberately not asserted here.
+        specialist = [outcome for outcome in recorder.outcomes if outcome.subagent == SPECIALIST]
+        assert [outcome.cost_usd for outcome in specialist] == [Decimal("1.00")]
+        # Nested where it was made, which is what keeps one level's carry off another.
+        (outer,) = parked[0].delegations
+        (inner,) = outer.delegations
+        assert (outer.subagent, inner.subagent) == (MIDDLE, SPECIALIST)
+        assert inner.cost_usd == Decimal("0.25")

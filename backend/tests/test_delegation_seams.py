@@ -16,7 +16,10 @@ something further out depends on being right:
   recursively" is a claim about this method rather than an aspiration;
 - a delegate's guard shares the run's ledger and limits while pricing its own
   provider, which is what keeps a delegation's cost inside the cap somebody set
-  without pricing an Anthropic child against OpenAI's catalog.
+  without pricing an Anthropic child against OpenAI's catalog;
+- the stash answers what a delegation has already spent, keyed by the `task` call
+  that opens it, because a turn cannot see the ledger the previous turn measured
+  against.
 """
 
 from __future__ import annotations
@@ -28,6 +31,7 @@ import pytest
 
 from app.agents.capabilities.budget import BudgetGuard, BudgetScope, SpendLedger, SpendLimit
 from app.agents.spec import AgentSpec, CapabilityBindingSpec, SpecialistSpec, SubagentRef
+from app.agents.subagent_runtime import DelegationSpend, DelegationStash
 
 
 def _specialist(**overrides: object) -> dict[str, object]:
@@ -157,3 +161,35 @@ def test_a_delegates_guard_shares_the_run_and_prices_its_own_provider() -> None:
     assert delegate.ledger is ledger
     assert delegate.limits is parent.limits
     assert delegate.run_state is parent.run_state
+
+
+def test_a_delegation_the_run_is_starting_has_spent_nothing_yet() -> None:
+    """Which is every delegation until one parks, so the ordinary path stays a delta.
+
+    A `task` call the stash has never seen is a delegation being started rather than
+    continued. Answering anything but zero here would add a previous delegation's
+    cost to a fresh one.
+    """
+    stash = DelegationStash(spent={"another-task-call": DelegationSpend(cost_usd=Decimal("2"))})
+
+    assert stash.already_spent("this-task-call") == DelegationSpend()
+
+
+def test_a_delegation_being_continued_answers_with_what_it_already_cost() -> None:
+    """The key is the parent's `task` call, which the replay presents again."""
+    spent = DelegationSpend(cost_usd=Decimal("0.25"), input_tokens=7, output_tokens=3)
+    stash = DelegationStash(spent={"the-task-call": spent})
+
+    assert stash.already_spent("the-task-call") == spent
+
+
+def test_a_delegation_with_no_tool_call_to_name_it_carries_nothing() -> None:
+    """There is nothing a resume could key it by, so there is nothing to have kept.
+
+    Reachable because `RunContext.tool_call_id` is optional: a caller driving the
+    toolset without a model behind it has no `task` call, and `park` already refuses
+    to stash such a delegation for the same reason.
+    """
+    stash = DelegationStash(spent={"the-task-call": DelegationSpend(cost_usd=Decimal("0.25"))})
+
+    assert stash.already_spent(None) == DelegationSpend()

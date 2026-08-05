@@ -98,6 +98,7 @@ from app.agents.subagent_runtime import (
     SUBAGENT_RUNTIME_RESOURCE,
     DelegationOutcome,
     DelegationRecorder,
+    DelegationSpend,
     DelegationStash,
     DelegationStatus,
     DynamicSpecialistBuilder,
@@ -270,6 +271,12 @@ class DelegationFrame(BaseModel):
     from the start. The frame is still recorded, because the `task` call has to be
     answered on the replay whatever happens to the delegate: Pydantic AI refuses a
     resume that leaves a parked call without a result.
+
+    The spend is carried whether the place was kept or not, and for a different
+    reason: it is what the delegation has already cost, which is true of a
+    delegation re-run from the start exactly as it is of one continued. Left out,
+    the child run row written when the delegation ends holds only what the last
+    turn spent - see :class:`app.agents.subagent_runtime.DelegationSpend`.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -305,6 +312,15 @@ class DelegationFrame(BaseModel):
             "could not be kept, and the delegation is re-run rather than continued"
         ),
     )
+    cost_usd: Decimal = Field(
+        default=Decimal(0),
+        description=(
+            "What this delegation had cost by the moment it stopped, so the turn "
+            "that continues it records the whole of it and not only the tail"
+        ),
+    )
+    input_tokens: int = Field(default=0, description="The same, in input tokens")
+    output_tokens: int = Field(default=0, description="The same, in output tokens")
     delegations: list[DelegationFrame] = Field(
         default_factory=list, description="Delegations this delegate had itself parked on"
     )
@@ -473,6 +489,9 @@ def _delegation_frames(parked: Sequence[ParkedDelegation]) -> list[DelegationFra
                 agent_version_id=entry.agent_version_id,
                 child_run_id=entry.child_run_id,
                 messages=entry.messages,
+                cost_usd=entry.spent.cost_usd,
+                input_tokens=entry.spent.input_tokens,
+                output_tokens=entry.spent.output_tokens,
                 delegations=frames(by_parent.get(entry.task_id, [])),
             )
             for entry in entries
@@ -500,6 +519,14 @@ class _ResumePlan:
     """Keyed by the `task` call each delegation was made from, which is the only
     thing the delegation capability knows about one before it starts it."""
 
+    spent: dict[str, DelegationSpend]
+    """What each delegation in the tree has already cost, on the same key.
+
+    Every frame, including one whose delegate is re-run rather than continued: what
+    it spent before the park is what it spent, and the row written when it ends is
+    the only place that money is attributed to the delegate's own agent.
+    """
+
 
 def _resume_plan(state: PausedRunState, decided_args: Mapping[str, dict[str, Any]]) -> _ResumePlan:
     """Split a parked run's verdicts across the agents that were waiting on them.
@@ -518,6 +545,7 @@ def _resume_plan(state: PausedRunState, decided_args: Mapping[str, dict[str, Any
         )
 
     resuming: dict[str, ResumedDelegation] = {}
+    spent: dict[str, DelegationSpend] = {}
 
     def level(frames: list[DelegationFrame], own: list[str]) -> DeferredToolResults:
         results = DeferredToolResults()
@@ -527,6 +555,15 @@ def _resume_plan(state: PausedRunState, decided_args: Mapping[str, dict[str, Any
             )
         for frame in frames:
             results.approvals[frame.tool_call_id] = ToolApproved()
+            # Before the `continue` below, because what a delegation has spent is
+            # not conditional on its place having been kept: a delegation re-run
+            # from the start still spent it, and the row written when it ends is
+            # where that money reaches the delegate's own agent.
+            spent[frame.tool_call_id] = DelegationSpend(
+                cost_usd=frame.cost_usd,
+                input_tokens=frame.input_tokens,
+                output_tokens=frame.output_tokens,
+            )
             if not frame.messages:
                 # The delegate's place was not kept, so there is nothing to
                 # continue. The `task` call is still answered above - a parked call
@@ -540,7 +577,9 @@ def _resume_plan(state: PausedRunState, decided_args: Mapping[str, dict[str, Any
         return results
 
     return _ResumePlan(
-        results=level(state.delegations, by_delegation.get(None, [])), delegations=resuming
+        results=level(state.delegations, by_delegation.get(None, [])),
+        delegations=resuming,
+        spent=spent,
     )
 
 
@@ -999,6 +1038,7 @@ class AgentRunnerService:
             exposure=exposure,
             decided={},
             resuming={},
+            already_spent={},
             version_id=version_id,
             environment_id=effective_environment_id,
         )
@@ -1018,6 +1058,7 @@ class AgentRunnerService:
         exposure: AgentExposure | None,
         decided: dict[str, ApprovalDecision],
         resuming: dict[str, ResumedDelegation],
+        already_spent: dict[str, DelegationSpend],
         model_profile_id: UUID | None = None,
         version_id: UUID | None = None,
         environment_id: UUID | None = None,
@@ -1037,7 +1078,10 @@ class AgentRunnerService:
         into the assembly rather than into the run call: a verdict is answered by
         the approval gate of whichever agent asked, and a stashed delegate is
         continued by the delegation capability of whichever agent delegated - so
-        both have to be in place before anything is built.
+        both have to be in place before anything is built. `already_spent` travels
+        with them because it is read at the same moment: the delegation is opened by
+        the replayed `task` call, and what it cost before the park has to be in the
+        stash by then or the row it eventually writes holds only this turn's spend.
         """
         # A caller's override wins over the spec's choice. Only the model is
         # replaced - instructions, tools, budgets and the approval gate are the
@@ -1159,7 +1203,7 @@ class AgentRunnerService:
         run_budget = _RunBudget()
         runtimes: list[SubagentRuntime] = []
         delegations: list[RecordedDelegation] = []
-        stash = DelegationStash(resuming=resuming)
+        stash = DelegationStash(resuming=resuming, spent=already_spent)
         runtime = await self._delegation_runtime(
             ctx,
             spec=spec,
@@ -2207,6 +2251,7 @@ class AgentRunnerService:
             exposure=None,
             decided=decided,
             resuming=plan.delegations,
+            already_spent=plan.spent,
         )
         prepared.built.ledger.entries.append(_spend_already_booked(run))
 

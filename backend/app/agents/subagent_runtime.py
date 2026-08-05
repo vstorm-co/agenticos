@@ -184,6 +184,12 @@ class DelegationOutcome:
     `docs/governance.md` says so. Splitting it exactly would need a ledger per
     agent, which is precisely the design that stops the parent's cap from binding
     at all.
+
+    **A delegation that parked is more than one delta.** Its turns ran in different
+    processes against different ledgers, so what is reported here is every segment
+    added together - the deltas of the turns after each resume plus
+    :class:`DelegationSpend`, which the park kept. One `AgentRun` row is written,
+    once, by the turn that finishes the delegation.
     """
 
     subagent: str
@@ -204,6 +210,34 @@ DelegationRecorder = Callable[[DelegationOutcome], Awaitable[UUID | None]]
 to write to. The id travels back so a surface can link a delegation panel to the
 run history entry it produced.
 """
+
+
+@dataclass(frozen=True)
+class DelegationSpend:
+    """What one delegation has spent across every turn it has run in.
+
+    A delegate that stops for a person has usually spent most of its money
+    already - it did the work and then asked permission to act on the result. The
+    run that continues it is a different process, whose ledger starts empty, so
+    what the delegate spent before the park is recoverable only if the park keeps
+    it. Kept on :attr:`ParkedDelegation.spent`, handed back through
+    :attr:`DelegationStash.spent`, and added to whatever the continuing turn
+    measures - which is why the field is a *running total* rather than one turn's
+    reading, and why a delegation that parked twice adds three segments together.
+
+    Without it the child `AgentRun` row, the delegate's monthly total and any
+    budget alert on that delegate all recorded only the spend *after* the last
+    resume, and did it silently: the money was still in the parent's row, so
+    nothing anywhere failed to add up.
+
+    Plain scalars, for the reason everything on :class:`ParkedDelegation` is plain
+    data: this is written into `agent_runs.paused_state` as JSON and read back in
+    another process, possibly the next day.
+    """
+
+    cost_usd: Decimal = Decimal(0)
+    input_tokens: int = 0
+    output_tokens: int = 0
 
 
 @dataclass(frozen=True)
@@ -245,6 +279,12 @@ class ParkedDelegation:
             then the delegation is re-run from the start rather than continued.
             The `task` call is still answered on the replay either way, because a
             parked call left without a result makes the whole run unresumable.
+        spent: What this delegation had cost by the moment it stopped, so the turn
+            that continues it records the whole of it rather than the tail. Kept
+            even when `messages` is empty: the two answer different questions -
+            *how* to continue, which is best-effort, and *what it already cost*,
+            which is known either way - and a delegation re-run from the start
+            still spent that money once.
     """
 
     tool_call_id: str
@@ -255,6 +295,7 @@ class ParkedDelegation:
     agent_version_id: UUID | None
     child_run_id: str | None
     messages: list[dict[str, Any]]
+    spent: DelegationSpend
 
 
 @dataclass(frozen=True)
@@ -300,6 +341,34 @@ class DelegationStash:
     resuming: dict[str, ResumedDelegation] = field(default_factory=dict)
     """Keyed by the `task` call the delegation was made from, which is the only
     thing the toolset knows about a delegation before it starts one."""
+
+    spent: dict[str, DelegationSpend] = field(default_factory=dict)
+    """What each delegation being continued had already cost, on the same key.
+
+    A second mapping rather than a field on :class:`ResumedDelegation`, because the
+    two are not available together. A place to continue from exists only when the
+    library kept the delegate's conversation; what the delegation already spent is
+    known whatever happened to that conversation, and a delegation re-run from the
+    start has still spent it. Folding the weaker guarantee onto the stronger fact
+    would drop the pre-park cost of exactly the delegations whose place was lost.
+    """
+
+    def already_spent(self, tool_call_id: str | None) -> DelegationSpend:
+        """What the delegation this `task` call opens has spent in earlier turns.
+
+        Zero for a delegation this run is starting rather than continuing, which is
+        every delegation on a run that was never parked - and zero for one made
+        without a tool call to name it, which is a caller driving the toolset
+        directly rather than a model calling `task`.
+
+        Not consumed on read, for the reason `resuming` is not: the key is the
+        `task` call, so a second delegation to the same delegate later in the run
+        has a different one and starts from zero, while the library's own retry of
+        *this* delegation is the same delegation and carries the same total.
+        """
+        if tool_call_id is None:
+            return DelegationSpend()
+        return self.spent.get(tool_call_id, DelegationSpend())
 
 
 @dataclass

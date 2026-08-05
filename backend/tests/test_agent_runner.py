@@ -19,7 +19,7 @@ from pydantic_ai.usage import RequestUsage
 from app.agents.capabilities.approval import ApprovalGranted, ApprovalRejected
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope, SpendLedger
 from app.agents.spec import AgentSpec, ObservabilitySpec
-from app.agents.subagent_runtime import DelegationStash, ParkedDelegation
+from app.agents.subagent_runtime import DelegationSpend, DelegationStash, ParkedDelegation
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import ApprovalStatus, RunStatus, RunSurface
@@ -899,6 +899,9 @@ class TestParking:
                     agent_version_id=None,
                     child_run_id="a-child-run",
                     messages=[{"kind": "request", "parts": []}],
+                    spent=DelegationSpend(
+                        cost_usd=Decimal("0.25"), input_tokens=7, output_tokens=3
+                    ),
                 )
             ]
         )
@@ -917,6 +920,12 @@ class TestParking:
         stored = finish.call_args.kwargs["paused_state"]
         assert [frame["subagent"] for frame in stored["delegations"]] == ["researcher"]
         assert stored["delegations"][0]["tool_call_id"] == "the-parents-task-call"
+        # And what the delegation had already cost, because the turn that continues
+        # it measures against a ledger of its own - so a frame without this leaves
+        # the child's run row holding the tail of the delegation and none of the
+        # work that led up to the approval.
+        assert stored["delegations"][0]["cost_usd"] == "0.25"
+        assert stored["delegations"][0]["input_tokens"] == 7
         # And which agent's replay each parked approval belongs to, which is what
         # keeps a delegate's call out of the parent's continuation - Pydantic AI
         # refuses a resume whose results name a call the replay does not contain.

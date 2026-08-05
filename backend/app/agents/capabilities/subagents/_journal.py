@@ -25,10 +25,20 @@ returns it for a sync task.
 
 *Where did this delegation stop, and how is it continued?* A delegate whose tool
 needs a person parks the whole run, and the run is picked up in another process,
-possibly the next day. What has to survive is the delegate's own conversation and
-the call it stopped on - `park` writes that into the run's stash and `resuming`
-reads it back on the replay. Both are here rather than in the toolset because the
-delegation record and the library's task handle are both fields of this object.
+possibly the next day. What has to survive is the delegate's own conversation, the
+call it stopped on, and **what it had already spent** - `park` writes all three
+into the run's stash and `resuming` reads the first two back on the replay. Both
+are here rather than in the toolset because the delegation record and the
+library's task handle are both fields of this object.
+
+The spend is the half that is easy to lose, because losing it breaks nothing.
+Each turn measures against its own ledger, so a delegation settled after a resume
+reported only what it spent *after* the resume - and on a delegate that did the
+work and then asked permission to act on it, that is the small half. The child
+`AgentRun` row, the delegate's monthly total and any budget alert on it were all
+short by the same amount, while the parent's row still held the whole cost, so no
+total anywhere disagreed with another. `Delegation.carried` is what the resume
+puts back, and `_spent` is the one place the segments are added.
 
 Nothing in this module reads the database or knows what a run row is. It reports
 a finished delegation to `SubagentRuntime.record`, which the runner supplied, and
@@ -65,6 +75,7 @@ from app.agents.spec import DelegationMode
 from app.agents.subagent_events import SubagentEventSink, SubagentFinished, SubagentStarted
 from app.agents.subagent_runtime import (
     DelegationOutcome,
+    DelegationSpend,
     DelegationStatus,
     ParkedDelegation,
     ResolvedSubagent,
@@ -229,6 +240,15 @@ class Delegation:
     tool call this toolset is executing inside - is no longer visible.
     """
 
+    carried: DelegationSpend
+    """What this delegation spent before the turn that parked it ended.
+
+    Zero for a delegation this run started, which is all of them until one parks.
+    Non-zero only on a replay, where `before` is a reading of a ledger this
+    delegation has never spent into - so the delta this turn measures describes the
+    continuation and nothing before it. :meth:`_spent` adds the two.
+    """
+
     agent_id: UUID | None = None
     agent_version_id: UUID | None = None
     task_id: str | None = None
@@ -356,6 +376,11 @@ class DelegationJournal:
         value, because that is the only moment both exist: from inside
         :meth:`delegating` a nested level can no longer see the level it was
         delegated from, and that relationship is what nests a parked tree.
+
+        A delegation the run is *continuing* opens here too - the replay presents
+        the same `task` call - which is why what it already spent is read here as
+        well. `before` is a reading of a ledger it has never spent into, so without
+        `carried` this turn's delta would be the whole of its recorded cost.
         """
         self._running += 1
         enclosing = _CURRENT.get()
@@ -365,6 +390,7 @@ class DelegationJournal:
             mode=self._mode_for(delegate, tool_args),
             depth=self.depth,
             before=self._totals(),
+            carried=self.runtime.stash.already_spent(tool_call_id),
             tool_call_id=tool_call_id,
             parent_task_id=None if enclosing is None else enclosing.task_id,
             agent_id=delegate.agent_id if delegate is not None else None,
@@ -404,6 +430,12 @@ class DelegationJournal:
         suspension arriving here without one came from something that is not a
         delegate, and inventing a frame for it would claim the run's own parked
         calls as a delegate's.
+
+        What the delegation has spent is written whichever of the first two states
+        it is in, and it is not the same number as the delta this turn measured: a
+        delegation on its second park carries the first park's total as well. So the
+        frame holds a running sum, and the turn that finally settles the delegation
+        records one row for all of it - see :meth:`_spent`.
         """
         task_id = delegation.task_id
         if task_id is None or delegation.tool_call_id is None:
@@ -428,6 +460,7 @@ class DelegationJournal:
                 # resume so that a history the runner cannot serialise fails while
                 # there is still a run to attribute the failure to.
                 messages=[] if history is None else list(json.loads(history)),
+                spent=self._spent(delegation),
             )
         )
 
@@ -562,15 +595,15 @@ class DelegationJournal:
         if status is None:
             return False
 
-        delta = self._totals().since(delegation.before)
+        spent = self._spent(delegation)
         run_id = await self._record(
             DelegationOutcome(
                 subagent=delegation.name,
                 task_id=task_id,
                 status=status,
-                cost_usd=delta.cost_usd,
-                input_tokens=delta.input_tokens,
-                output_tokens=delta.output_tokens,
+                cost_usd=spent.cost_usd,
+                input_tokens=spent.input_tokens,
+                output_tokens=spent.output_tokens,
                 agent_id=delegation.agent_id,
                 agent_version_id=delegation.agent_version_id,
                 error=handle.error,
@@ -585,9 +618,9 @@ class DelegationJournal:
                     depth=delegation.depth,
                     status=status,
                     run_id=run_id,
-                    cost_usd=delta.cost_usd,
-                    input_tokens=delta.input_tokens,
-                    output_tokens=delta.output_tokens,
+                    cost_usd=spent.cost_usd,
+                    input_tokens=spent.input_tokens,
+                    output_tokens=spent.output_tokens,
                     error=handle.error,
                 )
             )
@@ -670,6 +703,25 @@ class DelegationJournal:
         if self.runtime.record is None:
             return None
         return await self.runtime.record(outcome)
+
+    def _spent(self, delegation: Delegation) -> DelegationSpend:
+        """Everything one delegation has cost, this turn and every earlier one.
+
+        The one place the two are added, read by both ends of a park: by
+        :meth:`park`, so the next turn starts from a running total rather than from
+        this turn's delta, and by :meth:`settle`, so the row written when the
+        delegation finally ends describes the whole of it.
+
+        `carried` is zero for every delegation that has not parked, which is nearly
+        all of them - so this is the delta on the ordinary path, and the ordinary
+        path is unchanged.
+        """
+        delta = self._totals().since(delegation.before)
+        return DelegationSpend(
+            cost_usd=delegation.carried.cost_usd + delta.cost_usd,
+            input_tokens=delegation.carried.input_tokens + delta.input_tokens,
+            output_tokens=delegation.carried.output_tokens + delta.output_tokens,
+        )
 
     def _totals(self) -> _Totals:
         """The run ledger's totals now, or zeros when nothing is metering.
