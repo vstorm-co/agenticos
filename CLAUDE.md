@@ -429,3 +429,34 @@ An issue says what breaks, the sequence that triggers it, the `file:line`, and
 how you would know it was fixed. Say plainly whether the current branch caused
 it or merely found it — "pre-existing, found reviewing #105" is information the
 next reader needs. `#106` is the shape to copy.
+
+### And it says where it sits — [#168](https://github.com/vstorm-co/agenticos/issues/168)
+
+**#168 is the issue map**: what the clusters are, which chains block which, and
+what has no scope yet. Read it before filing and **name at least one existing
+issue in the body** — the cluster it belongs to, or the issue it most nearly
+duplicates. "Checked, nothing related" is a fine answer; silence is not, because
+an unlinked issue is one that gets worked twice or not at all.
+
+That is not hypothetical. Before the map: 17 open issues referenced nothing and
+were referenced by nothing; #13 and #30 were one bug filed twice, the second
+saying "the same URL normalisation as the avatar-proxy issue" without the
+number; #7 and #18 were one failure in two middlewares; #139 called itself the
+hub for "several page-level complaints" and named none of them; and five issues
+had **empty bodies**, which no amount of linking fixes.
+
+Filing changes the map, so **update #168 in the same breath** — add the number
+to its cluster, and to the spine if it blocks something. The graph is cheap to
+re-derive when in doubt:
+
+```bash
+gh issue list --state open --limit 300 --json number,title,body   # then grep '#[0-9]'
+```
+
+**Pass `--limit`.** It defaults to 30 and caps at 100 — under a hundred open
+issues that silently drops the lowest numbers, which is how #2 through #7 once
+read as closed and a blocker chain read as already done.
+
+An issue that closes a whole cluster says so (`Closes #147, #148`). One that
+only takes a checkbox out of a bag issue like #33 ticks the box there instead —
+that is how a batch issue stays honest about what is left.
