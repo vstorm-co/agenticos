@@ -74,7 +74,11 @@ from app.agents.capabilities.approval import (
 )
 from app.agents.capabilities.budget import SpendEntry, SpendLedger
 from app.agents.capabilities.subagents import Delegation, SubagentsConfig
-from app.agents.capabilities.subagents._capability import UNREACHABLE_TOOLS, _LazyAgent
+from app.agents.capabilities.subagents._capability import (
+    BACKGROUND_LIFECYCLE_TOOLS,
+    UNREACHABLE_TOOLS,
+    _LazyAgent,
+)
 from app.agents.capabilities.subagents._events import UNNAMED_TOOL, FrameLabels, frame_for
 from app.agents.capabilities.subagents._journal import DelegationJournal
 from app.agents.capabilities.subagents._toolset import DelegatingToolset
@@ -631,8 +635,14 @@ class TestAttaching:
         binding, and that half of the same failure is silent. `UNREACHABLE_TOOLS`
         says what making it reachable would take, and why agenticos#184 is only
         half of that.
+
+        `async`, so that this stays a statement about `answer_subagent` alone: it is
+        the one tool withheld under *every* configuration, whereas the six
+        background-lifecycle tools are withheld only from a `sync`-only agent - see
+        `TestOfferedSet`. At the widest set, `answer_subagent` is the only thing
+        missing.
         """
-        capability = a_capability(a_runtime(a_delegate()))
+        capability = a_capability(a_runtime(a_delegate()), {"mode": "async"})
         toolset = capability.get_toolset()
         assert toolset is not None
 
@@ -658,8 +668,12 @@ class TestAttaching:
         `SubagentRuntime.dynamic` - and a config saying yes with no resolved
         builder behind it offers nothing, rather than two tools whose factory does
         not exist. `tests/test_dynamic_specialists.py` has the other direction.
+
+        `async`, so this stays a statement about `create_agent` and `delegate`
+        being absent when nothing resolved them - not about the background-lifecycle
+        set, which a `sync` agent would also be missing (`TestOfferedSet`).
         """
-        capability = a_capability(a_runtime(a_delegate()), {"allow_dynamic": True})
+        capability = a_capability(a_runtime(a_delegate()), {"allow_dynamic": True, "mode": "async"})
         toolset = capability.get_toolset()
         assert toolset is not None
 
@@ -695,6 +709,77 @@ class TestAttaching:
         capability = a_capability(a_runtime(a_delegate()))
 
         assert capability.get_toolset() is capability.get_toolset()
+
+
+class TestOfferedSet:
+    """The six task-lifecycle tools, offered only when a background delegation is.
+
+    Every one of `check_task`, `wait_tasks`, `list_active_tasks`,
+    `send_message_to_subagent`, `soft_cancel_task` and `hard_cancel_task` takes or
+    reports on a task id, and a `sync` delegation hands the model none: the library
+    returns the answer and a `chat_trace_id` and nothing else. `sync` is the default
+    mode, so an agent that can make no background delegation is the common case, not
+    a corner - and six tool descriptions in every turn's context is the strongest
+    prompt surface in the product spent describing actions that cannot happen.
+
+    The predicate errs toward offering, because removing a tool an agent needs
+    mid-turn is worse than offering one it will not use: `async`, `auto`, a delegate
+    that prefers either, or permission to invent specialists each keep all six.
+    """
+
+    @staticmethod
+    async def _offered(capability: Delegation) -> frozenset[str]:
+        toolset = capability.get_toolset()
+        assert toolset is not None
+        return frozenset(await toolset.get_tools(a_context()))
+
+    async def test_a_sync_only_agent_is_offered_task_and_nothing_else(self):
+        """The whole of the fix: a `sync` agent with one delegate that overrides
+        nothing still delegates, it just manages no tasks. So `task`, and none of
+        the six - and none of `answer_subagent`, `create_agent` or `delegate`
+        either, which is what leaves `task` alone."""
+        offered = await self._offered(a_capability(a_runtime(a_delegate()), {"mode": "sync"}))
+
+        assert offered == {"task"}
+        assert not (offered & BACKGROUND_LIFECYCLE_TOOLS)
+
+    async def test_async_mode_offers_every_lifecycle_tool(self):
+        offered = await self._offered(a_capability(a_runtime(a_delegate()), {"mode": "async"}))
+
+        assert offered >= BACKGROUND_LIFECYCLE_TOOLS
+
+    async def test_auto_mode_offers_every_lifecycle_tool(self):
+        """`auto` is resolved per delegation from what the model says about the
+        task, so a delegation can go either way and the tools to collect a
+        background one have to be there."""
+        offered = await self._offered(a_capability(a_runtime(a_delegate()), {"mode": "auto"}))
+
+        assert offered >= BACKGROUND_LIFECYCLE_TOOLS
+
+    async def test_one_delegate_preferring_async_restores_them_for_a_sync_agent(self):
+        """`_mode_for` resolves `delegate.preferred_mode or self.mode`, so a single
+        delegate overriding a `sync` agent is enough to make a task id reachable -
+        and the tools that take one have to come back with it."""
+        capability = a_capability(
+            a_runtime(a_delegate(preferred_mode="async"), a_second_delegate()), {"mode": "sync"}
+        )
+
+        assert await self._offered(capability) >= BACKGROUND_LIFECYCLE_TOOLS
+
+    async def test_one_delegate_preferring_auto_restores_them_for_a_sync_agent(self):
+        capability = a_capability(
+            a_runtime(a_delegate(preferred_mode="auto"), a_second_delegate()), {"mode": "sync"}
+        )
+
+        assert await self._offered(capability) >= BACKGROUND_LIFECYCLE_TOOLS
+
+    async def test_a_delegate_pinned_sync_does_not_restore_them(self):
+        """A delegate that pins the mode the agent already has changes nothing: it
+        cannot background, so the predicate must not read its override as one that
+        could."""
+        capability = a_capability(a_runtime(a_delegate(preferred_mode="sync")), {"mode": "sync"})
+
+        assert not (await self._offered(capability) & BACKGROUND_LIFECYCLE_TOOLS)
 
 
 class TestRecording:
@@ -1974,8 +2059,12 @@ class TestOtherTools:
 
     async def test_they_pass_through_untouched(self):
         """Nothing here decides anything about them, and the accounting must not
-        move either: a call that starts no delegation cannot open or close one."""
-        capability = a_capability(a_runtime(a_delegate()))
+        move either: a call that starts no delegation cannot open or close one.
+
+        `async`, because these six are offered at all only when a background
+        delegation is reachable - a `sync`-only agent is handed none of them,
+        which is `TestOfferedSet`."""
+        capability = a_capability(a_runtime(a_delegate()), {"mode": "async"})
 
         answer = await call_tool(capability, a_context(), "list_active_tasks", {})
 

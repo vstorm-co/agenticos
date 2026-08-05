@@ -34,6 +34,7 @@ which has a handle and no task - and it says what the sweep does not guarantee.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from typing import Any, cast
 
@@ -193,8 +194,10 @@ Declared rather than derived, and all ten rather than the seven a non-dynamic
 configuration offers, because a tool absent from this list cannot be gated by the
 approval policy or renamed by a binding - and the dangerous half of that is
 silent. Which of the ten a given agent's model is actually offered is decided in
-two places: `create_agent` and `delegate` by whether the runner resolved a
-`DynamicSpecialists`, and `answer_subagent` by :data:`UNREACHABLE_TOOLS`.
+three places: `create_agent` and `delegate` by whether the runner resolved a
+`DynamicSpecialists`, `answer_subagent` by :data:`UNREACHABLE_TOOLS`, and the six
+background-lifecycle tools by whether any delegation this run could make might run
+in the background - :data:`BACKGROUND_LIFECYCLE_TOOLS`.
 
 Eight of the descriptions are **imported, not rewritten**. A tool's description is
 the strongest prompt in the product, and `TASK_TOOL_DESCRIPTION` is two hundred
@@ -242,14 +245,100 @@ does, which is why the two are one issue with two halves rather than one change.
 """
 
 
-def _is_offered(_ctx: RunContext[AgentDeps], tool: ToolDefinition) -> bool:
-    """Whether the model is shown this tool at all. See :data:`UNREACHABLE_TOOLS`.
+BACKGROUND_LIFECYCLE_TOOLS: frozenset[str] = frozenset(
+    {
+        "check_task",
+        "wait_tasks",
+        "list_active_tasks",
+        "send_message_to_subagent",
+        "soft_cancel_task",
+        "hard_cancel_task",
+    }
+)
+"""The six tools that only make sense once a delegation runs in the background.
+
+Every one of them takes, or reports on, a task id: `check_task` and `wait_tasks`
+collect a background delegation's result, `list_active_tasks` lists what is still
+running, and the three that act - `send_message_to_subagent` and the two cancels -
+steer or stop one mid-run. A `sync` delegation hands the model none of that: the
+library returns the delegate's answer and a `chat_trace_id` and nothing else, so
+there is no id to pass to the five that take one, and `list_active_tasks` would
+answer about a delegation that finished before the call returned.
+
+So an agent that can make *no* background delegation is offered none of these -
+:func:`_can_delegate_in_background` is the predicate, and `sync` being the default
+mode is what makes that the common configuration rather than a corner. `task` is
+never in this set: a sync agent still delegates, it just does not manage tasks.
+
+Filtered rather than left out of :data:`DELEGATION_TOOLS`, for the same reason
+`answer_subagent` is - see :data:`UNREACHABLE_TOOLS`. A tool absent from the
+declaration can be neither gated by the approval policy nor renamed by a binding,
+and that half is silent; withheld from the offered set, it stops costing a
+description in every turn's context while staying declarable. The difference from
+`answer_subagent` is that this set is withheld *per run*: the same agent offers all
+six under `async`, `auto`, or a delegate that prefers either, so the decision
+belongs in :meth:`Delegation.get_toolset` where the run's configuration is, not in
+a module-level constant.
+"""
+
+
+def _can_delegate_in_background(journal: DelegationJournal) -> bool:
+    """Whether any delegation this run could make might run in the background.
+
+    The narrowing that :data:`BACKGROUND_LIFECYCLE_TOOLS` turns on happens only when
+    this answers `False`, so the predicate is written to err toward `True`: getting
+    it wrong in the narrowing direction removes a tool an agent needs mid-turn, which
+    is a worse failure than offering one it will not use.
+
+    Three ways a background delegation is reachable, and the run configuration fixes
+    all three before the first request:
+
+    - **The configured mode is not `sync`.** `async` backgrounds every delegation and
+      `auto` backgrounds the ones the model describes as long-running - and `auto` is
+      resolved per delegation from what the model says about the task, so an `auto`
+      agent can go either way and keeps all six regardless.
+    - **The agent may invent specialists.** `create_agent` and `delegate` produce
+      delegations resolved per call rather than from a set that exists now, so the
+      widest configuration withholds nothing there rather than reasoning about work
+      that has not been asked for yet.
+    - **A pinned delegate prefers `async` or `auto`.** `DelegationJournal._mode_for`
+      resolves `delegate.preferred_mode or self.mode`, so one delegate overriding a
+      `sync` agent is enough to make a task id reachable for that delegation.
+    """
+    if journal.mode != "sync":
+        return True
+    if journal.runtime.dynamic is not None:
+        return True
+    return any(
+        delegate.preferred_mode in ("async", "auto") for delegate in journal.runtime.subagents
+    )
+
+
+def _hidden_tools(journal: DelegationJournal) -> frozenset[str]:
+    """Every tool this run declares and withholds from its model.
+
+    Two reasons a declared tool is withheld, and they compose. `answer_subagent` is
+    unreachable under *every* configuration (:data:`UNREACHABLE_TOOLS`); the six
+    background-lifecycle tools are unreachable under *this* one when it can make no
+    background delegation (:data:`BACKGROUND_LIFECYCLE_TOOLS`).
+    """
+    if _can_delegate_in_background(journal):
+        return UNREACHABLE_TOOLS
+    return UNREACHABLE_TOOLS | BACKGROUND_LIFECYCLE_TOOLS
+
+
+def _offered(hidden: frozenset[str]) -> Callable[[RunContext[AgentDeps], ToolDefinition], bool]:
+    """A filter that shows the model every tool but the ones this run withholds.
 
     Reads the tool's name off the library's own toolset, which is where the stable
-    id is still the name: a binding's rename wraps the *capability*, outside this,
-    so renaming `answer_subagent` cannot smuggle it back into the offered set.
+    id is still the name: a binding's rename wraps the *capability*, outside this, so
+    a withheld tool cannot be smuggled back into the offered set under a new name.
     """
-    return tool.name not in UNREACHABLE_TOOLS
+
+    def is_offered(_ctx: RunContext[AgentDeps], tool: ToolDefinition) -> bool:
+        return tool.name not in hidden
+
+    return is_offered
 
 
 _MODE_NOTE: dict[DelegationMode, str] = {
@@ -449,10 +538,14 @@ class Delegation(WrapperCapability[AgentDeps]):
     def get_toolset(self) -> AgentToolset[AgentDeps] | None:
         """The library's delegation tools, with this platform's accounting around them.
 
-        Also minus the ones no configuration here can reach. The library adds
-        `answer_subagent` to its toolset unconditionally, so filtering the offered
-        set is the only place that decision can be made - see
-        :data:`UNREACHABLE_TOOLS`.
+        Also minus the ones this run cannot reach. The library adds every tool to
+        its toolset unconditionally, so filtering the offered set is the only place
+        those decisions can be made: `answer_subagent` under every configuration
+        (:data:`UNREACHABLE_TOOLS`), and the six background-lifecycle tools under a
+        `sync`-only one that can make no background delegation
+        (:data:`BACKGROUND_LIFECYCLE_TOOLS`). The withheld set is read from the
+        journal here rather than a module constant because the second half of it is
+        a fact about *this run's* mode and delegates - see :func:`_hidden_tools`.
 
         Memoised because the wrapper carries no state of its own but the journal
         it points at does, and because `BuiltAgent.capabilities` is introspected -
@@ -464,7 +557,7 @@ class Delegation(WrapperCapability[AgentDeps]):
             # in `__post_init__` and holds it for the life of the instance.
             wrapped = cast(AbstractToolset[AgentDeps], super().get_toolset())
             self._delegating = DelegatingToolset(wrapped=wrapped, journal=self.journal).filtered(
-                _is_offered
+                _offered(_hidden_tools(self.journal))
             )
         return self._delegating
 
