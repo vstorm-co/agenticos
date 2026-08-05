@@ -14,13 +14,22 @@ uv run pytest tests/api/test_workspace_routes.py -x -v     # stop at the first f
 uv run pytest tests/integration -v --no-cov                # the ones needing a database
 ```
 
-Once, before pushing — this is what CI applies, and `make check` runs all of it:
+Once, before pushing — `make check` runs all of it, in this order:
 
 ```bash
-make lint               # ruff, ty, eslint, tsc, and the i18n guard
+make lint               # ruff, ruff format, ty, eslint, prettier, tsc, and the two guards
 make test               # the suite plus the 100% gate on the platform layer
 make test-frontend-cov  # the frontend suite plus its own gate
+make build-frontend     # next build — the route tree, which tsc and vitest do not see
+make docs-build         # mkdocs --strict — a dead link is a failure
+make audit              # the locked dependency set against the advisory database
 ```
+
+About five minutes serial, against CI's seven in parallel. The equality is
+maintained rather than asserted: the workflow calls these targets rather than
+repeating their commands, and `tests/test_ci_parity.py` fails if a gating job
+grows a step `make check` does not run. It has drifted four times — see
+[Commands](commands.md#before-a-pull-request) for what `check` leaves out and why.
 
 `make test-fast` skips coverage, which makes it the wrong last word before a push:
 the gate is most of what these commands are for. `pytest` without `uv run` picks up
