@@ -19,6 +19,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.12] - 2026-08-05
+
+### Changed
+
+- **Run-history routes read through the service, not the repository**
+  ([#197](https://github.com/vstorm-co/agenticos/issues/197)). A route reaching
+  `agent_run_repo` directly is one of this codebase's named hard boundaries, and it was
+  crossed here — which is not merely stylistic: a route that reaches the repository
+  bypasses wherever the service puts the tenant scope, so the next filter added to the
+  service is one a hand-written route keeps its own answer to. `list_runs` now scopes to
+  the caller's organization inside `AgentRunnerService`, the one tenant boundary the rest
+  of run history already reads through, and the delegated-run parameters added in 0.0.11
+  (`parent_run_id`, `include_delegations`) thread through it rather than sitting in the
+  route.
+
 ## [0.0.11] - 2026-08-05
 
 ### Fixed
@@ -723,7 +738,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.11...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.12...HEAD
+[0.0.12]: https://github.com/vstorm-co/agenticos/compare/v0.0.11...v0.0.12
 [0.0.11]: https://github.com/vstorm-co/agenticos/compare/v0.0.10...v0.0.11
 [0.0.10]: https://github.com/vstorm-co/agenticos/compare/v0.0.9...v0.0.10
 [0.0.9]: https://github.com/vstorm-co/agenticos/compare/v0.0.8...v0.0.9
