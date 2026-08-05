@@ -664,6 +664,7 @@
     "couldnAposTLoad": "Couldn't load preview",
     "defaultReturn": "; default: return",
     "delegation": {
+      "awaiting": "waiting for approval",
       "background": "Background",
       "failed": "failed",
       "finished": "finished",

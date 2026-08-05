@@ -1739,6 +1739,54 @@ class TestApprovalInsideADelegation:
             TaskStatus.DEFERRED
         ]
 
+    async def test_a_parked_sync_delegate_closes_its_panel_and_frees_its_slot(self):
+        """The two symptoms the missing frame left behind, on the same delegation.
+
+        A sync delegate that stops for a person leaves the parent parked in the
+        approval queue for as long as the approver takes. Refusing to record the
+        outcome (the test above) refused to *narrate* it too, so two things broke
+        that recording never should have (agenticos#173):
+
+        *The panel never closed.* A surface that opened one on `subagent_start`
+        read "the researcher is working" for the whole wait and forever if nobody
+        decided. A `subagent_awaiting_approval` closes it with a state that means
+        "waiting for a person" - the frame this asserts, naming the same delegation
+        the opening one did so it is one panel and not two.
+
+        *The slot never came back.* `close` filed the delegation into `_background`,
+        where `settle_background` never settles a `DEFERRED` sync task, so
+        `in_flight` stayed at 1 after the run had ended - the number the fan-out
+        ceiling reads.
+
+        Neither is an outcome: nothing is recorded here or when the run ends, and
+        the awaiting frame is sent once rather than again by the end-of-run sweep.
+        """
+        recorder = Recorder()
+        sink = Sink()
+
+        def defer(_ctx: RunContext[AgentDeps]) -> str:
+            raise ApprovalRequired
+
+        capability = a_capability(
+            a_runtime(a_delegate(model=one_tool_call(), on_call=defer), record=recorder)
+        )
+        ctx = a_context(sink)
+
+        with pytest.raises(ApprovalRequired):
+            await delegate_to(capability, ctx)
+
+        assert sink.kinds[0] == "subagent_start"
+        assert sink.kinds[-1] == "subagent_awaiting_approval"
+        assert sink.frames[-1].task_id == sink.frames[0].task_id
+        assert recorder.outcomes == [], "a parked delegation is not an outcome"
+        assert capability.journal.in_flight() == 0
+
+        await ends_the_run(capability, ctx)
+
+        assert recorder.outcomes == [], "and still not one when the run ends"
+        assert capability.journal.in_flight() == 0
+        assert sink.kinds.count("subagent_awaiting_approval") == 1
+
 
 class TestKeepingASuspendedDelegatesPlace:
     """What is stashed when a delegate stops for a person, and what is not.

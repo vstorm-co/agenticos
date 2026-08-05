@@ -603,6 +603,7 @@ def _resume_plan(state: PausedRunState, decided_args: Mapping[str, dict[str, Any
                 # delegation runs again from the start.
                 continue
             resuming[frame.tool_call_id] = ResumedDelegation(
+                task_id=frame.task_id,
                 messages=ModelMessagesTypeAdapter.validate_python(frame.messages),
                 results=level(frame.delegations, by_delegation.get(frame.task_id, [])),
             )

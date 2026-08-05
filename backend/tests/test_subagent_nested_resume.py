@@ -508,7 +508,12 @@ def _verdicts(
     return decided, approved_args
 
 
-async def _resume(parked: _Parked, delegate: Callable[[DelegationStash], ResolvedSubagent]) -> Any:
+async def _resume(
+    parked: _Parked,
+    delegate: Callable[[DelegationStash], ResolvedSubagent],
+    *,
+    record: DelegationRecorder | None = None,
+) -> Any:
     """Continue a parked run the way `resume` does: fresh everything, loaded stash.
 
     Nothing is reused from the first turn. The runner reassembles the whole tree
@@ -520,7 +525,10 @@ async def _resume(parked: _Parked, delegate: Callable[[DelegationStash], Resolve
     plan = _resume_plan(parked.state, approved_args)
     stash = DelegationStash(resuming=plan.delegations, spent=plan.spent, started=plan.started)
     agent, deps = _orchestrator(
-        delegate(stash), stash=stash, channel=_channel(parked.queue, decided=decided)
+        delegate(stash),
+        stash=stash,
+        channel=_channel(parked.queue, decided=decided),
+        record=record,
     )
     return await agent.run(
         None,
@@ -567,6 +575,34 @@ class TestOneLevelDown:
         # Once, on the arguments the row was written with. A second call would mean
         # the delegation had been re-run rather than continued.
         assert gated_calls == [{"city": "Krakow"}]
+
+    async def test_the_resumed_delegation_keeps_the_task_id_it_parked_under(self):
+        """One panel across the park, not a second one beside it.
+
+        The continuation is a fresh library task with a fresh id, so a delegation
+        that adopted it would stream - and record - under an id no earlier frame
+        used: a second panel beside the one the park left reading "waiting for a
+        person" (agenticos#173). The delegation keeps the id it parked under
+        instead, which every frame and the recorded outcome carry, so the resume
+        reopens that panel rather than doubling it. Asserted through the recorded
+        outcome, which carries the same `public_id` a frame does (see
+        `DelegationJournal.settle`); a streamed sink would force these test models
+        to stream, which they are not built to.
+        """
+        parked = await _park(_specialist_delegate(gated=True, calls=[]), DelegationStash())
+        (original,) = [frame.task_id for frame in parked.state.delegations]
+        parked.queue.decide(approved=True)
+
+        recorder = Recorder()
+        await _resume(
+            parked,
+            lambda _stash: _specialist_delegate(gated=True, calls=[]),
+            record=recorder,
+        )
+
+        (outcome,) = recorder.outcomes
+        assert outcome.status == "completed"
+        assert outcome.task_id == original, "the continuation kept the delegation's identity"
 
     async def test_the_queue_names_the_delegate_and_the_tool_it_is_calling(self):
         """`task` is what parked the run; `look_up` is what somebody has to decide.
@@ -710,6 +746,7 @@ async def _park_the_specialist_alone(*, gated: bool) -> tuple[Any, dict[str, Any
     queue.decide(approved=True)
     return (
         ResumedDelegation(
+            task_id="researcher-1",
             messages=result.all_messages(),
             results=DeferredToolResults(
                 approvals={call.tool_call_id: ToolApproved() for call in result.output.approvals}

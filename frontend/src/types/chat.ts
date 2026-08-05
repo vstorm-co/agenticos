@@ -169,6 +169,7 @@ export type WSEventType =
   | "subagent_thinking_delta"
   | "subagent_tool_call"
   | "subagent_tool_result"
+  | "subagent_awaiting_approval"
   | "subagent_complete";
 
 /**
@@ -348,6 +349,19 @@ export interface SubagentToolResultFrame extends SubagentFrameBase {
   ok: boolean;
 }
 
+export interface SubagentAwaitingApprovalFrame extends SubagentFrameBase {
+  /**
+   * A sync delegate stopped for a person; the answer is still coming.
+   *
+   * Not a `subagent_complete`: nothing is recorded and no cost is known yet - the
+   * continuation writes the outcome when the person decides. It closes the panel
+   * with a "waiting for a person" state so it stops reading "working", and carries
+   * no cost or run id because there is none. See `SubagentAwaitingApproval` in
+   * `backend/app/agents/subagent_events.py`.
+   */
+  kind: "subagent_awaiting_approval";
+}
+
 export interface SubagentCompleteFrame extends SubagentFrameBase {
   kind: "subagent_complete";
   status: "completed" | "failed" | "cancelled";
@@ -366,10 +380,19 @@ export type SubagentFrame =
   | SubagentThinkingDeltaFrame
   | SubagentToolCallFrame
   | SubagentToolResultFrame
+  | SubagentAwaitingApprovalFrame
   | SubagentCompleteFrame;
 
-/** `running` is this surface's own: no frame says it, the absence of a terminal one does. */
-export type DelegationStatus = "running" | "completed" | "failed" | "cancelled";
+/**
+ * `running` is this surface's own: no frame says it, the absence of a terminal one does.
+ *
+ * `awaiting_approval` is not terminal - the delegate stopped for a person and the
+ * run can still resume it - but it closes the panel all the same, because a panel
+ * reading "working" through a wait that may never end is the bug the state exists
+ * to fix (agenticos#173).
+ */
+export type DelegationStatus =
+  "running" | "completed" | "failed" | "cancelled" | "awaiting_approval";
 
 /**
  * One of the delegate's own tool calls.
