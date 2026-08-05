@@ -251,6 +251,16 @@ them is scoped to the run that started the task — a task id is short and appea
 in tool output, so an unscoped lookup would let one run read and kill another's
 work.
 
+These six are **offered only when a background delegation is reachable**, the same
+`get_toolset` filter that withholds `answer_subagent` — `BACKGROUND_LIFECYCLE_TOOLS`
+and `_can_delegate_in_background`. Each takes or reports on a task id, and a `sync`
+delegation returns the answer and a `chat_trace_id` and nothing else, so a
+`sync`-only agent is handed none of them and `task` alone. Reachable means the
+configured mode is `async` or `auto`, a pinned delegate prefers either, or the agent
+may invent specialists — `sync` being the default is what makes withholding them the
+common case rather than a corner. The predicate errs toward offering: removing a
+tool an agent needs mid-turn is worse than offering one it will not use.
+
 Three things about it are not obvious.
 
 **`wait_tasks` truncates.** A completed task's result is cut to

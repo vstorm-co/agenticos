@@ -57,7 +57,10 @@ from app.agents.capabilities.budget import (
     SpendLimit,
 )
 from app.agents.capabilities.subagents import Delegation
-from app.agents.capabilities.subagents._capability import MAX_DYNAMIC_SPECIALISTS
+from app.agents.capabilities.subagents._capability import (
+    BACKGROUND_LIFECYCLE_TOOLS,
+    MAX_DYNAMIC_SPECIALISTS,
+)
 from app.agents.deps import AgentDeps
 from app.agents.factory import build_agent
 from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
@@ -611,8 +614,15 @@ class TestHowManyOneRunMayInvent:
 class TestWhenTheEntryPointsAreOfferedAtAll:
     async def test_an_agent_whose_author_said_nothing_is_offered_neither(self):
         """Every tool in a list is context the model pays for on every turn, and a
-        tool that can only refuse is the worst of them."""
-        assert await offered(a_capability(a_runtime(a_delegate()))) == {
+        tool that can only refuse is the worst of them.
+
+        `async`, so this stays a statement about `create_agent` and `delegate`: the
+        background-lifecycle six are offered only when a background delegation is
+        reachable, so a `sync` agent with no dynamic runtime would be missing those
+        too - `TestOfferedSet` in `test_subagents_capability.py` is where that is
+        asserted.
+        """
+        assert await offered(a_capability(a_runtime(a_delegate()), {"mode": "async"})) == {
             "task",
             "check_task",
             "wait_tasks",
@@ -626,6 +636,18 @@ class TestWhenTheEntryPointsAreOfferedAtAll:
         capability = a_capability(a_runtime(a_delegate(), dynamic=dynamic()))
 
         assert {"create_agent", "delegate", "task"} <= await offered(capability)
+
+    async def test_a_dynamic_sync_agent_keeps_the_background_lifecycle_tools(self):
+        """The `dynamic is not None` branch of `_can_delegate_in_background`.
+
+        A `sync` agent that may invent specialists resolves its delegations per
+        `create_agent` or `delegate` call rather than from a set that exists now, so
+        the predicate withholds nothing there rather than reasoning about work that
+        has not been asked for yet - the safe side of a narrowing whose wrong
+        direction removes a tool an agent needs mid-turn."""
+        capability = a_capability(a_runtime(a_delegate(), dynamic=dynamic()), {"mode": "sync"})
+
+        assert await offered(capability) >= BACKGROUND_LIFECYCLE_TOOLS
 
     async def test_an_agent_with_no_delegates_but_dynamic_still_gets_the_capability(self):
         """`allow_dynamic` on its own is a complete configuration: an orchestrator
