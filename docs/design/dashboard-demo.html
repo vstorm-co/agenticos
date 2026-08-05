@@ -242,8 +242,9 @@
 
   .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 7px; }
   .dot.ok { background: var(--ok); } .dot.warn { background: var(--warn); } .dot.err { background: var(--err); }
+  .dot.brand { background: var(--chart-1); } .dot.neutral { background: oklch(75% 0.004 250); }
 
-  .pill { font-size: 11px; padding: 2px 7px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
+  .pill { font-size: 11px; padding: 2px 7px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); white-space: nowrap; }
   .pill.ok { color: var(--ok); background: var(--ok-bg); border-color: oklch(60% 0.15 150 / 0.25); }
   .pill.warn { color: var(--warn); background: var(--warn-bg); border-color: oklch(62% 0.136 68 / 0.3); }
   .pill.err { color: var(--err); background: var(--err-bg); border-color: oklch(57.7% 0.245 27.325 / 0.25); }
@@ -325,17 +326,23 @@
 /* ================================================================
    Permission mirror.
    Must track backend/app/core/permissions.py ROLE_PERMS - only the
-   permissions the dashboard gates on. Scopes are omitted: a widget
-   asks "held at all?", and scope shows up as which rows the data
-   contains, not as whether the card renders.
+   permissions the dashboard gates on, and every role that holds each
+   of them (owner and admin hold every global permission via
+   _ALL_GLOBAL, mcp:manage and connections:manage included). A
+   permission listed here that nothing calls can() with is one
+   somebody has to remember to keep in sync - connections:manage is
+   the single deliberate exception, reserved by the sandbox section
+   the note names. Scopes are omitted: a widget asks "held at all?",
+   and scope shows up as which rows the data contains, not as whether
+   the card renders.
    ================================================================ */
 const ROLE_PERMS = {
-  owner:    ["runs:view", "approvals:decide", "members:manage", "agents:view", "agents:edit", "agents:run"],
-  admin:    ["runs:view", "approvals:decide", "members:manage", "agents:view", "agents:edit", "agents:run"],
-  builder:  ["runs:view", "agents:view", "agents:edit", "agents:run", "mcp:manage", "connections:manage"],
-  operator: ["runs:view", "approvals:decide", "agents:view", "agents:run"],
-  member:   ["agents:view", "agents:edit", "agents:run"],
-  viewer:   ["agents:view"],
+  owner:    ["runs:view", "approvals:decide", "members:manage", "agents:view", "agents:edit", "agents:run", "mcp:manage", "connections:manage", "collections:view"],
+  admin:    ["runs:view", "approvals:decide", "members:manage", "agents:view", "agents:edit", "agents:run", "mcp:manage", "connections:manage", "collections:view"],
+  builder:  ["runs:view", "agents:view", "agents:edit", "agents:run", "mcp:manage", "connections:manage", "collections:view"],
+  operator: ["runs:view", "approvals:decide", "agents:view", "agents:run", "collections:view"],
+  member:   ["agents:view", "agents:edit", "agents:run", "collections:view"],
+  viewer:   ["agents:view", "collections:view"],
 };
 
 const IDENTITIES = [
@@ -468,17 +475,35 @@ function genData(range) {
   const total = days.reduce((a, b) => a + b, 0);
   const prevTotal = Math.round(total * 0.81);
   const pct = (p) => Math.round(total * p);
+  /* One run awaiting approval parks on one pending decision, so the donut's
+     awaiting segment and the approvals card count the same rows - the two
+     cards can never disagree. */
+  const approvals = [
+    { agent: "Support triage", what: "wants to call send_email", who: "run for k.nowak", waited: "2 h" },
+    { agent: "SQL explainer", what: "wants to call run_sql (writes)", who: "run for j.wisniewski", waited: "5 h" },
+    { agent: "Meeting recap", what: "wants to call post_message", who: "run for m.zajac", waited: "1 d" },
+  ];
+  const failed = pct(0.05), budget = pct(0.02), awaiting = Math.min(approvals.length, total), other = pct(0.02);
   return {
     days, total, prevTotal,
+    /* The set the run recorder produces after the stage-2 widening
+       (RunSurface.EMBED + mattermost in _SURFACES). Until then, Widget rows
+       are recorded as web and Mattermost rows as api. */
     surfaces: [
-      { name: "Web chat",  v: pct(0.41) }, { name: "HTTP API",  v: pct(0.24) },
-      { name: "Slack",     v: pct(0.18) }, { name: "Telegram",  v: pct(0.09) },
-      { name: "Widget",    v: pct(0.06) }, { name: "Scheduled", v: pct(0.02) },
+      { name: "Web chat",   v: pct(0.34) }, { name: "HTTP API",  v: pct(0.20) },
+      { name: "Slack",      v: pct(0.15) }, { name: "Playground", v: pct(0.11) },
+      { name: "Telegram",   v: pct(0.08) }, { name: "Widget",    v: pct(0.07) },
+      { name: "Mattermost", v: pct(0.05) },
     ],
+    /* Five segments covering all six RunStatus values (running and cancelled
+       share the neutral one), so the segments sum to total_runs - that
+       invariant is what keeps this card and the approvals card in step. */
     outcomes: [
-      { name: "Completed", v: pct(0.91), cls: "ok" },
-      { name: "Failed", v: pct(0.06), cls: "err" },
-      { name: "Budget exceeded", v: pct(0.03), cls: "warn" },
+      { name: "Completed", v: Math.max(total - failed - budget - awaiting - other, 0), cls: "ok" },
+      { name: "Failed", v: failed, cls: "err" },
+      { name: "Budget exceeded", v: budget, cls: "warn" },
+      { name: "Awaiting approval", v: awaiting, cls: "brand" },
+      { name: "Running or cancelled", v: other, cls: "neutral" },
     ],
     agents: [
       { name: "Support triage", v: pct(0.28), mine: false },
@@ -502,15 +527,41 @@ function genData(range) {
     shared: { agents: 4, collections: 3, skills: 6 },
     latency: { p50: 3.2, p95: 14.8 },
     activeUsers: { active: 14, ofTotal: 23, days: days.map((v, i) => 8 + Math.round(6 * (i / range)) + (v % 3)) },
+    /* Two spend truths on one card: the period total obeys the filter (it
+       comes from /stats/usage), the month-to-date line deliberately does not
+       (calendar-aligned so it reconciles against an invoice). */
     spend: {
-      mtd: 142.63 * scale, prev: 118.4 * scale,
-      providers: [ { name: "Anthropic", v: 87.2 * scale }, { name: "OpenAI", v: 38.9 * scale }, { name: "Google", v: 16.5 * scale } ],
+      period: total * 0.041, prevPeriod: prevTotal * 0.041,
+      mtd: 142.63 * scale,
+      providers: [ { name: "Anthropic", v: total * 0.025 }, { name: "OpenAI", v: total * 0.011 }, { name: "Google", v: total * 0.005 } ],
     },
-    approvals: [
-      { agent: "Support triage", what: "wants to call send_email", who: "run for k.nowak", waited: "2 h" },
-      { agent: "SQL explainer", what: "wants to call run_sql (writes)", who: "run for j.wisniewski", waited: "5 h" },
-      { agent: "Meeting recap", what: "wants to call post_message", who: "run for m.zajac", waited: "1 d" },
+    budget: {
+      cap: Math.round(180 * scale), used: 142.63 * scale,
+      agents: [
+        { name: "Support triage", used: 54.6 * scale, cap: Math.round(60 * scale) },
+        { name: "Docs writer", used: 31.1 * scale, cap: Math.round(45 * scale) },
+      ],
+    },
+    mcp: [
+      { name: "Notion", status: "error", err: "Authorization expired — reconnect this server", since: "down 2 d" },
+      { name: "GitHub", status: "ok", checked: "checked 4 min ago" },
+      { name: "Postgres (read-only)", status: "ok", checked: "checked 4 min ago" },
     ],
+    sync: [
+      { name: "Google Drive — Contracts", status: "error", sub: "token expired · last good sync 3 d ago", pill: "failing" },
+      { name: "Product docs", status: "ok", sub: "synced 32 min ago", pill: "fresh" },
+      { name: "Support KB", status: "ok", sub: "synced 2 h ago", pill: "fresh" },
+    ],
+    versions: {
+      agent: "Docs writer", a: "v3", b: "v4",
+      rows: [
+        ["Success rate", "94.1%", "96.8%", "+2.7 pt", "ok"],
+        ["p95 latency", "16.2 s", "17.1 s", "+0.9 s", "err"],
+        ["Cost per run", "$0.048", "$0.041", "−$0.007", "ok"],
+        ["Positive ratings", "88%", "92%", "+4 pt", "ok"],
+      ],
+    },
+    approvals,
     members: { total: 23, invited: 2, split: [["owner",1],["admin",2],["builder",4],["operator",2],["member",12],["viewer",2]] },
     ratings: { pos: 91, count: 214, series: days.map(() => Math.round(88 + rnd() * 6)) },
     platform: {
@@ -671,7 +722,7 @@ function donut(segs, centre, sub) {
   const C = 2 * Math.PI * 42;
   const GAP = 2.5; // surface gap between segments - red/green alone is a CVD trap
   let off = 0;
-  const colors = { ok: "var(--ok)", err: "var(--err)", warn: "var(--warn)" };
+  const colors = { ok: "var(--ok)", err: "var(--err)", warn: "var(--warn)", brand: "var(--chart-1)", neutral: "oklch(75% 0.004 250)" };
   const rings = segs.map((s) => {
     const len = (s.v / total) * C;
     const el = `<circle r="42" cx="60" cy="60" fill="none" stroke="${colors[s.cls]}" stroke-width="12"
@@ -686,7 +737,7 @@ function donut(segs, centre, sub) {
       <text x="60" y="73" text-anchor="middle">${sub}</text>
     </svg>
     <div style="min-width:0">${segs.map((s) => `<div class="bar-row" style="margin:7px 0">
-      <span class="dot ${s.cls === "ok" ? "ok" : s.cls === "err" ? "err" : "warn"}"></span>
+      <span class="dot ${s.cls}"></span>
       <span style="font-size:12.5px;flex:1">${s.name}</span>
       <span class="bv">${fmt(s.v)}</span></div>`).join("")}
     </div></div>`;
@@ -755,8 +806,9 @@ const WIDGETS = [
     } },
   { id: "surfaces", title: "Where runs come from",
     source: { path: "GET /api/v1/stats/usage", exists: false }, gate: () => can("runs:view"), gateLabel: "runs:view",
-    emptyT: "No runs in this period", emptyD: "Web chat, API, Slack, Telegram, widget and schedules land here.",
-    render: (d) => barList(d.surfaces) },
+    emptyT: "No runs in this period", emptyD: "Playground, web chat, API, Slack, Telegram, Mattermost and the embedded widget land here.",
+    render: (d) => barList(d.surfaces) + `<div class="sub qa-note" style="margin-top:10px">
+      Widget and Mattermost need the stage-2 recording change — today the recorder folds them into web / api.</div>` },
   { id: "agents", title: "Agents: adopted and forgotten",
     source: { path: "GET /api/v1/stats/usage", exists: false }, gate: () => can("runs:view"), gateLabel: "runs:view",
     emptyT: "No published agents", emptyD: "Nothing has been published in this organization yet.",
@@ -775,12 +827,19 @@ const WIDGETS = [
     render: (d) => `<div class="big">${d.activeUsers.active} <span style="font-size:14px;color:var(--muted);font-weight:400">of ${d.activeUsers.ofTotal} members</span></div>
       <div class="sub" style="margin:4px 0 10px">ran an agent in this period — a count, deliberately not a table of names</div>
       ${lineChart(d.activeUsers.days, { w: chartW("active-users") })}` },
-  { id: "spend", title: "Spend, month to date",
-    source: { path: "GET /api/v1/spend", exists: true }, gate: () => can("runs:view"), gateLabel: "runs:view",
+  { id: "spend", title: "Spend",
+    source: { path: "GET /api/v1/stats/usage · GET /api/v1/spend", exists: false, badge: "period total needs /stats/usage" },
+    gate: () => can("runs:view"), gateLabel: "runs:view",
     emptyT: "Nothing spent yet", emptyD: "Model cost lands here run by run.",
-    render: (d) => `<div class="big">$${d.spend.mtd.toFixed(2)}</div>
-      <div class="sub" style="margin:4px 0 10px">last month at this point: $${d.spend.prev.toFixed(2)}</div>
-      ${barList(d.spend.providers.map((p) => ({ name: p.name, v: Math.round(p.v) })), " $")}` },
+    render: (d) => {
+      const up = Math.round(((d.spend.period - d.spend.prevPeriod) / d.spend.prevPeriod) * 100);
+      return `<div style="display:flex;align-items:baseline;gap:10px">
+        <span class="big">$${d.spend.period.toFixed(2)}</span><span class="sub">in this period</span>
+        <span class="${up >= 0 ? "delta-down" : "delta-up"}">${up >= 0 ? "▲" : "▼"} ${Math.abs(up)}% vs the previous ${periodDays()} days</span></div>
+      <div style="margin:10px 0 2px">${barList(d.spend.providers.map((p) => ({ name: p.name, v: Math.round(p.v) })), " $")}</div>
+      <div class="sub" style="margin-top:10px;padding-top:8px;border-top:1px dashed var(--border)">
+        This month so far: <strong>$${d.spend.mtd.toFixed(2)}</strong> — calendar month, reconciles with the invoice; deliberately not scoped by the period filter.</div>`;
+    } },
 
   /* ---- governance & health ---- */
   { id: "approvals", title: "Waiting on a decision",
@@ -792,7 +851,8 @@ const WIDGETS = [
       <span style="display:flex;gap:6px"><button class="btn small primary">Review</button></span>
     </div>`).join("") },
   { id: "members", title: "Members",
-    source: { path: "GET /api/v1/organizations/{id}/members", exists: true }, gate: () => can("members:manage"), gateLabel: "members:manage",
+    source: { path: "GET /api/v1/orgs/{org_id}/members", exists: true },
+    gate: () => can("members:manage"), gateLabel: "members:manage — a layout call, not a boundary: the endpoint itself is open to any member",
     emptyT: "Just you", emptyD: "Invite somebody — adoption needs people.",
     render: (d) => `<div style="display:flex;align-items:baseline;gap:10px">
       <span class="big">${d.members.total}</span><span class="sub">${d.members.invited} invitations pending</span></div>
@@ -804,7 +864,8 @@ const WIDGETS = [
     render: (d) => qualityBlock(d.ratings,
       `of ${fmt(d.ratings.count)} rated answers were positive this period`, chartW("org-ratings")) },
   { id: "recent-failures", title: "Recent failures",
-    source: { path: "GET /api/v1/runs?status=failed", exists: true }, gate: () => can("runs:view"), gateLabel: "runs:view",
+    source: { path: "GET /api/v1/runs?status=failed,budget_exceeded", exists: false, badge: "needs a status filter on /runs" },
+    gate: () => can("runs:view"), gateLabel: "runs:view",
     emptyT: "No failures", emptyD: "Every run in this period finished cleanly.",
     render: (d) => d.failures.map((f) => `<div class="list-row">
       <div class="lr-main"><div class="lr-title">${f.agent}</div><div class="lr-sub">${f.err} · ${f.when}</div></div>
@@ -814,6 +875,47 @@ const WIDGETS = [
     emptyT: "No runs in this period", emptyD: "The model mix appears with the first run.",
     render: (d) => barList(d.models, "", 132) +
       `<div class="sub" style="margin-top:10px">As recorded on each run (<span style="font-family:var(--mono)">model_label</span>).</div>` },
+  { id: "budget-headroom", title: "Budget headroom",
+    source: { path: "GET /api/v1/orgs/{org_id} + /api/v1/spend", exists: true },
+    gate: () => can("runs:view"), gateLabel: "runs:view — the cap itself rides GET /orgs/{org_id}",
+    emptyT: "No monthly cap set", emptyD: "Set one on the organization — headroom shows here before budget_exceeded does.",
+    render: (d) => {
+      const p = Math.round((d.budget.used / d.budget.cap) * 100);
+      const tone = p >= 90 ? "var(--err)" : p >= 70 ? "var(--warn)" : "var(--ok)";
+      return `<div style="display:flex;align-items:baseline;gap:8px">
+        <span class="big">${p}%</span><span class="sub">of the $${d.budget.cap} monthly cap · $${(d.budget.cap - d.budget.used).toFixed(2)} left</span></div>
+      <span class="track" style="display:block;margin:10px 0 12px"><span class="fill" style="width:${Math.min(p, 100)}%;background:${tone}"></span></span>
+      ${d.budget.agents.map((a) => { const ap = Math.round((a.used / a.cap) * 100); return `<div class="bar-row">
+        <span class="bl" style="width:92px">${a.name}</span>
+        <span class="track"><span class="fill" style="width:${Math.min(ap, 100)}%;background:${ap >= 90 ? "var(--err)" : ap >= 70 ? "var(--warn)" : "var(--chart-1)"}"></span></span>
+        <span class="bv">${ap}%</span></div>`; }).join("")}
+      <div class="sub" style="margin-top:8px">Agents with their own caps — the donut's <span style="font-family:var(--mono)">budget_exceeded</span> is the symptom; this is the cause.</div>`;
+    } },
+  { id: "mcp-health", title: "Integrations",
+    source: { path: "GET /api/v1/mcp-connections", exists: true }, gate: () => can("mcp:manage"), gateLabel: "mcp:manage",
+    emptyT: "No MCP servers connected", emptyD: "Connect one from the catalog — its health lands here.",
+    render: (d) => d.mcp.map((s) => `<div class="list-row" style="padding:7px 0">
+      <div class="lr-main"><div class="lr-title"><span class="dot ${s.status === "ok" ? "ok" : "err"}"></span>${s.name}</div>
+      ${s.err ? `<div class="lr-sub">${s.err}</div>` : ""}</div>
+      <span class="pill ${s.status === "ok" ? "ok" : "err"}">${s.status === "ok" ? s.checked : s.since}</span>
+    </div>`).join("") +
+      `<div class="sub" style="margin-top:8px">A server that stops answering quietly takes its tools from every agent using it.</div>` },
+  { id: "knowledge-freshness", title: "Knowledge sync",
+    source: { path: "GET /api/v1/rag/sync/sources", exists: true }, gate: () => can("collections:view"), gateLabel: "collections:view",
+    emptyT: "No sync sources", emptyD: "Collections synced from Drive or S3 report their freshness here.",
+    render: (d) => d.sync.map((s) => `<div class="list-row" style="padding:7px 0">
+      <div class="lr-main"><div class="lr-title"><span class="dot ${s.status === "ok" ? "ok" : "err"}"></span>${s.name}</div>
+      <div class="lr-sub">${s.sub}</div></div>
+      <span class="pill ${s.status === "ok" ? "ok" : "err"}">${s.pill}</span>
+    </div>`).join("") },
+  { id: "version-compare", title: "Version to version",
+    source: { path: "GET /api/v1/stats/usage?group_by=version", exists: false },
+    gate: () => can("runs:view"), gateLabel: "runs:view — agent_version_id is already on every run",
+    emptyT: "Only one version has run", emptyD: "Publish a new version — the comparison appears once both have runs in the period.",
+    render: (d) => `<div class="sub" style="margin-bottom:8px">${d.versions.agent} — <strong>${d.versions.b}</strong> (current) vs ${d.versions.a}, only runs that executed each version</div>
+      <table class="mini"><tr><th></th><th class="num">${d.versions.a}</th><th class="num">${d.versions.b}</th><th class="num">Δ</th></tr>
+      ${d.versions.rows.map(([m, a, b, delta, cls]) => `<tr><td>${m}</td><td class="num">${a}</td><td class="num">${b}</td>
+        <td class="num" style="color:var(--${cls});font-weight:600">${delta}</td></tr>`).join("")}</table>` },
 
   /* ---- personal ---- */
   { id: "my-agents", title: "Your agents",
@@ -854,7 +956,7 @@ const WIDGETS = [
     emptyT: "No rated answers yet", emptyD: "Rate answers with a thumbs up or down — your own trend lands here.",
     render: (d) => qualityBlock(d.myQuality, `of ${d.myQuality.count} rated answers in your conversations`, chartW("my-quality")) },
   { id: "shared-with-you", title: "Shared with you",
-    source: { path: "GET /api/v1/agents · /collections · /skills", exists: true },
+    source: { path: "GET /api/v1/agents · /kb · /skills", exists: false, badge: "needs a shared_with_me count" },
     gate: () => can("agents:view"), gateLabel: "agents:view · collections:view · skills:view (shared scope)",
     emptyT: "Nothing shared yet", emptyD: "When somebody shares an agent, a collection or a skill, it counts here.",
     render: (d) => `<div class="stat-row" style="grid-template-columns:repeat(3,1fr)">
@@ -873,8 +975,9 @@ const WIDGETS = [
    of the nearest audience, and the gates keep that honest.
    ================================================================ */
 const STEWARD_SECTIONS = [
-  { id: "attention", title: "Needs attention", note: "actionable first — approvals to decide, failures worth a look",
-    widgets: [["approvals", "s7"], ["recent-failures", "s5"]] },
+  { id: "attention", title: "Needs attention", note: "actionable first — decisions to make, and what is failing or about to run out",
+    widgets: [["approvals", "s7"], ["recent-failures", "s5"],
+              ["budget-headroom", "s4"], ["mcp-health", "s4"], ["knowledge-freshness", "s4"]] },
   { id: "usage", title: "Usage & cost", note: "everything here gates on runs:view",
     widgets: [["runs", "s8"], ["outcomes", "s4"], ["surfaces", "s6"], ["agents", "s6"],
               ["spend", "s6"], ["model-mix", "s6"], ["latency", "s4"], ["active-users", "s8"]] },
@@ -904,10 +1007,12 @@ const LAYOUTS = {
   builder: [
     { id: "build", title: "Your agents", note: "what you build, and the chats you test it in",
       widgets: [["my-agents", "s7"], ["conversations", "s5"]] },
-    { id: "adoption", title: "How your builds behave", note: "everything here gates on runs:view",
-      widgets: [["agents", "s6"], ["model-mix", "s6"], ["recent-failures", "s7"], ["org-ratings", "s5"]] },
+    { id: "adoption", title: "How your builds behave", note: "did the new version actually behave better — and is the plumbing your agents stand on still up?",
+      widgets: [["version-compare", "s6"], ["agents", "s6"], ["recent-failures", "s7"], ["org-ratings", "s5"],
+                ["mcp-health", "s6"], ["knowledge-freshness", "s6"]] },
     { id: "usage", title: "Usage", note: "everything here gates on runs:view",
-      widgets: [["runs", "s8"], ["outcomes", "s4"], ["surfaces", "s4"], ["latency", "s4"], ["active-users", "s4"]] },
+      widgets: [["runs", "s8"], ["outcomes", "s4"], ["model-mix", "s6"], ["surfaces", "s6"],
+                ["latency", "s4"], ["active-users", "s8"]] },
     { id: "activity", title: null, note: "",
       widgets: [["my-activity", "s12"]] },
   ],
@@ -940,7 +1045,7 @@ function widgetCard(w, data, forcedState) {
   }
   return `<article class="card ${meta.span}" id="w-${w.id}">
     <div class="card-head"><h3>${meta.title}</h3>
-      <div class="chips"><span class="chip">${w.source.path}</span>${w.source.exists ? "" : `<span class="badge-new">needs new endpoint</span>`}</div></div>
+      <div class="chips"><span class="chip">${w.source.path}</span>${w.source.exists ? "" : `<span class="badge-new">${w.source.badge || "needs new endpoint"}</span>`}</div></div>
     <div class="card-body">${body}</div>
     <div class="card-foot"><span class="gate">shown because: ${w.gateLabel}</span></div>
   </article>`;

@@ -74,18 +74,25 @@ The layouts, in the order each page reads:
 - **Deployment admin** — the deployment strip, then the organization divider
   with its select, then the steward layout for the chosen org. Their own
   workspace sits last: this persona reads before they chat.
-- **Org steward** (owner, admin) — *Needs attention* first (approvals to
-  decide, recent failures), then *Usage &amp; cost* (adoption, outcomes,
-  spend, model mix), then *People &amp; quality* — members with a per-role
-  split and a "View members" link, beside the answer-quality trend. Members
-  is deliberately **not** under Needs attention: a headcount is context, not
+- **Org steward** (owner, admin) — *Needs attention* first: approvals to
+  decide and recent failures, then a row of three early-warning tiles —
+  budget headroom (the *cause* the outcomes donut only shows the symptom
+  of), integrations that stopped answering, and knowledge collections that
+  stopped syncing. Then *Usage &amp; cost* (adoption, outcomes, spend, model
+  mix), then *People &amp; quality* — members with a per-role split and a
+  "View members" link, beside the answer-quality trend. Members is
+  deliberately **not** under Needs attention: a headcount is context, not
   a queue. Workspace last.
 - **Operator** — *Needs attention* first and widest: the approvals queue
   beside recent failures, because both are the operator's inbox. Then
   *Health* (outcomes, latency, answer quality), then usage, workspace last.
 - **Builder** — *their agents* first: the cards they build and the chats they
-  test them in. Then *How your builds behave* — adoption per agent, the model
-  mix, recent failures, answer quality — then org usage. A builder holds
+  test them in. Then *How your builds behave* — a version-to-version
+  comparison (did v4 actually behave better than v3, off
+  `agent_runs.agent_version_id`), adoption per agent, recent failures,
+  answer quality, and the plumbing their agents stand on: MCP server health
+  and knowledge-sync freshness, both of which fail quietly and take the
+  agent's tools or its knowledge with them. Then org usage. A builder holds
   `runs:view`, so the data is the same; the page just leads with what a
   builder can act on. (This also removes the old sore spot: builder held one
   small governance card and three-quarters of a row of air.)
@@ -112,24 +119,57 @@ instead reads adoption and failures of the agents they can edit.
 | Top organizations | `is_app_admin` | `GET /api/v1/admin/organizations` | yes |
 | Answer quality, deployment-wide | `is_app_admin` | `GET /api/v1/admin/ratings/summary` | yes |
 | Runs over time | `runs:view` | `GET /api/v1/stats/usage` | **no — new** |
-| Outcomes (completed / failed / budget exceeded) | `runs:view` | `GET /api/v1/stats/usage` | **no — new** |
-| Where runs come from (by surface) | `runs:view` | `GET /api/v1/stats/usage` | **no — new** |
+| Outcomes (all six `RunStatus` values, five segments) | `runs:view` | `GET /api/v1/stats/usage` | **no — new** |
+| Where runs come from (by surface) | `runs:view` | `GET /api/v1/stats/usage` | **no — new, and the recording needs widening (below)** |
 | Agents: adopted and forgotten | `runs:view` | `GET /api/v1/stats/usage` | **no — new** |
 | Latency (p50 / p95) | `runs:view` | `GET /api/v1/stats/usage` | **no — new** |
 | Active people (count, no names) | `runs:view` | `GET /api/v1/stats/usage` | **no — new** |
-| Spend, month to date | `runs:view` | `GET /api/v1/spend` | yes |
+| Spend (period total + this-month line) | `runs:view` | `GET /api/v1/stats/usage` + `GET /api/v1/spend` | **partly — the period total needs `/stats/usage`; the month line exists** |
+| Budget headroom | `runs:view` | `GET /api/v1/orgs/{org_id}` + `GET /api/v1/spend` | yes |
 | Models behind the runs | `runs:view` | `GET /api/v1/stats/usage` | **no — new** |
-| Recent failures | `runs:view` | `GET /api/v1/runs?status=failed` | yes |
+| Version to version | `runs:view` | `GET /api/v1/stats/usage?group_by=version` | **no — new** |
+| Recent failures | `runs:view` | `GET /api/v1/runs?status=failed,budget_exceeded` | **no — needs a status filter on `/runs`** |
 | Waiting on a decision (approvals) | `approvals:decide` | `GET /api/v1/approvals` | yes |
-| Members | `members:manage` | `GET /api/v1/organizations/{id}/members` | yes |
+| Integrations (MCP health) | `mcp:manage` | `GET /api/v1/mcp-connections` | yes |
+| Knowledge sync | `collections:view` | `GET /api/v1/rag/sync/sources` | yes |
+| Members | `members:manage` | `GET /api/v1/orgs/{org_id}/members` | yes |
 | Answer quality (org) | `runs:view` | `GET /api/v1/ratings/summary` | **no — new** |
 | Your agents | `agents:view` | `GET /api/v1/agents` | yes |
 | Continue where you left off | `agents:run` | `GET /api/v1/conversations` | yes |
 | Your activity | `agents:run` (own rows) | `GET /api/v1/stats/usage?scope=own` | **no — new** |
 | Agents you use most | `agents:run` (own rows) | `GET /api/v1/stats/usage?scope=own` | **no — new** |
 | Answer quality in your chats | `agents:run` (own rows) | `GET /api/v1/ratings/summary?scope=own` | **no — new** |
-| Shared with you | `agents:view` (shared scope) | `GET /api/v1/agents` · `/collections` · `/skills` | yes |
+| Shared with you | `agents:view` (shared scope) | `GET /api/v1/agents` · `/kb` · `/skills` | **partly — the lists exist but return own+shared as one page; needs a `shared_with_me` count** |
 | Quick actions (filter-row buttons) | one action per permission | client-side | — |
+
+Five rows carry a sentence of fine print:
+
+- **Outcomes** draws five segments covering all six `RunStatus` values —
+  `completed`, `failed`, `budget_exceeded`, `awaiting_approval`, and
+  `running`/`cancelled` folded into one neutral segment the legend names.
+  The invariant that keeps this card honest: **the segments sum to
+  `total_runs`**, and the `awaiting_approval` segment counts the same parked
+  runs as the approvals card above it — the two can never disagree.
+- **Where runs come from** draws the set the recorder produces *after* a
+  stage-2 widening: a `RunSurface.EMBED` stamped by `embed_session.py`
+  (today an embedded-widget run is recorded as `web`), and `mattermost`
+  added to `_SURFACES` in `channels/mentions.py` (today it falls through to
+  `api`). Playground is charted because it is a real surface already; the
+  dead `SCHEDULE` value — defined, never assigned — is not.
+- **Spend** tells two truths on one card: the period total obeys the filter
+  and comes from `/stats/usage`; the month-to-date line is calendar-aligned
+  so it reconciles against an invoice, deliberately ignores the filter, and
+  says so in its own copy. `/spend` itself stays untouched.
+- **Members** is the one row where the permission does layout work rather
+  than marking a boundary: the endpoint is open to any member ("Any member
+  may call this"), and `active_users` carries `total_members` under
+  `runs:view` anyway. The card is *featured* only on steward pages; nothing
+  is actually withheld.
+- **Budget headroom** reads two stored values against a number `/spend`
+  already returns: `organizations.monthly_budget_usd` (on
+  `GET /orgs/{org_id}`) and each agent's `budget.monthly_usd` from its spec.
+  It exists because the outcomes donut draws `budget_exceeded` — the
+  symptom — and nothing else on the page showed the cause.
 
 Every widget has three designed states — the demo's state switcher shows all
 of them. "No runs yet" and "the request failed" are different pixels on
@@ -224,6 +264,20 @@ Everything above is answerable from `agent_runs` columns that already exist
 (`surface`, `status`, `agent_id`, `user_id`, `model_label`, `started_at`,
 `ended_at`). `active_users` is deliberately a count — see the decisions below.
 
+- `group_by`: on-demand dimensions beyond the composed default. **The
+  vocabulary is fixed now, as the endpoint's contract, so #45 and this page
+  agree on one aggregate instead of growing one each:**
+  `day | surface | agent | version | user | status | model | exposure | environment`.
+  All nine are columns already on the run row — `agent_version_id` (kept even
+  if the version is deleted, precisely so this question stays answerable),
+  `exposure_id` (which binding admitted the run — *which* Slack workspace or
+  Telegram bot, not just "slack"), and `environment_id` (which named
+  environment resolved the version, so staging noise can be kept out of
+  production numbers). **v1 implements** the composed response plus
+  `group_by=version` — it feeds the builder's version-to-version card;
+  `exposure` and `environment` stay in the contract and land together with
+  #45, whose Activity page wants filters over exactly those rows.
+
 With `scope=own` the same shape narrows to the caller's rows, drops
 `active_users`, and adds `pending_approvals` — how many of the caller's runs
 are parked on somebody's decision (`tool_approvals` where the run is theirs
@@ -275,11 +329,13 @@ the product.
   over time, surfaces, agents, spend) use the brand accent; nothing on the
   page cycles categorical hues.
 - **Status colors appear only where color means state** — the outcomes
-  donut. The green/red pair sits in the CVD floor band (deutan ΔE 7.4,
-  checked with a palette validator, not by eye), so color is never the only
-  channel: segments carry 2px surface gaps, and the legend names each state
-  with its count. Values also render as text because green and amber fall
-  below 3:1 contrast against the surface.
+  donut and the health tiles. The green/red pair sits in the CVD floor band
+  (deutan ΔE 7.4, checked with a palette validator, not by eye), so color is
+  never the only channel: segments carry 2px surface gaps, and the legend
+  names each state with its count. `awaiting_approval` wears the chart
+  accent ("waiting on us" is a third story, not a failure) and
+  `running`/`cancelled` a neutral grey. Values also render as text because
+  green and amber fall below 3:1 contrast against the surface.
 - **Text never wears a series color** — identity comes from the mark or a
   legend dot beside it.
 - **Line charts carry real axes and a hover crosshair** — labelled y-ticks
@@ -322,9 +378,32 @@ the product.
 ## Deliberately out of v1
 
 - **A named per-user usage table** — see decision 3.
-- **A budgets widget.** `budgets:manage` gates no route today; there is no
-  budgets endpoint at all, so this is its own design task, not a dashboard
-  line item.
+- **Managing budgets from the dashboard.** An earlier draft of this note
+  claimed `budgets:manage` gates no route and no cap is stored — both halves
+  were wrong (`budgets:manage` gates the `monthly_budget_usd` field on
+  `PATCH /orgs/{org_id}`, and the caps live on
+  `organizations.monthly_budget_usd` and `AgentSpec.budget.monthly_usd`), so
+  *showing* headroom moved into v1 as the Budget headroom card. What stays
+  out is managing: raising a cap, a budget-request flow — that is its own
+  design task.
+- **A user-arranged dashboard.** The four audience layouts stay the
+  *default*; letting each person pin, widen, hide or add widgets is out of
+  v1 — but the shape is settled now because it is expensive to retrofit. A
+  preference is a third layer over the same two the page already has
+  (`effective layout = preference ?? audience default`, then
+  `visible = effective ∩ gate()`), and it may only ever **reorder or hide —
+  never reveal**: a stored layout naming a widget the caller cannot see is
+  dropped at render time (the realistic case is a demotion, not an attack).
+  Spans come from the closed set the grid already uses (s4/s6/s8/s12), the
+  "add a widget" catalog itself passes through `gate()` so the list cannot
+  leak what the page hides, every widget declares a "see all" destination
+  pointing at a page that already exists, and widget definitions carry
+  catalog metadata (description, permission, default span, default
+  audiences) from day one, plus a reset-to-default. Widget ids are stable
+  registry keys, so persisting them is safe; the preference stores
+  **user-and-organization-scoped** — the same person is a steward in one
+  org and a member in another, and one saved layout across both is wrong in
+  one of them.
 - **An audit strip** (`audit:read`) — the audit log has its own page;
   duplicating it here earns nothing yet.
 - **Sandbox capacity / sessions / activity** — issue #129 owns that view and
@@ -338,19 +417,46 @@ the product.
 
 ## What stage 2 builds
 
-Backend: `GET /api/v1/stats/usage` (and `GET /api/v1/ratings/summary` if the
-review keeps the card), platform-layer coverage at 100%, `docs/architecture.md`
-updated per the trigger map.
+Backend:
+
+- `GET /api/v1/stats/usage` — `from`/`to`, `scope`, the composed response,
+  and `group_by=version`; `GET /api/v1/ratings/summary` with the same
+  `scope` (if the review keeps the card).
+- A `status` filter on `GET /runs` — a list, not a single value
+  (`failed,budget_exceeded` is the operator's natural query), with the
+  matching `where` in the repository.
+- The surface-recording widening: `RunSurface.EMBED` stamped by
+  `embed_session.py`, `mattermost` added to `_SURFACES` in
+  `channels/mentions.py`.
+- A `shared_with_me` count (or filter) on the agents / kb / skills list
+  endpoints, so "Shared with you" does not count rows client-side over a
+  paged list.
+- Platform-layer coverage at 100%, `docs/architecture.md` updated per the
+  trigger map.
 
 Frontend: the page as demoed — widgets gated by `can()` / `isAppAdmin`,
 loading / empty / error per widget with a test asserting the error state on a
 502, `dashboard.integration.test.tsx` covering at least two roles, every
 string through `next-intl`, recharts behind `next/dynamic`.
 
+Three things about the demo's registry that must **not** be ported as-is:
+
+- A widget appears once per page in the mock (`LIVE` is keyed by widget id,
+  the DOM id is `w-${id}`). In the product, span and title ride the layout
+  entry, not a lookup table — then "runs over time, once org-wide and once
+  for me" stops being a latent collision.
+- `SPAN_W` hardcodes a 1180px page so 1 SVG unit ≈ 1 CSS px. The product
+  carries no span→pixels table at all; recharts' `ResponsiveContainer`
+  measures.
+- The demo's `gate()` closes over module state. The product's gate takes
+  what it needs — `(can, isAppAdmin) => boolean` — so a widget is testable
+  alone and `dashboard.integration.test.tsx` stays cheap.
+
 ## For the reviewer
 
 The demo is the argument; this note is the map. The calls worth challenging:
 the four-audience split and the layout each audience leads with, `scope=own`
 for members, the `agents:run` gate that empties the viewer's page down to
-what is shared, the aggregate-only adoption card, and which of the **needs
-new endpoint** widgets justify their endpoint.
+what is shared, the aggregate-only adoption card, the `group_by` vocabulary
+fixed here for #45 to share, the surface-recording widening, and which of
+the **needs new endpoint** widgets justify their endpoint.
