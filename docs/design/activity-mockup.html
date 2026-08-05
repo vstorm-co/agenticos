@@ -318,6 +318,26 @@
   pre { font: 11.5px/1.5 var(--mono); padding: 4px 10px 8px; overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
   .notice { border: 1px solid oklch(62% 0.136 68 / 0.3); background: var(--warn-bg); border-radius: 8px; padding: 10px 12px; font-size: 12.5px; color: oklch(43% 0.1 68); }
 
+  /* A delegation is a run of its own, and the only way to it is the run it came
+     from - the table is top-level only so that its count and cost agree with the
+     month figure above it. */
+  .deleg { margin-top: 14px; border-top: 1px dashed var(--border); padding-top: 12px; }
+  .deleg-head { font-size: 12.5px; font-weight: 600; margin-bottom: 8px; }
+  .deleg-head .sub { font-weight: 450; }
+  .drow {
+    display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+    font: inherit; font-size: 12.5px; color: var(--text); cursor: pointer;
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 11px; margin-bottom: 6px; flex-wrap: wrap;
+  }
+  .drow:hover { border-color: var(--brand-line); background: var(--brand-subtle); }
+  .drow .dnum { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  /* Who is asking, when it is not the agent whose run it is. In a delegation the
+     thing being approved is often more consequential than the agent the approver
+     has in mind, so the actor sits beside the tool name, not a click away. */
+  .asked { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+  .asked b, .asked a { font-weight: 550; }
+
   /* ---- approvals ---- */
   .approval { border: 1px solid var(--border); border-radius: 8px; padding: 13px 14px; margin-bottom: 10px; }
   .approval:last-child { margin-bottom: 0; }
@@ -501,6 +521,18 @@ const USERS = [
   { id: "u4", name: "j.wisniewski@initech.example", org: "initech" },
 ];
 
+/* A delegation is a run of its own - agent_runs.parent_run_id, #200 - and is
+   deliberately NOT in the list: run history is top-level only, so its count and its
+   cost column agree with the month figure above them. The only way to a delegated run
+   is the run it came from, which is what the detail view answers.
+   `agentId: null` is an inline specialist: defined inside its parent's spec, with no
+   row in `agents` and nothing to link to. */
+const SPECIALISTS = [
+  { name: "researcher", agentId: "a7", agentName: "Research specialist" },
+  { name: "summariser", agentId: null, agentName: null },
+  { name: "invoice-checker", agentId: "a8", agentName: "Invoice checker" },
+];
+
 /* agent_runs.exposure_id: surface says "slack", the exposure says which Slack
    workspace. ExposureSurface is only slack | telegram | mattermost. */
 const EXPOSURES = [
@@ -529,7 +561,7 @@ const PAGE_SIZE = 25;
 
 let current = {
   identity: IDENTITIES[1], state: "normal", annotations: "on",
-  org: ORGS[0], tab: "approvals", page: 1, openRun: null,
+  org: ORGS[0], tab: "approvals", page: 1, openRun: null, openDeleg: null,
   // The runs tab's own filters. null = every value.
   period: { preset: "30d" }, status: null, surface: null, agent: "", user: "",
   env: "", exposure: "", version: "",
@@ -699,6 +731,25 @@ function genRuns([from, to]) {
           : status === "budget_exceeded" ? `Agent monthly cap of $${(agent.cap ?? 2).toFixed(2)} reached` : null,
         script: SCRIPTS[Math.floor(rnd() * SCRIPTS.length) % SCRIPTS.length],
         conversation: NO_CONVERSATION.has(surface) ? null : "c-" + Math.floor(rnd() * 900 + 100),
+        // Its own rows, hanging off this one. Note `env: null` - record_delegated_run
+        // leaves environment_id NULL on purpose, because a delegate's version comes
+        // from a pin rather than from an environment resolving it.
+        delegations: rnd() < 0.22
+          ? Array.from({ length: 1 + (rnd() < 0.35 ? 1 : 0) }, (_, k) => {
+              const spec = SPECIALISTS[Math.floor(rnd() * SPECIALISTS.length) % SPECIALISTS.length];
+              const dtin = 200 + Math.floor(rnd() * 4000);
+              const dtout = 30 + Math.floor(rnd() * 700);
+              return {
+                id: Math.floor(rnd() * 0xffffff).toString(16).padStart(6, "0"),
+                task: "task-" + (k + 1), spec, env: null,
+                version: 1 + Math.floor(rnd() * 4),
+                status: rnd() < 0.9 ? "completed" : "failed",
+                tin: dtin, tout: dtout,
+                cost: (dtin * 3e-6 + dtout * 1.5e-5),
+                ms: 400 + Math.floor(rnd() * 9000),
+              };
+            })
+          : [],
       });
     }
   }
@@ -715,6 +766,11 @@ function genApprovals() {
   return genRuns(last30()).filter((r) => r.status === "awaiting_approval").slice(0, 4).map((r, i) => ({
     id: "ap-" + i, run: r, tool: r.script.tool, args: r.script.args,
     waited: ["2 h", "5 h", "1 d", "3 d"][i], waitedH: [2, 5, 26, 74][i],
+    // ApprovalRead.subagent_name / subagent_agent_id (#200). A gated tool inside a
+    // delegation writes its approval against the PARENT's run, so two specialists
+    // calling the same tool queue two rows with one name between them. Null means the
+    // run's own agent asked - nothing is rendered, because agent_id already says that.
+    subagent: i === 1 ? SPECIALISTS[0] : i === 3 ? SPECIALISTS[1] : null,
   }));
 }
 
@@ -773,6 +829,8 @@ const ICON_PATHS = {
   "circle-check": '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
   "eye-off": '<path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.5 13.5 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><path d="m2 2 20 20"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/>',
   calendar: '<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>',
+  users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  "corner-up-left": '<polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/>',
 };
 const icon = (name, size = 16) =>
   `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor"
@@ -996,6 +1054,11 @@ function approvalsTab(queue) {
   else body = median + list.map((a) => `<div class="approval">
     <div class="approval-head">
       <span class="tn">${esc(a.tool)}</span>
+      ${a.subagent ? `<span class="asked">${icon("users", 13)}
+        ${a.subagent.agentId
+          ? `<a href="#">asked by ${esc(a.subagent.name)}</a>`
+          : `<b>asked by ${esc(a.subagent.name)}</b>`}
+        ${a.subagent.agentId ? "" : `<span class="pill">inline specialist</span>`}</span>` : ""}
       ${deciding
         ? `<span class="pill ${a.waitedH >= 24 ? "err" : "warn"}">waiting ${esc(a.waited)}</span>`
         : `<span class="pill ${a.decision === "approved" ? "ok" : "err"}">${a.decision}</span>`}
@@ -1116,10 +1179,14 @@ function runsTab(rows, total) {
   const head = `<div class="card-head"><div>
       <h3>Run history</h3>
       <div class="hd">Every run records the agent <em>version</em> it executed, so what happened
-        last week stays answerable after the agent has been rewritten.</div>
-    </div>${anno(["GET /api/v1/runs?skip&limit&agent_id"],
+        last week stays answerable after the agent has been rewritten. <b>Top-level runs
+        only</b> — a delegation is a run of its own and is reached from the run it came from,
+        which is what keeps this count and its cost column agreeing with the month figure
+        above.</div>
+    </div>${anno(["GET /api/v1/runs?skip&limit&agent_id&include_delegations"],
       ["status, surface, user, date range, environment, channel and version do not exist yet as params",
-       "embed & mattermost need the recording widening #37 settled — today they are stamped web / api"])}</div>`;
+       "embed & mattermost need the recording widening #37 settled — today they are stamped web / api",
+       "parent_run_id & include_delegations arrive with #200"])}</div>`;
   const filters = runsFilterBar() + versionStrip();
 
   if (current.state === "error") {
@@ -1161,7 +1228,12 @@ function runsTab(rows, total) {
       <span>Page <b>${current.page}</b> of <b>${fmt(pages)}</b></span>
       <button class="btn small" data-page="next"${current.page >= pages ? " disabled" : ""}>Next</button>
     </div>
-    ${current.openRun ? runDetail(rows.find((r) => r.id === current.openRun)) : ""}
+    ${current.openRun ? (() => {
+      const run = rows.find((r) => r.id === current.openRun);
+      if (!run) return "";
+      const d = current.openDeleg && (run.delegations || []).find((x) => x.id === current.openDeleg);
+      return d ? delegationDetail(run, d) : runDetail(run);
+    })() : ""}
     <div class="card-foot"><span class="gate">shown because: runs:view</span>
       <span class="gate">rows are the organization's, whoever ran them</span></div>
   </div>`;
@@ -1172,7 +1244,8 @@ function runRow(r) {
   return `<tr data-run="${r.id}" aria-selected="${current.openRun === r.id}">
     <td><span style="display:inline-flex;align-items:center"><span class="dot ${s.cls}"></span>${s.label}</span></td>
     ${isAllOrgs() ? `<td>${esc(orgOf(r.org).name)}</td>` : ""}
-    <td>${esc(r.agent.name)} <span class="sub">v${r.version}</span></td>
+    <td>${esc(r.agent.name)} <span class="sub">v${r.version}</span>${
+      (r.delegations || []).length ? ` <span class="pill brand">+${r.delegations.length} delegated</span>` : ""}</td>
     <td class="sub">${r.surface}${r.env === "staging" ? ` <span class="pill">staging</span>` : ""}</td>
     <td class="sub">${r.user ? esc(r.user.name.split("@")[0]) : "—"}</td>
     <td class="mono">${r.model}</td>
@@ -1250,6 +1323,25 @@ function runDetail(r) {
     missing = ["messages.run_id"];
   }
 
+  // A parent's transcript does not contain what its delegate did - the delegation is a
+  // run of its own, absent from the list, and this is the only way to it.
+  const kids = r.delegations || [];
+  const delegated = kids.length ? `<div class="deleg">
+    <div class="deleg-head">Delegated to ${kids.length === 1 ? "a specialist" : kids.length + " specialists"}
+      <span class="sub">— its own run each, already counted inside this run's cost</span></div>
+    ${kids.map((d) => `<button class="drow" data-deleg="${d.id}">
+      <span class="dot ${d.status === "completed" ? "ok" : "err"}"></span>
+      <b>${esc(d.spec.name)}</b>
+      ${d.spec.agentId ? `<span class="pill">v${d.version}</span>` : `<span class="pill">inline specialist</span>`}
+      <span class="sub">${esc(d.task)}</span>
+      <span class="dnum">${fmt(d.tin + d.tout)} tok · ${money(d.cost)} · ${(d.ms / 1000).toFixed(1)}s</span>
+    </button>`).join("")}
+    <div class="sub" style="margin-top:7px">A delegated run is not in the table above:
+      run history is top-level only, so its count and its cost agree with the month figure.
+      <span class="anno">Every one of these carries <span class="chip">environment_id = NULL</span>
+      — a delegate's version comes from a pin, so no environment resolved it.</span></div>
+  </div>` : "";
+
   return `<div class="detail">
     <div class="detail-head">
       <div><h4><span class="dot ${s.cls}"></span>What this run did</h4>
@@ -1259,7 +1351,44 @@ function runDetail(r) {
       ${anno(["GET /api/v1/conversations/{id}/messages"], missing)}
     </div>
     <dl class="facts">${facts}</dl>
-    ${err}${body}
+    ${err}${body}${delegated}
+  </div>`;
+}
+
+/**
+ * One delegated run, reached from the run it came from.
+ *
+ * Both directions are asked, so both are answered: down from a parent to what it
+ * delegated, and up from a delegate to where its cost was actually charged. Arriving
+ * at a specialist's row and finding no way back is the dead end #200's `FocusedRun`
+ * exists to avoid.
+ */
+function delegationDetail(parent, d) {
+  const facts = [
+    ["Run", `<span class="mono">${d.id}</span>`],
+    ["Delegate", d.spec.agentId
+      ? `${esc(d.spec.agentName)} <span class="sub">v${d.version}</span>`
+      : `${esc(d.spec.name)} <span class="sub">inline specialist — no agent of its own</span>`],
+    ["Delegation", `<span class="mono">${esc(d.task)}</span>`],
+    ["Environment", `<span class="sub">none — a delegate's version comes from a pin</span>`],
+    ["Tokens", `${fmt(d.tin)} in / ${fmt(d.tout)} out`],
+    ["Cost", `${money(d.cost)} <span class="sub">already inside the parent's</span>`],
+    ["Took", (d.ms / 1000).toFixed(1) + "s"],
+  ].map(([k, v]) => `<div class="fact"><dt>${esc(k)}</dt><dd>${v}</dd></div>`).join("");
+
+  return `<div class="detail">
+    <div class="detail-head">
+      <div><h4><span class="dot ${d.status === "completed" ? "ok" : "err"}"></span>What this delegation did</h4>
+        <div class="sub" style="margin-top:3px">A run of its own
+          (<span class="chip">parent_run_id</span>), which is why it is not in the table.</div></div>
+      ${anno(["GET /api/v1/runs/{id}", "GET /api/v1/runs?parent_run_id="], ["messages.run_id"])}
+    </div>
+    <button class="btn small" data-up="1" style="margin-bottom:12px">
+      ${icon("corner-up-left", 13)} Back to the run it came from</button>
+    <dl class="facts">${facts}</dl>
+    <div class="notice">A delegate's steps are recorded against its own run, so the
+      transcript lands here once <span class="chip">messages.run_id</span> is written on the
+      delegation path too — not only on the parent's.</div>
   </div>`;
 }
 
@@ -1369,7 +1498,7 @@ document.addEventListener("click", (e) => {
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closePopovers(); });
 
 function repaint({ resetPage = true } = {}) {
-  if (resetPage) { current.page = 1; current.openRun = null; }
+  if (resetPage) { current.page = 1; current.openRun = null; current.openDeleg = null; }
   writeHash(); closePopovers(); renderAll();
 }
 
@@ -1382,11 +1511,18 @@ function wireTabs() {
   }));
   document.querySelectorAll("[data-page]").forEach((b) => b.addEventListener("click", () => {
     current.page += b.dataset.page === "next" ? 1 : -1;
-    current.openRun = null; writeHash(); renderAll();
+    current.openRun = null; current.openDeleg = null; writeHash(); renderAll();
   }));
   document.querySelectorAll("tr[data-run]").forEach((tr) => tr.addEventListener("click", () => {
     current.openRun = current.openRun === tr.dataset.run ? null : tr.dataset.run;
+    current.openDeleg = null;
     writeHash(); renderAll();
+  }));
+  document.querySelectorAll("[data-deleg]").forEach((b) => b.addEventListener("click", () => {
+    current.openDeleg = b.dataset.deleg; writeHash(); renderAll();
+  }));
+  document.querySelectorAll("[data-up]").forEach((b) => b.addEventListener("click", () => {
+    current.openDeleg = null; writeHash(); renderAll();
   }));
   document.querySelectorAll("[data-retry]").forEach((b) => b.addEventListener("click", () => {
     current.state = "normal"; repaint();
@@ -1568,9 +1704,9 @@ function calMonth(first, side) {
   const nav = side === "left"
     ? `<button class="cal-nav prev" aria-label="Previous month">‹</button>`
     : `<button class="cal-nav next" aria-label="Next month"${atNow ? " disabled" : ""}>›</button>`;
-  const dows = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].map((x) => `<span class="dow">${x}</span>`).join("");
+  const weekdays = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].map((x) => `<span class="dow">${x}</span>`).join("");
   const title = first.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
-  return `<div class="cal-month"><div class="cal-head">${nav}${title}</div><div class="cal-grid">${dows}${days}</div></div>`;
+  return `<div class="cal-month"><div class="cal-head">${nav}${title}</div><div class="cal-grid">${weekdays}${days}</div></div>`;
 }
 
 /* ---- demo controls ---- */
@@ -1593,7 +1729,7 @@ function renderControls() {
       (id) => {
         current.identity = IDENTITIES.find((i) => i.id === id);
         if (!current.identity.isAppAdmin && current.org.id === "all") current.org = ORGS[0];
-        current.page = 1; current.openRun = null;
+        current.page = 1; current.openRun = null; current.openDeleg = null;
       },
       // Muted rather than brand-coloured: these two see no version of the page.
       (i) => !(i.isAppAdmin || (ROLE_PERMS[i.role] || []).includes("runs:view")));

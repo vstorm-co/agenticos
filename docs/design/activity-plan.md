@@ -50,15 +50,76 @@ invisible to its reader is worse than one that admits a gap.
 Rows written before the migration keep `run_id = NULL`. The detail view says so — *"steps
 were not recorded for runs before <date>"* — rather than falling back to a time window.
 
+## 2a. Delegated runs — the page is built on a table that now holds two kinds of row
+
+This section was added after the rest of the plan, reconciling it with #200
+(`feat/delegated-run-history`), which lands a second kind of `agent_runs` row and was open
+while §1–§9 were being written. Four of the items priced below are already built there.
+
+**A delegation writes its own run row.** `parent_run_id` and `subagent_task_id` join the
+run row, and `record_delegated_run` writes a delegated run *finished* — it has a status, a
+cost and both ends of its window before any row exists. So run history stops being a list
+of one thing, and the two must not be read the same way: **a parent's `cost_usd` already
+contains its children's**, which is why `sum_cost_since` counts only
+`parent_run_id IS NULL` and why summing a page of rows bills the organization twice for
+one request.
+
+### What #200 already ships, so this plan should stop pricing it
+
+| This plan said | #200 |
+|---|---|
+| The run detail view is the central new deliverable (§1, §3 item 1) | Built: `?run=<id>` and `FocusedRun`, which shows one run plus the delegations it made, links **upwards** to the parent, and tells a 404 apart from a failed request |
+| The "Runs" figure renders `runs.length`; fix it to `total` (§3 item 5) | Done, from an unnarrowed `useRuns()`, with a caption saying delegations are counted in their parent |
+| The three tabs land as separate components (§9) | `RunTable` is already extracted |
+| `ApprovalRead` carries no agent name and no triggering user (§3 item 3) | Adds `subagent_name` and `subagent_agent_id`, rendered by `ApprovalDelegate` with its own integration test. The agent name and triggering user remain this plan's work |
+
+### What this plan has to decide, because #200 does not
+
+**The list is top-level only.** `list_runs` gains `parent_run_id` and
+`include_delegations`, defaulting to top-level rows — which is what makes the count and the
+cost column agree with the month-to-date figure beside them. So the Run history table draws
+top-level runs, and a delegated run is reached by naming it, never by paging to it. The
+table says so once rather than leaving a reader to wonder where the fan-out went.
+
+**A delegated run carries no environment.** `record_delegated_run` leaves `environment_id`
+NULL deliberately: that column says which environment resolved the version this run
+answered with, and a delegate's version comes from a pin. The top-level list is therefore
+unaffected — but **every view that deliberately includes delegations loses them the moment
+an environment narrows the query**, and there are two on this page:
+
+- the **version strip** (§6), when the agent selected is one that other agents delegate
+  to — all of its runs are delegated rows;
+- the **per-agent spend tile** (§6), because `cost_breakdown` includes delegations on
+  purpose: a delegate's rows are the only record of its own spend.
+
+Both either leave the environment filter out of their query or say that a delegated run has
+no environment. Silently dropping the rows is the option this section exists to refuse.
+
+**The version strip has to pick a side of `include_delegations`, and say which.** Runs,
+success rate and p50 are per-version questions and want the delegate's own rows; cost per
+run summed across both kinds counts a delegation twice, once inside its parent. The strip's
+caption names the choice, the way #200's Runs figure names its own.
+
+**The run detail view gains a second half.** A parent's transcript does not contain what its
+delegate did, so a run that delegated shows the delegations beneath its own steps, each
+linking to its own detail — and a delegated run links up to the run it came from, because
+that is where its cost was charged. This is `FocusedRun`'s shape; the detail view here
+should be the same component's home rather than a second answer to the same question.
+
+**The approvals queue names the delegate.** A gated tool inside a delegation writes its
+approval against the *parent's* run, so two specialists both calling `send_email` produce
+two rows with the same tool name and nothing to choose between them. The delegate is the
+fact that decides the answer, and it belongs beside the tool name rather than a click away.
+
 ## 3. The six items in #45, reassessed against the code
 
 | # | #45 said | Verdict |
 |---|---|---|
-| 1 | A run does not link to its trace — *smallest change, largest gain* | **Replaced.** It was the largest item, not the smallest (§1). Ships as the run detail view instead |
+| 1 | A run does not link to its trace — *smallest change, largest gain* | **Replaced.** It was the largest item, not the smallest (§1). Ships as the run detail view instead — **which #200 has already built** as `?run=` plus `FocusedRun` (§2a). What is left here is the transcript inside it, off `messages.run_id` |
 | 2 | Cost rendered without its caveat | **Already shipped** — `runs/page.tsx:219` marks `cost_is_partial`. Remaining work is honesty of presentation: a bare `+` in a `title=` attribute is invisible to a screen reader and easy to miss. Becomes a visible marker with text |
-| 3 | An approval has no context | **Half shipped** — `tool_args` is rendered in full (`runs/page.tsx:141`). Missing is the agent and the triggering user, and `ApprovalRead` carries neither. Backend change, not UI |
+| 3 | An approval has no context | **Half shipped** — `tool_args` is rendered in full (`runs/page.tsx:141`), and #200 adds the **delegate** that asked (§2a). Missing is the agent and the triggering user; `ApprovalRead` carries neither. Backend change, not UI |
 | 4 | Filtering is agent-only | **Do it.** `agent_run_repo.list_runs` accepts only `agent_id` |
-| 5 | Pagination | **Do it**, and fix what it hides: the "Runs" figure renders `runs.length` — at most 50 — as the organization's run count, while the hook already returns an unused `total` |
+| 5 | Pagination | **Do it.** The figure it hides is already fixed by #200 (`total`, top-level only, captioned) — what remains is #198, filed: the count reads *all time* while the spend beside it reads one calendar month, so the two invite a comparison that is wrong by however old the organization is. Each figure names its own window, and this work closes #198 |
 | 6 | `failed` and `budget_exceeded` look alike | **Already shipped** — different tone and the label "stopped by budget" (`components/agents/status-badge.tsx:41`). No work |
 
 ## 4. Who sees this page — all seven identities, answered from `ROLE_PERMS`
@@ -188,8 +249,10 @@ the two pages read as one product:
   `exposure_id`, not surface: surface says *slack*, the channel says *which* Slack
   workspace, and an org with three bots needs the second. Environment is
   `environment_id`, so staging noise can be kept out of what a steward reads — staging
-  rows also wear a pill in the table. All three came out of #149's review, which fixed
-  the dimension vocabulary with this page in the room. An active filter tints its
+  rows also wear a pill in the table. It narrows the top-level list safely; where it must
+  **not** be applied is any query that deliberately includes delegations, because a
+  delegated run carries no environment at all (§2a). All three came out of #149's review,
+  which fixed the dimension vocabulary with this page in the room. An active filter tints its
   button; a **Clear filters** link appears only when something is narrowed. The bar
   renders inside the Run history card in every state — an empty result whose way out
   (Clear) has vanished is a dead end.
@@ -207,6 +270,11 @@ the two pages read as one product:
   screen, which is what "did v4 actually behave better than v3" needs to be
   answerable rather than arguable. Fed by #37's `group_by=version` (§5's one
   exception); absent until an agent is picked, so the default page stays a rows page.
+  **Two things it has to settle about delegation** (§2a): it counts a delegate's own
+  rows — otherwise an agent used only as a delegate has no strip at all — which means it
+  cannot carry the environment filter, and its **cost per run** must exclude delegated
+  rows or it counts a delegation twice, once inside the parent it was charged to. The
+  caption says which, the way #200's Runs figure does.
 - **Approvals** — a **Triggered by** filter and a sort (oldest ↔ newest). Oldest first
   stays the default, because the queue drains from the top. `GET /approvals` today has
   only `skip`/`limit` and a fixed oldest-first order — the filter and the sort are
@@ -232,6 +300,14 @@ the two pages read as one product:
   `agent_runs.cost_is_partial` (stored per run today, not yet returned as a count —
   priced in §7). A spend page that renders floors as facts is the `title=`-attribute
   bug from §3 again, one level up.
+- **By provider and By key are blocked on #170, and this tab is where it shows.** Both
+  cards are `spend_by_provider` and `spend_by_key` verbatim, and neither carries the
+  `parent_run_id IS NULL` filter that `sum_cost_since` has — so on any deployment using
+  delegation they render inflated vendor and key totals *next to* a correctly computed
+  month-to-date, and the page fails to reconcile against itself. A breakdown totalling
+  more than the total above it is exactly the failure that default exists to prevent, so
+  this tab either waits for #170 or says on screen that the two cards over-count a
+  delegation. Not silently.
 - **"By agent" is a tile per agent, telling two truths apart.** Each tile leads with
   what the agent spent in the selected range (with the floor marker when a cost is
   partial), and underneath it a cap meter — the agent against its own
@@ -241,7 +317,12 @@ the two pages read as one product:
   card's footer names both. This is the per-agent *cause* under the org-level figure
   the month KPI shows — the dashboard's headroom card features the top agents; the
   full set lives here, where the steward investigating spend already is. Priced
-  in §7.
+  in §7. **This tile is the one place that counts delegated rows on purpose** —
+  `cost_breakdown` includes them because a delegate's rows are the only record of its own
+  spend, and "the researcher cost $40 this month" is unanswerable without them. Which is
+  also why the tile cannot carry the environment filter (§2a), and why its total is
+  deliberately not the same question as the org figure above it: the footer already names
+  two windows and now names two scopes.
 - The three **figures** stay above the tabs and follow no tab's filters; each names its
   own window in its caption (calendar month · the runs period · right now) and is a
   door — clicking a figure opens its tab. The month figure also carries the **budget**
@@ -299,19 +380,27 @@ organization, and the sidebar switcher owns that.
 
 ## 7. Backend work this implies, so the estimate is honest
 
+**Four rows below shrank when #200 landed its branch** — the run detail view, the `total`
+fix, the component split and the delegate on `ApprovalRead` (§2a). They are marked rather
+than deleted, so the estimate reads as a corrected one instead of a smaller claim.
+
 | Change | Cost |
 |---|---|
 | `messages.run_id` — column, FK, write path on every surface | Alembic migration + `agent_runner` and the chat write path |
-| `list_runs` — `status` (a **list**: `failed,budget_exceeded` is also #37's Recent-failures query), `surface`, `user_id`, `started_from`, `started_to`, `environment_id`, `exposure_id`, `agent_version_id` | Repository + route + `AgentRunList` unchanged; every column already on the run row |
+| `list_runs` — `status` (a **list**: `failed,budget_exceeded` is also #37's Recent-failures query), `surface`, `user_id`, `started_from`, `started_to`, `environment_id`, `exposure_id`, `agent_version_id` | Repository + route + `AgentRunList` unchanged; every column already on the run row. Composes with #200's `parent_run_id` / `include_delegations`, which already default the list to top-level |
+| The run detail view, `?run=` and the delegation tree | **Already built** — #200's `FocusedRun`, `useRun`, `useDelegatedRuns`. What is left is the transcript inside it, off `messages.run_id` |
+| The "Runs" figure as `total`, top-level only | **Already built** — #200. What is left is #198: the window it counts (§3 item 5) |
+| `ApprovalRead` — the delegate that asked | **Already built** — #200's `subagent_name` / `subagent_agent_id` and `ApprovalDelegate`. **Do not rebuild the approval card without it** |
 | Surface recording widening — `RunSurface.EMBED` stamped by `embed_session.py`, `mattermost` added to `_SURFACES` in `channels/mentions.py` | Two small service changes. Shared with #37's stage 2 — whichever branch lands first ships it, the other inherits |
 | `ApprovalRead` — agent name, triggering user | Schema + approval service join. No migration |
 | `/approvals` — `user_id` filter, `sort` (oldest/newest; oldest stays the default) | Repository + route. No migration |
 | `/approvals` — the decided view: a `status` param (today the route serves `list_pending` only), and the decider's **name** (`ApprovalRead` already carries `decided_by_user_id` and `decided_at` — a bare UUID, the same class of gap as the missing agent name) | Repository + route; the name rides the same `ApprovalRead` join as the row above. No migration |
-| Version strip — per-version runs, success, p50, cost under an agent filter | Nothing new here — the second consumer of #37's `/stats/usage?group_by=version` |
+| Version strip — per-version runs, success, p50, cost under an agent filter | Nothing new here — the second consumer of #37's `/stats/usage?group_by=version`. It does need `/stats/usage` to expose the `include_delegations` choice §2a describes, or a delegate-only agent has no strip |
 | `/spend` — accept `from`/`to` alongside `days`, so the range control is honest | Route + `agent_runner` cost queries |
 | `/spend` — a partial-cost run count, so "every total below is a floor" has a number | Aggregate `cost_is_partial` in the existing cost query. No migration |
 | `CostByAgent` — agent **name** alongside `agent_id`, **one row per agent** (today `cost_breakdown` splits an agent across its models), plus the agent's **monthly cap** and **month-to-date** so the cap column is honest | Schema + join + grouping; cap from the spec's `budget.monthly_usd`, MTD from the query `/spend` already runs. No migration |
-| `AgentRunRead` | Nothing new needed |
+| `AgentRunRead` | Nothing new needed — and #200 adds `parent_run_id` and `subagent_task_id` to it, which is what lets the table and the detail view tell the two kinds of row apart |
+| `spend_by_provider` / `spend_by_key` — the `parent_run_id IS NULL` filter they lack | **Not this plan's work: #170.** But the By provider and By key cards are those two queries, so this tab over-counts a delegation until it lands (§6) |
 | Budget context on the month figure | Nothing new — `organizations.monthly_budget_usd` is already on `GET /orgs/{org_id}` |
 | "All organizations" mode (§6a) — `organization_id`-optional `/runs`, `/approvals`, `/spend`, refused for anyone but an app admin | Route + repository on all three; the one honestly droppable line here |
 
@@ -321,9 +410,10 @@ Everything else is frontend.
 
 - **`AgentRunRead.logfire_trace_id` is documented as *"Deep-link into the full trace"* and
   is always `null`** (`app/schemas/agent_run.py:29`). The public API promises something it
-  never delivers. Independent of this page. Removal is the likely fix: the only candidate
-  consumer, #52, independently rejected the same Logfire assumption and plans to work from
-  stored rows — so nothing waits on this field being written.
+  never delivers. Independent of this page. **Filed as #206** — and the disposition there
+  is *wire it*, not remove it: the deep link was reinstated at sign-off, which makes this
+  the first of three pieces rather than a deletion. §1's four findings still hold and are
+  the reason that issue is priced the way it is.
 
 A second find — "Spend by agent" listing model labels because `CostByAgent` carries no
 name (`runs/page.tsx:285`) — started here, but the mockup shows it fixed and the change
@@ -338,6 +428,13 @@ is one join, so it moved into scope: §7 prices it.
 - the new `list_runs` filters proven against a real database: a staging run absent when
   `environment_id` narrows to production, a `status` list returning both `failed` and
   `budget_exceeded` rows, a version filter returning only the rows that executed it
+- **delegation, against a real database** (§2a): the top-level list excludes a delegated
+  run while the run it came from is present; a run that delegated shows its delegations in
+  the detail view and a delegated run links back to its parent; the version strip of an
+  agent used *only* as a delegate is not empty, and its cost-per-run does not count a
+  delegation twice; and no environment-narrowed query silently loses a delegated row
+- the approvals queue names the delegate — `ApprovalDelegate` still renders and its
+  integration test still passes after the tab is rebuilt as three components
 - the decided view proven: a decided approval renders its decider and is refused a
   second decision; the pending queue and the decided list never share a row
 - the three tabs land as separate components — the 342-line page is already over the
