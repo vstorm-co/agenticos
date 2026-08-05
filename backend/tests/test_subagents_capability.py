@@ -8,8 +8,9 @@ run has ended. None of those look like errors, so each one is pinned here.
 
 The background path adds three more of the same kind, and each has its own class:
 a delegation nobody collects (`TestBackgroundDelegations`), a lifecycle tool whose
-description promises something it does not do (`TestTaskLifecycle`), and a
-delegate that stops for a person nobody can ask
+description promises something it does not do (`TestTaskLifecycle` - and
+`TestAttaching`, for the one whose promise cannot be kept at all and which is
+therefore not offered), and a delegate that stops for a person nobody can ask
 (`TestApprovalInsideADelegation`). Cancellation is deliberately *not* here: the
 cancel that matters arrives from outside the run, so it is asserted through the
 surface that sends it, in
@@ -73,7 +74,7 @@ from app.agents.capabilities.approval import (
 )
 from app.agents.capabilities.budget import SpendEntry, SpendLedger
 from app.agents.capabilities.subagents import Delegation, SubagentsConfig
-from app.agents.capabilities.subagents._capability import _LazyAgent
+from app.agents.capabilities.subagents._capability import UNREACHABLE_TOOLS, _LazyAgent
 from app.agents.capabilities.subagents._events import UNNAMED_TOOL, FrameLabels, frame_for
 from app.agents.capabilities.subagents._journal import DelegationJournal
 from app.agents.capabilities.subagents._toolset import DelegatingToolset
@@ -578,6 +579,38 @@ class TestAttaching:
         assert isinstance(capability, Delegation)
         assert capability.journal.max_fanout == SubagentsConfig().max_fanout
 
+    async def test_a_delegating_agent_is_offered_no_way_to_answer_a_question(self):
+        """The exact set a delegating agent's model reads, and why one is missing.
+
+        `answer_subagent` replies to a question a delegate asked, and no delegate
+        here can ask one: the library injects its `ask_parent` tool only into agents
+        it built itself, and every delegate arrives pre-built. So the tool could only
+        ever answer "that delegation is not waiting for an answer" - from a
+        description in every turn's context, which is the strongest prompt surface in
+        this product.
+
+        It stays *declared*, which is the second assertion. A tool absent from
+        `tools=` can be neither gated by the approval policy nor renamed by a
+        binding, and that half of the same failure is silent. agenticos#184 is what
+        would make it reachable, and `UNREACHABLE_TOOLS` says what that would take.
+        """
+        capability = a_capability(a_runtime(a_delegate()))
+        toolset = capability.get_toolset()
+        assert toolset is not None
+
+        offered = frozenset(await toolset.get_tools(a_context()))
+
+        assert offered == {
+            "task",
+            "check_task",
+            "wait_tasks",
+            "list_active_tasks",
+            "send_message_to_subagent",
+            "soft_cancel_task",
+            "hard_cancel_task",
+        }
+        assert get("subagents").tool_ids >= UNREACHABLE_TOOLS
+
     async def test_allow_dynamic_in_the_config_alone_offers_no_extra_tool(self):
         """The setting has one reader, and it is not this capability.
 
@@ -594,7 +627,11 @@ class TestAttaching:
 
         offered = frozenset(await toolset.get_tools(a_context()))
 
-        assert offered == get("subagents").tool_ids - {"create_agent", "delegate"}
+        assert offered == get("subagents").tool_ids - {
+            "create_agent",
+            "delegate",
+            *UNREACHABLE_TOOLS,
+        }
 
     async def test_the_model_reads_exactly_what_the_catalog_declares(self):
         """The other half of declaring the tools: the text has to be the same text.
@@ -1259,31 +1296,6 @@ class TestTaskLifecycle:
         assert [outcome.status for outcome in recorder.outcomes] == ["completed", "completed"]
         assert {outcome.task_id for outcome in recorder.outcomes} == set(task_ids)
         assert capability.journal.in_flight() == 0
-
-    async def test_answering_a_delegate_finds_nothing_to_answer(self):
-        """`answer_subagent` is declared, offered, and inert here - deliberately.
-
-        A task only reaches `WAITING_FOR_ANSWER` through the library's `ask_parent`,
-        and nothing in this deployment injects that tool. Both halves are closed: a
-        configured subagent - which every pinned delegate and every inline
-        specialist is, since all of them arrive as `SubAgentConfig["agent"]` - is
-        compiled with `inject_ask_parent=False`, and the two registry paths that
-        would get it are handed `can_ask_questions: False` by `_autonomously`. So no
-        specialist can ask a question and this tool can never have one to answer. It
-        stays declared because a tool absent from `tools=` cannot be gated or
-        renamed, and because the shape is what would change if a delegate ever could
-        ask. What it must not do is invent an answer.
-        """
-        capability = a_capability(a_runtime(a_delegate(model=blocking())), {"mode": "async"})
-        ctx = a_context()
-        task_id = task_id_in(await delegate_to(capability, ctx))
-
-        answer = await call_tool(
-            capability, ctx, "answer_subagent", {"task_id": task_id, "answer": "in EUR"}
-        )
-
-        assert "is not waiting for an answer" in answer
-        await ends_the_run(capability, ctx)
 
     @pytest.mark.parametrize("tool", ["soft_cancel_task", "hard_cancel_task"])
     async def test_cancelling_a_delegation_that_already_finished_explains_itself(self, tool: str):

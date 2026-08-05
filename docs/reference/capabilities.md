@@ -38,6 +38,11 @@ neither leaves anything for a person to approve, so neither declares a tool. A
 capability with genuinely no tools says so with `tools=()` rather than omitting
 the argument; see [Add a capability](../howto/add-capability.md).
 
+**This column is what a capability declares, which is not always what a model is
+offered.** Delegation is the one place the two differ: `create_agent` and `delegate`
+appear only under `allow_dynamic`, and `answer_subagent` appears to nobody at all —
+both explained under [Delegation](#delegation) below.
+
 ## Knowledge search
 
 `search_documents` — *Search the organization's documents for passages relevant to
@@ -250,11 +255,11 @@ pair it with `code_execution` or `knowledge` for that. No configuration.
 ## Delegation
 
 `task` — *hand a self-contained piece of work to one of this agent's specialists.*
-`check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent` — *following one
-that is running.*
+`check_task`, `wait_tasks`, `list_active_tasks` — *following one that is running.*
 `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task` — *steering or
 stopping one.*
 `create_agent`, `delegate` — *a specialist the model writes for itself, when the author allows it.*
+`answer_subagent` — *declared, and offered to no model.*
 
 One agent handing part of a job to another, each on its own model with its own
 knowledge and its own step limit, addressed by name. There are two shapes of
@@ -323,6 +328,26 @@ suspends anyway — a shape the library documents as undeliverable — is record
 "still running" for as long as the process lives: its spend attributed to nothing,
 its fan-out slot never released, and the panel a surface opened never closed.
 
+**And no delegate can ask a question of its own, so `answer_subagent` is offered to no
+model.** Parking for an approval is a gated tool being reviewed, not a specialist asking
+anything. This tool replies to a question a delegate asked, and the delegation library
+injects its `ask_parent` tool only into agents it built itself — every delegate here
+arrives pre-built, published delegate and inline specialist alike, and a specialist the
+model invents has the same door closed on purpose. So the tool's only possible answer is
+"that delegation is not waiting for an answer". It stays *declared*, because a tool
+absent from the declaration cannot be gated by the approval policy or renamed by a
+binding and that half of the failure is silent; it is filtered out of the offered set,
+because the other half is a description in every turn's context describing an action
+that cannot happen, and tool descriptions are the strongest prompt in this product.
+
+Opening the path is a feature rather than a repair, and the mode decides who could
+answer: a `sync` delegation's question goes to a **person**, through the run's own
+`ask_user` channel and never through this tool, while only a *background* delegation's
+question is answered by the parent's own model — which is the harder half, since the
+delegate then blocks holding a fan-out slot while nothing obliges the parent to look
+and the turn's end cancels it. Letting a sync delegate ask the person already waiting
+is [#184](https://github.com/vstorm-co/agenticos/issues/184).
+
 **`wait_tasks` truncates, and says so.** A completed task's result is cut at
 `max_result_chars` with an explicit marker pointing at `check_task`, which always
 returns the full text. The marker is the load-bearing half: a silent cut reads as a
@@ -376,7 +401,7 @@ door. Bind it on the parent and name it here.
 **`create_agent` and `delegate` are offered only under `allow_dynamic`.** A tool
 absent from a capability's declaration cannot be gated by the approval policy or
 renamed by a binding, and the dangerous half of that is silent — so all ten are
-declared, and a default configuration offers eight.
+declared, and a default configuration offers seven.
 
 What the switch buys is a specialist the model writes itself: instructions and a
 model, and nothing else. It is built through the same `build_agent` an inline
