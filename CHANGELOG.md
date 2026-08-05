@@ -19,6 +19,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.24] - 2026-08-05
+
+### Fixed
+
+- **A parked run whose spec no longer builds stays resumable**
+  ([#176](https://github.com/vstorm-co/agenticos/issues/176)). `resume` flipped the run to
+  `RUNNING` before fetching and building its spec, and `claim_parked_run` only claims a run
+  in `AWAITING_APPROVAL` — so if the build then failed (a secret a binding named was
+  deleted, a model profile removed, a capability dropped in a deploy, an MCP connection
+  unshared), the row was stranded in `RUNNING` and could never be resumed again, with a
+  person's approval recorded against work that would not continue and nothing reporting it.
+  The spec is built first now, and the run is marked `RUNNING` only once the build has
+  succeeded; a build that raises leaves the run `AWAITING_APPROVAL`, so the same approval
+  can be resumed once whatever the spec named is restored.
+
 ## [0.0.23] - 2026-08-05
 
 ### Fixed
@@ -956,7 +971,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.23...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.24...HEAD
+[0.0.24]: https://github.com/vstorm-co/agenticos/compare/v0.0.23...v0.0.24
 [0.0.23]: https://github.com/vstorm-co/agenticos/compare/v0.0.22...v0.0.23
 [0.0.22]: https://github.com/vstorm-co/agenticos/compare/v0.0.21...v0.0.22
 [0.0.21]: https://github.com/vstorm-co/agenticos/compare/v0.0.20...v0.0.21
