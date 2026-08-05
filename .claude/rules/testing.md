@@ -93,12 +93,21 @@ pytestmark = pytest.mark.anyio   # module top
 - `mock_db_session` — an `AsyncMock`. Mock repositories, never the service under test.
 - `mock_redis`, `api_key_headers`.
 
-The conftest pins `POSTGRES_DB=agenticos_test` before `app.core.config` is imported.
-Leave it: the unit suite once emptied a developer's database through a populated `.env`.
+The conftest points `POSTGRES_DB` at `<base>_p<pid>` before `app.core.config` is
+imported — a test database, and one per pytest process. Leave both halves: the unit
+suite once emptied a developer's database through a populated `.env`, and a constant
+name meant two runs on one machine dropping each other's tables mid-test (#189).
 
-`tests/integration/conftest.py` skips when no database is reachable and refuses any
-database whose name contains neither `test` nor `ci` — it calls `drop_all`
-unconditionally.
+`tests/integration/conftest.py` creates that database at the start of the session and
+drops it at the end, even when the suite fails, so **two concurrent runs are safe and
+nothing has to be passed to make them so**. It still skips when no database is
+reachable (a laptop without Docker) and still refuses any database whose name contains
+neither `test` nor `ci`, or that is not a plain identifier — it calls `drop_all`
+unconditionally and drops the database itself afterwards.
+
+A run killed outright (`SIGKILL`) leaks its database; the next run with that pid drops
+it before creating its own. Anything else named `agenticos_*` on a shared Postgres was
+made by hand and is nobody's to clean up automatically.
 
 ## Naming
 
