@@ -163,15 +163,23 @@ make docs-build   # build with --strict, which is what CI runs
 ## Development
 
 ```bash
-make check          # what CI runs: lint, types, backend tests, frontend tests
+make check          # every CI job except e2e — about five minutes
 make test           # backend + the 100% coverage gate on the platform layer
 make test-fast      # no coverage, for the write-run-write loop
-make test-frontend  # vitest
+make test-frontend  # vitest, no coverage — the loop, not the gate
+make test-frontend-cov  # vitest + the gate CI applies
+make lint           # ruff, ty, eslint, prettier, tsc, and the two guard scripts
 make test-e2e       # playwright, against a running stack
 make test-migrations  # apply and roll back the whole chain
-make format         # ruff
+make format         # ruff + prettier
 make help           # everything else
 ```
+
+`make check` is `lint test test-frontend-cov build-frontend docs-build audit` —
+every job in [`ci.yml`](.github/workflows/ci.yml) except `e2e`, which needs a
+seeded backend, and the image scan, which runs only on a push to `main`. The
+workflow calls those same targets rather than repeating their commands, and
+`backend/tests/test_ci_parity.py` fails if the two drift.
 
 The **platform layer** - everything AgenticOS adds on top of the generated
 template - is held at 100% coverage and CI fails below it. The exact list is
@@ -195,7 +203,8 @@ first - the layering is enforced by tests, not by convention. Then
 [Adding a feature](docs/adding_features.md).
 
 New behaviour ships with tests; a bug ships with a regression test. Run
-`make check` before opening a pull request - it is exactly what CI runs.
+`make check` before opening a pull request - it is every CI job except the two
+named above, and a test keeps that true.
 
 Three things that trip up a first change here:
 

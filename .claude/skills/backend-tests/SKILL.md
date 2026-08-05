@@ -16,7 +16,7 @@ make test-integration   # only the tests that need a real database
 make test-cov           # HTML at backend/htmlcov/index.html
 make coverage-all        # includes template-inherited code (informational)
 make test-migrations    # the whole chain forwards and back against Postgres
-make check              # what CI runs — before opening a PR
+make check              # every CI job except e2e — before opening a PR
 ```
 
 ## Which layer
