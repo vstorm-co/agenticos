@@ -266,6 +266,12 @@ Four properties worth knowing:
 
 - **A parked run is resumable.** Its message history is stored, so the decision is
   applied to the conversation it belongs to rather than starting again.
+- **It stays resumable if continuing it fails.** A run is continued on the version
+  it parked on, and that version's spec may have stopped building since - a secret
+  a binding names deleted, a model profile removed, a capability dropped in a
+  deploy, an MCP connection unshared. The spec is assembled before the run leaves
+  the approval queue, so a refusal there refuses the *attempt*: the decision
+  stands and resuming works again once the spec does.
 - **A decided approval cannot be decided twice.** The second decision is refused.
 - **`required` works on any capability**, not only side-effecting ones. "This only
   reads, but in my organization somebody approves it anyway" is a real decision
