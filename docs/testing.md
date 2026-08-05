@@ -119,9 +119,21 @@ bun run test:e2e --headed                                  # ...with a browser t
 97.5% branches over `src/{app/api,lib,stores,hooks}` and most of `src/components`.
 
 Playwright starts what the suite needs: the frontend, and an OpenAI-compatible
-**stub model server** (`frontend/e2e/stub-model-server.ts`) on `127.0.0.1:4010`.
-The backend and its database have to be up already — the seeded owner, model
-profile and published agent come from `agenticos cmd bootstrap`.
+**stub model server** (`frontend/e2e/stub-model-server.ts`) on `127.0.0.1:4010`
+by default. The backend and its database have to be up already — the seeded
+owner, model profile and published agent come from `agenticos cmd bootstrap`.
+
+Both ports are configurable, so the suite runs beside another checkout that
+already holds the defaults — a `bun run dev` left up on 3000, or a second
+worktree. `E2E_PORT` moves the frontend, `E2E_STUB_MODEL_PORT` the stub, and
+`playwright.config.ts` derives `baseURL`, both `webServer.url`s and the servers'
+`PORT`/`E2E_STUB_MODEL_PORT` from them — so nothing is told a port twice.
+`make test-e2e` reads all three (with `E2E_BACKEND`) and prints them before it
+starts:
+
+```bash
+E2E_PORT=3100 make test-e2e          # frontend on 3100, stub on its default
+```
 
 The stub is what lets `journey.spec.ts` run an agent end to end without a
 provider key: it serves the Chat Completions API, streaming included, and a model
@@ -130,6 +142,11 @@ agent's instructions tell it to say — which is the assertion, since nothing el
 could put that token in the reply — and returns usage, so the run is priced and
 the journey's last assertion has a cost to find. It authenticates nothing and
 calls no tools; what it does not prove is that a real provider answers.
+
+The stub binds loopback, and the backend dials it at `127.0.0.1:<port>` through
+that stored profile — so the backend has to share the host's loopback. That is
+the host-uvicorn path CI runs; a backend in a container cannot reach the host's
+`127.0.0.1`, and moving the port does not change that.
 
 ### A red `e2e` is often the fixture, not the product
 

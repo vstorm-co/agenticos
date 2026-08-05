@@ -342,7 +342,16 @@ audit:
 # Playwright starts the frontend itself; the backend and its seed are on you.
 # Checked rather than assumed: against a backend that is not there the suite
 # fails in fifty places at once, none of which say what is actually wrong.
+#
+# All three addresses are overridable so the suite can run beside another
+# checkout holding the defaults: E2E_PORT moves the frontend, E2E_STUB_MODEL_PORT
+# the stub model server, E2E_BACKEND the API the health check dials. They are
+# passed into the recipe's environment so Playwright and its specs read the same
+# values, and printed first because a suite that fails on a busy port should say
+# which one it wanted.
 E2E_BACKEND ?= http://localhost:8000
+E2E_PORT ?= 3000
+E2E_STUB_MODEL_PORT ?= 4010
 
 test-e2e:
 	@if ! curl -sf $(E2E_BACKEND)/api/v1/health > /dev/null; then \
@@ -350,7 +359,8 @@ test-e2e:
 		echo "  make dev && make platform-bootstrap"; \
 		exit 1; \
 	fi
-	cd frontend && bun run test:e2e
+	@echo "▶ frontend :$(E2E_PORT)  ·  stub model :$(E2E_STUB_MODEL_PORT)  ·  backend $(E2E_BACKEND)"
+	cd frontend && E2E_PORT=$(E2E_PORT) E2E_STUB_MODEL_PORT=$(E2E_STUB_MODEL_PORT) bun run test:e2e
 
 # Every CI job, in the order the workflow declares them, with the exceptions
 # named below. This is the one claim in this file that has to be exactly true:
