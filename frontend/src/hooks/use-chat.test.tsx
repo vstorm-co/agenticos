@@ -297,12 +297,23 @@ describe("useChat - the streamed answer", () => {
     expect(result.current.isProcessing).toBe(false);
   });
 
-  it("ignores the model lifecycle frames", () => {
-    // They exist for future status UI; today they must not open a message.
+  it("ignores the narration frames the server sends around every turn", () => {
+    // The six frames `agent_session.py` sends that this hook deliberately does not
+    // read. They must pass through without opening a message, because a turn that
+    // began with one of these would show an empty assistant bubble before the model
+    // said anything.
+    //
+    // This replaces a test that replayed `llm_started` and `llm_completed` - two
+    // frames no backend surface has ever sent. It passed, which was the problem: it
+    // made a `case` arm nothing could reach look covered and load-bearing.
     renderHook(() => useChat(), { wrapper });
 
-    receive("llm_started", {});
-    receive("llm_completed", {});
+    receive("user_prompt", { content: "How long?" });
+    receive("user_prompt_processed", { prompt: "How long?" });
+    receive("part_start", { index: 0, part_type: "TextPart" });
+    receive("call_tools_start", {});
+    receive("tool_call_delta", { index: 0, args_delta: '{"q":' });
+    receive("final_result_start", { tool_name: null });
 
     expect(useChatStore.getState().messages).toEqual([]);
   });
