@@ -23,6 +23,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
+from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Literal, Protocol
 from uuid import UUID
@@ -198,6 +199,15 @@ class DelegationOutcome:
     added together - this turn's share plus :class:`DelegationSpend`, which the park
     kept, `cost_is_partial` included. One `AgentRun` row is written, once, by the
     turn that finishes the delegation.
+
+    `started_at` and `ended_at` are the delegation's *own* span, read off the task
+    handle the library stamps when the delegate starts and when it reaches a
+    terminal status. They are not the moment the delegation was settled, which for
+    a background one is arbitrarily later - the poll that collected it - and gave
+    every background row a duration of zero placed at the wrong time
+    (agenticos#191). `None` when the handle carried no start: a delegation the
+    library refused before it began a task never ran, and the recorder falls back
+    rather than write a null into a non-null column.
     """
 
     subagent: str
@@ -210,6 +220,8 @@ class DelegationOutcome:
     agent_id: UUID | None = None
     agent_version_id: UUID | None = None
     error: str | None = None
+    started_at: datetime | None = None
+    ended_at: datetime | None = None
 
 
 DelegationRecorder = Callable[[DelegationOutcome], Awaitable[UUID | None]]

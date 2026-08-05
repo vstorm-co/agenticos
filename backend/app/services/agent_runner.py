@@ -1825,14 +1825,16 @@ class AgentRunnerService:
         row already contains these tokens, because a run has one ledger - and
         `agent_run_repo.sum_cost_since` is where that division lives.
 
-        The timing is honest about what it knows: a `DelegationOutcome` carries no
-        start, so both ends are the moment the delegation was reported. Queueing
-        does not make that worse - it is measured here, not at the write - and the
-        parent's row remains the authority on the run's real span. That is the one
-        thing on this row still measured at the settlement rather than at the
-        delegation: the *cost* no longer is, so a background delegation's row is
-        exact about what it spent and wrong about when it spent it -
-        agenticos#191, which the handle already carries the answer to.
+        The span is the delegation's own, off the task handle: `started_at` when
+        the delegate started and `ended_at` when it reached a terminal status,
+        carried through :class:`DelegationOutcome`. Neither is the settlement
+        instant, which for a background delegation is the poll that collected it -
+        arbitrarily later than the delegate finished, and what once gave every
+        background row a duration of zero ordered after work that preceded it
+        (agenticos#191). Only when the handle carried no start - a delegation
+        refused before it began a task - does the row fall back to `now`, because
+        both columns are non-null and a delegation that never ran has no span to
+        record. The parent's row remains the authority on the run's real span.
         """
 
         async def record(outcome: DelegationOutcome) -> UUID | None:
@@ -1850,7 +1852,14 @@ class AgentRunnerService:
                 )
                 return None
 
+            # The delegation's own span, off the handle. `now` only when the handle
+            # carried none - a delegation the library refused before it started a
+            # task never ran, and both columns are non-null. `ended_at` falls back
+            # to the start rather than to `now`, so a handle missing its end reads
+            # as a zero-duration run at the right time, never a negative span.
             now = datetime.now(UTC)
+            started_at = outcome.started_at or outcome.ended_at or now
+            ended_at = outcome.ended_at or started_at
             delegated = RecordedDelegation(
                 id=uuid4(),
                 agent_id=outcome.agent_id,
@@ -1868,8 +1877,8 @@ class AgentRunnerService:
                 # parent's row a floor and says nothing about a delegate that ran
                 # on a priced one.
                 cost_is_partial=outcome.cost_is_partial,
-                started_at=now,
-                ended_at=now,
+                started_at=started_at,
+                ended_at=ended_at,
                 error=outcome.error,
             )
             # `append` is atomic under the GIL and this coroutine never awaits, so

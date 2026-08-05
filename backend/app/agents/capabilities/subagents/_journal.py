@@ -611,6 +611,11 @@ class DelegationJournal:
                 agent_id=delegation.agent_id,
                 agent_version_id=delegation.agent_version_id,
                 error=handle.error,
+                # The delegation's own span, not this settlement. The library
+                # stamps both when the delegate starts and when it ends, which for
+                # a background one is well before the poll that collects it here.
+                started_at=handle.started_at,
+                ended_at=handle.completed_at,
             )
         )
         if sink is not None:

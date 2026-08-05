@@ -1228,6 +1228,65 @@ class TestRecordingADelegation:
 
         assert result.only.cost_is_partial is False
 
+    async def test_a_delegations_row_spans_its_own_start_and_end(self):
+        """agenticos#191: the span is the delegate's, not the settlement's.
+
+        Both ends used to be `now` at the moment the delegation was reported,
+        which for a background one is the poll that collected it - so its row read
+        as a zero-duration run at the wrong time. Off the handle instead, the row
+        carries the interval the delegate actually ran for.
+        """
+        version_id = uuid.uuid4()
+        started = datetime(2026, 8, 5, 9, 0, tzinfo=UTC)
+        ended = datetime(2026, 8, 5, 9, 0, 40, tzinfo=UTC)
+        outcome = _outcome(
+            agent_id=uuid.uuid4(),
+            agent_version_id=version_id,
+            started_at=started,
+            ended_at=ended,
+        )
+
+        result = await _record(outcome, attribution={version_id: _model()})
+
+        assert result.only.started_at == started
+        assert result.only.ended_at == ended
+
+    async def test_a_delegation_refused_before_it_started_records_a_zero_span(self):
+        """agenticos#191: a handle with no start must not write a null.
+
+        The library refuses a delegation before starting a task - a `chat_trace_id`
+        it does not know - and the outcome then carries no times. Both columns are
+        non-null, so the recorder falls back to `now`: a zero-duration run recorded
+        where it was reported, rather than a `NULL` the insert rejects.
+        """
+        version_id = uuid.uuid4()
+        outcome = _outcome(agent_id=uuid.uuid4(), agent_version_id=version_id)
+
+        result = await _record(outcome, attribution={version_id: _model()})
+
+        assert result.only.started_at is not None
+        assert result.only.ended_at == result.only.started_at
+
+    async def test_a_handle_with_an_end_but_no_start_reads_as_an_instant(self):
+        """A task that reached a terminal status without executing - cancelled or
+        failed before it began - has an end stamped and no start. The row takes the
+        end for both, so its span is an instant at the right time rather than one
+        that ends before it began."""
+        version_id = uuid.uuid4()
+        ended = datetime(2026, 8, 5, 9, 0, 40, tzinfo=UTC)
+        outcome = _outcome(
+            agent_id=uuid.uuid4(),
+            agent_version_id=version_id,
+            status="cancelled",
+            started_at=None,
+            ended_at=ended,
+        )
+
+        result = await _record(outcome, attribution={version_id: _model()})
+
+        assert result.only.started_at == ended
+        assert result.only.ended_at == ended
+
     async def test_an_inline_specialist_records_nothing(self):
         """It has no agent to attribute a row to: it is not versioned, nothing
         else can reference it, and its cost is already the parent's."""

@@ -121,6 +121,15 @@ the transcript is the record.
     per row too: a parent on a model `genai-prices` does not know makes the parent's
     total a floor, and says nothing about a delegate that ran on a priced one.
 
+    A delegated row's `started_at` and `ended_at` are the delegation's **own** span,
+    read off the task handle the library stamps when the delegate starts and when it
+    ends - not the moment the row was settled. Off the settlement, a background
+    delegation read as a zero-duration run at the wrong time, ordered after work that
+    finished before it; two that genuinely overlapped were recorded at the same
+    instant with nothing to say they had. A delegation the library refused before it
+    began a task never ran, so its row falls back to a zero-length span at the time
+    it was recorded rather than claiming a duration it never had.
+
 **A delegation that parked on an approval is more than one share.** Its turns ran
 in different processes against different ledgers, and a resumed turn's ledger is a
 fresh object holding nothing from before the park - so what the child row records is
