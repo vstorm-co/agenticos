@@ -19,6 +19,29 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.10] - 2026-08-05
+
+### Fixed
+
+- **The E2E seed no longer depends on a product bug to pass**
+  ([#132](https://github.com/vstorm-co/agenticos/issues/132)). Five sites created a row
+  through a dialog and then asserted it was on screen, with no wait on the write that put
+  it there; four flaked, and three branches paid a diagnosis for it in one day. Two causes,
+  both now removed from the test's path. An open Radix dialog takes the rest of the page
+  out of the accessibility tree, so `getByRole` resolved to nothing while the dialog was up
+  and the assertion reported `element(s) not found` for a refusal it never looked at — a
+  shared `submitDialog` waits on the write's own network response instead, and through the
+  client's transparent 401 retry so it matches the request that settled rather than the one
+  that was retried. And a **fixture** step now asserts through the API, never on the row
+  appearing, because the refetch after a write is sometimes answered the pre-write list —
+  which is a real product bug ([#230](https://github.com/vstorm-co/agenticos/issues/230)),
+  left open, not a broken fixture.
+
+  A failing `[setup]` or `[seed]` step is a Playwright *project dependency*, so its failure
+  skips every product spec — the log reads "1 failed, 7 passed, 17 did not run" and looks
+  like a product regression. `e2e/fixture-reporter.ts` now prints a banner saying exactly
+  that, so the next reader does not spend the diagnosis a fourth time.
+
 ## [0.0.9] - 2026-08-05
 
 ### Fixed
@@ -679,7 +702,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.9...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.10...HEAD
+[0.0.10]: https://github.com/vstorm-co/agenticos/compare/v0.0.9...v0.0.10
 [0.0.9]: https://github.com/vstorm-co/agenticos/compare/v0.0.8...v0.0.9
 [0.0.8]: https://github.com/vstorm-co/agenticos/compare/v0.0.7...v0.0.8
 [0.0.7]: https://github.com/vstorm-co/agenticos/compare/v0.0.6...v0.0.7
