@@ -205,9 +205,14 @@ class DelegationOutcome:
     terminal status. They are not the moment the delegation was settled, which for
     a background one is arbitrarily later - the poll that collected it - and gave
     every background row a duration of zero placed at the wrong time
-    (agenticos#191). `None` when the handle carried no start: a delegation the
-    library refused before it began a task never ran, and the recorder falls back
-    rather than write a null into a non-null column.
+    (agenticos#191). `started_at` is `None` when a terminal handle reached its end
+    without ever starting - a delegate cancelled or failed before it executed - and
+    the recorder falls back rather than write a null into a non-null column. (A
+    library refusal *before a handle exists* - an unknown `chat_trace_id` - writes
+    no row at all: :meth:`DelegationJournal.settle` returns before building an
+    outcome.) The span is the settling turn's; a delegation that parked on an
+    approval does not yet carry its pre-park start across the resume, unlike its
+    cost - agenticos#245.
     """
 
     subagent: str

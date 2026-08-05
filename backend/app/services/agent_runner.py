@@ -1831,10 +1831,13 @@ class AgentRunnerService:
         instant, which for a background delegation is the poll that collected it -
         arbitrarily later than the delegate finished, and what once gave every
         background row a duration of zero ordered after work that preceded it
-        (agenticos#191). Only when the handle carried no start - a delegation
-        refused before it began a task - does the row fall back to `now`, because
-        both columns are non-null and a delegation that never ran has no span to
-        record. The parent's row remains the authority on the run's real span.
+        (agenticos#191). A terminal handle that ended without a start - a delegate
+        cancelled or failed before executing - falls back to that end, and a handle
+        carrying neither falls back to `now`: both columns are non-null and a
+        delegation with no recorded span still has to write one. (A refusal *before*
+        a handle exists writes no row at all - :meth:`DelegationJournal.settle`
+        returns first.) The parent's row remains the authority on the run's real
+        span.
         """
 
         async def record(outcome: DelegationOutcome) -> UUID | None:

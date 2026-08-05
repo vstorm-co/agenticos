@@ -1251,13 +1251,15 @@ class TestRecordingADelegation:
         assert result.only.started_at == started
         assert result.only.ended_at == ended
 
-    async def test_a_delegation_refused_before_it_started_records_a_zero_span(self):
-        """agenticos#191: a handle with no start must not write a null.
+    async def test_an_outcome_carrying_no_times_falls_back_to_a_zero_span(self):
+        """agenticos#191: a handle with no times must not write a null.
 
-        The library refuses a delegation before starting a task - a `chat_trace_id`
-        it does not know - and the outcome then carries no times. Both columns are
-        non-null, so the recorder falls back to `now`: a zero-duration run recorded
-        where it was reported, rather than a `NULL` the insert rejects.
+        A terminal handle that carried neither a start nor an end - all the outcome
+        has to offer - leaves both columns, which are non-null, to fall back to
+        `now`: a zero-duration run recorded where it was reported, rather than a
+        `NULL` the insert rejects. (The refusal that creates no handle at all writes
+        no row; that path never reaches the recorder - see
+        `tests/test_subagents_capability.py::TestBackgroundDelegations`.)
         """
         version_id = uuid.uuid4()
         outcome = _outcome(agent_id=uuid.uuid4(), agent_version_id=version_id)

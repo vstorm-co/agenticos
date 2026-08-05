@@ -126,9 +126,13 @@ the transcript is the record.
     ends - not the moment the row was settled. Off the settlement, a background
     delegation read as a zero-duration run at the wrong time, ordered after work that
     finished before it; two that genuinely overlapped were recorded at the same
-    instant with nothing to say they had. A delegation the library refused before it
-    began a task never ran, so its row falls back to a zero-length span at the time
-    it was recorded rather than claiming a duration it never had.
+    instant with nothing to say they had. A terminal handle with an end but no start -
+    a delegate cancelled or failed before it began executing - records a zero-length
+    span at that end, never a null; and where the library refuses before a handle
+    exists at all - an unknown `chat_trace_id` - no delegated row is written. A
+    delegation that parked on an approval spans only the segment that settled it: its
+    pre-park span is not yet carried across the resume, tracked in
+    [#245](https://github.com/vstorm-co/agenticos/issues/245).
 
 **A delegation that parked on an approval is more than one share.** Its turns ran
 in different processes against different ledgers, and a resumed turn's ledger is a
