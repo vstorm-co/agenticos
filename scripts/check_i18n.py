@@ -77,6 +77,14 @@ NOT_A_SENTENCE = re.compile(
 # `Showing {n} of {m} rows`. `JSX_TEXT` excludes braces by construction, so the first
 # sweep read straight past this whole class and left it in English.
 MIXED = re.compile(r">([^<>\n]*\{[^{}\n]*\}[^<>\n]*)<")
+# A count built the English way: an interpolation and then the noun it counts, `{n}
+# runs`, `{count} documents`. English is the only language where a trailing `s` makes
+# the plural - Polish declines the noun, so `1 runs` never becomes `1 run` and the word
+# cannot agree with the number at all. The fix is the count inside an ICU `plural`
+# message, which a hand-built text node can never become. `MIXED` reads straight past
+# this: one trailing word is below its two-word threshold. The interpolation holds no
+# angle bracket, so `{cond && <span/>} more` - a conditional, not a count - never matches.
+COUNT = re.compile(r">\s*\{[^{}<>\n]+\}\s+([A-Za-z]{2,})\s*<")
 # A plural somebody rolled by hand: `{n} chunk{n === 1 ? "" : "s"}`. English is the
 # only language where this works, which is the point of `plural` in an ICU message.
 PLURAL = re.compile(r'\?\s*"([A-Za-z]*)"\s*:\s*"([A-Za-z]*)"')
@@ -162,6 +170,9 @@ def offences(path: Path) -> list[tuple[int, str]]:
             rest = re.sub(r"\{[^{}]*\}", " ", match.group(1))
             if len(WORDS.findall(rest)) >= 2 and not re.search(r"&&|\|\||=>", rest):
                 found.append((number, f"text {' '.join(match.group(1).split())!r}"))
+        for match in (() if typescript else COUNT.finditer(line)):
+            if is_copy(match.group(1)):
+                found.append((number, f"count {' '.join(match.group(0).strip().split())!r}"))
         for match in (() if "className" in line else TEMPLATE.finditer(line)):
             body = re.sub(r"\$\{[^{}]*\}", "\x00", match.group(1))
             if TWO_WORDS.search(body) and not MACHINE_READ.search(body):
