@@ -19,6 +19,105 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.7] - 2026-08-05
+
+**Delegation.** An agent can hand work to named specialists instead of carrying every
+intermediate result in one context — and three checks that existed and did not run were
+made to run, which is how two of the defects below were found.
+
+`SPEC_VERSION` is unchanged at **7**: every field delegation adds is optional with a
+default, so a spec stored before it reads unchanged. Two migrations,
+`0007_delegated_runs` and `0008_approval_delegate`, both additive and both reversible.
+
+### Added
+
+- **Delegation** ([#40](https://github.com/vstorm-co/agenticos/issues/40)). Two kinds, and
+  the difference is deliberately visible rather than smoothed over:
+
+  - a **delegate** is a published agent **pinned to a version** — permission-checked at
+    publish, with its own capabilities, model and collections. A pin whose version is gone
+    fails the run and names the delegate; never a quiet fall back to the current version,
+    because the point of pinning is that nothing changes without somebody deciding.
+  - an **inline specialist** carries its own bindings but is **not versioned**: nothing can
+    reference it, and editing the parent changes it.
+
+  What makes something an agent here is versioning, a permission check at publish, its own
+  capabilities, and being metered and capped. A specialist has three of the four, and the
+  one it lacks is the version — which is the whole design, and why there is one spec type,
+  one validator and one builder used recursively rather than a second agent format.
+
+  A delegation streams into its own collapsible panel per task, so a fan-out is legible
+  rather than a quiet gap in the transcript; a gated tool inside a delegate parks the run
+  and **resumes in place** rather than re-running the delegation; `sync`, `async` and `auto`
+  modes with the task-lifecycle tools; and a model may invent a specialist at run time
+  behind `allow_dynamic`, built through the same `build_agent` everything else goes through
+  so its requests are priced and counted.
+
+  Cost is the part worth reading twice. One run has **one spend ledger**, and every delegate
+  records into it — which is what makes the parent's cap see a delegation's spend before its
+  next model request, at precisely the moment delegation multiplies what a turn can cost. So
+  the caps that bind inside a delegation are the parent's. A delegation to a published agent
+  also gets an `agent_runs` row of its own carrying `parent_run_id`, and the two monthly
+  questions want opposite arithmetic: what the organization owes excludes child rows, what
+  *one agent* cost includes them.
+
+### Fixed
+
+- **A delegate's own knowledge collections never reached the running delegate**
+  ([#166](https://github.com/vstorm-co/agenticos/issues/166)). The delegation library runs a
+  child on `clone_for_subagent` of the *parent's* deps, so the deps our factory built for it
+  — collections and all — were discarded before its first request. A delegate configured
+  with a collection resolved it, never saw it, and answered "No active knowledge bases
+  selected" to every search while looking correctly configured.
+
+- **Three spend aggregates double-counted a delegated run**
+  ([#170](https://github.com/vstorm-co/agenticos/issues/170)), and one of them was emailed
+  as the organization's bill. On a $1.00 run of which $0.40 was a delegate, the bill read
+  $1.00 and three breakdowns read $1.40 — with the delegate's $0.40 appearing under two
+  vendors at once.
+
+- **The liveness probe reported version `1.0.0` from every deployment**, however many
+  releases it was behind. `GET /api/v1/health/live` read
+  `getattr(settings, "VERSION", "1.0.0")` against a setting that has never existed, so the
+  fallback was the only answer it ever gave — and the `getattr` is what made it silent
+  rather than an `AttributeError` on the first request. It now reports `app.__version__`,
+  the same source OpenAPI and the CLI already read.
+
+  Found by the automated reviewer on this release's own pull request, which is the right
+  place for it: the one claim a release makes is that the version is the same everywhere.
+  The test that should have caught it is named `test_liveness_probe_reports_the_build` and
+  asserted the status and the environment — everything except the build.
+
+- **Every integration run gets a database of its own**
+  ([#189](https://github.com/vstorm-co/agenticos/issues/189)). `tests/integration/conftest.py`
+  called `drop_all` against a fixed database name, so two suites at once dropped each
+  other's tables — two runs of the same commit produced *different* failure sets, which is
+  the signature of a race rather than a bug. Four people lost time to it in one day. The
+  name now carries the pytest process id, created and dropped by the fixture; both safety
+  rails are kept and one added.
+
+### Changed
+
+- **`make check` now runs every job CI runs**
+  ([#143](https://github.com/vstorm-co/agenticos/issues/143)). It was documented as "what CI
+  runs" and ran about half: `bun run build`, `pip-audit` and `mkdocs --strict` had no local
+  equivalent at all, and eslint, prettier and `tsc` sat outside `make lint`, so it passed on
+  a branch with a type error in a `.tsx`. One divergence ran the other way and is the
+  sharper one — the i18n check was local-only, so a pull request could merge an
+  untranslated string in a product whose frontend rules lean on that script.
+
+  Fixed structurally rather than by copying commands: the workflow calls the Makefile's
+  targets, and `backend/tests/test_ci_parity.py` asserts both directions, so a job added to
+  one and not the other fails the suite.
+
+- **Spelling is checked over the tree, not over the files a commit happens to touch**
+  ([#188](https://github.com/vstorm-co/agenticos/issues/188)). One misspelling was sitting
+  on `main`, waiting for whoever next opened that file for an unrelated reason. Exactly one
+  existed once the scope was right, verified two ways — the per-file scope had not
+  accumulated a backlog, it was hiding one word and would have gone on hiding the next.
+  `.codespellrc` now records that omitting the `en-GB_to_en-US` dictionary is deliberate:
+  this repository writes "behaviour" on purpose.
+
 ## [0.0.6] - 2026-08-04
 
 Dependencies only. No behaviour change, no schema change, `SPEC_VERSION` unchanged
@@ -472,7 +571,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.6...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.7...HEAD
+[0.0.7]: https://github.com/vstorm-co/agenticos/compare/v0.0.6...v0.0.7
 [0.0.6]: https://github.com/vstorm-co/agenticos/compare/v0.0.5...v0.0.6
 [0.0.5]: https://github.com/vstorm-co/agenticos/compare/v0.0.4...v0.0.5
 [0.0.4]: https://github.com/vstorm-co/agenticos/compare/v0.0.3...v0.0.4
