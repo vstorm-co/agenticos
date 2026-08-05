@@ -23,8 +23,9 @@ import re
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from dataclasses import dataclass, field
+from decimal import Decimal
 from typing import Any, Protocol
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
 
 import pytest
@@ -38,6 +39,7 @@ from app.core.permissions import ROLE_PERMS, AuthContext, OrgRoleName, Perm, Sco
 from app.db.models.resource_grant import Visibility
 from app.main import app
 from app.services.sharing import SharingService
+from app.services.stats import StatsService
 
 pytestmark = pytest.mark.anyio
 
@@ -129,6 +131,7 @@ _SERVICE_DEPS = (
     deps.get_collection_access_service,
     deps.get_sync_source_service,
     deps.get_rag_document_service,
+    deps.get_stats_service,
 )
 
 Provider = Callable[[], object]
@@ -469,6 +472,10 @@ _PLATFORM_PREFIXES = (
     "/runs",
     "/approvals",
     "/spend",
+    # The dashboard's aggregates. Without the prefix here the sweep would pass
+    # over them silently - the worst kind of pass, since these routes carry no
+    # `require()` at all and depend entirely on the service deciding per scope.
+    "/stats",
     "/skills",
     "/providers",
     "/audit",
@@ -592,6 +599,13 @@ RESOURCE_AWARE_SERVICES = (
     # which is what made a listing of *their own* files an operator screen.
     # `TestWorkspacesAreScopedToTheirReader` is where those refusals are proven.
     deps.get_sandbox_workspace_service,
+    # The stats service decides per *scope parameter* rather than per grant on
+    # a row - org-wide numbers demand runs:view, a caller's own rows demand
+    # only that there is a caller. A route gate would refuse a member's
+    # scope=own before the parameter was ever read. Same principle as the
+    # rest of this list (the layer that can see the deciding fact decides),
+    # new shape; `TestStatsScopeIsDecidedInTheService` proves the refusals.
+    deps.get_stats_service,
 )
 
 
@@ -734,6 +748,88 @@ class TestSharingRoutesRefuseWithoutAGrant:
         # Reading reports the row as missing rather than forbidden, so ids
         # cannot be probed; changing it is an outright refusal.
         assert response.status_code == (404 if method == "GET" else 403)
+
+
+# -- the stats routes, whose gate is the scope parameter ----------------------
+
+
+_STATS_PATHS = ("/stats/usage",)
+
+
+class TestStatsScopeIsDecidedInTheService:
+    """The stats routes carry no `require()`; the service decides per scope.
+
+    Same principle as the sharing rows - the layer that can see the deciding
+    fact decides - but the fact is the `scope` parameter rather than a grant:
+    org-wide numbers demand `runs:view`, a caller's own rows demand only that
+    there is a caller. A route gate would refuse a member's `scope=own`
+    before the parameter was ever read.
+    """
+
+    @pytest.fixture
+    def stats_repos(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Every aggregate answers zero, so a 200 is a statement about the gate."""
+        for name, value in (
+            ("count_runs", 0),
+            ("runs_by_day", []),
+            ("runs_by_dimension", []),
+            ("runs_by_agent", []),
+            ("latency_percentiles_ms", (None, None)),
+            ("sum_cost_window", Decimal(0)),
+            ("cost_by_provider_window", []),
+            ("count_distinct_users", 0),
+            ("count_pending_approval_runs", 0),
+        ):
+            monkeypatch.setattr(
+                f"app.services.stats.agent_run_repo.{name}", AsyncMock(return_value=value)
+            )
+        monkeypatch.setattr(
+            "app.services.stats.member_repo.count_for_org", AsyncMock(return_value=0)
+        )
+
+    @staticmethod
+    def _service() -> dict[Callable[..., object], Provider]:
+        return {deps.get_stats_service: lambda: StatsService(MagicMock())}
+
+    @pytest.mark.parametrize("path", _STATS_PATHS)
+    async def test_org_scope_without_runs_view_is_refused(
+        self, synthetic_roles: None, stats_repos: None, as_role: ClientFactory, path: str
+    ) -> None:
+        async with as_role(all_but(Perm.RUNS_VIEW), self._service()) as client:
+            response = await client.get(_url(path, "?scope=org"))
+
+        assert response.status_code == 403
+
+    @pytest.mark.parametrize("path", _STATS_PATHS)
+    async def test_org_scope_with_runs_view_is_answered(
+        self, synthetic_roles: None, stats_repos: None, as_role: ClientFactory, path: str
+    ) -> None:
+        async with as_role(only(Perm.RUNS_VIEW), self._service()) as client:
+            response = await client.get(_url(path, "?scope=org"))
+
+        assert response.status_code == 200
+
+    @pytest.mark.parametrize("path", _STATS_PATHS)
+    async def test_a_member_is_refused_org_scope_but_answered_own(
+        self, stats_repos: None, as_role: ClientFactory, path: str
+    ) -> None:
+        """The pair that a route-level gate cannot express."""
+        async with as_role(OrgRoleName.MEMBER, self._service()) as client:
+            refused = await client.get(_url(path, "?scope=org"))
+            answered = await client.get(_url(path, "?scope=own"))
+
+        assert refused.status_code == 403
+        assert answered.status_code == 200
+
+    @pytest.mark.parametrize("path", _STATS_PATHS)
+    async def test_a_viewer_gets_their_own_rows_not_a_refusal(
+        self, stats_repos: None, as_role: ClientFactory, path: str
+    ) -> None:
+        """Zero rows is the honest answer for a viewer; 403 would be a lie."""
+        async with as_role(OrgRoleName.VIEWER, self._service()) as client:
+            response = await client.get(_url(path, "?scope=own"))
+
+        assert response.status_code == 200
 
 
 # -- the inverse guard, for routes that are deliberately open -----------------

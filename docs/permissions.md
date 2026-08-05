@@ -178,6 +178,19 @@ exactly the moment it should be narrowed to nothing.
 
     `tests/api/test_platform_routes.py` enforces both halves.
 
+There is a third placement, for a route whose *parameter* decides the question.
+`GET /stats/usage` serves two askers behind one path: `scope=org` reads
+everybody's runs and demands `runs:view`, while `scope=own` reads only the
+caller's own rows and demands nothing beyond a signed-in membership. A
+route-level `require(runs:view)` would refuse a member's `scope=own` before the
+parameter was ever read, so the route carries no gate and `StatsService` makes
+the decision - the same principle as per-resource routes (the layer that can
+see the deciding fact decides), where the fact is the scope parameter rather
+than a grant on a row. The route sweep recognizes such a service the same way
+it recognizes the grant-aware ones, and
+`tests/api/test_platform_routes.py::TestStatsScopeIsDecidedInTheService` proves
+the refusals.
+
 ## Contexts with no subject
 
 `AuthContext.user_id` is optional, and that is a statement rather than a

@@ -1,0 +1,230 @@
+"""StatsService - window arithmetic and the scope decision.
+
+The SQL itself is proven against a real database in
+tests/integration/test_usage_stats_sql.py; here the repository boundary is
+mocked and what is under test is everything the service adds on top of it:
+the inclusive-dates-to-half-open-window conversion, the previous-window
+arithmetic, the zero-filled day series, and the rule that org scope demands
+runs:view while own scope demands only a caller.
+"""
+
+from __future__ import annotations
+
+from datetime import UTC, date, datetime
+from decimal import Decimal
+from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
+
+import pytest
+
+from app.core.exceptions import AuthorizationError, ValidationError
+from app.core.permissions import AuthContext, OrgRoleName
+from app.services.stats import StatsService, resolve_window
+
+pytestmark = pytest.mark.anyio
+
+
+def _ctx(role: str = OrgRoleName.OWNER.value) -> AuthContext:
+    return AuthContext(user_id=uuid4(), organization_id=uuid4(), role=role)
+
+
+@pytest.fixture
+def repos(monkeypatch: pytest.MonkeyPatch) -> dict[str, AsyncMock]:
+    """Every aggregate stubbed at the repository boundary, individually settable."""
+    mocks: dict[str, AsyncMock] = {}
+    for name, value in (
+        ("count_runs", 0),
+        ("runs_by_day", []),
+        ("runs_by_dimension", []),
+        ("runs_by_agent", []),
+        ("latency_percentiles_ms", (None, None)),
+        ("sum_cost_window", Decimal(0)),
+        ("cost_by_provider_window", []),
+        ("count_distinct_users", 0),
+        ("count_pending_approval_runs", 0),
+    ):
+        mock = AsyncMock(return_value=value)
+        monkeypatch.setattr(f"app.services.stats.agent_run_repo.{name}", mock)
+        mocks[name] = mock
+    member_count = AsyncMock(return_value=0)
+    monkeypatch.setattr("app.services.stats.member_repo.count_for_org", member_count)
+    mocks["count_for_org"] = member_count
+    return mocks
+
+
+class TestResolveWindow:
+    def test_inclusive_dates_become_a_half_open_utc_window(self) -> None:
+        window = resolve_window(date(2026, 7, 1), date(2026, 7, 31))
+
+        assert window.start == datetime(2026, 7, 1, tzinfo=UTC)
+        # 23:59:59 of the last day counts; midnight of the next day does not.
+        assert window.end == datetime(2026, 8, 1, tzinfo=UTC)
+
+    def test_a_single_day_window_spans_exactly_one_day(self) -> None:
+        window = resolve_window(date(2026, 7, 15), date(2026, 7, 15))
+
+        assert window.end - window.start == datetime(2026, 7, 16, tzinfo=UTC) - datetime(
+            2026, 7, 15, tzinfo=UTC
+        )
+
+    def test_defaults_are_the_last_thirty_days_ending_today(self) -> None:
+        window = resolve_window(None, None, today=date(2026, 8, 5))
+
+        assert window.to_date == date(2026, 8, 5)
+        assert window.from_date == date(2026, 7, 7)
+        assert (window.to_date - window.from_date).days == 29
+
+    def test_today_defaults_to_the_real_clock(self) -> None:
+        window = resolve_window(None, None)
+
+        assert window.to_date == datetime.now(UTC).date()
+
+    def test_only_from_given_runs_through_today(self) -> None:
+        window = resolve_window(date(2026, 8, 1), None, today=date(2026, 8, 5))
+
+        assert (window.from_date, window.to_date) == (date(2026, 8, 1), date(2026, 8, 5))
+
+    def test_from_after_to_is_refused(self) -> None:
+        with pytest.raises(ValidationError):
+            resolve_window(date(2026, 8, 5), date(2026, 8, 1))
+
+    def test_the_previous_window_has_the_same_length_and_ends_at_start(self) -> None:
+        window = resolve_window(date(2026, 7, 11), date(2026, 7, 20))
+
+        prev_start, prev_end = window.previous
+        assert prev_end == window.start
+        assert prev_end - prev_start == window.end - window.start
+        assert prev_start == datetime(2026, 7, 1, tzinfo=UTC)
+
+
+class TestTheScopeDecision:
+    async def test_org_scope_without_runs_view_is_refused(self, repos) -> None:
+        service = StatsService(MagicMock())
+
+        with pytest.raises(AuthorizationError):
+            await service.usage(_ctx(role=OrgRoleName.MEMBER.value), scope="org")
+
+    async def test_own_scope_is_open_to_a_member_and_narrows_every_query(self, repos) -> None:
+        ctx = _ctx(role=OrgRoleName.MEMBER.value)
+
+        result = await StatsService(MagicMock()).usage(ctx, scope="own")
+
+        assert result.scope == "own"
+        for name in ("count_runs", "runs_by_day", "runs_by_dimension", "runs_by_agent"):
+            for call in repos[name].call_args_list:
+                assert call.kwargs["user_id"] == ctx.user_id
+
+    async def test_a_context_with_no_subject_cannot_ask_for_its_own_rows(self, repos) -> None:
+        ctx = AuthContext.anonymous(uuid4())
+
+        with pytest.raises(AuthorizationError):
+            await StatsService(MagicMock()).usage(ctx, scope="own")
+
+    async def test_org_scope_queries_are_not_narrowed_to_the_caller(self, repos) -> None:
+        await StatsService(MagicMock()).usage(_ctx(), scope="org")
+
+        for call in repos["count_runs"].call_args_list:
+            assert call.kwargs["user_id"] is None
+
+
+class TestTheComposedAnswer:
+    async def test_days_with_no_runs_are_present_with_zero(self, repos) -> None:
+        repos["runs_by_day"].return_value = [(date(2026, 7, 2), 5)]
+
+        result = await StatsService(MagicMock()).usage(
+            _ctx(), from_date=date(2026, 7, 1), to_date=date(2026, 7, 3)
+        )
+
+        assert result.by_day is not None
+        assert [(entry.date, entry.runs) for entry in result.by_day] == [
+            (date(2026, 7, 1), 0),
+            (date(2026, 7, 2), 5),
+            (date(2026, 7, 3), 0),
+        ]
+
+    async def test_the_previous_total_is_asked_of_the_previous_window(self, repos) -> None:
+        repos["count_runs"].side_effect = [40, 31]
+
+        result = await StatsService(MagicMock()).usage(
+            _ctx(), from_date=date(2026, 7, 11), to_date=date(2026, 7, 20)
+        )
+
+        assert (result.total_runs, result.previous_total_runs) == (40, 31)
+        previous_call = repos["count_runs"].call_args_list[1]
+        assert previous_call.kwargs["start"] == datetime(2026, 7, 1, tzinfo=UTC)
+        assert previous_call.kwargs["end"] == datetime(2026, 7, 11, tzinfo=UTC)
+
+    async def test_latency_is_rounded_to_whole_milliseconds(self, repos) -> None:
+        repos["latency_percentiles_ms"].return_value = (3200.4, 14800.6)
+
+        result = await StatsService(MagicMock()).usage(_ctx())
+
+        assert result.latency_ms is not None
+        assert (result.latency_ms.p50, result.latency_ms.p95) == (3200, 14801)
+
+    async def test_an_empty_window_answers_zeros_and_null_latency(self, repos) -> None:
+        result = await StatsService(MagicMock()).usage(
+            _ctx(), from_date=date(2026, 7, 1), to_date=date(2026, 7, 1)
+        )
+
+        assert result.total_runs == 0
+        assert result.latency_ms is not None
+        assert (result.latency_ms.p50, result.latency_ms.p95) == (None, None)
+        assert result.cost is not None
+        assert result.cost.period_usd == Decimal(0)
+
+    async def test_org_scope_carries_active_users_and_no_approvals_count(self, repos) -> None:
+        repos["count_distinct_users"].return_value = 14
+        repos["count_for_org"].return_value = 23
+
+        result = await StatsService(MagicMock()).usage(_ctx(), scope="org")
+
+        assert result.active_users is not None
+        assert (result.active_users.active, result.active_users.total_members) == (14, 23)
+        assert result.pending_approvals is None
+        repos["count_pending_approval_runs"].assert_not_called()
+
+    async def test_own_scope_carries_the_approvals_count_and_no_member_table(self, repos) -> None:
+        repos["count_pending_approval_runs"].return_value = 2
+
+        result = await StatsService(MagicMock()).usage(
+            _ctx(role=OrgRoleName.MEMBER.value), scope="own"
+        )
+
+        assert result.pending_approvals == 2
+        assert result.active_users is None
+        repos["count_distinct_users"].assert_not_called()
+
+    async def test_the_slices_map_through_with_their_names(self, repos) -> None:
+        agent_id = uuid4()
+
+        def by_dimension(db, *, dimension, **kwargs):
+            return {
+                "surface": [("web", 8), ("embed", 2)],
+                "status": [("completed", 9), ("failed", 1)],
+                "model": [("claude-sonnet-5", 7), (None, 3)],
+            }[dimension]
+
+        repos["runs_by_dimension"].side_effect = by_dimension
+        repos["runs_by_agent"].return_value = [(agent_id, "Support triage", 10)]
+        repos["cost_by_provider_window"].return_value = [("anthropic", Decimal("1.5"))]
+
+        result = await StatsService(MagicMock()).usage(_ctx())
+
+        assert result.by_surface is not None and result.by_surface[1].surface == "embed"
+        assert result.by_status is not None and result.by_status[1].runs == 1
+        assert result.by_model is not None and result.by_model[1].model_label is None
+        assert result.by_agent is not None
+        assert (result.by_agent[0].agent_id, result.by_agent[0].name) == (
+            agent_id,
+            "Support triage",
+        )
+        assert result.cost is not None and result.cost.by_provider[0].provider == "anthropic"
+
+    async def test_the_response_serializes_from_and_to_by_alias(self, repos) -> None:
+        result = await StatsService(MagicMock()).usage(
+            _ctx(), from_date=date(2026, 7, 1), to_date=date(2026, 7, 3)
+        )
+
+        payload = result.model_dump(by_alias=True, mode="json")
+        assert (payload["from"], payload["to"]) == ("2026-07-01", "2026-07-03")

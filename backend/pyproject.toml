@@ -350,6 +350,7 @@ include = [
     "app/services/sharing.py",
     "app/services/skills.py",
     "app/services/spend.py",
+    "app/services/stats.py",
     "app/repositories/agent_environment.py",
     "app/repositories/agent_exposure.py",
     "app/repositories/ingestion_spend.py",
@@ -365,6 +366,7 @@ include = [
     "app/api/routes/v1/workspaces.py",
     "app/api/routes/v1/_workspace_bytes.py",
     "app/api/routes/v1/sharing.py",
+    "app/api/routes/v1/stats.py",
 ]
 # Mirrors `[tool.coverage.run] omit` - one definition of "ours", asserted equal
 # by tests/test_coverage_gate.py.
@@ -476,6 +478,7 @@ include = [
     "app/services/sharing.py",
     "app/services/skills.py",
     "app/services/spend.py",
+    "app/services/stats.py",
     "app/repositories/agent_environment.py",
     "app/repositories/agent_exposure.py",
     "app/repositories/ingestion_spend.py",
@@ -491,6 +494,7 @@ include = [
     "app/api/routes/v1/workspaces.py",
     "app/api/routes/v1/_workspace_bytes.py",
     "app/api/routes/v1/sharing.py",
+    "app/api/routes/v1/stats.py",
 ]
 branch = true
 omit = [
