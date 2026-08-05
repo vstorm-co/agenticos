@@ -262,7 +262,7 @@ Resolution is most-specific-first:
 The Builder states the outcome in words rather than describing the rule, because a
 rule the reader has to run in their head is a setting nobody dares touch.
 
-Three properties worth knowing:
+Four properties worth knowing:
 
 - **A parked run is resumable.** Its message history is stored, so the decision is
   applied to the conversation it belongs to rather than starting again.
@@ -270,6 +270,12 @@ Three properties worth knowing:
 - **`required` works on any capability**, not only side-effecting ones. "This only
   reads, but in my organization somebody approves it anyway" is a real decision
   and is expressible.
+- **One model step can park several calls.** A model that answers with two
+  side-effecting calls at once - "email the customer and the account manager" -
+  parks both, each its own approval row decided on its own. The rows are written
+  when the run parks rather than as each call is gated, because the calls run
+  concurrently and the run's database session is not concurrency-safe
+  ([#169](https://github.com/vstorm-co/agenticos/issues/169)).
 
 ### An approval inside a delegation
 

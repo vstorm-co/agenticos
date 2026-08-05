@@ -393,6 +393,11 @@ class _Queue:
     Stood in for rather than mocked out, because the real `ApprovalChannel` is under
     test: it is what decides which delegate a row is attributed to, and it is where
     a parked call is tied to the agent whose replay it belongs to.
+
+    Rows land here from :func:`_write_approvals`, not from the channel itself - the
+    same split production makes: the channel parks a call without touching any
+    session (agenticos#169), and the row is written once at the run's terminal
+    write, with the id the channel already allocated.
     """
 
     def __init__(self) -> None:
@@ -401,6 +406,7 @@ class _Queue:
     async def request(
         self,
         *,
+        approval_id: UUID,
         organization_id: UUID,
         run_id: UUID,
         agent_id: UUID,
@@ -410,7 +416,7 @@ class _Queue:
         subagent_agent_id: UUID | None = None,
     ) -> _Row:
         row = _Row(
-            id=uuid4(),
+            id=approval_id,
             tool_id=tool_id,
             tool_args=tool_args,
             subagent_name=subagent_name,
@@ -427,14 +433,33 @@ class _Queue:
             row.note = note
 
 
-def _channel(queue: _Queue, decided: dict[str, Any] | None = None) -> ApprovalChannel:
+def _channel(decided: dict[str, Any] | None = None) -> ApprovalChannel:
     return ApprovalChannel(
-        approvals=queue,  # ty: ignore[invalid-argument-type] - the queue above stands in
         organization_id=uuid4(),
         agent_id=uuid4(),
         run_id=uuid4(),
         decided=decided or {},
     )
+
+
+async def _write_approvals(channel: ApprovalChannel, queue: _Queue) -> None:
+    """Drain a parked channel into the queue, the way `_write_approvals` does.
+
+    The rows are written from the run's terminal write, not while it ran - so a test
+    that parks a run and then reads or decides its rows has to make this call in
+    between, exactly where a real run's `finish` makes it.
+    """
+    for parked in channel.requested:
+        await queue.request(
+            approval_id=parked.approval_id,
+            organization_id=channel.organization_id,
+            run_id=channel.run_id,
+            agent_id=channel.agent_id,
+            tool_id=parked.tool_name,
+            tool_args=parked.tool_args,
+            subagent_name=parked.subagent,
+            subagent_agent_id=parked.subagent_agent_id,
+        )
 
 
 @dataclass
@@ -456,10 +481,11 @@ async def _park(delegate: ResolvedSubagent, stash: DelegationStash) -> _Parked:
     what a real run would have written.
     """
     queue = _Queue()
-    channel = _channel(queue)
+    channel = _channel()
     agent, deps = _orchestrator(delegate, stash=stash, channel=channel)
     result = await agent.run("what is the weather in Krakow", deps=deps)
     assert isinstance(result.output, DeferredToolRequests), result.output
+    await _write_approvals(channel, queue)
     return _Parked(
         state=_parked_state(result, channel=channel, stash=stash),
         queue=queue,
@@ -527,7 +553,7 @@ async def _resume(
     agent, deps = _orchestrator(
         delegate(stash),
         stash=stash,
-        channel=_channel(parked.queue, decided=decided),
+        channel=_channel(decided=decided),
         record=record,
     )
     return await agent.run(
@@ -554,7 +580,7 @@ class TestOneLevelDown:
         ungated_agent, ungated_deps = _orchestrator(
             _specialist_delegate(gated=False, calls=ungated_calls),
             stash=DelegationStash(),
-            channel=_channel(_Queue()),
+            channel=_channel(),
         )
         expected = _answer(
             await ungated_agent.run("what is the weather in Krakow", deps=ungated_deps)
@@ -703,7 +729,7 @@ class TestEitherEntryPoint:
         resumed, decided = await _park_the_specialist_alone(gated=True)
         journal = _journal_mid_delegation(delegate, resuming={"the-task-call": resumed})
         proxy = _LazyAgent(delegate, journal)
-        deps = AgentDeps(request_approval=_channel(_Queue(), decided=decided))
+        deps = AgentDeps(request_approval=_channel(decided=decided))
 
         with journal.delegating(
             journal.begin(
@@ -738,11 +764,12 @@ async def _park_the_specialist_alone(*, gated: bool) -> tuple[Any, dict[str, Any
     gate asked, a real run ended with its parked calls as its output.
     """
     queue = _Queue()
-    channel = _channel(queue)
+    channel = _channel()
     result = await _specialist_agent(gated=gated, calls=[]).run(
         "the weather in Krakow", deps=AgentDeps(request_approval=channel)
     )
     assert isinstance(result.output, DeferredToolRequests)
+    await _write_approvals(channel, queue)
     queue.decide(approved=True)
     return (
         ResumedDelegation(
@@ -844,10 +871,11 @@ class TestAnOlderParkedRun:
         """
         calls: list[dict[str, Any]] = []
         queue = _Queue()
-        channel = _channel(queue)
+        channel = _channel()
         agent = _specialist_agent(gated=True, calls=calls)
         parked = await agent.run("the weather in Krakow", deps=AgentDeps(request_approval=channel))
         assert isinstance(parked.output, DeferredToolRequests)
+        await _write_approvals(channel, queue)
         stored: dict[str, Any] = {
             "messages": ModelMessagesTypeAdapter.dump_python(parked.all_messages(), mode="json"),
             "tool_call_ids": dict(channel.parked),
@@ -863,7 +891,6 @@ class TestAnOlderParkedRun:
             None,
             deps=AgentDeps(
                 request_approval=_channel(
-                    queue,
                     decided={
                         entry.tool_call_id: ApprovalGranted(tool_args=entry.tool_args)
                         for entry in channel.requested
@@ -893,7 +920,7 @@ class TestTwoLevelsDown:
         ungated_agent, ungated_deps = _orchestrator(
             _middle_delegate(gated=False, calls=ungated_calls, stash=ungated_stash),
             stash=ungated_stash,
-            channel=_channel(_Queue()),
+            channel=_channel(),
         )
         expected = _answer(
             await ungated_agent.run("what is the weather in Krakow", deps=ungated_deps)
@@ -1000,7 +1027,7 @@ async def _until_it_answers(
             )
             history = ModelMessagesTypeAdapter.validate_python(state.messages)
             results = plan.results
-        channel = _channel(queue, decided=decided)
+        channel = _channel(decided=decided)
         metering = _Metering(
             ledger=ledger,
             charge=_charging(ledger, cost, priced=turn not in unpriced_turns),
@@ -1022,6 +1049,7 @@ async def _until_it_answers(
         )
         if not isinstance(result.output, DeferredToolRequests):
             return parked, _answer(result)
+        await _write_approvals(channel, queue)
         queue.decide(approved=True)
         # Through the column and back, because that is the trip a park actually
         # makes: `paused_state` is JSONB, so a cost is stored as the string
