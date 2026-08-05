@@ -19,6 +19,57 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.7] - 2026-08-05
+
+Two gates that existed and did not run. No behaviour change, no schema change,
+`SPEC_VERSION` unchanged at 7 — cut now rather than left to accumulate, because
+the point of a release commit here is that the version literals and both
+lockfiles move together.
+
+Both changes are the same defect wearing two costumes: a check that reports
+green while the thing it checks is unchecked. The interesting part of each is not
+the wiring but what was found once it ran.
+
+### Fixed
+
+- **`make check` now runs every job CI runs.** It was documented as "what CI
+  runs" and ran about half of it. Missing entirely: `bun run build`, `pip-audit`
+  and `mkdocs --strict`, none of which had any local equivalent; and eslint,
+  prettier and `tsc` were absent from `make lint`, so it passed on a branch with
+  a type error in a `.tsx`.
+
+  One divergence ran the other way and is the sharper one: `scripts/check_i18n.py`
+  was in `make lint` and **not in CI**, so a pull request could merge with an
+  untranslated string in a product whose frontend rules lean on that script
+  heavily.
+
+  Fixed structurally rather than by copying commands: the workflow now calls the
+  Makefile's targets, so the two cannot drift again, and
+  `backend/tests/test_ci_parity.py` asserts both directions — a job added to one
+  and not the other fails the suite. `make check` takes 5m16s, and both
+  newly-enforced gates were already green on `main`.
+
+- **Spelling is checked over the tree, not over the files a commit happens to
+  touch.** `pre-commit run codespell --all-files` was red on `main` — one
+  misspelling in `frontend/src/lib/tool-steps.ts`, of a word three other places
+  in the repository already spelled correctly — and nothing ran it, so it sat
+  waiting to ambush whoever next opened that file for an unrelated reason.
+
+  This entry does not quote the word, which is the joke and also the evidence:
+  writing it here turned the new gate red, exactly as it did in the comment that
+  first explained the fix.
+
+  `make lint-spelling` runs the hook — not a second codespell invocation, which
+  would mean a second version pin and a second exclude list. It is inside
+  `make lint`, and a CI step runs it, so `test_ci_parity.py` covers this one too.
+  Exactly one misspelling existed once the scope was right, verified two ways:
+  the per-file scope had not accumulated a backlog, it was hiding one word and
+  would have gone on hiding the next.
+
+  `.codespellrc` now records that omitting the `en-GB_to_en-US` dictionary is
+  deliberate. This repository writes "behaviour" and "serialise" on purpose, and
+  that is one short line away from being "corrected" throughout.
+
 ## [0.0.6] - 2026-08-04
 
 Dependencies only. No behaviour change, no schema change, `SPEC_VERSION` unchanged
@@ -472,7 +523,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.6...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.7...HEAD
+[0.0.7]: https://github.com/vstorm-co/agenticos/compare/v0.0.6...v0.0.7
 [0.0.6]: https://github.com/vstorm-co/agenticos/compare/v0.0.5...v0.0.6
 [0.0.5]: https://github.com/vstorm-co/agenticos/compare/v0.0.4...v0.0.5
 [0.0.4]: https://github.com/vstorm-co/agenticos/compare/v0.0.3...v0.0.4
