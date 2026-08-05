@@ -16,6 +16,7 @@ import {
   Switch,
   Textarea,
 } from "@/components/ui";
+import { InlineSecret } from "@/components/vault/inline-secret";
 import { useModelProviders, useSecrets } from "@/hooks";
 import {
   CHUNKING_STRATEGIES,
@@ -36,6 +37,7 @@ import type {
   PdfParser,
   ThinkingEffort,
 } from "@/types";
+import { useTranslations } from "next-intl";
 
 export interface IngestionSettingsProps {
   value: IngestionConfig;
@@ -79,6 +81,7 @@ export function IngestionSettings({
   errors = {},
   disabled,
 }: IngestionSettingsProps) {
+  const t = useTranslations("kb");
   const { secrets } = useSecrets();
   const llamaparseKeys = secrets.filter((secret) => secret.purpose === "llamaparse");
   const id = (suffix: string) => `${idPrefix}-${suffix}`;
@@ -99,14 +102,14 @@ export function IngestionSettings({
         <p className="text-destructive text-xs">{errors.ingestion_config}</p>
       )}
 
-      <Group label="Parsing">
+      <Group label={t("parsing")}>
         {/* The parser and its tier are one decision, so they share a row; the
             toggles below are yes/no sentences and read better at full width. */}
         <div className="grid gap-4 sm:grid-cols-2">
           <OptionalSetting
             htmlFor={id("parser")}
-            label="PDF parser"
-            description={`${parser?.hint ?? ""} Text, Markdown and Word files use the built-in readers whichever is chosen.`}
+            label={t("pdfParser")}
+            description={`${parser?.hint ?? ""} ${t("builtInReadersRegardless")}`}
             error={errors.pdf_parser}
             disabled={disabled}
           >
@@ -131,7 +134,7 @@ export function IngestionSettings({
           {value.pdf_parser === "llamaparse" && (
             <OptionalSetting
               htmlFor={id("tier")}
-              label="LlamaParse tier"
+              label={t("llamaparseTier")}
               description={
                 LLAMAPARSE_TIERS.find((t) => t.value === value.llamaparse_tier)?.hint ?? ""
               }
@@ -159,8 +162,8 @@ export function IngestionSettings({
           {value.pdf_parser === "llamaparse" && (
             <OptionalSetting
               htmlFor={id("llamaparse-key")}
-              label="LlamaParse key"
-              description="Whose account each parse is billed to."
+              label={t("llamaparseKey")}
+              description={t("whoseAccountEachParse")}
               disabled={disabled}
             >
               <Select
@@ -174,7 +177,7 @@ export function IngestionSettings({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={DEPLOYMENT_KEY}>Deployment key</SelectItem>
+                  <SelectItem value={DEPLOYMENT_KEY}>{t("deploymentKey2")}</SelectItem>
                   {llamaparseKeys.map((secret) => (
                     <SelectItem key={secret.id} value={secret.id}>
                       {secret.name}
@@ -182,14 +185,26 @@ export function IngestionSettings({
                   ))}
                 </SelectContent>
               </Select>
+              {/* A key can be added here rather than in another tab: the choice
+                  being made is "whose account is billed", and being told to go
+                  and store one somewhere else is the same dead end every other
+                  picker had. */}
+              <InlineSecret
+                kind="api_key"
+                purpose="llamaparse"
+                suggestedName="LlamaParse"
+                helpUrl="https://cloud.llamaindex.ai/api-key"
+                disabled={disabled}
+                onCreated={(secretId) => set("llamaparse_secret_id", secretId)}
+              />
             </OptionalSetting>
           )}
         </div>
 
         <Toggle
           htmlFor={id("ocr")}
-          label="Read scanned pages"
-          description="A page that is a picture of text carries no text to extract. PyMuPDF hands such a page to the image model; LiteParse runs its own OCR."
+          label={t("readScannedPages")}
+          description={t("pagePictureTextCarries")}
           checked={value.ocr}
           disabled={disabled}
           onChange={(next) => set("ocr", next)}
@@ -198,8 +213,8 @@ export function IngestionSettings({
         {value.pdf_parser === "liteparse" && value.ocr && (
           <Toggle
             htmlFor={id("auto-ocr")}
-            label="Only OCR the pages that need it"
-            description="LiteParse reads the text layer first and OCRs a page only when there is nothing there. OCR dominates the cost of a parse, and most documents are born digital. Turn this off to OCR every page regardless."
+            label={t("onlyOcrPagesNeed")}
+            description={t("liteparseReadsTextLayer")}
             checked={value.auto_ocr}
             disabled={disabled}
             onChange={(next) => set("auto_ocr", next)}
@@ -210,7 +225,7 @@ export function IngestionSettings({
           <div className="grid gap-4 sm:grid-cols-2">
             <OptionalSetting
               htmlFor={id("output-format")}
-              label="Output"
+              label={t("output")}
               description={
                 LITEPARSE_OUTPUT_FORMATS.find((f) => f.value === value.liteparse_output_format)
                   ?.hint ?? ""
@@ -239,8 +254,8 @@ export function IngestionSettings({
 
             <OptionalSetting
               htmlFor={id("max-pages")}
-              label="Maximum pages"
-              description="Where LiteParse stops. This is what bounds the cost of one document - the timeout only bounds the wait."
+              label={t("maximumPages")}
+              description={t("whereLiteparseStopsWhat")}
               error={errors.max_pages}
               disabled={disabled}
             >
@@ -261,8 +276,8 @@ export function IngestionSettings({
 
             <OptionalSetting
               htmlFor={id("dpi")}
-              label="OCR resolution (DPI)"
-              description="How finely a page is rendered before OCR reads it. Higher recovers faint scans and costs time."
+              label={t("ocrResolutionDpi")}
+              description={t("howFinelyPageRendered")}
               error={errors.liteparse_dpi}
               disabled={disabled}
             >
@@ -283,7 +298,7 @@ export function IngestionSettings({
 
             <OptionalSetting
               htmlFor={id("ocr-language")}
-              label="OCR language"
+              label={t("ocrLanguage")}
               description={`Tesseract codes, which are three letters: "eng", "pol", "deu". Join several with "+".`}
               error={errors.ocr_language}
               disabled={disabled}
@@ -293,7 +308,7 @@ export function IngestionSettings({
                 value={value.ocr_language}
                 disabled={disabled}
                 spellCheck={false}
-                placeholder="eng"
+                placeholder={t("eng")}
                 aria-invalid={errors.ocr_language !== undefined}
                 aria-describedby={
                   errors.ocr_language === undefined ? undefined : `${id("ocr-language")}-error`
@@ -304,8 +319,8 @@ export function IngestionSettings({
 
             <OptionalSetting
               htmlFor={id("timeout")}
-              label="Parse timeout (seconds)"
-              description="How long LiteParse may spend on one document before it is abandoned."
+              label={t("parseTimeoutSeconds")}
+              description={t("howLongLiteparseMay")}
               error={errors.parse_timeout_seconds}
               disabled={disabled}
             >
@@ -327,12 +342,12 @@ export function IngestionSettings({
         )}
       </Group>
 
-      <Group label="Chunking">
+      <Group label={t("chunking")}>
         <div className="grid gap-4 sm:grid-cols-3">
           <OptionalSetting
             htmlFor={id("chunk-size")}
-            label="Chunk size"
-            description="Characters per embedded piece. Smaller pieces match a question more precisely; larger ones carry more of the surrounding argument."
+            label={t("chunkSize")}
+            description={t("charactersPerEmbeddedPiece")}
             error={errors.chunk_size}
             disabled={disabled}
           >
@@ -353,8 +368,8 @@ export function IngestionSettings({
 
           <OptionalSetting
             htmlFor={id("chunk-overlap")}
-            label="Overlap"
-            description="Characters each piece repeats from the one before it, so a sentence split across a boundary is still findable."
+            label={t("overlap")}
+            description={t("charactersEachPieceRepeats")}
             error={errors.chunk_overlap}
             disabled={disabled}
           >
@@ -375,7 +390,7 @@ export function IngestionSettings({
 
           <OptionalSetting
             htmlFor={id("strategy")}
-            label="Strategy"
+            label={t("strategy")}
             description={
               CHUNKING_STRATEGIES.find((c) => c.value === value.chunking_strategy)?.hint ?? ""
             }
@@ -401,11 +416,11 @@ export function IngestionSettings({
         </div>
       </Group>
 
-      <Group label="Images">
+      <Group label={t("images")}>
         <Toggle
           htmlFor={id("describe-images")}
-          label="Describe images"
-          description="Send the pictures inside a document to a model and index what it says about them. Needs a model profile with a working key, which is checked when this is saved."
+          label={t("describeImages")}
+          description={t("sendPicturesInsideDocument")}
           checked={value.describe_images}
           disabled={disabled}
           onChange={(next) => set("describe_images", next)}
@@ -421,15 +436,15 @@ export function IngestionSettings({
 
             <OptionalSetting
               htmlFor={id("prompt")}
-              label="Prompt"
-              description="What the model is asked to say about each image. What it answers is what a search matches, so name the things worth finding."
+              label={t("prompt")}
+              description={t("whatModelAskedSay")}
               error={errors.prompt}
               onReset={
                 value.image_description.prompt === DEFAULT_IMAGE_PROMPT
                   ? undefined
                   : () => setImage("prompt", DEFAULT_IMAGE_PROMPT)
               }
-              resetLabel="Use the standard prompt"
+              resetLabel={t("useStandardPrompt")}
               disabled={disabled}
             >
               <Textarea
@@ -447,8 +462,8 @@ export function IngestionSettings({
             <div className="grid gap-6 sm:grid-cols-2">
               <OptionalSlider
                 id={id("temperature")}
-                label="Temperature"
-                description="How varied each description is. Left alone the parameter is not sent at all, which is not the same as sending zero - reasoning models reject it outright."
+                label={t("temperature")}
+                description={t("howVariedEachDescription")}
                 max={INGESTION_LIMITS.temperature.max}
                 value={value.image_description.temperature ?? undefined}
                 resting={1}
@@ -458,8 +473,8 @@ export function IngestionSettings({
 
               <OptionalSetting
                 htmlFor={id("thinking")}
-                label="Reasoning"
-                description="How hard the model thinks before describing an image. A level a provider does not have maps to its closest one."
+                label={t("reasoning")}
+                description={t("howHardModelThinks")}
                 disabled={disabled}
               >
                 {/*
@@ -478,7 +493,7 @@ export function IngestionSettings({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={NOT_REQUESTED}>Not requested</SelectItem>
+                    <SelectItem value={NOT_REQUESTED}>{t("notRequested")}</SelectItem>
                     {THINKING_EFFORTS.map((effort) => (
                       <SelectItem key={effort} value={effort}>
                         {effort}
@@ -519,11 +534,12 @@ function ImageModelField({
   onChange: (profileId: string | null) => void;
   disabled?: boolean;
 }) {
+  const t = useTranslations("kb");
   const { profiles } = useModelProviders();
 
   return (
     <div className="space-y-2">
-      <Label htmlFor="image-description-model">Model</Label>
+      <Label htmlFor="image-description-model">{t("model2")}</Label>
       {/* The picker is a radiogroup rather than a labelled control, so the label
           above names the group and this id exists for it to point at. */}
       <div id="image-description-model">

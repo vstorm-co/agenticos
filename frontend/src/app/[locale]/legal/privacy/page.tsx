@@ -14,10 +14,11 @@ export async function generateMetadata({
 }: {
   params: Promise<{ locale: Locale }>;
 }): Promise<Metadata> {
+  const t = await getTranslations("pages.meta");
   const { locale } = await params;
   return pageMetadata({
-    title: "Privacy Policy",
-    description: `How ${APP_NAME} collects, uses, and protects your data.`,
+    title: t("privacyPolicy"),
+    description: t("privacyDescription", { app: APP_NAME }),
     path: "/legal/privacy",
     locale,
   });

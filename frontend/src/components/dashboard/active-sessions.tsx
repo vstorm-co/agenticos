@@ -22,6 +22,7 @@ import { apiClient, ApiError } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import { cn, getErrorMessage, timeAgo } from "@/lib/utils";
 import type { SessionListResponse } from "@/types";
+import { useTranslations } from "next-intl";
 
 const PAGE_SIZE = 5;
 
@@ -44,6 +45,7 @@ function DeviceIcon({ type }: { type?: string | null }) {
  * emptied and step back to the one before it rather than showing a blank card.
  */
 export function ActiveSessions() {
+  const t = useTranslations("dashboard");
   const [page, setPage] = useState(0);
   const queryClient = useQueryClient();
 
@@ -95,20 +97,20 @@ export function ActiveSessions() {
   const handleRevoke = async (sessionId: string) => {
     try {
       await apiClient.delete(`/sessions/${sessionId}`);
-      toast.success("Session revoked");
+      toast.success(t("sessionRevoked"));
       reload(total - 1);
     } catch {
-      toast.error("Failed to revoke session");
+      toast.error(t("failedRevokeSession"));
     }
   };
 
   const handleRevokeAll = async () => {
     try {
       await apiClient.delete("/sessions");
-      toast.success("All other sessions revoked");
+      toast.success(t("allOtherSessionsRevoked"));
       reload(0);
     } catch {
-      toast.error("Failed to revoke sessions");
+      toast.error(t("failedRevokeSessions"));
     }
   };
 
@@ -116,26 +118,24 @@ export function ActiveSessions() {
 
   return (
     <SectionCard
-      title="Active sessions"
-      description="Devices currently signed in to your account."
+      title={t("activeSessions")}
+      description={t("devicesCurrentlySignedYour")}
       action={
         total > 0 ? (
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="outline" size="sm">
-                Revoke all others
+                {t("revokeAllOthers")}
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Revoke all other sessions?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Every device signed in to your account will be signed out, except this one.
-                </AlertDialogDescription>
+                <AlertDialogTitle>{t("revokeAllOtherSessions")}</AlertDialogTitle>
+                <AlertDialogDescription>{t("everyDeviceSignedYour")}</AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleRevokeAll}>Revoke all</AlertDialogAction>
+                <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
+                <AlertDialogAction onClick={handleRevokeAll}>{t("revokeAll")}</AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
@@ -149,11 +149,9 @@ export function ActiveSessions() {
           ))}
         </div>
       ) : error ? (
-        <p className="text-destructive text-sm">
-          {getErrorMessage(error, "Couldn't load your sessions")}
-        </p>
+        <p className="text-destructive text-sm">{getErrorMessage(error, t("couldnTLoadYour"))}</p>
       ) : sessions.length === 0 ? (
-        <p className="text-muted-foreground text-sm">No session data available.</p>
+        <p className="text-muted-foreground text-sm">{t("noSessionDataAvailable")}</p>
       ) : (
         <>
           <ul className="space-y-2">
@@ -174,7 +172,7 @@ export function ActiveSessions() {
                       <span className="truncate">{session.device_name || "Unknown device"}</span>
                       {session.is_current && (
                         <span className="bg-card border-border text-muted-foreground inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
-                          Current
+                          {t("current")}
                         </span>
                       )}
                     </p>
@@ -190,8 +188,8 @@ export function ActiveSessions() {
                     size="sm"
                     className="text-muted-foreground hover:text-destructive h-8 shrink-0"
                     onClick={() => handleRevoke(session.id)}
-                    title="Revoke session"
-                    aria-label="Revoke session"
+                    title={t("revokeSession")}
+                    aria-label={t("revokeSession2")}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
@@ -211,7 +209,7 @@ export function ActiveSessions() {
                   size="sm"
                   onClick={() => setPage((p) => Math.max(0, p - 1))}
                   disabled={page === 0 || loading}
-                  aria-label="Previous page"
+                  aria-label={t("previousPage")}
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
@@ -223,7 +221,7 @@ export function ActiveSessions() {
                   size="sm"
                   onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
                   disabled={page >= totalPages - 1 || loading}
-                  aria-label="Next page"
+                  aria-label={t("nextPage")}
                 >
                   <ChevronRight className="h-4 w-4" />
                 </Button>

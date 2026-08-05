@@ -342,7 +342,7 @@ async function acceptAsColleague(
     await colleague.getByLabel("Email").fill(COLLEAGUE_EMAIL);
     await colleague.getByLabel("Password").fill(COLLEAGUE_PASSWORD);
     await colleague.getByRole("button", { name: "Login" }).click();
-    await expect(colleague).toHaveURL(/\/(chat|dashboard)(\?.*)?$/);
+    await expect(colleague).toHaveURL(/\/dashboard(\?.*)?$/);
 
     await colleague.goto(`/invitations/${token}`);
     await colleague.getByRole("button", { name: "Accept invitation" }).click();

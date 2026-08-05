@@ -49,6 +49,7 @@ import {
   connectionState,
 } from "@/lib/mcp-servers";
 import type { McpServerRow } from "@/lib/mcp-servers";
+import { useTranslations } from "next-intl";
 
 const NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/;
 
@@ -73,17 +74,17 @@ const AUTH_CHOICES: { value: DraftAuth; label: string; hint: string }[] = [
   {
     value: "none",
     label: "None",
-    hint: "The server is open, or it is on a network only you can reach.",
+    hint: "authNoneHint",
   },
   {
     value: "token",
     label: "API token",
-    hint: "A static credential, sent as `Authorization: Bearer`.",
+    hint: "authTokenHint",
   },
   {
     value: "oauth",
     label: "OAuth",
-    hint: "Sign in at the provider. Discovered from the server's own metadata - nothing to configure here.",
+    hint: "authOauthHint",
   },
 ];
 
@@ -121,11 +122,6 @@ interface McpServerListProps {
   canManageOrganization: boolean;
 }
 
-/** How many servers the catalog holds, in words rather than a bare digit. */
-function serverCount(count: number): string {
-  return count === 1 ? "1 server" : `${count} servers`;
-}
-
 /**
  * The catalog's frame, drawn whether or not there is anything in it - the
  * always-visible container the vault draws around its keys. The page uses it
@@ -133,15 +129,16 @@ function serverCount(count: number): string {
  * what is inside it changes.
  */
 export function ServersCard({ count, children }: { count: number | null; children: ReactNode }) {
+  const t = useTranslations("mcp");
   return (
     <Card>
       <CardHeader className="flex-row items-center justify-between space-y-0 border-b px-5 py-4">
         <div className="space-y-1">
-          <CardTitle className="text-sm">Servers</CardTitle>
+          <CardTitle className="text-sm">{t("servers")}</CardTitle>
           <CardDescription className="text-xs">
             {/* `null` is "the request has not answered". Rendering "0 servers"
                 there would state something nothing has said yet. */}
-            {count === null ? <Skeleton className="h-3 w-20" /> : serverCount(count)}
+            {count === null ? <Skeleton className="h-3 w-20" /> : t("serverCount", { count })}
           </CardDescription>
         </div>
       </CardHeader>
@@ -173,6 +170,7 @@ export function ServersCard({ count, children }: { count: number | null; childre
  * so the row says why rather than showing a button that cannot work.
  */
 export function McpServerList({ canManageOrganization }: McpServerListProps) {
+  const t = useTranslations("mcp");
   const { rows, organization, personal, recordTools } = useMcpServers();
   const [category, setCategory] = useState<string>("all");
   const [state, setState] = useState<StateFilter>("all");
@@ -255,13 +253,13 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
     try {
       const result = await api(scope).test(connection.id);
       if (!result.ok) {
-        toast.error(result.error ?? "The server could not be reached");
+        toast.error(result.error ?? t("serverCouldNotBe"));
         return null;
       }
       recordTools(connection.id, result.tools);
       return result.tools;
     } catch (caught) {
-      toast.error(errorMessage(caught, "The check failed"));
+      toast.error(errorMessage(caught, t("checkFailed")));
       return null;
     } finally {
       setBusyId(null);
@@ -289,7 +287,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
       const { authorization_url } = await startMcpOAuth({ name, url: row.url ?? "" }, scope);
       window.location.href = authorization_url;
     } catch (caught) {
-      toast.error(errorMessage(caught, "Could not start sign-in"));
+      toast.error(errorMessage(caught, t("couldNotStartSign")));
       setBusyId(null);
     }
     // On success the browser navigates away - leave the row busy.
@@ -303,7 +301,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
     // submitting must not quietly store whatever was typed before.
     const token = draftAuth === "token" ? draftToken.trim() : "";
     if (!NAME_PATTERN.test(name)) {
-      toast.error("Name must be lowercase letters, digits and hyphens (max 32 characters).");
+      toast.error(t("nameMustBeLowercase"));
       return;
     }
     if (!/^https?:\/\//.test(url)) {
@@ -335,8 +333,8 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
         });
         toast.success(
           scope === "organization"
-            ? `${name} is now available to this organization's agents.`
-            : `${name} is connected for your assistant.`,
+            ? t("connectedForOrg", { name })
+            : t("connectedForYou", { name }),
         );
         setDraft(null);
         void handleTools(scope, created);
@@ -353,7 +351,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
         setDraft(null);
       }
     } catch (caught) {
-      toast.error(errorMessage(caught, "Could not save the server"));
+      toast.error(errorMessage(caught, t("couldNotSaveServer")));
     } finally {
       setSubmitting(false);
     }
@@ -369,7 +367,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
       await api(scope).remove(connection.id);
       toast.success(`${connection.name} disconnected.`);
     } catch (caught) {
-      toast.error(errorMessage(caught, "Could not disconnect"));
+      toast.error(errorMessage(caught, t("couldNotDisconnect")));
     }
   };
 
@@ -385,10 +383,10 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
       } else {
         await api(scope).update(connection.id, { allowed_tools: [...checked] });
       }
-      toast.success("Tool selection saved.");
+      toast.success(t("toolSelectionSaved"));
       setToolPicker(null);
     } catch (caught) {
-      toast.error(errorMessage(caught, "Could not save the tool selection"));
+      toast.error(errorMessage(caught, t("couldNotSaveTool")));
     } finally {
       setSubmitting(false);
     }
@@ -397,13 +395,13 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <SearchInput value={list.query} onChange={list.setQuery} placeholder="Search servers…" />
+        <SearchInput value={list.query} onChange={list.setQuery} placeholder={t("searchServers")} />
         <Select value={category} onValueChange={setCategory}>
-          <SelectTrigger className="w-auto min-w-40" aria-label="Category">
+          <SelectTrigger className="w-auto min-w-40" aria-label={t("category")}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All categories</SelectItem>
+            <SelectItem value="all">{t("allCategories")}</SelectItem>
             {categories.map((entry) => (
               <SelectItem key={entry} value={entry}>
                 {categoryLabel(entry)}
@@ -412,13 +410,13 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
           </SelectContent>
         </Select>
         <Select value={state} onValueChange={(value) => setState(value as StateFilter)}>
-          <SelectTrigger className="w-auto min-w-36" aria-label="Connection state">
+          <SelectTrigger className="w-auto min-w-36" aria-label={t("connectionState")}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Any state</SelectItem>
-            <SelectItem value="connected">Connected</SelectItem>
-            <SelectItem value="not-connected">Not connected</SelectItem>
+            <SelectItem value="all">{t("anyState")}</SelectItem>
+            <SelectItem value="connected">{t("connected")}</SelectItem>
+            <SelectItem value="not-connected">{t("notConnected")}</SelectItem>
           </SelectContent>
         </Select>
         <div className="flex-1" />
@@ -431,7 +429,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                 "organization",
                 {
                   key: "new",
-                  name: "Custom server",
+                  name: t("customServer"),
                   description: "",
                   category: CUSTOM_CATEGORY,
                   auth: "token",
@@ -447,7 +445,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
             }
           >
             <Plus className="mr-1 h-3.5 w-3.5" />
-            Add a custom server
+            {t("addCustomServer")}
           </Button>
         )}
       </div>
@@ -490,7 +488,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                     </div>
                     <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
                       {row.category === CUSTOM_CATEGORY
-                        ? "not in the catalog"
+                        ? t("notCatalog")
                         : categoryLabel(row.category)}
                     </p>
                     {row.description && (
@@ -502,9 +500,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                       // Prose, so it is set as prose. Monospacing this sentence
                       // and then truncating it produced "Self-hosted - you supply
                       // the…", which reads as a URL that got cut off.
-                      <p className="text-muted-foreground text-xs">
-                        Self-hosted - you supply the URL when connecting
-                      </p>
+                      <p className="text-muted-foreground text-xs">{t("selfHostedYouSupply")}</p>
                     ) : (
                       // Truncated rather than wrapped: spelled out, the URL is the
                       // tallest thing on the card, and the full editable copy is
@@ -558,7 +554,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                         disabled={busyId === row.key}
                       >
                         <Plug className="mr-1 h-3.5 w-3.5" />
-                        {busyId === row.key ? "Redirecting…" : "Connect"}
+                        {busyId === row.key ? t("redirecting") : t("connectAction")}
                       </Button>
                     )}
                     {row.organization && canManageOrganization && (
@@ -615,28 +611,28 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                 ? ""
                 : draft.existing
                   ? `Edit "${draft.existing.name}"`
-                  : `Connect ${draft.row.name} for ${draft.scope === "organization" ? "the organization" : "yourself"}`}
+                  : `Connect ${draft.row.name} for ${draft.scope === "organization" ? t("organization") : "yourself"}`}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="mcp-name">Name</Label>
+              <Label htmlFor="mcp-name">{t("name")}</Label>
               <Input
                 id="mcp-name"
                 value={draftName}
                 onChange={(event) => setDraftName(event.target.value.toLowerCase())}
-                placeholder="github"
+                placeholder={t("github")}
                 maxLength={32}
                 className="mt-1.5"
               />
               <p className="text-foreground/45 mt-1 text-[11px]">
                 Lowercase letters, digits and hyphens. It prefixes the server&apos;s tool names, so
                 it has to be unique among{" "}
-                {draft?.scope === "organization" ? "the organization's" : "your"} servers.
+                {draft?.scope === "organization" ? t("organizationS") : "your"} servers.
               </p>
             </div>
             <div>
-              <Label htmlFor="mcp-url">Server URL</Label>
+              <Label htmlFor="mcp-url">{t("serverUrl")}</Label>
               <Input
                 id="mcp-url"
                 value={draftUrl}
@@ -647,11 +643,11 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
               />
             </div>
             <div>
-              <Label>Connect for</Label>
+              <Label>{t("connectAction")}</Label>
               <div
                 className="mt-1.5 flex flex-wrap gap-1.5"
                 role="radiogroup"
-                aria-label="Connect for"
+                aria-label={t("connect2")}
               >
                 {(["organization", "personal"] as const)
                   .filter((scope) => scope !== "organization" || canManageOrganization)
@@ -682,26 +678,24 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                   })}
               </div>
               <p className="text-muted-foreground mt-1.5 text-xs">
-                {draft?.scope === "organization"
-                  ? "Every agent can reach it. An agent spec can only bind the organization's servers."
-                  : "Yours alone, in your own chat. No agent can bind it."}
+                {draft?.scope === "organization" ? t("everyAgentCanReach") : t("yoursAloneYourOwn")}
               </p>
               {draft?.existing !== null && (
                 // Moving a live connection between owners would mean re-sealing
                 // its credential under another envelope and changing who may
                 // revoke it. Disconnect and connect again is the honest path.
                 <p className="text-muted-foreground mt-1 text-xs">
-                  An existing connection cannot change owner.
+                  {t("existingConnectionCannotChange")}
                 </p>
               )}
             </div>
 
             <div>
-              <Label>Authentication</Label>
+              <Label>{t("authentication")}</Label>
               <div
                 className="mt-1.5 flex flex-wrap gap-1.5"
                 role="radiogroup"
-                aria-label="Authentication"
+                aria-label={t("authentication2")}
               >
                 {AUTH_CHOICES.map((choice) => (
                   <button
@@ -730,16 +724,12 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                 // there stops the organization's server working until somebody
                 // authorizes it again - which is why a shared service account is
                 // the right thing to consent with.
-                <p className="text-muted-foreground mt-1.5 text-xs">
-                  Whoever signs in grants it. If their access at the provider is revoked, this
-                  server stops working for every agent until somebody signs in again - so use an
-                  account the organization controls.
-                </p>
+                <p className="text-muted-foreground mt-1.5 text-xs">{t("whoeverSignsGrantsIf")}</p>
               )}
             </div>
 
             <div className={cn(draftAuth !== "token" && "hidden")}>
-              <Label htmlFor="mcp-token">Access token</Label>
+              <Label htmlFor="mcp-token">{t("accessToken")}</Label>
               {/* The catalog's own advice for *this* server, which used to sit on
                   the card. It is instructions for filling in the field below it,
                   so it belongs next to the field and not in a list somebody is
@@ -759,15 +749,15 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                 placeholder={
                   draft?.existing?.has_auth_token
                     ? "•••••• (stored - type to replace)"
-                    : "Paste it here"
+                    : t("pasteHere")
                 }
                 maxLength={4096}
                 className="mt-1.5 font-mono text-sm"
               />
               <p className="text-foreground/45 mt-1 text-[11px]">
                 {draft?.scope === "organization"
-                  ? "Use a service credential, not your own - every agent bound to this server acts with it. Sealed for this organization and never shown again."
-                  : "Stored encrypted and never shown again."}
+                  ? t("useServiceCredentialNot")
+                  : t("storedEncryptedNeverShown")}
               </p>
               {draft?.existing?.has_auth_token && !draftToken && (
                 <div className="mt-2 flex items-center gap-2">
@@ -777,7 +767,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                     onCheckedChange={setClearToken}
                   />
                   <Label htmlFor="mcp-clear-token" className="text-xs font-normal">
-                    Remove the stored credential
+                    {t("removeStoredCredential")}
                   </Label>
                 </div>
               )}
@@ -785,10 +775,10 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setDraft(null)} disabled={submitting}>
-              Cancel
+              {t("cancel")}
             </Button>
             <Button onClick={handleSubmit} disabled={submitting}>
-              {submitting ? "Saving…" : draft?.existing ? "Save" : "Connect & check"}
+              {submitting ? t("saving") : draft?.existing ? t("save") : t("connectCheck")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -800,7 +790,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
       >
         <DialogContent className="max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Tools from &quot;{toolPicker?.connection.name}&quot;</DialogTitle>
+            <DialogTitle>{t("toolsFrom", { name: toolPicker?.connection.name ?? "" })}</DialogTitle>
           </DialogHeader>
           <p className="text-foreground/55 text-xs">
             Which tools this connection exposes. Selecting all keeps tools the server adds later
@@ -839,13 +829,13 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
           </ul>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setToolPicker(null)} disabled={submitting}>
-              Cancel
+              {t("cancel2")}
             </Button>
             <Button
               onClick={handleSaveTools}
               disabled={submitting || toolPicker?.checked.size === 0}
             >
-              {submitting ? "Saving…" : "Save selection"}
+              {submitting ? t("saving2") : t("saveSelection")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -933,6 +923,7 @@ function ConnectionMenu({
   onDisconnect: (connection: McpConnectionRecord) => void;
   onOAuth: () => void;
 }) {
+  const t = useTranslations("mcp");
   const state = connectionState(connection);
   const busy = busyId === connection.id || busyId === row.key;
   const owner = SCOPE_LABEL[scope];
@@ -972,7 +963,7 @@ function ConnectionMenu({
             working: an unauthorized connection is the one state where every
             other verb here is premature. */}
         {state === "needs-authorization" && (
-          <DropdownMenuItem onSelect={onOAuth}>Finish sign-in</DropdownMenuItem>
+          <DropdownMenuItem onSelect={onOAuth}>{t("finishSign")}</DropdownMenuItem>
         )}
         <DropdownMenuItem onSelect={() => onTools(connection)}>Check connection</DropdownMenuItem>
         <DropdownMenuItem onSelect={() => onEdit(connection)}>Settings</DropdownMenuItem>
@@ -981,7 +972,7 @@ function ConnectionMenu({
           className="text-destructive focus:text-destructive"
           onSelect={() => onDisconnect(connection)}
         >
-          Disconnect
+          {t("disconnect")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

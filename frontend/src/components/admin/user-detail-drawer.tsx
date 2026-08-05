@@ -28,6 +28,7 @@ import { apiClient } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
 import { formatDateTime, getErrorMessage } from "@/lib/utils";
 import { qk } from "@/lib/query-keys";
+import { useTranslations } from "next-intl";
 
 interface UserDetailDrawerProps {
   user: AdminUserRead | null;
@@ -53,6 +54,7 @@ export function UserDetailDrawer({
   onDelete,
   onImpersonate,
 }: UserDetailDrawerProps) {
+  const t = useTranslations("admin");
   // Server data through the query layer, which is where `.claude/rules/frontend.md`
   // says it lives. It was three pieces of state and an effect: a list, a loading
   // flag, and a reset when the drawer closed - all of which `useQuery` already
@@ -89,9 +91,9 @@ export function UserDetailDrawer({
     if (token) {
       try {
         await navigator.clipboard.writeText(token);
-        toast.success("Impersonation token copied (valid 1h)");
+        toast.success(t("impersonationTokenCopiedValid"));
       } catch {
-        toast.success("Impersonation token created (1h)");
+        toast.success(t("impersonationTokenCreated1h"));
       }
     }
   };
@@ -99,9 +101,9 @@ export function UserDetailDrawer({
   const handleCopyId = async () => {
     try {
       await navigator.clipboard.writeText(subject.id);
-      toast.success("User ID copied");
+      toast.success(t("userIdCopied"));
     } catch {
-      toast.error("Copy failed");
+      toast.error(t("copyFailed"));
     }
   };
 
@@ -134,7 +136,7 @@ export function UserDetailDrawer({
         <div className="flex-1 scrollbar-thin overflow-y-auto px-6 py-5">
           <div className="flex flex-wrap gap-1.5">
             <Badge variant={subject.is_active ? "default" : "secondary"} className="text-[10px]">
-              {subject.is_active ? "Active" : "Suspended"}
+              {subject.is_active ? t("active2") : t("suspended")}
             </Badge>
             {/* One privilege, so one badge. There used to be a second one
                 printing `users.role`, which said "user" for every account on
@@ -142,21 +144,21 @@ export function UserDetailDrawer({
             {subject.is_app_admin && (
               <Badge className="bg-brand text-brand-foreground border-transparent text-[10px]">
                 <Shield className="mr-1 h-3 w-3" />
-                App admin
+                {t("appAdmin")}
               </Badge>
             )}
           </div>
 
           <dl className="border-foreground/10 divide-foreground/10 mt-5 divide-y rounded-xl border">
-            <KV label="User ID" value={subject.id} mono onCopy={handleCopyId} />
-            <KV label="Email" value={subject.email} mono />
-            {subject.full_name && <KV label="Display name" value={subject.full_name} />}
-            <KV label="Joined" value={formatDateTime(subject.created_at)} />
+            <KV label={t("userId")} value={subject.id} mono onCopy={handleCopyId} />
+            <KV label={t("email")} value={subject.email} mono />
+            {subject.full_name && <KV label={t("displayName")} value={subject.full_name} />}
+            <KV label={t("joined")} value={formatDateTime(subject.created_at)} />
           </dl>
 
           <section className="mt-7">
             <h3 className="text-foreground/55 mb-3 font-mono text-[11px] tracking-wider uppercase">
-              Recent conversations
+              {t("recentConversations")}
             </h3>
             {convsLoading ? (
               <LoadingState variant="skeleton-list" rows={3} />
@@ -165,10 +167,10 @@ export function UserDetailDrawer({
               // opened a chat are the same sentence, and an admin acting on the
               // second when it was the first is acting on nothing.
               <p className="text-destructive text-xs">
-                {getErrorMessage(convsError, "Couldn't load conversations.")}
+                {getErrorMessage(convsError, t("couldnTLoadConversations"))}
               </p>
             ) : !conversations || conversations.length === 0 ? (
-              <p className="text-foreground/55 text-xs">No conversations.</p>
+              <p className="text-foreground/55 text-xs">{t("noConversationsFound")}</p>
             ) : (
               <ul className="space-y-1">
                 {conversations.map((c) => (
@@ -178,7 +180,7 @@ export function UserDetailDrawer({
                   >
                     <div className="min-w-0 flex-1">
                       <p className="text-foreground truncate text-xs font-medium">
-                        {c.title || "Untitled"}
+                        {c.title || t("untitled")}
                       </p>
                       <p className="text-foreground/45 truncate font-mono text-[10px] tracking-wider uppercase">
                         {formatDateTime(c.created_at)}
@@ -188,7 +190,7 @@ export function UserDetailDrawer({
                     <a
                       href={`${ROUTES.ADMIN_CONVERSATIONS}?id=${c.id}`}
                       className="text-foreground/55 hover:text-foreground inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors"
-                      title="Open conversation"
+                      title={t("openConversation")}
                     >
                       <ArrowUpRight className="h-3.5 w-3.5" />
                     </a>
@@ -209,12 +211,12 @@ export function UserDetailDrawer({
             {subject.is_active ? (
               <>
                 <UserX className="mr-1.5 h-3.5 w-3.5" />
-                Suspend
+                {t("suspend")}
               </>
             ) : (
               <>
                 <Mail className="mr-1.5 h-3.5 w-3.5" />
-                Reactivate
+                {t("reactivate")}
               </>
             )}
           </Button>
@@ -227,18 +229,18 @@ export function UserDetailDrawer({
             {subject.is_app_admin ? (
               <>
                 <ShieldOff className="mr-1.5 h-3.5 w-3.5" />
-                Demote
+                {t("demote")}
               </>
             ) : (
               <>
                 <Shield className="mr-1.5 h-3.5 w-3.5" />
-                Promote to admin
+                {t("promoteAdmin")}
               </>
             )}
           </Button>
           <Button variant="outline" size="sm" onClick={handleImpersonate} className="rounded-full">
             <KeyRound className="mr-1.5 h-3.5 w-3.5" />
-            Impersonate
+            {t("impersonate")}
           </Button>
 
           <AlertDialog>
@@ -249,19 +251,16 @@ export function UserDetailDrawer({
                 className="text-destructive hover:text-destructive ml-auto rounded-full"
               >
                 <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                Delete
+                {t("delete")}
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>Delete {subject.email}?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Permanently removes the user, their conversations, and credit balance. This
-                  can&apos;t be undone.
-                </AlertDialogDescription>
+                <AlertDialogDescription>{t("permanentlyRemovesUserTheir")}</AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
                 <AlertDialogAction
                   onClick={() => {
                     onDelete(subject.id);
@@ -269,7 +268,7 @@ export function UserDetailDrawer({
                   }}
                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 >
-                  Delete user
+                  {t("deleteUser")}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -291,6 +290,7 @@ function KV({
   mono?: boolean;
   onCopy?: () => void;
 }) {
+  const t = useTranslations("admin");
   return (
     <div className="flex items-center justify-between gap-3 px-4 py-2.5">
       <dt className="text-foreground/55 font-mono text-[10px] tracking-wider uppercase">{label}</dt>
@@ -303,7 +303,7 @@ function KV({
             type="button"
             onClick={onCopy}
             className="text-foreground/45 hover:text-foreground inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors"
-            title="Copy"
+            title={t("copy")}
           >
             <Copy className="h-3 w-3" />
           </button>

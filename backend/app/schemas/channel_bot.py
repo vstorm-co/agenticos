@@ -20,6 +20,38 @@ class AccessPolicy(BaseSchema):
     denied_message: str = "You are not authorised to use this bot."
 
 
+class UsageReporting(BaseSchema):
+    """When this bot says what a turn cost, and when it only records it.
+
+    Separate from `AccessPolicy` because they answer different questions: that one
+    decides who may talk to the bot, this one decides how talkative the bot is
+    about spending. One object holding both would put them in the same form and in
+    the same JSON value, and the next person narrowing access would be editing the
+    setting somebody else tuned for noise.
+    """
+
+    mode: Literal["off", "always", "near_limit", "every_n"] = Field(
+        default="near_limit",
+        description=(
+            "off records it and stays quiet; always reports every turn; "
+            "near_limit reports once the budget or the workspace passes the "
+            "threshold; every_n reports every n-th turn of a chat."
+        ),
+    )
+    near_limit_percent: int = Field(
+        default=80,
+        ge=1,
+        le=100,
+        description="What near_limit compares the budget and the workspace against",
+    )
+    every_n: int = Field(
+        default=10,
+        ge=1,
+        le=1000,
+        description="The n in every_n, counted per chat rather than per bot",
+    )
+
+
 class ChannelBotCreate(BaseSchema):
     """Schema for creating a channel bot."""
 
@@ -29,6 +61,7 @@ class ChannelBotCreate(BaseSchema):
     webhook_mode: bool = False
     webhook_url: str | None = None
     access_policy: AccessPolicy = Field(default_factory=AccessPolicy)
+    usage_reporting: UsageReporting = Field(default_factory=UsageReporting)
     slack_signing_secret: str | None = Field(
         default=None,
         min_length=8,
@@ -58,6 +91,7 @@ class ChannelBotUpdate(BaseSchema):
     webhook_mode: bool | None = None
     webhook_url: str | None = None
     access_policy: AccessPolicy | None = None
+    usage_reporting: UsageReporting | None = None
     is_active: bool | None = None
     slack_signing_secret: str | None = Field(default=None, min_length=8, max_length=255)
     slack_app_token: str | None = Field(default=None, min_length=8, max_length=500)
@@ -73,6 +107,7 @@ class ChannelBotRead(BaseSchema):
     webhook_mode: bool
     webhook_url: str | None
     access_policy: AccessPolicy
+    usage_reporting: UsageReporting = Field(default_factory=UsageReporting)
     # Booleans, never the values: the panel needs "is this configured", and a
     # response is the way a sealed credential usually escapes.
     has_slack_signing_secret: bool = False

@@ -8,6 +8,7 @@ import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 
 import { apiClient, ApiError } from "@/lib/api-client";
 import { useReauthenticate } from "@/hooks/use-auth";
+import { postSignInDestination } from "@/lib/auth-landing";
 import { ROUTES } from "@/lib/constants";
 
 /**
@@ -15,7 +16,8 @@ import { ROUTES } from "@/lib/constants";
  *
  * Flow: user clicks the email link → arrives here with `?token=...` →
  * we POST the token to `/auth/magic-link/verify`, which signs them in via
- * the standard Set-Cookie flow → redirect to /chat.
+ * the standard Set-Cookie flow → redirect to the shared post-sign-in
+ * destination.
  */
 export default function MagicLinkVerifyPage() {
   const t = useTranslations("auth.magicLink");
@@ -42,7 +44,7 @@ export default function MagicLinkVerifyPage() {
         await reauthenticate();
         if (!active) return;
         setState("success");
-        router.replace(ROUTES.CHAT);
+        router.replace(postSignInDestination());
       })
       .catch((err: unknown) => {
         if (!active) return;

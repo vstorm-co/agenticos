@@ -40,6 +40,7 @@ import { downloadKBDocument } from "@/lib/rag-api";
 import type { SyncSourceRead } from "@/lib/rag-api";
 import type { IngestionOverride, KBDocument, KBScope } from "@/types";
 import { Perm } from "@/types/permissions";
+import { useTranslations } from "next-intl";
 
 const SCOPE_META: Record<KBScope, { label: string; icon: LucideIcon }> = {
   personal: { label: "Personal", icon: Lock },
@@ -57,6 +58,7 @@ interface KBDetailPageProps {
 }
 
 export default function KBDetailPage({ params }: KBDetailPageProps) {
+  const t = useTranslations("pages.kb");
   const { id } = use(params);
   const {
     kb,
@@ -144,7 +146,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
     () => [
       {
         key: "filename",
-        header: "Name",
+        header: t("name"),
         cell: (doc) => (
           <div className="flex min-w-0 items-center gap-3">
             <span className="bg-muted text-muted-foreground inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
@@ -158,7 +160,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
       },
       {
         key: "filetype",
-        header: "Type / size",
+        header: t("typeSize"),
         className: "hidden sm:table-cell",
         cell: (doc) => (
           <span className="text-muted-foreground text-xs">
@@ -173,13 +175,13 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
         // set to now. Without it, "why did this one come out differently" has no
         // answer on any screen.
         key: "parser",
-        header: "Parsed with",
+        header: t("parsedWith"),
         className: "hidden md:table-cell",
         cell: (doc) => <Provenance doc={doc} />,
       },
       {
         key: "status",
-        header: "Status",
+        header: t("status2"),
         cell: (doc) => <StatusBadge status={doc.status} message={doc.error_message} />,
       },
       {
@@ -198,8 +200,8 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
                     size="sm"
                     className="text-muted-foreground hover:text-foreground h-8 w-8 p-0"
                     onClick={() => setViewerDoc(doc)}
-                    title="Preview file"
-                    aria-label="Preview file"
+                    title={t("previewFile")}
+                    aria-label={t("previewFile2")}
                   >
                     <Eye className="h-3.5 w-3.5" />
                   </Button>
@@ -209,8 +211,8 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
                     className="text-muted-foreground hover:text-foreground h-8 w-8 p-0"
                     onClick={() => handleDownload(doc)}
                     disabled={!!downloadingId}
-                    title="Download file"
-                    aria-label="Download file"
+                    title={t("downloadFile")}
+                    aria-label={t("downloadFile2")}
                   >
                     {dlBusy ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -229,8 +231,8 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
                     if (confirm(`Remove "${doc.filename}" from this knowledge base?`))
                       deleteDocument(doc.id);
                   }}
-                  title="Remove document"
-                  aria-label="Remove document"
+                  title={t("removeDocument")}
+                  aria-label={t("removeDocument2")}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
@@ -257,7 +259,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
     <div
       className="relative pb-8"
       onDragEnter={(e) => {
-        if (e.dataTransfer.types.includes("Files")) {
+        if (e.dataTransfer.types.includes(t("files2"))) {
           dragCounterRef.current += 1;
           setIsDragging(true);
         }
@@ -267,7 +269,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
         if (dragCounterRef.current === 0) setIsDragging(false);
       }}
       onDragOver={(e) => {
-        if (e.dataTransfer.types.includes("Files")) e.preventDefault();
+        if (e.dataTransfer.types.includes(t("files3"))) e.preventDefault();
       }}
       onDrop={(e) => {
         e.preventDefault();
@@ -283,7 +285,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
               <Upload className="h-6 w-6" />
             </span>
             <div className="text-center">
-              <p className="text-foreground text-lg font-semibold">Drop to upload</p>
+              <p className="text-foreground text-lg font-semibold">{t("dropUpload")}</p>
               <p className="text-muted-foreground mt-1 text-sm">
                 Files will be added to{" "}
                 <span className="text-foreground font-medium">{kb.name}</span>
@@ -303,7 +305,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
       />
 
       <PageHeader
-        breadcrumbs={[{ label: "Knowledge bases", href: ROUTES.KB }, { label: kb.name }]}
+        breadcrumbs={[{ label: t("knowledgeBases"), href: ROUTES.KB }, { label: kb.name }]}
         title={kb.name}
         description={
           kb.description || <span className="font-mono text-xs">{kb.collection_name}</span>
@@ -312,7 +314,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
           <>
             <Button variant="outline" size="sm" onClick={() => refresh()} disabled={isLoading}>
               <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
-              Refresh
+              {t("refresh")}
             </Button>
             {mayEdit && (
               <>
@@ -323,7 +325,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
                   disabled={isUploading}
                 >
                   <SlidersHorizontal className="h-4 w-4" />
-                  Parse options
+                  {t("parseOptions")}
                 </Button>
                 <Button
                   size="sm"
@@ -335,7 +337,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
                   ) : (
                     <Upload className="h-4 w-4" />
                   )}
-                  {isUploading ? "Uploading…" : "Upload"}
+                  {isUploading ? t("uploading") : t("upload")}
                 </Button>
               </>
             )}
@@ -363,19 +365,18 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
       {overrideCount > 0 && (
         <div className="border-brand-line bg-brand-subtle mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3">
           <p className="text-foreground text-sm">
-            The next files you add are parsed with{" "}
-            <span className="font-medium">
-              {overrideCount === 1 ? "1 change" : `${overrideCount} changes`}
-            </span>{" "}
-            from this collection&apos;s settings, and will say so.{" "}
-            <span className="text-muted-foreground">The collection itself is unchanged.</span>
+            {t.rich("parsedWithOverrides", {
+              count: overrideCount,
+              strong: (chunks) => <span className="font-medium">{chunks}</span>,
+            })}{" "}
+            <span className="text-muted-foreground">{t("collectionItselfUnchanged")}</span>
           </p>
           <div className="flex shrink-0 items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => setOverrideOpen(true)}>
-              Review
+              {t("review")}
             </Button>
             <Button variant="ghost" size="sm" onClick={() => setUploadOverride({})}>
-              Clear
+              {t("clear")}
             </Button>
           </div>
         </div>
@@ -394,9 +395,9 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
                 </span>
                 <span className="text-muted-foreground shrink-0 tabular-nums">
                   {up.percent === null
-                    ? "Uploading…"
+                    ? t("uploading2")
                     : up.percent >= 100
-                      ? "Processing…"
+                      ? t("processing")
                       : `${up.percent}%`}
                 </span>
               </div>
@@ -410,7 +411,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
       )}
 
       <section className="mb-8">
-        <h2 className="text-foreground mb-3 text-sm font-semibold">Documents</h2>
+        <h2 className="text-foreground mb-3 text-sm font-semibold">{t("documents")}</h2>
         <DataTable<KBDocument>
           columns={documentColumns}
           rows={documents}
@@ -419,15 +420,11 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
           empty={
             <EmptyState
               icon={Upload}
-              title="No documents yet"
-              description={
-                mayEdit
-                  ? "Drag files anywhere on this page, or pick from your computer."
-                  : "Nothing has been uploaded here yet."
-              }
+              title={t("noDocumentsYet")}
+              description={mayEdit ? t("dragFilesAnywherePage") : t("nothingHasBeenUploaded")}
               cta={
                 mayEdit
-                  ? { label: "Choose files", onClick: () => fileInputRef.current?.click() }
+                  ? { label: t("chooseFiles"), onClick: () => fileInputRef.current?.click() }
                   : undefined
               }
             />
@@ -443,7 +440,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
                 disabled={isLoadingMoreDocs}
               >
                 {isLoadingMoreDocs && <Loader2 className="h-4 w-4 animate-spin" />}
-                {isLoadingMoreDocs ? "Loading…" : "Load more"}
+                {isLoadingMoreDocs ? t("loading") : t("loadMore")}
               </Button>
             )}
             <p className="text-muted-foreground text-center text-xs">
@@ -462,11 +459,11 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
 
       <section>
         <div className="mb-3 flex items-center justify-between gap-2">
-          <h2 className="text-foreground text-sm font-semibold">Sync sources</h2>
+          <h2 className="text-foreground text-sm font-semibold">{t("syncSources")}</h2>
           {mayEdit && connectors.length > 0 && (
             <Button variant="outline" size="sm" onClick={() => setWizardOpen(true)}>
               <Plus className="h-4 w-4" />
-              Connect
+              {t("connect")}
             </Button>
           )}
         </div>
@@ -474,15 +471,13 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
         {syncSources.length === 0 ? (
           <EmptyState
             icon={Plug}
-            title={connectors.length > 0 ? "No sources connected" : "No connectors configured"}
+            title={connectors.length > 0 ? t("noSourcesConnected") : t("noConnectorsConfigured")}
             description={
-              connectors.length > 0
-                ? "Add one to keep this knowledge base in sync automatically."
-                : "Configure connectors at the workspace level to start syncing from external sources."
+              connectors.length > 0 ? t("addOneKeepKnowledge") : t("configureConnectorsAtWorkspace")
             }
             cta={
               mayEdit && connectors.length > 0
-                ? { label: "Connect source", onClick: () => setWizardOpen(true) }
+                ? { label: t("connectSource"), onClick: () => setWizardOpen(true) }
                 : undefined
             }
           />
@@ -508,7 +503,9 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
                   size="sm"
                   onClick={() => setSyncSourcesExpanded((v) => !v)}
                 >
-                  {syncSourcesExpanded ? "Show less" : `Show all ${syncSources.length} sources`}
+                  {syncSourcesExpanded
+                    ? t("showLess")
+                    : t("showAllSources", { count: syncSources.length })}
                 </Button>
               </div>
             )}
@@ -618,7 +615,8 @@ function SyncSourceRow({
   onTrigger?: () => void;
   onDelete?: () => void;
 }) {
-  const lastSync = source.last_sync_at ? formatDateTime(source.last_sync_at) : "Never";
+  const t = useTranslations("pages.kb");
+  const lastSync = source.last_sync_at ? formatDateTime(source.last_sync_at) : t("never");
   const brand = connectorBrand(source.connector_type);
   return (
     <li className="overflow-hidden">
@@ -635,7 +633,7 @@ function SyncSourceRow({
             <p className="text-foreground truncate text-sm font-medium">{source.name}</p>
           </div>
           <div className="text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-2 text-xs">
-            <span>Last sync · {lastSync}</span>
+            <span>{t("lastSyncAt", { when: lastSync })}</span>
             {source.schedule_minutes && source.schedule_minutes > 0 && (
               <>
                 <span>·</span>
@@ -653,8 +651,8 @@ function SyncSourceRow({
             size="sm"
             className="text-muted-foreground hover:text-foreground h-8 w-8 p-0"
             onClick={onTrigger}
-            title="Trigger sync now"
-            aria-label="Trigger sync now"
+            title={t("triggerSyncNow")}
+            aria-label={t("triggerSyncNow2")}
           >
             <RotateCw className="h-3.5 w-3.5" />
           </Button>
@@ -667,8 +665,8 @@ function SyncSourceRow({
             onClick={() => {
               if (confirm(`Disconnect "${source.name}"?`)) onDelete();
             }}
-            title="Remove source"
-            aria-label="Remove source"
+            title={t("removeSource")}
+            aria-label={t("removeSource2")}
           >
             <Trash2 className="h-3.5 w-3.5" />
           </Button>
@@ -692,26 +690,31 @@ function SyncSourceRow({
  * that is impossible to catch.
  */
 function Provenance({ doc }: { doc: KBDocument }) {
+  const t = useTranslations("pages.kb");
   if (doc.parser === null) {
-    return <span className="text-muted-foreground text-xs">Not recorded</span>;
+    return <span className="text-muted-foreground text-xs">{t("notRecorded")}</span>;
   }
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       <span
         className="text-muted-foreground font-mono text-xs"
-        title={doc.embedding_model === null ? undefined : `Embedded with ${doc.embedding_model}`}
+        title={
+          doc.embedding_model === null
+            ? undefined
+            : t("embeddedWith", { model: doc.embedding_model })
+        }
       >
         {doc.parser}
       </span>
       {doc.image_description_model !== null && (
         <span
           className="text-muted-foreground text-xs"
-          title={`Images described by ${doc.image_description_model}`}
+          title={t("imagesDescribedBy", { model: doc.image_description_model })}
         >
-          + images
+          {t("images")}
         </span>
       )}
-      {doc.was_overridden && <Badge variant="secondary">overridden</Badge>}
+      {doc.was_overridden && <Badge variant="secondary">{t("overridden")}</Badge>}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { useTranslations } from "next-intl";
 import { Bot, Check, ChevronDown, Star } from "lucide-react";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
@@ -38,6 +39,7 @@ export const isRunnable = (agent: Agent): boolean => agent.status === "published
  * than relabelling everything above it.
  */
 export function AgentPicker() {
+  const t = useTranslations("chat.agentPicker");
   // Archived agents included so a conversation that was had with one still
   // resolves its name; `isRunnable` is what decides who can be picked.
   const { agents, isLoading, isFetching } = useAgents({ includeArchived: true });
@@ -74,7 +76,7 @@ export function AgentPicker() {
       <PopoverTrigger asChild>
         <button
           type="button"
-          aria-label={`Agent: ${selected?.name ?? "none selected"}`}
+          aria-label={t("current", { name: selected?.name ?? t("noneSelected") })}
           className="border-foreground/10 bg-card hover:border-foreground/25 hover:bg-foreground/[0.04] text-foreground inline-flex items-center gap-1.5 rounded-full border py-1 pr-2 pl-1 transition-colors"
         >
           {selected ? (
@@ -90,7 +92,7 @@ export function AgentPicker() {
             </span>
           )}
           <span className="max-w-[160px] truncate font-mono text-[11px] tracking-wider uppercase">
-            {selected?.name ?? "Choose agent"}
+            {selected?.name ?? t("none")}
           </span>
           <ChevronDown className="text-foreground/45 h-3 w-3" />
         </button>
@@ -99,15 +101,16 @@ export function AgentPicker() {
       <PopoverContent
         align="start"
         sideOffset={8}
-        className="border-border bg-popover w-[320px] rounded-2xl border p-2 shadow-md"
+        className="border-border bg-popover w-[300px] rounded-xl border p-1.5 shadow-md"
       >
-        <p className="text-foreground/55 px-2 pt-1 pb-2 text-xs leading-relaxed">
-          {currentConversationId
-            ? "Applies from your next message. Earlier answers keep the agent that gave them."
-            : "Who answers this conversation."}
+        {/* One line, and the smallest type in the menu. It is a footnote about when the
+            change takes effect; at twelve pixels over two lines it was the loudest
+            thing in a list of agents. */}
+        <p className="text-muted-foreground border-foreground/8 mb-1 border-b px-2 pt-1 pb-2 text-[11px] leading-snug">
+          {currentConversationId ? t("appliesNext") : t("whoAnswers")}
         </p>
 
-        <div role="radiogroup" aria-label="Agent" className="space-y-1">
+        <div role="radiogroup" aria-label={t("label")} className="space-y-px">
           {runnable.map((agent) => (
             <AgentOption
               key={agent.id}
@@ -121,11 +124,11 @@ export function AgentPicker() {
         </div>
 
         {isLoading && runnable.length === 0 ? (
-          <p className="text-foreground/55 px-2 py-3 text-xs">Loading…</p>
+          <p className="text-foreground/55 px-2 py-3 text-xs">{t("loading")}</p>
         ) : (
           runnable.length === 0 && (
             <p className="text-foreground/45 px-2 py-3 text-[11px] leading-relaxed">
-              No published agents yet. Publish one from the Agents page and it will appear here.
+              {t("nonePublished")}
             </p>
           )
         )}
@@ -147,53 +150,56 @@ function AgentOption({
   onSelect: () => void;
   onToggleDefault: () => void;
 }) {
-  // The star sits beside the radio rather than inside it: a button cannot
-  // contain a button, and starring an agent must not also select it.
+  const t = useTranslations("chat.agentPicker");
+  // Two buttons that read as one row: a button cannot contain a button, and starring an
+  // agent must not also select it - so the *wrapper* carries the fill and the rounding,
+  // and the star lives inside it rather than in an orphaned column beside it. What this
+  // replaces gave every agent its own bordered card inside an already bordered popover,
+  // which is four nested boxes to say "pick one of these".
   return (
-    <div className="flex items-center gap-1">
+    <div className={cn(t("groupFlexItemsCenter"), selected ? "bg-accent" : "hover:bg-accent/60")}>
       <button
         type="button"
         role="radio"
         aria-checked={selected}
         onClick={onSelect}
-        className={cn(
-          "flex min-w-0 flex-1 items-start gap-2.5 rounded-xl border px-2.5 py-2 text-left transition-all",
-          selected
-            ? "border-foreground/30 bg-accent text-foreground"
-            : "border-border text-foreground/75 hover:border-foreground/25 hover:bg-accent/60 hover:text-foreground",
-        )}
+        className="flex min-w-0 flex-1 items-center gap-2.5 px-2 py-1.5 text-left"
       >
-        <AgentAvatar agentId={agent.id} name={agent.name} hasAvatar={agent.has_avatar} size="md" />
+        <AgentAvatar agentId={agent.id} name={agent.name} hasAvatar={agent.has_avatar} size="sm" />
         <span className="min-w-0 flex-1">
-          <span className="flex items-center gap-1.5 text-xs font-medium">
-            <span className="truncate">{agent.name}</span>
+          <span className="flex items-center gap-1.5">
+            <span className="truncate text-[13px] font-medium">{agent.name}</span>
             {isDefault && (
-              <span className="text-foreground/55 shrink-0 font-mono text-[9px] tracking-wider uppercase">
-                Default
-              </span>
+              <span className="text-muted-foreground shrink-0 text-[10px]">{t("default")}</span>
             )}
           </span>
+          {/* One line, truncated. Wrapped to two, a description made every row a
+              different height and the list stopped scanning as a list. */}
           {agent.description && (
-            <span className="text-foreground/55 mt-0.5 line-clamp-2 block text-[11px] leading-relaxed">
+            <span className="text-muted-foreground block truncate text-[11px]">
               {agent.description}
             </span>
           )}
         </span>
-        {selected && <Check className="text-foreground mt-0.5 h-3.5 w-3.5 shrink-0" />}
+        {selected && <Check className="text-foreground h-3.5 w-3.5 shrink-0" aria-hidden />}
       </button>
       <button
         type="button"
         aria-pressed={isDefault}
         aria-label={
-          isDefault ? `Unset ${agent.name} as default agent` : `Set ${agent.name} as default agent`
+          isDefault
+            ? t("unsetDefault", { name: agent.name })
+            : t("setDefault", { name: agent.name })
         }
-        title={isDefault ? "Default agent for new chats" : "Set as default for new chats"}
+        title={isDefault ? t("defaultForNewChats") : t("makeDefaultForNewChats")}
         onClick={onToggleDefault}
         className={cn(
-          "shrink-0 rounded-lg p-1.5 transition-colors",
+          "shrink-0 rounded-md p-1.5 transition-colors",
+          // Off-state stars on every row are four grey outlines competing with the
+          // names; the one that is set is the only one worth showing unasked.
           isDefault
             ? "text-foreground"
-            : "text-foreground/30 hover:text-foreground/70 hover:bg-accent/60",
+            : "text-muted-foreground/50 hover:text-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
         )}
       >
         <Star className={cn("h-3.5 w-3.5", isDefault && "fill-current")} />

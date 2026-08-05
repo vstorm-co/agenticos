@@ -124,16 +124,51 @@ make check                                        # what CI runs — before ever
 
 | | |
 |---|---|
-| `make lint` / `make format` | ruff + ty, backend and frontend |
+| `make lint` / `make format` | ruff + ty + eslint + tsc + the i18n guard |
 | `make test-fast` | no coverage — the write-run-write loop |
 | `make test` | backend + the 100% gate on the platform layer |
 | `make test-integration` | only the tests needing a real database |
-| `make test-frontend` / `make test-e2e` | vitest / Playwright |
+| `make test-frontend` / `make test-frontend-cov` | vitest / vitest with the gate CI applies |
+| `make test-e2e` | Playwright — needs a backend and its seed |
 | `make test-migrations` | the whole chain forwards and back |
 | `make db-migrate` / `make db-upgrade` | autogenerate / apply |
 | `make docs` / `make docs-build` | serve on :8001 (`DOCS_PORT=` to move it) / `--strict` |
 | `uv run agenticos cmd doctor` | can this deployment actually run an agent? |
 | `uv run agenticos cmd --help` | every custom command, including all `rag-*` |
+
+## The loop
+
+**Write, run the tests you just wrote, commit, push, and let CI be the wide net.**
+Running every test after every edit is the slowest way to learn the same thing: one
+frontend spec answers in about two seconds against seventy for the suite, one backend
+file in under one against ninety-five for `make test`. CI's jobs run in parallel and
+answer in about seven minutes — from a pushed branch, while you carry on working.
+
+```bash
+cd frontend && bunx vitest run src/components/chat/usage-strip.test.tsx
+cd backend  && uv run pytest tests/test_sandbox_workspace.py -q
+cd backend  && uv run pytest tests/api/test_workspace_routes.py -k bytes -x
+```
+
+Once before the push — not after every edit — run `make lint` and the coverage gate for
+the half you touched: `make test` or `make test-frontend-cov`. **`bun run test:run` does
+not measure coverage**, so a frontend suite where every test passes still fails the job;
+that is how `test-frontend` went red on `feat/sandbox` after a green local run. Then read
+the answer rather than guessing at it: `gh pr checks <n>`, and
+`gh run view --job <id> --log-failed` for whatever is red. `.claude/rules/testing.md` has
+the scoped commands and the traps; the pull request reviewer is under Git below, and it is
+for a branch you believe is finished.
+
+Two habits that cost time here, both cheap to keep:
+
+- **Edit files with the editor.** A `python3 - <<'PY'` heredoc that rewrites source is not
+  reviewable and not atomic — one in this session aborted on its twelfth replacement
+  having applied eleven, leaving a half-migrated tree that took two more runs to notice.
+  A genuine sweep over dozens of files is the exception: write the script under the
+  session scratchpad, collect every edit before writing any, and say what it did.
+- **Stage the paths you changed.** `git add -A` staged a stray `node_modules/.vite`
+  cache — created by running `bunx vitest` from the repository root instead of
+  `frontend/`, which also reports 164 phantom failures because the config is not there.
 
 ## Environment gotchas
 
@@ -273,12 +308,20 @@ explicit.
 - **One branch, one pull request, squashed on merge.** `main` is the only long-lived
   branch, so the squashed commit is what survives - which is why the subject line
   and body below are worth the minute they cost.
-- **Commit only when asked.**
+- **On a branch, commit and push each finished piece without being asked.** That is
+  what makes the loop above work: the piece is verified by its own tests, the commit
+  body records why, and CI checks the whole of it while the next piece is being
+  written. Small commits, each one a thing that stands on its own - not one commit at
+  the end of a session. **On `main`, nothing is ever committed** (see above), and a
+  half-finished piece waits rather than landing.
 - **No AI attribution** — no `Co-Authored-By: Claude`, no "Generated with" trailer.
   Write commits and PR descriptions as Kacper authored them.
 - **`make check` before opening a PR.** It is what CI runs; a red PR costs a review
-  cycle.
-- No secrets in commits. Never stage `.env`, a key, or a credential.
+  cycle. Between commits on an open branch the scoped runs plus the pushed jobs are
+  enough - see The loop.
+- No secrets in commits. Never stage `.env`, a key, or a credential. **Stage paths,
+  not `-A`**, and read `git status` before committing: caches and generated files end
+  up in a diff exactly this way.
 
 ### The subject line
 

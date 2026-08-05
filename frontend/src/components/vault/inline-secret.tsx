@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Eye, EyeOff, KeyRound, Plus } from "lucide-react";
+import { ExternalLink, Eye, EyeOff, KeyRound, Plus } from "lucide-react";
 
 import { Button, Input, Label } from "@/components/ui";
 import { useSecrets } from "@/hooks";
+import { ROUTES } from "@/lib/constants";
 import type { StorableSecretKind } from "@/types/secrets";
+import { useTranslations } from "next-intl";
 
 interface InlineSecretProps {
   /** What shape the caller needs. Almost always `api_key`. */
@@ -42,8 +44,11 @@ interface InlineSecretProps {
  * sitting in a React state somewhere.
  *
  * Only `api_key` is offered here. The other shapes - an AWS pair, a Google
- * service-account JSON - are multi-field forms with their own validation, and
- * the honest place for those is the vault, which this links to.
+ * service-account JSON, an Azure deployment - are multi-field forms with their own
+ * validation, and the honest place for those is the Vault. Which is why the link to
+ * it is not conditional: a picker that offers only the keys already stored, with
+ * nowhere to go when the shape needed is not an opaque token, is a dead end. It
+ * opens in a new tab so the half-filled form behind it survives.
  */
 export function InlineSecret({
   kind,
@@ -53,6 +58,7 @@ export function InlineSecret({
   onCreated,
   disabled,
 }: InlineSecretProps) {
+  const t = useTranslations("vault");
   const { create } = useSecrets();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(suggestedName);
@@ -61,19 +67,35 @@ export function InlineSecret({
 
   if (!open) {
     return (
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        disabled={disabled}
-        onClick={() => {
-          setName(suggestedName);
-          setOpen(true);
-        }}
-      >
-        <Plus className="h-3.5 w-3.5" />
-        Add a key
-      </Button>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={disabled}
+          onClick={() => {
+            setName(suggestedName);
+            setOpen(true);
+          }}
+        >
+          <Plus className="h-3.5 w-3.5" />
+          {t("addKey")}
+        </Button>
+        {/* Beside it, always. This form takes one shape - an opaque `api_key` -
+            and the vault takes every other: an AWS pair, a service-account JSON,
+            an Azure deployment. A picker offering only what is already stored,
+            with nowhere to go when the needed shape is not one of them, is a dead
+            end; a new tab is what keeps the half-filled form on this page. */}
+        <a
+          href={ROUTES.VAULT}
+          target="_blank"
+          rel="noreferrer noopener"
+          className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs underline underline-offset-4"
+        >
+          <ExternalLink className="h-3 w-3" aria-hidden />
+          {t("openVault")}
+        </a>
+      </div>
     );
   }
 
@@ -97,13 +119,13 @@ export function InlineSecret({
     <div className="border-border space-y-3 rounded-lg border border-dashed p-3">
       <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
         <KeyRound className="h-3.5 w-3.5 shrink-0" />
-        Stored in this organization&apos;s vault, encrypted, and never shown again.
+        {t("storedOrganizationAposS")}
       </p>
 
       <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
         <div className="space-y-1.5">
           <Label htmlFor="inline-secret-name" className="text-xs">
-            Name
+            {t("name")}
           </Label>
           <Input
             id="inline-secret-name"
@@ -114,7 +136,7 @@ export function InlineSecret({
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="inline-secret-value" className="text-xs">
-            Key
+            {t("key")}
           </Label>
           <div className="relative">
             <Input
@@ -122,7 +144,7 @@ export function InlineSecret({
               type={revealed ? "text" : "password"}
               value={value}
               onChange={(event) => setValue(event.target.value)}
-              placeholder="Paste it here"
+              placeholder={t("pasteHere")}
               autoComplete="off"
               className="pr-10 font-mono"
             />
@@ -132,7 +154,7 @@ export function InlineSecret({
             <button
               type="button"
               onClick={() => setRevealed((shown) => !shown)}
-              aria-label={revealed ? "Hide key" : "Show key"}
+              aria-label={revealed ? t("hideKey") : t("showKey")}
               aria-pressed={revealed}
               className="text-muted-foreground hover:text-foreground absolute top-1/2 right-1 -translate-y-1/2 rounded-md p-2"
             >
@@ -149,11 +171,20 @@ export function InlineSecret({
           disabled={create.isPending || !name.trim() || !value.trim()}
           onClick={submit}
         >
-          Save key
+          {t("saveKey")}
         </Button>
         <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)}>
-          Cancel
+          {t("cancel")}
         </Button>
+        <a
+          href={ROUTES.VAULT}
+          target="_blank"
+          rel="noreferrer noopener"
+          className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs underline underline-offset-4"
+        >
+          <ExternalLink className="h-3 w-3" aria-hidden />
+          {t("openVault2")}
+        </a>
         {helpUrl && (
           <a
             href={helpUrl}
@@ -161,7 +192,7 @@ export function InlineSecret({
             rel="noreferrer noopener"
             className="text-muted-foreground ml-auto text-xs underline underline-offset-4"
           >
-            Where do I get one?
+            {t("whereDoIGet")}
           </a>
         )}
       </div>

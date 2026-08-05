@@ -36,7 +36,12 @@ from typing import Any
 import httpx
 
 from app.db.session import get_db_context
-from app.services.channels.base import ChannelAdapter, IncomingMessage, OutgoingMessage
+from app.services.channels.base import (
+    ChannelAdapter,
+    IncomingAttachment,
+    IncomingMessage,
+    OutgoingMessage,
+)
 from app.services.channels.exceptions import ChannelNotConfigured
 from app.services.channels.router import ChannelMessageRouter
 
@@ -79,13 +84,24 @@ class MattermostAdapter(ChannelAdapter):
         headers = {"Authorization": f"Bearer {bot_token}"}
 
         async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
-            file_ids: list[str] = []
+            # One upload for the chart and the attachments together: Mattermost
+            # attaches files to a post by id, so both halves are the same call and
+            # a post referencing them follows.
+            uploads: list[tuple[str, tuple[str, bytes, str]]] = []
             if msg.image_png is not None:
+                uploads.append(("files", (msg.image_filename, msg.image_png, "image/png")))
+            uploads.extend(
+                ("files", (attachment.filename, attachment.content, attachment.mime_type))
+                for attachment in msg.attachments
+            )
+
+            file_ids: list[str] = []
+            if uploads:
                 upload = await client.post(
                     f"{base_url}/api/v4/files",
                     headers=headers,
                     data={"channel_id": channel_id},
-                    files={"files": (msg.image_filename, msg.image_png, "image/png")},
+                    files=uploads,
                 )
                 upload.raise_for_status()
                 file_ids = [item["id"] for item in upload.json().get("file_infos", [])]
@@ -282,8 +298,9 @@ class MattermostAdapter(ChannelAdapter):
         if props.get("from_bot") == "true" or props.get("from_webhook") == "true":
             return None
 
+        attachments = self._attachments(post, bot_id)
         text = (post.get("message") or "").strip()
-        if not text:
+        if not text and not attachments:
             return None
 
         root_id = post.get("root_id") or ""
@@ -303,7 +320,60 @@ class MattermostAdapter(ChannelAdapter):
             platform_username=data.get("sender_name", "").lstrip("@") or None,
             platform_display_name=data.get("sender_name") or None,
             message_id=post.get("id"),
+            attachments=attachments,
         )
+
+    def _attachments(self, post: dict[str, Any], bot_id: str) -> list[IncomingAttachment]:
+        """The files on a Mattermost post, as handles.
+
+        A post carries `file_ids` and, on the socket, `metadata.files` with the
+        name, size and MIME type beside each. The ids alone would mean a lookup
+        per file before anything could be validated, so the metadata is used where
+        it is there and an id with none is carried as a handle with nothing
+        claimed - which the size check then reads as zero and lets through, to be
+        caught against the bytes after the download.
+        """
+        metadata = (post.get("metadata") or {}).get("files") or []
+        described = {str(entry.get("id")): entry for entry in metadata if isinstance(entry, dict)}
+
+        # The handle is the full URL, resolved here from the server this bot's
+        # stream was opened against. Every Mattermost deployment is somebody's own
+        # server, so the id alone is not enough to fetch anything - and the
+        # download signature carries a token, not a bot.
+        base_url = self._base_urls.get(bot_id, "")
+
+        found: list[IncomingAttachment] = []
+        for file_id in post.get("file_ids") or []:
+            entry = described.get(str(file_id), {})
+            found.append(
+                IncomingAttachment(
+                    filename=entry.get("name") or str(file_id),
+                    mime_type=entry.get("mime_type") or "application/octet-stream",
+                    size=int(entry.get("size") or 0),
+                    handle=f"{base_url}/api/v4/files/{file_id}" if base_url else "",
+                )
+            )
+        return found
+
+    async def download_attachment(self, bot_token: str, attachment: IncomingAttachment) -> bytes:
+        """Fetch a Mattermost file from the URL the parser resolved.
+
+        Empty means this bot's server was not known when the message arrived - the
+        outgoing-webhook path never calls `remember_server` - and that is reported
+        rather than guessed at, because guessing a Mattermost address is guessing
+        which company's server to send a bot token to.
+        """
+        if not attachment.handle:
+            raise ValueError(
+                "This Mattermost bot has no server URL recorded, so its files cannot be fetched."
+            )
+
+        async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
+            response = await client.get(
+                attachment.handle, headers={"Authorization": f"Bearer {bot_token}"}
+            )
+        response.raise_for_status()
+        return response.content
 
     def _from_webhook(self, payload: dict[str, Any], bot_id: str) -> IncomingMessage | None:
         text = str(payload.get("text") or "").strip()

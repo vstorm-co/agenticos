@@ -1,6 +1,7 @@
 "use client";
 
 import { Clock, Paperclip, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import type { QueuedMessage } from "@/hooks/use-chat";
 import { cn } from "@/lib/utils";
@@ -18,13 +19,14 @@ interface PendingMessagesProps {
  * drainer auto-sends each entry as soon as the agent goes idle.
  */
 export function PendingMessages({ messages, onCancel }: PendingMessagesProps) {
+  const t = useTranslations("chat");
   if (messages.length === 0) return null;
 
   return (
     <div className="border-border bg-card mb-2 rounded-2xl border px-3 py-2">
       <div className="text-foreground/55 mb-1.5 flex items-center gap-1.5 font-mono text-[10px] tracking-wider uppercase">
         <Clock className="h-3 w-3" />
-        Queued · sends after current reply
+        {t("queuedSendsAfterCurrent")}
       </div>
       <ul className="space-y-1.5">
         {messages.map((m, i) => (
@@ -43,7 +45,7 @@ export function PendingMessages({ messages, onCancel }: PendingMessagesProps) {
               {m.files && m.files.length > 0 && (
                 <p className="text-foreground/55 mt-0.5 inline-flex items-center gap-1 font-mono text-[10px] tracking-wider uppercase">
                   <Paperclip className="h-3 w-3" />
-                  {m.files.length} file{m.files.length === 1 ? "" : "s"}
+                  {t("fileCount", { count: m.files.length })}
                 </p>
               )}
             </div>
@@ -51,8 +53,8 @@ export function PendingMessages({ messages, onCancel }: PendingMessagesProps) {
               type="button"
               onClick={() => onCancel(m.id)}
               className="text-foreground/45 hover:bg-foreground/10 hover:text-destructive inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors"
-              title="Remove from queue"
-              aria-label="Remove from queue"
+              title={t("removeFromQueue")}
+              aria-label={t("removeFromQueue")}
             >
               <X className="h-3.5 w-3.5" />
             </button>

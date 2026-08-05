@@ -279,6 +279,12 @@ class TestChannelConversationOrg:
                 "app.services.channels.router.channel_session_repo.create",
                 new=AsyncMock(return_value=MagicMock()),
             ),
+            # Resolving a session also records that the chat had a turn, which is
+            # what "report usage every n messages" counts.
+            patch(
+                "app.services.channels.router.channel_session_repo.touch",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
         ):
             await ChannelMessageRouter()._resolve_session(incoming, bot, identity, MagicMock())
 

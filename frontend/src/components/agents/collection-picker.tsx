@@ -7,6 +7,7 @@ import { Badge, Pager, SearchInput, useListControls } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type { KnowledgeBase } from "@/types/knowledge-base";
+import { useTranslations } from "next-intl";
 
 interface CollectionPickerProps {
   collections: KnowledgeBase[];
@@ -43,6 +44,7 @@ export function CollectionPicker({
   onToggle,
   disabled,
 }: CollectionPickerProps) {
+  const t = useTranslations("agents");
   const chosen = new Set(selectedIds);
   const known = new Set(collections.map((collection) => collection.id));
   // Named rather than dropped, for the same reason the skill gallery names them:
@@ -61,15 +63,13 @@ export function CollectionPicker({
     return (
       <div className="border-border rounded-lg border border-dashed p-6 text-center">
         <Database className="text-muted-foreground mx-auto h-6 w-6" />
-        <p className="text-muted-foreground mt-2 text-sm">
-          This organization has no collections yet. An agent with none searches nothing.
-        </p>
+        <p className="text-muted-foreground mt-2 text-sm">{t("organizationHasNoCollections")}</p>
         <Link
           href={ROUTES.KB}
           className="mt-3 inline-flex items-center gap-1.5 text-sm underline underline-offset-4"
         >
           <Plus className="h-3.5 w-3.5" />
-          Create one
+          {t("createOne")}
         </Link>
       </div>
     );
@@ -81,7 +81,7 @@ export function CollectionPicker({
         <SearchInput
           value={list.query}
           onChange={list.setQuery}
-          placeholder="Search collections…"
+          placeholder={t("searchCollections")}
         />
       )}
 
@@ -99,7 +99,7 @@ export function CollectionPicker({
               disabled={disabled}
               onClick={() => onToggle(collection.id)}
               className={cn(
-                "flex items-start gap-3 rounded-xl border p-4 text-left transition-colors",
+                t("flexItemsStartGap"),
                 isOn ? "border-brand bg-brand/5" : "hover:border-foreground/20",
                 disabled && "cursor-not-allowed opacity-60",
               )}
@@ -115,7 +115,7 @@ export function CollectionPicker({
               <span className="min-w-0 flex-1">
                 <span className="flex flex-wrap items-center gap-2">
                   <span className="truncate text-sm font-medium">{collection.name}</span>
-                  {collection.is_default && <Badge variant="outline">default</Badge>}
+                  {collection.is_default && <Badge variant="outline">{t("default")}</Badge>}
                 </span>
 
                 {collection.description && (
@@ -130,8 +130,8 @@ export function CollectionPicker({
                   <span className="inline-flex items-center gap-1">
                     <Database className="h-3 w-3" />
                     {collection.document_count === 0
-                      ? "empty"
-                      : `${collection.document_count} ${collection.document_count === 1 ? "document" : "documents"}`}
+                      ? t("empty")
+                      : t("documentCount", { count: collection.document_count })}
                   </span>
                   {collection.chunk_count > 0 && (
                     <span className="inline-flex items-center gap-1">
@@ -171,16 +171,15 @@ export function CollectionPicker({
 
       {orphaned.length > 0 && (
         <p className="text-muted-foreground text-xs">
-          This agent also references {orphaned.length} collection
-          {orphaned.length === 1 ? "" : "s"} this organization no longer has. Publishing is refused
-          until they are cleared: <span className="font-mono break-all">{orphaned.join(", ")}</span>
+          {t("orphanedCollections", { count: orphaned.length })}{" "}
+          <span className="font-mono break-all">{orphaned.join(", ")}</span>
         </p>
       )}
 
       <p className="text-muted-foreground text-xs">
         The model chooses what to look for; it can never widen where it looks.{" "}
         <Link href={ROUTES.KB} className="underline underline-offset-4">
-          Manage collections
+          {t("manageCollections")}
         </Link>
       </p>
     </div>

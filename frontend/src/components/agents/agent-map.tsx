@@ -17,6 +17,7 @@ import type { LucideIcon } from "lucide-react";
 
 import { Button } from "@/components/ui";
 import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 
 /** One box on the map. `items` empty means "nothing configured", said out loud. */
 export interface MapNode {
@@ -64,6 +65,7 @@ const MIN_SCALE = 0.4;
 const MAX_SCALE = 2.5;
 
 export function AgentMap({ agentName, instructions, nodes }: AgentMapProps) {
+  const t = useTranslations("agents");
   const viewport = useRef<HTMLDivElement>(null);
   const container = useRef<HTMLDivElement>(null);
   const hub = useRef<HTMLDivElement>(null);
@@ -178,7 +180,7 @@ export function AgentMap({ agentName, instructions, nodes }: AgentMapProps) {
           type="button"
           variant="outline"
           size="icon"
-          aria-label="Zoom in"
+          aria-label={t("zoom")}
           onClick={() => zoomFromCentre(1.25)}
         >
           <ZoomIn className="h-4 w-4" />
@@ -187,7 +189,7 @@ export function AgentMap({ agentName, instructions, nodes }: AgentMapProps) {
           type="button"
           variant="outline"
           size="icon"
-          aria-label="Zoom out"
+          aria-label={t("zoomOut")}
           onClick={() => zoomFromCentre(1 / 1.25)}
         >
           <ZoomOut className="h-4 w-4" />
@@ -196,7 +198,7 @@ export function AgentMap({ agentName, instructions, nodes }: AgentMapProps) {
           type="button"
           variant="outline"
           size="icon"
-          aria-label="Reset view"
+          aria-label={t("resetView")}
           onClick={() => setView({ x: 0, y: 0, scale: 1 })}
         >
           <Maximize className="h-4 w-4" />
@@ -269,21 +271,23 @@ export function AgentMap({ agentName, instructions, nodes }: AgentMapProps) {
               ref={hub}
               className="border-brand/40 bg-card rounded-xl border-2 p-4 shadow-sm"
               role="group"
-              aria-label={`${agentName}, the agent`}
+              aria-label={t("theAgentItself", { name: agentName })}
             >
               <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
-                Agent
+                {t("agent")}
               </p>
               <p className="mt-1 text-base font-semibold">{agentName}</p>
               <p className="text-muted-foreground mt-4 text-[11px] font-medium tracking-wide uppercase">
-                Instructions
+                {t("instructions")}
               </p>
               {instructions.trim() ? (
                 <p className="text-muted-foreground mt-1 line-clamp-6 text-sm whitespace-pre-wrap">
                   {instructions}
                 </p>
               ) : (
-                <p className="text-muted-foreground mt-1 text-sm italic">No instructions written</p>
+                <p className="text-muted-foreground mt-1 text-sm italic">
+                  {t("noInstructionsWritten")}
+                </p>
               )}
             </div>
 

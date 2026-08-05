@@ -12,6 +12,7 @@ import { submitFailure } from "@/lib/api-error";
 import { Perm } from "@/types/permissions";
 import type { Organization } from "@/types";
 import { useChanged } from "@/hooks/use-changed";
+import { useTranslations } from "next-intl";
 
 /** The field the server names in a refusal, so a message lands under the input. */
 const FIELD = "monthly_budget_usd";
@@ -45,6 +46,7 @@ export function OrgSpendingLimit({ org }: { org: Organization }) {
 }
 
 function SpendingLimitForm({ org }: { org: Organization }) {
+  const t = useTranslations("teams");
   const { setMonthlyBudget } = useOrganizations();
   const { spend } = useSpend();
 
@@ -69,14 +71,14 @@ function SpendingLimitForm({ org }: { org: Organization }) {
     // only thing to reject locally is a box holding something that is not a
     // number. Everything else is the server's call.
     if (parsed !== null && !Number.isFinite(parsed)) {
-      setError("Enter an amount in dollars, or leave it empty for no limit.");
+      setError(t("enterAmountDollarsLeave"));
       return;
     }
     setSaving(true);
     try {
       await setMonthlyBudget(org.id, parsed);
       setError(null);
-      toast.success(parsed === null ? "Monthly limit removed" : "Monthly limit updated");
+      toast.success(parsed === null ? t("monthlyLimitRemoved") : t("monthlyLimitUpdated"));
     } catch (failure) {
       const problem = submitFailure(failure, { fields: [FIELD] });
       setError(problem.fields[FIELD] ?? null);
@@ -88,15 +90,11 @@ function SpendingLimitForm({ org }: { org: Organization }) {
 
   return (
     <SettingsSection
-      title="Monthly spending limit"
-      description={
-        "The ceiling on what every agent in this workspace can spend between the first of the " +
-        "month and the next. An agent's own limit can tighten it, never loosen it. Leave it " +
-        "empty for no limit."
-      }
+      title={t("monthlySpendingLimit")}
+      description={t("ceilingWhatEveryAgent") + t("monthNextAgentS") + t("emptyNoLimit")}
     >
       <div className="flex flex-wrap items-start gap-3">
-        <FormField label="Limit (USD)" htmlFor="org-monthly-budget" error={error}>
+        <FormField label={t("limitUsd")} htmlFor="org-monthly-budget" error={error}>
           <Input
             id="org-monthly-budget"
             type="number"
@@ -108,7 +106,7 @@ function SpendingLimitForm({ org }: { org: Organization }) {
               setValue(event.target.value);
               setError(null);
             }}
-            placeholder="No limit"
+            placeholder={t("noLimit")}
           />
         </FormField>
         {changed && (
@@ -119,8 +117,11 @@ function SpendingLimitForm({ org }: { org: Organization }) {
       </div>
       <p className="text-foreground/55 mt-3 text-xs">
         {org.monthly_budget_usd === null
-          ? `$${monthToDate.toFixed(2)} spent this month, against no limit.`
-          : `$${monthToDate.toFixed(2)} of $${Number(org.monthly_budget_usd).toFixed(2)} spent this month.`}
+          ? t("spentNoLimit", { spent: monthToDate.toFixed(2) })
+          : t("spentOfLimit", {
+              spent: monthToDate.toFixed(2),
+              limit: Number(org.monthly_budget_usd).toFixed(2),
+            })}
       </p>
     </SettingsSection>
   );

@@ -5,11 +5,15 @@ from fastapi import APIRouter, Query, Response, status
 
 from app.api.deps import (
     ActiveOrg,
+    Auth,
     ConversationShareSvc,
     ConversationSvc,
     CurrentUser,
     MessageRatingSvc,
+    WorkspaceSvc,
 )
+from app.api.routes.v1._workspace_bytes import file_response
+from app.core.exceptions import NotFoundError
 from app.schemas.conversation import (
     ConversationCreate,
     ConversationList,
@@ -29,6 +33,12 @@ from app.schemas.message_rating import (
     MessageRatingCreate,
     MessageRatingRead,
 )
+from app.schemas.workspace import (
+    WorkspaceFileContent,
+    WorkspaceFileRead,
+    WorkspaceListing,
+)
+from app.services.sandbox_workspace import owner_label, stored_ceiling
 
 router = APIRouter()
 
@@ -134,8 +144,10 @@ async def update_conversation(
 async def delete_conversation(
     conversation_id: UUID,
     conversation_service: ConversationSvc,
+    workspaces: WorkspaceSvc,
     current_user: CurrentUser,
     active_org: ActiveOrg,
+    ctx: Auth,
 ) -> None:
     """Delete a conversation and all its messages."""
     await conversation_service.delete_conversation(
@@ -143,6 +155,11 @@ async def delete_conversation(
         organization_id=active_org.id,
         user_id=current_user.id,
     )
+    # The rows would cascade away with the conversation, but a container-backed
+    # workspace lives outside this database and would sit on the host until its
+    # TTL swept it - holding files whose conversation the user just deleted. Only
+    # this platform knows the conversation is gone.
+    await workspaces.purge_for_conversation(ctx, conversation_id=conversation_id)
 
 
 @router.post(
@@ -308,3 +325,131 @@ async def revoke_share(
 ) -> None:
     """Revoke a conversation share."""
     await share_service.revoke_share(share_id, current_user.id)
+
+
+@router.get("/{conversation_id}/workspace", response_model=WorkspaceListing)
+async def list_workspace_files(
+    conversation_id: UUID,
+    conversation_service: ConversationSvc,
+    workspaces: WorkspaceSvc,
+    current_user: CurrentUser,
+    active_org: ActiveOrg,
+    ctx: Auth,
+) -> Any:
+    """The files the agent kept in this conversation.
+
+    Authorised by fetching the conversation first, which is the platform's
+    answer to "is this yours" and reports a refusal as "not found" so ids stay
+    unprobeable. The workspace itself is behind a service token that also
+    unlocks `exec`, so nothing here is proxied until that check has passed - and
+    the token never leaves this process.
+
+    Read-only, and no sandbox is started: a container-backed workspace is read
+    off the volume the service keeps, so a conversation from last week lists its
+    files after its session was long reaped.
+    """
+    await conversation_service.get_conversation(
+        conversation_id,
+        organization_id=active_org.id,
+        include_messages=False,
+        user_id=current_user.id,
+    )
+    found = await workspaces.listing(ctx, conversation_id=conversation_id)
+    if found is None:
+        # No workspace is not an error. An agent without one is the default, and
+        # an empty listing is the honest answer for a chat that never had files.
+        return WorkspaceListing(
+            scope="none", backend="none", owner_label="No files", items=[], total=0
+        )
+
+    row, contents = found
+    items = [
+        WorkspaceFileRead(
+            path=str(entry.get("path")),
+            size=entry.get("size"),
+            is_dir=bool(entry.get("is_dir")),
+        )
+        for entry in contents.entries
+    ]
+    return WorkspaceListing(
+        scope=row.scope,
+        backend=row.backend,
+        owner_label=owner_label(row),
+        items=items,
+        total=len(items),
+        bytes_total=row.bytes_total,
+        # So the strip under the composer can show the fill when a conversation is
+        # *opened*, rather than only after the next turn reports one. How full a
+        # workspace is is a fact about now, not about what a turn cost.
+        bytes_limit=stored_ceiling(row),
+        unreadable_reason=contents.unreadable_reason,
+    )
+
+
+@router.get("/{conversation_id}/workspace/file", response_model=WorkspaceFileContent)
+async def read_workspace_file(
+    conversation_id: UUID,
+    conversation_service: ConversationSvc,
+    workspaces: WorkspaceSvc,
+    current_user: CurrentUser,
+    active_org: ActiveOrg,
+    ctx: Auth,
+    path: str = Query(description="Path inside the workspace, as the listing gives it"),
+) -> Any:
+    """One file's text.
+
+    The path arrives as a query parameter rather than in the URL: workspace
+    paths contain slashes, and a path parameter would either need escaping the
+    client has to get right or a catch-all route that swallows the ones below
+    it.
+    """
+    await conversation_service.get_conversation(
+        conversation_id,
+        organization_id=active_org.id,
+        include_messages=False,
+        user_id=current_user.id,
+    )
+    content = await workspaces.read_text(ctx, conversation_id=conversation_id, path=path)
+    if content is None:
+        raise NotFoundError(
+            message="No such file in this conversation's workspace",
+            details={"path": path},
+        )
+    return WorkspaceFileContent(path=path, content=content)
+
+
+@router.get("/{conversation_id}/workspace/raw", response_model=None)
+async def read_workspace_bytes(
+    conversation_id: UUID,
+    conversation_service: ConversationSvc,
+    workspaces: WorkspaceSvc,
+    current_user: CurrentUser,
+    active_org: ActiveOrg,
+    ctx: Auth,
+    path: str = Query(description="Path inside the workspace, as the listing gives it"),
+    download: bool = Query(False, description="Force a download rather than a preview"),
+) -> Response:
+    """One file as bytes, so the panel beside the chat can show it and save it.
+
+    The sibling of `/file`, which answers with text in JSON: a chart or a PDF an
+    agent produced is not a string, and decoding one as UTF-8 to re-encode it is a
+    corrupt file.
+
+    Addressed through the conversation rather than through the workspace's own id,
+    which is not a duplicate of `/sandbox-workspaces/{id}/raw` but the reason both
+    exist: this authorises by fetching the conversation, so somebody a chat was
+    *shared with* reaches these files, and the id-addressed route matches
+    conversations a caller owns. Pointing the panel at that one showed a share
+    recipient files it then refused to open.
+
+    What may be displayed rather than downloaded is decided once, in
+    `_workspace_bytes.INLINE_TYPES`, so the answer cannot differ by surface.
+    """
+    await conversation_service.get_conversation(
+        conversation_id,
+        organization_id=active_org.id,
+        include_messages=False,
+        user_id=current_user.id,
+    )
+    data = await workspaces.read_bytes(ctx, conversation_id=conversation_id, path=path)
+    return file_response(data, path=path, download=download)

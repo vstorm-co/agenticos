@@ -15,6 +15,7 @@ import {
 import { ingestionOverride, ingestionProblems, overrideSize } from "@/lib/ingestion-config";
 import type { IngestionConfig, IngestionOverride } from "@/types";
 import { useChanged } from "@/hooks/use-changed";
+import { useTranslations } from "next-intl";
 
 interface UploadOverrideDialogProps {
   open: boolean;
@@ -45,6 +46,7 @@ export function UploadOverrideDialog({
   override,
   onApply,
 }: UploadOverrideDialogProps) {
+  const t = useTranslations("kb");
   const [draft, setDraft] = useState<IngestionConfig>(config);
 
   // Seeded as the dialog opens, and re-seeded if what it is editing moves
@@ -70,11 +72,8 @@ export function UploadOverrideDialog({
           a narrow dialog stacks them into a cramped single file. */}
       <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Parse the next upload differently</DialogTitle>
-          <DialogDescription>
-            This applies to each file you add next and is recorded on it. The collection keeps its
-            own settings - every later upload goes back to them.
-          </DialogDescription>
+          <DialogTitle>{t("parseNextUploadDifferently")}</DialogTitle>
+          <DialogDescription>{t("appliesEachFileYou")}</DialogDescription>
         </DialogHeader>
 
         <div className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1">
@@ -108,9 +107,9 @@ export function UploadOverrideDialog({
             }}
           >
             {count === 0
-              ? "Nothing changed"
+              ? t("nothingChanged2")
               : count === 1
-                ? "Apply 1 change"
+                ? t("apply1Change")
                 : `Apply ${count} changes`}
           </Button>
         </DialogFooter>

@@ -148,6 +148,33 @@ class Settings(BaseSettings):
     # is per-collection configuration; these say only how to reach the tools.
     LLAMAPARSE_API_KEY: str = ""
     LITEPARSE_OCR_SERVER_URL: str = ""
+
+    # Where sandboxes run is deliberately *not* a setting. It is a row per
+    # organization in `sandbox_connections`, with its token in the vault: a
+    # deployment can hold more than one host, a token that authorises running
+    # commands belongs where every other credential lives, and neither of those
+    # is expressible in an environment variable. See
+    # `app/db/models/sandbox_connection.py`.
+    #
+    # The token `make sandbox-token` generated, read here for exactly one purpose:
+    # offering it to the vault. The service it belongs to was started with it from
+    # this same file, so asking an operator to find and paste a value this process
+    # can already see is friction with nothing behind it. It is never used to reach
+    # a host - `resolve` unseals the vault entry a connection names, and that stays
+    # the only path - so a deployment that leaves this unset loses a convenience and
+    # nothing else.
+    SANDBOXD_TOKEN: str = ""
+
+    # How much of an agent's `state` workspace the platform will store, per
+    # workspace. It lives in a JSONB column, so this is a real ceiling on a real
+    # row rather than a policy: past it, writes are refused with a message the
+    # model reads.
+    SANDBOX_STATE_MAX_BYTES: int = 4 * 1024 * 1024
+    # Above this, an attached image is written to the workspace and *not* also
+    # sent inline. Below it the model gets both: it should see the picture, and
+    # it should be able to run something over the file. The ceiling is where
+    # paying for the bytes twice stops being worth it.
+    SANDBOX_INLINE_IMAGE_MAX_BYTES: int = 5 * 1024 * 1024
     GOOGLE_DRIVE_CREDENTIALS_FILE: str = "credentials/google-drive-sa.json"
     S3_RAG_ENDPOINT: str | None = None
     S3_RAG_ACCESS_KEY: str = ""

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Cookie, X } from "lucide-react";
 
 import { ROUTES } from "@/lib/constants";
+import { useTranslations } from "next-intl";
 
 const STORAGE_KEY = "cookie.consent";
 
@@ -35,6 +36,7 @@ function writeConsent(consent: CookieConsent) {
 }
 
 export function CookieBanner() {
+  const t = useTranslations("legal");
   // Only for visitors who have not signed in. Inside the product it covered the
   // page to ask permission for something this deployment does not do - there is
   // no analytics script here, and nothing reads the stored consent. What a
@@ -110,7 +112,7 @@ export function CookieBanner() {
               id="cookie-banner-title"
               className="text-foreground text-sm font-semibold tracking-tight"
             >
-              We use cookies
+              {t("weUseCookies")}
             </p>
             <p className="text-foreground/65 mt-1 text-xs leading-relaxed">
               Essential cookies keep you signed in. Optional ones help us understand how the product
@@ -119,14 +121,14 @@ export function CookieBanner() {
                 href={ROUTES.LEGAL_COOKIES}
                 className="text-foreground underline-offset-4 hover:underline"
               >
-                cookie policy
+                {t("cookiePolicy")}
               </Link>
               .
             </p>
           </div>
           <button
             type="button"
-            aria-label="Close"
+            aria-label={t("close")}
             onClick={close}
             className="text-foreground/45 hover:text-foreground hover:bg-foreground/5 -mt-1 -mr-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors"
           >
@@ -137,21 +139,21 @@ export function CookieBanner() {
         {showPrefs && (
           <div className="border-foreground/10 space-y-3 border-t px-5 py-4">
             <Toggle
-              label="Essential"
-              description="Required to keep you signed in. Cannot be disabled."
+              label={t("essential")}
+              description={t("requiredKeepYouSigned")}
               checked
               disabled
               onChange={() => {}}
             />
             <Toggle
-              label="Analytics"
-              description="Aggregated, anonymized usage data."
+              label={t("analytics")}
+              description={t("aggregatedAnonymizedUsageData")}
               checked={analytics}
               onChange={setAnalytics}
             />
             <Toggle
-              label="Functional"
-              description="Remembers preferences (theme, cookie choices)."
+              label={t("functional")}
+              description={t("remembersPreferencesThemeCookie")}
               checked={functional}
               onChange={setFunctional}
             />
@@ -166,14 +168,14 @@ export function CookieBanner() {
                 onClick={savePrefs}
                 className="bg-foreground text-background hover:bg-foreground/90 inline-flex items-center rounded-full px-4 py-1.5 text-xs font-medium transition-colors"
               >
-                Save preferences
+                {t("savePreferences")}
               </button>
               <button
                 type="button"
                 onClick={() => setShowPrefs(false)}
                 className="text-foreground/55 hover:text-foreground text-xs font-medium"
               >
-                Back
+                {t("back")}
               </button>
             </>
           ) : (
@@ -183,21 +185,21 @@ export function CookieBanner() {
                 onClick={acceptAll}
                 className="bg-foreground text-background hover:bg-foreground/90 inline-flex items-center rounded-full px-4 py-1.5 text-xs font-medium transition-colors"
               >
-                Accept all
+                {t("acceptAll")}
               </button>
               <button
                 type="button"
                 onClick={rejectAll}
                 className="border-foreground/15 hover:border-foreground/40 text-foreground inline-flex items-center rounded-full border px-4 py-1.5 text-xs font-medium transition-colors"
               >
-                Reject optional
+                {t("rejectOptional")}
               </button>
               <button
                 type="button"
                 onClick={() => setShowPrefs(true)}
                 className="text-foreground/55 hover:text-foreground ml-auto text-xs font-medium"
               >
-                Preferences
+                {t("preferences")}
               </button>
             </>
           )}

@@ -43,6 +43,7 @@ const buttonVariants = cva(
 );
 
 export interface ButtonProps
+  // i18n-exempt: a generic type parameter, not a text node
   extends React.ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof buttonVariants> {
   asChild?: boolean;
 }

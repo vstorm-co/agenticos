@@ -22,6 +22,7 @@ const badgeVariants = cva(
 );
 
 export interface BadgeProps
+  // i18n-exempt: a generic type parameter, not a text node
   extends React.HTMLAttributes<HTMLDivElement>, VariantProps<typeof badgeVariants> {}
 
 function Badge({ className, variant, ...props }: BadgeProps) {

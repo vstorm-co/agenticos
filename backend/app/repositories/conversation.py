@@ -1,15 +1,17 @@
 """Conversation repository."""
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import distinct, func, select
 from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.db.models.agent import Agent, AgentVersion
+from app.db.models.agent_run import AgentRun
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.user import User
 
@@ -19,18 +21,34 @@ async def agents_in_conversations(
 ) -> dict[UUID, list[Agent]]:
     """Which agents answered in each of these conversations, oldest turn first.
 
-    One query for the whole page rather than one per row: a conversation list is
-    fifty rows, and the alternative is fifty round trips to render a chip.
+    One query per source for the whole page rather than one per row: a conversation
+    list is fifty rows, and the alternative is fifty round trips to render a chip.
 
-    An agent appears once however many times it answered - the list says who
-    took part, not how often. Ordering by the first message it sent makes that
+    An agent appears once however many times it answered - the list says who took
+    part, not how often. Ordering by the first evidence of it answering makes that
     order stable across refreshes, which a set could not promise.
+
+    **Two sources, and the second is why history works at all.** The message is the
+    accurate one: `messages.agent_id` says which agent produced *that answer*, which
+    is what a transcript needs. But it was written by a call that silently dropped
+    the field for as long as web chat has existed, so every row before that fix has
+    it null - and per-message attribution is not recoverable, because nothing links a
+    run to the message it produced.
+
+    A *run* is recoverable: `agent_runs` has carried `conversation_id` and `agent_id`
+    since it existed. It cannot say which answer came from which agent, and it does
+    not have to - the question here is only "who took part in this conversation", and
+    a completed run in it is exactly that evidence. So the two are merged, and a
+    conversation from before the fix shows its agents.
+
+    Only `completed` runs. A cancelled or failed one did not answer, and this list is
+    read as "who answered here".
     """
     if not conversation_ids:
         return {}
 
     first_turn = func.min(Message.created_at).label("first_turn")
-    result = await db.execute(
+    from_messages = await db.execute(
         select(Message.conversation_id, Agent, first_turn)
         .join(Agent, Agent.id == Message.agent_id)
         .where(Message.conversation_id.in_(conversation_ids))
@@ -38,10 +56,82 @@ async def agents_in_conversations(
         .order_by(Message.conversation_id, first_turn)
     )
 
-    by_conversation: dict[UUID, list[Agent]] = {}
-    for conversation_id, agent, _first_turn in result.all():
-        by_conversation.setdefault(conversation_id, []).append(agent)
-    return by_conversation
+    first_run = func.min(AgentRun.created_at).label("first_run")
+    from_runs = await db.execute(
+        select(AgentRun.conversation_id, Agent, first_run)
+        .join(Agent, Agent.id == AgentRun.agent_id)
+        .where(
+            AgentRun.conversation_id.in_(conversation_ids),
+            AgentRun.status == "completed",
+        )
+        .group_by(AgentRun.conversation_id, Agent.id)
+        .order_by(AgentRun.conversation_id, first_run)
+    )
+
+    # Merged on the earliest evidence from either source, so the order is the order
+    # the agents appeared however the row was recorded.
+    seen: dict[UUID, dict[UUID, tuple[datetime, Agent]]] = {}
+    for rows in (from_messages.all(), from_runs.all()):
+        for conversation_id, agent, at in rows:
+            if conversation_id is None:
+                continue
+            found = seen.setdefault(conversation_id, {})
+            existing = found.get(agent.id)
+            if existing is None or at < existing[0]:
+                found[agent.id] = (at, agent)
+
+    return {
+        conversation_id: [agent for _at, agent in sorted(agents.values(), key=lambda p: p[0])]
+        for conversation_id, agents in seen.items()
+    }
+
+
+async def titles_for(
+    db: AsyncSession, conversation_ids: list[UUID], *, organization_id: UUID
+) -> dict[UUID, str]:
+    """The title of each of these conversations, inside one organization.
+
+    One query for a whole page, and scoped: an id from somewhere else answers
+    with nothing rather than with a title, which is what stops a listing from
+    confirming that a conversation exists in an organization the caller is not in.
+    """
+    if not conversation_ids:
+        return {}
+    result = await db.execute(
+        select(Conversation.id, Conversation.title).where(
+            Conversation.id.in_(conversation_ids),
+            Conversation.organization_id == organization_id,
+        )
+    )
+    return {row.id: row.title for row in result.all()}
+
+
+async def count_by_agent(
+    db: AsyncSession, agent_ids: list[UUID], *, organization_id: UUID
+) -> dict[UUID, int]:
+    """How many conversations each of these agents has answered in.
+
+    Counted through `messages` and not off the conversation, because a
+    conversation is not had with one agent - the picker can be changed mid-thread,
+    which is why `agent_id` sits on the message. `distinct` is what keeps a long
+    thread from counting as fifty.
+
+    For the workspaces a whole agent shares: "how many chats reach these files" is
+    a number a table can show, and asking it per row would be one query per
+    workspace.
+    """
+    if not agent_ids:
+        return {}
+    result = await db.execute(
+        select(Message.agent_id, func.count(distinct(Message.conversation_id)))
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .where(
+            Message.agent_id.in_(agent_ids),
+            Conversation.organization_id == organization_id,
+        )
+        .group_by(Message.agent_id)
+    )
+    return {agent_id: count for agent_id, count in result.all() if agent_id is not None}
 
 
 async def version_numbers(db: AsyncSession, version_ids: list[UUID]) -> dict[UUID, int]:
@@ -310,6 +400,9 @@ async def create_message(
     thinking: str | None = None,
     model_name: str | None = None,
     tokens_used: int | None = None,
+    input_tokens: int | None = None,
+    output_tokens: int | None = None,
+    cost_usd: Decimal | None = None,
     agent_id: UUID | None = None,
     agent_version_id: UUID | None = None,
 ) -> Message:
@@ -321,6 +414,9 @@ async def create_message(
         thinking=thinking,
         model_name=model_name,
         tokens_used=tokens_used,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        cost_usd=cost_usd,
         agent_id=agent_id,
         agent_version_id=agent_version_id,
     )

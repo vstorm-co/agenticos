@@ -123,6 +123,7 @@ async def create(
     channel_bot_id: UUID,
     created_by_user_id: UUID | None,
     environment_id: UUID | None = None,
+    session_scope: str | None = None,
 ) -> AgentExposure:
     exposure = AgentExposure(
         organization_id=organization_id,
@@ -131,6 +132,7 @@ async def create(
         channel_bot_id=channel_bot_id,
         created_by_user_id=created_by_user_id,
         environment_id=environment_id,
+        session_scope=session_scope,
     )
     db.add(exposure)
     await db.flush()

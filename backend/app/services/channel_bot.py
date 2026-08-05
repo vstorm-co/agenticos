@@ -119,6 +119,7 @@ class ChannelBotService:
             webhook_url=data.webhook_url,
             webhook_secret=webhook_secret,
             access_policy=data.access_policy.model_dump(),
+            usage_reporting=data.usage_reporting.model_dump(),
             slack_signing_secret_encrypted=self._seal_at(
                 data.slack_signing_secret, key_version=sealed.key_version
             ),
@@ -212,11 +213,14 @@ class ChannelBotService:
             sealed = seal_bot_token(update_data.pop("token"), organization_id=self._org_id)
             update_data["token_encrypted"] = sealed.ciphertext
             update_data["secret_key_version"] = sealed.key_version
-        if "access_policy" in update_data and update_data["access_policy"] is not None:
-            policy = update_data["access_policy"]
-            update_data["access_policy"] = (
-                policy.model_dump() if hasattr(policy, "model_dump") else policy
-            )
+        # Both policies are stored as JSON, so a submitted model has to become a
+        # dict either way - and a `None` means "leave it alone", not "clear it":
+        # clearing `usage_reporting` would silently return a bot to the default
+        # rather than to nothing.
+        for field in ("access_policy", "usage_reporting"):
+            value = update_data.get(field)
+            if value is not None and hasattr(value, "model_dump"):
+                update_data[field] = value.model_dump()
         return await channel_bot_repo.update(self.db, db_bot=bot, update_data=update_data)
 
     async def delete(self, bot_id: UUID) -> None:

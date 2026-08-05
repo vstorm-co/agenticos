@@ -246,6 +246,7 @@ class TestReading:
             surface="slack",
             channel_bot_id=bot.id,
             environment_id=None,
+            session_scope=None,
             is_active=True,
             created_at=None,
         )
@@ -272,6 +273,7 @@ class TestReading:
             surface="slack",
             channel_bot_id=uuid.uuid4(),
             environment_id=None,
+            session_scope=None,
             is_active=True,
             created_at=None,
         )

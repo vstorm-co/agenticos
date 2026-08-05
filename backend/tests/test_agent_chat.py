@@ -17,6 +17,7 @@ import asyncio
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -37,6 +38,109 @@ from app.services.agent_chat import (
 )
 
 pytestmark = pytest.mark.anyio
+
+
+class TestWhatTheTurnCost:
+    """Reported to the chat, and never at the cost of the answer.
+
+    Built after `finish`, because that is what writes the tokens and the cost to
+    the run row - reading it earlier would report every turn as free.
+    """
+
+    @pytest.mark.anyio
+    async def test_a_failed_accounting_read_does_not_lose_the_answer(self):
+        """The output has already been produced and committed. Losing it to a
+        failed usage query would be the worst possible trade."""
+        from unittest.mock import AsyncMock as _AsyncMock
+        from unittest.mock import MagicMock as _MagicMock
+
+        from app.services.agent_chat import ChatAgentRunner
+
+        runner = ChatAgentRunner(_MagicMock())
+        runner.usage = _MagicMock(for_run=_AsyncMock(side_effect=RuntimeError("no")))
+        runner.runner = _MagicMock(monthly_spend=_AsyncMock(return_value=None))
+
+        assert await runner._usage(_MagicMock(), _MagicMock()) is None
+
+    @pytest.mark.anyio
+    async def test_the_organizations_cap_is_what_the_share_is_measured_against(self):
+        from decimal import Decimal as _Decimal
+        from unittest.mock import AsyncMock as _AsyncMock
+        from unittest.mock import MagicMock as _MagicMock
+
+        from app.services.agent_chat import ChatAgentRunner
+
+        organization = _MagicMock(monthly_budget_usd=_Decimal("100"))
+        runner = ChatAgentRunner(_MagicMock(get=_AsyncMock(return_value=organization)))
+
+        assert await runner._budget(_MagicMock()) == _Decimal("100")
+
+    @pytest.mark.anyio
+    async def test_an_organization_that_vanished_has_no_cap(self):
+        from unittest.mock import AsyncMock as _AsyncMock
+        from unittest.mock import MagicMock as _MagicMock
+
+        from app.services.agent_chat import ChatAgentRunner
+
+        runner = ChatAgentRunner(_MagicMock(get=_AsyncMock(return_value=None)))
+
+        assert await runner._budget(_MagicMock()) is None
+
+    @pytest.mark.anyio
+    async def test_the_agents_own_spend_and_cap_reach_the_report(self):
+        """The organization's cap is the one that stops every agent at once; the
+        agent's own is the one whoever is looking at this agent can raise. A chat
+        that reported only the first tells its reader nothing they can act on."""
+        from decimal import Decimal as _Decimal
+        from unittest.mock import AsyncMock as _AsyncMock
+        from unittest.mock import MagicMock as _MagicMock
+
+        from app.services.agent_chat import ChatAgentRunner
+
+        runner = ChatAgentRunner(_MagicMock(get=_AsyncMock(return_value=None)))
+        runner.usage = _MagicMock(for_run=_AsyncMock(return_value="the report"))
+        runner.runner = _MagicMock(monthly_spend=_AsyncMock(return_value=_Decimal("6")))
+        prepared = _MagicMock()
+        prepared.spec.budget.monthly_usd = 20.0
+
+        assert await runner._usage(_MagicMock(), prepared) == "the report"
+        called = runner.usage.for_run.await_args.kwargs
+        assert called["agent_spend_usd"] == _Decimal("6")
+        assert called["agent_budget_usd"] == _Decimal("20.0")
+
+    @pytest.mark.anyio
+    async def test_an_agent_with_no_budget_block_reports_no_cap_of_its_own(self):
+        from unittest.mock import AsyncMock as _AsyncMock
+        from unittest.mock import MagicMock as _MagicMock
+
+        from app.services.agent_chat import ChatAgentRunner
+
+        runner = ChatAgentRunner(_MagicMock(get=_AsyncMock(return_value=None)))
+        runner.usage = _MagicMock(for_run=_AsyncMock(return_value="the report"))
+        runner.runner = _MagicMock(monthly_spend=_AsyncMock(return_value=None))
+        prepared = _MagicMock()
+        prepared.spec.budget = None
+
+        await runner._usage(_MagicMock(), prepared)
+
+        assert runner.usage.for_run.await_args.kwargs["agent_budget_usd"] is None
+
+    @pytest.mark.anyio
+    async def test_an_agent_whose_budget_block_names_no_amount_has_no_cap(self):
+        from unittest.mock import AsyncMock as _AsyncMock
+        from unittest.mock import MagicMock as _MagicMock
+
+        from app.services.agent_chat import ChatAgentRunner
+
+        runner = ChatAgentRunner(_MagicMock(get=_AsyncMock(return_value=None)))
+        runner.usage = _MagicMock(for_run=_AsyncMock(return_value="the report"))
+        runner.runner = _MagicMock(monthly_spend=_AsyncMock(return_value=None))
+        prepared = _MagicMock()
+        prepared.spec.budget.monthly_usd = None
+
+        await runner._usage(_MagicMock(), prepared)
+
+        assert runner.usage.for_run.await_args.kwargs["agent_budget_usd"] is None
 
 
 class _Iteration:
@@ -114,14 +218,17 @@ async def _run(
     conversation_id: uuid.UUID | None = None,
     ask_user: Any = None,
     stream: Any = _nothing,
+    user_input: Any = "what is the refund window",
+    attachments: Any = None,
 ):
     return await ChatAgentRunner(db).run(
         user=user or _user(),
         organization_id=organization_id or uuid.uuid4(),
         agent_id=agent_id or uuid.uuid4(),
-        user_input="what is the refund window",
+        user_input=user_input,
         message_history=[],
         conversation_id=conversation_id,
+        attachments=attachments,
         ask_user=ask_user or AsyncMock(return_value=[]),
         stream=stream,
     )
@@ -326,3 +433,83 @@ class TestPausingMidRun:
         assert finished["status"] is RunStatus.AWAITING_APPROVAL
         assert finished["paused_state"].tool_call_ids == {"approval-1": "call-1"}
         assert "approval" in turn.output.lower()
+
+
+class TestAttachmentsAreRoutedHereAndNotBySurfaces:
+    """Where a file goes depends on whether the agent has a workspace, and only
+    `prepare` knows that - so a surface cannot have assembled the prompt yet.
+
+    The WebSocket used to do this inline and no other surface did it at all,
+    which made an attachment mean something different depending on where the
+    person was sitting. Once a workspace is involved that would have been three
+    different behaviours.
+    """
+
+    async def test_a_file_reaches_the_prompt_the_agent_is_run_with(self):
+        attachment = SimpleNamespace(
+            id=uuid.uuid4(),
+            filename="raport.csv",
+            mime_type="text/csv",
+            size=512,
+            storage_path="u/1/raport.csv",
+            file_type="text",
+            parsed_content="month,total\njan,10",
+        )
+        prepared = _prepared()
+        prepared.workspace = None
+
+        with _runner(prepared):
+            await _run(_db(), attachments=[attachment])
+
+        prompt = prepared.built.agent.iter.call_args.args[0]
+        assert "month,total" in prompt
+
+    async def test_the_workspace_the_run_opened_is_the_one_the_file_lands_in(self):
+        """Not a fresh one, and not none - the file has to be where the agent
+        will look for it."""
+        from pydantic_ai_backends import StateBackend
+
+        attachment = SimpleNamespace(
+            id=uuid.uuid4(),
+            filename="raport.csv",
+            mime_type="text/csv",
+            size=512,
+            storage_path="u/1/raport.csv",
+            file_type="text",
+            parsed_content="month,total",
+        )
+        backend = StateBackend()
+        prepared = _prepared()
+        prepared.workspace = SimpleNamespace(backend=backend)
+
+        with (
+            _runner(prepared),
+            patch(
+                "app.services.attachments.get_file_storage",
+                lambda: SimpleNamespace(load=AsyncMock(return_value=b"month,total")),
+            ),
+        ):
+            await _run(_db(), attachments=[attachment])
+
+        assert any(path.startswith("/uploads/") for path in backend.files)
+
+    async def test_a_prompt_already_assembled_as_parts_keeps_its_text(self):
+        """A caller passing the richer shape would otherwise have its
+        attachments appended to a `repr`."""
+        attachment = SimpleNamespace(
+            id=uuid.uuid4(),
+            filename="notes.txt",
+            mime_type="text/plain",
+            size=10,
+            storage_path="u/1/notes.txt",
+            file_type="text",
+            parsed_content="hello",
+        )
+        prepared = _prepared()
+        prepared.workspace = None
+
+        with _runner(prepared):
+            await _run(_db(), user_input=["what is this", "and this"], attachments=[attachment])
+
+        prompt = prepared.built.agent.iter.call_args.args[0]
+        assert prompt.startswith("what is thisand this")

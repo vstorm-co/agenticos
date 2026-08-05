@@ -170,3 +170,52 @@ describe("conversationMessagesToChatMessages", () => {
     expect(messages.map((message) => message.id)).toEqual(["m-1", "m-2"]);
   });
 });
+
+describe("what a stored message says it cost", () => {
+  it("travels with the message, so a reopened thread prices its own answers", () => {
+    const message = conversationMessageToChatMessage({
+      id: "m-1",
+      conversation_id: "c-1",
+      role: "assistant",
+      content: "answered",
+      created_at: "2026-08-03T20:00:00Z",
+      input_tokens: 4055,
+      output_tokens: 24,
+      cost_usd: "0.001200",
+    });
+
+    expect(message.usage).toMatchObject({
+      input_tokens: 4055,
+      output_tokens: 24,
+      cost_usd: 0.0012,
+    });
+  });
+
+  it("carries nothing for a message written before it was recorded", () => {
+    const message = conversationMessageToChatMessage({
+      id: "m-1",
+      conversation_id: "c-1",
+      role: "assistant",
+      content: "answered",
+      created_at: "2026-08-03T20:00:00Z",
+    });
+
+    expect(message.usage).toBeUndefined();
+  });
+
+  it("keeps the agent and the version the row names", () => {
+    // The chat page had its own copy of this mapping that dropped both, so a
+    // reloaded transcript drew a generic robot beside every answer.
+    const message = conversationMessageToChatMessage({
+      id: "m-1",
+      conversation_id: "c-1",
+      role: "assistant",
+      content: "answered",
+      created_at: "2026-08-03T20:00:00Z",
+      agent_id: "a-1",
+      agent_version: 3,
+    });
+
+    expect(message).toMatchObject({ agentId: "a-1", agentVersion: 3 });
+  });
+});

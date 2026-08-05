@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { modelHint, modelIdIsWellFormed } from "./add-model";
+import en from "../../../messages/en.json";
+
+/** The English catalog: these helpers answer with a key, and this is its sentence. */
+const words = (key: string): string => (en.agents as Record<string, string>)[key] ?? key;
 
 /**
  * The one model id this form can know is wrong before sending it.
@@ -29,7 +33,7 @@ describe("modelIdIsWellFormed", () => {
 
 describe("modelHint", () => {
   it("shows OpenRouter's shape before anybody guesses wrong", () => {
-    expect(modelHint("openrouter")).toContain("openai/gpt-5");
+    expect(words(modelHint("openrouter"))).toContain("openai/gpt-5");
   });
 
   it("says nothing specific for a provider with no such rule", () => {

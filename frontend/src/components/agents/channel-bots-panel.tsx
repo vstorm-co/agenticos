@@ -20,7 +20,8 @@ import {
   SelectValue,
 } from "@/components/ui";
 import { useChannelBots } from "@/hooks";
-import type { ChannelPlatform } from "@/types/channels";
+import type { ChannelBot, ChannelPlatform } from "@/types/channels";
+import { useTranslations } from "next-intl";
 
 const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
   telegram: "Telegram",
@@ -29,10 +30,11 @@ const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
 };
 
 /** What to paste, per platform - the one thing people get stuck on. */
+/** Catalog key per platform; the sentence is in `messages/en.json`. */
 const TOKEN_HINT: Record<ChannelPlatform, string> = {
-  telegram: "The token @BotFather gives you when you create a bot",
-  slack: "The bot user OAuth token (xoxb-...) from your Slack app",
-  mattermost: "The bot account's access token",
+  telegram: "botTokenHintTelegram",
+  slack: "botTokenHintSlack",
+  mattermost: "botTokenHintMattermost",
 };
 
 /**
@@ -48,7 +50,9 @@ const TOKEN_HINT: Record<ChannelPlatform, string> = {
  * read back - the same bargain as the Vault.
  */
 export function ChannelBotsPanel({ canManage }: { canManage: boolean }) {
-  const { bots, isLoading, create, setActive, remove } = useChannelBots(canManage);
+  const t = useTranslations("agents");
+  const { bots, isLoading, create, setActive, setUsageReporting, remove } =
+    useChannelBots(canManage);
   const [platform, setPlatform] = useState<ChannelPlatform>("telegram");
   const [name, setName] = useState("");
   const [token, setToken] = useState("");
@@ -78,19 +82,12 @@ export function ChannelBotsPanel({ canManage }: { canManage: boolean }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Channel bots</CardTitle>
-        <CardDescription>
-          A bot connects this organization to a chat platform and serves every agent bound to it -
-          registering is once per workspace, binding is per agent, above. The token is encrypted on
-          arrival and never shown again.
-        </CardDescription>
+        <CardTitle>{t("channelBots")}</CardTitle>
+        <CardDescription>{t("botConnectsOrganizationChat")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {!isLoading && bots.length === 0 && (
-          <p className="text-muted-foreground text-sm">
-            No bots yet. Register one below and it becomes bindable in &quot;Where this agent is
-            available&quot; - here and on every other agent.
-          </p>
+          <p className="text-muted-foreground text-sm">{t("noBotsYetRegister")}</p>
         )}
 
         {bots.map((bot) => (
@@ -100,16 +97,48 @@ export function ChannelBotsPanel({ canManage }: { canManage: boolean }) {
                 {PLATFORM_LABEL[bot.platform] ?? bot.platform} - {bot.name}
               </p>
               <p className="text-muted-foreground text-xs">
-                {bot.webhook_mode ? "Webhook" : "Polling"}
+                {bot.webhook_mode ? t("webhook") : t("polling")}
               </p>
             </div>
             {bot.platform === "slack" && !bot.has_slack_signing_secret && (
               // Without it, inbound events cannot be verified and the webhook
               // refuses everything - worth a badge before anyone debugs a
               // silent bot.
-              <Badge variant="secondary">no signing secret</Badge>
+              <Badge variant="secondary">{t("noSigningSecret")}</Badge>
             )}
-            {!bot.is_active && <Badge variant="secondary">inactive</Badge>}
+            {!bot.is_active && <Badge variant="secondary">{t("inactive")}</Badge>}
+            {/* How talkative this bot is about what a turn cost. A bot that stops
+                answering because the organization hit its cap looks broken, and
+                the difference between "broken" and "out of budget" is somebody
+                having said so beforehand. */}
+            <Select
+              value={bot.usage_reporting.mode}
+              // Not `!canManage ||`: the panel renders nothing at all for
+              // somebody who may not manage bots, so that half could never be
+              // false here.
+              disabled={setUsageReporting.isPending}
+              onValueChange={(mode) =>
+                setUsageReporting.mutate({
+                  botId: bot.id,
+                  usageReporting: {
+                    ...bot.usage_reporting,
+                    mode: mode as ChannelBot["usage_reporting"]["mode"],
+                  },
+                })
+              }
+            >
+              <SelectTrigger className="w-44" aria-label={`Usage reporting on ${bot.name}`}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="off">{t("usageLogOnly")}</SelectItem>
+                <SelectItem value="near_limit">{t("usageNearLimit")}</SelectItem>
+                <SelectItem value="every_n">
+                  usage: every {bot.usage_reporting.every_n} messages
+                </SelectItem>
+                <SelectItem value="always">{t("usageEveryReply")}</SelectItem>
+              </SelectContent>
+            </Select>
             <Button
               variant="ghost"
               size="sm"
@@ -133,7 +162,7 @@ export function ChannelBotsPanel({ canManage }: { canManage: boolean }) {
 
         <div className="grid items-end gap-3 border-t pt-3 sm:grid-cols-[10rem_1fr_1fr_auto]">
           <div className="space-y-1">
-            <Label htmlFor="bot-platform">Platform</Label>
+            <Label htmlFor="bot-platform">{t("platform")}</Label>
             <Select
               value={platform}
               onValueChange={(value) => setPlatform(value as ChannelPlatform)}
@@ -151,23 +180,23 @@ export function ChannelBotsPanel({ canManage }: { canManage: boolean }) {
             </Select>
           </div>
           <div className="space-y-1">
-            <Label htmlFor="bot-name">Name</Label>
+            <Label htmlFor="bot-name">{t("name3")}</Label>
             <Input
               id="bot-name"
               value={name}
               onChange={(event) => setName(event.target.value)}
-              placeholder="Support bot"
+              placeholder={t("supportBot")}
               maxLength={255}
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="bot-token">Bot token</Label>
+            <Label htmlFor="bot-token">{t("botToken")}</Label>
             <Input
               id="bot-token"
               type="password"
               value={token}
               onChange={(event) => setToken(event.target.value)}
-              placeholder={TOKEN_HINT[platform]}
+              placeholder={t(TOKEN_HINT[platform])}
             />
           </div>
           <Button
@@ -175,30 +204,30 @@ export function ChannelBotsPanel({ canManage }: { canManage: boolean }) {
             disabled={!name.trim() || token.trim().length < 10 || create.isPending}
           >
             <Plus className="h-4 w-4" />
-            Register
+            {t("register")}
           </Button>
         </div>
 
         {platform === "slack" && (
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1">
-              <Label htmlFor="bot-signing-secret">Signing secret</Label>
+              <Label htmlFor="bot-signing-secret">{t("signingSecret")}</Label>
               <Input
                 id="bot-signing-secret"
                 type="password"
                 value={signingSecret}
                 onChange={(event) => setSigningSecret(event.target.value)}
-                placeholder="Basic Information → App Credentials → Signing Secret"
+                placeholder={t("basicInformationAppCredentials")}
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="bot-app-token">App-level token (optional)</Label>
+              <Label htmlFor="bot-app-token">{t("appLevelTokenOptional")}</Label>
               <Input
                 id="bot-app-token"
                 type="password"
                 value={appToken}
                 onChange={(event) => setAppToken(event.target.value)}
-                placeholder="xapp-… for Socket Mode (dev)"
+                placeholder={t("xappSocketModeDev")}
               />
             </div>
           </div>

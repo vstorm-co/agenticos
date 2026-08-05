@@ -10,6 +10,7 @@ import { Button } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import { cn, getErrorMessage } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 
 /**
  * Every status this page can show, and none it can invent.
@@ -36,11 +37,12 @@ interface SystemHealth {
 
 const REFRESH_INTERVAL_MS = 30_000;
 
-const META: Record<string, { name: string; description: string; icon: LucideIcon }> = {
-  database: { name: "Database", description: "PostgreSQL primary", icon: Database },
-  redis: { name: "Redis", description: "Cache & queue broker", icon: Zap },
-  vector_store: { name: "Vector store", description: "pgvector, same database", icon: HardDrive },
-  model_access: { name: "Model access", description: "Provider keys and profiles", icon: Cpu },
+/** Each service's words live in the catalog; `words` names the key. */
+const META: Record<string, { words: string; icon: LucideIcon }> = {
+  database: { words: "serviceDatabase", icon: Database },
+  redis: { words: "serviceRedis", icon: Zap },
+  vector_store: { words: "serviceVectorStore", icon: HardDrive },
+  model_access: { words: "serviceModelAccess", icon: Cpu },
 };
 
 const STATUS_DOT: Record<CheckStatus, string> = {
@@ -50,11 +52,12 @@ const STATUS_DOT: Record<CheckStatus, string> = {
   not_checked: "bg-muted-foreground",
 };
 
-const STATUS_LABEL: Record<CheckStatus, string> = {
-  healthy: "Operational",
-  unhealthy: "Failing",
-  unconfigured: "Not configured",
-  not_checked: "Not checked",
+/** The catalog key for each state, not the word: the word is in `messages/en.json`. */
+const STATUS_WORDS: Record<CheckStatus, string> = {
+  healthy: "stateHealthy",
+  unhealthy: "stateUnhealthy",
+  unconfigured: "stateUnconfigured",
+  not_checked: "stateNotChecked",
 };
 
 const STATUS_TEXT: Record<CheckStatus, string> = {
@@ -65,6 +68,7 @@ const STATUS_TEXT: Record<CheckStatus, string> = {
 };
 
 export default function SystemHealthPage() {
+  const t = useTranslations("pages.admin");
   const [auto, setAuto] = useState(true);
 
   // Through the query layer, where server data belongs. `refetchInterval` is
@@ -90,17 +94,19 @@ export default function SystemHealthPage() {
     if (!checks.length) return null;
     const failing = checks.filter((check) => check.status === "unhealthy");
     if (failing.length) {
-      const names = failing.map((check) => META[check.key]?.name ?? check.key);
-      return { tone: "bad" as const, label: `Failing: ${names.join(", ")}` };
+      const names = failing.map((check) =>
+        META[check.key] ? t(META[check.key]!.words) : check.key,
+      );
+      return { tone: "bad" as const, label: t("failingServices", { names: names.join(", ") }) };
     }
     const unconfigured = checks.filter((check) => check.status !== "healthy");
     if (unconfigured.length) {
       return {
         tone: "mixed" as const,
-        label: `Every service answered · ${unconfigured.length} not configured`,
+        label: t("someUnconfigured", { count: unconfigured.length }),
       };
     }
-    return { tone: "good" as const, label: "Every check passed" };
+    return { tone: "good" as const, label: t("everyCheckPassed") };
   }, [checks]);
 
   return (
@@ -120,7 +126,7 @@ export default function SystemHealthPage() {
         </Button>
         <Button size="sm" variant="outline" onClick={load}>
           <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
-          Refresh
+          {t("refresh2")}
         </Button>
       </div>
 
@@ -136,7 +142,7 @@ export default function SystemHealthPage() {
                 )}
               </span>
               <div>
-                <p className="text-muted-foreground text-xs">Overall status</p>
+                <p className="text-muted-foreground text-xs">{t("overallStatus")}</p>
                 <div className="mt-1 flex items-center gap-2">
                   <span
                     aria-hidden
@@ -163,18 +169,16 @@ export default function SystemHealthPage() {
       ) : error ? (
         <div className="border-border bg-card rounded-xl border p-8 text-center">
           <AlertCircle className="text-destructive mx-auto h-6 w-6" />
-          <p className="text-foreground mt-3 text-sm font-medium">Couldn&apos;t fetch health</p>
+          <p className="text-foreground mt-3 text-sm font-medium">{t("couldnAposTFetch")}</p>
           <p className="text-muted-foreground mt-1 text-xs">
-            {getErrorMessage(error, "Failed to fetch health")}
+            {getErrorMessage(error, t("failedFetchHealth"))}
           </p>
         </div>
       ) : (
         <section className="border-border bg-card rounded-xl border">
           <div className="border-border border-b px-5 py-4">
-            <h2 className="text-foreground text-sm font-semibold">Services</h2>
-            <p className="text-muted-foreground text-xs">
-              Each row says what was checked. Auto-refreshes every 30s.
-            </p>
+            <h2 className="text-foreground text-sm font-semibold">{t("services")}</h2>
+            <p className="text-muted-foreground text-xs">{t("eachRowSaysWhat")}</p>
           </div>
           <ul className="divide-border divide-y">
             {checks.map((check) => {
@@ -187,11 +191,11 @@ export default function SystemHealthPage() {
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="text-foreground text-sm font-medium">
-                      {meta?.name ?? check.key}
+                      {meta ? t(meta.words) : check.key}
                       {meta && (
                         <span className="text-muted-foreground font-normal">
                           {" · "}
-                          {meta.description}
+                          {t(`${meta.words}Detail`)}
                         </span>
                       )}
                     </p>
@@ -209,7 +213,7 @@ export default function SystemHealthPage() {
                           STATUS_TEXT[check.status],
                         )}
                       >
-                        {STATUS_LABEL[check.status]}
+                        {t(STATUS_WORDS[check.status])}
                       </span>
                     </div>
                     {check.latency_ms !== null && (
@@ -225,10 +229,7 @@ export default function SystemHealthPage() {
         </section>
       )}
 
-      <p className="text-muted-foreground text-xs">
-        Every status here comes from a probe that ran when this page loaded. There is no uptime
-        history: nothing records one, and a number that looks like one would be made up.
-      </p>
+      <p className="text-muted-foreground text-xs">{t("everyStatusHereComes")}</p>
     </div>
   );
 }

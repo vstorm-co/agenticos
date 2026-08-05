@@ -1,20 +1,24 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useMemo } from "react";
 import { useTranslations } from "next-intl";
-import { useChat } from "@/hooks";
+import type { ChatMessageFile } from "@/types";
+import { useChat, useConversationWorkspace } from "@/hooks";
 import { AgentPicker } from "./agent-picker";
 import { ChatControls } from "./chat-controls";
 import { ChatEmptyState } from "./chat-empty-state";
 import { ChatInput } from "./chat-input";
+import { UsageStrip } from "./usage-strip";
+import { WorkspaceFiles } from "./workspace-files";
 import { FilePreviewPanel } from "./file-preview-panel";
 import { SourcesPanel } from "./sources-panel";
 import { MessageList } from "./message-list";
 import { PendingMessages } from "./pending-messages";
 import { ToolApprovalDialog } from "./tool-approval-dialog";
 import { QuestionPrompt } from "@/components/ui";
-import type { PendingApproval, AskUserQuestion, AskUserAnswer, Decision } from "@/types";
-import { buildAssistantParts } from "@/lib/conversation-to-chat";
+import type { PendingApproval, AskUserQuestion, AskUserAnswer, Decision, TurnUsage } from "@/types";
+import { conversationMessageToChatMessage } from "@/lib/conversation-to-chat";
+import { latestUsage } from "@/lib/message-usage";
 import { useConversationStore, useChatStore } from "@/stores";
 import { useConversations } from "@/hooks";
 import { useSlashCommands } from "@/hooks";
@@ -37,6 +41,13 @@ export function ChatContainer() {
     conversations.find((conversation) => conversation.id === currentConversationId)?.is_archived ??
     false;
 
+  // The one agent a conversation used, when it used exactly one. Recovered from the
+  // conversation rather than the message, which is the only source history has left.
+  const conversationAgents = conversations.find(
+    (conversation) => conversation.id === currentConversationId,
+  )?.agents;
+  const soleAgentId = conversationAgents?.length === 1 ? conversationAgents[0]?.id : undefined;
+
   const handleConversationCreated = useCallback(() => {
     fetchConversations();
   }, [fetchConversations]);
@@ -45,6 +56,7 @@ export function ChatContainer() {
     messages,
     isConnected,
     isProcessing,
+    lastUsage,
     sendMessage,
     stopGeneration,
     clearMessages,
@@ -62,6 +74,23 @@ export function ChatContainer() {
     conversationId: currentConversationId,
     onConversationCreated: handleConversationCreated,
   });
+
+  // What the file panel watches, rather than a timer. Counted from the transcript
+  // rather than kept as state: a finished assistant message *is* a finished turn,
+  // and a second counter would be a second answer to the same question.
+  const turns = messages.filter(
+    (message) => message.role === "assistant" && !message.isStreaming,
+  ).length;
+
+  // Everything attached to this conversation, deduplicated by id and in the order it
+  // arrived. Derived from the messages rather than fetched: they carry their
+  // attachments both live and after a reload, so the file panel can list what
+  // somebody dragged in without a request for what is already on screen.
+  const attachments = useMemo(() => {
+    const seen = new Map<string, ChatMessageFile>();
+    for (const message of messages) for (const file of message.files ?? []) seen.set(file.id, file);
+    return [...seen.values()];
+  }, [messages]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -103,34 +132,15 @@ export function ChatContainer() {
     if (currentMessages.length > 0) {
       clearMessages();
       currentMessages.forEach((msg) => {
-        const toolCalls = msg.tool_calls?.map((tc) => ({
-          id: tc.tool_call_id,
-          name: tc.tool_name,
-          args: tc.args,
-          result: tc.result,
-          status: (tc.status === "failed" ? "error" : tc.status) as
-            "pending" | "running" | "completed" | "error",
-        }));
-        // Reconstruct an ordered timeline for assistant turns via the shared builder
-        // (same one the demo replay uses), so thinking + reconstructed research +
-        // tool/text parts render consistently across the chat and the demo.
-        const parts =
-          msg.role === "assistant"
-            ? buildAssistantParts(toolCalls ?? [], msg.content, msg.id, msg.thinking)
-            : undefined;
+        const message = conversationMessageToChatMessage(msg);
         addChatMessage({
-          id: msg.id,
-          role: msg.role,
-          content: msg.content,
-          thinking: msg.thinking ?? undefined,
-          timestamp: new Date(msg.created_at),
-          conversationId: msg.conversation_id,
-          toolCalls,
-          parts,
-          user_rating: msg.user_rating ?? undefined,
-          rating_count: msg.rating_count ?? undefined,
-          files: msg.files,
-          fileIds: msg.files?.map((f) => f.id),
+          ...message,
+          // The row is what says which agent produced a turn. When it says nothing -
+          // every message written before the API recorded it - and the conversation
+          // had exactly *one* agent, that agent answered every turn in it, and the
+          // transcript can show its face instead of a generic robot. With two the
+          // guess would relabel half the thread, so it is not made.
+          agentId: message.agentId ?? soleAgentId,
         });
       });
     }
@@ -193,6 +203,13 @@ export function ChatContainer() {
       messages={messages}
       isConnected={isConnected}
       isProcessing={isProcessing}
+      // The live turn's cost while there is one, and the newest measured answer in
+      // the transcript otherwise - which is what makes the strip appear on a
+      // conversation somebody has just reopened instead of after their next message.
+      lastUsage={lastUsage ?? latestUsage(currentMessages, currentConversationId)}
+      conversationId={currentConversationId}
+      turns={turns}
+      attachments={attachments}
       isLoadingConversation={
         currentConversationId !== null && isConversationLoading && messages.length === 0
       }
@@ -221,6 +238,18 @@ interface ChatUIProps {
   messages: import("@/types").ChatMessage[];
   isConnected: boolean;
   isProcessing: boolean;
+  /** What the last turn cost, drawn under the input. Null until one has run. */
+  lastUsage: TurnUsage | null;
+  /** The conversation the file panel reads, or null before one exists. */
+  conversationId: string | null;
+  /**
+   * How many turns have finished. Bumped so the file panel re-reads when the
+   * files could have changed, rather than polling for a change it can be told
+   * about.
+   */
+  turns: number;
+  /** What people attached, for the file panel to list beside the agent's own. */
+  attachments: ChatMessageFile[];
   /** True while a saved conversation is being loaded - show a skeleton, not empty state. */
   isLoadingConversation?: boolean;
   /** True for an archived conversation - the composer is closed with a notice. */
@@ -251,6 +280,10 @@ function ChatUI({
   messages,
   isConnected,
   isProcessing,
+  lastUsage,
+  conversationId,
+  turns,
+  attachments,
   isLoadingConversation,
   isArchived,
   sendMessage,
@@ -270,27 +303,35 @@ function ChatUI({
   onAnswerQuestions,
   onStop,
 }: ChatUIProps) {
+  const t = useTranslations("chat");
   const tc = useTranslations("common");
+  // The same query the file panel beside the transcript makes, so the fill under the
+  // input costs nothing extra - and appears when a conversation is *opened* rather than
+  // after the next turn reports one.
+  const { workspace } = useConversationWorkspace(conversationId);
   return (
     <div className="flex h-full w-full">
-      <div className="mx-auto flex h-full max-w-5xl min-w-0 flex-1 flex-col">
-        <div
-          ref={scrollContainerRef}
-          className="flex-1 scrollbar-thin overflow-y-auto px-2 py-4 sm:px-4 sm:py-6"
-        >
-          {isLoadingConversation ? (
-            <ConversationSkeleton />
-          ) : messages.length === 0 ? (
-            <div className="flex h-full items-center">
-              <ChatEmptyState onPick={(prompt) => sendMessage(prompt)} />
-            </div>
-          ) : (
-            <MessageList messages={messages} onRegenerate={onRegenerate} />
-          )}
-          <div ref={messagesEndRef} />
-        </div>{" "}
+      {/* The column no longer carries the width. The scroller does, and the
+          content is centred inside it - so the scrollbar sits at the edge of the
+          pane where a scrollbar belongs, rather than a hundred pixels to the
+          right of the text with white on both sides of it. */}
+      <div className="flex h-full min-w-0 flex-1 flex-col">
+        <div ref={scrollContainerRef} className="flex-1 scrollbar-thin overflow-y-auto">
+          <div className="mx-auto max-w-5xl px-2 py-4 sm:px-4 sm:py-6">
+            {isLoadingConversation ? (
+              <ConversationSkeleton />
+            ) : messages.length === 0 ? (
+              <div className="flex h-full items-center">
+                <ChatEmptyState onPick={(prompt) => sendMessage(prompt)} />
+              </div>
+            ) : (
+              <MessageList messages={messages} onRegenerate={onRegenerate} />
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+        </div>
         {pendingApproval && onResumeDecisions && (
-          <div className="px-2 pb-2 sm:px-4 sm:pb-2">
+          <div className="mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
             <ToolApprovalDialog
               actionRequests={pendingApproval.actionRequests}
               reviewConfigs={pendingApproval.reviewConfigs}
@@ -300,7 +341,7 @@ function ChatUI({
           </div>
         )}
         {pendingQuestions && pendingQuestions.length > 0 && onAnswerQuestions && (
-          <div className="px-2 pb-2 sm:px-4 sm:pb-2">
+          <div className="mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
             <QuestionPrompt
               questions={pendingQuestions}
               disabled={!isConnected}
@@ -308,7 +349,7 @@ function ChatUI({
             />
           </div>
         )}
-        <div className="px-2 pb-2 sm:px-4 sm:pb-4">
+        <div className="mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-4">
           {queuedMessages && queuedMessages.length > 0 && onCancelQueued && (
             <PendingMessages messages={queuedMessages} onCancel={onCancelQueued} />
           )}
@@ -316,9 +357,13 @@ function ChatUI({
             <div className="px-3 pt-3 sm:px-4 sm:pt-4">
               {isArchived && (
                 <p className="text-muted-foreground pb-2 text-center font-mono text-[11px] tracking-wider uppercase">
-                  This conversation is archived
+                  {t("conversationArchived")}
                 </p>
               )}
+              {/* Under the input rather than over the transcript: it is about
+                  the turn that just finished, and a strip above the messages
+                  would move the conversation every time a number changed. */}
+              <UsageStrip usage={lastUsage} workspace={workspace} />
               <ChatInput
                 onSend={sendMessage}
                 disabled={
@@ -359,12 +404,27 @@ function ChatUI({
             </div>
           </div>
           <p className="text-foreground/40 mt-2 text-center font-mono text-[10px] tracking-wider uppercase">
-            AI can make mistakes. Verify important information.
+            {t("aiCanMakeMistakes")}
           </p>
         </div>
       </div>
       <FilePreviewPanel />
       <SourcesPanel />
+      {/* Beside the transcript rather than under it: what the agent is holding is
+          something you glance at while reading, and a list that pushed the input
+          down would move the box you are typing in. Closed by default - it is a
+          button in the corner until somebody opens it, because a permanent third
+          column took space from every conversation including the ones where the
+          agent keeps nothing, so closed it is a strip holding one icon. Hidden on a
+          narrow screen, where there is no room for either, and absent entirely for
+          an agent with no workspace. */}
+      <div className="hidden lg:block">
+        <WorkspaceFiles
+          conversationId={conversationId}
+          revision={turns}
+          attachments={attachments}
+        />
+      </div>
     </div>
   );
 }

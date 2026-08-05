@@ -14,6 +14,7 @@ import {
 
 import { cn } from "@/lib/utils";
 import { MarkdownContent } from "./markdown-content";
+import { useTranslations } from "next-intl";
 
 export type PreviewKind =
   | "image"
@@ -220,6 +221,7 @@ function VideoViewer({ url, filename }: { url: string; filename: string }) {
 }
 
 function HtmlViewer({ url }: { url: string }) {
+  const t = useTranslations("chat");
   // Sandboxed: no script execution, no same-origin access. The user can still
   // see the rendered HTML (incl. styles) but untrusted content can't escape.
   const [html, setHtml] = useState<string | null>(null);
@@ -233,7 +235,7 @@ function HtmlViewer({ url }: { url: string }) {
         if (!cancelled) setHtml(text);
       })
       .catch((e) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load");
+        if (!cancelled) setError(e instanceof Error ? e.message : t("failedLoad"));
       });
     return () => {
       cancelled = true;
@@ -247,13 +249,14 @@ function HtmlViewer({ url }: { url: string }) {
     <iframe
       sandbox=""
       srcDoc={html}
-      title="HTML preview"
+      title={t("htmlPreview")}
       className="block min-h-0 w-full flex-1 border-0 bg-white"
     />
   );
 }
 
 function CsvViewer({ url }: { url: string }) {
+  const t = useTranslations("chat");
   const [rows, setRows] = useState<string[][] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -265,7 +268,7 @@ function CsvViewer({ url }: { url: string }) {
         if (!cancelled) setRows(parseCsv(text));
       })
       .catch((e) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load");
+        if (!cancelled) setError(e instanceof Error ? e.message : t("preview.failedToLoad"));
       });
     return () => {
       cancelled = true;
@@ -274,7 +277,7 @@ function CsvViewer({ url }: { url: string }) {
 
   if (error) return <ErrorState message={error} />;
   if (rows === null) return <LoadingState />;
-  if (rows.length === 0) return <EmptyState message="Empty file" />;
+  if (rows.length === 0) return <EmptyState message={t("preview.emptyFile")} />;
 
   const [header, ...body] = rows;
   const MAX_ROWS = 500;
@@ -386,6 +389,7 @@ interface TextViewerProps {
 }
 
 function TextViewer({ url, mode, lang }: TextViewerProps) {
+  const t = useTranslations("chat");
   const [text, setText] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -406,7 +410,7 @@ function TextViewer({ url, mode, lang }: TextViewerProps) {
         }
       })
       .catch((e) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load");
+        if (!cancelled) setError(e instanceof Error ? e.message : t("preview.failedToLoad"));
       });
     return () => {
       cancelled = true;
@@ -448,6 +452,7 @@ function TextViewer({ url, mode, lang }: TextViewerProps) {
 }
 
 function BinaryFallback({ url, filename }: { url: string; filename: string }) {
+  const t = useTranslations("chat");
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
       <div className="bg-foreground/8 text-foreground/65 flex h-14 w-14 items-center justify-center rounded-2xl">
@@ -455,33 +460,35 @@ function BinaryFallback({ url, filename }: { url: string; filename: string }) {
       </div>
       <div>
         <p className="text-foreground text-sm font-medium">{filename}</p>
-        <p className="text-foreground/55 mt-1 text-xs">No inline preview for this file type.</p>
+        <p className="text-foreground/55 mt-1 text-xs">{t("noInlinePreviewFile")}</p>
       </div>
       <a
         href={url}
         className="border-foreground/15 hover:border-foreground/40 hover:bg-foreground/5 mt-2 inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 font-mono text-[11px] tracking-wider uppercase transition-colors"
       >
         <Download className="h-3.5 w-3.5" />
-        Download
+        {t("download")}
       </a>
     </div>
   );
 }
 
 function LoadingState() {
+  const t = useTranslations("chat");
   return (
     <div className="text-foreground/55 flex min-h-0 flex-1 items-center justify-center gap-2 text-xs">
       <Loader2 className="h-3.5 w-3.5 animate-spin" />
-      Loading…
+      {t("loading")}
     </div>
   );
 }
 
 function ErrorState({ message }: { message: string }) {
+  const t = useTranslations("chat");
   return (
     <div className="text-destructive/80 flex min-h-0 flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-xs">
       <AlertCircle className="h-5 w-5" />
-      <p>Couldn&apos;t load preview</p>
+      <p>{t("couldnAposTLoad")}</p>
       <p className="text-foreground/55 font-mono text-[10px] tracking-wider uppercase">{message}</p>
     </div>
   );

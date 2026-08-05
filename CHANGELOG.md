@@ -19,6 +19,191 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.6] - 2026-08-04
+
+Dependencies only. No behaviour change, no schema change, `SPEC_VERSION` unchanged
+at 7 — this is here so the version literals and the lockfiles move together rather
+than drifting until somebody notices.
+
+### Changed
+
+- **TypeScript 5.9.3 → 6.0.3** (dev). A major, so it was checked rather than
+  assumed: `tsc --noEmit`, `eslint --max-warnings 0`, the coverage gate and
+  `next build` all pass with no source change.
+
+  Dependabot bumped `frontend/package.json` and left `bun.lock` alone, which two CI
+  jobs would have refused — they run `bun install --frozen-lockfile`, and that fails
+  outright when the manifest and the lock disagree. The lock is updated here, so the
+  next such bump should be checked for the same omission.
+
+- **ruff 0.15.0 → 0.16.1** (dev). Ruff is the formatter as well as the linter, so a
+  new rule or a changed format would have turned `make lint` red *after* the merge
+  rather than before it. `ruff format --check` reports 476 files already formatted
+  and `ruff check` passes, so nothing in the tree needed touching.
+
+- **boto3 1.43.59 → 1.43.62.**
+
+## [0.0.5] - 2026-08-04
+
+**Every sign-in lands on the dashboard**, and a deep link interrupted by the login
+form is resumed rather than dropped.
+
+### Changed
+
+- **One post-sign-in destination, decided in one place.** Password sign-in forked
+  on `is_app_admin`, the OAuth callback always went to `/dashboard`, and the magic
+  link always to `/chat` — three call sites that each decided on their own and
+  disagreed, so which door somebody came through decided where they landed.
+  `postSignInDestination()` in `src/lib/auth-landing.ts` is now the only answer.
+
+  The default is the same for every role on purpose. What a role may not see is
+  handled by not rendering the widget, never by a different landing page — a role
+  fork there quietly splits one product into two.
+
+- The mobile tab bar's Home tab targets `/dashboard` for every role, and its unused
+  `useAuth` dependency is gone.
+
+### Added
+
+- **`?returnTo=` survives the login round trip.** `AuthGuard` appends the path it
+  refused when it sends a visitor to `/login`, and the visitor resumes there after
+  signing in instead of being dumped on the dashboard having lost where they were
+  going.
+
+  Deliberately not for OAuth: that needs the `state` parameter round trip, and the
+  flow is being rewritten separately.
+
+### Security
+
+- **The `returnTo` guard refuses anything off-origin**, so the login form cannot be
+  turned into an open redirect. Two checks, both load-bearing: a pattern that
+  demands a single leading slash, and an origin comparison after parsing. The
+  pattern alone misses control characters, because the URL parser strips tab, LF
+  and CR before parsing — so `/<tab>/evil.example` resolves off-origin. The origin
+  check alone would accept a bare relative path like `agents`, which resolves
+  against wherever the visitor happens to stand.
+
+  Refused values are not sanitised into something safe. A fixed-up open redirect is
+  still an open redirect, so anything suspect falls back to the dashboard.
+
+## [0.0.4] - 2026-08-04
+
+**An agent can have a workspace: files, and on a container-backed host a shell.**
+`SPEC_VERSION` is unchanged at 7 — `capabilities` is an open list, so adding an id
+is additive and every published agent keeps loading.
+
+### Added
+
+- **The `sandbox` capability.** Seven tools — `ls`, `read_file`, `glob`, `grep`,
+  `write_file`, `edit_file`, `execute` — over one of two backends. `state` stores a
+  JSON document in this database and needs no infrastructure, which is what makes
+  the feature real on a default install; `service` runs a container or a cloud
+  sandbox on a connection an operator registered.
+
+  `code_execution` stays. The two are not a subset of each other: it computes with
+  no infrastructure anywhere, and `state` has no shell at all, so an agent granted
+  both computes with one and remembers with the other.
+
+- **`backend` is infrastructure; `session_scope` is a data-sharing policy.**
+  Getting the first wrong costs a feature. Getting the second wrong shows one
+  person another person's files — so `agent` scope warns at the field, the file
+  panel names whose workspace it is, and setting it is recorded in the audit log.
+
+  The spec never names an image, a mount, a network mode or a ceiling. A spec is
+  authored in a browser by anyone holding `edit` on an agent, and one that could
+  name a container image could name one whose entrypoint mounts the host.
+
+- **Attachments stop being context and become data.** A file used to be parsed and
+  pasted into the message, at its full token weight on every turn forever, and a
+  50 MB CSV could not be attached at all. With a workspace it is written to
+  `/uploads/` and the model gets a reference plus twenty lines. Images go both
+  ways under a ceiling: a path is no substitute for looking at a picture, and
+  looking at one is no substitute for being able to resize it.
+
+- **Sandbox connections**, with their credentials in the vault — a per-organization
+  row rather than a deployment setting, which is what makes two hosts possible and
+  what bills a Daytona sandbox to the organization that opened it.
+
+- **Read-only workspace routes and a browser.** Folders, whole-tree search,
+  previews and downloads. A container-backed workspace is read off the host volume,
+  so a week-old conversation lists its files after its session was reaped.
+
+- **A file panel in chat**, beside the transcript, and a Workspaces page scoped per
+  reader — an operator sees the organization's, everybody else sees their own files
+  and the shared workspace of an agent they have talked to.
+
+- **`sandboxd` runs beside the app** and is the only service holding the Docker
+  socket, which is the whole reason an agent can have a container while this
+  application has no Docker access. Never published, its own dashboard off,
+  reaching the daemon by supplementary group rather than as root.
+
+### Changed
+
+- **Approval is per tool.** `sandbox` is the first capability that genuinely reads
+  *and* writes, and one flag cannot describe it: marking the capability
+  side-effecting makes an agent ask permission to list a directory, and not
+  marking it lets a write run unattended. `CapabilityToolInfo.side_effecting`
+  overrides the capability's answer per tool — additive, `None` defers, every
+  existing capability behaves exactly as before.
+
+  Only `execute` is gated. Writing into scratch space deleted with its
+  conversation is not the act sending an email is, and an agent that must ask
+  before every write cannot do multi-step work at all.
+
+- **The ruleset denies, the platform asks.** The library ships `allow`/`deny`/`ask`,
+  and its `ask` is an in-run `await` that dies with the socket, while this
+  platform's persists a row, mails somebody and parks the run. So `"ask"` never
+  comes from the ruleset, with `ask_fallback="deny"` as the backstop.
+
+- **Requires `pydantic-ai-backend>=0.2.25`**, which fixes three things this
+  repository had worked around: a ruleset's per-path rules are enforced by the
+  library (and it also filters `grep` and checks a command's path arguments),
+  `WorkspaceArchive.read_bytes` serves a file a decode would have ruined, and
+  `stop(purge=...)` means the same thing on every backend.
+
+- **Attachment routing moved out of the WebSocket into the chat runner**, because
+  where a file goes depends on whether the agent has a workspace and only
+  `prepare` knows that. Every surface behaves the same instead of the WebSocket
+  owning the only implementation.
+
+### Fixed
+
+- Paths an agent may not touch are refused: credentials (`**/.env`, `**/*.pem`,
+  `**/.ssh/**`) and the system tree. A `grep` cannot return a line from one, and a
+  command naming one is refused.
+- A Daytona sandbox is deleted when its run or its conversation ends. It used to
+  be deleted on neither, once per run, on the organization's own cloud account.
+- A workspace is keyed on the host it runs on, so moving an agent between
+  connections opens a new one instead of reattaching to a row naming the host it
+  has left.
+- Writes are capped at the call site rather than at the flush. Refusing later
+  accepted the write, reported success to the model, and dropped the run's work in
+  a `finally` block while the agent kept reasoning about a file that was never
+  kept.
+- A file too large to store is named and sampled rather than pasted whole — the
+  fallback used to run backwards, since a write is only refused for a file too big
+  to paste.
+- The chat file panel is always reachable, and lists what people attached as well
+  as what the agent wrote. It used to appear only once a workspace row had been
+  flushed, so it was absent for the whole of a turn parked awaiting approval.
+- Approving a parked call shows the resumed answer. `POST /runs/{id}/resume`
+  executes the agent and returns its output; the chat discarded it, so an approval
+  looked like it had done nothing until the page was reloaded.
+
+### Security
+
+- Every secret at rest goes through the vault, including the sandbox service token
+  and a Daytona key. There is no second mechanism.
+- A workspace file served inline gets an opaque origin, `nosniff`, a CSP sandbox
+  and `filename*` only — `.svg` and `.html` are never inline, because "the agent
+  wrote it" is not a trust boundary.
+- The address a client asks the platform to probe is validated, so a holder of
+  `connections:manage` cannot turn the API container into a fetch proxy for
+  anything on its network.
+- A user id is hashed rather than sanitised when it keys a workspace. Dropping the
+  characters a session id forbids mapped `a.b` and `ab` onto one workspace, which
+  is one person reading another's files.
+
 ## [0.0.3] — 2026-08-02
 
 A frontend release, and almost all of it is about one thing: what a browser is
@@ -287,7 +472,10 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.3...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.6...HEAD
+[0.0.6]: https://github.com/vstorm-co/agenticos/compare/v0.0.5...v0.0.6
+[0.0.5]: https://github.com/vstorm-co/agenticos/compare/v0.0.4...v0.0.5
+[0.0.4]: https://github.com/vstorm-co/agenticos/compare/v0.0.3...v0.0.4
 [0.0.3]: https://github.com/vstorm-co/agenticos/compare/v0.0.2...v0.0.3
 [0.0.2]: https://github.com/vstorm-co/agenticos/compare/v0.0.1...v0.0.2
 [0.0.1]: https://github.com/vstorm-co/agenticos/releases/tag/v0.0.1

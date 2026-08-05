@@ -17,7 +17,12 @@ import time
 from typing import Any
 
 from app.db.session import get_db_context
-from app.services.channels.base import ChannelAdapter, IncomingMessage, OutgoingMessage
+from app.services.channels.base import (
+    ChannelAdapter,
+    IncomingAttachment,
+    IncomingMessage,
+    OutgoingMessage,
+)
 from app.services.channels.exceptions import ChannelNotConfigured
 from app.services.channels.router import ChannelMessageRouter
 
@@ -64,6 +69,25 @@ class SlackAdapter(ChannelAdapter):
                 filename=msg.image_filename,
                 initial_comment=msg.text,
                 thread_ts=kwargs.get("thread_ts"),
+            )
+            return
+
+        if msg.attachments:
+            # `files_upload_v2` with several files posts them as one message with
+            # the text as its comment, which is what a reply about a file should
+            # look like - the alternative is an answer and then, separately, some
+            # files.
+            await client.files_upload_v2(
+                channel=channel,
+                initial_comment=msg.text,
+                thread_ts=kwargs.get("thread_ts"),
+                file_uploads=[
+                    {
+                        "file": attachment.content,
+                        "filename": attachment.filename,
+                    }
+                    for attachment in msg.attachments
+                ],
             )
             return
 
@@ -216,8 +240,9 @@ class SlackAdapter(ChannelAdapter):
         if event.get("bot_id") or event.get("subtype"):
             return None
 
-        text: str | None = event.get("text")
-        if not text:
+        attachments = self._attachments(event)
+        text: str = event.get("text") or ""
+        if not text and not attachments:
             return None
 
         user_id: str = event.get("user", "")
@@ -243,7 +268,62 @@ class SlackAdapter(ChannelAdapter):
             platform_username=None,  # resolved later if needed
             platform_display_name=None,
             message_id=message_ts,
+            attachments=attachments,
         )
+
+    @staticmethod
+    def _attachments(event: dict[str, Any]) -> list[IncomingAttachment]:
+        """The files on a Slack message, as handles.
+
+        `url_private_download` is carried as the handle rather than the file id: it
+        is what the download actually uses, and resolving an id through
+        `files.info` at parse time would put an HTTP call in a synchronous parser.
+        Slack includes it on the event, so there is nothing to look up.
+
+        A file still being processed has no download URL yet and is skipped. It
+        arrives again on `file_shared` when Slack has finished with it; treating a
+        missing URL as a failure would report an error for something that is
+        merely not ready.
+        """
+        found: list[IncomingAttachment] = []
+        for file in event.get("files") or []:
+            if not isinstance(file, dict):
+                continue
+            url = file.get("url_private_download") or file.get("url_private")
+            if not url:
+                continue
+            found.append(
+                IncomingAttachment(
+                    filename=file.get("name") or "file",
+                    mime_type=file.get("mimetype") or "application/octet-stream",
+                    size=int(file.get("size") or 0),
+                    handle=str(url),
+                )
+            )
+        return found
+
+    async def download_attachment(self, bot_token: str, attachment: IncomingAttachment) -> bytes:
+        """Fetch a Slack file with the bot token.
+
+        Slack's file URLs are private: an unauthenticated GET answers 200 with an
+        HTML sign-in page rather than a 401, so a client that did not send the
+        token would store that page as the user's spreadsheet. Hence the explicit
+        content-type check - the failure mode here is silent corruption, not an
+        error.
+        """
+        import httpx
+
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+            response = await client.get(
+                attachment.handle, headers={"Authorization": f"Bearer {bot_token}"}
+            )
+        response.raise_for_status()
+        if response.headers.get("content-type", "").startswith("text/html"):
+            raise ValueError(
+                f"Slack answered with a sign-in page for {attachment.filename}; "
+                "the bot token cannot read that file."
+            )
+        return response.content
 
     async def _handle_event(self, event: dict[str, Any], bot_id: str) -> None:
         """Handle a Slack event from Socket Mode or webhook."""

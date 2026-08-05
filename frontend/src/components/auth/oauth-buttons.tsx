@@ -4,12 +4,14 @@ import { BACKEND_URL } from "@/lib/constants";
 
 import { BrandIcon } from "@/components/icons/brand-icon";
 
+import { useTranslations } from "next-intl";
 type Provider = "google" | "github" | "microsoft";
 
-const LABELS: Record<Provider, string> = {
-  google: "Continue with Google",
-  github: "Continue with GitHub",
-  microsoft: "Continue with Microsoft",
+/** Catalog keys, per provider and per variant. */
+const PROVIDER_WORDS: Record<Provider, string> = {
+  google: "Google",
+  github: "Github",
+  microsoft: "Microsoft",
 };
 
 const ICON: Record<Provider, "google" | "github" | "microsoft"> = {
@@ -34,6 +36,7 @@ interface OAuthButtonsProps {
 }
 
 export function OAuthButtons({ next, variant = "signin" }: OAuthButtonsProps) {
+  const t = useTranslations("auth");
   const providers = readProviders();
   if (providers.length === 0) return null;
 
@@ -44,7 +47,9 @@ export function OAuthButtons({ next, variant = "signin" }: OAuthButtonsProps) {
           next ? `?next=${encodeURIComponent(next)}` : ""
         }`;
         const label =
-          variant === "signup" ? LABELS[provider].replace("Continue", "Sign up") : LABELS[provider];
+          variant === "signup"
+            ? t(`signUpWith${PROVIDER_WORDS[provider]}`)
+            : t(`continueWith${PROVIDER_WORDS[provider]}`);
         return (
           <a
             key={provider}

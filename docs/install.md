@@ -1,6 +1,7 @@
 # Install
 
-Three commands to a running agent, on macOS, Linux or WSL2.
+Four commands to a running agent, on macOS, Linux or WSL2. Every step below is
+idempotent - re-run any of them whenever you are not sure it worked.
 
 ## Prerequisites
 
@@ -16,24 +17,71 @@ Three commands to a running agent, on macOS, Linux or WSL2.
     The Makefile and shell helpers assume bash. Use **WSL2** or **Git Bash**.
     The Docker workflow is identical once you are in one.
 
-## The short way
+## Step by step
+
+### 1. Clone it
 
 ```bash
 git clone https://github.com/vstorm-co/agenticos && cd agenticos
+```
+
+**There is no `.env` to write first.** Every variable in `docker-compose.yml`
+carries a default, deliberately, so the stack starts on a clean checkout. One
+value is generated rather than defaulted: `make dev` runs `make sandbox-token`
+first, which appends a fresh `SANDBOXD_TOKEN` to `backend/.env` if there is not
+one there already. The sandbox service refuses to start without it - it can run
+commands on this host, so an empty default would be a shared secret of `""`.
+Generated once and left alone afterwards; regenerating it would orphan every
+workspace the service is holding.
+
+If you want to change anything - a provider key on the host, a different
+database name - copy `backend/.env.example` to `backend/.env` and edit it. The
+generated token is appended to whatever is there.
+
+### 2. Start the backend stack
+
+```bash
 make dev
+```
+
+Builds the backend image, starts **Postgres (pgvector), Redis, the API, the
+Prefect server and runner, and the sandbox service**, waits for the database to
+accept connections, and applies pending migrations. Migrations are a no-op when
+already at head, so this is the command to re-run after any code or config
+change.
+
+### 3. Start the frontend
+
+```bash
+make dev-frontend      # or: cd frontend && bun dev
+```
+
+**A separate command, and not an oversight.** `make dev` uses
+`docker-compose.yml` only; the Next.js container lives in
+`docker-compose.frontend.yml` so that working on the API does not rebuild a
+frontend image, and so a developer running `bun dev` on the host is not fighting
+a container for port 3000.
+
+### 4. Create an organization, an owner, a model and an agent
+
+```bash
 make platform-bootstrap BOOTSTRAP_API_KEY=sk-...
 ```
 
-Then open <http://localhost:3000> and sign in as `admin@example.com` /
-`admin123`.
+This is the one that turns an empty database into something you can use. An empty
+AgenticOS is a chicken-and-egg problem - an agent needs a model, a model needs a
+key, a key needs an organization - and this walks that chain once:
 
-`make dev` builds the backend image, starts Postgres, Redis, the API, the worker
-and the frontend, waits for the database to accept connections and applies
-pending migrations. It is idempotent - re-run it after any code or config change.
+| It creates | |
+|---|---|
+| An organization | `Acme`, or `--org` |
+| An owner | `admin@example.com` / `admin123`, or `--email` / `--password` |
+| A vault entry | Your provider key, sealed for that organization |
+| A model profile | `gpt-4.1`, `claude-sonnet-4-6`, `gemini-2.5-pro` or `openai/gpt-4.1`, whichever provider the key is for |
+| An agent | `@getting-started`, published if there is a key |
 
-`make platform-bootstrap` creates an organization, an owner, a model profile and
-a working agent called `@getting-started`. Also idempotent: re-run it whenever
-you are not sure it worked.
+Then open <http://localhost:3000>, sign in as `admin@example.com` / `admin123`,
+and open **Agents → Getting Started → Test**.
 
 !!! tip "No provider key yet?"
 
@@ -42,6 +90,37 @@ you are not sure it worked.
     no model cannot answer, and publishing one that fails on its first message is
     worse than not publishing it. Add a key under **Settings → AI providers**,
     then publish.
+
+!!! note "`make seed` is a different thing"
+
+    It creates `admin@example.com` as a deployment superadmin and nothing else -
+    no organization, no model, no agent. `make platform-bootstrap` creates that
+    user too, so on a fresh install you want bootstrap. `make dev` prints a
+    suggestion to run `seed`; it is the older path and still valid if all you
+    want is an admin login.
+
+### 5. Check it can actually run an agent
+
+```bash
+cd backend && uv run agenticos cmd doctor
+```
+
+Asks the questions a first message would: is the database reachable and at head,
+does the vault decrypt, is there a model profile with a key behind it, and does
+every registered sandbox connection answer with a runtime. Each line says which
+part is missing rather than that something failed.
+
+## When it does not come up
+
+| What you see | Why |
+|---|---|
+| Ingestion 500s with `extension "vector" is not available` | Stock Postgres instead of `pgvector/pgvector:pg16`. See below |
+| `uv run` reports Python 3.13 or 3.14 | `backend/.venv` resolved past the pin. Delete it and re-run `uv sync` |
+| The frontend loads but every request fails | Step 3 without step 2, or the API is still applying migrations. `make dev-logs` |
+| `agenticos_sandboxd` exits immediately | No `SANDBOXD_TOKEN` in `backend/.env`. `make sandbox-token`, then `make dev` |
+| Files says `This host's files could not be read` and names `workspace_root` | A sandbox service started before it had one. Recreate it - `docker compose -f docker-compose.yml --profile sandbox up -d sandboxd` - and `docker rm` the leftover `sandboxd-*` containers: a persisted container is reattached with the mounts it was created with, so an old session keeps writing where nothing can read it |
+| A port is already taken (3000, 5432, 6379, 8000, 4200) | Something else is on it. `make dev-down`, stop the other process, start again |
+| Anything stranger | `make docker-clean` wipes containers, networks **and volumes** - all local data - then `make dev` from scratch |
 
 ## The database must be pgvector
 
@@ -70,6 +149,15 @@ Where things are:
 | Frontend | <http://localhost:3000> |
 | API | <http://localhost:8000> |
 | OpenAPI docs | <http://localhost:8000/docs> |
+| Django-style admin | <http://localhost:8000/admin> |
+| Prefect UI | <http://localhost:4200> |
+| Postgres | `localhost:5432` (`agenticos` / `agenticos`) |
+| Redis | `localhost:6379` |
+
+The sandbox service is deliberately **not** published. It holds the Docker
+socket, which is an unauthenticated API for root on the host, so it is reachable
+only from inside the compose network - the API proxies what a browser needs to
+see of it.
 
 ## Running the backend on the host
 

@@ -35,6 +35,7 @@ function exposure(overrides: Partial<Exposure> = {}): Exposure {
     channel_bot_id: "b1",
     channel_bot_name: "Acme Support",
     environment_id: null,
+    session_scope: null,
     is_active: true,
     created_at: null,
     ...overrides,
@@ -79,8 +80,10 @@ function serve(
   });
 }
 
-async function mount({ canManage = true } = {}) {
-  render(<ExposuresPanel agentId={AGENT_ID} canManage={canManage} />, { wrapper });
+async function mount({ canManage = true, hasWorkspace = true } = {}) {
+  render(<ExposuresPanel agentId={AGENT_ID} canManage={canManage} hasWorkspace={hasWorkspace} />, {
+    wrapper,
+  });
   await waitFor(() => expect(apiClient.get).toHaveBeenCalled());
 }
 
@@ -278,9 +281,70 @@ describe("ExposuresPanel", () => {
     ).toBeInTheDocument();
   });
 
+  it("warns that an approval parks a channel thread, where files are in play", async () => {
+    // Otherwise the bot looks broken while somebody is meant to be switching
+    // tabs to approve a shell command.
+    serve([exposure()], []);
+    await mount();
+
+    expect(await screen.findByText(/the thread sits there meanwhile/)).toBeVisible();
+  });
+
+  it("says nothing about approvals for an agent that keeps no files", async () => {
+    serve([exposure()], []);
+    await mount({ hasWorkspace: false });
+
+    await screen.findByText(/Acme Support/);
+    expect(screen.queryByText(/the thread sits there meanwhile/)).toBeNull();
+  });
+
+  it("overrides who shares a workspace on this surface alone", async () => {
+    // The mistake this exists to fix without republishing: on Slack a thread is
+    // a chat, so the spec's "this conversation" means one workspace per thread -
+    // and a busy channel is fifty containers.
+    serve([exposure()], []);
+    vi.mocked(apiClient.patch).mockResolvedValue(exposure({ session_scope: "channel" }));
+    await mount();
+
+    await userEvent.click(
+      await screen.findByRole("combobox", { name: "Workspace sharing on Acme Support" }),
+    );
+    await userEvent.click(await screen.findByRole("option", { name: "per channel" }));
+
+    expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/exposures/e1`, {
+      session_scope: "channel",
+    });
+  });
+
+  it("hands the decision back to the spec as an explicit null", async () => {
+    serve([exposure({ session_scope: "channel" })], []);
+    vi.mocked(apiClient.patch).mockResolvedValue(exposure());
+    await mount();
+
+    await userEvent.click(
+      await screen.findByRole("combobox", { name: "Workspace sharing on Acme Support" }),
+    );
+    await userEvent.click(await screen.findByRole("option", { name: "as the agent says" }));
+
+    expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/exposures/e1`, {
+      session_scope: null,
+    });
+  });
+
+  it("offers no sharing override for an agent that keeps no files", async () => {
+    // A control that changes nothing is how the ones that matter get ignored.
+    serve([exposure()], []);
+    await mount({ hasWorkspace: false });
+
+    await screen.findByText(/Acme Support/);
+    expect(
+      screen.queryByRole("combobox", { name: "Workspace sharing on Acme Support" }),
+    ).toBeNull();
+  });
+
   it("shows a placeholder while the bindings are being fetched", () => {
     serve([], []);
-    render(<ExposuresPanel agentId={AGENT_ID} canManage />, { wrapper });
+    render(<ExposuresPanel agentId={AGENT_ID} canManage hasWorkspace />, { wrapper });
 
     expect(screen.getByRole("status")).toBeInTheDocument();
   });
