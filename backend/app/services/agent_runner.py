@@ -362,6 +362,23 @@ class DelegationFrame(BaseModel):
             "per delegation now, so the turn that resumes cannot re-derive it"
         ),
     )
+    billed_cost_usd: Decimal = Field(
+        default=Decimal(0),
+        description=(
+            "What this delegation's row is owed by the stop - its own spend plus its "
+            "inline specialists', which `cost_usd` above leaves out because that is "
+            "the panel number. Equal to `cost_usd` for a delegate with no inline "
+            "specialist below it; carried so a published delegate that parked with "
+            "one resumes with its month intact (agenticos#228). Zero on an inline "
+            "specialist's own frame - it bills to its ancestor's row, not its own"
+        ),
+    )
+    billed_input_tokens: int = Field(default=0, description="The billed share, in input tokens")
+    billed_output_tokens: int = Field(default=0, description="The billed share, in output tokens")
+    billed_cost_is_partial: bool = Field(
+        default=False,
+        description="Whether the billed share went unpriced, making `billed_cost_usd` a floor",
+    )
     started_at: datetime | None = Field(
         default=None,
         description=(
@@ -601,6 +618,10 @@ def _delegation_frames(
                 input_tokens=entry.spent.input_tokens,
                 output_tokens=entry.spent.output_tokens,
                 cost_is_partial=entry.spent.has_unpriced_models,
+                billed_cost_usd=entry.spent.billed_cost_usd,
+                billed_input_tokens=entry.spent.billed_input_tokens,
+                billed_output_tokens=entry.spent.billed_output_tokens,
+                billed_cost_is_partial=entry.spent.billed_has_unpriced_models,
                 started_at=entry.started_at,
                 delegations=frames(by_parent.get(entry.task_id, [])),
                 dynamic_specialists=specialists(entry.tool_call_id),
@@ -699,6 +720,14 @@ def _resume_plan(state: PausedRunState, decided_args: Mapping[str, dict[str, Any
                 input_tokens=frame.input_tokens,
                 output_tokens=frame.output_tokens,
                 has_unpriced_models=frame.cost_is_partial,
+                # The row's share, carried alongside the panel's so a published
+                # delegate that parked with an inline specialist below it resumes
+                # with its month whole (agenticos#228). Zero on an inline
+                # specialist's frame, which bills to its ancestor, not itself.
+                billed_cost_usd=frame.billed_cost_usd,
+                billed_input_tokens=frame.billed_input_tokens,
+                billed_output_tokens=frame.billed_output_tokens,
+                billed_has_unpriced_models=frame.billed_cost_is_partial,
             )
             started[frame.tool_call_id] = frame.started_at
             if not frame.messages:

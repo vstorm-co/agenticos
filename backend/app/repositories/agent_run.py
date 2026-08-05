@@ -265,22 +265,20 @@ async def sum_cost_since(
     does not double-count.
 
     Included when the question is one agent's month, because a delegate's rows
-    are the only place its own spend is recorded. **Its own**, which is what makes
-    summing them meaningful for a delegate that delegates further: a *delegated* row
-    holds the requests that agent issued, not the ones its own delegates issued,
-    because the ledger those rows are read off stamps every entry with the delegation
-    that made it. A row that carried its grandchildren's spend counted the same money
-    twice under one agent's month, and did it silently (agenticos#180). A top-level
-    row is still the whole run, descendants included - that is what the first
-    question needs. That cap does not stop a run mid-delegation - inside a delegation
-    the parent's caps bind, see `app/agents/factory.py` - but it is what makes "the
-    researcher agent cost $40 this month" answerable and what a budget alert on that
-    agent fires on.
-
-    One known gap, agenticos#228: a delegate's *inline* specialist gets no row of its
-    own and is no longer inside its delegator's share either, so a delegate that uses
-    one under-reports its month by what the specialist spent. The organization's total
-    is unaffected - the top-level row is the whole ledger.
+    are the only place its own spend is recorded. **Its own**, which for a delegate
+    that delegates further means the requests that agent issued and its inline
+    specialists' - but not its *published* delegates', because those have rows of
+    their own. Every ledger entry carries two attributions: the delegation that made
+    it, for the delegation panel, and the nearest agent-row it bills to, for this
+    sum. A delegated row is the billed share, so a published delegate's inline
+    specialist lands in the delegate's month (agenticos#228) while a published
+    grandchild does not (agenticos#180) - the same money is never under one agent's
+    month twice, and an inline specialist's spend is never left out of every month.
+    A top-level row is still the whole run, descendants included - that is what the
+    first question needs. That cap does not stop a run mid-delegation - inside a
+    delegation the parent's caps bind, see `app/agents/factory.py` - but it is what
+    makes "the researcher agent cost $40 this month" answerable and what a budget
+    alert on that agent fires on.
     """
     query = select(func.coalesce(func.sum(AgentRun.cost_usd), 0)).where(
         AgentRun.organization_id == organization_id,
