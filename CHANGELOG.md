@@ -19,6 +19,19 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.18] - 2026-08-05
+
+### Fixed
+
+- **A run count is an ICU plural, and the guard that missed it now catches the shape**
+  ([#199](https://github.com/vstorm-co/agenticos/issues/199)). A run count was built as
+  `"{n} runs"` — a plural only English forms that way — and `scripts/check_i18n.py`, the
+  gate whose whole job is to refuse exactly that, passed over it. Both halves are fixed:
+  the count is now `{count, plural, =1 {1 run} other {# runs}}` with the component passing
+  `count`, and the guard is closed so the next English-only plural is refused rather than
+  merged. A guard verified only by a green suite is a guard nobody has tested, so the
+  change writes the offending shape into a fixture and confirms the script rejects it.
+
 ## [0.0.17] - 2026-08-05
 
 ### Fixed
@@ -847,7 +860,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.17...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.18...HEAD
+[0.0.18]: https://github.com/vstorm-co/agenticos/compare/v0.0.17...v0.0.18
 [0.0.17]: https://github.com/vstorm-co/agenticos/compare/v0.0.16...v0.0.17
 [0.0.16]: https://github.com/vstorm-co/agenticos/compare/v0.0.15...v0.0.16
 [0.0.15]: https://github.com/vstorm-co/agenticos/compare/v0.0.14...v0.0.15
