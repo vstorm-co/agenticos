@@ -132,7 +132,7 @@ calls no tools; what it does not prove is that a real provider answers.
 
 ## Test Database
 
-Tests don't hit a real database. The `client` fixture in `tests/conftest.py` overrides
+Most tests don't hit a real database. The `client` fixture in `tests/conftest.py` overrides
 `get_db_session` with a mocked async session (`AsyncMock`) via FastAPI's
 `app.dependency_overrides`, so the suite runs fast and needs no Postgres container:
 
@@ -140,5 +140,17 @@ Tests don't hit a real database. The `client` fixture in `tests/conftest.py` ove
 - Overrides are registered before each test and cleared afterwards
 - Assert against the mock's calls, or stub `execute(...)` return values for the path under test
 
-For tests that need to exercise real SQL, instantiate your own async engine/session
-inside the test rather than relying on a shared fixture.
+Everything under `tests/integration/` is the exception, and it asks for the `db`
+fixture from `tests/integration/conftest.py` rather than building an engine of its
+own — that fixture is what puts the schema in place.
+
+**The database it uses belongs to the pytest process that asked for it**:
+`<POSTGRES_DB>_p<pid>`, created when the session starts and dropped when it ends,
+failure included. That is what makes two runs at once safe — two worktrees, or a
+worktree and a `make test`, against the one Postgres container — and it needs nothing
+passed on the command line. The name was constant until [#189](https://github.com/vstorm-co/agenticos/issues/189),
+and since the fixture rebuilds the schema before every test, two runs spent their time
+dropping each other's tables and reporting failures that belonged to neither branch.
+The suite still refuses any database whose name does not contain `test` or `ci`: it
+drops tables unconditionally, so the guard is the only thing between it and a
+development database.

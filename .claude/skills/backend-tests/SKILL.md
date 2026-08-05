@@ -53,13 +53,17 @@ in `tests/conftest.py` pins `asyncio` because that is what uvicorn uses.
   under test.
 - **`mock_redis`**, **`api_key_headers`**.
 
-The conftest also sets `POSTGRES_DB=agenticos_test` *before* anything imports
-`app.core.config`. Do not move or weaken that: running the unit suite against a
-checkout with a populated `.env` used to empty the development database.
+The conftest also sets `POSTGRES_DB` to `<base>_p<pid>` *before* anything imports
+`app.core.config`. Do not move or weaken either half: running the unit suite against a
+checkout with a populated `.env` used to empty the development database, and a constant
+name meant two runs on one machine dropping each other's tables (#189).
 
-`tests/integration/conftest.py` skips the whole module when no database is reachable,
-and **refuses to run against a database whose name contains neither `test` nor `ci`**
-— it calls `drop_all` unconditionally.
+`tests/integration/conftest.py` **creates that database for the session and drops it
+afterwards**, so two concurrent runs need nothing passed to them — `make test` and
+`uv run pytest tests/integration` are safe while another run is going. It skips the
+whole module when no database is reachable, and **refuses any database whose name
+contains neither `test` nor `ci`, or that is not a plain identifier** — it calls
+`drop_all` unconditionally and drops the database itself at the end.
 
 ## A test earns its place by failing when the behaviour changes
 
