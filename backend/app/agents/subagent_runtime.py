@@ -202,13 +202,23 @@ class DelegationOutcome:
     """What one delegation cost and how it ended.
 
     Reported to the runner so it can write the child's run row. The numbers are
-    this delegation's **share of the run's one shared ledger**: the requests its
-    own agent made, and only those. There is still one ledger per run - a delegate
-    records into the parent's by construction, which is what makes the parent's
-    budget see a delegate's spend before the next request - but every entry in it
-    carries the delegation that booked it, so the share is filtered out of the
-    ledger rather than inferred from it. See
+    this delegation's **billed share of the run's one shared ledger**: the requests
+    its own agent made, plus any its inline specialists made below it. There is
+    still one ledger per run - a delegate records into the parent's by construction,
+    which is what makes the parent's budget see a delegate's spend before the next
+    request - but every entry in it carries two attributions, so a share is filtered
+    out of the ledger rather than inferred from it. See
     :func:`app.agents.capabilities.budget.booked_to`.
+
+    Why the *billed* share and not the delegation's own: an inline specialist has no
+    row of its own, so the money it spends has to land in some agent's month, and
+    the honest one is its nearest published ancestor's - which is this row when the
+    delegation is that ancestor. The specialist's *panel* still shows only its own
+    share; that is the other attribution, on the streamed
+    :class:`~app.agents.subagent_events.SubagentFinished` rather than here, so the
+    two answer "what did this specialist cost" and "what does this agent owe"
+    without one distorting the other (agenticos#228). For a published delegate with
+    no inline specialist under it the two shares are identical.
 
     Exact in both modes and at every depth, which the arithmetic that came before
     it was not (agenticos#180). It measured the *growth* of the shared total across
@@ -316,6 +326,28 @@ class DelegationSpend:
     approval and resumed onto a priced model would otherwise have its row claim an
     exact cost for money nobody priced - the one number on a delegated row nothing
     downstream can re-derive.
+    """
+
+    billed_cost_usd: Decimal = Decimal(0)
+    billed_input_tokens: int = 0
+    billed_output_tokens: int = 0
+    billed_has_unpriced_models: bool = False
+    """The same four numbers again, but for what this delegation's *row* is owed
+    rather than what its *panel* shows (agenticos#228).
+
+    The fields above are a delegation's own spend - its panel, and what a delegate
+    with no inline specialists also bills to its row. These are what bills to the
+    row: a published delegate's own spend plus every inline specialist below it,
+    since an inline specialist has no row and its spend has to reach some month. The
+    two are equal for a delegation with no inline specialist under it, and the
+    journal keeps them apart only where they diverge (`_spent` reads the first four,
+    `_billed` these).
+
+    Carried across a park exactly as the panel spend is - a published delegate that
+    parked with an inline specialist mid-flight would otherwise resume with a row
+    short by the specialist's pre-park spend, the same silent under-report the panel
+    spend was (agenticos#245). Zero on an inline specialist's own carry: it bills to
+    nobody's row but its ancestor's, and that ancestor carries it here instead.
     """
 
 

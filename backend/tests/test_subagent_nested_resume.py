@@ -75,6 +75,7 @@ from app.agents.subagent_runtime import (
     DelegationSpend,
     DelegationStash,
     DynamicSpecialists,
+    ParkedDelegation,
     RegisteredSpecialist,
     ResolvedSubagent,
     ResumedDelegation,
@@ -324,6 +325,7 @@ def _middle_delegate(
     calls: list[dict[str, Any]],
     stash: DelegationStash,
     metering: _Metering | None = None,
+    specialist_agent_id: UUID | None = None,
 ) -> ResolvedSubagent:
     """A delegate that delegates on, so the gated tool sits two levels down.
 
@@ -336,6 +338,10 @@ def _middle_delegate(
     is being followed across a park, and a middle that charged as well would put its
     own requests inside its subtree's total, which is a different defect
     (agenticos#180) and not this one.
+
+    `specialist_agent_id` publishes the specialist - gives it a row of its own - so a
+    test can assert the row it writes. Left `None`, the specialist is inline and its
+    spend bills to its nearest published ancestor instead (agenticos#228).
     """
 
     def build_it() -> PydanticAgent[Any, Any]:
@@ -348,6 +354,7 @@ def _middle_delegate(
                         gated=gated,
                         calls=calls,
                         charge=None if metering is None else metering.charge,
+                        agent_id=specialist_agent_id,
                     ),
                     stash=stash,
                     depth=1,
@@ -890,6 +897,86 @@ class TestWhenAPlaceCannotBeKept:
         assert plan.started == {"the-task-call": began}
 
 
+class TestABilledShareSurvivesAPark:
+    """A published delegate's row keeps its inline specialist's spend across a park.
+
+    The intersection of agenticos#228 and agenticos#245: the row a published delegate
+    writes is its own spend plus its inline specialists', and that whole has to be
+    carried across a park the way its panel spend is - the paused state is JSONB and
+    the resuming turn's ledger starts empty, so a billed share not written down is a
+    row that resumes short by exactly what the specialist spent before the approval.
+    """
+
+    def test_the_billed_share_is_written_carried_and_read_back(self):
+        """Through `_delegation_frames`, the column, and `_resume_plan`, in one trip.
+
+        A published researcher parked with $0.75 billed to its row - its own $0.50
+        and its inline fact-checker's $0.25 - and the fact-checker parked with $0.25
+        of its own but nothing billed to a row it does not have. The whole trip is
+        exercised because that is the trip a real park makes: the frame is built from
+        the stash, dumped as JSON, validated back, and split by `_resume_plan`.
+        """
+        parked = [
+            ParkedDelegation(
+                tool_call_id="researcher-call",
+                task_id="researcher-task",
+                parent_task_id=None,
+                subagent="researcher",
+                agent_id=uuid4(),
+                agent_version_id=uuid4(),
+                child_run_id=None,
+                messages=[],
+                spent=DelegationSpend(
+                    cost_usd=Decimal("0.50"),
+                    input_tokens=INPUT_TOKENS * 2,
+                    output_tokens=OUTPUT_TOKENS * 2,
+                    billed_cost_usd=Decimal("0.75"),
+                    billed_input_tokens=INPUT_TOKENS * 3,
+                    billed_output_tokens=OUTPUT_TOKENS * 3,
+                ),
+                started_at=None,
+            ),
+            ParkedDelegation(
+                tool_call_id="fact-checker-call",
+                task_id="fact-checker-task",
+                parent_task_id="researcher-task",
+                subagent="fact-checker",
+                agent_id=None,
+                agent_version_id=None,
+                child_run_id=None,
+                messages=[],
+                spent=DelegationSpend(
+                    cost_usd=Decimal("0.25"),
+                    input_tokens=INPUT_TOKENS,
+                    output_tokens=OUTPUT_TOKENS,
+                ),
+                started_at=None,
+            ),
+        ]
+
+        (researcher_frame,) = _delegation_frames(parked, {})
+        (fact_checker_frame,) = researcher_frame.delegations
+        # Written from the stash: the published delegate's row keeps the whole, the
+        # inline specialist's frame bills nothing to a row of its own.
+        assert researcher_frame.billed_cost_usd == Decimal("0.75")
+        assert fact_checker_frame.billed_cost_usd == Decimal("0")
+
+        state = PausedRunState.model_validate(
+            PausedRunState(
+                messages=[], tool_call_ids={}, delegations=[researcher_frame]
+            ).model_dump(mode="json")
+        )
+        plan = _resume_plan(state, {})
+
+        # Read back onto the key the resuming turn opens the delegation under, so
+        # `_billed` adds the specialist's pre-park spend to the researcher's row.
+        # (Its place was not kept - `messages=[]` - so the fact-checker is re-run
+        # rather than continued, which is why only the researcher's key is here; its
+        # own $0.25 is already inside the researcher's $0.75 either way.)
+        assert plan.spent["researcher-call"].billed_cost_usd == Decimal("0.75")
+        assert plan.spent["researcher-call"].billed_input_tokens == INPUT_TOKENS * 3
+
+
 class TestAnOlderParkedRun:
     """A run parked before any of this existed has to stay resumable.
 
@@ -1201,7 +1288,11 @@ class TestWhatADelegateSpentBeforeItParked:
 
         parked, answer = await _until_it_answers(
             lambda _stash, metering: _specialist_delegate(
-                gated=True, calls=calls, cities=("Krakow", "Warsaw"), charge=metering.charge
+                gated=True,
+                calls=calls,
+                cities=("Krakow", "Warsaw"),
+                charge=metering.charge,
+                agent_id=uuid4(),
             ),
             turn_costs=(Decimal("0.25"), Decimal("0.75"), Decimal("0.50")),
             parent_cost=Decimal("0.10"),
@@ -1237,7 +1328,11 @@ class TestWhatADelegateSpentBeforeItParked:
 
         parked, answer = await _until_it_answers(
             lambda stash, metering: _middle_delegate(
-                gated=True, calls=calls, stash=stash, metering=metering
+                gated=True,
+                calls=calls,
+                stash=stash,
+                metering=metering,
+                specialist_agent_id=uuid4(),
             ),
             turn_costs=(Decimal("0.25"), Decimal("0.75")),
             parent_cost=Decimal("0.10"),
@@ -1247,8 +1342,9 @@ class TestWhatADelegateSpentBeforeItParked:
         assert answer == "answer: edited: weather: Krakow: 21C and clear"
         assert calls == [{"city": "Krakow"}]
         # The specialist's own row holds what the specialist spent across both turns.
-        # The editor's holds its subtree, which is the separate defect agenticos#180
-        # is about and is deliberately not asserted here.
+        # Published (it has an `agent_id`), so it has a row at all; the editor's holds
+        # its subtree, which is the separate defect agenticos#180 is about and is
+        # deliberately not asserted here.
         specialist = [outcome for outcome in recorder.outcomes if outcome.subagent == SPECIALIST]
         assert [outcome.cost_usd for outcome in specialist] == [Decimal("1.00")]
         # Nested where it was made, which is what keeps one level's carry off another.

@@ -159,6 +159,32 @@ class SpendEntry:
     grandchild. That is what keeps a mid-tree delegate's share from containing its
     own delegates' spend, which is the same money its delegates' rows already
     record (agenticos#180).
+
+    This is the *panel* attribution: :meth:`SpendLedger.share_of` reads it, and a
+    delegation panel shows an agent only what its own requests cost. It is not what
+    a monthly total is summed off - see :attr:`billed_to`.
+    """
+
+    billed_to: str | None = None
+    """Which agent-row this request bills to, or `None` for the run's own agent.
+
+    A *second* attribution beside :attr:`delegation`, because the two answer
+    different questions and diverge for exactly one shape. `delegation` is the
+    innermost delegation - what the panel shows. `billed_to` is the nearest
+    delegation with an `agent_runs` row of its own, which is the nearest *published*
+    delegate: an inline specialist has no row, so its spend has to land in some
+    row's month, and the honest one is its published ancestor's (agenticos#228).
+
+    They are equal for every request a published delegate makes on its own account,
+    and they differ only under an inline specialist: its entry is stamped
+    `delegation=<the specialist>` so its panel keeps its own share, and
+    `billed_to=<the published ancestor>` so its spend still reaches a month. Stamped
+    from :func:`booked_to`, which advances `billed_to` only across a delegation that
+    has its own row and leaves an inline one inheriting its ancestor's.
+
+    `None` - the run's own agent - is what the top-level run row already sums as the
+    whole ledger, so an inline specialist directly under the run's own agent needs
+    no delegated row: :meth:`SpendLedger.billed_share_of` never reads `None`.
     """
 
 
@@ -236,8 +262,39 @@ class SpendLedger:
         looked at. Zero for a delegation that made no request of its own - a
         delegate the library refused, or one whose whole job was to delegate
         further.
+
+        Filtered on :attr:`SpendEntry.delegation`, the innermost stamp - so this is
+        the *panel* number, an agent's own requests and not its inline specialists'.
+        What a monthly total is summed off is :meth:`billed_share_of`.
         """
-        mine = [entry for entry in self.entries if entry.delegation == delegation]
+        return self._share_where(lambda entry: entry.delegation == delegation)
+
+    def billed_share_of(self, billed_to: str) -> SpendShare:
+        """What bills to one published delegate's row: its own spend and its inline
+        specialists'.
+
+        Filtered on :attr:`SpendEntry.billed_to` rather than
+        :attr:`SpendEntry.delegation`, which is the whole of the difference. An
+        inline specialist's entry is stamped to the specialist for the panel and to
+        its nearest published ancestor for the row, so this share is the one that
+        makes the ancestor's month whole again without inventing a row for the
+        specialist (agenticos#228). For a published delegate with no inline
+        specialist below it the two shares are identical.
+
+        Only ever asked of a delegation that has a row - a published delegate - so
+        `None` (the run's own agent) is not a key here: its spend is the whole
+        ledger the top-level run row already carries.
+        """
+        return self._share_where(lambda entry: entry.billed_to == billed_to)
+
+    def _share_where(self, matches: Callable[[SpendEntry], bool]) -> SpendShare:
+        """The share of the ledger the matching entries make up.
+
+        One summation for both attributions, so the panel number and the row number
+        are the same arithmetic over a different filter and cannot drift in how they
+        add tokens or decide `has_unpriced_models`.
+        """
+        mine = [entry for entry in self.entries if matches(entry)]
         return SpendShare(
             cost_usd=sum((entry.cost_usd for entry in mine), Decimal(0)),
             input_tokens=sum(entry.input_tokens for entry in mine),
@@ -256,8 +313,13 @@ class SpendLedger:
         A copy rather than the caller's object: `record` builds a fresh entry, but a
         caller with an entry of its own - a resumed run's opening balance - would
         otherwise have that object mutated by being booked.
+
+        Both attributions are stamped here, from the two context variables
+        :func:`booked_to` sets together: `delegation` for the panel and `billed_to`
+        for the row. Stamping them anywhere but the one way in is how a delegate's
+        spend came to be counted as the parent's, and how it would be again.
         """
-        booked = replace(entry, delegation=_booked_to.get())
+        booked = replace(entry, delegation=_booked_to.get(), billed_to=_billed_to.get())
         self.entries.append(booked)
         return booked
 
@@ -285,11 +347,23 @@ Read by :meth:`SpendLedger.record` rather than passed to it, for the reason
 :func:`metered_by` is a context variable too: the guard that records a request is
 built per agent, while the delegation that is running is per *task* - a fan-out of
 three runs three delegations in three asyncio tasks against one guard.
+
+The *innermost* delegation, and what the panel is read off (:meth:`share_of`).
+"""
+
+_billed_to: ContextVar[str | None] = ContextVar("spend_billed_to", default=None)
+"""Which agent-row the spend in this task bills to, if it bills to a delegate's.
+
+The companion to :data:`_booked_to`, and it advances only across a delegation with
+a row of its own - a published delegate. An inline specialist leaves it pointing at
+whatever it was, which is its nearest published ancestor, so the specialist's spend
+lands in that ancestor's month while `_booked_to` still names the specialist for its
+panel (agenticos#228). `None` is the run's own agent, whose row is the whole ledger.
 """
 
 
 @contextmanager
-def booked_to(delegation: str) -> Iterator[None]:
+def booked_to(delegation: str, *, has_own_row: bool) -> Iterator[None]:
     """Attribute what is metered inside this block to one delegation.
 
     Opened around the tool call that starts a delegation, which is what makes it
@@ -301,12 +375,24 @@ def booked_to(delegation: str) -> Iterator[None]:
 
     Nested rather than exclusive: a delegate's own delegation sets this again, so
     the innermost one wins and each level is attributed only what it spent itself.
+
+    Two attributions are set together, because a request has to answer two
+    questions at once - which panel, and which month. `delegation` is always the
+    innermost, for the panel. `has_own_row` says whether this delegation is a
+    published delegate (one with its own `agent_runs` row): if it is, its spend
+    bills to itself; if it is an inline specialist, it has no row, so what is
+    metered here bills to its nearest published ancestor - whatever was billed here
+    already. Setting them together is the point - any window in which only one held
+    would attribute a request to a panel and a month that disagree.
     """
-    token = _booked_to.set(delegation)
+    billed = delegation if has_own_row else _billed_to.get()
+    booked_token = _booked_to.set(delegation)
+    billed_token = _billed_to.set(billed)
     try:
         yield
     finally:
-        _booked_to.reset(token)
+        _billed_to.reset(billed_token)
+        _booked_to.reset(booked_token)
 
 
 _active_ledger: ContextVar[SpendLedger | None] = ContextVar("active_spend_ledger", default=None)

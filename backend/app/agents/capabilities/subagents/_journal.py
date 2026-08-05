@@ -565,9 +565,33 @@ class DelegationJournal:
                 # resume so that a history the runner cannot serialise fails while
                 # there is still a run to attribute the failure to.
                 messages=[] if history is None else list(json.loads(history)),
-                spent=self._spent(delegation),
+                spent=self._carried_for_park(delegation),
                 started_at=self._span_start(delegation, handle),
             )
+        )
+
+    def _carried_for_park(self, delegation: Delegation) -> DelegationSpend:
+        """Everything this delegation has spent so far, both attributions, for the resume.
+
+        One :class:`DelegationSpend` carrying both numbers the two ends of a park
+        read: the panel spend (:meth:`_spent`) the streamed frame keeps, and the
+        billed spend (:meth:`_billed`) the row is owed. Kept together because a
+        published delegate that parks with an inline specialist below it has to
+        resume with both intact - the panel short by the specialist's own pre-park
+        spend was agenticos#245, the row short by it is agenticos#228, and a park
+        that carried only one would reintroduce whichever it dropped.
+        """
+        spent = self._spent(delegation)
+        billed = self._billed(delegation)
+        return DelegationSpend(
+            cost_usd=spent.cost_usd,
+            input_tokens=spent.input_tokens,
+            output_tokens=spent.output_tokens,
+            has_unpriced_models=spent.has_unpriced_models,
+            billed_cost_usd=billed.cost_usd,
+            billed_input_tokens=billed.input_tokens,
+            billed_output_tokens=billed.output_tokens,
+            billed_has_unpriced_models=billed.has_unpriced_models,
         )
 
     def record_created_specialists(self) -> None:
@@ -799,15 +823,21 @@ class DelegationJournal:
         # which a continuation allocates fresh; see `Delegation.public_id`.
         public = delegation.stable_id or task_id
         spent = self._spent(delegation)
+        # The row carries the *billed* share - a published delegate's own spend plus
+        # its inline specialists', which the panel below keeps separate (agenticos#228).
+        # The two are equal for a delegation with no inline specialist under it, and
+        # for an inline specialist the recorder writes no row at all, so its billed
+        # number (zero, since it bills to its ancestor) never reaches one.
+        billed = self._billed(delegation)
         run_id = await self._record(
             DelegationOutcome(
                 subagent=delegation.name,
                 task_id=public,
                 status=status,
-                cost_usd=spent.cost_usd,
-                input_tokens=spent.input_tokens,
-                output_tokens=spent.output_tokens,
-                cost_is_partial=spent.has_unpriced_models,
+                cost_usd=billed.cost_usd,
+                input_tokens=billed.input_tokens,
+                output_tokens=billed.output_tokens,
+                cost_is_partial=billed.has_unpriced_models,
                 agent_id=delegation.agent_id,
                 agent_version_id=delegation.agent_version_id,
                 error=handle.error,
@@ -895,7 +925,11 @@ class DelegationJournal:
         """
         token = _CURRENT.set(delegation)
         try:
-            with booked_to(delegation.ledger_key):
+            # A published delegate has an `agent_runs` row and bills to itself; an
+            # inline specialist (`agent_id is None`) has none, so its spend bills to
+            # its nearest published ancestor - which is what `has_own_row=False`
+            # tells `booked_to` to keep pointing at (agenticos#228).
+            with booked_to(delegation.ledger_key, has_own_row=delegation.agent_id is not None):
                 yield
         finally:
             _CURRENT.reset(token)
@@ -980,6 +1014,31 @@ class DelegationJournal:
             return carried
         return min(carried, this_segment)
 
+    def _billed(self, delegation: Delegation) -> SpendShare:
+        """What this delegation's row is owed: its own spend and its inline specialists'.
+
+        The counterpart to :meth:`_spent`, and read at the one place a *row* is
+        written rather than a panel: :meth:`settle` hands this to the recorder as
+        :class:`DelegationOutcome`, while :meth:`_spent` still fills the streamed
+        frame. For a published delegate with no inline specialist below it the two
+        are identical; they diverge only where an inline specialist's spend, stamped
+        to the specialist for its panel, has to reach a month through its published
+        ancestor (agenticos#228).
+
+        The carried half is the ancestor's, kept across a park the way the panel
+        spend is - a published delegate that parked with an inline specialist
+        mid-flight resumes with its row's pre-park spend intact rather than short by
+        what the specialist had already cost.
+        """
+        share = self._billed_share(delegation)
+        carried = delegation.carried
+        return SpendShare(
+            cost_usd=carried.billed_cost_usd + share.cost_usd,
+            input_tokens=carried.billed_input_tokens + share.input_tokens,
+            output_tokens=carried.billed_output_tokens + share.output_tokens,
+            has_unpriced_models=carried.billed_has_unpriced_models or share.has_unpriced_models,
+        )
+
     def _share(self, delegation: Delegation) -> SpendShare:
         """What this delegation booked into the run's ledger, or zeros if nothing meters.
 
@@ -991,6 +1050,19 @@ class DelegationJournal:
         if ledger is None:
             return SpendShare()
         return ledger.share_of(delegation.ledger_key)
+
+    def _billed_share(self, delegation: Delegation) -> SpendShare:
+        """What bills to this delegation's row this turn, or zeros if nothing meters.
+
+        The billed counterpart to :meth:`_share`: the same `None`-ledger fallback,
+        read off :meth:`~app.agents.capabilities.budget.SpendLedger.billed_share_of`
+        so an inline specialist's spend is inside its published ancestor's number
+        rather than lost between the two (agenticos#228).
+        """
+        ledger = self.runtime.ledger
+        if ledger is None:
+            return SpendShare()
+        return ledger.billed_share_of(delegation.ledger_key)
 
 
 def _characteristics(tool_args: dict[str, Any]) -> TaskCharacteristics:

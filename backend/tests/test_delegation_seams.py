@@ -256,7 +256,7 @@ def test_one_ledger_still_says_which_delegation_spent_what() -> None:
     ledger = SpendLedger()
 
     ledger.book(_priced("0.20"))
-    with booked_to("delegation-a"):
+    with booked_to("delegation-a", has_own_row=True):
         ledger.book(_priced("0.01"))
     ledger.book(_priced("0.30"))
 
@@ -273,9 +273,9 @@ def test_a_nested_delegation_takes_the_spend_from_the_one_it_is_inside() -> None
     """
     ledger = SpendLedger()
 
-    with booked_to("child"):
+    with booked_to("child", has_own_row=True):
         ledger.book(_priced("0.02"))
-        with booked_to("grandchild"):
+        with booked_to("grandchild", has_own_row=True):
             ledger.book(_priced("0.04"))
         ledger.book(_priced("0.02"))
 
@@ -283,6 +283,71 @@ def test_a_nested_delegation_takes_the_spend_from_the_one_it_is_inside() -> None
     assert ledger.share_of("grandchild").cost_usd == Decimal("0.04")
     # The whole, once: the shares partition the ledger rather than overlapping it.
     assert ledger.total_usd == Decimal("0.08")
+
+
+def test_an_inline_specialist_bills_its_spend_to_its_published_ancestor() -> None:
+    """The panel keeps the specialist's own share; the row gets the ancestor's whole.
+
+    A published delegate (`has_own_row=True`) delegates to an inline specialist
+    (`has_own_row=False`). The specialist's request is stamped to the specialist for
+    its panel and to the delegate for its month, so `share_of` and `billed_share_of`
+    answer the two questions that used to be one - and the money no longer falls
+    between them (agenticos#228).
+    """
+    ledger = SpendLedger()
+
+    with booked_to("researcher", has_own_row=True):
+        ledger.book(_priced("0.50"))
+        with booked_to("fact-checker", has_own_row=False):
+            ledger.book(_priced("0.25"))
+
+    # The panel: each shows only its own requests, exactly as before.
+    assert ledger.share_of("researcher").cost_usd == Decimal("0.50")
+    assert ledger.share_of("fact-checker").cost_usd == Decimal("0.25")
+    # The row: the delegate's month is its own plus the specialist it used, and the
+    # specialist bills nothing to a row of its own - it has none.
+    assert ledger.billed_share_of("researcher").cost_usd == Decimal("0.75")
+    assert ledger.billed_share_of("fact-checker").cost_usd == Decimal("0")
+    # Nothing counted twice: the whole ledger is the researcher's billed share here.
+    assert ledger.total_usd == Decimal("0.75")
+
+
+def test_inline_specialists_nest_to_the_nearest_published_ancestor() -> None:
+    """Two levels of inline still bill to the one published delegate above them.
+
+    `billed_to` advances only across a delegation with its own row, so an inline
+    specialist under an inline specialist under a published delegate leaves both of
+    them pointing at the delegate - which is the only agent with a month to land in.
+    """
+    ledger = SpendLedger()
+
+    with booked_to("researcher", has_own_row=True):
+        ledger.book(_priced("0.10"))
+        with booked_to("summariser", has_own_row=False):
+            ledger.book(_priced("0.20"))
+            with booked_to("fact-checker", has_own_row=False):
+                ledger.book(_priced("0.30"))
+
+    assert ledger.billed_share_of("researcher").cost_usd == Decimal("0.60")
+    assert ledger.billed_share_of("summariser").cost_usd == Decimal("0")
+    assert ledger.billed_share_of("fact-checker").cost_usd == Decimal("0")
+
+
+def test_an_inline_specialist_under_the_runs_own_agent_bills_to_no_delegated_row() -> None:
+    """Its spend is in the top-level row, which is the whole ledger, so it needs none.
+
+    `has_own_row=False` with nothing published above it leaves `billed_to` at its
+    default - the run's own agent - which no delegated row is ever keyed by. The
+    money is not lost: the top-level run row is the whole ledger regardless.
+    """
+    ledger = SpendLedger()
+
+    with booked_to("fact-checker", has_own_row=False):
+        ledger.book(_priced("0.25"))
+
+    assert ledger.share_of("fact-checker").cost_usd == Decimal("0.25")
+    assert [entry.billed_to for entry in ledger.entries] == [None]
+    assert ledger.total_usd == Decimal("0.25")
 
 
 def test_a_share_carries_the_tokens_and_whether_it_was_priced() -> None:
@@ -296,10 +361,10 @@ def test_a_share_carries_the_tokens_and_whether_it_was_priced() -> None:
     ledger = SpendLedger()
 
     ledger.book(SpendEntry("mystery-1", 5, 5, Decimal(0), priced=False))
-    with booked_to("delegation-a"):
+    with booked_to("delegation-a", has_own_row=True):
         ledger.book(_priced("0.01", tokens=7))
 
-    with booked_to("delegation-b"):
+    with booked_to("delegation-b", has_own_row=True):
         ledger.book(SpendEntry("mystery-2", 5, 5, Decimal(0), priced=False))
 
     priced = ledger.share_of("delegation-a")
@@ -327,7 +392,7 @@ def test_spend_outside_a_delegation_belongs_to_the_run_itself() -> None:
     """
     ledger = SpendLedger()
 
-    with booked_to("delegation-a"):
+    with booked_to("delegation-a", has_own_row=True):
         ledger.book(_priced("0.01"))
     ledger.book(_priced("0.30"))
 
