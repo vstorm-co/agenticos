@@ -25,6 +25,7 @@ function delegation(overrides: Partial<Delegation> = {}): Delegation {
     text: "",
     thinking: "",
     steps: [],
+    runId: null,
     costUsd: null,
     inputTokens: null,
     outputTokens: null,

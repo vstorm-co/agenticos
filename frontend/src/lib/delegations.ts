@@ -16,23 +16,29 @@
 import type { Delegation, DelegationStatus, SubagentFrame, SubagentStartFrame } from "@/types";
 
 /**
- * Which delegation a nested one belongs to.
+ * Which delegation a nested one belongs to, as its start frame names it.
  *
- * No frame names a parent - the contract carries `depth` and nothing else - so
- * the parent is the most recent delegation one level up that has not finished.
- * That is exactly right for the shape that needs it: a specialist delegates while
- * it is running, so the open delegation above is the one that made the call. It is
- * a heuristic, and it is wrong only in a case nothing can currently produce - two
- * specialists at the same depth whose children arrive interleaved *after* the
- * first has finished - where the nesting misreads and no content is lost.
+ * **The frame names it; this never guesses.** It used to: the parent was taken to
+ * be the most recent still-running delegation one level up, which is wrong the
+ * moment more than one delegation at that level is running - the ordinary fan-out.
+ * Two roots, a helper each, and the researcher's helper was drawn inside the
+ * writer's panel while the researcher's panel showed no children at all.
+ * `SubagentRuntime.depth` is *told* rather than computed precisely so that a
+ * surface cannot nest under the wrong parent; the surface then computed the parent
+ * anyway. Do not put that back.
+ *
+ * Two answers are null, and both draw the delegation as a root panel:
+ *
+ * - **The frame carries no `parent_task_id`.** An older backend, mid-deploy. A
+ *   flat list of panels is legible; a confidently wrong tree is not.
+ * - **It names a delegation this list does not hold.** The case `updated` below
+ *   documents - a background delegation of the previous turn reporting after the
+ *   panels were replaced. At the top it is visible; under a parent that is not
+ *   there it would stream into nothing anybody can see.
  */
-function parentOf(current: Delegation[], depth: number): string | null {
-  if (depth === 0) return null;
-  for (let index = current.length - 1; index >= 0; index--) {
-    const candidate = current[index]!;
-    if (candidate.depth === depth - 1 && candidate.status === "running") return candidate.taskId;
-  }
-  return null;
+function parentIn(current: Delegation[], named: string | null | undefined): string | null {
+  if (named === undefined || named === null) return null;
+  return current.some((delegation) => delegation.taskId === named) ? named : null;
 }
 
 function started(current: Delegation[], frame: SubagentStartFrame): Delegation[] {
@@ -48,11 +54,12 @@ function started(current: Delegation[], frame: SubagentStartFrame): Delegation[]
       depth: frame.depth,
       mode: frame.mode,
       prompt: frame.prompt,
-      parentTaskId: parentOf(current, frame.depth),
+      parentTaskId: parentIn(current, frame.parent_task_id),
       status: "running" as DelegationStatus,
       text: "",
       thinking: "",
       steps: [],
+      runId: null,
       costUsd: null,
       inputTokens: null,
       outputTokens: null,
@@ -125,6 +132,10 @@ export function applyDelegationFrame(current: Delegation[], frame: SubagentFrame
       return updated(current, frame.task_id, (delegation) => ({
         ...delegation,
         status: frame.status,
+        // Kept rather than dropped: the delegate's run id is the only thing that
+        // ties this panel to the run history entry it produced, and the backend
+        // sends it for exactly that. See `runId` on `Delegation`.
+        runId: frame.run_id,
         costUsd: frame.cost_usd,
         inputTokens: frame.input_tokens,
         outputTokens: frame.output_tokens,

@@ -366,6 +366,14 @@ export interface SubagentStartFrame extends SubagentFrameBase {
   kind: "subagent_start";
   mode: SubagentMode;
   prompt: string;
+  /**
+   * The delegation this one was started from, null when the run's own agent made it.
+   *
+   * Read from the journal at `begin`, which is the only moment both delegations
+   * exist, and it is what nests a panel without guessing. `depth` alone cannot:
+   * two specialists running at once are both one level up from a nested start.
+   */
+  parent_task_id: string | null;
 }
 
 export interface SubagentTextDeltaFrame extends SubagentFrameBase {
@@ -439,15 +447,23 @@ export interface Delegation {
   /**
    * The delegation this one was started from, or null at the top.
    *
-   * Inferred, because no frame names a parent: a start at depth d belongs to the
-   * most recent delegation at depth d-1 that has not finished. See `parentOf` in
-   * `lib/delegations.ts`.
+   * Named by the start frame's `parent_task_id`, never inferred. See `parentIn` in
+   * `lib/delegations.ts` for the two cases that read as a root panel instead.
    */
   parentTaskId: string | null;
   status: DelegationStatus;
   text: string;
   thinking: string;
   steps: DelegationStep[];
+  /**
+   * The run row the delegate produced, once it reports one, and null until then.
+   *
+   * Only a delegation to a published agent gets a run row, so it stays null for a
+   * specialist defined inline on the parent's spec. Carried because it is the only
+   * link between a panel and the run history entry behind it - see
+   * `DelegationRecorder` in `backend/app/agents/capabilities/subagents/`.
+   */
+  runId: string | null;
   costUsd: number | null;
   inputTokens: number | null;
   outputTokens: number | null;

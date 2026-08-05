@@ -374,6 +374,7 @@ describe("useChat - streaming a delegation", () => {
       depth: 0,
       mode,
       prompt: "find three papers",
+      parent_task_id: null,
     });
   }
 

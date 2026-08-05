@@ -6,7 +6,13 @@ import type { Delegation, SubagentFrame } from "@/types";
 /** A `subagent_start`, which is the only frame that can create a panel. */
 function start(
   taskId: string,
-  options: { subagent?: string; depth?: number; mode?: "sync" | "async"; prompt?: string } = {},
+  options: {
+    subagent?: string;
+    depth?: number;
+    mode?: "sync" | "async";
+    prompt?: string;
+    parent?: string | null;
+  } = {},
 ): SubagentFrame {
   return {
     kind: "subagent_start",
@@ -15,6 +21,7 @@ function start(
     depth: options.depth ?? 0,
     mode: options.mode ?? "sync",
     prompt: options.prompt ?? "find three papers",
+    parent_task_id: options.parent ?? null,
   };
 }
 
@@ -287,6 +294,22 @@ describe("applyDelegationFrame - what a finished delegation reports", () => {
     });
   });
 
+  it("keeps the delegate's run id, which is the only link back to its run", () => {
+    // A delegation to a published agent gets a run row, and the frame carries its
+    // id so a panel can be tied to the run history entry it produced. Dropped here,
+    // that link cannot be made anywhere else.
+    const delegations = fold([start("t1"), finished("t1", { run_id: "run-7" })]);
+
+    expect(named(delegations, "t1").runId).toBe("run-7");
+  });
+
+  it("leaves the run id null for a delegation that never got one", () => {
+    // A specialist defined inline on the parent's spec runs without a run row.
+    const delegations = fold([start("t1"), finished("t1")]);
+
+    expect(named(delegations, "t1").runId).toBeNull();
+  });
+
   it("carries the reason a delegation failed, so the panel is not simply empty", () => {
     const delegations = fold([
       start("t1"),
@@ -318,10 +341,10 @@ describe("applyDelegationFrame - what a finished delegation reports", () => {
 });
 
 describe("applyDelegationFrame - nesting a specialist's own delegation", () => {
-  it("hangs a deeper delegation off the open one above it", () => {
+  it("hangs a deeper delegation off the parent its frame names", () => {
     const delegations = fold([
       start("t1", { subagent: "researcher", depth: 0 }),
-      start("t2", { subagent: "assistant", depth: 1 }),
+      start("t2", { subagent: "assistant", depth: 1, parent: "t1" }),
     ]);
 
     expect(named(delegations, "t2").parentTaskId).toBe("t1");
@@ -329,36 +352,66 @@ describe("applyDelegationFrame - nesting a specialist's own delegation", () => {
     expect(childrenOf(delegations, "t1").map((delegation) => delegation.taskId)).toEqual(["t2"]);
   });
 
-  it("picks the specialist that is still working, not one that already answered", () => {
+  it("gives each of two running specialists its own child, not the last one both", () => {
+    // The fan-out that broke the guess this reducer used to make: with two roots
+    // still running, "the most recent open delegation one level up" is the writer
+    // for both children, so the researcher's helper was drawn inside the writer's
+    // panel and the researcher's panel showed no children at all.
+    const delegations = fold([
+      start("t-A", { subagent: "researcher", depth: 0 }),
+      start("t-B", { subagent: "writer", depth: 0 }),
+      start("t-A1", { subagent: "researchers-helper", depth: 1, parent: "t-A" }),
+      start("t-B1", { subagent: "writers-helper", depth: 1, parent: "t-B" }),
+    ]);
+
+    expect(named(delegations, "t-A1").parentTaskId).toBe("t-A");
+    expect(named(delegations, "t-B1").parentTaskId).toBe("t-B");
+    expect(childrenOf(delegations, "t-A").map((delegation) => delegation.subagent)).toEqual([
+      "researchers-helper",
+    ]);
+    expect(childrenOf(delegations, "t-B").map((delegation) => delegation.subagent)).toEqual([
+      "writers-helper",
+    ]);
+    expect(rootsOf(delegations).map((delegation) => delegation.taskId)).toEqual(["t-A", "t-B"]);
+  });
+
+  it("nests a child under a specialist that has already answered", () => {
+    // A background delegation's own delegate reports late, and the parent it names
+    // is the parent whatever its status: nothing about being finished makes a
+    // delegation stop owning what it started.
     const delegations = fold([
       start("t1", { subagent: "researcher", depth: 0 }),
       start("t2", { subagent: "writer", depth: 0 }),
       finished("t1"),
-      start("t3", { subagent: "assistant", depth: 1 }),
+      start("t3", { subagent: "assistant", depth: 1, parent: "t1" }),
     ]);
 
-    expect(named(delegations, "t3").parentTaskId).toBe("t2");
+    expect(named(delegations, "t3").parentTaskId).toBe("t1");
   });
 
-  it("shows a nested delegation whose parent cannot be found rather than hiding it", () => {
-    // Only reachable if a start at depth 1 arrives with nothing open above it,
-    // which is a library bug - and a panel at the top is a great deal better than
-    // a delegation that streams into nothing anybody can see.
-    const delegations = fold([start("t2", { depth: 1 })]);
+  it("treats a start with no parent field at all as a root", () => {
+    // An older backend mid-deploy, which sends the frame without `parent_task_id`.
+    // A flat list of panels is legible; nesting it by guesswork is not, and a
+    // delegation whose parent is `undefined` is neither a root nor a child and
+    // would drop out of the tree entirely.
+    const { parent_task_id: _absent, ...withoutParent } = start("t2", {
+      depth: 1,
+    }) as Extract<SubagentFrame, { kind: "subagent_start" }>;
+    const delegations = fold([start("t1", { depth: 0 }), withoutParent as SubagentFrame]);
+
+    expect(named(delegations, "t2").parentTaskId).toBeNull();
+    expect(rootsOf(delegations).map((delegation) => delegation.taskId)).toEqual(["t1", "t2"]);
+  });
+
+  it("shows a nested delegation whose parent is not on screen rather than hiding it", () => {
+    // The case `updated` documents from the other side: a background delegation of
+    // the previous turn delegates again after the panels were replaced, so the
+    // parent it names is gone. At the top it is visible; under a parent that is not
+    // there it would stream into nothing anybody can see.
+    const delegations = fold([start("t2", { depth: 1, parent: "t-gone" })]);
 
     expect(named(delegations, "t2").parentTaskId).toBeNull();
     expect(rootsOf(delegations)).toHaveLength(1);
-  });
-
-  it("skips a candidate at the wrong depth when looking for a parent", () => {
-    const delegations = fold([
-      start("t1", { depth: 0 }),
-      start("t2", { depth: 1 }),
-      start("t3", { depth: 1 }),
-    ]);
-
-    // t3's parent is the depth-0 delegation, not the depth-1 sibling scanned first.
-    expect(named(delegations, "t3").parentTaskId).toBe("t1");
   });
 });
 
