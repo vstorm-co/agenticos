@@ -19,6 +19,27 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.22] - 2026-08-05
+
+### Added
+
+- **A sync delegate can ask the person already waiting on its parent**
+  ([#184](https://github.com/vstorm-co/agenticos/issues/184)). An author can turn on
+  questions for a delegation, so a **sync** specialist can ask "which currency?" of the
+  person waiting on the parent run instead of burying an assumption in its answer —
+  answered through the run's own `ask_user` channel, the same one the parent uses. It is
+  off by default and gated tightly, because the reasons this was once declined are real:
+  a **background** delegation has handed back a task id with nobody waiting, so it is never
+  granted the ability (nor is an `auto` delegation, which may become one); a specialist a
+  model invented at run time is never granted it either; and a surface with no `ask_user`
+  (the API, a channel, a schedule) refuses rather than hangs. The library injects
+  `ask_parent` for a caller-supplied delegate only since `subagents-pydantic-ai` 0.2.17,
+  which is why this rides on the 0.2.18 floor adopted in 0.0.21.
+
+  Concurrency came with it: two delegate questions in one turn would race the single
+  `ask_user` channel, so the channel is serialised — the same class of fix as the approval
+  writes in 0.0.17, and for the same reason.
+
 ## [0.0.21] - 2026-08-05
 
 ### Changed
@@ -919,7 +940,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.21...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.22...HEAD
+[0.0.22]: https://github.com/vstorm-co/agenticos/compare/v0.0.21...v0.0.22
 [0.0.21]: https://github.com/vstorm-co/agenticos/compare/v0.0.20...v0.0.21
 [0.0.20]: https://github.com/vstorm-co/agenticos/compare/v0.0.19...v0.0.20
 [0.0.19]: https://github.com/vstorm-co/agenticos/compare/v0.0.18...v0.0.19
