@@ -1,5 +1,17 @@
 # Dashboard design — stage 1 of #37
 
+**Stage 1 has been reviewed, and two of its calls were reversed.** A named
+per-person usage table is *in* (decision 3 below argued the opposite), and a
+user-arranged dashboard moves from "out of v1" into stage 2 with the shape
+this note had already settled. Both reversals are folded into the sections
+they belong to rather than parked in a changelog, so every section reads as
+what was decided — the two `Reversed in review` paragraphs mark where the
+argument changed. The review also confirmed the org answer-quality card
+(#209), kept budget *management* out, and split the live-update question in
+two. Issues filed out of it: **#207** (the dead `RunSurface.SCHEDULE`),
+**#208** (surface recording), **#209** (answer quality end to end), **#210**
+(sort run history by duration).
+
 This is the design artifact for the role-aware dashboard, meant to be reviewed
 before any product code is written. Open
 [`dashboard-demo.html`](dashboard-demo.html) in a browser — it is
@@ -79,10 +91,11 @@ The layouts, in the order each page reads:
   budget headroom (the *cause* the outcomes donut only shows the symptom
   of), integrations that stopped answering, and knowledge collections that
   stopped syncing. Then *Usage &amp; cost* (adoption, outcomes, spend, model
-  mix), then *People &amp; quality* — members with a per-role split and a
-  "View members" link, beside the answer-quality trend. Members is
-  deliberately **not** under Needs attention: a headcount is context, not
-  a queue. Workspace last.
+  mix, and — closing the section, full width — the per-person table under
+  the adoption count that summarises it), then *People &amp; quality* —
+  members with a per-role split and a "View members" link, beside the
+  answer-quality trend. Members is deliberately **not** under Needs
+  attention: a headcount is context, not a queue. Workspace last.
 - **Operator** — *Needs attention* first and widest: the approvals queue
   beside recent failures, because both are the operator's inbox. Then
   *Health* (outcomes, latency, answer quality), then usage, workspace last.
@@ -123,7 +136,8 @@ instead reads adoption and failures of the agents they can edit.
 | Where runs come from (by surface) | `runs:view` | `GET /api/v1/stats/usage` | **no — new, and the recording needs widening (below)** |
 | Agents: adopted and forgotten | `runs:view` | `GET /api/v1/stats/usage` | **no — new** |
 | Latency (p50 / p95) | `runs:view` | `GET /api/v1/stats/usage` | **no — new** |
-| Active people (count, no names) | `runs:view` | `GET /api/v1/stats/usage` | **no — new** |
+| Active people (the count) | `runs:view` | `GET /api/v1/stats/usage` | **no — new** |
+| Who is using it (the names under it) | `runs:view` | `GET /api/v1/stats/usage?group_by=user` | **no — new** |
 | Spend (period total + this-month line) | `runs:view` | `GET /api/v1/stats/usage` + `GET /api/v1/spend` | **partly — the period total needs `/stats/usage`; the month line exists** |
 | Budget headroom | `runs:view` | `GET /api/v1/orgs/{org_id}` + `GET /api/v1/spend` | yes |
 | Models behind the runs | `runs:view` | `GET /api/v1/stats/usage` | **no — new** |
@@ -142,7 +156,12 @@ instead reads adoption and failures of the agents they can edit.
 | Shared with you | `agents:view` (shared scope) | `GET /api/v1/agents` · `/kb` · `/skills` | **partly — the lists exist but return own+shared as one page; needs a `shared_with_me` count** |
 | Quick actions (filter-row buttons) | one action per permission | client-side | — |
 
-Five rows carry a sentence of fine print:
+Six rows carry a sentence of fine print:
+
+- **Who is using it** is the one card that names people, so it carries its
+  own disclosure: the gate is `runs:view`, which builder and operator hold
+  too. It is ordered by runs with cost as a column, and it sits under the
+  aggregate rather than replacing it — see decision 3.
 
 - **Outcomes** draws five segments covering all six `RunStatus` values —
   `completed`, `failed`, `budget_exceeded`, `awaiting_approval`, and
@@ -274,9 +293,12 @@ Everything above is answerable from `agent_runs` columns that already exist
   Telegram bot, not just "slack"), and `environment_id` (which named
   environment resolved the version, so staging noise can be kept out of
   production numbers). **v1 implements** the composed response plus
-  `group_by=version` — it feeds the builder's version-to-version card;
-  `exposure` and `environment` stay in the contract and land together with
-  #45, whose Activity page wants filters over exactly those rows.
+  `group_by=version` — the builder's version-to-version card — and
+  `group_by=user`, which review added for the per-person table; `exposure`
+  and `environment` stay in the contract and land together with #45, whose
+  Activity page wants filters over exactly those rows. That the reversal
+  cost one dimension rather than an endpoint is the argument for freezing a
+  vocabulary before implementing any of it.
 
 With `scope=own` the same shape narrows to the caller's rows, drops
 `active_users`, and adds `pending_approvals` — how many of the caller's runs
@@ -292,7 +314,8 @@ most" — no extra endpoint, just their own rows.
 `scope=own` aggregates ratings given in the caller's conversations and feeds
 "Answer quality in your chats". Both return the headline percentage plus a
 per-day series, so the card shows how quality *moves*, not just where it
-stands.
+stands. Neither returns rating **comments** — see decision 4: the free text
+belongs behind a specific run, not in an organization-wide aggregate.
 
 ## Chart library
 
@@ -366,18 +389,41 @@ the product.
    history and a conversation list would be built from rows they can never
    produce — those cards gate on `agents:run`, and the viewer's page shows
    what was shared with them instead of permanently empty charts.
-3. **Adoption is a count, not a table of names.** "14 of 23 members ran an
-   agent" answers the steward's question without shipping a surveillance
-   table. If a per-user table is ever wanted, it is a deliberate later
-   decision, not a default.
-4. **An org-scoped answer-quality card is proposed but flagged.** Message
-   ratings exist and nothing surfaces them below the app-admin level; the
-   card needs a new `GET /api/v1/ratings/summary`. In or out is a review
-   call — it is the only widget on the page that answers "is it any good".
+3. **Adoption is a count *and* a table of names.** *Reversed in review.* The
+   argument here was that "14 of 23 members ran an agent" answers the
+   steward's question without shipping a surveillance table. The call went
+   the other way, and cheaply: `group_by=user` was already in the frozen
+   `/stats/usage` vocabulary, so nothing was ever refused at the endpoint —
+   only the rendering. Three things the reversal had to settle, because a
+   table of names is not a neutral card:
+   - **Whose names, to whom.** The gate is `runs:view`, which builder and
+     operator hold as well as owner and admin — a wider audience than the
+     person being listed would assume. So the card says so in its own copy,
+     and the layouts feature it wherever usage is featured rather than on
+     steward pages alone: a disclosure that is true only on some pages is
+     not a disclosure.
+   - **Runs, with cost as a column.** Ordering by spend turns the same rows
+     into a league table nobody asked to join; ordering by runs keeps the
+     card answering adoption, and cost rides along as the context the
+     steward would otherwise go and cross-reference by hand.
+   - **The count stays.** "Active people" is the headline and the table is
+     the evidence under it — the same summary-and-its-evidence pattern the
+     rest of the page follows. Replacing one with the other loses the
+     glanceable answer.
+4. **The org-scoped answer-quality card is in.** *Confirmed in review*, and
+   filed as **#209** together with the half that makes the number
+   actionable: the 👎 on the run row in Activity and the rater's comment in
+   the run detail. It is the only widget on the page answering "is it any
+   good", and nothing below `admin_ratings.py` surfaces either the score or
+   the comment today. One guardrail the card owes its subjects: a rating
+   carries free text, and free text shown at `scope=org` is a person's
+   written opinion about one conversation reaching an audience its author
+   did not pick. **The card is counts and trend only** — the comment stays
+   behind the run detail, where the reader has already navigated to a
+   specific run.
 
 ## Deliberately out of v1
 
-- **A named per-user usage table** — see decision 3.
 - **Managing budgets from the dashboard.** An earlier draft of this note
   claimed `budgets:manage` gates no route and no cap is stored — both halves
   were wrong (`budgets:manage` gates the `monthly_budget_usd` field on
@@ -385,25 +431,11 @@ the product.
   `organizations.monthly_budget_usd` and `AgentSpec.budget.monthly_usd`), so
   *showing* headroom moved into v1 as the Budget headroom card. What stays
   out is managing: raising a cap, a budget-request flow — that is its own
-  design task.
-- **A user-arranged dashboard.** The four audience layouts stay the
-  *default*; letting each person pin, widen, hide or add widgets is out of
-  v1 — but the shape is settled now because it is expensive to retrofit. A
-  preference is a third layer over the same two the page already has
-  (`effective layout = preference ?? audience default`, then
-  `visible = effective ∩ gate()`), and it may only ever **reorder or hide —
-  never reveal**: a stored layout naming a widget the caller cannot see is
-  dropped at render time (the realistic case is a demotion, not an attack).
-  Spans come from the closed set the grid already uses (s4/s6/s8/s12), the
-  "add a widget" catalog itself passes through `gate()` so the list cannot
-  leak what the page hides, every widget declares a "see all" destination
-  pointing at a page that already exists, and widget definitions carry
-  catalog metadata (description, permission, default span, default
-  audiences) from day one, plus a reset-to-default. Widget ids are stable
-  registry keys, so persisting them is safe; the preference stores
-  **user-and-organization-scoped** — the same person is a steward in one
-  org and a member in another, and one saved layout across both is wrong in
-  one of them.
+  design task. One thing review added, which is neither: the headroom card
+  links to the organization's settings. The outcomes donut draws
+  `budget_exceeded` and Activity shows the same symptom, and until now
+  neither offered a way out — a link to the page where the cap lives is
+  navigation, not a request flow.
 - **An audit strip** (`audit:read`) — the audit log has its own page;
   duplicating it here earns nothing yet.
 - **Sandbox capacity / sessions / activity** — issue #129 owns that view and
@@ -412,16 +444,22 @@ the product.
 - **Deployment-wide time series.** `/admin/stats` is point-in-time counts;
   giving the app admin adoption curves would mean cross-tenant aggregation
   with its own questions. The strip stays counts-plus-health for now.
-- **Live updates.** Query-layer refetch on focus is enough for a page of
-  daily aggregates.
+- **Live updates, for the aggregates.** Query-layer refetch on focus is
+  enough for a page of daily aggregates — a run count does not move
+  meaningfully between two glances. *Review split this in two:* the queue is
+  the exception. Approvals and `running` runs change in minutes, not days,
+  and the approvals count in the quick-actions row is a number somebody acts
+  on — a stale one sends them to decide something already decided. Those two
+  get a short staleness; everything else keeps the page-wide default.
 
 ## What stage 2 builds
 
 Backend:
 
 - `GET /api/v1/stats/usage` — `from`/`to`, `scope`, the composed response,
-  and `group_by=version`; `GET /api/v1/ratings/summary` with the same
-  `scope` (if the review keeps the card).
+  and two of the nine dimensions: `group_by=version` for the builder's
+  version-to-version card and `group_by=user` for the per-person table
+  review added. `GET /api/v1/ratings/summary` with the same `scope`.
 - A `status` filter on `GET /runs` — a list, not a single value
   (`failed,budget_exceeded` is the operator's natural query), with the
   matching `where` in the repository.
@@ -439,24 +477,79 @@ loading / empty / error per widget with a test asserting the error state on a
 502, `dashboard.integration.test.tsx` covering at least two roles, every
 string through `next-intl`, recharts behind `next/dynamic`.
 
-Three things about the demo's registry that must **not** be ported as-is:
+### A user-arranged dashboard
 
-- A widget appears once per page in the mock (`LIVE` is keyed by widget id,
-  the DOM id is `w-${id}`). In the product, span and title ride the layout
-  entry, not a lookup table — then "runs over time, once org-wide and once
-  for me" stops being a latent collision.
-- `SPAN_W` hardcodes a 1180px page so 1 SVG unit ≈ 1 CSS px. The product
-  carries no span→pixels table at all; recharts' `ResponsiveContainer`
-  measures.
-- The demo's `gate()` closes over module state. The product's gate takes
-  what it needs — `(can, isAppAdmin) => boolean` — so a widget is testable
-  alone and `dashboard.integration.test.tsx` stays cheap.
+*Moved into stage 2 in review.* This note put it beyond v1 while settling its
+whole shape, which is exactly what made it cheap to pull forward — the shape
+below is the decision, not a starting point for a second design round:
 
-## For the reviewer
+- **A preference is a third layer over the two the page already has.**
+  `effective layout = preference ?? audience default`, then
+  `visible = effective ∩ gate()`. The four audience layouts stay the
+  default; nobody starts from an empty page.
+- **It may only ever reorder or hide — never reveal.** A stored layout
+  naming a widget the caller cannot see is dropped at render time. The
+  realistic case is a demotion, not an attack, and it has to be survivable
+  either way.
+- **The "add a widget" catalog passes through `gate()` too**, so the list
+  cannot leak what the page hides. This is the half that is easy to forget:
+  a catalog is a second surface with the same secrets.
+- **Spans come from the span vocabulary the registry declares.** An earlier
+  draft of this note said the grid uses a closed `s4/s6/s8/s12` set; that
+  was wrong about its own demo, whose layouts pair `s7`+`s5`, `s8`+`s4` and
+  `s3` alongside them. The real set is `s3`–`s8` plus `s12`, and narrowing
+  it would leave a person unable to rebuild the default they started from.
+- **Preferences are stored per user *and* per organization.** The same
+  person is a steward in one org and a member in another; one saved layout
+  across both is wrong in one of them.
+- Widget ids are stable registry keys, so persisting them is safe; every
+  widget declares a "see all" destination pointing at a page that already
+  exists, carries catalog metadata (description, permission, default span,
+  default audiences) from day one, and the page offers a reset-to-default.
 
-The demo is the argument; this note is the map. The calls worth challenging:
-the four-audience split and the layout each audience leads with, `scope=own`
-for members, the `agents:run` gate that empties the viewer's page down to
-what is shared, the aggregate-only adoption card, the `group_by` vocabulary
-fixed here for #45 to share, the surface-recording widening, and which of
-the **needs new endpoint** widgets justify their endpoint.
+Two entries in the list below stop being style advice once this lands, which
+is the reason they are worth the paragraph they get.
+
+### The demo's registry, and what must not be ported from it
+
+- **Span and title ride the layout entry, not a widget-id lookup.** A widget
+  appears once per page in the mock (`LIVE` is keyed by widget id, the DOM id
+  is `w-${id}`). Keep that shape and "runs over time, once org-wide and once
+  for me" is a latent collision — one a person arranging their own page
+  triggers the first time they add the same card twice.
+- **`gate()` takes `(can, isAppAdmin)` rather than closing over module
+  state.** The demo's closes over `current`. Injected, a widget is testable
+  alone, `dashboard.integration.test.tsx` stays cheap, and the catalog can
+  run the same gate over a list it is not rendering.
+- **No span→pixels table.** `SPAN_W` hardcodes a 1180px page so 1 SVG unit ≈
+  1 CSS px. The product carries no such table at all; recharts'
+  `ResponsiveContainer` measures.
+
+### The deep link works in both directions
+
+The demo's cards link out to the pages that hold their rows. The contract
+owes the return trip as well: Activity should be able to hand back "see this
+on the dashboard", carrying the same `from`/`to` and the same nine `group_by`
+dimensions. A filter a user set in one place and has to retype in the other
+is two features that merely look related.
+
+## What review settled, and what it did not
+
+The demo is the argument; this note is the map. Review answered the calls
+this section used to put up for challenge — the four-audience split, the
+`group_by` vocabulary fixed here for #45 to share, the surface-recording
+widening, and which **needs new endpoint** widgets justify their endpoint —
+and reversed two of them, folded above. What remains genuinely open, and is
+worth a second opinion before or during stage 2:
+
+- **The per-person table's disclosure is copy, not a mechanism.** Saying
+  "everyone with `runs:view` sees this" is honest and costs nothing, but it
+  does not give the person listed any control. If that turns out to be the
+  wrong trade, the fix is a permission of its own rather than a narrower
+  layout — and that is a permissions-catalog change, not a dashboard one.
+- **Whether `scope=own` deserves the same table for one's own row.** A
+  member cannot see the org table; whether they should see where they sit
+  in it is a question this design does not answer either way.
+- **The arrangeable dashboard's persistence.** The shape is settled; where
+  the preference is stored, and whether it versions alongside the widget
+  registry when a widget id is retired, is stage-2 design work.

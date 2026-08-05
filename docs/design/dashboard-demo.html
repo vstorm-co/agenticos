@@ -527,6 +527,12 @@ function genData(range) {
     shared: { agents: 4, collections: 3, skills: 6 },
     latency: { p50: 3.2, p95: 14.8 },
     activeUsers: { active: 14, ofTotal: 23, days: days.map((v, i) => 8 + Math.round(6 * (i / range)) + (v % 3)) },
+    /* Ordered by runs, with cost as a column. The other ordering - who spent
+       the most - reads as an accusation for the same rows. */
+    people: [["k.nowak", 0.19, "2 h ago"], ["j.wisniewski", 0.15, "4 h ago"], ["m.zajac", 0.12, "yesterday"],
+             ["a.lewandowska", 0.09, "yesterday"], ["p.kaminski", 0.07, "3 d ago"], ["t.szymanski", 0.05, "6 d ago"]]
+      .map(([name, share, last]) => ({ name, last, runs: pct(share), cost: total * 0.041 * share })),
+    peopleRest: 8,
     /* Two spend truths on one card: the period total obeys the filter (it
        comes from /stats/usage), the month-to-date line deliberately does not
        (calendar-aligned so it reconciles against an invoice). */
@@ -825,8 +831,19 @@ const WIDGETS = [
     source: { path: "GET /api/v1/stats/usage", exists: false }, gate: () => can("runs:view"), gateLabel: "runs:view",
     emptyT: "Nobody has run anything", emptyD: "Adoption starts with the first person's first run.",
     render: (d) => `<div class="big">${d.activeUsers.active} <span style="font-size:14px;color:var(--muted);font-weight:400">of ${d.activeUsers.ofTotal} members</span></div>
-      <div class="sub" style="margin:4px 0 10px">ran an agent in this period — a count, deliberately not a table of names</div>
+      <div class="sub" style="margin:4px 0 10px">ran an agent in this period — the headline; the table below carries the names</div>
       ${lineChart(d.activeUsers.days, { w: chartW("active-users") })}` },
+  { id: "top-people", title: "Who is using it",
+    source: { path: "GET /api/v1/stats/usage?group_by=user", exists: false },
+    gate: () => can("runs:view"), gateLabel: "runs:view — which includes builder and operator, not stewards alone",
+    emptyT: "Nobody has run anything", emptyD: "The first person's first run puts a name here.",
+    render: (d) => `<table class="mini"><tr><th>Person</th><th class="num">Runs</th><th class="num">Cost</th><th class="num">Last run</th></tr>
+      ${d.people.map((p) => `<tr><td>${p.name}</td><td class="num">${fmt(p.runs)}</td>
+        <td class="num">$${p.cost.toFixed(2)}</td><td class="num">${p.last}</td></tr>`).join("")}</table>
+      <div class="sub" style="margin-top:10px">${d.peopleRest} more people ran at least one agent. Ordered by runs, not by cost —
+        the same rows sorted by spend read as a league table nobody asked to be in.</div>
+      <div class="sub qa-note" style="margin-top:8px">Everyone holding
+        <span style="font-family:var(--mono)">runs:view</span> sees this — builders and operators as well as owners and admins.</div>` },
   { id: "spend", title: "Spend",
     source: { path: "GET /api/v1/stats/usage · GET /api/v1/spend", exists: false, badge: "period total needs /stats/usage" },
     gate: () => can("runs:view"), gateLabel: "runs:view",
@@ -889,7 +906,8 @@ const WIDGETS = [
         <span class="bl" style="width:92px">${a.name}</span>
         <span class="track"><span class="fill" style="width:${Math.min(ap, 100)}%;background:${ap >= 90 ? "var(--err)" : ap >= 70 ? "var(--warn)" : "var(--chart-1)"}"></span></span>
         <span class="bv">${ap}%</span></div>`; }).join("")}
-      <div class="sub" style="margin-top:8px">Agents with their own caps — the donut's <span style="font-family:var(--mono)">budget_exceeded</span> is the symptom; this is the cause.</div>`;
+      <div class="sub" style="margin-top:8px">Agents with their own caps — the donut's <span style="font-family:var(--mono)">budget_exceeded</span> is the symptom; this is the cause.</div>
+      <button class="btn small" style="margin-top:10px;align-self:flex-start">Organization settings</button>`;
     } },
   { id: "mcp-health", title: "Integrations",
     source: { path: "GET /api/v1/mcp-connections", exists: true }, gate: () => can("mcp:manage"), gateLabel: "mcp:manage",
@@ -980,7 +998,8 @@ const STEWARD_SECTIONS = [
               ["budget-headroom", "s4"], ["mcp-health", "s4"], ["knowledge-freshness", "s4"]] },
   { id: "usage", title: "Usage & cost", note: "everything here gates on runs:view",
     widgets: [["runs", "s8"], ["outcomes", "s4"], ["surfaces", "s6"], ["agents", "s6"],
-              ["spend", "s6"], ["model-mix", "s6"], ["latency", "s4"], ["active-users", "s8"]] },
+              ["spend", "s6"], ["model-mix", "s6"], ["latency", "s4"], ["active-users", "s8"],
+              ["top-people", "s12"]] },
   { id: "people", title: "People & quality", note: "each card gates on its own permission",
     widgets: [["members", "s6"], ["org-ratings", "s6"]] },
   { id: "workspace", title: "Your workspace", note: "personal — your own agents, chats and runs",
@@ -1000,7 +1019,8 @@ const LAYOUTS = {
     { id: "health", title: "Health", note: "everything here gates on runs:view",
       widgets: [["outcomes", "s4"], ["latency", "s3"], ["org-ratings", "s5"]] },
     { id: "usage", title: "Usage", note: "everything here gates on runs:view",
-      widgets: [["runs", "s8"], ["surfaces", "s4"], ["agents", "s6"], ["spend", "s6"]] },
+      widgets: [["runs", "s8"], ["surfaces", "s4"], ["agents", "s6"], ["spend", "s6"],
+                ["top-people", "s12"]] },
     { id: "workspace", title: "Your workspace", note: "personal — your own agents, chats and runs",
       widgets: [["my-agents", "s6"], ["conversations", "s6"], ["my-activity", "s12"]] },
   ],
@@ -1012,7 +1032,7 @@ const LAYOUTS = {
                 ["mcp-health", "s6"], ["knowledge-freshness", "s6"]] },
     { id: "usage", title: "Usage", note: "everything here gates on runs:view",
       widgets: [["runs", "s8"], ["outcomes", "s4"], ["model-mix", "s6"], ["surfaces", "s6"],
-                ["latency", "s4"], ["active-users", "s8"]] },
+                ["latency", "s4"], ["active-users", "s8"], ["top-people", "s12"]] },
     { id: "activity", title: null, note: "",
       widgets: [["my-activity", "s12"]] },
   ],
