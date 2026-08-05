@@ -2107,15 +2107,6 @@
       "pitchKnowledge": "Knowledge, skills and tools switched on per agent",
       "pitchGovernance": "Budgets, approvals and an audit trail on every run"
     },
-    "dashboard": {
-      "agents2": "Agents",
-      "dashboard": "Dashboard",
-      "goChat": "Go to chat",
-      "pageBeingRebuiltWidgets": "This page is being rebuilt - the widgets that used to live here have been removed.",
-      "underConstruction": "Under construction",
-      "unexpectedWithDigest": "An unexpected error occurred. Error ID: {digest}",
-      "weReReworkingWhat": "We're reworking what the dashboard should show. Everything else in the workspace works as usual."
-    },
     "invitations": {
       "acceptInvitation": "Accept invitation",
       "clickBelowAcceptInvitation": "Click below to accept this invitation and join the team.",
