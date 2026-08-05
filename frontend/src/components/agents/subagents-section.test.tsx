@@ -53,7 +53,7 @@ const CONFIG_SCHEMA: JsonSchema = {
     inline: { type: "array", title: "Inline" },
     mode: { enum: ["sync", "async", "auto"], default: "sync", title: "Mode" },
     allow_dynamic: { type: "boolean", default: false, title: "Allow dynamic" },
-    max_depth: { type: "integer", default: 1, minimum: 0, maximum: 3, title: "Max depth" },
+    max_depth: { type: "integer", default: 1, minimum: 1, maximum: 3, title: "Max depth" },
     max_fanout: { type: "integer", default: 3, minimum: 1, maximum: 10, title: "Max fanout" },
     include_general_purpose: {
       type: "boolean",
