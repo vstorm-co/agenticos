@@ -845,6 +845,92 @@ describe("useChat - approvals and questions", () => {
     expect(answers.at(-1)?.content).toBe("Done - 3 rows deleted.");
   });
 
+  it("closes a parked delegate's panel once the run is approved and resumes", async () => {
+    // The crux of agenticos#173. A sync delegate parks on an approval and its panel
+    // reads "waiting for approval". The resume runs over HTTP - no delegation frames
+    // reach this socket - so without reconciling the panel from its answer it would
+    // read "waiting" forever, under a transcript already showing the resumed reply.
+    post.mockImplementation((url: string) =>
+      url.endsWith("/resume")
+        ? Promise.resolve({ run_id: "r-9", output: "Sent.", status: "completed" })
+        : Promise.resolve({}),
+    );
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("subagent_start", {
+      kind: "subagent_start",
+      task_id: "t1",
+      subagent: "researcher",
+      depth: 0,
+      mode: "sync",
+      prompt: "send the summary",
+      parent_task_id: null,
+    });
+    receive("subagent_text_delta", {
+      kind: "subagent_text_delta",
+      task_id: "t1",
+      subagent: "researcher",
+      depth: 0,
+      delta: "drafting",
+    });
+    receive("subagent_awaiting_approval", {
+      kind: "subagent_awaiting_approval",
+      task_id: "t1",
+      subagent: "researcher",
+      depth: 0,
+    });
+    receive("tool_approval_required", {
+      run_id: "r-9",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "send_email", args: {} }],
+      review_configs: [],
+    });
+    expect(result.current.delegations[0]?.status).toBe("awaiting_approval");
+
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "approve" }]);
+    });
+
+    // Terminal now - and it still holds what it streamed before it parked.
+    expect(result.current.delegations[0]).toMatchObject({ status: "completed", text: "drafting" });
+  });
+
+  it("leaves a parked delegate waiting when the resume parks again", async () => {
+    // A continuation can stop on a fresh decision. The delegate is still waiting, so
+    // its panel must not be closed to a terminal state it has not reached.
+    post.mockImplementation((url: string) =>
+      url.endsWith("/resume")
+        ? Promise.resolve({ run_id: "r-9", output: "", status: "awaiting_approval" })
+        : Promise.resolve({}),
+    );
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("subagent_start", {
+      kind: "subagent_start",
+      task_id: "t1",
+      subagent: "researcher",
+      depth: 0,
+      mode: "sync",
+      prompt: "send the summary",
+      parent_task_id: null,
+    });
+    receive("subagent_awaiting_approval", {
+      kind: "subagent_awaiting_approval",
+      task_id: "t1",
+      subagent: "researcher",
+      depth: 0,
+    });
+    receive("tool_approval_required", {
+      run_id: "r-9",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "send_email", args: {} }],
+      review_configs: [],
+    });
+
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "approve" }]);
+    });
+
+    expect(result.current.delegations[0]?.status).toBe("awaiting_approval");
+  });
+
   it("adds nothing when the resumed run answered with nothing", async () => {
     // A refusal resumes into an empty output, and an empty bubble in the transcript
     // is worse than no bubble.

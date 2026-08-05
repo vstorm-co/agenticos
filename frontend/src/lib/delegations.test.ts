@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { applyDelegationFrame, childrenOf, closeOpenDelegations, rootsOf } from "./delegations";
+import {
+  applyDelegationFrame,
+  childrenOf,
+  closeOpenDelegations,
+  resolveAwaitingOnResume,
+  rootsOf,
+} from "./delegations";
 import type { Delegation, SubagentFrame } from "@/types";
 
 /** A `subagent_start`, which is the only frame that can create a panel. */
@@ -389,6 +395,83 @@ describe("applyDelegationFrame - a delegate that stopped for a person", () => {
     ]);
 
     expect(named(delegations, "t1").text).toBe("so far");
+  });
+});
+
+describe("resolveAwaitingOnResume - closing a panel the HTTP resume left waiting", () => {
+  it("moves a panel waiting for approval to the resumed run's outcome", () => {
+    // The crux of agenticos#173: the resume runs over HTTP with no delegation
+    // frames, so a panel parked at `awaiting_approval` never gets its
+    // `subagent_complete` and would read "waiting" forever after the approval.
+    const parked = fold([start("t1"), awaiting("t1")]);
+    expect(named(parked, "t1").status).toBe("awaiting_approval");
+
+    const after = resolveAwaitingOnResume(parked, "completed");
+
+    expect(named(after, "t1").status).toBe("completed");
+  });
+
+  it("carries a failed resume onto the panel rather than claiming it finished", () => {
+    const after = resolveAwaitingOnResume(fold([start("t1"), awaiting("t1")]), "failed");
+
+    expect(named(after, "t1").status).toBe("failed");
+  });
+
+  it("reads a budget-exceeded resume as a delegate that stopped without finishing", () => {
+    const after = resolveAwaitingOnResume(fold([start("t1"), awaiting("t1")]), "budget_exceeded");
+
+    expect(named(after, "t1").status).toBe("failed");
+  });
+
+  it("leaves a panel waiting when the resume parks again on a fresh decision", () => {
+    // Not terminal: the delegate is waiting on a new approval, and closing the
+    // panel would claim an outcome that has not happened.
+    const parked = fold([start("t1"), awaiting("t1")]);
+
+    const after = resolveAwaitingOnResume(parked, "awaiting_approval");
+
+    expect(after).toBe(parked);
+    expect(named(after, "t1").status).toBe("awaiting_approval");
+  });
+
+  it("keeps what a resumed panel had already streamed before it parked", () => {
+    const parked = fold([
+      start("t1"),
+      {
+        kind: "subagent_text_delta",
+        task_id: "t1",
+        subagent: "researcher",
+        depth: 0,
+        delta: "so far",
+      },
+      awaiting("t1"),
+    ]);
+
+    const after = resolveAwaitingOnResume(parked, "completed");
+
+    expect(named(after, "t1").text).toBe("so far");
+  });
+
+  it("touches only panels that were waiting, leaving a finished sibling alone", () => {
+    const delegations = fold([
+      start("t1", { subagent: "researcher" }),
+      finished("t1", { status: "completed", cost_usd: 0.5 }),
+      start("t2", { subagent: "writer" }),
+      awaiting("t2"),
+    ]);
+
+    const after = resolveAwaitingOnResume(delegations, "completed");
+
+    expect(named(after, "t1")).toMatchObject({ status: "completed", costUsd: 0.5 });
+    expect(named(after, "t2").status).toBe("completed");
+  });
+
+  it("does nothing, and no render, when no panel is waiting", () => {
+    const delegations = fold([start("t1"), finished("t1", { status: "completed" })]);
+
+    const after = resolveAwaitingOnResume(delegations, "completed");
+
+    expect(after).toBe(delegations);
   });
 });
 

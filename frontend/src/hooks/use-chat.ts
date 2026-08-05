@@ -21,7 +21,11 @@ import type {
   WSEvent,
 } from "@/types";
 import type { ResumedRun } from "@/types/runs";
-import { applyDelegationFrame, closeOpenDelegations } from "@/lib/delegations";
+import {
+  applyDelegationFrame,
+  closeOpenDelegations,
+  resolveAwaitingOnResume,
+} from "@/lib/delegations";
 import { WS_URL } from "@/lib/constants";
 import { toast } from "sonner";
 
@@ -657,6 +661,13 @@ export function useChat(options: UseChatOptions = {}) {
         // parked, and resuming per decision would start it while calls it has
         // not been told about are still waiting.
         const resumed = await resumeRun(parked.runId);
+        // Close whatever delegate parked here. The resume ran over HTTP and its
+        // frames went nowhere this socket can see, so a delegation panel left
+        // `awaiting_approval` never got its `subagent_complete` and would read
+        // "waiting for approval" forever - the answer above it, the panel below it
+        // frozen. The resumed run's own status is the outcome those panels take;
+        // a resume that parks again leaves them waiting. See `resolveAwaitingOnResume`.
+        setDelegations((current) => resolveAwaitingOnResume(current, resumed.status));
         // **The answer is shown, not discarded.** `resume_run` runs the agent and
         // returns what it said, but it returns it *here* - over HTTP, to the caller
         // - and not over the socket this conversation is streaming. So the reply
