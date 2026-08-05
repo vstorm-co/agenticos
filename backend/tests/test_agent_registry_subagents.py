@@ -41,7 +41,7 @@ from app.services.agent_registry import (
     AgentRegistryService,
     slugify,
 )
-from tests.test_agent_registry import _agent, _ctx, _db, _spec, _version
+from tests.test_agent_registry import _agent, _ctx, _db, _skill, _spec, _version
 
 pytestmark = pytest.mark.anyio
 
@@ -226,6 +226,30 @@ class TestInlineSpecialists:
         )
 
         assert problems == [f"Specialist 'summariser': Collection not found: {collection_id}"]
+
+    async def test_a_specialist_cannot_read_a_skill_its_publisher_cannot(self, monkeypatch):
+        """The same route, one table over again - and the one it was open on.
+
+        `skill_ids` was the single reference this recursive pass did not walk, at
+        either level, so a private skill could be bound to a specialist and read
+        by every run of the parent. Named with the specialist, because a Builder
+        form has one input per specialist and cannot point at the right one
+        otherwise.
+        """
+        ctx = _ctx(OrgRoleName.MEMBER)
+        private = _skill(ctx, owner_user_id=uuid4())
+        monkeypatch.setattr(
+            agent_registry.skill_repo, "get_many", AsyncMock(return_value={private.id: private})
+        )
+        monkeypatch.setattr(
+            "app.services.access.resource_grant_repo.get_level", AsyncMock(return_value=None)
+        )
+
+        problems = await _problems(
+            ctx, _delegating({"inline": [_specialist(skill_ids=[str(private.id)])]})
+        )
+
+        assert problems == [f"Specialist 'summariser': Skill not found: {private.id}"]
 
     async def test_a_specialist_cannot_lend_a_secret_its_publisher_cannot_read(self, monkeypatch):
         """The same route, one table over.

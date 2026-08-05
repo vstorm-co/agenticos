@@ -138,7 +138,7 @@ precise about which. Four things make something an agent here:
 | | A published delegate | An inline specialist |
 |---|---|---|
 | **Versioned** | yes - pinned, and a pin only moves when somebody moves it | **no** |
-| **Permission-checked at publish** | yes - `agents:run` on that row | yes - the same scopes, secrets and collection checks the parent's own bindings get |
+| **Permission-checked at publish** | yes - `agents:run` on that row | yes - the same scope, secret, collection and skill checks the parent's own bindings get |
 | **Its own capabilities** | yes - its published spec's | yes - its own, plus what the parent shares |
 | **Metered and capped** | yes | yes - by the run's caps, which is [what binds inside any delegation](governance.md#delegation-spends-the-parents-budget) |
 
