@@ -19,6 +19,23 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.21] - 2026-08-05
+
+### Changed
+
+- **Adopt `subagents-pydantic-ai` 0.2.18, which fixes the general-purpose delegate at the
+  source** ([#174](https://github.com/vstorm-co/agenticos/issues/174)). The delegation
+  library used to default its `default_model` to a hardcoded string, so a consumer with no
+  usable default — which AgenticOS is, on purpose: there is no deployment-wide model — got a
+  general-purpose delegate that either failed or, worse, ran one tenant's work on whatever
+  provider key happened to sit in the process environment. AgenticOS had already removed the
+  switch from its own surface (0.0.7) and refuses a modelless dynamic specialist in
+  `DelegatingToolset._refuse_dynamic`; 0.2.18 removes the fallback upstream too, so the
+  library now refuses a modelless dynamic call of its own accord rather than compiling an
+  unmetered one. The pin moves to `>=0.2.18` and the local comments and the capability
+  reference are corrected to describe the removed fallback in the past tense. `#174` closes
+  now that AgenticOS is on the fixed version.
+
 ## [0.0.20] - 2026-08-05
 
 ### Fixed
@@ -902,7 +919,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.20...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.21...HEAD
+[0.0.21]: https://github.com/vstorm-co/agenticos/compare/v0.0.20...v0.0.21
 [0.0.20]: https://github.com/vstorm-co/agenticos/compare/v0.0.19...v0.0.20
 [0.0.19]: https://github.com/vstorm-co/agenticos/compare/v0.0.18...v0.0.19
 [0.0.18]: https://github.com/vstorm-co/agenticos/compare/v0.0.17...v0.0.18
