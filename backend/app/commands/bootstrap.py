@@ -150,21 +150,33 @@ async def _resolve_organization(db, owner_id: uuid.UUID, name: str):
 async def _resolve_model(
     db, ctx: AuthContext, provider: str, api_key: str | None, model_id: str | None
 ) -> uuid.UUID | None:
-    """A default model profile, when a key was supplied to build it from.
+    """The default model profile bootstrap names, built from a supplied key.
 
-    Nothing is created without one. A keyless profile is a row that can never
-    run and that nothing repoints: models are keyed from the vault now, and the
-    only way to give one a key is to add the model again. It showed up in the
-    Builder as `openai default · no key`, an option whose sole effect was to
-    make an agent fail at its first message.
+    Idempotent on the profile it *names*, not on whatever the organization
+    happens to hold. It used to adopt the first profile it found, so on a
+    developer database that already had one - an unrelated `OpenRouter ·
+    openai/gpt-5.1`, or a profile a failed spec leaked - it reused that and
+    never created `openai default`. Idempotence that reuses whatever it finds is
+    not idempotence: the promise of `make platform-bootstrap` is a *known*
+    starting point, and that only holds if the profile it guarantees is the one
+    it created. So it looks for `<provider> default`, and reuses only that.
+
+    Nothing keyless is created. A keyless profile is a row that can never run
+    and that nothing repoints: models are keyed from the vault now, and the only
+    way to give one a key is to add the model again. It showed up in the Builder
+    as `openai default · no key`, an option whose sole effect was to make an
+    agent fail at its first message.
 
     Returns None when there is no key, and the caller leaves the demo agent as
     a draft rather than publishing something that cannot answer.
     """
-    existing = await credential_repo.list_profiles(db, organization_id=ctx.organization_id)
-    if existing:
-        info(f"Using model {existing[0].label}")
-        return existing[0].id
+    label = f"{provider} default"
+    existing = await credential_repo.get_profile_by_label(
+        db, label, organization_id=ctx.organization_id
+    )
+    if existing is not None:
+        info(f"Using model {existing.label}")
+        return existing.id
 
     if api_key is None:
         info(f"No {provider} key given - add one in the vault, then add a model")
@@ -185,7 +197,7 @@ async def _resolve_model(
     model = model_id or DEFAULT_MODELS[provider]
     profile = await ModelProfileService(db).create_profile(
         ctx,
-        label=f"{provider} default",
+        label=label,
         provider=provider,
         model=model,
         secret_id=secret.id,
