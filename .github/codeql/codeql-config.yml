@@ -1,0 +1,5 @@
+name: "AgenticOS CodeQL configuration (probe)"
+
+query-filters:
+  - exclude:
+      id: py/ineffectual-statement

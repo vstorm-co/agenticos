@@ -34,6 +34,11 @@ async def test_bare_await_with_lgtm_comment() -> None:
     await task  # lgtm[py/ineffectual-statement]
 
 
+async def test_bare_await_with_a_repository_config_file_present() -> None:
+    task = asyncio.create_task(_noop())
+    await task
+
+
 class _Stub(Protocol):
     def probe(self) -> None: ...
 
