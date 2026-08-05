@@ -228,7 +228,8 @@ for an answer". Opening the path is a feature rather than a repair, and which
 channel answers depends on the mode: a `sync` question is answered by a *person*,
 through `ask_user`, and never through this tool — so it becomes reachable only for a
 background delegation, whose question the parent's own model answers while nothing
-obliges it to look. agenticos#184 has the shape and what it would take.
+obliges it to look. agenticos#184 is the sync half, worth doing on its own terms, and
+it would not make this tool reachable.
 
 ## Background delegation, and what it costs
 

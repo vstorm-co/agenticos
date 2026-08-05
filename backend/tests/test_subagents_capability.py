@@ -591,8 +591,9 @@ class TestAttaching:
 
         It stays *declared*, which is the second assertion. A tool absent from
         `tools=` can be neither gated by the approval policy nor renamed by a
-        binding, and that half of the same failure is silent. agenticos#184 is what
-        would make it reachable, and `UNREACHABLE_TOOLS` says what that would take.
+        binding, and that half of the same failure is silent. `UNREACHABLE_TOOLS`
+        says what making it reachable would take, and why agenticos#184 is only
+        half of that.
         """
         capability = a_capability(a_runtime(a_delegate()))
         toolset = capability.get_toolset()

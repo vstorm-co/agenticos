@@ -235,8 +235,10 @@ delegation, whose question is answered by the parent's own model through a futur
 the library's task manager holds. That is the harder half: the delegate blocks for
 up to `ask_timeout_seconds` holding a fan-out slot while nothing obliges the parent
 to look, and `wrap_run` cancels every background task when the turn ends - money
-spent on a question nobody was asked. Letting a `sync` delegate ask the person
-already waiting is agenticos#184, and this filter is what that issue removes.
+spent on a question nobody was asked. So agenticos#184 - letting a `sync` delegate
+ask the person already waiting - is worth doing and would **not** empty this set on
+its own: a sync answer never arrives through this tool. Only the background half
+does, which is why the two are one issue with two halves rather than one change.
 """
 
 

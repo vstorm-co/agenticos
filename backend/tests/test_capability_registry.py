@@ -193,8 +193,8 @@ class TestToolDeclarations:
     it in a state where it does anything, and dropping it from `tools=` would take
     it out of reach of the approval policy and of a binding's rename. `subagents`
     declares `answer_subagent` for exactly that reason -
-    `app.agents.capabilities.subagents._capability.UNREACHABLE_TOOLS` has the
-    whole of it, and agenticos#184 is what would empty this table.
+    `app.agents.capabilities.subagents._capability.UNREACHABLE_TOOLS` has the whole
+    of it, including why agenticos#184 would not empty this table on its own.
 
     Spelt out here rather than imported from the capability, and subtracted rather
     than skipped. An imported set would make the check below a tautology, and
