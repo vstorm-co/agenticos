@@ -417,11 +417,14 @@ What the switch buys is a specialist the model writes itself: instructions and a
 model, and nothing else. It is built through the same `build_agent` an inline
 specialist comes through, on the run's shared budget guard and its approval
 channel, so its requests are priced and counted against the cap somebody set. That
-is the entire reason this took a factory rather than a flag — left to itself the
-library compiles a run-time specialist from its own default model string, which is
-an agent outside this deployment's model catalog, outside its vault and outside its
-budget guard: an unmetered request, possibly to a provider the organization holds no
-key for.
+is the entire reason this took a factory rather than a flag: a specialist the
+library built for itself would sit outside this deployment's model catalog, its
+vault and its budget guard — an unmetered request, possibly to a provider the
+organization holds no key for. The factory is what routes it back through this
+platform instead. (Before `subagents-pydantic-ai` 0.2.18 the library also carried a
+default model string a modelless specialist was compiled from; 0.2.18 removed that
+fallback, so a specialist naming no model is now refused rather than built — this
+platform refuses it earlier still, in `DelegatingToolset._refuse_dynamic`.)
 
 The model may name only a model the organization has a profile for, and the refusal
 names the list. It may not attach capabilities: letting a model grant its own child
