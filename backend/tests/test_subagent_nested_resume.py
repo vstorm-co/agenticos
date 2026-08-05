@@ -117,7 +117,7 @@ class _Metering:
     record: DelegationRecorder
 
 
-def _charging(ledger: SpendLedger, cost: Decimal) -> Charge:
+def _charging(ledger: SpendLedger, cost: Decimal, *, priced: bool = True) -> Charge:
     """A stand-in for the budget guard, charging a known amount per request.
 
     A fixed entry rather than a real price lookup, for the reason the rest of this
@@ -127,18 +127,27 @@ def _charging(ledger: SpendLedger, cost: Decimal) -> Charge:
 
     Every agent in a run charges into one ledger, delegates included - that is what
     makes a delegate's spend visible to the parent's cap before its next request,
-    and it is why what one delegation cost has to be worked out rather than read
-    off a ledger of its own.
+    and it is why what one delegation cost has to be read back off that shared
+    ledger rather than off a ledger of its own.
+
+    Booked rather than appended, which is what the real guard does and is
+    load-bearing here: `SpendLedger.book` is the one place an entry is stamped with
+    the delegation that made it, so an entry appended around it belongs to the run's
+    own agent whoever made it - and every share in this file would be zero.
+
+    `priced=False` is a request `genai-prices` could not price. It costs nothing the
+    ledger can see, which is the point: what has to survive the park is the *fact*,
+    because the money is not recoverable from the number.
     """
 
     def charge() -> None:
-        ledger.entries.append(
+        ledger.book(
             SpendEntry(
-                model_name="test",
+                model_name="test" if priced else "mystery",
                 input_tokens=INPUT_TOKENS,
                 output_tokens=OUTPUT_TOKENS,
                 cost_usd=cost,
-                priced=True,
+                priced=priced,
             )
         )
 
@@ -910,12 +919,17 @@ async def _until_it_answers(
     turn_costs: tuple[Decimal, ...],
     parent_cost: Decimal,
     recorder: Recorder,
+    unpriced_turns: frozenset[int] = frozenset(),
 ) -> tuple[list[PausedRunState], str]:
     """Drive the orchestrator through however many parks it takes, and answer.
 
     One delegate cost per turn, and they differ deliberately: a sum is only provable
     when no single segment can pass for the total, and neither can the ledger any one
     turn ends with - the parent charges into it too.
+
+    `unpriced_turns` names the turns, by index, whose delegate ran on a model nothing
+    could price. Only the delegate's: an unpriced *parent* is the case that used to
+    mark every child row in the run a floor, and it is a different assertion.
 
     Every turn is rebuilt from nothing but the stored state, exactly as `resume`
     rebuilds one: a fresh ledger, a fresh stash, a fresh capability, a fresh agent.
@@ -928,7 +942,7 @@ async def _until_it_answers(
     queue = _Queue()
     parked: list[PausedRunState] = []
     state: PausedRunState | None = None
-    for cost in turn_costs:
+    for turn, cost in enumerate(turn_costs):
         ledger = SpendLedger()
         decided: dict[str, Any] = {}
         stash = DelegationStash()
@@ -941,7 +955,11 @@ async def _until_it_answers(
             history = ModelMessagesTypeAdapter.validate_python(state.messages)
             results = plan.results
         channel = _channel(queue, decided=decided)
-        metering = _Metering(ledger=ledger, charge=_charging(ledger, cost), record=recorder)
+        metering = _Metering(
+            ledger=ledger,
+            charge=_charging(ledger, cost, priced=turn not in unpriced_turns),
+            record=recorder,
+        )
         agent, deps = _orchestrator(
             delegate(stash, metering),
             stash=stash,
@@ -1013,6 +1031,37 @@ class TestWhatADelegateSpentBeforeItParked:
             INPUT_TOKENS * 2,
             OUTPUT_TOKENS * 2,
         )
+        # Both segments were priced, so the sum is a cost rather than a floor. The
+        # other direction is the test below it.
+        assert outcome.cost_is_partial is False
+
+    async def test_an_unpriced_segment_before_the_approval_still_marks_the_row(self):
+        """A park must not turn a floor into a precise number.
+
+        `cost_is_partial` is read per delegation now rather than off the whole run, so
+        it is a fact only the segment that saw it knows. A delegate that made an
+        unpriced request, parked, and resumed onto a priced model has a share this
+        turn that is exact - and taking only that answer would have the row claim
+        $0.75 for a delegation whose real cost nobody can name.
+        """
+        recorder = Recorder()
+
+        _parked, answer = await _until_it_answers(
+            lambda _stash, metering: _specialist_delegate(
+                gated=True, calls=[], charge=metering.charge, agent_id=uuid4()
+            ),
+            turn_costs=(Decimal("0.25"), Decimal("0.75")),
+            parent_cost=Decimal("0.10"),
+            recorder=recorder,
+            unpriced_turns=frozenset({0}),
+        )
+
+        assert answer == "answer: weather: Krakow: 21C and clear"
+        (outcome,) = recorder.outcomes
+        assert outcome.cost_is_partial is True
+        # And the money the turn *could* price is still reported, because a floor is
+        # only useful if it is the highest one known.
+        assert outcome.cost_usd == Decimal("1.00")
 
     async def test_two_parks_count_all_three_segments_once_each(self):
         """A delegate can need a person twice, and the totals have to keep adding up.

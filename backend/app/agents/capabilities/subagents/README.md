@@ -54,10 +54,12 @@ pacing limit should not end a run.
 
 **Every delegation is recorded.** A delegate spends against the *parent's* ledger
 by construction, which is what makes the parent's budget see a delegation before
-the next request. So the only honest description of what one delegation cost is
-what the shared total grew by while it ran. That is exact for a sync delegation,
-which holds the run loop, and overlapping for concurrent ones — stated in
-`DelegationOutcome` rather than hidden.
+the next request. One ledger, and every entry in it stamped with the delegation
+that booked it — so what one delegation cost is the sum of its own entries, exact
+in both modes and at every depth. It used to be the *growth* of the shared total
+across the delegation, which absorbed whatever the parent spent before a background
+one was polled and counted a delegate's delegates inside its own share
+(agenticos#180); `DelegationOutcome` has the numbers.
 
 A delegation that **parked** is more than one such window, because its turns ran
 against different ledgers in different processes. So the park keeps a running total

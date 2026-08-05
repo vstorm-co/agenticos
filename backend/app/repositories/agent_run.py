@@ -236,10 +236,15 @@ async def sum_cost_since(
     does not double-count.
 
     Included when the question is one agent's month, because a delegate's rows
-    are the only place its own spend is recorded. That cap does not stop a run
-    mid-delegation - inside a delegation the parent's caps bind, see
-    `app/agents/factory.py` - but it is what makes "the researcher agent cost $40
-    this month" answerable and what a budget alert on that agent fires on.
+    are the only place its own spend is recorded. **Its own**, which is what makes
+    summing them meaningful for a delegate that delegates further: each row holds
+    the requests that agent issued, not the ones its own delegates issued, because
+    the ledger those rows are read off stamps every entry with the delegation that
+    made it. A row that carried its grandchildren's spend counted the same money
+    twice under one agent's month, and did it silently (agenticos#180). That cap
+    does not stop a run mid-delegation - inside a delegation the parent's caps bind,
+    see `app/agents/factory.py` - but it is what makes "the researcher agent cost
+    $40 this month" answerable and what a budget alert on that agent fires on.
     """
     query = select(func.coalesce(func.sum(AgentRun.cost_usd), 0)).where(
         AgentRun.organization_id == organization_id,

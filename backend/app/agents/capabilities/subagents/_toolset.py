@@ -18,8 +18,10 @@ act on, not as an exception that ends the run.
 
 *Every delegation is recorded.* The library reports a delegation's result to the
 model and its status on a task handle; neither is a run row, and neither says
-what it cost. What the run's shared ledger grew by while the delegation ran is
-that number, and this is the only place both ends of that window exist.
+what it cost. This is where the delegation is opened and closed, so this is where
+its requests are named as its own: `journal.delegating` marks the run's shared
+ledger for the length of the call, and the entries booked under that mark are the
+delegation's cost whenever it is settled afterwards.
 
 *A delegate that stopped for a person keeps its place.* The suspension arrives
 here as a `CallDeferred` or an `ApprovalRequired` propagating out of the wrapped

@@ -321,6 +321,14 @@ class DelegationFrame(BaseModel):
     )
     input_tokens: int = Field(default=0, description="The same, in input tokens")
     output_tokens: int = Field(default=0, description="The same, in output tokens")
+    cost_is_partial: bool = Field(
+        default=False,
+        description=(
+            "Whether a request before the stop went unpriced, making `cost_usd` a "
+            "floor. Carried because `cost_is_partial` on the child's run row is read "
+            "per delegation now, so the turn that resumes cannot re-derive it"
+        ),
+    )
     delegations: list[DelegationFrame] = Field(
         default_factory=list, description="Delegations this delegate had itself parked on"
     )
@@ -492,6 +500,7 @@ def _delegation_frames(parked: Sequence[ParkedDelegation]) -> list[DelegationFra
                 cost_usd=entry.spent.cost_usd,
                 input_tokens=entry.spent.input_tokens,
                 output_tokens=entry.spent.output_tokens,
+                cost_is_partial=entry.spent.has_unpriced_models,
                 delegations=frames(by_parent.get(entry.task_id, [])),
             )
             for entry in entries
@@ -563,6 +572,7 @@ def _resume_plan(state: PausedRunState, decided_args: Mapping[str, dict[str, Any
                 cost_usd=frame.cost_usd,
                 input_tokens=frame.input_tokens,
                 output_tokens=frame.output_tokens,
+                has_unpriced_models=frame.cost_is_partial,
             )
             if not frame.messages:
                 # The delegate's place was not kept, so there is nothing to
@@ -1331,9 +1341,7 @@ class AgentRunnerService:
             user_name=user_name,
             approvals=approvals,
             budget=budget,
-            record=self._delegation_recorder(
-                run=run, budget=budget, attribution=attribution, queued=delegations
-            ),
+            record=self._delegation_recorder(run=run, attribution=attribution, queued=delegations),
             queued=delegations,
             attribution=attribution,
             runtimes=runtimes,
@@ -1781,7 +1789,6 @@ class AgentRunnerService:
     def _delegation_recorder(
         *,
         run: AgentRun,
-        budget: _RunBudget,
         attribution: Mapping[UUID, ModelRequestSpec],
         queued: list[RecordedDelegation],
     ) -> DelegationRecorder:
@@ -1820,7 +1827,11 @@ class AgentRunnerService:
         The timing is honest about what it knows: a `DelegationOutcome` carries no
         start, so both ends are the moment the delegation was reported. Queueing
         does not make that worse - it is measured here, not at the write - and the
-        parent's row remains the authority on the run's real span.
+        parent's row remains the authority on the run's real span. That is the one
+        thing on this row still measured at the settlement rather than at the
+        delegation: the *cost* no longer is, so a background delegation's row is
+        exact about what it spent and wrong about when it spent it -
+        agenticos#191, which the handle already carries the answer to.
         """
 
         async def record(outcome: DelegationOutcome) -> UUID | None:
@@ -1838,7 +1849,6 @@ class AgentRunnerService:
                 )
                 return None
 
-            ledger = None if budget.guard is None else budget.guard.ledger
             now = datetime.now(UTC)
             delegated = RecordedDelegation(
                 id=uuid4(),
@@ -1852,9 +1862,11 @@ class AgentRunnerService:
                 input_tokens=outcome.input_tokens,
                 output_tokens=outcome.output_tokens,
                 cost_usd=outcome.cost_usd,
-                # The delta is measured off the run's ledger, so if any model in
-                # the run was unpriced this share is a floor too.
-                cost_is_partial=ledger is not None and ledger.has_unpriced_models,
+                # Whether *this delegation's* own requests were priced, not the
+                # run's. A parent on a model `genai-prices` does not know makes the
+                # parent's row a floor and says nothing about a delegate that ran
+                # on a priced one.
+                cost_is_partial=outcome.cost_is_partial,
                 started_at=now,
                 ended_at=now,
                 error=outcome.error,
@@ -2265,7 +2277,7 @@ class AgentRunnerService:
             resuming=plan.delegations,
             already_spent=plan.spent,
         )
-        prepared.built.ledger.entries.append(_spend_already_booked(run))
+        prepared.built.ledger.book(_spend_already_booked(run))
 
         return await self._run(
             prepared,

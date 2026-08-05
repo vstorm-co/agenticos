@@ -51,7 +51,9 @@ A run can contain another agent's whole conversation - see
 [delegate vs inline specialist](concepts.md#delegate-vs-inline-specialist). One run
 has **one spend ledger**, and every delegate records into it. That is what makes
 the parent's cap see a delegation's spend before its next model request, at
-precisely the moment delegation multiplies what a turn can cost.
+precisely the moment delegation multiplies what a turn can cost. Each entry is
+stamped with the delegation that booked it, which is how one ledger still answers
+"what did *this* delegate cost" - see below.
 
 It follows that **the caps that bind inside a delegation are the parent's**. A
 delegate's own `budget.monthly_usd` is not enforced mid-parent-run: two guards
@@ -82,24 +84,45 @@ A delegation to a **published** agent gets an `agent_runs` row of its own, carry
 has no agent to attribute one to, so its cost is the parent's and the tool call in
 the transcript is the record.
 
-!!! important "The parent's row is the authority; a child's share is indicative"
+!!! important "The parent's row is the authority; a child's row is its share of it"
 
-    A delegate spends into the shared ledger, so the only honest description of what
-    one delegation cost is *what the shared total grew by while it ran*. That is
-    exact for a `sync` delegation, which holds the parent's run loop - nothing else
-    in the run could have spent. Two background delegations overlap, and each then
-    reports a window that contains some of the other's spend.
+    A delegate spends into the shared ledger, and **every entry in that ledger
+    carries the delegation that made it**. A delegation's cost is the sum of its own
+    entries - the requests its own agent issued, priced once, by the same lookup the
+    run's total uses. It is exact in both modes and at every depth, and it does not
+    depend on when the delegation happened to be settled.
 
-    Splitting it exactly would need a ledger per agent, which is the design that
-    stops the parent's cap binding at all. So the approximation is stated rather
-    than hidden.
+    It used to depend on exactly that, and it was two defects. The number was the
+    *growth* of the shared total across the delegation, so a background delegation -
+    settled when it is next polled, which may be after the parent has answered -
+    absorbed everything the parent spent in between: a delegate that spent $0.01 was
+    recorded at $0.51 if the parent then spent $0.50. And a delegate that delegates
+    further had its own delegates' spend inside its window, which their rows record
+    again, so its monthly total counted its grandchildren.
 
-**A delegation that parked on an approval is more than one window.** Its turns ran
-in different processes against different ledgers, so what the child row records is
+    Splitting it with a ledger *per agent* is still the design to avoid - that is
+    what stops the parent's cap binding at all. One ledger, attributed, keeps both
+    properties: the parent's cap sees every request before the next one, and each
+    row says what one agent spent.
+
+    The parent's row remains the authority for the run. Its `cost_usd` is the whole
+    ledger, delegates included, which is what the organization is billed; the child
+    rows divide that same money by agent and never add to it. `cost_is_partial` is
+    per row too: a parent on a model `genai-prices` does not know makes the parent's
+    total a floor, and says nothing about a delegate that ran on a priced one.
+
+**A delegation that parked on an approval is more than one share.** Its turns ran
+in different processes against different ledgers, and a resumed turn's ledger is a
+fresh object holding nothing from before the park - so what the child row records is
 every segment added together: the parked state keeps what the delegation had cost
-when it stopped, and the turn that finishes it adds its own. One row is written,
-once, by the turn where the delegation ends - a delegate that parked twice leaves
-three segments and one row.
+when it stopped, and the turn that finishes it adds its own share. One row is
+written, once, by the turn where the delegation ends - a delegate that parked twice
+leaves three segments and one row.
+
+`cost_is_partial` is carried the same way, and for a reason the money does not
+share: it is per row now rather than per run, so a delegate that made an unpriced
+request *before* the approval and resumed onto a priced model would otherwise have
+its row claim an exact cost. The flag is true if it was true of any segment.
 
 That is worth stating because the failure it replaces was invisible. The row used to
 hold only what the delegate spent *after* the last resume, which on the ordinary
@@ -113,7 +136,7 @@ opposite arithmetic:
 | The question | Child rows |
 |---|---|
 | **What does the organization owe?** | **excluded** - the parent's row already contains these tokens, so counting both bills the organization twice for one request |
-| **What did *this agent* cost this month?** | **included** - a delegate's rows are the only place its own spend is recorded |
+| **What did *this agent* cost this month?** | **included** - a delegate's rows are the only place its own spend is recorded, and each one holds that agent's own requests rather than its delegates' as well |
 
 The second is what makes "the researcher cost $40 this month" answerable, and it is
 what a per-agent usage report or a budget alert on that agent fires on. The

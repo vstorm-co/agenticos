@@ -9,12 +9,19 @@ a terminal status - which, for a background delegation, is long after the call
 returned.
 
 *What did this one cost?* A delegate records into the parent run's ledger by
-construction (that is what makes the parent's budget see a delegate's spend
-before the next request), so the only number that describes one delegation is
-what the shared total grew by while it ran. Exact for a sync delegation, which
-holds the parent's run loop; approximate for concurrent ones, whose windows
-overlap - stated in :class:`app.agents.subagent_runtime.DelegationOutcome` rather
-than hidden here.
+construction - that is what makes the parent's budget see a delegate's spend
+before the next request - so what describes one delegation is the part of that
+ledger its own requests booked. `delegating` names the delegation while it runs
+and the ledger stamps every entry with the name, so the answer is read back rather
+than inferred from when anyone happened to look.
+
+That measurement used to be a *delta*: the total when the delegation opened
+subtracted from the total when it was settled. It was wrong twice, and both were
+silent (agenticos#180). A background delegation is settled when it is next polled,
+so everything the parent spent in between landed on the child - a delegate that
+spent $0.01 was recorded at $0.51 if the parent then spent $0.50. And a mid-tree
+delegate's window contained what its own delegates spent, which their own rows
+record again, so its monthly total counted its grandchildren.
 
 *Which delegation is this event from?* The library resolves an event-stream
 handler once per delegation and hands it the task id, which is the only place
@@ -53,9 +60,8 @@ from collections.abc import AsyncIterable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
-from decimal import Decimal
 from typing import Any, Literal
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from pydantic_ai.agent import EventStreamHandler
 from pydantic_ai.messages import AgentStreamEvent
@@ -69,6 +75,7 @@ from subagents_pydantic_ai import (
     decide_execution_mode,
 )
 
+from app.agents.capabilities.budget import SpendShare, booked_to
 from app.agents.capabilities.subagents._events import FrameLabels, frame_for
 from app.agents.deps import AgentDeps
 from app.agents.spec import DelegationMode
@@ -190,23 +197,6 @@ def acting_delegate() -> ActingDelegate | None:
     )
 
 
-@dataclass(frozen=True)
-class _Totals:
-    """A run ledger's accumulated spend at one instant."""
-
-    cost_usd: Decimal = Decimal(0)
-    input_tokens: int = 0
-    output_tokens: int = 0
-
-    def since(self, before: _Totals) -> _Totals:
-        """What the ledger grew by between `before` and this reading."""
-        return _Totals(
-            cost_usd=self.cost_usd - before.cost_usd,
-            input_tokens=self.input_tokens - before.input_tokens,
-            output_tokens=self.output_tokens - before.output_tokens,
-        )
-
-
 @dataclass
 class Delegation:
     """One delegation, from the tool call that opened it to the outcome recorded for it.
@@ -222,7 +212,19 @@ class Delegation:
     prompt: str
     mode: Literal["sync", "async"]
     depth: int
-    before: _Totals
+    ledger_key: str
+    """What the run's ledger stamps on the requests this delegation makes.
+
+    This platform's own id for the delegation, allocated when it opens, rather than
+    the library's `task_id`: the attribution has to be in place *before* the tool
+    call that starts the delegation, and no task id exists until the library
+    resolves this delegation's event-stream handler inside that call. It is also
+    the only handle a delegation the library refuses outright ever gets.
+
+    Not a display value and never shown to anyone - `task_id` is what a surface,
+    a run row and a streamed frame all carry.
+    """
+
     tool_call_id: str | None
     """The `task` call in the delegating agent's transcript that opened this.
 
@@ -244,8 +246,8 @@ class Delegation:
     """What this delegation spent before the turn that parked it ended.
 
     Zero for a delegation this run started, which is all of them until one parks.
-    Non-zero only on a replay, where `before` is a reading of a ledger this
-    delegation has never spent into - so the delta this turn measures describes the
+    Non-zero only on a replay, where :attr:`ledger_key` is freshly allocated against
+    a ledger this turn built empty - so the share read back describes the
     continuation and nothing before it. :meth:`_spent` adds the two.
     """
 
@@ -379,8 +381,9 @@ class DelegationJournal:
 
         A delegation the run is *continuing* opens here too - the replay presents
         the same `task` call - which is why what it already spent is read here as
-        well. `before` is a reading of a ledger it has never spent into, so without
-        `carried` this turn's delta would be the whole of its recorded cost.
+        well. The ledger key allocated here is fresh, and this turn's ledger has
+        never held an entry under any other, so without `carried` the continuation
+        would be the whole of the delegation's recorded cost.
         """
         self._running += 1
         enclosing = _CURRENT.get()
@@ -389,10 +392,10 @@ class DelegationJournal:
             prompt=prompt,
             mode=self._mode_for(delegate, tool_args),
             depth=self.depth,
-            before=self._totals(),
-            carried=self.runtime.stash.already_spent(tool_call_id),
+            ledger_key=uuid4().hex,
             tool_call_id=tool_call_id,
             parent_task_id=None if enclosing is None else enclosing.task_id,
+            carried=self.runtime.stash.already_spent(tool_call_id),
             agent_id=delegate.agent_id if delegate is not None else None,
             agent_version_id=delegate.agent_version_id if delegate is not None else None,
         )
@@ -432,10 +435,10 @@ class DelegationJournal:
         calls as a delegate's.
 
         What the delegation has spent is written whichever of the first two states
-        it is in, and it is not the same number as the delta this turn measured: a
-        delegation on its second park carries the first park's total as well. So the
-        frame holds a running sum, and the turn that finally settles the delegation
-        records one row for all of it - see :meth:`_spent`.
+        it is in, and it is not the same number as this turn's share of the ledger:
+        a delegation on its second park carries the first park's total as well. So
+        the frame holds a running sum, and the turn that finally settles the
+        delegation records one row for all of it - see :meth:`_spent`.
         """
         task_id = delegation.task_id
         if task_id is None or delegation.tool_call_id is None:
@@ -487,10 +490,10 @@ class DelegationJournal:
         """Settle a delegation whose tool call has returned, or start watching it.
 
         A sync delegation is finished by the time its call returns, so this is
-        where nearly every outcome is recorded - with an exact ledger delta,
-        because nothing else in the run could have spent while the loop was
-        blocked here. A background one is not: it is kept until its task reaches
-        a terminal status, which `settle_background` looks for.
+        where nearly every outcome is recorded. A background one is not: it is kept
+        until its task reaches a terminal status, which `settle_background` looks
+        for. *When* the settlement happens no longer decides what the delegation is
+        recorded as spending - the ledger already knows which requests were its.
         """
         self._running -= 1
         task_id = delegation.task_id
@@ -604,6 +607,7 @@ class DelegationJournal:
                 cost_usd=spent.cost_usd,
                 input_tokens=spent.input_tokens,
                 output_tokens=spent.output_tokens,
+                cost_is_partial=spent.has_unpriced_models,
                 agent_id=delegation.agent_id,
                 agent_version_id=delegation.agent_version_id,
                 error=handle.error,
@@ -664,15 +668,22 @@ class DelegationJournal:
 
     @contextmanager
     def delegating(self, delegation: Delegation) -> Iterator[None]:
-        """Make `delegation` the one the library's handler factory will find.
+        """Make `delegation` the current one, for the library and for the ledger.
 
-        A context manager so the variable is reset on the way out however the
-        delegation ended: a leaked value would attach the next delegation's task
-        id to this record, and the panel would then narrate the wrong specialist.
+        Two context variables, set together because they are two halves of one
+        fact - which delegation is running here - and any window in which only one
+        of them held would attribute a request to a delegation the panel calls
+        something else.
+
+        A context manager so both are reset on the way out however the delegation
+        ended: a leaked value would attach the next delegation's task id to this
+        record, and book the parent's own later requests to a delegate that has
+        already answered.
         """
         token = _CURRENT.set(delegation)
         try:
-            yield
+            with booked_to(delegation.ledger_key):
+                yield
         finally:
             _CURRENT.reset(token)
 
@@ -709,22 +720,30 @@ class DelegationJournal:
 
         The one place the two are added, read by both ends of a park: by
         :meth:`park`, so the next turn starts from a running total rather than from
-        this turn's delta, and by :meth:`settle`, so the row written when the
-        delegation finally ends describes the whole of it.
+        what this turn alone booked, and by :meth:`settle`, so the row written when
+        the delegation finally ends describes the whole of it.
 
         `carried` is zero for every delegation that has not parked, which is nearly
-        all of them - so this is the delta on the ordinary path, and the ordinary
-        path is unchanged.
+        all of them - so this is the ledger share on the ordinary path, and the
+        ordinary path is exactly :meth:`_share`.
+
+        `has_unpriced_models` is OR'd rather than replaced, and that is the whole
+        reason a park needs the flag at all: a delegate that made an unpriced
+        request, parked on an approval and then resumed onto a priced model has a
+        share this turn that is exact and a total that is a floor. Taking only this
+        turn's answer would let the row claim a precise cost for money nobody
+        priced.
         """
-        delta = self._totals().since(delegation.before)
+        share = self._share(delegation)
         return DelegationSpend(
-            cost_usd=delegation.carried.cost_usd + delta.cost_usd,
-            input_tokens=delegation.carried.input_tokens + delta.input_tokens,
-            output_tokens=delegation.carried.output_tokens + delta.output_tokens,
+            cost_usd=delegation.carried.cost_usd + share.cost_usd,
+            input_tokens=delegation.carried.input_tokens + share.input_tokens,
+            output_tokens=delegation.carried.output_tokens + share.output_tokens,
+            has_unpriced_models=delegation.carried.has_unpriced_models or share.has_unpriced_models,
         )
 
-    def _totals(self) -> _Totals:
-        """The run ledger's totals now, or zeros when nothing is metering.
+    def _share(self, delegation: Delegation) -> SpendShare:
+        """What this delegation booked into the run's ledger, or zeros if nothing meters.
 
         A `None` ledger is a preview or a test, and zero is the honest answer
         there - reporting a cost nobody measured would be worse than reporting
@@ -732,12 +751,8 @@ class DelegationJournal:
         """
         ledger = self.runtime.ledger
         if ledger is None:
-            return _Totals()
-        return _Totals(
-            cost_usd=ledger.total_usd,
-            input_tokens=ledger.input_tokens,
-            output_tokens=ledger.output_tokens,
-        )
+            return SpendShare()
+        return ledger.share_of(delegation.ledger_key)
 
 
 def _characteristics(tool_args: dict[str, Any]) -> TaskCharacteristics:
