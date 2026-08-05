@@ -8,10 +8,12 @@ predicate pieces the access layer resolved rather than re-deriving them here.
 from collections.abc import Collection, Sequence
 from uuid import UUID
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
+from app.db.models.agent_environment import AgentEnvironment
+from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.resource_grant import Visibility
 
 
@@ -128,6 +130,119 @@ async def list_all_published(db: AsyncSession) -> list[Agent]:
         select(Agent).where(Agent.status == AgentStatus.PUBLISHED.value).order_by(Agent.created_at)
     )
     return list(result.scalars().all())
+
+
+async def list_current_versions(db: AsyncSession) -> list[tuple[Agent, AgentVersion]]:
+    """Every published agent paired with its default (current) version.
+
+    Deliberately unscoped, like :func:`list_all_published`, and for the same
+    narrow reason: the callers are deployment-wide, not tenant-scoped. Grep for
+    this function when auditing cross-tenant reads.
+
+    This is only the *default* pointer. A surface that names no environment runs
+    `current_version_id`, but a named environment can pin any other published
+    version and a parent can pin a delegate version - so this is one seed of the
+    runnable set, not all of it. See :func:`list_environment_versions`.
+
+    Published only. A draft has no frozen version to run, and an archived agent
+    refuses new runs - neither can hand a skill to anybody directly.
+    """
+    result = await db.execute(
+        select(Agent, AgentVersion)
+        .join(AgentVersion, AgentVersion.id == Agent.current_version_id)
+        .where(Agent.status == AgentStatus.PUBLISHED.value)
+        .order_by(Agent.organization_id, Agent.slug)
+    )
+    return list(result.tuples().all())
+
+
+async def list_environment_versions(db: AsyncSession) -> list[tuple[Agent, AgentVersion]]:
+    """Every version a named environment of a published agent pins.
+
+    Unscoped, for the same reason as :func:`list_current_versions`, and its
+    companion in the `audit-skill-bindings` sweep: publishing moves only the
+    *default* environment, so a "production" environment can stay pinned to an
+    older version that `current_version_id` no longer names. A run that targets
+    that environment loads exactly this version, so the sweep must see it too.
+
+    Published agents only, because an archived or draft agent refuses a run that
+    targets it directly. A version reachable only as a *delegate* is a different
+    path - pinned by version id from a parent's spec, followed by the caller.
+    """
+    result = await db.execute(
+        select(Agent, AgentVersion)
+        .join(AgentEnvironment, AgentEnvironment.agent_id == Agent.id)
+        .join(AgentVersion, AgentVersion.id == AgentEnvironment.version_id)
+        .where(Agent.status == AgentStatus.PUBLISHED.value)
+        .order_by(Agent.organization_id, Agent.slug)
+    )
+    return list(result.tuples().all())
+
+
+async def list_active_run_versions(db: AsyncSession) -> list[tuple[Agent, AgentVersion]]:
+    """Every version a non-terminal run still loads, each with its agent.
+
+    The third seed of the runnable set, beside :func:`list_current_versions` and
+    :func:`list_environment_versions`, and unscoped for the same reason: the
+    `audit-skill-bindings` sweep is deployment-wide. A run records the version it
+    executed in `agent_version_id`, and a run that has not ended still loads it: a
+    `running` run is executing it now, and an `awaiting_approval` run reloads it
+    when :meth:`AgentRunnerService.resume` continues it. The four terminal states -
+    `completed`, `failed`, `cancelled` and `budget_exceeded` - never load it again,
+    so there `agent_version_id` is only a historical record.
+    A parked run resumes only from stored `paused_state`; one without it can never
+    continue, so it is excluded rather than seeding a version no resume can reach.
+
+    Unlike the two companion seeds this does **not** filter to published agents.
+    `resume` re-assembles the parked version through `registry.get`, which checks
+    the agent exists and the caller may run it but not its status - so a run parked
+    before its agent was archived still resumes and still hands out that version's
+    skills. The join to `AgentVersion` drops a run whose version was deleted
+    (`agent_version_id` is `SET NULL`): there is then nothing left to reload.
+
+    A hot version with many live runs is returned once per run; the sweep
+    deduplicates by version id, exactly as it does for the default environment
+    appearing in both companion seeds.
+    """
+    result = await db.execute(
+        select(Agent, AgentVersion)
+        .select_from(AgentRun)
+        .join(AgentVersion, AgentVersion.id == AgentRun.agent_version_id)
+        .join(Agent, Agent.id == AgentVersion.agent_id)
+        .where(
+            or_(
+                AgentRun.status == RunStatus.RUNNING.value,
+                and_(
+                    AgentRun.status == RunStatus.AWAITING_APPROVAL.value,
+                    AgentRun.paused_state.isnot(None),
+                ),
+            )
+        )
+    )
+    return list(result.tuples().all())
+
+
+async def get_versions_with_agents(
+    db: AsyncSession, version_ids: Sequence[UUID]
+) -> list[tuple[Agent, AgentVersion]]:
+    """Specific versions, each with its agent, whoever owns them.
+
+    Unscoped and by id: the caller is the sweep resolving `SubagentRef` pins,
+    which name a delegate version directly and cross no organization boundary a
+    tenant filter could express. A pure fetch that does not filter on the agent's
+    status - the agent is returned alongside precisely so the caller can apply the
+    runtime's own rule, which refuses to delegate to an archived agent
+    (`_resolve_delegate` in `agent_runner.py`).
+    """
+    if not version_ids:
+        return []
+    result = await db.execute(
+        select(Agent, AgentVersion)
+        .select_from(AgentVersion)
+        .join(Agent, Agent.id == AgentVersion.agent_id)
+        .where(AgentVersion.id.in_(list(version_ids)))
+    )
+    return list(result.tuples().all())
 
 
 async def create(

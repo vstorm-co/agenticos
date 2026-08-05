@@ -317,6 +317,7 @@ invalid-type-form = "warn"
 include = [
     "app/agents/**",
     "app/commands/bootstrap.py",
+    "app/commands/audit_skill_bindings.py",
     "app/core/permissions.py",
     "app/core/catalog/**",
     "app/core/secret_kinds.py",
@@ -430,6 +431,7 @@ generated_at = "2026-07-26T18:01:04.489757+00:00"
 include = [
     "app/agents/**",
     "app/commands/bootstrap.py",
+    "app/commands/audit_skill_bindings.py",
     "app/core/permissions.py",
     "app/core/catalog/**",
     "app/core/secret_kinds.py",
