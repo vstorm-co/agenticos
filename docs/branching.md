@@ -100,7 +100,8 @@ somebody has to mark the thread resolved before the merge button comes back. See
 [code-review.md](code-review.md).
 
 CodeQL's quality half opens threads on the same terms, as
-`github-code-quality[bot]`, and cannot be filtered or told to stop —
-[code-review.md](code-review.md#codeql-and-the-findings-that-block-a-merge) lists
-the findings already adjudicated so that resolving one costs a click rather than
-an essay.
+`github-code-quality[bot]`. It cannot be filtered by rule or by path — the only
+switch is off, for a whole language, which is not a trade worth making —
+so [code-review.md](code-review.md#codeql-and-the-findings-that-block-a-merge)
+lists the findings already adjudicated instead, and resolving one of those costs a
+click rather than an essay.

@@ -325,8 +325,7 @@ real defect, and this is one site rather than a pattern.
 
 Nobody has to defend the cancellation idiom to keep the coverage
 `py/ineffectual-statement` exists for. ruff's `B018` and `B015` are the same check
-without the blind spot, they are selected for every Python file in the repository,
-and they run both in pre-commit and in `make lint`:
+without the blind spot, and both run in pre-commit and in `make lint-backend`:
 
 ```python
 obj.__class__    # B018  Found useless expression
@@ -336,6 +335,13 @@ len              # B018  Found useless expression
 await task       # not flagged, correctly
 ```
 
-So the honest description of the exclusion in #220 is not "we stopped looking at
-ineffectual statements" — it is "we stopped looking at them twice, once with a
-checker that understands `await` and once with a checker that does not."
+With one gap worth knowing, because it is what the exclusion in #220 would cost:
+ruff is pointed at `app tests cli`, so `backend/alembic/` (9 files) and the
+repository's `scripts/` (3) are outside it, and for this class of mistake CodeQL is
+their only reader. Twelve files against 480 — small, and the reason the eventual
+filter is a trade to state rather than an obvious win. #229 is the gap itself.
+
+So the honest description of that exclusion is not "we stopped looking at
+ineffectual statements" — it is "we stopped looking at them twice in the files ruff
+reads, once with a checker that understands `await` and once with a checker that
+does not."
