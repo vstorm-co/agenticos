@@ -21,6 +21,10 @@ Four findings, in the order that matters:
    client's own project. Linking correctly would mean a project slug on the spec — a
    `SPEC_VERSION` bump touching every stored spec and every client's exported YAML.
    Disproportionate for a hyperlink.
+   **This bullet has since lost most of its weight**: nothing is in real use, so there are
+   no stored specs to migrate and no client YAML to break — the bump costs what the code
+   change costs. Findings 1, 2 and 4 stand as written, and the deep link was reinstated at
+   sign-off; #206 prices it without the compatibility tax assumed here.
 4. **We already store, and already serve, what the trace would show.** `messages` carries
    `role`, `content`, `thinking`, `model_name`, `agent_version` and `tokens_used`;
    `tool_calls` carries `tool_name`, `args`, `result`, `status`, `duration_ms`.
@@ -47,8 +51,17 @@ migration and it is quietly wrong — two concurrent runs in one conversation in
 and a run that never set `ended_at` yields an empty window. A drill-down whose errors are
 invisible to its reader is worse than one that admits a gap.
 
-Rows written before the migration keep `run_id = NULL`. The detail view says so — *"steps
-were not recorded for runs before <date>"* — rather than falling back to a time window.
+**No degraded case for rows written before the migration.** An earlier draft of this
+section kept `run_id = NULL` on old rows and had the detail view explain itself — *"steps
+were not recorded for runs before <date>"*. There is no deployment holding runs worth
+preserving, so that branch protects nothing and can never be reached: the migration
+backfills what exists or the rows are expendable, and either way the detail view has one
+case fewer, one piece of copy fewer, and no state that only appears on old data. A branch
+that cannot be reached gets deleted rather than tested.
+
+The same goes for anything else on this page that reads as a compatibility concession.
+There are no clients with an exported spec to break and no history to keep honest, so the
+question to ask of a fallback here is not "is it graceful" but "can it ever run".
 
 ## 2a. Delegated runs — the page is built on a table that now holds two kinds of row
 

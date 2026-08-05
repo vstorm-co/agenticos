@@ -486,10 +486,6 @@ const PRESETS = [
 const last30 = () => [addDays(today0(), -29), today0()];
 const monthToDate = () => { const t = today0(); return [new Date(t.getFullYear(), t.getMonth(), 1), t]; };
 
-/* The day `messages.run_id` starts being written. Runs older than this have a
-   conversation but no way to name their own slice of it. */
-const RUN_ID_SINCE = addDays(today0(), -6);
-
 const STATUSES = [
   { id: "completed", label: "completed", cls: "ok" },
   { id: "running", label: "running", cls: "run" },
@@ -1259,9 +1255,14 @@ function runRow(r) {
 /**
  * The drill-down, from our own rows - not a link into Logfire.
  *
- * Three cases, each of which says which one it is: the steps we recorded, a run
- * whose messages predate `messages.run_id`, and a surface that never had a
- * conversation to record.
+ * Two cases, each of which says which one it is: the steps we recorded, and a
+ * surface that never had a conversation to record.
+ *
+ * A third was drawn here - a run whose messages predate `messages.run_id`, with
+ * copy explaining that its steps were never linked. It is gone: no deployment
+ * holds runs worth preserving yet, so the migration backfills or the rows are
+ * expendable either way, and a permanently unreachable branch is dead weight
+ * rather than a graceful degradation.
  */
 function runDetail(r) {
   if (!r) return "";
@@ -1292,12 +1293,6 @@ function runDetail(r) {
     body = `<div class="notice">The <b>${r.surface}</b> surface ran this without a conversation,
       so there is no transcript to show. Status, cost and any error are all there is — and all
       there ever was.</div>`;
-  } else if (r.started < RUN_ID_SINCE) {
-    body = `<div class="notice">Steps were not recorded for runs before
-      <b>${fmtDay(RUN_ID_SINCE)}</b>, when <span class="chip">messages.run_id</span> started being
-      written. The run and its cost are complete; the transcript exists but is not linked to this
-      run. <a href="#">Open conversation ${r.conversation}</a> to read the whole thread.</div>`;
-    missing = ["messages.run_id"];
   } else {
     const sc = r.script;
     const toolStatus = r.status === "failed" ? "failed" : r.status === "awaiting_approval" ? "pending" : "completed";
