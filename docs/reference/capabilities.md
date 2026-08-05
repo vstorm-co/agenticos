@@ -257,7 +257,8 @@ pair it with `code_execution` or `knowledge` for that. No configuration.
 `task` — *hand a self-contained piece of work to one of this agent's specialists.*
 `check_task`, `wait_tasks`, `list_active_tasks` — *following one that is running.*
 `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task` — *steering or
-stopping one.*
+stopping one.* These six are offered only when a background delegation is reachable
+— a `sync`-only agent is handed none of them.
 `create_agent`, `delegate` — *a specialist the model writes for itself, when the author allows it.*
 `answer_subagent` — *declared, and offered to no model.*
 
@@ -291,6 +292,15 @@ running in the background. The instructions **mark that delegate**, beside its
 name — a single sentence stating the configured mode was a promise the overriding
 delegate then broke, telling the model to expect an answer and handing it a task
 id.
+
+**A `sync`-only agent is offered none of the six task-lifecycle tools.** Each of
+`check_task`, `wait_tasks`, `list_active_tasks`, `send_message_to_subagent` and the
+two cancels takes or reports on a task id, and a `sync` delegation returns the
+answer and nothing else — there is no id to pass. So they are offered only when a
+background delegation is reachable: `async` or `auto` mode, a delegate that prefers
+either, or permission to invent specialists. `sync` is the default, so this is the
+common configuration, and six tool descriptions withheld is six the model no longer
+pays for on every turn. `task` stays — a `sync` agent still delegates.
 
 **Fan-out and nesting are ceilings, not errors.** Past `max_fanout` the next
 delegation comes back as a tool result the model can act on — wait, or do the work
