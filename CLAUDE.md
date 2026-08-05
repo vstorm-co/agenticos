@@ -430,6 +430,54 @@ how you would know it was fixed. Say plainly whether the current branch caused
 it or merely found it — "pre-existing, found reviewing #105" is information the
 next reader needs. `#106` is the shape to copy.
 
+### File it triaged, not bare
+
+**An issue with no labels, no type, no project and no milestone is an issue
+somebody else has to triage by hand, and until they do it is invisible to every
+view the board is read through.** So set all five at creation. Guessing wrong is
+cheap and fixable; leaving them empty is what actually costs, because nothing
+surfaces the gap.
+
+```bash
+gh issue create --repo vstorm-co/agenticos \
+  --title "…" --body-file draft.md \
+  --label bug,severity:medium,effort:s \
+  --project VstormOS \
+  --milestone "W1 · Aug 3–7"
+```
+
+| | What to set, and how to choose |
+|---|---|
+| **Labels** | One kind (`bug`, `enhancement`, `documentation`, `dependencies`, `ci`, `meta`), plus `severity:*` on a bug, `effort:*` always, plus `frontend` / `security` where they apply. `gh label list` is the list; do not invent one. |
+| **Type** | `Bug`, `Feature` or `Task`. Needs GraphQL — see below. |
+| **Project** | `VstormOS` for anything in this repo. (`Vstorm OSS` is the cross-repo board; do not use it for issues here.) |
+| **Milestone** | The current week, unless the work genuinely belongs later. `gh api repos/vstorm-co/agenticos/milestones --jq '.[].title'` — never hardcode a week from an example, including this one. |
+| **Status** | The project's own field, defaulting to `Backlog`. Leave it there: `In progress` is a claim about somebody's day, not about the issue. |
+
+`gh` has **no `--type` flag** on `create` or `edit` (checked on 2.83.2), so the
+type is a second call. The ids are stable, and the REST ones are the wrong ones —
+GraphQL needs the global node id:
+
+```bash
+node=$(gh api repos/vstorm-co/agenticos/issues/N --jq .node_id)
+gh api graphql -f query='mutation($i:ID!,$t:ID!){
+  updateIssueIssueType(input:{issueId:$i,issueTypeId:$t}){issue{number issueType{name}}}}' \
+  -f i="$node" -f t="IT_kwDOBMvQGs4A22d_"   # Bug
+```
+
+`Task = IT_kwDOBMvQGs4A22d7` · `Bug = IT_kwDOBMvQGs4A22d_` ·
+`Feature = IT_kwDOBMvQGs4A22eD`. Re-derive with
+`gh api graphql -f query='{organization(login:"vstorm-co"){issueTypes(first:10){nodes{id name}}}}'`
+if a mutation answers `NOT_FOUND`.
+
+**Inherit from the issue you are working on.** Filing a defect found while
+working #40 is not filing into a vacuum: unless there is a reason to differ, take
+its milestone, its project and its `priority:*`, and reference it in the body —
+`Found reviewing #40` — so the two read as one thread of work rather than two
+unrelated rows a week apart. If the new issue *blocks* the one you are on, say so
+in both directions, because a blocker nobody can see from the blocked issue is a
+blocker that gets discovered by being hit.
+
 ### And it says where it sits — [#168](https://github.com/vstorm-co/agenticos/issues/168)
 
 **#168 is the issue map**: what the clusters are, which chains block which, and
