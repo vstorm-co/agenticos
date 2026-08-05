@@ -250,9 +250,15 @@ deps-upgrade-all:
 # "ruff + ty + eslint + tsc" described a command that ran half of that.
 lint: lint-backend lint-frontend lint-spelling
 
+# `ruff check .` from `backend/` reads every tracked tree there - app, tests, cli
+# and alembic - rather than the three named paths it used to, which left the nine
+# migrations and this repo's guard scripts linted by nothing (#229). `../scripts`
+# is the repository-root `scripts/` (the guards that gate every PR), which lives
+# outside `backend/` and so is a fourth path rather than a second invocation; its
+# relaxations are declared in `pyproject.toml` under `../scripts/**`.
 lint-backend:
-	uv run --directory backend ruff check app tests cli
-	uv run --directory backend ruff format app tests cli --check
+	uv run --directory backend ruff check . ../scripts
+	uv run --directory backend ruff format . ../scripts --check
 	uv run --directory backend ty check
 	python3 scripts/check_backticks.py
 	python3 scripts/check_i18n.py
@@ -285,8 +291,8 @@ lint-spelling:
 # applying it, so without the second line here the only way to fix a formatting
 # failure would be to let the pre-commit hook rewrite the file for you.
 format:
-	uv run --directory backend ruff format app tests cli
-	uv run --directory backend ruff check app tests cli --fix
+	uv run --directory backend ruff format . ../scripts
+	uv run --directory backend ruff check . ../scripts --fix
 	cd frontend && bunx prettier --write "src/**/*.{ts,tsx}" "e2e/**/*.ts"
 
 # === Testing ===
