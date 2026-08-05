@@ -381,7 +381,7 @@ test-e2e:
 #     laptop is the database with your own work in it.
 CHECK_DB_PORT ?= 5432
 
-check: lint test test-frontend-cov build-frontend docs-build audit
+check: lint test db-check test-frontend-cov build-frontend docs-build audit
 	@echo ""
 	@echo "All checks passed — every CI job except e2e."
 	@if ! python3 -c 'import socket; socket.create_connection(("127.0.0.1", $(CHECK_DB_PORT)), 1).close()' 2>/dev/null; then \
@@ -414,6 +414,26 @@ test-migrations:
 	uv run --directory backend alembic downgrade base
 	uv run --directory backend alembic upgrade head
 	@echo "Migration chain applies and rolls back cleanly."
+
+# Do the models and the migrations still agree? `alembic check` autogenerates
+# against the database and fails if anything is left over - the gate that catches
+# "somebody edited a model and forgot the migration", the one question
+# `test-migrations` (which only proves the chain applies and rolls back) does not
+# answer.
+#
+# Unlike `test-migrations` this belongs in `make check`: it reflects the schema
+# and diffs it, it never downgrades, so it cannot empty a laptop's working
+# database. It does need one at head - `make dev` keeps it there - and is skipped
+# rather than failed when none is reachable, the same bargain `check` strikes for
+# the integration suite. CI always has a database, so there it runs for real,
+# after `test-migrations` has left it at head.
+db-check:
+	@if python3 -c 'import socket; socket.create_connection(("127.0.0.1", $(CHECK_DB_PORT)), 1).close()' 2>/dev/null; then \
+		uv run --directory backend alembic check; \
+	else \
+		echo "⚠  No database on 127.0.0.1:$(CHECK_DB_PORT), so 'alembic check' was skipped"; \
+		echo "   — and CI's test job has one, so it did not. 'make docker-db' closes that gap."; \
+	fi
 
 
 # === Database ===
