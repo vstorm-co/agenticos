@@ -69,6 +69,9 @@ def _db() -> MagicMock:
     db = MagicMock()
     db.flush = AsyncMock()
     db.refresh = AsyncMock()
+    # `_run` commits its own terminal write; a cancellation never reaches the
+    # session context that would otherwise do it.
+    db.commit = AsyncMock()
     # How the organization row - and with it the org-wide cap - comes back.
     db.get = AsyncMock(return_value=MagicMock(monthly_budget_usd=None))
     return db
