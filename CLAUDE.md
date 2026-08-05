@@ -416,6 +416,13 @@ If the reviewer is wrong — and it is, sometimes; it does not always know what 
 file's surrounding code already does — say so in the commit body or the pull
 request, with the reason, rather than churning the code to silence it.
 
+`github-code-quality[bot]` opens threads on the same ruleset and cannot be
+filtered. Three of its findings are **already adjudicated** in
+`docs/code-review.md` — a bare `await <task>`, `...` as a `Protocol` body, and a
+`pytest.fail` fall-through. Resolve those with a pointer to that section; do not
+write a fresh essay per thread, and do not rewrite the cancellation idiom to
+satisfy a query that does not model `await`.
+
 ### A bug you find is a bug you file
 
 **Every defect found along the way gets a GitHub issue** — `gh issue create`,
