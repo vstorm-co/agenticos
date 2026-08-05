@@ -290,10 +290,11 @@ export function useChat(options: UseChatOptions = {}) {
         case "subagent_thinking_delta":
         case "subagent_tool_call":
         case "subagent_tool_result":
+        case "subagent_awaiting_approval":
         case "subagent_complete": {
-          // One branch for six frames: the envelope's `type` is the frame's own
+          // One branch for every frame: the envelope's `type` is the frame's own
           // `kind` (see `AgentSession._subagent_event`), so the payload narrows
-          // itself and the six cases share one reducer instead of six copies of
+          // itself and the cases share one reducer instead of one copy each of
           // "find the task, change one field".
           setDelegations((current) => applyDelegationFrame(current, wsEvent.data as SubagentFrame));
           break;

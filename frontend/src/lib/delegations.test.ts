@@ -340,6 +340,58 @@ describe("applyDelegationFrame - what a finished delegation reports", () => {
   });
 });
 
+/** The frame a sync delegate emits when it stops for a person. */
+function awaiting(taskId: string): SubagentFrame {
+  return { kind: "subagent_awaiting_approval", task_id: taskId, subagent: "researcher", depth: 0 };
+}
+
+describe("applyDelegationFrame - a delegate that stopped for a person", () => {
+  it("closes the panel with a waiting state rather than leaving it working", () => {
+    // The bug this frame exists to fix: without it the panel reads "working" for
+    // the length of the wait, and forever if nobody decides.
+    const delegations = fold([start("t1"), awaiting("t1")]);
+
+    expect(named(delegations, "t1").status).toBe("awaiting_approval");
+  });
+
+  it("records nothing about cost - the continuation does when the person decides", () => {
+    const delegations = fold([start("t1"), awaiting("t1")]);
+
+    expect(named(delegations, "t1")).toMatchObject({ costUsd: null, runId: null });
+  });
+
+  it("reopens the same panel on resume rather than a second appearing beside it", () => {
+    // The continuation streams under the id it parked under, so a start frame for a
+    // panel already waiting is a reopen: back to running, keeping what it had said.
+    const delegations = fold([
+      start("t1"),
+      awaiting("t1"),
+      start("t1", { subagent: "researcher" }),
+    ]);
+
+    expect(delegations).toHaveLength(1);
+    expect(named(delegations, "t1").status).toBe("running");
+  });
+
+  it("keeps what a reopened delegation had already said", () => {
+    // The panel was live before it parked; a reopen must not discard its work.
+    const delegations = fold([
+      start("t1"),
+      {
+        kind: "subagent_text_delta",
+        task_id: "t1",
+        subagent: "researcher",
+        depth: 0,
+        delta: "so far",
+      },
+      awaiting("t1"),
+      start("t1"),
+    ]);
+
+    expect(named(delegations, "t1").text).toBe("so far");
+  });
+});
+
 describe("applyDelegationFrame - nesting a specialist's own delegation", () => {
   it("hangs a deeper delegation off the parent its frame names", () => {
     const delegations = fold([

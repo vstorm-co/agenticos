@@ -44,8 +44,18 @@ function parentIn(current: Delegation[], named: string | null | undefined): stri
 function started(current: Delegation[], frame: SubagentStartFrame): Delegation[] {
   // A `task_id` is unique per delegation, so a second start for one is a repeat
   // rather than a second delegation - keeping the first preserves whatever has
-  // already streamed into it.
-  if (current.some((delegation) => delegation.taskId === frame.task_id)) return current;
+  // already streamed into it. The one repeat that is not a no-op is a resume: a
+  // delegation that parked for a person is continued under the same id, so its
+  // panel goes back to running rather than staying on "waiting for a person".
+  const existing = current.find((delegation) => delegation.taskId === frame.task_id);
+  if (existing) {
+    return existing.status === "awaiting_approval"
+      ? updated(current, frame.task_id, (delegation) => ({
+          ...delegation,
+          status: "running" as DelegationStatus,
+        }))
+      : current;
+  }
   return [
     ...current,
     {
@@ -128,6 +138,15 @@ export function applyDelegationFrame(current: Delegation[], frame: SubagentFrame
       return updated(current, frame.task_id, (delegation) =>
         withResult(delegation, frame.tool_call_id, frame.ok),
       );
+    case "subagent_awaiting_approval":
+      // The delegate stopped for a person. Close the panel with a state that says
+      // so, rather than leaving it reading "working" for the length of the wait -
+      // and never, if nobody decides. No cost and no run id: the continuation
+      // records the outcome when the person decides.
+      return updated(current, frame.task_id, (delegation) => ({
+        ...delegation,
+        status: "awaiting_approval" as DelegationStatus,
+      }));
     case "subagent_complete":
       return updated(current, frame.task_id, (delegation) => ({
         ...delegation,

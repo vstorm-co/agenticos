@@ -446,6 +446,23 @@ describe("useChat - streaming a delegation", () => {
     });
   });
 
+  it("closes a delegate's panel into a waiting state when it stops for a person", () => {
+    // A sync delegate that parks on an approval sends `subagent_awaiting_approval`
+    // and no `subagent_complete` until the person decides. The panel must stop
+    // reading "working" rather than spin for the length of the wait.
+    const { result } = renderHook(() => useChat(), { wrapper });
+    startDelegation("t1");
+
+    receive("subagent_awaiting_approval", {
+      kind: "subagent_awaiting_approval",
+      task_id: "t1",
+      subagent: "researcher",
+      depth: 0,
+    });
+
+    expect(result.current.delegations[0]?.status).toBe("awaiting_approval");
+  });
+
   it("closes an unfinished delegation when the run was cancelled", () => {
     // The cancelled path sends `stopped` (`AgentSession._run_turn`) and nothing
     // more is coming, so a panel left running would spin forever. The frontend
