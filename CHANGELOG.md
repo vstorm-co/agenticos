@@ -19,6 +19,25 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.16] - 2026-08-05
+
+### Fixed
+
+- **A delegation panel reaches a terminal state when its delegate parked on an approval**
+  ([#173](https://github.com/vstorm-co/agenticos/issues/173)). When a sync delegation
+  parked for a human approval in web chat, its panel showed the delegate as still working
+  and stayed there — because `POST /runs/{id}/resume` runs over HTTP with no
+  `subagent_events` sink, so no `subagent_complete` frame ever reached the WebSocket
+  reducer, and the panel sat on `awaiting_approval` forever after the approval was granted.
+  Web-chat resume doesn't stream, so the panel is now reconciled from the HTTP answer: the
+  resumed run's own status is applied to every panel still awaiting — `completed`,
+  `failed`/`budget_exceeded`→failed, `cancelled` — while a resume that parks *again* is
+  left waiting, preserving the continuation case. Streamed text is kept; cost and tokens
+  stay null rather than invented, since the frame that carries them never arrived. This
+  covers a resume that **returns** a status; a resume whose continuation itself raises
+  returns no result and still leaves the panel waiting, tracked as
+  [#262](https://github.com/vstorm-co/agenticos/issues/262).
+
 ## [0.0.15] - 2026-08-05
 
 ### Fixed
@@ -801,7 +820,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.15...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.16...HEAD
+[0.0.16]: https://github.com/vstorm-co/agenticos/compare/v0.0.15...v0.0.16
 [0.0.15]: https://github.com/vstorm-co/agenticos/compare/v0.0.14...v0.0.15
 [0.0.14]: https://github.com/vstorm-co/agenticos/compare/v0.0.13...v0.0.14
 [0.0.13]: https://github.com/vstorm-co/agenticos/compare/v0.0.12...v0.0.13
