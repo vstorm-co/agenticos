@@ -25,6 +25,13 @@ cost a second place for every change to sit, so it was removed.
 | Stale approvals dismissed on a new push | Ruleset |
 | No force push, no deletion | Ruleset |
 | No commit made while standing on `main` | `no-commit-to-branch` in `.pre-commit-config.yaml` |
+| Spelling, across every tracked file | codespell — as a hook on the files a commit touches, and as `make lint-spelling` in CI's `lint` job over the whole tree |
+
+A hook only ever reads what a commit touches, which makes it a poor gate on its
+own: a misspelling that merges with its file sits there until somebody edits that
+file for an unrelated reason, and their commit is refused by a word they did not
+write. That is why the spelling check is in the table twice — the hook is the fast
+feedback, `make lint-spelling` is what keeps the claim true for the tree.
 
 The status checks are listed individually today. They should collapse into a
 single aggregating `All Checks Passed` job, so that adding a CI job stops meaning

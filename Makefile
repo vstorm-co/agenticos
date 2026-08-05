@@ -238,16 +238,17 @@ deps-upgrade-all:
 	@echo "▶ Now run 'make check'."
 
 # === Code Quality ===
-# Every static check, both halves of the repository. CI splits them across two
-# jobs (`lint` and the first three steps of `test-frontend`) because they need
-# different toolchains; here they are one command with two callable halves, so a
-# Python-only change can run `lint-backend` and skip a minute of eslint.
+# Every static check: both halves of the repository, plus the one check that
+# reads the whole tree at once. CI splits the halves across two jobs (`lint` and
+# the first three steps of `test-frontend`) because they need different
+# toolchains; here they are one command with callable parts, so a Python-only
+# change can run `lint-backend` and skip a minute of eslint.
 #
 # The frontend half was missing entirely until #143: `make lint` ran ruff, ty and
 # the two guard scripts, while CI additionally ran eslint, prettier and tsc - so
 # `make lint` passed on a branch with a type error in a `.tsx`, and CLAUDE.md's
 # "ruff + ty + eslint + tsc" described a command that ran half of that.
-lint: lint-backend lint-frontend
+lint: lint-backend lint-frontend lint-spelling
 
 lint-backend:
 	uv run --directory backend ruff check app tests cli
@@ -260,6 +261,25 @@ lint-frontend:
 	cd frontend && bun run lint
 	cd frontend && bunx prettier --check "src/**/*.{ts,tsx}" "e2e/**/*.ts"
 	cd frontend && bun run type-check
+
+# Spelling, over every tracked file rather than the ones a commit happens to
+# touch. The hook alone only ever reads changed files, so a misspelling that
+# lands with its file sits there until somebody edits that file for an unrelated
+# reason - and their commit is then refused by a word they did not write. That is
+# #188: one misspelled word reached `main` with #119, and what found it was a
+# person running the hook by hand while reconciling `make check` with CI for #143
+# - not any gate. (Spelling the word here would fail this very check.)
+#
+# It runs the hook rather than codespell directly, because a second invocation
+# would mean a second version pin and a second copy of the exclude list. The rev
+# in `.pre-commit-config.yaml` and the ignore list in `.codespellrc` stay the only
+# definitions; this target just points them at the whole tree.
+#
+# `--project backend`, not `--directory backend` as the targets above use: the
+# second changes directory, and pre-commit would then look for its config and its
+# git tree inside `backend/`.
+lint-spelling:
+	uv run --project backend pre-commit run codespell --all-files
 
 # The write side of both halves. `lint-frontend` checks prettier rather than
 # applying it, so without the second line here the only way to fix a formatting
@@ -575,9 +595,10 @@ help:
 	@echo "Development:"
 	@echo "  make run           Start dev server (with hot reload)"
 	@echo "  make test          Run tests"
-	@echo "  make lint          Every static check: ruff, ty, eslint, prettier, tsc, the guards"
+	@echo "  make lint          Every static check: ruff, ty, eslint, prettier, tsc, the guards, codespell"
 	@echo "  make lint-backend  Just the Python half"
 	@echo "  make lint-frontend Just the TypeScript half"
+	@echo "  make lint-spelling Just codespell, over every tracked file"
 	@echo "  make format        Auto-format code (ruff + prettier)"
 	@echo "  make check         Every CI job except e2e - before opening a pull request"
 	@echo ""

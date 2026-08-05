@@ -1,5 +1,11 @@
 [codespell]
-# Every entry here was a false positive, and each is a word this repository
+# `builtin` is left at its default (`clear,rare`) on purpose. This repository
+# writes British English throughout its prose and docstrings - behaviour,
+# serialise, prioritise, localised - and those are correct here. Adding
+# `en-GB_to_en-US` to the dictionary list would rewrite every one of them; if the
+# tool and the house style disagree, the tool loses.
+#
+# Every entry below was a false positive, and each is a word this repository
 # genuinely uses:
 #
 #   dependant  FastAPI's own attribute name (`route.dependant`). Spelling it

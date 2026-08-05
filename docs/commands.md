@@ -24,8 +24,9 @@ Run these from the project root directory.
 | `make test` | Backend suite plus the 100% gate on the platform layer |
 | `make test-cov` | Run tests with coverage report (HTML + terminal) |
 | `make format` | Auto-format code — ruff on the backend, prettier on the frontend |
-| `make lint` | Every static check, both halves: ruff, ruff format, ty, eslint, prettier, tsc, and the backtick and i18n guards |
+| `make lint` | Every static check: ruff, ruff format, ty, eslint, prettier, tsc, the backtick and i18n guards, and codespell over the whole tree |
 | `make lint-backend` / `make lint-frontend` | One half of the above. CI runs them in two different jobs, so either can be run on its own |
+| `make lint-spelling` | codespell over every tracked file. The pre-commit hook reads only the files a commit touches, so a misspelling that lands with its file waits there to refuse somebody else's unrelated commit |
 | `make build-frontend` | `next build`. Type-checks the route tree and fails on a server component that cannot render — which neither tsc nor vitest sees |
 | `make audit` | Audit the locked dependency set for known vulnerabilities (needs the network) |
 | `make clean` | Remove cache files (__pycache__, .pytest_cache, etc.) |
