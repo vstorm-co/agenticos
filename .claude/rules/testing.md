@@ -31,12 +31,26 @@ after an edit it answers the same question thirty times slower.
 Then, once, before the push:
 
 ```bash
-make lint               # ruff, ty, eslint, tsc, and scripts/check_i18n.py
+make lint               # ruff, ruff format, ty, eslint, prettier, tsc, the two guards,
+                        # and codespell over every tracked file
 make test               # backend + the 100% gate on the platform layer
 make test-frontend-cov  # frontend + its gate: 100% lines/stmts/funcs, 97.5% branches
 make test-integration   # only if the change is near the database
-make check              # all of the above, which is what CI runs
+make check              # every CI job except e2e - lint, test, test-frontend-cov,
+                        # build-frontend, docs-build, audit. About five minutes.
 ```
+
+`make check` is CI, not an approximation of it: `.github/workflows/ci.yml` calls
+those targets rather than repeating their commands, and `tests/test_ci_parity.py`
+fails if a gating job grows a step `check` does not run - or if `check` grows one
+CI does not. It has drifted four times, all four found by #143.
+
+Three things `check` leaves out, on purpose: `e2e` (needs a seeded backend), the
+image scan (push to `main` only), and `make test-migrations` - CI cycles the chain
+against a throwaway database, and `alembic downgrade base` on a laptop points at
+the one with your own work in it. `check` also says at the end when
+`tests/integration/` skipped itself for want of a database, because CI's `test`
+job always has one.
 
 Traps, each of which has cost a red job here:
 
@@ -79,12 +93,21 @@ pytestmark = pytest.mark.anyio   # module top
 - `mock_db_session` — an `AsyncMock`. Mock repositories, never the service under test.
 - `mock_redis`, `api_key_headers`.
 
-The conftest pins `POSTGRES_DB=agenticos_test` before `app.core.config` is imported.
-Leave it: the unit suite once emptied a developer's database through a populated `.env`.
+The conftest points `POSTGRES_DB` at `<base>_p<pid>` before `app.core.config` is
+imported — a test database, and one per pytest process. Leave both halves: the unit
+suite once emptied a developer's database through a populated `.env`, and a constant
+name meant two runs on one machine dropping each other's tables mid-test (#189).
 
-`tests/integration/conftest.py` skips when no database is reachable and refuses any
-database whose name contains neither `test` nor `ci` — it calls `drop_all`
-unconditionally.
+`tests/integration/conftest.py` creates that database at the start of the session and
+drops it at the end, even when the suite fails, so **two concurrent runs are safe and
+nothing has to be passed to make them so**. It still skips when no database is
+reachable (a laptop without Docker) and still refuses any database whose name contains
+neither `test` nor `ci`, or that is not a plain identifier — it calls `drop_all`
+unconditionally and drops the database itself afterwards.
+
+A run killed outright (`SIGKILL`) leaks its database; the next run with that pid drops
+it before creating its own. Anything else named `agenticos_*` on a shared Postgres was
+made by hand and is nobody's to clean up automatically.
 
 ## Naming
 

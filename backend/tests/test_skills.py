@@ -15,8 +15,10 @@ from app.agents.capabilities.skills import SAFE_SKILL_TOOLS, Skills
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.resource_grant import GrantLevel, Visibility
+from app.db.models.skill import Skill
 from app.services.skills import (
     MAX_RESOURCE_BYTES,
+    SUGGESTED_CATEGORIES,
     SkillService,
     _clean_resource_path,
     _decode_text,
@@ -47,6 +49,25 @@ def _skill(name="refunds", enabled=True, resources=None, *, ctx=None, owner_user
     skill.version = 1
     skill.resources = resources or []
     return skill
+
+
+def _row(name: str) -> Skill:
+    """A real ORM row, for the tests that go through the response schema.
+
+    Deliberately not the `MagicMock` above: a mock answers every attribute,
+    including `built_in` and `file_count`, which are not on the row at all -
+    so an assertion about them would hold against a response that never
+    carried them.
+    """
+    return Skill(
+        id=uuid.uuid4(),
+        organization_id=uuid.uuid4(),
+        name=name,
+        description="How refunds are handled.",
+        category=None,
+        enabled=True,
+        resources=[],
+    )
 
 
 def _resource(name="template.md", content="Dear {name},"):
@@ -223,6 +244,59 @@ class TestSkillManagement:
         assert listed == [mine]
         assert total == 1
         assert list_visible.call_args.kwargs["organization_id"] == ctx.organization_id
+
+    @pytest.mark.anyio
+    async def test_the_listing_marks_a_skill_installed_from_the_library(self):
+        """`built_in` is a name match, because an install keeps nothing else.
+
+        A row that came from the shipped library and one somebody typed are the
+        same shape; only the name says which, so an install that renamed on the
+        way in would be indistinguishable from local work.
+        """
+        ctx = _ctx()
+        installed, local = _row("refunds"), _row("our-own-thing")
+        bundled = MagicMock()
+        bundled.name = "refunds"
+
+        with (
+            patch(
+                f"{SKILLS_PATH}.skill_repo.list_visible",
+                new=AsyncMock(return_value=([installed, local], 2)),
+            ),
+            patch(f"{SKILLS_PATH}.skill_repo.list_categories", new=AsyncMock(return_value=[])),
+            patch(f"{SKILLS_PATH}.skill_library.library", return_value=[bundled]),
+        ):
+            listing = await SkillService(_db()).list_readable(ctx)
+
+        assert [item.built_in for item in listing.items] == [True, False]
+
+    @pytest.mark.anyio
+    async def test_the_listing_carries_the_filters_the_page_cannot(self):
+        """`total`, `categories` and the suggestions all outlive the page.
+
+        Paging or searching narrows `items` and must not narrow any of them: a
+        pager needs the count before paging, and a filter chip that vanished
+        with the page it filtered would strand whoever pressed it.
+        """
+        ctx = _ctx()
+
+        with (
+            patch(
+                f"{SKILLS_PATH}.skill_repo.list_visible",
+                new=AsyncMock(return_value=([_row("refunds")], 87)),
+            ),
+            patch(
+                f"{SKILLS_PATH}.skill_repo.list_categories",
+                new=AsyncMock(return_value=["devops", "support"]),
+            ),
+            patch(f"{SKILLS_PATH}.skill_library.library", return_value=[]),
+        ):
+            listing = await SkillService(_db()).list_readable(ctx, search="refund", limit=1)
+
+        assert len(listing.items) == 1
+        assert listing.total == 87
+        assert listing.categories == ["devops", "support"]
+        assert listing.suggested_categories == list(SUGGESTED_CATEGORIES)
 
     @pytest.mark.anyio
     async def test_a_role_that_sees_everything_never_looks_up_grants(self):

@@ -56,6 +56,7 @@ from app.repositories import agent_run as agent_run_repo
 from app.repositories import member as member_repo
 from app.repositories import organization as organization_repo
 from app.services.email.service import EmailKey, get_email_service
+from app.services.spend import organization_spend_since
 
 logger = logging.getLogger(__name__)
 
@@ -152,6 +153,14 @@ class NotificationService:
         no email: a report that says "0 runs, $0.00" every week is the report
         people filter into a folder, and then the one that mattered goes there
         too.
+
+        The breakdown answers who ran and how often; the **total comes from
+        `app.services.spend`**, which is the same number the organization's budget
+        is enforced against. Summing the breakdown instead made this email
+        disagree with that budget in both directions at once - it counted every
+        delegated run twice, because a delegate's tokens are already inside its
+        parent's cost, and it left out what ingestion spent embedding documents.
+        A bill nobody can reconcile is worse than no bill.
         """
         since = datetime.now(UTC) - timedelta(days=_PERIOD_DAYS[period])
         rows = await agent_run_repo.cost_breakdown(
@@ -160,21 +169,21 @@ class NotificationService:
         if not rows:
             return False
 
-        total = sum((row[2] for row in rows), Decimal(0))
-        runs = sum(row[3] for row in rows)
-        agents = {row[0] for row in rows}
-
         recipients = await self._administrators(organization_id, "notify_usage_reports")
         if not recipients:
             return False
 
+        # After the audience, not before: an organization whose last admin left
+        # still has runs, and pricing a report nobody will read is two queries
+        # spent on an email that is not sent.
+        total = await organization_spend_since(self.db, organization_id, since)
         organization = await organization_repo.get_by_id(self.db, organization_id)
         context = {
             "period": "week" if period == "weekly" else "month",
             "org_name": organization.name if organization else "your organization",
             "total": f"{total:.2f}",
-            "runs": str(runs),
-            "agents": str(len(agents)),
+            "runs": str(sum(row[3] for row in rows)),
+            "agents": str(len({row[0] for row in rows})),
             "dashboard_url": f"{self._frontend}/agents",
             "app_name": settings.PROJECT_NAME,
         }
@@ -198,6 +207,13 @@ class NotificationService:
 
         Silent when the agent did not run, for the same reason the
         organization's report is.
+
+        This is the one place `include_delegations` is asked for, and the reason it
+        is the mirror image of the organization's report above: the runs this agent
+        was *delegated into* are the only record of what it cost, so leaving them
+        out would report a delegate as having spent nothing. It is not the
+        organization's bill and must not be read as one - the same money appears in
+        whichever parent delegated it.
         """
         alert = spec.notifications.usage
         if not alert.enabled:
@@ -205,7 +221,10 @@ class NotificationService:
 
         since = datetime.now(UTC) - timedelta(days=_PERIOD_DAYS[period])
         rows = await agent_run_repo.cost_breakdown(
-            self.db, organization_id=agent.organization_id, since=since
+            self.db,
+            organization_id=agent.organization_id,
+            since=since,
+            include_delegations=True,
         )
         mine = [row for row in rows if row[0] == agent.id]
         if not mine:

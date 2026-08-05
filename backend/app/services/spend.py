@@ -1,8 +1,9 @@
 """The organization's monthly spend, and the refusal that reads it.
 
-One module owns the question "what has this organization spent this month",
-because two answers is how the number a budget enforces drifts from the number
-a dashboard shows. The total is runs plus ingestion: an agent's model requests
+One module owns the question "what has this organization spent", over the calendar
+month a cap is metered on or the window a report covers - because two answers is
+how the number a budget enforces drifts from the number a dashboard shows, or the
+one an email bills. The total is runs plus ingestion: an agent's model requests
 and knowledge-search embeddings land on `agent_runs.cost_usd`, and what a
 worker spends embedding and describing documents lands on `ingestion_spend` -
 the half of the bill no run carries.
@@ -36,9 +37,17 @@ def month_start(now: datetime | None = None) -> datetime:
     return moment.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
 
-async def organization_monthly_spend(db: AsyncSession, organization_id: UUID) -> Decimal:
-    """Runs plus ingestion since the first of the month."""
-    since = month_start()
+async def organization_spend_since(
+    db: AsyncSession, organization_id: UUID, since: datetime
+) -> Decimal:
+    """Runs plus ingestion in a window - the organization's bill for it.
+
+    The window is a parameter because a budget and a report ask about different
+    ones and must not answer with different arithmetic: the cap is checked against
+    the calendar month, and the usage email covers the past week or month. Summing
+    a per-agent breakdown instead is how that email came to overstate the bill -
+    it counted every delegated run a second time and left ingestion out.
+    """
     run_spend = await agent_run_repo.sum_cost_since(
         db, organization_id=organization_id, since=since
     )
@@ -46,6 +55,11 @@ async def organization_monthly_spend(db: AsyncSession, organization_id: UUID) ->
         db, organization_id=organization_id, since=since
     )
     return run_spend + ingestion_spend
+
+
+async def organization_monthly_spend(db: AsyncSession, organization_id: UUID) -> Decimal:
+    """Runs plus ingestion since the first of the month - what a cap is checked on."""
+    return await organization_spend_since(db, organization_id, month_start())
 
 
 async def assert_organization_within_budget(db: AsyncSession, organization_id: UUID) -> None:

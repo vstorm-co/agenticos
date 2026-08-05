@@ -77,10 +77,11 @@ failures. While writing, run only what covers the change:
 bunx vitest run src/components/chat/usage-strip.test.tsx
 ```
 
-Once, before the push:
+Once, before the push — from the repository root, because CI's `test-frontend` job
+runs all four and `make lint-frontend` is the first three of them:
 
 ```bash
-bun run type-check && bun run lint && bun run test:coverage
+make lint-frontend && make test-frontend-cov && make build-frontend
 ```
 
 **`test:coverage`, not `test:run`.** The job CI runs measures coverage and fails under

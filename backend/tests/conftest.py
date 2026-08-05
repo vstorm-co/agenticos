@@ -10,16 +10,31 @@ import os
 
 # Before anything imports `app.core.config`, and therefore before anything can
 # open a connection: point every database name in this process at a test
-# database. An environment variable outranks the `.env` file pydantic-settings
-# reads, so this holds even where a developer's `.env` names their working
-# database.
+# database *of its own*. An environment variable outranks the `.env` file
+# pydantic-settings reads, so this holds even where a developer's `.env` names
+# their working database.
 #
 # It is here rather than in the integration conftest because the damage was not
 # there: running the *unit* suite against a checkout with a populated `.env`
 # emptied the development database, and no test in it means to touch a database
-# at all. A default that can only ever hit `test_db` costs nothing and removes
-# the whole class of accident.
-os.environ.setdefault("POSTGRES_DB", "agenticos_test")
+# at all. A default that can only ever hit a test database costs nothing and
+# removes the whole class of accident.
+#
+# The process id is appended because the name used to be constant while
+# `tests/integration/conftest.py` calls `drop_all` unconditionally: two runs on
+# one machine - two worktrees, or one worktree and a `make test` - dropped and
+# recreated each other's tables mid-test, and reported failures belonging to
+# neither branch (#189). One database per pytest process removes the sharing
+# rather than scheduling around it; `tests/integration/conftest.py` creates it
+# and drops it again. A pid also separates `pytest-xdist` workers, which are
+# processes of their own.
+#
+# Deriving from whatever is already set, rather than defaulting, keeps two
+# properties: CI (which sets `POSTGRES_DB=test_db`) runs the same create-and-drop
+# path a laptop does, and a name that is not obviously a test database is still
+# refused by the guard in the integration conftest instead of being made to look
+# like one.
+os.environ["POSTGRES_DB"] = f"{os.environ.get('POSTGRES_DB', 'agenticos_test')}_p{os.getpid()}"
 
 from collections.abc import AsyncGenerator
 from unittest.mock import AsyncMock, MagicMock

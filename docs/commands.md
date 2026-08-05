@@ -21,11 +21,39 @@ Run these from the project root directory.
 | `make run` | Start development server with hot reload |
 | `make run-prod` | Start production server (0.0.0.0:8000) |
 | `make routes` | Show all registered API routes |
-| `make test` | Run tests with verbose output |
+| `make test` | Backend suite plus the 100% gate on the platform layer |
 | `make test-cov` | Run tests with coverage report (HTML + terminal) |
-| `make format` | Auto-format code with ruff |
-| `make lint` | Lint and type-check code (ruff + ty) |
+| `make format` | Auto-format code — ruff on the backend, prettier on the frontend |
+| `make lint` | Every static check: ruff, ruff format, ty, eslint, prettier, tsc, the backtick and i18n guards, and codespell over the whole tree |
+| `make lint-backend` / `make lint-frontend` | One half of the above. CI runs them in two different jobs, so either can be run on its own |
+| `make lint-spelling` | codespell over every tracked file. The pre-commit hook reads only the files a commit touches, so a misspelling that lands with its file waits there to refuse somebody else's unrelated commit |
+| `make build-frontend` | `next build`. Type-checks the route tree and fails on a server component that cannot render — which neither tsc nor vitest sees |
+| `make audit` | Audit the locked dependency set for known vulnerabilities (needs the network) |
 | `make clean` | Remove cache files (__pycache__, .pytest_cache, etc.) |
+
+### Before a pull request
+
+`make check` is every CI job except one, and the equality is deliberate rather
+than approximate: `.github/workflows/ci.yml` calls these same Make targets rather
+than repeating their commands, and `backend/tests/test_ci_parity.py` fails if a
+gating job grows a step `check` does not run — or the reverse.
+
+```bash
+make check   # lint, test, test-frontend-cov, build-frontend, docs-build, audit
+```
+
+About five minutes, serial, on a warm cache. What it deliberately leaves out:
+
+| Not in `check` | Why, and what to run instead |
+|---|---|
+| `e2e` | Needs a migrated database, a seeded organization and a running backend: `make dev && make platform-bootstrap && make test-e2e` |
+| The image build and Trivy scan | CI runs those only on a push to `main` |
+| `make test-migrations` | CI cycles the chain against a throwaway `test_db`. On a laptop `alembic downgrade base` points at whatever `backend/.env` says, which is usually the database with your own work in it |
+
+One gap no command can close: CI's `test` job has a Postgres beside it, so
+`tests/integration/` runs there, and locally it skips itself when nothing answers
+on 5432. `make check` says so at the end when that happens — `make docker-db`
+first if the change is anywhere near the database.
 | `make sandbox-token` | Generate the sandbox service's own `SANDBOXD_TOKEN` into `backend/.env`, once. `make dev` runs it for you; it never regenerates, because a new token orphans every workspace the service is holding. The connection form offers to store the same value in the vault, so it does not have to be pasted anywhere |
 
 

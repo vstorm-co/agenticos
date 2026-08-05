@@ -43,11 +43,23 @@ class ApprovalService:
         agent_id: UUID,
         tool_id: str,
         tool_args: dict[str, Any],
+        subagent_name: str | None = None,
+        subagent_agent_id: UUID | None = None,
     ) -> ToolApproval:
         """Park a tool call until a human decides.
 
         Called from inside a run, so it takes ids rather than an auth context -
         the agent, not a member, is what asks.
+
+        Args:
+            agent_id: The agent whose run this is, which is what scopes the row.
+            subagent_name: Which delegate is acting, when the call came from inside
+                a delegation. A delegate's gated tool reaches the run's own approval
+                channel, so without this the queue says `send_email` without saying
+                who is sending it - and a reviewer with only a tool name in front of
+                them is a reviewer approving blind.
+            subagent_agent_id: That delegate's own agent, or `None` for an inline
+                specialist, which has no agent of its own to name.
         """
         approval = await agent_run_repo.create_approval(
             self.db,
@@ -56,8 +68,16 @@ class ApprovalService:
             agent_id=agent_id,
             tool_id=tool_id,
             tool_args=tool_args,
+            subagent_name=subagent_name,
+            subagent_agent_id=subagent_agent_id,
         )
-        logger.info("Approval %s requested for tool %s on run %s", approval.id, tool_id, run_id)
+        logger.info(
+            "Approval %s requested for tool %s on run %s (delegate: %s)",
+            approval.id,
+            tool_id,
+            run_id,
+            subagent_name or "-",
+        )
         return approval
 
     async def list_pending(
