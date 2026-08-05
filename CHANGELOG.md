@@ -19,6 +19,30 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.19] - 2026-08-05
+
+### Added
+
+- **An offline audit of the skill bindings a published version can no longer reach**
+  ([#186](https://github.com/vstorm-co/agenticos/issues/186)). Publish-time validation
+  (0.0.8, #179) stops a *new* version binding a skill its publisher cannot see, but a
+  version published before that check keeps loading whatever its spec named — so a
+  published agent may be reading another member's private skill right now, and nothing
+  reported it. `agenticos cmd audit-skill-bindings` sweeps every **runnable** published
+  version — not just each agent's current pointer, but versions a non-terminal run will
+  resume on, reached through the delegation pin-closure — and names the agent, the version,
+  the skill and the publisher for each binding that publisher could not reach today.
+
+  Two edges it gets right, because an audit that cries wolf is one an operator learns to
+  ignore: the pin-closure honours `max_depth`, so a binding only an unreachable grandchild
+  holds is not flagged; and a disabled skill, or a delegate whose agent has been archived,
+  is dropped rather than reported, since neither can actually load. A version whose
+  publisher has since been **deleted** is a third answer, not "reachable" or not — the
+  report says so, because `published_by_user_id` is `SET NULL` and an operator needs to
+  know the difference. It **reports**, never unbinds: taking a skill off a published
+  version would change what a published agent does without anyone deciding, which is the
+  opposite of what publishing means here.
+
 ## [0.0.18] - 2026-08-05
 
 ### Fixed
@@ -860,7 +884,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.18...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.19...HEAD
+[0.0.19]: https://github.com/vstorm-co/agenticos/compare/v0.0.18...v0.0.19
 [0.0.18]: https://github.com/vstorm-co/agenticos/compare/v0.0.17...v0.0.18
 [0.0.17]: https://github.com/vstorm-co/agenticos/compare/v0.0.16...v0.0.17
 [0.0.16]: https://github.com/vstorm-co/agenticos/compare/v0.0.15...v0.0.16
