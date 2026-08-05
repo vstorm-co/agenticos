@@ -2411,11 +2411,18 @@ class AgentRunnerService:
         handed an approval naming a tool call it never asks about, and the model
         would be free to call something else.
 
+        A continuation that cannot be built leaves the run parked. The version's
+        spec is fetched and assembled *before* the row leaves the queue, so a
+        secret deleted since the park, a removed model profile or a capability
+        dropped in a deploy refuses this attempt rather than the run: the
+        decision stands, and resuming works again once the spec does.
+
         Raises:
             NotFoundError: If the run is not in this organization.
             BadRequestError: If the run is not parked, has no stored state, or
                 still has a decision outstanding. All three mean the caller is
-                about to replay something it should not.
+                about to replay something it should not. Also if the spec it was
+                parked on can no longer be built - see above.
         """
         run = await agent_run_repo.claim_parked_run(
             self.db, run_id, organization_id=ctx.organization_id
@@ -2435,10 +2442,6 @@ class AgentRunnerService:
         state = PausedRunState.model_validate(run.paused_state)
 
         decided, plan = await self._decisions(ctx, run=run, state=state)
-        # Out of the queue before anything is replayed: the row lock above only
-        # holds until this transaction commits, and what makes a second resume
-        # refuse afterwards is the status it finds.
-        await agent_run_repo.mark_running(self.db, run=run)
 
         agent, spec = await self._parked_spec(ctx, run)
         # The continuation traces where the original did: the environment that
@@ -2476,6 +2479,29 @@ class AgentRunnerService:
             ],
         )
         prepared.built.ledger.book(_spend_already_booked(run))
+
+        # Out of the queue once the build has succeeded, and before anything is
+        # replayed. Two different things keep two different resumes out, which is
+        # why this line sits between the build and the run rather than at either
+        # end:
+        #
+        # A resume arriving *while this one is still building* waits at
+        # `claim_parked_run` - the row lock is held for the whole transaction -
+        # and then reads the status written here, so building first widens no
+        # window. A resume arriving *after this transaction commits* has no lock
+        # to wait on, and what refuses it is finding the run no longer parked; so
+        # the status has to change before the tool call is replayed, not after.
+        #
+        # It is written last because a build refuses for reasons that have
+        # nothing to do with this run: a secret a binding names deleted since the
+        # park, a model profile removed, a capability dropped in a deploy, an
+        # MCP connection unshared. Flipping the row first left every one of those
+        # with a run stuck in `running`, which `claim_parked_run` never hands out
+        # again - a decision a person made, recorded against work that cannot
+        # continue. Nothing above has touched the row, so the run is still parked
+        # and still resumable, and no failure path can commit a status that was
+        # never written.
+        await agent_run_repo.mark_running(self.db, run=run)
 
         return await self._run(
             prepared,
