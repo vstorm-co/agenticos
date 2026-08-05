@@ -32,6 +32,20 @@ the wiring but what was found once it ran.
 
 ### Fixed
 
+- **The liveness probe reported version `1.0.0` from every deployment**, however many
+  releases it was behind. `GET /api/v1/health/live` read
+  `getattr(settings, "VERSION", "1.0.0")` against a setting that has never existed, so the
+  fallback was the only answer it ever gave — and the `getattr` is what made it silent
+  rather than an `AttributeError` on the first request. It now reports `app.__version__`,
+  the installed distribution, which is the same source the OpenAPI metadata and the CLI
+  already read and the thing a release commit actually moves.
+
+  Found by the automated reviewer on this release's own pull request, which is the right
+  place for it: the one claim a release makes is that the version is the same everywhere.
+  The test that should have caught it is named `test_liveness_probe_reports_the_build` and
+  asserted the status and the environment — everything except the build. It asserts the
+  version now, and that it is not the old fallback.
+
 - **`make check` now runs every job CI runs.** It was documented as "what CI
   runs" and ran about half of it. Missing entirely: `bun run build`, `pip-audit`
   and `mkdocs --strict`, none of which had any local equivalent; and eslint,
