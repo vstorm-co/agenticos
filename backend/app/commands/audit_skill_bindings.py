@@ -13,6 +13,11 @@ version published before it keeps handing out whatever its `skill_ids` named -
 including another member's private skill - on every run, and the only signal
 anybody gets is that the *next* publish of that agent is refused. This sweep is
 the offline half: it names those versions so an operator can decide what to do.
+
+It scans every version a run can load, not only `current_version_id`: a named
+environment can stay pinned to an older version while the default moves on, and
+a parent can pin a delegate version by id - both execute, so both are checked.
+See :func:`_executable_versions`.
 It is report-only on purpose. A spec is what a client exports into their own git
 repository, so silently unbinding a skill would rewrite something outside this
 deployment; the decision stays with a person.
@@ -165,11 +170,12 @@ async def _classify(
 async def _findings_for(db: AsyncSession, agent: Agent, version: AgentVersion) -> list[Finding]:
     """Every problematic binding in one running spec.
 
-    A skill named by the spec but not returned by the org-scoped fetch is
-    deleted, disabled-to-deletion or another tenant's id: it loads nothing at run
-    time (`resolve_for_agent` skips it), so it is a dangling reference rather than
-    an exposure and is left to that path. Only a skill that would actually load is
-    judged here.
+    Only a skill that would actually load is judged, which is exactly what
+    `resolve_for_agent` loads: present, this organization's, and enabled. A
+    skill_id the org-scoped fetch does not return is deleted or another tenant's,
+    and a disabled one is skipped by `resolve_for_agent` too - both hand nothing
+    to a run, so both are dangling references left to that path rather than
+    reported as an exposure that would fail the audit.
     """
     spec = AgentSpec.model_validate(version.spec)
     bindings = _bindings(spec)
@@ -182,7 +188,7 @@ async def _findings_for(db: AsyncSession, agent: Agent, version: AgentVersion) -
     findings: list[Finding] = []
     for binding in bindings:
         skill = skills.get(binding.skill_id)
-        if skill is None:
+        if skill is None or not skill.enabled:
             continue
         status = await _classify(
             db,
@@ -230,10 +236,54 @@ async def _with_publisher_email(
     return [replace(finding, publisher_email=email) for finding in findings]
 
 
+async def _executable_versions(db: AsyncSession) -> list[tuple[Agent, AgentVersion]]:
+    """Every version a run can load, each with its agent, deduplicated.
+
+    Three ways a frozen version reaches a run, and only the first is
+    `current_version_id`:
+
+    - the default environment, which is `current_version_id`;
+    - any named environment, which can stay pinned to an older version while the
+      default moves on;
+    - a `SubagentRef` in an executing spec, which pins a delegate version by id
+      and is followed by the caller - transitively, since that delegate's own
+      spec can pin further.
+
+    A sweep that looked only at the current version would report a production
+    environment pinned to an unsafe v1 as clean, and miss a parent still
+    delegating to a delegate's unsafe pinned version. So the environments seed the
+    set and the pins close it, id by id, until nothing new is reached.
+    """
+    seen: dict[UUID, tuple[Agent, AgentVersion]] = {}
+    frontier: list[AgentVersion] = []
+    seeds = [
+        *await agent_repo.list_current_versions(db),
+        *await agent_repo.list_environment_versions(db),
+    ]
+    for agent, version in seeds:
+        if version.id not in seen:
+            seen[version.id] = (agent, version)
+            frontier.append(version)
+
+    while frontier:
+        version = frontier.pop()
+        spec = AgentSpec.model_validate(version.spec)
+        pin_ids = [ref.agent_version_id for ref in spec.subagents]
+        for agent, pinned in await agent_repo.get_versions_with_agents(db, pin_ids):
+            # A cycle (A pins B, B pins A) or two parents pinning one delegate
+            # reach the same version twice; the first sighting wins and the rest
+            # are skipped here, which is what makes the closure terminate.
+            if pinned.id not in seen:
+                seen[pinned.id] = (agent, pinned)
+                frontier.append(pinned)
+
+    return list(seen.values())
+
+
 async def _scan(db: AsyncSession) -> list[Finding]:
-    """Every problematic binding across every published agent's current version."""
+    """Every problematic binding across every version a run can load."""
     findings: list[Finding] = []
-    for agent, version in await agent_repo.list_current_versions(db):
+    for agent, version in await _executable_versions(db):
         findings.extend(await _findings_for(db, agent, version))
     return findings
 

@@ -20,6 +20,7 @@ from app.commands import audit_skill_bindings as sweep
 from app.commands.audit_skill_bindings import BindingStatus
 from app.core.permissions import OrgRoleName
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
+from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill
@@ -107,6 +108,65 @@ async def _published_agent(
     return agent
 
 
+async def _agent(db, org: Organization, *, name: str = "Support") -> Agent:
+    agent = Agent(
+        id=uuid.uuid4(),
+        organization_id=org.id,
+        slug=f"agent-{uuid.uuid4().hex[:6]}",
+        name=name,
+        description=None,
+        draft_spec={"name": name},
+        status=AgentStatus.PUBLISHED.value,
+    )
+    db.add(agent)
+    await db.flush()
+    return agent
+
+
+async def _version(
+    db,
+    agent: Agent,
+    org: Organization,
+    *,
+    number: int,
+    skill_id: uuid.UUID | None = None,
+    publisher_id: uuid.UUID | None = None,
+    subagents: list[dict] | None = None,
+) -> AgentVersion:
+    spec: dict = {"name": agent.name}
+    if skill_id is not None:
+        spec["skill_ids"] = [str(skill_id)]
+    if subagents is not None:
+        spec["subagents"] = subagents
+    version = AgentVersion(
+        id=uuid.uuid4(),
+        agent_id=agent.id,
+        organization_id=org.id,
+        version=number,
+        spec=spec,
+        published_by_user_id=publisher_id,
+    )
+    db.add(version)
+    await db.flush()
+    return version
+
+
+async def _environment(
+    db, agent: Agent, org: Organization, version: AgentVersion, *, name: str, is_default: bool
+) -> AgentEnvironment:
+    env = AgentEnvironment(
+        id=uuid.uuid4(),
+        organization_id=org.id,
+        agent_id=agent.id,
+        name=name,
+        version_id=version.id,
+        is_default=is_default,
+    )
+    db.add(env)
+    await db.flush()
+    return env
+
+
 class TestTheSweepFindsAnOutOfReachBinding:
     async def test_a_private_skill_bound_by_a_non_owner_is_exposed(self, db) -> None:
         org, _ = await _org_with_owner(db)
@@ -156,6 +216,71 @@ class TestTheSweepFindsAnOutOfReachBinding:
         assert mine[0].status is BindingStatus.UNKNOWN
 
 
+class TestTheSweepReachesVersionsOtherThanTheDefault:
+    """The gap #248's first pass had: a run does not always load
+    `current_version_id`. A named environment can pin an older version, and a
+    parent can pin a delegate version - both execute, so both must be scanned."""
+
+    async def test_a_named_environment_pinned_to_an_unsafe_older_version_is_found(self, db) -> None:
+        org, _ = await _org_with_owner(db)
+        author = await _user(db)
+        colleague = await _user(db)
+        await _member(db, org, author, OrgRoleName.MEMBER)
+        private = await _skill(db, org, colleague, visibility=Visibility.PRIVATE)
+        own = await _skill(db, org, author, visibility=Visibility.PRIVATE)
+
+        agent = await _agent(db, org)
+        unsafe = await _version(
+            db, agent, org, number=1, skill_id=private.id, publisher_id=author.id
+        )
+        safe = await _version(db, agent, org, number=2, skill_id=own.id, publisher_id=author.id)
+        agent.current_version_id = safe.id
+        await db.flush()
+        await _environment(db, agent, org, safe, name="default", is_default=True)
+        await _environment(db, agent, org, unsafe, name="production", is_default=False)
+
+        findings = await sweep._scan(db)
+
+        mine = [f for f in findings if f.agent_slug == agent.slug]
+        assert len(mine) == 1
+        assert mine[0].version_number == 1
+        assert mine[0].skill_id == private.id
+
+    async def test_a_delegate_version_reached_only_through_a_pin_is_found(self, db) -> None:
+        org, _ = await _org_with_owner(db)
+        author = await _user(db)
+        colleague = await _user(db)
+        await _member(db, org, author, OrgRoleName.MEMBER)
+        private = await _skill(db, org, colleague, visibility=Visibility.PRIVATE)
+
+        delegate = await _agent(db, org, name="Researcher")
+        unsafe = await _version(
+            db, delegate, org, number=1, skill_id=private.id, publisher_id=author.id
+        )
+        safe = await _version(db, delegate, org, number=2, publisher_id=author.id)
+        delegate.current_version_id = safe.id  # the delegate's own default is clean
+        await db.flush()
+
+        parent = await _agent(db, org, name="Boss")
+        parent_v = await _version(
+            db,
+            parent,
+            org,
+            number=1,
+            publisher_id=author.id,
+            subagents=[{"agent_id": str(delegate.id), "agent_version_id": str(unsafe.id)}],
+        )
+        parent.current_version_id = parent_v.id
+        await db.flush()
+
+        findings = await sweep._scan(db)
+
+        mine = [f for f in findings if f.agent_slug == delegate.slug]
+        assert len(mine) == 1
+        assert mine[0].version_number == 1
+        assert mine[0].skill_id == private.id
+
+
 class TestTheSweepClearsAReachableBinding:
     async def test_an_org_visible_skill_is_not_reported(self, db) -> None:
         org, _ = await _org_with_owner(db)
@@ -174,6 +299,21 @@ class TestTheSweepClearsAReachableBinding:
         author = await _user(db)
         await _member(db, org, author, OrgRoleName.MEMBER)
         skill = await _skill(db, org, author, visibility=Visibility.PRIVATE)
+        agent = await _published_agent(db, org, skill_id=skill.id, publisher_id=author.id)
+
+        findings = await sweep._scan(db)
+
+        assert [f for f in findings if f.agent_slug == agent.slug] == []
+
+    async def test_a_disabled_skill_is_not_a_live_exposure(self, db) -> None:
+        """`resolve_for_agent` skips a disabled skill, so no run receives it."""
+        org, _ = await _org_with_owner(db)
+        author = await _user(db)
+        colleague = await _user(db)
+        await _member(db, org, author, OrgRoleName.MEMBER)
+        skill = await _skill(db, org, colleague, visibility=Visibility.PRIVATE)
+        skill.enabled = False
+        await db.flush()
         agent = await _published_agent(db, org, skill_id=skill.id, publisher_id=author.id)
 
         findings = await sweep._scan(db)

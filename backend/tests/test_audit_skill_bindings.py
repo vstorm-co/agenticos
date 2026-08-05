@@ -43,6 +43,7 @@ def _skill(*, owner_user_id: uuid.UUID | None = None, visibility: str = Visibili
         name="refund-policy",
         owner_user_id=owner_user_id,
         visibility=visibility,
+        enabled=True,
     )
 
 
@@ -225,6 +226,26 @@ class TestFindingsFor:
         assert findings == []
 
     @pytest.mark.anyio
+    async def test_a_disabled_skill_is_not_an_exposure(self):
+        """`resolve_for_agent` skips a disabled skill, so no run receives it -
+        reporting it would fail the audit over something nothing loads."""
+        skill = _skill(owner_user_id=uuid.uuid4())
+        skill.enabled = False
+        spec = AgentSpec(name="Support", skill_ids=[skill.id])
+        get_level = AsyncMock()
+        with (
+            patch.object(
+                sweep.skill_repo, "get_many", new=AsyncMock(return_value={skill.id: skill})
+            ),
+            patch.object(sweep.resource_grant_repo, "get_level", new=get_level),
+        ):
+            findings = await _findings_for(
+                MagicMock(), self._agent(), self._version(spec, publisher=uuid.uuid4())
+            )
+        assert findings == []
+        get_level.assert_not_awaited()
+
+    @pytest.mark.anyio
     async def test_an_exposed_binding_is_reported_with_the_publishers_email(self):
         publisher = uuid.uuid4()
         skill = _skill(owner_user_id=uuid.uuid4())
@@ -297,21 +318,113 @@ class TestFindingsFor:
         emails.assert_not_awaited()
 
 
-class TestScan:
+class TestExecutableVersions:
+    def _pair(self, spec: dict | None = None):
+        agent = SimpleNamespace(organization_id=uuid.uuid4(), slug=uuid.uuid4().hex[:6], name="A")
+        version = SimpleNamespace(
+            id=uuid.uuid4(),
+            version=1,
+            published_by_user_id=uuid.uuid4(),
+            spec=spec or {"name": "A"},
+        )
+        return agent, version
+
     @pytest.mark.anyio
-    async def test_it_walks_every_published_version(self):
-        agent_a = SimpleNamespace(organization_id=uuid.uuid4(), slug="a", name="A")
-        agent_b = SimpleNamespace(organization_id=uuid.uuid4(), slug="b", name="B")
-        version_a = SimpleNamespace(
-            version=1, published_by_user_id=uuid.uuid4(), spec={"name": "A"}
-        )
-        version_b = SimpleNamespace(
-            version=1, published_by_user_id=uuid.uuid4(), spec={"name": "B"}
-        )
+    async def test_it_unions_current_and_named_environment_pins_without_duplicates(self):
+        """The default environment is `current_version_id`, so it shows up in both
+        seeds - it must be counted once."""
+        current = self._pair()
+        named = self._pair()
         with (
             patch.object(
                 sweep.agent_repo,
                 "list_current_versions",
+                new=AsyncMock(return_value=[current]),
+            ),
+            patch.object(
+                sweep.agent_repo,
+                "list_environment_versions",
+                new=AsyncMock(return_value=[current, named]),
+            ),
+            patch.object(
+                sweep.agent_repo, "get_versions_with_agents", new=AsyncMock(return_value=[])
+            ),
+        ):
+            found = await sweep._executable_versions(MagicMock())
+        assert sorted(v.id for _, v in found) == sorted({current[1].id, named[1].id})
+
+    @pytest.mark.anyio
+    async def test_it_follows_a_pinned_delegate_version_a_named_environment_reaches(self):
+        """The delegate version is reachable only through the parent's pin, not
+        through any environment of its own."""
+        delegate = self._pair()
+        parent = self._pair(
+            {
+                "name": "Parent",
+                "subagents": [
+                    {"agent_id": str(uuid.uuid4()), "agent_version_id": str(delegate[1].id)}
+                ],
+            }
+        )
+        with (
+            patch.object(
+                sweep.agent_repo, "list_current_versions", new=AsyncMock(return_value=[parent])
+            ),
+            patch.object(
+                sweep.agent_repo, "list_environment_versions", new=AsyncMock(return_value=[])
+            ),
+            patch.object(
+                sweep.agent_repo,
+                "get_versions_with_agents",
+                new=AsyncMock(side_effect=[[delegate], []]),
+            ),
+        ):
+            found = await sweep._executable_versions(MagicMock())
+        assert delegate[1].id in {v.id for _, v in found}
+
+    @pytest.mark.anyio
+    async def test_a_pin_to_an_already_seen_version_does_not_loop(self):
+        """A pins B and B pins A: the closure must terminate, each seen once."""
+        a = self._pair()
+        b = self._pair()
+        a[1].spec = {
+            "name": "A",
+            "subagents": [{"agent_id": str(uuid.uuid4()), "agent_version_id": str(b[1].id)}],
+        }
+        b[1].spec = {
+            "name": "B",
+            "subagents": [{"agent_id": str(uuid.uuid4()), "agent_version_id": str(a[1].id)}],
+        }
+
+        async def _resolve(_db, ids):
+            return [b] if b[1].id in ids else [a] if a[1].id in ids else []
+
+        with (
+            patch.object(
+                sweep.agent_repo, "list_current_versions", new=AsyncMock(return_value=[a])
+            ),
+            patch.object(
+                sweep.agent_repo, "list_environment_versions", new=AsyncMock(return_value=[])
+            ),
+            patch.object(
+                sweep.agent_repo, "get_versions_with_agents", new=AsyncMock(side_effect=_resolve)
+            ),
+        ):
+            found = await sweep._executable_versions(MagicMock())
+        assert sorted(v.id for _, v in found) == sorted({a[1].id, b[1].id})
+
+
+class TestScan:
+    @pytest.mark.anyio
+    async def test_it_reports_a_finding_from_every_executable_version(self):
+        agent_a = SimpleNamespace(organization_id=uuid.uuid4(), slug="a", name="A")
+        agent_b = SimpleNamespace(organization_id=uuid.uuid4(), slug="b", name="B")
+        version_a = SimpleNamespace(id=uuid.uuid4(), version=1, published_by_user_id=uuid.uuid4())
+        version_b = SimpleNamespace(id=uuid.uuid4(), version=1, published_by_user_id=uuid.uuid4())
+        with (
+            patch.object(
+                sweep,
+                "_executable_versions",
                 new=AsyncMock(return_value=[(agent_a, version_a), (agent_b, version_b)]),
             ),
             patch.object(
