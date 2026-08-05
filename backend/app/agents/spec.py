@@ -340,6 +340,95 @@ class ObservabilitySpec(BaseModel):
     )
 
 
+class ModelSettingsSpec(BaseModel):
+    """How this agent asks its model to behave.
+
+    A deliberately small window onto Pydantic AI's `ModelSettings`. The full
+    set includes escape hatches for someone debugging a provider - raw bodies,
+    raw headers, token biases - which in a Builder are an invitation to paste
+    something that breaks a published agent, and knobs that only some providers
+    implement, which quietly mean something else after a model swap.
+    `_MODEL_SETTINGS_WITHDRAWN` says why each excluded key went. What is left
+    is what an agent author reaches for: how varied the answer is, how long it
+    may be, how long it may take, and whether tools may run at once.
+
+    Reasoning is not here. It is the `thinking` capability, and a second
+    control writing the same provider parameter would disagree with it silently.
+
+    **Every field is optional and unset means unset**, which is the one property
+    the rest of this model is arranged around. `None` is not "send the
+    provider's default" - it is "do not send this parameter", and the difference
+    is a run that fails: reasoning models reject `temperature` outright, so an
+    agent that never chose one must produce a request with no `temperature` key
+    at all. Hence the serializer: an unset field is *absent* from the stored
+    spec rather than stored as `null`, so nothing downstream - the merge in
+    `app/agents/factory.py`, a YAML export, the Builder deciding whether to
+    show a field as touched - has to know that a `null` here means "no".
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    temperature: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=2.0,
+        description=(
+            "How varied the answer is: near 0 for analysis and classification, "
+            "higher for drafting. Some providers cap this at 1, and reasoning "
+            "models reject it entirely - leave it unset there."
+        ),
+    )
+    top_p: float | None = Field(
+        default=None,
+        gt=0.0,
+        le=1.0,
+        description=(
+            "Nucleus sampling: consider only the most likely tokens making up "
+            "this much probability mass. Set this or temperature, not both."
+        ),
+    )
+    max_tokens: int | None = Field(
+        default=None,
+        ge=1,
+        le=200_000,
+        description="The longest answer the model may generate, in tokens",
+    )
+    parallel_tool_calls: bool | None = Field(
+        default=None,
+        description=(
+            "Whether the model may call several tools in one step. Turning it "
+            "off makes a run's tool calls arrive one at a time, which is easier "
+            "to follow and to approve."
+        ),
+    )
+    timeout: float | None = Field(
+        default=None,
+        gt=0.0,
+        le=600.0,
+        description=(
+            "How long one model request may take, in seconds, before it is "
+            "abandoned. An agent answering someone in a chat window has a "
+            "deadline the provider's own default does not know about."
+        ),
+    )
+
+    @model_serializer
+    def _only_what_was_set(self) -> dict[str, float | int | bool]:
+        """Serialise the settings this agent actually chose, and no others.
+
+        The same fix `ToolOverride` needed, for a sharper reason: a `null`
+        that survives to :func:`app.agents.factory.build_agent` is merged over
+        the model profile's own value and then handed to the provider, so one
+        unset field would both discard the profile's temperature and send
+        `temperature: null` to a model that refuses the parameter.
+        """
+        return {
+            name: value
+            for name in type(self).model_fields
+            if (value := getattr(self, name)) is not None
+        }
+
+
 DelegationMode = Literal["sync", "async", "auto"]
 
 
@@ -449,7 +538,7 @@ class SpecialistSpec(BaseModel):
         description="Which model profile it runs on; null runs it on the parent's",
     )
     model_settings: ModelSettingsSpec = Field(
-        default_factory=lambda: ModelSettingsSpec(),
+        default_factory=ModelSettingsSpec,
         description="Per-specialist overrides on top of its profile",
     )
     capabilities: list[CapabilityBindingSpec] = Field(
@@ -539,95 +628,6 @@ class SpecialistSpec(BaseModel):
             skill_ids=self.skill_ids,
             max_steps=self.max_steps,
         )
-
-
-class ModelSettingsSpec(BaseModel):
-    """How this agent asks its model to behave.
-
-    A deliberately small window onto Pydantic AI's `ModelSettings`. The full
-    set includes escape hatches for someone debugging a provider - raw bodies,
-    raw headers, token biases - which in a Builder are an invitation to paste
-    something that breaks a published agent, and knobs that only some providers
-    implement, which quietly mean something else after a model swap.
-    `_MODEL_SETTINGS_WITHDRAWN` says why each excluded key went. What is left
-    is what an agent author reaches for: how varied the answer is, how long it
-    may be, how long it may take, and whether tools may run at once.
-
-    Reasoning is not here. It is the `thinking` capability, and a second
-    control writing the same provider parameter would disagree with it silently.
-
-    **Every field is optional and unset means unset**, which is the one property
-    the rest of this model is arranged around. `None` is not "send the
-    provider's default" - it is "do not send this parameter", and the difference
-    is a run that fails: reasoning models reject `temperature` outright, so an
-    agent that never chose one must produce a request with no `temperature` key
-    at all. Hence the serializer: an unset field is *absent* from the stored
-    spec rather than stored as `null`, so nothing downstream - the merge in
-    `app/agents/factory.py`, a YAML export, the Builder deciding whether to
-    show a field as touched - has to know that a `null` here means "no".
-    """
-
-    model_config = ConfigDict(extra="forbid")
-
-    temperature: float | None = Field(
-        default=None,
-        ge=0.0,
-        le=2.0,
-        description=(
-            "How varied the answer is: near 0 for analysis and classification, "
-            "higher for drafting. Some providers cap this at 1, and reasoning "
-            "models reject it entirely - leave it unset there."
-        ),
-    )
-    top_p: float | None = Field(
-        default=None,
-        gt=0.0,
-        le=1.0,
-        description=(
-            "Nucleus sampling: consider only the most likely tokens making up "
-            "this much probability mass. Set this or temperature, not both."
-        ),
-    )
-    max_tokens: int | None = Field(
-        default=None,
-        ge=1,
-        le=200_000,
-        description="The longest answer the model may generate, in tokens",
-    )
-    parallel_tool_calls: bool | None = Field(
-        default=None,
-        description=(
-            "Whether the model may call several tools in one step. Turning it "
-            "off makes a run's tool calls arrive one at a time, which is easier "
-            "to follow and to approve."
-        ),
-    )
-    timeout: float | None = Field(
-        default=None,
-        gt=0.0,
-        le=600.0,
-        description=(
-            "How long one model request may take, in seconds, before it is "
-            "abandoned. An agent answering someone in a chat window has a "
-            "deadline the provider's own default does not know about."
-        ),
-    )
-
-    @model_serializer
-    def _only_what_was_set(self) -> dict[str, float | int | bool]:
-        """Serialise the settings this agent actually chose, and no others.
-
-        The same fix `ToolOverride` needed, for a sharper reason: a `null`
-        that survives to :func:`app.agents.factory.build_agent` is merged over
-        the model profile's own value and then handed to the provider, so one
-        unset field would both discard the profile's temperature and send
-        `temperature: null` to a model that refuses the parameter.
-        """
-        return {
-            name: value
-            for name in type(self).model_fields
-            if (value := getattr(self, name)) is not None
-        }
 
 
 def _binding_id(binding: Any) -> Any:
