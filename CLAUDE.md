@@ -124,7 +124,7 @@ make check                                        # every CI job but e2e — bef
 
 | | |
 |---|---|
-| `make lint` / `make format` | ruff + ty + eslint + prettier + tsc + the two guards |
+| `make lint` / `make format` | ruff + ty + eslint + prettier + tsc + the two guards + codespell |
 | `make lint-backend` / `make lint-frontend` | one half of it — CI runs them in two jobs |
 | `make test-fast` | no coverage — the write-run-write loop |
 | `make test` | backend + the 100% gate on the platform layer |

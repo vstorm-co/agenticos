@@ -45,6 +45,14 @@ jobs:
       - name: Lint, format-check and type-check the backend
         run: make lint-backend
 
+      # codespell over every tracked file. The pre-commit hook reads only the
+      # files a commit touches, so until #188 nothing had ever read the tree: a
+      # misspelling merged with its file, and the next person to touch that file
+      # for an unrelated reason had their commit refused by a word they did not
+      # write. This step is what keeps "the whole tree is clean" true.
+      - name: Spell-check the whole tree
+        run: make lint-spelling
+
     # The step that used to sit here ran the entire test suite - with no
     # database, in the lint job - to grep its output for `module-not-imported`.
     # That warning belongs to `[tool.coverage.run] source`, and this config

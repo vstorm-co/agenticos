@@ -31,7 +31,8 @@ after an edit it answers the same question thirty times slower.
 Then, once, before the push:
 
 ```bash
-make lint               # ruff, ruff format, ty, eslint, prettier, tsc, and the two guards
+make lint               # ruff, ruff format, ty, eslint, prettier, tsc, the two guards,
+                        # and codespell over every tracked file
 make test               # backend + the 100% gate on the platform layer
 make test-frontend-cov  # frontend + its gate: 100% lines/stmts/funcs, 97.5% branches
 make test-integration   # only if the change is near the database
