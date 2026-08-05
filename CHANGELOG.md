@@ -19,6 +19,96 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.8] - 2026-08-05
+
+Everything that landed after delegation and before the next feature: the branches that
+were stacked behind it, plus two more the same work surfaced. Nearly all of it is a defect
+delegation created or uncovered, and several are about a check that reported green while
+the thing it checked went unchecked.
+
+No schema change, `SPEC_VERSION` unchanged at **7**.
+
+### Fixed
+
+- **A delegation's recorded cost is its own, not the run around it**
+  ([#180](https://github.com/vstorm-co/agenticos/issues/180)). Cost was measured as the
+  growth of the run's shared ledger between the delegation starting and being settled — and
+  a **background** delegation is settled when it is next *polled*, which is arbitrarily
+  later than it finished. So a delegate that spent $0.01 while the parent went on to spend
+  $0.50 was recorded at **$0.51**, on its own run row, in its monthly total and in the
+  delegation panel.
+
+  Every `SpendEntry` now carries the delegation that booked it, and a delegation's cost is
+  its share of the ledger rather than a window over it. That also fixes the second half:
+  a mid-tree delegate no longer counts what its own delegates spent.
+
+  `has_unpriced_models` travels with the share and survives an approval park, so a row
+  cannot claim a precise cost for a delegation that had an unpriced request before the
+  approval.
+
+- **A cancelled run is recorded cancelled, and the row survives**
+  ([#171](https://github.com/vstorm-co/agenticos/issues/171)). `_run` caught
+  `BudgetExceeded` and `Exception` but not `CancelledError`, which derives from
+  `BaseException` — so a cancel passed straight through with the status left at its initial
+  `FAILED`, and because a propagating `BaseException` skips the session's auto-commit, even
+  that write rolled back and the row stayed `RUNNING` forever. It now records
+  `CANCELLED`, commits explicitly, and keeps the tokens already spent — the streaming
+  surface had this right and said so in a comment the non-streaming path did not follow.
+  Delegation reaches this path too, so a cancelled delegation now keeps its cost rather
+  than losing it.
+
+- **`skill_ids` is validated at publish, at both levels**
+  ([#179](https://github.com/vstorm-co/agenticos/issues/179)). It was the one reference a
+  spec could make that publish never checked — and skills carry grants that nothing
+  enforced, so a publisher whose role gives `SKILLS_VIEW: Scope.SHARED` could bind another
+  member's **private** skill by UUID and every runner of that agent then read its body.
+  Refused now, with the same deliberately indistinguishable "not found" wording the
+  collection check uses, so ids stay unprobeable. Versions published *before* the check are
+  a separate problem, tracked as [#186](https://github.com/vstorm-co/agenticos/issues/186).
+
+- **A delegation tool nothing could reach is no longer offered**
+  ([#182](https://github.com/vstorm-co/agenticos/issues/182)). `answer_subagent` exists so a
+  parent can answer a question its delegate asked, and no delegate here can ask one — the
+  library injects `ask_parent` for neither a configured delegate nor an autonomous
+  specialist. So it was a tool description in every delegating agent's context, on every
+  turn, for an action that cannot happen; tool descriptions are the strongest prompt surface
+  in this product.
+
+  It stays **declared** — a tool absent from a capability's `tools=` can be neither gated nor
+  renamed, and that half of the failure is silent — and the drift test now subtracts an
+  explicit table rather than skipping the capability. Seven tools are offered, nine under
+  `allow_dynamic`, ten declared.
+
+### Changed
+
+- **The chat wire format is behind the coverage gate at 100%**
+  ([#165](https://github.com/vstorm-co/agenticos/issues/165)). `app/services/agent_session.py`
+  decides every frame the dashboard WebSocket sends and every frame it accepts, and it was
+  in **neither** the coverage nor the `ty` include list — 63% covered, with `process_message`
+  and both terminal `complete` frames untested. Every surface reads this format, so a frame
+  renamed here is a frontend branch that silently stops matching, which is
+  [#144](https://github.com/vstorm-co/agenticos/issues/144) exactly.
+
+  Now 100% of 194 statements and 72 branches, in both lists, with 56 tests that assert the
+  frame that reached the socket rather than that a method was called. The author
+  mutation-tested it — 19 mutations, every frame name renamed, both terminal flags flipped,
+  the disconnect re-raise swallowed — and all 19 were caught, because 100% coverage is a
+  claim about lines executed and not about tests that would notice.
+
+  Two dead branches came out with it, one of which would have silently dropped the frame
+  carrying a run's answer had it ever been reachable.
+
+- **CodeQL's false positives no longer block a merge by hand**
+  ([#220](https://github.com/vstorm-co/agenticos/issues/220)). `github-code-quality` posts
+  each alert as a review thread, and the ruleset requires every thread resolved — so one
+  idiomatic pattern (`py/ineffectual-statement` on a bare `await <task>`, which suspends and
+  re-raises and is the whole point of the statement) cost eight hand-written replies on a
+  single pull request, with no `.github/codeql/` config in the repository to tune it. There
+  is one now, suppressing only what is demonstrably wrong for this codebase's idioms and
+  leaving everything else reporting — the inverse of #188 and #203, which were checks looking
+  at too little. `docs/code-review.md` now documents the CodeQL half: how alerts arrive, that
+  they gate through the ruleset, and where the config lives.
+
 ## [0.0.7] - 2026-08-05
 
 **Delegation.** An agent can hand work to named specialists instead of carrying every
@@ -571,7 +661,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.7...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.8...HEAD
+[0.0.8]: https://github.com/vstorm-co/agenticos/compare/v0.0.7...v0.0.8
 [0.0.7]: https://github.com/vstorm-co/agenticos/compare/v0.0.6...v0.0.7
 [0.0.6]: https://github.com/vstorm-co/agenticos/compare/v0.0.5...v0.0.6
 [0.0.5]: https://github.com/vstorm-co/agenticos/compare/v0.0.4...v0.0.5
