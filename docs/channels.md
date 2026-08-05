@@ -269,6 +269,12 @@ A child's text is never folded into the
 parent's answer: that would put words in the parent's mouth its own model never
 generated, and the conversation is persisted with them.
 
+A delegate can stop for a person too — a gated tool inside a specialist parks the
+whole turn in the approval queue. The panel then closes into a *waiting for a
+person* state rather than spinning on "working" for as long as the approver takes,
+and when the run resumes the delegation keeps the task id it parked under, so the
+same panel reopens rather than a second one appearing beside it.
+
 The assistant's answer is **not** in a bubble; only the person's message is. An answer
 is prose with headings, code and tables in it, and a rounded fill around that fights
 every one of them.
