@@ -254,7 +254,7 @@ pair it with `code_execution` or `knowledge` for that. No configuration.
 that is running.*
 `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task` — *steering or
 stopping one.*
-`create_agent`, `delegate` — declared, not offered. See below.
+`create_agent`, `delegate` — *a specialist the model writes for itself, when the author allows it.*
 
 One agent handing part of a job to another, each on its own model with its own
 knowledge and its own step limit, addressed by name. There are two shapes of
@@ -353,19 +353,38 @@ specialist, which cannot bind one at all: a connection is organization-scoped
 configuration, and reaching one through a specialist nobody published is the wrong
 door. Bind it on the parent and name it here.
 
-**`create_agent` and `delegate` are declared and not wired.** A tool absent from a
-capability's declaration cannot be gated by the approval policy or renamed by a
-binding, and the dangerous half of that is silent — so all ten are declared even
-though a default configuration offers eight. The two dynamic entry points stay
-unoffered because the library builds a run-time specialist from its own default
-model string: an agent outside this deployment's model catalog, its vault and,
-most importantly, its budget guard. `allow_dynamic` therefore changes nothing yet.
+**`create_agent` and `delegate` are offered only under `allow_dynamic`.** A tool
+absent from a capability's declaration cannot be gated by the approval policy or
+renamed by a binding, and the dangerous half of that is silent — so all ten are
+declared, and a default configuration offers eight.
 
-**The library's own general-purpose delegate is off**, against its default. It is a
-copy of the parent with no instructions of its own, on a model this deployment did
-not configure — so it is neither reviewable nor priced like anything else here. It
-stays configurable because a catch-all is a legitimate thing to want; it stays off
-so nobody arrives at one by accident.
+What the switch buys is a specialist the model writes itself: instructions and a
+model, and nothing else. It is built through the same `build_agent` an inline
+specialist comes through, on the run's shared budget guard and its approval
+channel, so its requests are priced and counted against the cap somebody set. That
+is the entire reason this took a factory rather than a flag — left to itself the
+library compiles a run-time specialist from its own default model string, which is
+an agent outside this deployment's model catalog, outside its vault and outside its
+budget guard: an unmetered request, possibly to a provider the organization holds no
+key for.
+
+The model may name only a model the organization has a profile for, and the refusal
+names the list. It may not attach capabilities: letting a model grant its own child
+a capability is the ungranted-scope failure wearing a new hat. It gets no knowledge,
+no delegates of its own, and nothing is persisted — keeping a specialist means
+publishing an agent, which is a person's action. `MAX_DYNAMIC_SPECIALISTS` bounds how
+many one run may keep, and a kept one lasts for the reply rather than the run
+([#175](https://github.com/vstorm-co/agenticos/issues/175)).
+
+!!! warning "`include_general_purpose` does not work"
+
+    The library's own general-purpose delegate is off by default here, and turning it
+    on does not give you one: the library compiles it from its own `default_model`, so
+    it either fails outright or — where a provider key happens to be in the
+    environment — runs a tenant's work on a deployment-wide credential. Tracked as
+    [#174](https://github.com/vstorm-co/agenticos/issues/174). A catch-all specialist
+    is a legitimate thing to want; write it as an inline specialist, where you can read
+    what it does.
 
 What the model is told about all of this is written here rather than by the
 library: the delegates by name and description, the mode this run will actually
