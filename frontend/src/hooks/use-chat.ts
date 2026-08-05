@@ -228,12 +228,6 @@ export function useChat(options: UseChatOptions = {}) {
           break;
         }
 
-        case "llm_started":
-        case "llm_completed": {
-          // LLM lifecycle events - optionally show status
-          break;
-        }
-
         case "tool_call": {
           // Add tool call to current message
           if (currentMessageIdRef.current) {
