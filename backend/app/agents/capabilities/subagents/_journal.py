@@ -82,6 +82,7 @@ from app.agents.capabilities.subagents._events import FrameLabels, frame_for
 from app.agents.deps import AgentDeps
 from app.agents.spec import DelegationMode
 from app.agents.subagent_events import (
+    SpecialistDefinition,
     SubagentAwaitingApproval,
     SubagentEventSink,
     SubagentFinished,
@@ -320,7 +321,12 @@ class Delegation:
         """
         return self.stable_id or self.task_id
 
-    async def ensure_started(self, task_id: str, sink: SubagentEventSink) -> None:
+    async def ensure_started(
+        self,
+        task_id: str,
+        sink: SubagentEventSink,
+        specialist: SpecialistDefinition | None = None,
+    ) -> None:
         """Announce this delegation, at most once.
 
         Called both from the stream - where the first event is the earliest
@@ -328,6 +334,11 @@ class Delegation:
         so a delegation that produced no events at all still opens its panel
         before closing it. A `subagent_complete` for a panel that was never
         opened is a delegation a reader never learns about.
+
+        `specialist` is the definition of a specialist the model invented at run
+        time, and `None` for every configured delegate and inline specialist - the
+        journal resolves it by name, so the announcement of a dynamic delegation
+        carries the only legible copy of what nothing else keeps.
         """
         if self.started:
             return
@@ -343,6 +354,7 @@ class Delegation:
                 # panel instead of guessing which one it belongs under. `None` for
                 # a delegation the run's own agent started.
                 parent_task_id=self.parent_task_id,
+                specialist=specialist,
             )
         )
 
@@ -393,6 +405,19 @@ class DelegationJournal:
 
     _running: int = field(default=0, init=False)
     _background: dict[str, Delegation] = field(default_factory=dict, init=False)
+    _dynamic_definitions: dict[str, SpecialistDefinition] = field(
+        default_factory=dict, init=False, repr=False
+    )
+    """What each specialist the model invented was built from, keyed by its name.
+
+    Filled by `_specialist_factory` the moment `create_agent` or `delegate` builds
+    one - both go through the factory - and read by :meth:`dynamic_definition` when
+    the delegation to it opens, so the opening frame can carry the definition. This
+    is the streamed half of what :meth:`record_created_specialists` snapshots for a
+    park: the registry keeps the kept ones across an approval, this keeps every
+    invented one legible to the surface for the length of the turn. Thrown away with
+    the journal when the turn ends, because a dynamic specialist is not persisted.
+    """
 
     def in_background(self) -> bool:
         """Whether the delegation executing in this task was started in the background.
@@ -608,6 +633,33 @@ class DelegationJournal:
             for config in self.registry.list_configs()
         ]
 
+    def record_dynamic_definition(
+        self, *, name: str, description: str, instructions: str, model: str
+    ) -> None:
+        """Remember what a model just invented, so the delegation to it can carry it.
+
+        Called from `_specialist_factory` the moment the library builds a specialist
+        the model wrote - `create_agent` and `delegate` both build through that
+        factory, so both are captured. The definition then rides the opening
+        `SubagentStarted` frame (see :meth:`dynamic_definition` and
+        :meth:`Delegation.ensure_started`), which is the only moment a surface can
+        read it: nothing persists a dynamic specialist past the turn.
+        """
+        self._dynamic_definitions[name] = SpecialistDefinition(
+            description=description, instructions=instructions, model=model
+        )
+
+    def dynamic_definition(self, name: str) -> SpecialistDefinition | None:
+        """The definition of the named specialist, if the model invented it this run.
+
+        `None` for a configured delegate or an inline specialist, which the factory
+        never built and so never recorded - and that `None` is exactly what tells a
+        surface the delegation is to something already keepable, needing no promote
+        offer. Read when a delegation opens, where the name is the one handle both
+        this and the streamed frame share.
+        """
+        return self._dynamic_definitions.get(name)
+
     def resuming(self) -> ResumedDelegation | None:
         """The place this delegation is being continued from, if it is being continued.
 
@@ -690,7 +742,7 @@ class DelegationJournal:
         if sink is None:
             return
         public = delegation.stable_id or task_id
-        await delegation.ensure_started(public, sink)
+        await delegation.ensure_started(public, sink, self.dynamic_definition(delegation.name))
         await sink(
             SubagentAwaitingApproval(
                 task_id=public, subagent=delegation.name, depth=delegation.depth
@@ -822,7 +874,7 @@ class DelegationJournal:
             )
         )
         if sink is not None:
-            await delegation.ensure_started(public, sink)
+            await delegation.ensure_started(public, sink, self.dynamic_definition(delegation.name))
             await sink(
                 SubagentFinished(
                     task_id=public,
@@ -871,7 +923,7 @@ class DelegationJournal:
         async def stream(
             _ctx: RunContext[AgentDeps], events: AsyncIterable[AgentStreamEvent]
         ) -> None:
-            await delegation.ensure_started(public, sink)
+            await delegation.ensure_started(public, sink, self.dynamic_definition(delegation.name))
             async for event in events:
                 frame = frame_for(event, labels)
                 if frame is not None:

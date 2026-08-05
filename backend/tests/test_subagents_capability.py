@@ -2005,6 +2005,9 @@ class TestNarration:
         assert len({frame.task_id for frame in sink.frames}) == 1
         assert {frame.depth for frame in sink.frames} == {0}
         assert sink.frames[-1].run_id == recorder.run_id
+        # A configured delegate is already keepable, so its opening frame carries no
+        # definition to promote - `specialist` is the signal for a dynamic one alone.
+        assert sink.frames[0].specialist is None
 
     async def test_a_nested_delegation_names_the_delegation_it_was_made_inside(self):
         """Depth says which level; only this says which panel.

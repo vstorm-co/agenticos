@@ -979,6 +979,17 @@ def _specialist_factory(dynamic: DynamicSpecialists, journal: DelegationJournal)
             # against exactly that list before this factory was reached.
             model=str(config["model"]),
         )
+        # Both entry points that invent a specialist - `create_agent` and
+        # `delegate` - build through this factory, so this is the one place that
+        # sees every dynamic specialist's definition. Recorded here so the opening
+        # frame of the delegation to it carries it, the only window a surface has to
+        # offer promoting a specialist nothing else keeps.
+        journal.record_dynamic_definition(
+            name=config["name"],
+            description=config["description"],
+            instructions=config["instructions"],
+            model=str(config["model"]),
+        )
         return _LazyAgent(
             ResolvedSubagent(
                 name=config["name"],

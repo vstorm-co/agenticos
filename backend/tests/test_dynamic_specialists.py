@@ -797,6 +797,25 @@ class TestADynamicDelegationIsAccountedForLikeAnyOther:
         assert {frame.subagent for frame in sink.frames} == {"summariser"}
         assert "subagent_start" in [frame.kind for frame in sink.frames]
 
+    async def test_its_definition_rides_the_opening_frame_so_a_surface_can_keep_it(self):
+        """A dynamic specialist is persisted nowhere, so its one legible copy is the
+        frame that announces the delegation to it. Everything the model wrote and the
+        model it named, carried so a surface can offer to promote it to a draft agent
+        while the run is still on screen - the only window there is."""
+        sink = Sink()
+        ledger = SpendLedger()
+        budget = _RunBudget(guard=BudgetGuard(ledger=ledger, provider="openai"))
+        runtime = a_runtime(dynamic=dynamic(specialist_builder(budget)), ledger=ledger)
+        args = delegate_args()
+
+        await call_tool(a_capability(runtime), a_context(sink), "delegate", args)
+
+        (started,) = [frame for frame in sink.frames if frame.kind == "subagent_start"]
+        assert started.specialist is not None
+        assert started.specialist.description == args["description"]
+        assert started.specialist.instructions == args["instructions"]
+        assert started.specialist.model == PROFILE
+
     async def test_a_specialist_kept_for_the_run_is_addressed_through_task(self):
         """`create_agent` registers it and `task` reaches it,
         which is what puts it back under the mode, the ceiling and the recording
