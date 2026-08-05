@@ -21,6 +21,7 @@ from pydantic_ai.messages import (
     ThinkingPartDelta,
 )
 
+from app.agents.ask_user import QuestionItem, render_answer
 from app.agents.capabilities.budget import BudgetExceeded
 from app.agents.subagent_events import SubagentEvent
 from app.core.exceptions import AppException, AuthorizationError
@@ -68,6 +69,14 @@ class AgentSession:
         self.current_conversation_id: str | None = None
         self._turn_task: asyncio.Task[None] | None = None
         self._ask_user_future: asyncio.Future[list[dict[str, Any]]] | None = None
+        # One question round on the wire at a time. The client renders a single
+        # `ask_user` form and its `ask_user_response` carries no correlation, and
+        # `_ask_user_future` is one slot - so two delegates asking at once (a
+        # fan-out of sync delegates, each reaching `ask_parent`) would otherwise
+        # have the second overwrite the first's future and strand it. The lock
+        # holds each round until its answer arrives, so questions queue rather
+        # than collide.
+        self._ask_lock = asyncio.Lock()
 
     async def handle_frame(self, data: dict[str, Any]) -> None:
         """Dispatch one incoming WebSocket frame.
@@ -206,7 +215,7 @@ class AgentSession:
                     conversation_id=(
                         UUID(self.current_conversation_id) if self.current_conversation_id else None
                     ),
-                    ask_user=self._ask_user,
+                    ask_user=self._ask_one,
                     stream=stream,
                     subagent_events=self._subagent_event,
                     # The chat may run a published agent on another of the
@@ -299,21 +308,37 @@ class AgentSession:
             logger.exception("Error processing agent request")
             await send_event(self.websocket, "error", {"message": str(e)})
 
+    async def _ask_one(self, question: str, options: list[str]) -> str:
+        """Put one question to the client and return the answer as a string.
+
+        The shape `AgentDeps.ask_user` promises, and what a delegate's `ask_parent`
+        calls. It adapts the one-question protocol to this surface's batch channel -
+        a list of one - so the WebSocket keeps a single wire format for one question
+        and several, and the delegate reads back the rendered answer.
+        """
+        item = QuestionItem(question=question, options=options)
+        answers = await self._ask_user([item.model_dump()])
+        return render_answer(answers[0] if answers else None)
+
     async def _ask_user(self, questions: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Pause the run: ask the client questions and block until they answer.
 
         Emits an `ask_user` event with the whole batch, then awaits a future the
         frame dispatcher completes when the matching `ask_user_response` arrives.
         The client returns a list of answers parallel to the questions.
+
+        Held under `_ask_lock` so a second round - another delegate's question -
+        waits for this one's answer rather than overwriting its future.
         """
-        loop = asyncio.get_running_loop()
-        fut: asyncio.Future[list[dict[str, Any]]] = loop.create_future()
-        self._ask_user_future = fut
-        try:
-            await send_event(self.websocket, "ask_user", {"questions": questions})
-            return await fut
-        finally:
-            self._ask_user_future = None
+        async with self._ask_lock:
+            loop = asyncio.get_running_loop()
+            fut: asyncio.Future[list[dict[str, Any]]] = loop.create_future()
+            self._ask_user_future = fut
+            try:
+                await send_event(self.websocket, "ask_user", {"questions": questions})
+                return await fut
+            finally:
+                self._ask_user_future = None
 
     async def _subagent_event(self, event: SubagentEvent) -> None:
         """Forward one frame from inside a delegation, under the frame's own name.
