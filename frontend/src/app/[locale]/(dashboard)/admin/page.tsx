@@ -21,6 +21,7 @@ import { LoadingState } from "@/components/states";
 import { Badge, Button } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
+import { qk } from "@/lib/query-keys";
 import { formatDate, timeAgo } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 
@@ -59,7 +60,7 @@ export default function AdminOverviewPage() {
   });
 
   const orgsQuery = useQuery({
-    queryKey: ["admin", "organizations"],
+    queryKey: qk.admin.organizations(),
     queryFn: async (): Promise<AdminOrganization[]> => {
       const data = await apiClient
         .get<{ items: AdminOrganization[] }>("/admin/organizations?limit=50")
