@@ -98,3 +98,9 @@ a required check, so it cannot fail a build — but its findings are review
 threads, and the ruleset above requires those resolved. Replying is not enough —
 somebody has to mark the thread resolved before the merge button comes back. See
 [code-review.md](code-review.md).
+
+CodeQL's quality half opens threads on the same terms, as
+`github-code-quality[bot]`, and cannot be filtered or told to stop —
+[code-review.md](code-review.md#codeql-and-the-findings-that-block-a-merge) lists
+the findings already adjudicated so that resolving one costs a click rather than
+an essay.
