@@ -19,6 +19,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.27] - 2026-08-05
+
+### Fixed
+
+- **A delegation panel closes when an approved resume's continuation raises**
+  ([#262](https://github.com/vstorm-co/agenticos/issues/262)). The panel reconciliation
+  from 0.0.16 (#173/#250) closed an awaiting panel from the resumed run's status — but only
+  when the resume *returned* one. If the continuation raised, `AgentRunnerService._run`
+  recorded the run `failed`/`cancelled` and re-raised, so `POST /runs/{id}/resume` returned
+  no result, the frontend skipped reconciliation, restored the already-decided approval, and
+  left the panel on `awaiting_approval` forever — with a retry then refused because the run
+  was already terminal. The resume route now conveys the recorded terminal status even on
+  the raising path, without swallowing the failure the caller still sees, so the panel
+  reaches `failed`/`cancelled` and the spent approval is not restored.
+
 ## [0.0.26] - 2026-08-05
 
 ### Added
@@ -1010,7 +1025,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.26...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.27...HEAD
+[0.0.27]: https://github.com/vstorm-co/agenticos/compare/v0.0.26...v0.0.27
 [0.0.26]: https://github.com/vstorm-co/agenticos/compare/v0.0.25...v0.0.26
 [0.0.25]: https://github.com/vstorm-co/agenticos/compare/v0.0.24...v0.0.25
 [0.0.24]: https://github.com/vstorm-co/agenticos/compare/v0.0.23...v0.0.24
