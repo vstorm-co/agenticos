@@ -75,16 +75,44 @@ class TestOrganization:
 
 class TestModel:
     @pytest.mark.anyio
-    async def test_an_existing_model_is_reused(self):
-        """Re-running bootstrap is what people do when unsure it worked; a
-        second model called "openai default" would be refused on its label
-        anyway, which is a confusing way to learn nothing was wrong."""
-        existing = MagicMock(id=uuid.uuid4(), label="GPT-4.1")
+    async def test_the_profile_it_already_created_is_reused(self):
+        """Re-running bootstrap is what people do when unsure it worked; the
+        profile it names is unique on its label, so a second run adopts the one
+        the first left rather than creating a duplicate it would be refused."""
+        existing = MagicMock(id=uuid.uuid4(), label="openai default")
         with patch(
-            "app.commands.bootstrap.credential_repo.list_profiles",
-            new=AsyncMock(return_value=[existing]),
-        ):
+            "app.commands.bootstrap.credential_repo.get_profile_by_label",
+            new=AsyncMock(return_value=existing),
+        ) as by_label:
             assert await _resolve_model(MagicMock(), _ctx(), "openai", None, None) == existing.id
+        assert by_label.await_args.args[1] == "openai default"
+
+    @pytest.mark.anyio
+    async def test_an_unrelated_profile_is_not_adopted(self):
+        """The bug this command was carrying: it reused the *first* profile it
+        found, so a developer database already holding an unrelated one - or a
+        profile a failed spec leaked - was adopted and `openai default` never
+        created. `make platform-bootstrap` promises a known starting point, and
+        that only holds if the profile it guarantees is the one it names."""
+        created = MagicMock(id=uuid.uuid4(), label="openai default")
+        with (
+            patch(
+                "app.commands.bootstrap.credential_repo.get_profile_by_label",
+                new=AsyncMock(return_value=None),
+            ),
+            patch(
+                "app.commands.bootstrap.OrganizationSecretService.create",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4(), hint="1234")),
+            ),
+            patch(
+                "app.commands.bootstrap.ModelProfileService.create_profile",
+                new=AsyncMock(return_value=created),
+            ) as create_profile,
+        ):
+            result = await _resolve_model(MagicMock(), _ctx(), "openai", "sk-test-1234", None)
+
+        assert result == created.id
+        assert create_profile.call_args.kwargs["label"] == "openai default"
 
     @pytest.mark.anyio
     async def test_a_key_is_stored_and_the_profile_points_at_it(self):
@@ -93,8 +121,8 @@ class TestModel:
 
         with (
             patch(
-                "app.commands.bootstrap.credential_repo.list_profiles",
-                new=AsyncMock(return_value=[]),
+                "app.commands.bootstrap.credential_repo.get_profile_by_label",
+                new=AsyncMock(return_value=None),
             ),
             patch(
                 "app.commands.bootstrap.OrganizationSecretService.create",
@@ -118,8 +146,8 @@ class TestModel:
         agent fail at its first message."""
         with (
             patch(
-                "app.commands.bootstrap.credential_repo.list_profiles",
-                new=AsyncMock(return_value=[]),
+                "app.commands.bootstrap.credential_repo.get_profile_by_label",
+                new=AsyncMock(return_value=None),
             ),
             patch(
                 "app.commands.bootstrap.ModelProfileService.create_profile",
@@ -136,8 +164,8 @@ class TestModel:
         profile = MagicMock(id=uuid.uuid4(), label="x")
         with (
             patch(
-                "app.commands.bootstrap.credential_repo.list_profiles",
-                new=AsyncMock(return_value=[]),
+                "app.commands.bootstrap.credential_repo.get_profile_by_label",
+                new=AsyncMock(return_value=None),
             ),
             patch(
                 "app.commands.bootstrap.OrganizationSecretService.create",
