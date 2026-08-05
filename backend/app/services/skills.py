@@ -204,8 +204,25 @@ class SkillService:
     async def resolve_for_agent(self, ctx: AuthContext, skill_ids: list[UUID]) -> list[Skill]:
         """The enabled skills an agent is bound to.
 
+        Scoped to the run's organization and **not** to the runner's own access,
+        which is deliberate and is the same rule delegates and collections follow:
+        the binding is checked once, against the publisher, when the agent is
+        published, and the agent then reads it for everyone who may run it. See
+        `_skill_problems` in `app/services/agent_registry.py` for the check.
+
+        Re-checking here would be wrong twice over. `resolve_access` refuses every
+        context with no subject, so an API key, an embedded widget and a channel
+        message - the surfaces this platform exists to serve - would each lose
+        every skill the agent has. And where there *is* a subject, an agent's
+        instructions would change with who asked: an Operator whose role reaches
+        only their own skills would get a different answer from the same published
+        version, with the difference visible nowhere.
+
         A skill deleted or disabled after publish is skipped rather than failing
-        the run: the agent is less capable, not broken.
+        the run: the agent is less capable, not broken. Named in the log with the
+        organization, because from inside one tenant a row that was deleted and a
+        row that belongs to another tenant leave the same absence - and the second
+        is a spec somebody should look at rather than a skill somebody removed.
         """
         if not skill_ids:
             return []
@@ -214,7 +231,11 @@ class SkillService:
         for skill_id in skill_ids:
             skill = found.get(skill_id)
             if skill is None or not skill.enabled:
-                logger.warning("Agent references skill %s which is gone or disabled", skill_id)
+                logger.warning(
+                    "Agent references skill %s which is disabled, deleted, or not org %s's",
+                    skill_id,
+                    ctx.organization_id,
+                )
                 continue
             resolved.append(skill)
         return resolved
