@@ -13,6 +13,7 @@
  * in the order the parent asked, not in whichever order a hash lands.
  */
 
+import { ApiError } from "@/lib/api-error";
 import type { Delegation, DelegationStatus, SubagentFrame, SubagentStartFrame } from "@/types";
 import type { RunStatus } from "@/types/runs";
 
@@ -226,6 +227,31 @@ export function resolveAwaitingOnResume(current: Delegation[], runStatus: RunSta
   return current.map((delegation) =>
     delegation.status === "awaiting_approval" ? { ...delegation, status: resolved } : delegation,
   );
+}
+
+/**
+ * The terminal run status a *failed* resume reports, or null when it reports none.
+ *
+ * `POST /runs/{id}/resume` answers with the run's status when it returns - and the
+ * caller reconciles its panels from that (`resolveAwaitingOnResume`). When the
+ * continuation *raises*, there is no answer: the backend records the run terminal,
+ * commits it, and re-raises carrying that status in the error envelope's
+ * `details.status` (code `RUN_EXECUTION_FAILED`). This reads it back so the same
+ * reconciliation runs on the error path, closing a panel the raising resume would
+ * otherwise leave waiting forever (agenticos#262).
+ *
+ * Only a genuinely terminal status counts. A resume that could not be *built* - a
+ * secret deleted since the park, a model profile removed - leaves the run still
+ * parked and carries no status here; that returns null, and the caller restores the
+ * decision for a retry that can now succeed. `running` and `awaiting_approval`
+ * likewise return null: neither is an outcome to close a panel to.
+ */
+export function resumeFailureStatus(error: unknown): RunStatus | null {
+  if (!(error instanceof ApiError)) return null;
+  const status = error.details?.status;
+  return typeof status === "string" && status in TERMINAL_DELEGATION_STATUS
+    ? (status as RunStatus)
+    : null;
 }
 
 /** The delegations started from this one, in the order they started. */

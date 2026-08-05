@@ -25,6 +25,7 @@ import {
   applyDelegationFrame,
   closeOpenDelegations,
   resolveAwaitingOnResume,
+  resumeFailureStatus,
 } from "@/lib/delegations";
 import { WS_URL } from "@/lib/constants";
 import { toast } from "sonner";
@@ -691,9 +692,22 @@ export function useChat(options: UseChatOptions = {}) {
           });
         }
       } catch (error) {
-        // Put it back rather than swallowing it. A decision that failed to
-        // record is a run still parked, and a panel that vanished is a person
-        // believing they unblocked it.
+        const terminalStatus = resumeFailureStatus(error);
+        if (terminalStatus !== null) {
+          // The continuation itself failed. The backend recorded the run terminal
+          // and committed it before re-raising, so the run is no longer parked and
+          // this resume cannot be retried - restoring the approval would only offer
+          // a button that 400s. Close the delegate panels to that outcome instead,
+          // the closing the resume answer would have carried had it returned, and
+          // still surface the failure (agenticos#262).
+          setDelegations((current) => resolveAwaitingOnResume(current, terminalStatus));
+          toast.error(getErrorMessage(error));
+          return;
+        }
+        // The decision failed to record, or the resume could not be built (a secret
+        // deleted since the park): the run is still parked, so put the approval back
+        // rather than swallowing it - a panel that vanished is a person believing
+        // they unblocked it, and the retry can now succeed.
         setPendingApproval(parked);
         toast.error(getErrorMessage(error));
       }
