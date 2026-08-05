@@ -18,7 +18,12 @@ vi.mock("@/hooks", () => ({
   // Delegation's panel reads the agent listing, the caller's permissions and a
   // delegate's history; the specialist editor below it reads three catalogs.
   // None of them is this file's subject - `subagents-section` covers them.
-  useAgents: () => ({ agents: [], total: 0, isLoading: false }),
+  useAgents: () => ({
+    agents: [],
+    total: 0,
+    isLoading: false,
+    promote: { mutate: vi.fn(), isPending: false },
+  }),
   usePermissions: () => ({ can: () => true, isLoading: false }),
   useAgentVersions: () => ({ versions: [], isLoading: false }),
   useModelProviders: () => ({ catalog: [], profiles: [], isLoading: false }),
@@ -102,6 +107,7 @@ function renderWorkbench(props: Partial<Parameters<typeof CapabilityWorkbench>[0
       onChange={vi.fn()}
       subagents={[]}
       onSubagentsChange={vi.fn()}
+      modelProfileId={null}
       {...props}
     />,
   );
@@ -230,6 +236,7 @@ describe("the frame the two panes sit in", () => {
         onChange={vi.fn()}
         subagents={[]}
         onSubagentsChange={vi.fn()}
+        modelProfileId={null}
       />,
     );
 
@@ -245,6 +252,7 @@ describe("the frame the two panes sit in", () => {
         onChange={vi.fn()}
         subagents={[]}
         onSubagentsChange={vi.fn()}
+        modelProfileId={null}
       />,
     );
 
@@ -365,6 +373,7 @@ describe("the workspace, which is a row like the rest and a detail unlike it", (
         onChange={vi.fn()}
         subagents={[]}
         onSubagentsChange={vi.fn()}
+        modelProfileId={null}
       />,
     );
   }
