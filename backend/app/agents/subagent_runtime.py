@@ -128,17 +128,26 @@ class DynamicSpecialists:
     may hold no key for, priced by nothing and metered by nothing, which is an
     unmetered model request and the one thing this platform exists to refuse.
 
-    Nothing here is persisted, and that is deliberate rather than unfinished.
-    Keeping a specialist means publishing an agent, which is a person's action; one
-    invented at run time is held in a registry the delegation library creates per
-    built agent, so it lasts as long as that agent does and no longer.
+    Nothing here is persisted *across runs*, and that is deliberate rather than
+    unfinished. Keeping a specialist means publishing an agent, which is a person's
+    action; one invented at run time lives no longer than the run it was invented
+    in.
 
-    Which is *not* the same as "for the run", and the difference is worth stating
-    because it is visible to a model: a run that parks on an approval is built again
-    when it is continued, so a specialist created before the park is gone after it,
-    and the transcript still carries the library's "created successfully". The model
-    is told so in `create_agent`'s description, and `task` answers "unknown
-    subagent" rather than doing something surprising - see agenticos#175.
+    Within that run it does now survive an approval park, which it did not before
+    (agenticos#175). The delegation library holds a `create_agent` registration in a
+    registry it creates per *built* agent, and a run that parks on an approval is
+    built again when it is continued - so the registration was lost across the park
+    while the replayed transcript still carried the library's "created successfully",
+    and `task` then answered "unknown subagent". The fix carries the registrations
+    forward in `PausedRunState` and re-registers them on resume through the same
+    build path, so a specialist created before a park is reachable after it. See
+    :class:`RegisteredSpecialist` and
+    `app.agents.capabilities.subagents._capability.build_delegation`.
+
+    A specialist is still not carried across conversation *turns*: each turn is its
+    own build with no paused state, so a name created in one reply is unknown in the
+    next, and `create_agent`'s description tells the model to create it again if
+    `task` says so.
     """
 
     build: DynamicSpecialistBuilder
@@ -159,6 +168,30 @@ class DynamicSpecialists:
     profile is gone, so "an organization with no usable model" is not a state a
     run reaches.
     """
+
+
+@dataclass(frozen=True)
+class RegisteredSpecialist:
+    """One specialist a run's model kept with `create_agent`, as it survives a park.
+
+    Enough to rebuild the specialist and no more: the four things the model wrote
+    when it invented one, which is exactly what `create_agent` handed the library
+    to compile. It carries no built agent and no budget guard - those are products
+    of the run, and a resume builds a fresh one of each, which is the whole point
+    of re-registering rather than storing the agent itself.
+
+    Plain scalars, for the reason everything on :class:`ParkedDelegation` is: this
+    is written into `agent_runs.paused_state` as JSON and read back in another
+    process. The registrations of the *run's own agent* only - a specialist a
+    nested delegate kept is out of scope here, the same way a nested delegate's
+    conversation is carried per level on :class:`ParkedDelegation` rather than
+    flat here.
+    """
+
+    name: str
+    description: str
+    instructions: str
+    model: str
 
 
 @dataclass(frozen=True)
@@ -394,6 +427,14 @@ class DelegationStash:
 
     The default is empty on both sides, which is a preview, a unit test, or a run
     that never delegated - and in each case nothing parks and nothing resumes.
+
+    `registered` and `to_register` are the same two directions for the specialists
+    a model kept with `create_agent`, and both hold the *run's own agent's* only -
+    the delegation capability writes and reads them at depth 0. A nested delegate
+    has its own registry that a nested `create_agent` writes into, and carrying one
+    of those across a park would have to hang off the delegate's own frame the way
+    its conversation does; that is not done here, so a specialist a nested delegate
+    kept is still lost across a park.
     """
 
     parked: list[ParkedDelegation] = field(default_factory=list)
@@ -405,6 +446,24 @@ class DelegationStash:
     resuming: dict[str, ResumedDelegation] = field(default_factory=dict)
     """Keyed by the `task` call the delegation was made from, which is the only
     thing the toolset knows about a delegation before it starts one."""
+
+    registered: list[RegisteredSpecialist] = field(default_factory=list)
+    """The run's own agent's kept specialists, snapshotted when the run ends.
+
+    Written by the delegation capability's `wrap_run` at depth 0, from the library
+    registry it owns, and read once by the runner to fill `PausedRunState` when the
+    run parks. Empty for a run that kept none, and for every nested level - a
+    snapshot at depth 0 is the whole of what a resume can put back, because that is
+    the only registry `to_register` seeds."""
+
+    to_register: list[RegisteredSpecialist] = field(default_factory=list)
+    """The kept specialists a resume re-registers before the replay, or empty.
+
+    The other direction of `registered`: the runner fills it from
+    `PausedRunState.dynamic_specialists`, and the depth-0 delegation capability
+    rebuilds each one into a fresh registry through the run's own build path, so a
+    resumed specialist meters against the run's shared budget exactly as it did
+    before the park. Never non-empty on a fresh run, and read only at depth 0."""
 
     spent: dict[str, DelegationSpend] = field(default_factory=dict)
     """What each delegation being continued had already cost, on the same key.
