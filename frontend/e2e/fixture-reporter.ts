@@ -48,7 +48,24 @@ export default class FixtureReporter implements Reporter {
   onEnd(): void {
     if (this.failures.length === 0) return;
 
+    // At least this many: a test dropped by `maxFailures` or by a failed serial
+    // suite does report a `skipped` result, so this undercounts in those runs
+    // rather than overcounting. Zero is the ordinary answer to
+    // `--project=seed`, where there was never anything behind the fixture to skip.
     const neverRan = this.planned - this.reported.size;
+    const consequence =
+      neverRan === 0
+        ? [
+            "  Nothing was waiting on it in this run, so nothing was skipped — but the",
+            "  same failure in a full run takes every product spec with it.",
+          ]
+        : [
+            `  ${neverRan} spec${neverRan === 1 ? "" : "s"} never ran: they depend on the project above, so`,
+            "  Playwright skipped them. Nothing here says a feature is broken. Read the",
+            "  failure above, and treat a green re-run as evidence about the fixture",
+            "  rather than about the branch.",
+          ];
+
     const rule = "─".repeat(78);
     const lines = [
       "",
@@ -57,10 +74,7 @@ export default class FixtureReporter implements Reporter {
       "",
       ...this.failures.map((failure) => `    ${failure}`),
       "",
-      `  ${neverRan} spec${neverRan === 1 ? "" : "s"} never ran: they depend on the project above, so`,
-      "  Playwright skipped them. Nothing here says a feature is broken. Read the",
-      "  failure above, and treat a green re-run as evidence about the fixture",
-      "  rather than about the branch.",
+      ...consequence,
       rule,
       "",
     ];
@@ -70,7 +84,7 @@ export default class FixtureReporter implements Reporter {
       // A workflow command has to be one line, so the newlines are escaped the
       // way GitHub wants them. This is what puts the sentence on the checks page.
       const body = [
-        `${neverRan} spec(s) never ran — the failure is in a fixture project, not in a product spec.`,
+        `${neverRan} spec(s) never ran - the failure is in a fixture project, not in a product spec.`,
         ...this.failures,
       ].join("%0A");
       process.stdout.write(`::error title=E2E fixture failed, no product spec ran::${body}\n`);

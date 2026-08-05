@@ -140,9 +140,9 @@ export function pageHeading(page: Page, name?: string | RegExp): Locator {
  * Submit a dialog, and do not return until the page has acted on what it wrote.
  *
  * This replaces `click(submit)` followed straight away by
- * `expect(theNewRow).toBeVisible()`. That shape sat at five sites, flaked at
- * four of them, and cost three separate diagnoses (#132) — always with the same
- * useless message, `element(s) not found`, sixteen seconds later.
+ * `expect(theNewRow).toBeVisible()`. That shape sat at six sites, was seen to
+ * flake at four of them, and cost three separate diagnoses (#132) — always with
+ * the same useless message, `element(s) not found`, sixteen seconds later.
  *
  * The message is why it cost three. **An open Radix dialog takes the rest of the
  * page out of the accessibility tree**: while one is on screen,
@@ -159,17 +159,29 @@ export function pageHeading(page: Page, name?: string | RegExp): Locator {
  *    shape never printed. A refused create now reads `409 … name already in
  *    use`; a submit that never reached the network reads as a missing response
  *    rather than as a missing row.
- * 2. **The dialog closing.** Every dialog on these surfaces closes only once its
- *    `mutateAsync` has resolved, and each mutation's `onSuccess` *awaits* the
- *    invalidation before resolving — so a hidden dialog is the app's own
- *    statement that the list behind it has already been refetched. That is
- *    exactly the window the old assertion raced, and this closes it without a
- *    longer timeout. A longer timeout would only make the race slower to fail.
+ * 2. **The dialog closing.** Every one of these dialogs closes only after the app
+ *    has finished the work it does around the write: five of the six write
+ *    through a `useMutation` whose `onSuccess` *awaits* `invalidateQueries`, and
+ *    TanStack resolves `mutateAsync` only once that callback has returned; the
+ *    knowledge base is the exception, where `useKnowledgeBases.createKB` writes
+ *    the row into the cache with `setQueryData` and the dialog closes after that.
+ *    Either way an open dialog means the app is not done, and waiting for it to
+ *    shut is what stops a spec asserting into the middle of a mutation.
  *
- * The list's own `GET` is deliberately not waited on as a third step. Two of the
- * five callers never make one — `useKnowledgeBases` writes the new row straight
- * into the query cache — and at the other three it cannot outlive the dialog,
- * per (2). Waiting on a request that does not exist would hang the two.
+ * **What this does not promise, and cannot:** that the row is now on the page.
+ * The list's refetch can be answered with the pre-write list even though the row
+ * is committed and both server layers return it — about once in eight runs, and
+ * filed as #230. So a closed dialog is the app saying it is finished, not proof
+ * that it finished correctly, and a caller that needs the row rendered must
+ * either be a spec whose subject *is* that rendering (and take #230's flake, or
+ * reload first, as `vault.spec.ts` does) or ask the API instead (as every step of
+ * `seed.setup.ts` now does, because a fixture step's job is that the fixture
+ * exists).
+ *
+ * The list's own `GET` is deliberately not waited on as a third step. The
+ * knowledge base never makes one, so a caller waiting for it would hang — and
+ * where one is made, waiting for it buys nothing the dialog does not already
+ * give, since #230 is about the answer being wrong rather than late.
  */
 export async function submitDialog(
   page: Page,
@@ -193,7 +205,16 @@ export async function submitDialog(
   // waiting for a second write that nobody is going to make.
   const answered = page.waitForResponse(
     (response) =>
-      new URL(response.url()).pathname.startsWith(path) && response.request().method() === method,
+      new URL(response.url()).pathname.startsWith(path) &&
+      response.request().method() === method &&
+      // A 401 on this path is not the answer. `apiClient.send` recovers from an
+      // expired access token by refreshing and re-issuing the same write, so the
+      // app acts on the *retry* — and a helper that stopped at the first response
+      // would fail a write that succeeded, which is precisely the class of flake
+      // this exists to remove. A refresh that itself fails makes no second write,
+      // so that arrives as a missing response and the `/api/auth/refresh` line in
+      // the trace is what names it.
+      response.status() !== 401,
     // Matched to `expect.timeout` rather than left at Playwright's 30s. A submit
     // that never reached the network should be reported no slower than the
     // assertion this replaces reported nothing at all.
@@ -203,10 +224,15 @@ export async function submitDialog(
   await submit.click();
 
   const response = await answered;
-  expect(
-    response.ok(),
-    `${method} ${new URL(response.url()).pathname} answered ${response.status()}: ${await response.text()}`,
-  ).toBe(true);
+  if (!response.ok()) {
+    // The body is read only here, and the guard is what makes that possible:
+    // `text()` throws outright on a redirect, so a message built eagerly would
+    // replace the diagnosis with a worse one than the shape this replaces had.
+    expect(
+      response.ok(),
+      `${method} ${new URL(response.url()).pathname} answered ${response.status()}: ${await response.text()}`,
+    ).toBe(true);
+  }
 
   await expect(
     dialog,

@@ -25,7 +25,6 @@ import {
   SEEDED_SKILL_DESCRIPTION,
   SEEDED_SKILL_NAME,
   pageHeading,
-  skillCard,
   submitDialog,
 } from "./helpers";
 
@@ -49,6 +48,21 @@ import {
  * happen before they can be invited anywhere), and reading the invitation token
  * off the reply to sending it (it is emailed, the inviter's screen deliberately
  * never prints it, and a test has no inbox).
+ *
+ * **Every step asserts through the API, not by finding the new row on screen**,
+ * and that line is the whole of #132. A step whose job is "the fixture exists"
+ * used to prove it by waiting for the row to appear in a list — which fails when
+ * the list has not caught up, and a failure here skips every product spec behind
+ * it, so a browser-side staleness bug arrived on pull requests looking like a
+ * product regression. It reproduces locally about once in eight runs of this
+ * file, and is filed as #230: the write is accepted, the row is committed, both
+ * server layers answer a list containing it, and the page goes on rendering the
+ * one without it.
+ *
+ * Whether the row *renders* is a product claim and belongs to a product spec —
+ * `vault.spec.ts` and `skills.spec.ts` assert exactly that against the rows this
+ * file leaves behind, on a page they loaded themselves. The MCP step has said so
+ * in its own comment for a while; the rest of the file now agrees with it.
  */
 
 setup.use({ storageState: AUTH_STATE });
@@ -76,7 +90,7 @@ setup("a skill exists", async ({ page }) => {
     path: "/api/skills",
   });
 
-  await expect(skillCard(page, SEEDED_SKILL_NAME)).toBeVisible();
+  await nowThere(page, "/api/skills", "name", SEEDED_SKILL_NAME);
 });
 
 setup("a knowledge base exists", async ({ page }) => {
@@ -88,17 +102,19 @@ setup("a knowledge base exists", async ({ page }) => {
   await page.getByRole("button", { name: "New knowledge base" }).first().click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Name").fill(SEEDED_KB_NAME);
-  // The fifth site of the same shape, and the only one that has not flaked yet
-  // — because `getByText` never consults the accessibility tree, so an open
-  // dialog does not hide the row from it. The refusal it cannot report is the
-  // same one, so it goes through the same helper.
+  // The one site of this shape that has never flaked — because `getByText` does
+  // not consult the accessibility tree, so an open dialog does not hide the row
+  // from it. The refusal it cannot report is the same one, so it goes through
+  // the same helper. It is also the only caller whose write is not a
+  // `useMutation`: `createKB` writes the row into the cache and returns, and the
+  // dialog closes after that.
   await submitDialog(page, {
     dialog,
     submit: dialog.getByRole("button", { name: "Create", exact: true }),
     path: "/api/kb",
   });
 
-  await expect(page.getByText(SEEDED_KB_NAME, { exact: true }).first()).toBeVisible();
+  await nowThere(page, "/api/kb", "name", SEEDED_KB_NAME);
 });
 
 setup("a draft agent exists", async ({ page }) => {
@@ -163,7 +179,7 @@ async function storeSecret(
     path: "/api/secrets",
   });
 
-  await expect(page.getByRole("main").getByText(name)).toBeVisible();
+  await nowThere(page, "/api/secrets", "name", name);
 }
 
 setup("a provider key is stored", async ({ page }) => {
@@ -222,11 +238,7 @@ setup("the organization has connected an MCP server", async ({ page }) => {
   // The probe behind "Connect & check" dials a host that answers 405, so the
   // connection is stored with an error status. That is the correct outcome for a
   // fixture; a red dot is not a failed seed.
-  await expect
-    .poll(() => alreadyThere(page.request, "/api/mcp-connections", "name", SEEDED_ORG_MCP_NAME), {
-      message: "the organization MCP connection was never stored",
-    })
-    .toBe(true);
+  await nowThere(page, "/api/mcp-connections", "name", SEEDED_ORG_MCP_NAME);
 });
 
 setup("a colleague is a member of the organization", async ({ page, browser }) => {
@@ -268,6 +280,26 @@ async function alreadyThere(
 ): Promise<boolean> {
   const list = await json<{ items: Record<string, unknown>[] }>(request, path);
   return list.items.some((item) => item[field] === value);
+}
+
+/**
+ * The fixture this step promised now exists — asked of the API.
+ *
+ * Every step used to prove this by waiting for the new row to appear in the list
+ * on screen, which is a claim about the page and not about the fixture. When the
+ * page's list has not caught up (#230) the step fails, and because this file is a
+ * project dependency the whole suite is reported red having run no product spec —
+ * three branches paid a diagnosis for that in one day (#132).
+ *
+ * Polled rather than asked once because it costs nothing to be kind about
+ * ordering, and it is the same shape the MCP step has used all along.
+ */
+async function nowThere(page: Page, path: string, field: string, value: string): Promise<void> {
+  await expect
+    .poll(() => alreadyThere(page.request, path, field, value), {
+      message: `the write was accepted, but ${path} still lists no ${field} of ${value}`,
+    })
+    .toBe(true);
 }
 
 /** A JSON GET that fails loudly, so a broken fixture reads as a broken fixture. */

@@ -43,9 +43,9 @@ directly, or the spec loses the net.
 
 > **Creating something through a dialog goes through `submitDialog` (`e2e/helpers.ts`).**
 
-`click(submit)` followed by `expect(theNewRow).toBeVisible()` sat at five sites, flaked
-at four of them, and cost three separate diagnoses in one day (#132) — every time with
-the same message, `element(s) not found`, sixteen seconds later.
+`click(submit)` followed by `expect(theNewRow).toBeVisible()` sat at six sites, was seen
+to flake at four of them, and cost three separate diagnoses in one day (#132) — every
+time with the same message, `element(s) not found`, sixteen seconds later.
 
 That message is the trap. **An open Radix dialog takes the rest of the page out of the
 accessibility tree**: while one is on screen `getByRole("main")`, `getByRole("row")`
@@ -54,14 +54,28 @@ the absence of the page, and a create refused with a 409 looked identical to a l
 had not refetched. Measured: `main` counts 1, then 0 while the dialog is open, then 1
 again — in the same sample that first sees the row.
 
-`submitDialog` waits on the two things that are signals rather than hopes: the write's
-own response, whose status and body *are* the diagnosis, and then the dialog closing —
-which is the app saying the list has already been refetched, because each of these
-mutations awaits `invalidateQueries` inside `onSuccess` before `mutateAsync` resolves.
-A longer `expect` timeout is not an alternative; it makes a race slower to fail.
+`submitDialog` waits on two signals rather than hopes: the write's own response, whose
+status and body *are* the diagnosis, and then the dialog closing — the app saying it has
+finished everything it does around the write. A longer `expect` timeout is not an
+alternative to either; it makes a race slower to fail.
 
-The list's `GET` is deliberately not a third wait: `useKnowledgeBases` writes its new
-row straight into the query cache and never makes one.
+It does **not** promise the row is rendered, and that is not a shortcut — the list's
+refetch is sometimes answered with the pre-write list even though the row is committed
+and both server layers return it (**#230**, about one run in eight). Two consequences:
+
+- **A fixture step asks the API.** Every step of `seed.setup.ts` asserts through
+  `/api/…` now, because its job is that the fixture exists. Whether it renders is a
+  product claim, and `vault.spec.ts` / `skills.spec.ts` make it against the rows the
+  seed left, on pages they loaded themselves.
+- **A product spec about the rendering reloads first**, marked `#230`, until that
+  issue closes.
+
+The list's `GET` is deliberately not a third wait: `useKnowledgeBases` never makes one,
+and where one is made, #230 is about the answer being wrong rather than late.
+
+It also ignores a 401 on the write's path. `apiClient.send` refreshes an expired access
+token and re-issues the same request, so the app acts on the retry — stopping at the
+first response would fail a write that succeeded.
 
 ## A failing `[seed]` step runs no product spec at all
 

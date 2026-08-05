@@ -144,7 +144,8 @@ GitHub error annotation that shows on the checks page without opening a log.
 ### Waiting for a row is not waiting for the write
 
 A spec that creates something through a dialog **must not** click submit and then
-assert the new row is on screen. Two reasons, and the second is the expensive one:
+assert the new row is on screen. That shape sat at six sites and was seen to flake
+at four. Two reasons, and the second is the expensive one:
 
 - The window between the mutation resolving and the list rendering is real, and a
   longer `expect` timeout only makes a race slower to fail.
@@ -158,9 +159,20 @@ assert the new row is on screen. Two reasons, and the second is the expensive on
 `submitDialog` in `frontend/e2e/helpers.ts` is the way through: it waits for the
 write's own response and asserts its status (so a refusal reads
 `409 … already exists`, in milliseconds), then waits for the dialog to close —
-which is the app's own statement that the list behind it has been refetched,
-since every one of these mutations awaits its invalidation inside `onSuccess`
-before `mutateAsync` resolves.
+which is the app saying it has finished everything it does around the write.
+
+What it deliberately does not promise is that the row is now rendered, because
+that is not currently true: the list's refetch is sometimes answered with the
+pre-write list even though the row is committed and both server layers return it
+([#230](https://github.com/vstorm-co/agenticos/issues/230), about one run in
+eight). So:
+
+- **A fixture step asks the API.** Every step of `seed.setup.ts` asserts through
+  `/api/…`, because its job is that the fixture exists — and a fixture step that
+  fails takes every product spec with it.
+- **A product spec that is about the rendering says so**, and reloads first if it
+  needs a list it can trust. `vault.spec.ts` has three `page.reload()` calls
+  marked `#230`; when that issue closes, they come out.
 
 ## Test Database
 

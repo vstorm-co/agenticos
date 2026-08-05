@@ -148,8 +148,16 @@ test.describe("Vault", () => {
       path: "/api/secrets",
     });
 
-    const row = () => page.getByRole("row", { name: new RegExp(name) });
-    await expect(row()).toContainText("····AAAA");
+    // Reloaded, and this is a concession to a live bug rather than a nicety.
+    // `submitDialog` has already proved the write was accepted and the dialog
+    // closed, so the list on screen *should* hold the row — and about once in
+    // eight runs it does not (#230: the row is committed, both server layers
+    // answer a list containing it, and the page keeps rendering the one without
+    // it). Asserting on it without a reload is asserting on that bug, which is
+    // how this spec came to flake as #130. What is under test here is rotation;
+    // the fresh load is how it gets a list it can trust to start from.
+    await page.reload();
+    await expect(row(page, name)).toContainText("····AAAA");
     const before = await secretId(page, name);
 
     await page.getByRole("button", { name: `Rotate ${name}` }).click();
@@ -168,7 +176,8 @@ test.describe("Vault", () => {
       method: "PATCH",
     });
 
-    await expect(row()).toContainText("····BBBB");
+    await page.reload(); // #230, as above
+    await expect(row(page, name)).toContainText("····BBBB");
     expect(await secretId(page, name), "rotation replaced the row instead of its value").toBe(
       before,
     );
@@ -177,7 +186,75 @@ test.describe("Vault", () => {
     await page.getByRole("button", { name: `Delete ${name}` }).click();
     await expect(page.getByRole("main").getByText(name)).toHaveCount(0);
   });
+
+  test("a write whose access token expires mid-flight still lands", async ({ page }) => {
+    // `apiClient.send` answers a 401 by refreshing the access token and
+    // re-issuing the same request, and nothing exercised that against a *write*
+    // — only against the reads a page makes on load, where a lost request looks
+    // like an empty list. Here the write is the whole test: the row has to
+    // appear, which it can only do if the retry carried the body.
+    //
+    // It is also the regression test for `submitDialog`, which resolved on the
+    // first response on the path until this was written and so failed a store
+    // that had succeeded. Drop the 401 clause from its predicate and this goes
+    // red with `POST /api/secrets answered 401`.
+    const name = `e2e-refresh-${Date.now().toString(36)}`;
+
+    let refused = false;
+    await page.route("**/api/secrets", async (route) => {
+      if (route.request().method() === "POST" && !refused) {
+        refused = true;
+        await route.fulfill({ status: 401, body: JSON.stringify({ detail: "expired" }) });
+        return;
+      }
+      await route.continue();
+    });
+
+    // The refresh is answered here rather than by the server, and not for
+    // convenience: `auth.spec.ts` signs out, which revokes the server-side
+    // session behind the one `AUTH_STATE` every spec shares — so a real refresh
+    // succeeds when this file runs alone and fails when the suite runs in order,
+    // and the test would be asserting on which specs came before it. Nothing is
+    // faked away that matters: the access-token cookie was never really expired,
+    // only the one response above pretended it was, so the retry this unblocks is
+    // a genuine authenticated write.
+    let refreshed = false;
+    await page.route("**/api/auth/refresh", async (route) => {
+      refreshed = true;
+      await route.fulfill({ status: 200, body: JSON.stringify({}) });
+    });
+
+    await page.goto("/vault");
+    await expect(pageHeading(page, "Vault")).toBeVisible();
+
+    await page.getByRole("button", { name: "Add key" }).first().click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByRole("button", { name: /^Something else/ }).click();
+    await dialog.getByLabel("Name").fill(name);
+    await dialog.getByRole("textbox", { name: /API key/i }).fill("sk-e2eREFRESHretryCCCC");
+    await submitDialog(page, {
+      dialog,
+      submit: dialog.getByRole("button", { name: "Store secret" }),
+      path: "/api/secrets",
+    });
+
+    expect(refused, "the 401 was never served, so nothing here was tested").toBe(true);
+    expect(refreshed, "the client never tried to refresh, so it never retried either").toBe(true);
+    await page.unroute("**/api/secrets");
+    await page.unroute("**/api/auth/refresh");
+    await page.reload(); // #230, as in the rotation spec above
+    await expect(row(page, name)).toContainText("····CCCC");
+
+    // Through the UI, so the route interception is not what deletes it.
+    await page.getByRole("button", { name: `Delete ${name}` }).click();
+    await expect(page.getByRole("main").getByText(name)).toHaveCount(0);
+  });
 });
+
+/** The vault's table row for one secret, found by the name printed on it. */
+function row(page: import("@playwright/test").Page, name: string) {
+  return page.getByRole("row", { name: new RegExp(name) });
+}
 
 /**
  * The id the vault holds a secret under, read from the API.
