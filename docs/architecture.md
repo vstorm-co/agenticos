@@ -140,7 +140,13 @@ keeps the organization's monthly total honest — see
 that contained this cost, so a delegation row that becomes top-level is one that
 *should* start counting, while cascading would delete the record of money that was
 spent. `subagent_task_id` is the delegation library's own task id, which is what
-joins the row to the handle the parent's model saw in its transcript.
+joins the row to the handle the parent's model saw in its transcript — and because
+a foreign key can only null its own column, that handle outlives the delete and is
+withheld by `AgentRunRead` rather than nulled by a trigger on the hottest insert
+table in the schema. The index on `parent_run_id` serves
+`list_runs(parent_run_id=...)`, which is what `GET /runs?parent_run_id=` asks; see
+[Governance](governance.md#what-run-history-shows) for why run history never lists
+the two kinds of row together.
 
 ## Key Files
 

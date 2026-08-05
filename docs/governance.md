@@ -162,6 +162,47 @@ question asked *about one agent* includes them. Three of these five queries ship
 without the distinction and each reported $1.40 for $1.00 of work; if a new one is
 added, the default is the safe one.
 
+### What run history shows
+
+**`GET /runs` lists top-level runs only, and its `total` counts those.** The same
+default as the organization's monthly sum, and for the same reason: interleaved,
+the two kinds of row cannot be read down one cost column. A fan-out of three
+delegations is one run costing $1.00 on the page and $1.00 on the bill; listed
+together it was four rows reading $1.00 + $0.40 + $0.40 + $0.40 next to a
+month-to-date figure of $1.00, and both halves were right about a different
+question.
+
+The list takes the same two-sided arithmetic as the sums above, for the same
+reason — so a surface narrowed to one agent shows what *that agent* did, delegate
+work included:
+
+| Ask | Answer |
+|---|---|
+| `GET /runs` | Runs somebody started. `parent_run_id IS NULL` |
+| `GET /runs?agent_id=<id>&include_delegations=true` | One agent's own history. What the Builder's Recent runs panel and Activity's `?agent=` ask, because a delegate's rows are the only record of what it itself did |
+| `GET /runs?parent_run_id=<id>` | What that run delegated — the query `agent_runs_parent_run_id_idx` exists for. Takes precedence over `include_delegations` |
+| `GET /runs/<id>` | One run, delegated or not. Where a link from a transcript lands |
+
+Activity's three figures stay the organization's, including the run count — a
+per-agent count beside the organization's month would be two questions under one
+label, and the per-agent count is the one that includes delegations.
+
+On the Activity page that is `?run=<id>`: one run, the delegations under it each
+badged with the task id its `subagent_*` frames carried, and a link up to the run
+a delegation was charged to. A delegation panel in a chat links there with the
+`run_id` its terminal frame carries - which is why the frame carries one. Nesting
+delegated rows inside the top-level table is deliberately *not* done here; a table
+primitive shared by the whole product is
+[proposed separately](https://github.com/vstorm-co/agenticos/issues/139), and
+nesting belongs in that rather than in one bespoke run table.
+
+**An orphaned delegation is reported without its handle.** `parent_run_id` is
+`ON DELETE SET NULL`, so deleting the parent leaves a row that correctly starts
+counting toward the bill - but a foreign key can only null its own column, and the
+stored `subagent_task_id` then names a transcript that went with the parent.
+`AgentRunRead` withholds it whenever `parent_run_id` is null, so no surface offers
+a delegation handle that reaches nothing.
+
 ### A pinned delegate does not move on its own
 
 A delegate is pinned to a version, so its author shipping a fix changes nothing for

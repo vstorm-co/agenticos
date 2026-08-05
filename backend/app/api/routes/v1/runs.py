@@ -34,12 +34,28 @@ async def list_runs(
     db: DBSession,
     ctx: Auth,
     agent_id: UUID | None = Query(None),
+    parent_run_id: UUID | None = Query(
+        None, description="List one run's delegations instead of the top level"
+    ),
+    include_delegations: bool = Query(
+        False, description="Include delegated runs - what one agent itself did"
+    ),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
-    """Runs for the organization, newest first, optionally for one agent."""
+    """Runs for the organization, newest first, optionally for one agent.
+
+    Top-level runs only by default - see `list_runs` for why a delegated row
+    and a run somebody started are never summed down one column.
+    """
     items, total = await agent_run_repo.list_runs(
-        db, organization_id=ctx.organization_id, agent_id=agent_id, skip=skip, limit=limit
+        db,
+        organization_id=ctx.organization_id,
+        agent_id=agent_id,
+        parent_run_id=parent_run_id,
+        include_delegations=include_delegations,
+        skip=skip,
+        limit=limit,
     )
     return AgentRunList(items=items, total=total)
 

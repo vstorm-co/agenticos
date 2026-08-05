@@ -33,15 +33,17 @@ No new `RunSurface` member. A Slack mention that delegated is still Slack, and
 one column cannot answer both "where did this come from" and "was this
 delegated".
 
-The index is for the foreign key, not for a query: PostgreSQL does not index a
-referencing column on its own, and `ON DELETE SET NULL` has to find every child
-row when a parent run is deleted - unindexed, deleting one run means a sequential
-scan of `agent_runs`, which is the largest table in the schema and the one a
-retention job deletes from in bulk. Nothing selects *by* a parent id yet; the
-run-detail question - "what did this run delegate" - is the query it would also
-serve when somebody writes it. The sums and the null tests above are served by
-the existing `(organization_id, started_at)` index, which finds the window's rows
-and then discards the ones with a parent.
+The index is for the run-detail question - "what did this run delegate" - which
+is a lookup by parent. `list_runs(parent_run_id=...)` is that query, and
+`GET /runs?parent_run_id=` is how a surface asks it; the index was speculative
+weight on the hottest insert table until it had one. The monthly sums are still
+served by the existing `(organization_id, started_at)` index, with the null test
+applied to rows it already found.
+
+`subagent_task_id` outlives the delete that nulls `parent_run_id`, because a
+foreign key can only null its own column. Nothing reads the leftover:
+`AgentRunRead` withholds the handle whenever the parent is gone, which is where
+that decision is argued.
 """
 
 import sqlalchemy as sa
