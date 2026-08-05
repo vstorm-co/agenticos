@@ -20,7 +20,7 @@ from pydantic_ai.usage import RequestUsage
 
 from app.agents.capabilities.approval import ApprovalGranted, ApprovalRejected
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope, SpendLedger
-from app.agents.spec import AgentSpec, ObservabilitySpec
+from app.agents.spec import AgentSpec, CapabilityBindingSpec, ObservabilitySpec
 from app.agents.subagent_runtime import DelegationSpend, DelegationStash, ParkedDelegation
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
@@ -1419,6 +1419,70 @@ class TestResume:
             await service.resume(_ctx(), run.id)
 
         assert status_when_replayed == [RunStatus.RUNNING.value]
+
+    @pytest.mark.anyio
+    async def test_a_run_whose_spec_no_longer_builds_is_still_resumable(self):
+        """A build that refuses must not spend the decision that got it there.
+
+        `claim_parked_run` only ever hands out a run that is still
+        `awaiting_approval`, so a run flipped to `running` by an attempt that then
+        failed to build is a run nobody can finish - carrying an approval a person
+        granted, and reporting nothing. The build therefore happens while the row
+        is still parked.
+
+        The failure here is the one that happens to real deployments: the secret a
+        binding names was deleted after the run parked, so the unsealed map no
+        longer holds it and the registry refuses rather than running the
+        capability without its key. What proves the run survived it is the second
+        attempt reaching the same refusal - not "this run is not waiting for
+        approval".
+        """
+        service = AgentRunnerService(_db())
+        approval = self._approval(status=ApprovalStatus.APPROVED.value, tool_args={})
+        run = _parked_run(
+            paused_state={"messages": [], "tool_call_ids": {str(approval.id): "call-1"}}
+        )
+        version = MagicMock()
+        version.spec = AgentSpec(
+            name="Researcher",
+            model_profile_id=uuid.uuid4(),
+            capabilities=[
+                CapabilityBindingSpec(
+                    id="web_research",
+                    config={"method": "tavily"},
+                    secret_id=uuid.uuid4(),
+                )
+            ],
+        ).model_dump(mode="json")
+
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                new=AsyncMock(return_value=run),
+            ),
+            patch(
+                "app.services.agent_runner.agent_run_repo.list_approvals_for_run",
+                new=AsyncMock(return_value=[approval]),
+            ),
+            patch(
+                "app.services.agent_runner.agent_repo.get_version",
+                new=AsyncMock(return_value=version),
+            ),
+            patch.object(service.registry, "get", new=AsyncMock(return_value=MagicMock())),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            # What a deleted secret looks like from here: the id resolves to
+            # nothing, which is exactly what `resolve_for_bindings` returns for a
+            # row that is gone.
+            patch.object(service.secrets, "resolve_for_bindings", new=AsyncMock(return_value={})),
+        ):
+            for _ in range(2):
+                with pytest.raises(BadRequestError, match="no longer has"):
+                    await service.resume(_ctx(), run.id)
+
+        assert run.status == RunStatus.AWAITING_APPROVAL.value
 
 
 class TestWhoTheRunSaysItIs:
