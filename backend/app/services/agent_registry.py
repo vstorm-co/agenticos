@@ -273,6 +273,10 @@ class AgentRegistryService:
         surfaces = await agent_exposure_repo.active_surfaces_for_agents(
             self.db, organization_id=ctx.organization_id, agent_ids=agent_ids
         )
+        budget_caps = await agent_repo.published_budget_caps(
+            self.db,
+            version_ids=[agent.current_version_id for agent in agents if agent.current_version_id],
+        )
         rows = [
             AgentRead(
                 id=agent.id,
@@ -286,6 +290,11 @@ class AgentRegistryService:
                 has_avatar=agent.has_avatar,
                 shared_user_count=shared_counts.get(agent.id, 0),
                 channels=surfaces.get(agent.id, []),
+                budget_monthly_usd=(
+                    budget_caps.get(agent.current_version_id)
+                    if agent.current_version_id
+                    else None
+                ),
                 created_at=agent.created_at,
                 updated_at=agent.updated_at,
             )

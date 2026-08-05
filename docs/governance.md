@@ -32,6 +32,13 @@ is present at its own number whatever the spec asks for, and an agent's spend is
 part of the organization's - so a $100 agent under a $10 organization is stopped
 at $10.
 
+Both caps are readable where their spend is: the organization's on its own row
+(`GET /orgs/{org_id}`), and each agent's as `budget_monthly_usd` on the agent
+listing - the *published* version's number, since that is the one the runner
+enforces, not whatever the draft currently promises. The dashboard's headroom
+card joins these against `GET /spend`, so a cap can be seen approaching before
+`budget_exceeded` starts appearing in run history.
+
 ### Enforcement is before the request
 
 Checked *before* each model request, not after. Checking afterwards means the

@@ -3865,3 +3865,50 @@ class TestSharedWithMeIsWhatWasDeliberatelyShared:
 
         assert {kb.id for kb in bases} == {org_visible.id}
         assert my_org_row.id not in {kb.id for kb in bases}
+
+
+class TestTheListingCarriesThePublishedCap:
+    """`budget_monthly_usd` on the agent listing - the headroom card's cap.
+
+    Read off the published version's frozen spec by JSONB path, which only a
+    real Postgres can prove: a mock cannot say whether `spec -> 'budget' ->>
+    'monthly_usd'` survives the round trip through publish.
+    """
+
+    async def _publish(self, db, estate: TwoTenants, spec: dict) -> None:
+        version = AgentVersion(
+            id=uuid.uuid4(),
+            agent_id=estate.home_agent.id,
+            organization_id=estate.home.organization.id,
+            version=1,
+            spec=spec,
+        )
+        db.add(version)
+        await db.flush()
+        estate.home_agent.current_version_id = version.id
+        estate.home_agent.status = AgentStatus.PUBLISHED.value
+        await db.flush()
+
+    async def test_the_cap_comes_off_the_frozen_spec_not_the_draft(
+        self, db, estate: TwoTenants
+    ) -> None:
+        await self._publish(db, estate, {"name": "Support", "budget": {"monthly_usd": 60}})
+        # The draft promises a different number; the runner does not enforce
+        # promises, so the listing must not report one.
+        estate.home_agent.draft_spec = {"name": "Support", "budget": {"monthly_usd": 999}}
+        await db.flush()
+
+        rows, _total = await AgentRegistryService(db).list_agents(estate.home.ctx)
+
+        by_id = {row.id: row for row in rows}
+        assert by_id[estate.home_agent.id].budget_monthly_usd == 60.0
+
+    async def test_a_version_with_no_budget_block_answers_null(
+        self, db, estate: TwoTenants
+    ) -> None:
+        await self._publish(db, estate, {"name": "Support"})
+
+        rows, _total = await AgentRegistryService(db).list_agents(estate.home.ctx)
+
+        by_id = {row.id: row for row in rows}
+        assert by_id[estate.home_agent.id].budget_monthly_usd is None

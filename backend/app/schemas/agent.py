@@ -47,6 +47,16 @@ class AgentRead(BaseSchema):
             "Filled by the listing, same bargain as shared_user_count."
         ),
     )
+    budget_monthly_usd: float | None = Field(
+        default=None,
+        description=(
+            "The published version's monthly cap - the one the runner actually "
+            "enforces, read off the frozen spec rather than the draft, which may "
+            "promise a different number than the agent runs under. Null for a "
+            "draft agent and for a published one with no cap. Filled by the "
+            "listing, same bargain as shared_user_count."
+        ),
+    )
     created_at: datetime | None = None
     updated_at: datetime | None = None
 

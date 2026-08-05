@@ -8,7 +8,7 @@ predicate pieces the access layer resolved rather than re-deriving them here.
 from collections.abc import Sequence
 from uuid import UUID
 
-from sqlalchemy import and_, false, func, or_, select
+from sqlalchemy import Float, and_, false, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
@@ -101,6 +101,25 @@ async def list_visible(
     items = list((await db.execute(query)).scalars().all())
     total = (await db.execute(count_query)).scalar() or 0
     return items, total
+
+
+async def published_budget_caps(
+    db: AsyncSession, *, version_ids: Sequence[UUID]
+) -> dict[UUID, float | None]:
+    """Each version's monthly cap, read off the frozen spec's JSONB.
+
+    One path extraction per row rather than loading whole specs: the listing
+    needs one float from documents that can carry kilobytes of instructions.
+    Keyed by version id - the caller joins them back onto its agents. A
+    version whose spec has no budget block answers null, same as no cap.
+    """
+    if not version_ids:
+        return {}
+    cap = AgentVersion.spec["budget"]["monthly_usd"].astext.cast(Float)
+    result = await db.execute(
+        select(AgentVersion.id, cap).where(AgentVersion.id.in_(list(version_ids)))
+    )
+    return {row[0]: row[1] for row in result.all()}
 
 
 async def list_all_published(db: AsyncSession) -> list[Agent]:

@@ -324,6 +324,39 @@ class TestList:
         assert surfaces.call_args.kwargs["agent_ids"] == [listed.id, lonely.id]
 
     @pytest.mark.anyio
+    async def test_a_published_agents_cap_rides_the_listing_and_a_drafts_does_not(self):
+        """The headroom card needs the enforced cap - the published version's,
+        not the draft's promise of one."""
+        ctx = _ctx(OrgRoleName.OWNER)
+        version_id = uuid.uuid4()
+        published = _agent(ctx, current_version_id=version_id)
+        draft = _agent(ctx)
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.list_visible",
+                new=AsyncMock(return_value=([published, draft], 2)),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.resource_grant_repo.count_for_resources",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_exposure_repo.active_surfaces_for_agents",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_budget_caps",
+                new=AsyncMock(return_value={version_id: 60.0}),
+            ) as caps,
+        ):
+            rows, _total = await AgentRegistryService(_db()).list_agents(ctx)
+
+        assert caps.call_args.kwargs["version_ids"] == [version_id]
+        assert rows[0].budget_monthly_usd == 60.0
+        assert rows[1].budget_monthly_usd is None
+
+    @pytest.mark.anyio
     async def test_the_listing_returns_the_page_and_the_total(self):
         """The total is the page count, not the page size - pagination depends on it."""
         ctx = _ctx(OrgRoleName.OWNER)
