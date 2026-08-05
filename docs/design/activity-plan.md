@@ -2,15 +2,26 @@
 
 Companion to `activity-mockup.html`. Written for review before implementation, per #45.
 
-## 1. The Logfire question — overturned, in favour of something stronger
+## 1. The Logfire question — argued one way, decided the other
 
-#45 proposed: *our data is the page, Logfire is the drill-down.* The first half stands.
-The second half is dropped. **This page does not reference Logfire at all.**
+#45 proposed: *our data is the page, Logfire is the drill-down.* The first half stands and
+is what the rest of this document builds. On the second half this section argued for
+dropping the link entirely, and **review decided to keep it** (#206). Both halves are
+recorded here rather than the losing argument being deleted: the four findings below are
+why the link is expensive, and the decision accepts that cost with its eyes open.
 
-Four findings, in the order that matters:
+**What that settles.** The run detail view built on our own rows is the drill-down, and it
+ships either way — it is what works on a deployment that never set `LOGFIRE_TOKEN`, and for
+the client agent whose traces we deliberately do not receive. The Logfire link is an
+**addition to it, not a replacement**, and it is #206's work rather than this branch's,
+because two of its three pieces are not page changes at all: a project slug becomes a
+setting, and a slug on the spec is a `SPEC_VERSION` bump touching every stored spec and
+every client's exported YAML.
+
+Four findings, none of which the decision disputes:
 
 1. **`logfire_trace_id` has never been written.** It is a parameter of
-   `AgentRunner.finish()` (`app/services/agent_runner.py:406`) that no caller passes —
+   `AgentRunner.finish()` (`app/services/agent_runner.py:603`) that no caller passes —
    not web chat, not the API, not a channel, not the embedded widget. The
    column is always `NULL`. The "link out" had no data behind it.
 2. **Nothing stores a Logfire project URL.** `LOGFIRE_TOKEN` is a write credential
@@ -24,15 +35,13 @@ Four findings, in the order that matters:
 4. **We already store, and already serve, what the trace would show.** `messages` carries
    `role`, `content`, `thinking`, `model_name`, `agent_version` and `tokens_used`;
    `tool_calls` carries `tool_name`, `args`, `result`, `status`, `duration_ms`.
-   `MessageRead.tool_calls` (`app/schemas/conversation.py:92`) is already returned by
+   `MessageRead.tool_calls` (`app/schemas/conversation.py:113`) is already returned by
    `GET /conversations/{id}/messages`.
 
-So the drill-down is a **run detail view built on our own rows**. This is strictly more
-available than a Logfire link: it works on a deployment that never set `LOGFIRE_TOKEN`,
-and it works for the client agent whose traces we deliberately do not receive.
-
-Logfire keeps doing what it is for — tracing the platform for whoever operates it. It is
-not a dependency of an operator-facing page.
+So the drill-down is a **run detail view built on our own rows**, and it is not conditional
+on any of the above being fixed. Logfire keeps doing what it is for as well — tracing the
+platform for whoever operates it — and #206 makes the link work. What this page refuses is
+to *depend* on it: no panel here goes blank because a deployment has no Logfire.
 
 ## 2. Linking a run to its transcript
 
@@ -58,14 +67,14 @@ caller's job, and only web chat on its success path does it in full:
 | Surface | What a detail view could show today |
 |---|---|
 | web chat, run succeeded | everything — prompt, reasoning, tool arguments and results |
-| web chat, run failed | the prompt only; the exception skips `persist_assistant_turn` (`agent_session.py:222`) |
-| a channel bot's default agent | prompt and answer as text — no tool calls, model or version (`channels/router.py:108`, `:136`) |
+| web chat, run failed | the prompt only; the exception skips `persist_assistant_turn` (`agent_session.py:226`) |
+| a channel bot's default agent | prompt and answer as text — no tool calls, model or version (`channels/router.py:126`, `:136`) |
 | embed widget | nothing; a conversation row is created and left empty (`embed_session.py:142`) |
-| `@mention` on a channel | nothing (`channels/router.py:148`) |
+| `@mention` on a channel | nothing (`channels/router.py:176`) |
 | API | nothing, even when the caller passes a `conversation_id` (`agents.py:368`) |
-| a run resumed after an approval | nothing — `resume` replays through `_run`, which writes no messages (`agent_runner.py:600`) |
+| a run resumed after an approval | nothing — `resume` replays through `_run`, which writes no messages (`agent_runner.py:838`) |
 
-`tool_calls` rows are written in exactly one place in the repository — `app/services/agent.py:225`,
+`tool_calls` rows are written in exactly one place in the repository — `app/services/agent.py:238`,
 inside `persist_assistant_turn` — from a list only the streaming path fills. A non-streaming
 surface has no access to them at all.
 
@@ -78,16 +87,58 @@ same view fills in with no frontend change.
 A panel that is empty and silent is the failure this page exists to remove. A panel that is
 empty and says why is the deliverable.
 
+## 2a. Delegation — what #200 has already built, and the two things it breaks here
+
+#200 (`feat/delegated-run-history`, open, based on `main`) adds `parent_run_id` and
+`subagent_task_id` to `agent_runs`, and **every delegation writes its own run row**. The rest
+of this plan was written without it, which made the estimate look larger than it is:
+
+| #200 already ships | What this plan priced |
+|---|---|
+| `?run=<id>` and `FocusedRun` — one run, the delegations under it, a link up to the parent, a 404 told apart from a failed request | the run detail view, as the central new deliverable |
+| the Runs figure reading the server's `total` from an unnarrowed `useRuns()`, captioned that delegations are counted in their parent | §3 item 5, the same fix |
+| `RunTable` extracted to `components/runs/run-table.tsx` with its own test | part of §9's "three tabs as separate components" |
+| `ApprovalRead.subagent_name` and `subagent_agent_id`, rendered by `ApprovalDelegate` with an integration test — the name always, the link only with `agents:view` | §7's claim that `ApprovalRead` carries neither |
+
+Two things genuinely bite, and both are this page's to answer:
+
+**The list is top-level only.** `list_runs` gains `parent_run_id` and `include_delegations`,
+defaulting to top-level. So every filter in §6 narrows a table that **does not contain
+delegated runs**, and a delegation is reached with `?run=` from its parent rather than as a
+row of its own. The table says so rather than leaving a reader to infer it from a count that
+does not add up.
+
+**`environment_id` is deliberately NULL on a delegated run.** A delegate's version comes from
+a pin, not from an environment resolving it, and #200's test asserts the column is never
+written. So the Environment filter **silently drops every delegation** the moment somebody
+narrows to `production` — the failure mode this page exists to remove, in a filter this page
+is adding. The filter states what it does with a run that has no environment, and §9 verifies
+it.
+
+**The version strip has to pick a side of `include_delegations`, and say which.**
+`sum_cost_since` and `cost_breakdown` carry that switch with opposite correct answers: the
+organization's bill *excludes* child rows, because the parent's `cost_usd` already contains
+them; one agent's month *includes* them, because a delegate's row is the only record of its
+own spend. "Cost per run" per version is the second question sitting inside the first, so it
+double-counts unless it chooses.
+
+**The approval card gains a delegate line**, under the tool name, from `subagent_name`.
+Without it, building the Approvals tab to this mockup deletes `ApprovalDelegate` and its test,
+and the queue approves blind on exactly the rows where the actor is the fact that decides the
+answer — two specialists both calling `send_email` produce two rows with the same tool name and
+nothing to choose between them. In a delegation what is being approved is often more
+consequential than the agent the approver thinks they are talking to.
+
 ## 3. The six items in #45, reassessed against the code
 
 | # | #45 said | Verdict |
 |---|---|---|
-| 1 | A run does not link to its trace — *smallest change, largest gain* | **Replaced.** It was the largest item, not the smallest (§1). Ships as the run detail view instead |
-| 2 | Cost rendered without its caveat | **Already shipped** — `runs/page.tsx:219` marks `cost_is_partial`. Remaining work is honesty of presentation: a bare `+` in a `title=` attribute is invisible to a screen reader and easy to miss. Becomes a visible marker with text |
-| 3 | An approval has no context | **Half shipped** — `tool_args` is rendered in full (`runs/page.tsx:141`). Missing is the agent and the triggering user, and `ApprovalRead` carries neither. Backend change, not UI |
+| 1 | A run does not link to its trace — *smallest change, largest gain* | **Split.** It was the largest item, not the smallest (§1), so the two halves ship separately: the drill-down is a run detail view on our own rows, here; the trace link is #206. #200 has already built the detail view — see §2a |
+| 2 | Cost rendered without its caveat | **Already shipped** — `runs/page.tsx:214` marks `cost_is_partial`. Remaining work is honesty of presentation: a bare `+` in a `title=` attribute is invisible to a screen reader and easy to miss. Becomes a visible marker with text |
+| 3 | An approval has no context | **Half shipped** — `tool_args` is rendered in full (`runs/page.tsx:133`). Missing is the agent and the triggering user, and `ApprovalRead` carries neither. Backend change, not UI |
 | 4 | Filtering is agent-only | **Do it.** `agent_run_repo.list_runs` accepts only `agent_id` |
-| 5 | Pagination | **Do it**, and fix what it hides: the "Runs" figure renders `runs.length` — at most 50 — as the organization's run count, while the hook already returns an unused `total` |
-| 6 | `failed` and `budget_exceeded` look alike | **Already shipped** — different tone and the label "stopped by budget" (`components/agents/status-badge.tsx:41`). No work |
+| 5 | Pagination | **Do it.** What it hides — the "Runs" figure rendering `runs.length`, at most 50, as the organization's run count — is **#198**, a filed bug that #200 already fixes with the server's `total`. This design closes #198 rather than re-deriving it |
+| 6 | `failed` and `budget_exceeded` look alike | **Already shipped** — different tone and the label "stopped by budget" (`components/agents/status-badge.tsx:53`). No work |
 
 ## 4. Who sees this page — all seven identities, answered from `ROLE_PERMS`
 
@@ -127,7 +178,7 @@ re-litigated per page:
 
 **The trap, and why this is not a one-line catalog edit.** `require(...)` passes when a
 permission is held at *any* scope above `NONE` (`AuthContext.has` → `scope_for(...) is
-not Scope.NONE`, `deps.py:390`). `resolve_access` is what reads a scope, and it reads it
+not Scope.NONE`, `app/core/permissions.py:354`). `resolve_access` is what reads a scope, and it reads it
 **per row**, against an `OwnedResource` — there is no row in a collection request. So
 adding `Perm.RUNS_VIEW: Scope.OWN` to member and stopping there does not narrow anything:
 the member calls `GET /runs` and receives **the whole organization's runs**, and because
@@ -224,7 +275,7 @@ the two pages read as one product:
 - **The surface list is the honest one.** Two of the seven `RunSurface` values are dead —
   defined and never assigned — and neither is offered. `SCHEDULE` is the known one.
   `PLAYGROUND` is the second and less obvious: it is only the default of `execute()`'s
-  `surface` parameter (`agent_runner.py:503`), and every one of the four call sites passes
+  `surface` parameter (`agent_runner.py:710`), and every one of the four call sites passes
   a surface explicitly, so no row is ever stamped with it. A filter option that can only
   ever return nothing is a filter that makes a reader doubt the data, not the filter.
   `embed` and `mattermost` are offered but flagged: today an embedded run is stamped
@@ -233,7 +284,7 @@ the two pages read as one product:
   #149's review settled — priced in §7 and shared with #37's stage 2, whichever lands
   first (`e76af9d` on that branch already carries it).
 - **"Triggered by" is who a run *ran as*, which is not always who asked.**
-  `agent_runs.user_id` is `ctx.user_id` (`agent_runner.py:345`), and for an embedded widget
+  `agent_runs.user_id` is `ctx.user_id` (`agent_runner.py:449`), and for an embedded widget
   that is the widget's **owner**: the visitor is anonymous and has no row anywhere. The
   column is right and the bare label would be a lie, so the detail view names whose
   identity it is. It also decides what an own-scoped member would see if §4 is accepted —
@@ -250,7 +301,7 @@ the two pages read as one product:
   stays the default, because the queue drains from the top. `GET /approvals` today has
   only `skip`/`limit` and a fixed oldest-first order — the filter and the sort are
   priced in §7. Age is a real dimension of this queue, not decoration:
-  `ApprovalStatus.EXPIRED` is defined and never assigned (found in #149's review), so
+  `ApprovalStatus.EXPIRED` is defined and never assigned (**#178**), so
   nothing ages out and the oldest row can be from months ago. The queue does not
   pretend otherwise — a call waiting past a day wears the loud tone, and the figure up
   top names the oldest wait.
@@ -350,7 +401,7 @@ organization, and the sidebar switcher owns that.
 | `messages.run_id` — column, FK, and the write path where there is one | Alembic migration + the chat write path (`persist_user_turn` / `persist_assistant_turn`). The surfaces that write no messages at all are #205's, not this branch's — §2 |
 | `list_runs` — `status` (a **list**: `failed,budget_exceeded` is also #37's Recent-failures query), `surface`, `user_id`, `started_from`, `started_to`, `environment_id`, `exposure_id`, `agent_version_id` | Repository + route + `AgentRunList` unchanged; every column already on the run row |
 | Surface recording widening — `RunSurface.EMBED` stamped by `embed_session.py`, `mattermost` added to `_SURFACES` in `channels/mentions.py` | Two small service changes. Shared with #37's stage 2 — whichever branch lands first ships it, the other inherits |
-| `ApprovalRead` — agent name, triggering user | Schema + approval service join. No migration |
+| `ApprovalRead` — agent name and triggering user are the **remaining** gap; the **delegate** is handled by #200 (`subagent_name`, `subagent_agent_id`) | Schema + approval service join. No migration. Do not rebuild the delegate half — §2a |
 | `/approvals` — `user_id` filter, `sort` (oldest/newest; oldest stays the default) | Repository + route. No migration |
 | `/approvals` — the decided view: a `status` param (today the route serves `list_pending` only), and the decider's **name** (`ApprovalRead` already carries `decided_by_user_id` and `decided_at` — a bare UUID, the same class of gap as the missing agent name) | Repository + route; the name rides the same `ApprovalRead` join as the row above. No migration |
 | Version strip — per-version runs, success, p50, cost under an agent filter | Nothing new here — the second consumer of #37's `/stats/usage?group_by=version` |
@@ -370,20 +421,24 @@ Everything else is frontend.
   what this page can show and what it has to admit, so it is the one item here that
   changes a deliverable rather than sitting beside it. Filed rather than folded in, and
   the detail view is built so that #205 landing fills it in without a frontend change.
-- **#218 — `AgentRunRead.logfire_trace_id` is documented as *"Deep-link into the full
+- **#206 — `AgentRunRead.logfire_trace_id` is documented as *"Deep-link into the full
   trace"* and is always `null`** (`app/schemas/agent_run.py:29`), and `GET /runs/{run_id}`
   repeats the promise in a docstring the reference docs publish (`runs.py:51`). The public
-  API says where to look and hands over nothing to look with. Independent of this page
-  either way. Removal is the fix, and this is the third independent read to reach it: #52
-  rejected the same Logfire assumption for its own reasons, and §1 rejected it here.
-- **`RunSurface.PLAYGROUND` is dead, like `SCHEDULE`** (§6) — two values nothing assigns,
-  on a column the API returns and a filter would otherwise offer. `app/db/models/agent_run.py`
-  already has a third of these: `ApprovalStatus.EXPIRED`, which #178 covers. **Recommendation:
-  widen #178 to all three rather than open two more issues** — one file, one clean-up, and
-  the decision in each case is the same one (assign it or delete it).
+  API says where to look and hands over nothing to look with. §1 read that as grounds for
+  removing the field; review decided to **wire it** instead, so #206 owns the whole chain —
+  the trace id at every `finish()` call site, the project slug as a setting, and the slug on
+  the spec. Independent of this page either way: nothing here reads the field, and nothing
+  here waits on it.
+- **`RunSurface.PLAYGROUND` is dead, exactly like `SCHEDULE`** (§6) — a value nothing
+  assigns, on a column the API returns and a filter would otherwise offer. It is only the
+  default of `execute()`'s `surface` parameter (`agent_runner.py:710`) and all four call
+  sites pass one explicitly. #207 covers `SCHEDULE` and #178 covers the third of these,
+  `ApprovalStatus.EXPIRED`. **Recommendation: fold `PLAYGROUND` into #207** rather than open
+  a fourth issue — same enum, same file, and the decision is the same one either way (assign
+  it or delete it).
 
 A second find — "Spend by agent" listing model labels because `CostByAgent` carries no
-name (`runs/page.tsx:285`) — started here, but the mockup shows it fixed and the change
+name (`runs/page.tsx:277`) — started here, but the mockup shows it fixed and the change
 is one join, so it moved into scope: §7 prices it.
 
 ## 9. What stage 2 is verified by
@@ -395,9 +450,15 @@ is one join, so it moved into scope: §7 prices it.
 - the new `list_runs` filters proven against a real database: a staging run absent when
   `environment_id` narrows to production, a `status` list returning both `failed` and
   `budget_exceeded` rows, a version filter returning only the rows that executed it
+- **a delegated run is not lost when `environment_id` narrows to production** (§2a — the
+  column is deliberately never written on one), and the filter says on screen what it does
+  with a run that has no environment
+- **the version strip does not double-count**: one agent's per-version cost with
+  `include_delegations` on, asserted against the same runs summed the organization's way,
+  and the chip naming which of the two it is
 - the decided view proven: a decided approval renders its decider and is refused a
   second decision; the pending queue and the decided list never share a row
-- the three tabs land as separate components — the 342-line page is already over the
+- the three tabs land as separate components — the 335-line page is already over the
   ~100-line guidance, and #45 counts the split as part of the work, not extra
 - `messages.run_id` covered by an integration test against a real database: two runs in
   one conversation, each detail view showing only its own steps

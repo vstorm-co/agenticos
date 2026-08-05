@@ -705,7 +705,11 @@ function genRuns([from, to]) {
         user: surface === "embed" ? orgUsers[0]
           : NO_CONVERSATION.has(surface) && rnd() < 0.6 ? null : pick(rnd, orgUsers),
         tin, tout,
-        cost: unpriced ? 0 : (tin * 3e-6 + tout * 1.5e-5) * (model.includes("opus") ? 5 : model.includes("haiku") ? 0.3 : 1),
+        // cost_usd sums the priced ledger entries only, so an unpriced run is a
+        // floor: zero when nothing in it was metered, and a real partial figure
+        // when a fallback carried part of the turn on a model that was.
+        cost: unpriced ? (rnd() < 0.4 ? (tin * 3e-6 + tout * 1.5e-5) * 0.45 : 0)
+          : (tin * 3e-6 + tout * 1.5e-5) * (model.includes("opus") ? 5 : model.includes("haiku") ? 0.3 : 1),
         partial: unpriced,
         started: stamp,
         ms: status === "running" || status === "awaiting_approval" ? null : 700 + Math.floor(rnd() * 24000),
@@ -722,6 +726,10 @@ function genRuns([from, to]) {
 
 /* The queue is what is parked NOW - it does not follow the runs tab's date
    filter, because "waiting on a person" is not a question about a period. */
+/* tool_approvals.subagent_name - which delegate asked, not which agent was addressed.
+   null when the parent itself made the call. */
+const DELEGATES = [null, "Invoice checker", "Vendor lookup", null];
+
 function genApprovals() {
   if (current.state === "empty") return [];
   // Nothing expires a parked call - ApprovalStatus.EXPIRED is never assigned -
@@ -729,6 +737,11 @@ function genApprovals() {
   return genRuns(last30()).filter((r) => r.status === "awaiting_approval").slice(0, 4).map((r, i) => ({
     id: "ap-" + i, run: r, tool: r.script.tool, args: r.script.args,
     waited: ["2 h", "5 h", "1 d", "3 d"][i], waitedH: [2, 5, 26, 74][i],
+    // A gated tool inside a delegation parks against the parent's run, so two
+    // specialists calling the same tool produce two rows a name cannot separate.
+    // subagent_agent_id is null for an unpublished delegate: the name still shows,
+    // the link does not.
+    delegate: DELEGATES[i], delegateLinkable: i !== 2,
   }));
 }
 
@@ -776,8 +789,14 @@ const money = (n) => "$" + n.toFixed(n && n < 1 ? 4 : 2);
 const statusOf = (id) => STATUSES.find((s) => s.id === id);
 
 /** Cost with its caveat in the number, and in text for a screen reader. */
+const NOT_PRICED = `<span class="floor" title="No model in these runs had a price">not priced<span class="fsr"> (no metered price for any model in these runs)</span></span>`;
+
 function costCell(r) {
   if (!r.partial) return money(r.cost);
+  // cost_usd sums only the priced ledger entries, so a run whose every model is
+  // unpriced arrives as 0 with the partial flag set. "≥ $0.00" reads as "about
+  // nothing" when the truth is "we have no idea", so it stops being a number.
+  if (!r.cost) return `<span class="floor" title="No model in this run had a price">not priced<span class="fsr"> (no metered price for any model in this run)</span></span>`;
   return `<span class="floor" title="A model in this run had no price, so this is a floor">≥ ${money(r.cost)}<span class="fsr"> (at least — a model in this run had no price)</span></span>`;
 }
 
@@ -1003,8 +1022,11 @@ function approvalsTab(queue) {
 
   const byTook = [...rows].sort((x, y) => x.tookH - y.tookH);
   const median = !deciding && rows.length
-    ? `<div class="sub" style="margin-bottom:10px">Median time to a decision this month:
-        <b>${esc(byTook[Math.floor(byTook.length / 2)].took)}</b> — the queue up top is what is left.</div>` : "";
+    ? `<div class="sub" style="margin-bottom:10px">Median time to a decision, last 30 days:
+        <b>${esc(byTook[Math.floor(byTook.length / 2)].took)}</b> — the queue up top is what is left.
+        <span class="anno"><span class="badge-new">the window is fixed: this view needs the same
+          date-range control Runs and Spend get, and the median has to name whatever it is
+          set to</span></span></div>` : "";
 
   let body;
   if (current.state === "error") body = stateBlock("error", "The approval queue");
@@ -1023,6 +1045,10 @@ function approvalsTab(queue) {
         : `<span class="pill ${a.decision === "approved" ? "ok" : "err"}">${a.decision}</span>`}
       <span class="sub" style="margin-left:auto">${esc(fmtStamp(a.run.started))}</span>
     </div>
+    ${a.delegate ? `<div class="sub" style="margin:-4px 0 8px">asked by delegate
+      <b>${a.delegateLinkable && can("agents:view")
+        ? `<a href="#">${esc(a.delegate)}</a>` : esc(a.delegate)}</b>${a.delegateLinkable ? "" :
+        ` <span class="sub">— unpublished, so there is nothing to open</span>`}</div>` : ""}
     <div class="meta">
       <span>agent <b>${esc(a.run.agent.name)}</b> <span class="pill">v${a.run.version}</span></span>
       <span>triggered by <b>${a.run.user ? esc(a.run.user.name) : "nobody — " + esc(a.run.surface)}</b></span>
@@ -1339,26 +1365,36 @@ function spendTab(runs) {
   }
 
   const sp = genSpend(runs);
-  const fmtV = (i) => `${i.partial ? `<span class="floor">≥ ${money(i.cost)}</span>` : money(i.cost)}
+  const fmtV = (i) => `${!i.partial ? money(i.cost)
+    : i.cost ? `<span class="floor">≥ ${money(i.cost)}</span>` : NOT_PRICED}
     <span class="sub"> · ${fmt(i.runs)}</span>`;
 
   // Caps are calendar-month, so the meter reads month-to-date whatever range
-  // the tab is showing.
+  // the tab is showing. `partial` rides along because a month that metered
+  // nothing is not a month that spent nothing.
   const mtdByAgent = new Map();
   for (const r of genRuns(monthToDate())) {
-    mtdByAgent.set(r.agent.name, (mtdByAgent.get(r.agent.name) || 0) + r.cost);
+    const cur = mtdByAgent.get(r.agent.name) || { cost: 0, partial: false };
+    cur.cost += r.cost;
+    cur.partial = cur.partial || r.partial;
+    mtdByAgent.set(r.agent.name, cur);
   }
   const agentTiles = sp.byAgent.map((e) => {
     const a = AGENTS.find((x) => x.name === e.key);
-    const p = a && a.cap !== null ? Math.round(((mtdByAgent.get(e.key) || 0) * 1.15 / a.cap) * 100) : null;
+    const mtd = mtdByAgent.get(e.key) || { cost: 0, partial: false };
+    const unmetered = !mtd.cost && mtd.partial;
+    const p = a && a.cap !== null && !unmetered ? Math.round((mtd.cost * 1.15 / a.cap) * 100) : null;
     const tone = p === null ? null : p >= 90 ? "var(--err)" : p >= 70 ? "var(--warn)" : "var(--chart-1)";
     return `<div class="atile">
       <div class="an" title="${esc(e.key)}">${esc(e.key)}</div>
-      <div class="av">${e.partial
-        ? `<span class="floor" title="A model in these runs had no price, so this is a floor">≥<span class="fsr">
-            (at least — a model in these runs had no price)</span></span> ` : ""}${money(e.cost)}
+      <div class="av">${!e.partial ? money(e.cost)
+        : e.cost ? `<span class="floor" title="A model in these runs had no price, so this is a floor">≥<span class="fsr">
+            (at least — a model in these runs had no price)</span></span> ${money(e.cost)}` : NOT_PRICED}
         <span class="sub">· ${fmt(e.runs)} runs</span></div>
-      ${p === null
+      ${a && a.cap !== null && unmetered
+        ? `<div class="cap" style="margin-top:12px">Cap ${money(a.cap)} — nothing metered this month, so
+            there is no share to read.</div>`
+        : p === null
         ? `<div class="cap" style="margin-top:12px">No monthly cap — nothing to read this against.</div>`
         : `<span class="track"><span class="fill" style="width:${Math.min(p, 100)}%;background:${tone}"></span></span>
            <div class="cap"><b style="${p >= 70 ? `color:${tone};` : ""}font-weight:600">${p}%</b>
