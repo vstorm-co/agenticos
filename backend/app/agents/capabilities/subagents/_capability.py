@@ -20,7 +20,9 @@ agree are worse than one, because the disagreement is silent.
 `SubAgentCapability` is a dataclass of twenty fields with defaults - one of them
 `include_general_purpose=True`, which this platform inverts. Registering it
 directly would mean a field added upstream arrives switched on, in every published
-agent, with nothing in this repository saying so.
+agent, with nothing in this repository saying so. It is also where a tool the
+library adds unconditionally can be withheld from the model without being taken off
+the list a person approves against - see :data:`UNREACHABLE_TOOLS`.
 
 What is deliberately *not* wrapped: the toolset's own task management, the
 cancellation of background *tasks* in `wrap_run`, and the retry behaviour. Those
@@ -39,7 +41,7 @@ from pydantic_ai import Agent as PydanticAgent
 from pydantic_ai import UsageLimits
 from pydantic_ai.agent import AgentRunResult
 from pydantic_ai.capabilities import WrapperCapability, WrapRunHandler
-from pydantic_ai.tools import RunContext
+from pydantic_ai.tools import RunContext, ToolDefinition
 from pydantic_ai.toolsets import AbstractToolset, AgentToolset
 from subagents_pydantic_ai import (
     ANSWER_SUBAGENT_DESCRIPTION,
@@ -154,21 +156,8 @@ DELEGATION_TOOLS: tuple[CapabilityToolInfo, ...] = (
         id="list_active_tasks", description=LIST_ACTIVE_TASKS_DESCRIPTION, side_effecting=False
     ),
     # A reply to a question a delegate asked, inside this run. It unblocks work
-    # rather than acting on anything outside it.
-    #
-    # Declared and offered, and **no delegation this deployment runs can ever use
-    # it**: the tool answers a task in `WAITING_FOR_ANSWER`, which is reached only
-    # through the library's `ask_parent`, and nothing here injects that tool. A
-    # configured subagent - which every pinned delegate and every inline specialist
-    # is, since all of them arrive as `SubAgentConfig["agent"]` - is compiled with
-    # `inject_ask_parent=False`, and the two registry paths that would get it are
-    # handed `can_ask_questions: False` by `_autonomously`. So the description
-    # promises the model something the deployment cannot keep, and the model will
-    # find no task to answer. It stays declared because a tool absent from this
-    # list cannot be gated by the approval policy or renamed by a binding, which is
-    # the more dangerous half. Removing it - or making it usable - belongs with
-    # whatever decides whether a delegate may ask its parent anything at all, which
-    # is a decision about the product and not about this list.
+    # rather than acting on anything outside it - and it is declared here and
+    # never offered to a model, for the reason in `UNREACHABLE_TOOLS`.
     CapabilityToolInfo(
         id="answer_subagent", description=ANSWER_SUBAGENT_DESCRIPTION, side_effecting=False
     ),
@@ -200,10 +189,12 @@ DELEGATION_TOOLS: tuple[CapabilityToolInfo, ...] = (
 )
 """Every tool delegation has, declared once.
 
-Declared rather than derived, and all ten rather than the eight a non-dynamic
+Declared rather than derived, and all ten rather than the seven a non-dynamic
 configuration offers, because a tool absent from this list cannot be gated by the
 approval policy or renamed by a binding - and the dangerous half of that is
-silent.
+silent. Which of the ten a given agent's model is actually offered is decided in
+two places: `create_agent` and `delegate` by whether the runner resolved a
+`DynamicSpecialists`, and `answer_subagent` by :data:`UNREACHABLE_TOOLS`.
 
 Eight of the descriptions are **imported, not rewritten**. A tool's description is
 the strongest prompt in the product, and `TASK_TOOL_DESCRIPTION` is two hundred
@@ -214,6 +205,52 @@ the library's describe a configuration this platform does not offer - see
 :data:`DELEGATE_DESCRIPTION`. What is declared here is what the model reads,
 exactly - see the `descriptions` argument in `build_delegation`.
 """
+
+UNREACHABLE_TOOLS: frozenset[str] = frozenset({"answer_subagent"})
+"""Declared for the Builder and the approval policy, and offered to no model.
+
+`answer_subagent` replies to a question a delegate asked, and no delegate here can
+ask one. The library injects its `ask_parent` tool only into agents it built
+itself, and every delegate on this platform arrives pre-built as
+`SubAgentConfig["agent"]` from :func:`_config_for` - so the library's `task` passes
+`inject_ask_parent=False` for a pinned delegate and an inline specialist alike, and
+:func:`~app.agents.capabilities.subagents._toolset._autonomously` closes the two
+dynamic entry points as well. `TaskStatus.WAITING_FOR_ANSWER` is therefore never
+reached, and this tool has nothing it could ever answer.
+
+*Filtered rather than left out of* :data:`DELEGATION_TOOLS`, because those are two
+different failures and only one of them is loud. A tool the model is offered and
+cannot use costs a description in every turn's context - the strongest prompt
+surface in this product - and invites a call whose only possible answer is "that
+delegation is not waiting for an answer". A tool absent from the declaration cannot
+be gated by the approval policy or renamed by a binding, and *that* half is silent.
+So it stays declared and stops being offered, which is the same shape the two
+dynamic entry points had while they were declared and unwired.
+
+*Opening the path instead was the alternative, and it is a feature rather than a
+repair.* Which channel answers a question is decided by the mode: a `sync`
+delegation is answered from `ask_callback` or `ctx.deps.ask_user` - a person, and
+never through this tool - so this tool becomes reachable only for a *background*
+delegation, whose question is answered by the parent's own model through a future
+the library's task manager holds. That is the harder half: the delegate blocks for
+up to `ask_timeout_seconds` holding a fan-out slot while nothing obliges the parent
+to look, and `wrap_run` cancels every background task when the turn ends - money
+spent on a question nobody was asked. So agenticos#184 - letting a `sync` delegate
+ask the person already waiting - is worth doing and would **not** empty this set on
+its own: a sync answer never arrives through this tool. Only the background half
+does, which is why the two are one issue with two halves rather than one change.
+"""
+
+
+def _is_offered(_ctx: RunContext[AgentDeps], tool: ToolDefinition) -> bool:
+    """Whether the model is shown this tool at all. See :data:`UNREACHABLE_TOOLS`.
+
+    Reads the tool's name off the library's own toolset, which is where the stable
+    id is still the name: a binding's rename wraps the *capability*, outside this,
+    so renaming `answer_subagent` cannot smuggle it back into the offered set.
+    """
+    return tool.name not in UNREACHABLE_TOOLS
+
 
 _MODE_NOTE: dict[DelegationMode, str] = {
     "sync": "Each delegation blocks until the specialist answers.",
@@ -412,6 +449,11 @@ class Delegation(WrapperCapability[AgentDeps]):
     def get_toolset(self) -> AgentToolset[AgentDeps] | None:
         """The library's delegation tools, with this platform's accounting around them.
 
+        Also minus the ones no configuration here can reach. The library adds
+        `answer_subagent` to its toolset unconditionally, so filtering the offered
+        set is the only place that decision can be made - see
+        :data:`UNREACHABLE_TOOLS`.
+
         Memoised because the wrapper carries no state of its own but the journal
         it points at does, and because `BuiltAgent.capabilities` is introspected -
         two wrappers over one toolset would answer the same question twice.
@@ -421,7 +463,9 @@ class Delegation(WrapperCapability[AgentDeps]):
             # `SubAgentCapability` always returns one: it constructs its toolset
             # in `__post_init__` and holds it for the life of the instance.
             wrapped = cast(AbstractToolset[AgentDeps], super().get_toolset())
-            self._delegating = DelegatingToolset(wrapped=wrapped, journal=self.journal)
+            self._delegating = DelegatingToolset(wrapped=wrapped, journal=self.journal).filtered(
+                _is_offered
+            )
         return self._delegating
 
     def get_instructions(self) -> str:
