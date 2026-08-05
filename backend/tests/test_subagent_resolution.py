@@ -30,12 +30,14 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic import ValidationError
 from pydantic_ai import Agent
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolCallPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 
 from app.agents.capabilities.budget import SpendLedger
 from app.agents.capabilities.sandbox import WORKSPACE_BACKEND_RESOURCE
+from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.spec import AgentSpec, SpecialistSpec, SubagentRef
 from app.agents.subagent_runtime import (
     SUBAGENT_RUNTIME_RESOURCE,
@@ -78,12 +80,13 @@ def _delegating(
     subagents: list[SubagentRef] | None = None,
     name: str = "Orchestrator",
     max_depth: int = 1,
+    allow_dynamic: bool = False,
     share: list[str] | None = None,
     capabilities: list[dict[str, Any]] | None = None,
     **spec_fields: Any,
 ) -> AgentSpec:
     """A spec that binds the delegation capability, configured as given."""
-    config: dict[str, Any] = {"max_depth": max_depth}
+    config: dict[str, Any] = {"max_depth": max_depth, "allow_dynamic": allow_dynamic}
     if inline is not None:
         config["inline"] = [specialist.model_dump(mode="json") for specialist in inline]
     if share is not None:
@@ -129,6 +132,15 @@ def _slug(name: str) -> str:
     return name.strip().lower().replace(" ", "-")
 
 
+UNUSABLE_PROFILE = "unusable"
+"""The label of a model profile whose key has been deleted since it was stored."""
+
+
+def _profile(label: str) -> MagicMock:
+    """One row of the organization's model catalog."""
+    return MagicMock(id=uuid.uuid4(), label=label)
+
+
 def _collection(organization_id: uuid.UUID, name: str) -> MagicMock:
     return MagicMock(organization_id=organization_id, collection_name=name)
 
@@ -136,10 +148,17 @@ def _collection(organization_id: uuid.UUID, name: str) -> MagicMock:
 class _Prepared:
     """A prepared run, plus the calls the factory and the repositories saw."""
 
-    def __init__(self, prepared: Any, build: MagicMock, get_version: AsyncMock) -> None:
+    def __init__(
+        self,
+        prepared: Any,
+        build: MagicMock,
+        get_version: AsyncMock,
+        list_profiles: AsyncMock,
+    ) -> None:
         self.prepared = prepared
         self.build = build
         self.get_version = get_version
+        self.list_profiles = list_profiles
 
     @property
     def resources(self) -> dict[str, Any]:
@@ -168,6 +187,20 @@ class _Prepared:
             entry.build()
         return self._arguments(self.build.call_args_list[-1])
 
+    def invented(self, *, model: str, name: str = "summariser") -> dict[str, Any]:
+        """Build a specialist the run's model asked for, and say what the factory got.
+
+        The same shape as `built`, and for the same reason: a dynamic specialist is
+        built from inside a tool call, so what it was built *with* is only visible
+        by making that call. What matters in the answer is `shared_budget` - a
+        specialist built without it meters nothing the run's cap can see.
+        """
+        dynamic = self.runtime.dynamic
+        assert dynamic is not None, "this agent was not resolved with dynamic specialists"
+        with patch(f"{RUNNER}.build_agent", new=self.build):
+            dynamic.build(name=name, instructions="Be brief.", model=model)
+        return self._arguments(self.build.call_args_list[-1])
+
 
 async def _prepare(
     spec: AgentSpec,
@@ -178,6 +211,7 @@ async def _prepare(
     collections: dict[uuid.UUID, MagicMock] | None = None,
     workspace: object | None = None,
     agent_id: uuid.UUID | None = None,
+    profiles: list[MagicMock] | None = None,
 ) -> _Prepared:
     """Prepare a run of `spec` with every database read answered from memory.
 
@@ -185,6 +219,11 @@ async def _prepare(
     the only ones that exist - which is how a test says a delegate was deleted.
     Left out, every delegate has a row whose slug follows its pinned name, so a
     test about something else does not have to spell one out.
+
+    `profiles` is the organization's model catalog, read only by an agent that may
+    invent specialists. One usable profile by default, because that is the state a
+    run is always in: the delegating agent's own model resolved before any of this.
+    A profile whose label is `unusable` is one whose key has gone.
     """
     ctx = ctx or _ctx()
     service = AgentRunnerService(_db())
@@ -212,8 +251,21 @@ async def _prepare(
     async def get_collection(_db: Any, collection_id: uuid.UUID) -> Any:
         return known_collections.get(collection_id)
 
+    catalog = [_profile("fast")] if profiles is None else profiles
+    by_id = {profile.id: profile for profile in catalog}
+
     async def resolve_model(_ctx: Any, *, profile_id: uuid.UUID | None) -> Any:
-        return MagicMock(label=f"model-{profile_id}", provider="openai", secret_id=None, params={})
+        profile = by_id.get(profile_id)
+        if profile is not None and profile.label == UNUSABLE_PROFILE:
+            raise BadRequestError(message="That model has no key configured")
+        label = f"model-{profile_id}" if profile is None else profile.label
+        return MagicMock(
+            profile_id=profile_id,
+            label=label,
+            provider="openai",
+            secret_id=None,
+            params={},
+        )
 
     with (
         patch.object(
@@ -222,6 +274,9 @@ async def _prepare(
             new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
         ),
         patch.object(service.models, "resolve", new=AsyncMock(side_effect=resolve_model)),
+        patch.object(
+            service.models, "list_profiles", new=AsyncMock(return_value=catalog)
+        ) as list_profiles,
         patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
         patch.object(service.secrets, "resolve_for_bindings", new=AsyncMock(return_value={})),
         patch.object(
@@ -241,7 +296,7 @@ async def _prepare(
     ):
         prepared = await service.prepare(ctx, agent.id)
 
-    return _Prepared(prepared, build, fetch_version)
+    return _Prepared(prepared, build, fetch_version, list_profiles)
 
 
 class TestAnAgentThatDoesNotDelegate:
@@ -572,6 +627,16 @@ class TestAPublishedDelegate:
 
 
 class TestHowDeepDelegationGoes:
+    """`max_depth` counts levels of delegation *including the configured agent's own*.
+
+    Which is one less than the tree has left below it, and the subtraction is the
+    whole of what the setting means: the field says "1 lets this agent delegate and
+    its delegates not", so at 1 there is nothing left below and every delegate is
+    built without the capability. It used to pass `max_depth` straight through as
+    the remaining budget, which made the documented behaviour of `1` what `0` did -
+    and shipped a default that allowed one nested level nobody had asked for.
+    """
+
     @staticmethod
     def _two_levels(max_depth: int) -> tuple[AgentSpec, dict[uuid.UUID, MagicMock]]:
         """A parent that delegates to an agent which itself delegates."""
@@ -590,8 +655,8 @@ class TestHowDeepDelegationGoes:
         )
         return parent, {child.id: child, grandchild.id: grandchild}
 
-    async def test_a_delegate_within_the_bound_can_delegate_further(self):
-        parent, versions = self._two_levels(max_depth=1)
+    async def test_two_levels_lets_a_delegate_delegate_once_more(self):
+        parent, versions = self._two_levels(max_depth=2)
 
         prepared = await _prepare(parent, versions=versions)
         built = prepared.built("research-bot")
@@ -600,15 +665,25 @@ class TestHowDeepDelegationGoes:
         assert [entry.name for entry in nested.subagents] == ["fact-checker"]
         # Nothing further: the grandchild is at the bound.
         assert nested.depth_remaining == 0
+        # And it says how deep it is rather than leaving the capability to compute
+        # it from two numbers out of two different specs, which is what used to
+        # nest a delegation panel under the wrong parent.
+        assert (prepared.runtime.depth, nested.depth) == (0, 1)
         # Every level shares the run's one ledger, so the nested runtime measures
         # the same total the parent's cap is checked against.
         assert nested.ledger is prepared.build.return_value.ledger
+        # And one stash, because a delegation two levels down parks the run
+        # somebody started and is continued from that run's stored state.
+        assert nested.stash is prepared.runtime.stash
 
-    async def test_at_the_bound_the_delegate_loses_the_capability_entirely(self):
-        """Rather than keeping a tool that always answers "no delegates". That
-        tool's description is context the model pays for on every turn, and the
-        first thing it does with one is try it."""
-        parent, versions = self._two_levels(max_depth=0)
+    async def test_the_default_stops_a_delegate_from_delegating_at_all(self):
+        """One level, which is what `max_depth=1` says and what an author reads.
+
+        The capability is *removed* rather than left in place with nothing to
+        delegate to: that tool's description is context the model pays for on every
+        turn, and the first thing it does with one is try it.
+        """
+        parent, versions = self._two_levels(max_depth=1)
 
         prepared = await _prepare(parent, versions=versions)
         built = prepared.built("research-bot")
@@ -619,6 +694,164 @@ class TestHowDeepDelegationGoes:
         # And the grandchild's version was never loaded: resolving a delegate
         # nothing can address would be a query per run for nothing.
         assert prepared.get_version.await_count == 1
+
+    def test_delegation_cannot_be_switched_off_through_the_depth(self):
+        """`max_depth=0` is refused by the model rather than accepted and ignored.
+
+        It would be a *second* off switch contradicting the first. Disabling the
+        binding is how delegation is turned off - publish validation already refuses
+        an agent whose binding is disabled while its spec still names delegates - and
+        a `max_depth` of zero beside a list of pins would be configuration that reads
+        as a decision and does nothing, with nothing refusing it.
+        """
+        with pytest.raises(ValidationError, match="greater than or equal to 1"):
+            SubagentsConfig(max_depth=0)
+
+
+class TestASpecialistTheModelInvents:
+    """`allow_dynamic`, resolved. The runner's half of it is two things: whether
+    the agent may, and which models it may name - and both are database questions,
+    which is why the capability is handed the answer rather than the setting.
+    """
+
+    async def test_an_agent_that_did_not_ask_for_it_gets_nothing(self):
+        """The default, and the reason the capability reads the runtime rather than
+        the config: one reader for one setting."""
+        prepared = await _prepare(_delegating(inline=[_specialist()]))
+
+        assert prepared.runtime.dynamic is None
+
+    async def test_the_models_it_may_name_are_the_organizations_own_profiles(self):
+        """Never free text. A model naming `openai:gpt-4.1` in an organization that
+        holds no OpenAI key writes a run that dies at its first request with a
+        provider error, and the model that named it had no way to know."""
+        prepared = await _prepare(
+            _delegating(inline=[_specialist()], allow_dynamic=True),
+            profiles=[_profile("fast"), _profile("careful")],
+        )
+
+        dynamic = prepared.runtime.dynamic
+        assert dynamic is not None
+        assert dynamic.allowed_models == ("fast", "careful")
+
+    async def test_a_profile_whose_key_has_gone_is_left_out_rather_than_failing_the_run(self):
+        """One misconfigured model in a catalog of ten must not stop an agent that
+        names none of it - the same reasoning `resolve` applies to a fallback
+        chain. What it must not do is stay on a list a model is told it may use."""
+        prepared = await _prepare(
+            _delegating(allow_dynamic=True),
+            profiles=[_profile("fast"), _profile(UNUSABLE_PROFILE)],
+        )
+
+        dynamic = prepared.runtime.dynamic
+        assert dynamic is not None
+        assert dynamic.allowed_models == ("fast",)
+
+    async def test_the_catalog_is_read_once_for_the_whole_tree(self):
+        """It is a fact about the organization, not about a level, and reading it
+        costs a query and a vault unseal per profile. Two nested levels that both
+        allow dynamic specialists would otherwise pay for it twice."""
+        grandchild_id = uuid.uuid4()
+        grandchild = _version(grandchild_id, AgentSpec(name="Fact Checker"))
+        child_id = uuid.uuid4()
+        child = _version(
+            child_id,
+            _delegating(
+                name="Research Bot",
+                allow_dynamic=True,
+                subagents=[SubagentRef(agent_id=grandchild_id, agent_version_id=grandchild.id)],
+            ),
+        )
+        parent = _delegating(
+            subagents=[SubagentRef(agent_id=child_id, agent_version_id=child.id)],
+            allow_dynamic=True,
+            max_depth=2,
+        )
+
+        prepared = await _prepare(
+            parent, versions={child.id: child, grandchild.id: grandchild}, profiles=[_profile("f")]
+        )
+        nested = prepared.built("research-bot")["resources"][SUBAGENT_RUNTIME_RESOURCE]
+
+        assert prepared.runtime.dynamic is not None
+        assert nested.dynamic is not None
+        assert prepared.list_profiles.await_count == 1
+
+    async def test_a_delegate_inherits_nothing_and_decides_for_itself(self):
+        """A published delegate is reviewed on its own spec, so whether it may
+        invent specialists is a question its own author answered - not one its
+        caller answers for it."""
+        child_id = uuid.uuid4()
+        child = _version(child_id, _delegating(name="Research Bot"))
+        parent = _delegating(
+            subagents=[SubagentRef(agent_id=child_id, agent_version_id=child.id)],
+            allow_dynamic=True,
+            max_depth=2,
+        )
+
+        prepared = await _prepare(parent, versions={child.id: child})
+        nested = prepared.built("research-bot")["resources"][SUBAGENT_RUNTIME_RESOURCE]
+
+        assert prepared.runtime.dynamic is not None
+        assert nested.dynamic is None
+
+    async def test_at_the_depth_bound_a_delegate_may_not_invent_one_either(self):
+        """A specialist a model invents is a level of delegation like any other, so
+        an agent at the bound gets neither a delegate nor the tools to make one -
+        and it gets them by having the whole capability removed, which is what also
+        removes the two dynamic entry points."""
+        child_id = uuid.uuid4()
+        child = _version(child_id, _delegating(name="Research Bot", allow_dynamic=True))
+        parent = _delegating(
+            subagents=[SubagentRef(agent_id=child_id, agent_version_id=child.id)], max_depth=1
+        )
+
+        prepared = await _prepare(parent, versions={child.id: child})
+        built = prepared.built("research-bot")
+
+        assert [binding.id for binding in built["spec"].capabilities] == []
+        assert SUBAGENT_RUNTIME_RESOURCE not in built["resources"]
+
+    async def test_one_is_built_through_the_factory_with_the_runs_budget(self):
+        """The property the whole phase exists for, at the seam the runner owns.
+
+        A specialist built without `shared_budget` meters into a ledger of its own,
+        so the cap on the run somebody started never sees what it spent - and that
+        is exactly what the delegation library does if it is left to build one.
+        """
+        prepared = await _prepare(_delegating(allow_dynamic=True), profiles=[_profile("fast")])
+
+        built = prepared.invented(model="fast")
+
+        assert built["shared_budget"] is prepared.prepared.built.budget
+        assert built["spec"].instructions == "Be brief."
+        assert built["model"].label == "fast"
+
+    async def test_one_reaches_nothing_the_agent_that_invented_it_was_granted(self):
+        """No capabilities, no collections, no skills, no MCP connections and no
+        delegates. A specialist a model wrote is the tempting route to a
+        credential the organization granted the *parent*, precisely because
+        nobody thinks of it as an agent."""
+        prepared = await _prepare(
+            _delegating(allow_dynamic=True, collection_ids=[uuid.uuid4()]),
+            profiles=[_profile("fast")],
+        )
+
+        built = prepared.invented(model="fast")
+
+        spec = built["spec"]
+        assert (spec.capabilities, spec.subagents, spec.skill_ids, spec.mcp_server_ids) == (
+            [],
+            [],
+            [],
+            [],
+        )
+        assert built["resources"] == {"kb_collection_names": [], "skills": []}
+        assert built["secrets"] == {}
+        assert built["extra_toolsets"] == []
+        # Its own agent is the run's, as an inline specialist's is: nothing
+        # attributes a run row to a specialist, and this id keys the workspace.
+        assert built["agent_id"] == prepared.prepared.agent.id
 
 
 class TestRefusals:
@@ -637,7 +870,12 @@ class TestRefusals:
                 ],
             ),
         )
-        parent = _delegating(subagents=[SubagentRef(agent_id=child_id, agent_version_id=child.id)])
+        # Two levels, because a cycle needs a nested one to close: at the default
+        # depth the child is built without the capability at all, so the pin back to
+        # the parent is never resolved and there is nothing to refuse.
+        parent = _delegating(
+            subagents=[SubagentRef(agent_id=child_id, agent_version_id=child.id)], max_depth=2
+        )
 
         with pytest.raises(BadRequestError, match="already running") as refused:
             await _prepare(
@@ -1053,6 +1291,74 @@ class TestWritingTheQueuedRows:
             await service.finish(prepared, status=RunStatus.COMPLETED)
 
         write.assert_not_awaited()
+
+
+class TestResumingIntoADelegation:
+    """A continued run is reassembled from scratch, so the place has to be put back.
+
+    Nothing survives from the turn that parked: `resume` resolves the whole tree
+    again from the version the run was parked on, which is what makes it safe to
+    continue a run in another process a day later. So the stashed place travels
+    through the assembly, and every level of the fresh tree has to be able to find
+    it - a delegate two levels down parks the run somebody started, and it is that
+    run's stored state the continuation comes out of.
+    """
+
+    async def test_the_reassembled_tree_holds_the_place_the_parked_delegate_left(self):
+        parked_at = "the-parents-task-call"
+        frame = {
+            "tool_call_id": parked_at,
+            "task_id": "4f2a1b8c",
+            "subagent": "summariser",
+            "messages": [{"kind": "request", "parts": []}],
+        }
+        run = MagicMock(
+            id=uuid.uuid4(),
+            agent_id=uuid.uuid4(),
+            agent_version_id=uuid.uuid4(),
+            conversation_id=None,
+            exposure_id=None,
+            environment_id=None,
+            surface="api",
+            status=RunStatus.AWAITING_APPROVAL.value,
+            paused_state={"messages": [], "tool_call_ids": {}, "delegations": [frame]},
+            model_label="gpt-4.1",
+            input_tokens=0,
+            output_tokens=0,
+            cost_usd=Decimal(0),
+            cost_is_partial=False,
+        )
+        spec = _delegating(inline=[_specialist()])
+        version = MagicMock(id=run.agent_version_id, agent_id=run.agent_id)
+        version.spec = spec.model_dump(mode="json")
+        service = AgentRunnerService(_db())
+
+        with (
+            patch(f"{RUNNER}.agent_run_repo.claim_parked_run", new=AsyncMock(return_value=run)),
+            patch(
+                f"{RUNNER}.agent_run_repo.list_approvals_for_run", new=AsyncMock(return_value=[])
+            ),
+            patch(f"{RUNNER}.agent_run_repo.mark_running", new=AsyncMock()),
+            patch(f"{RUNNER}.agent_run_repo.finish_run", new=AsyncMock()),
+            patch(f"{RUNNER}.agent_repo.get_version", new=AsyncMock(return_value=version)),
+            patch.object(service.registry, "get", new=AsyncMock(return_value=MagicMock())),
+            patch.object(service.models, "resolve", new=AsyncMock(return_value=MagicMock())),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch.object(service.secrets, "resolve_for_bindings", new=AsyncMock(return_value={})),
+            patch.object(service.workspaces, "open", new=AsyncMock(return_value=None)),
+            patch(f"{RUNNER}.build_agent") as build,
+        ):
+            build.return_value.agent.run = AsyncMock(return_value=MagicMock(output="continued"))
+            output, _ = await service.resume(_ctx(), run.id)
+
+        assert output == "continued"
+        runtime = build.call_args_list[0].kwargs["resources"][SUBAGENT_RUNTIME_RESOURCE]
+        assert list(runtime.stash.resuming) == [parked_at]
+        # And the replay is told to run that `task` call again, which is what puts
+        # the capability in a position to continue the delegate instead of starting
+        # one. Without it Pydantic AI refuses the resume as incomplete.
+        deferred = build.return_value.agent.run.call_args.kwargs["deferred_tool_results"]
+        assert list(deferred.approvals) == [parked_at]
 
 
 class TestWhoseMonthADelegationCountsTowards:

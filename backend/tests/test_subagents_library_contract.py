@@ -36,6 +36,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from typing import Any
+from uuid import uuid4
 
 import pytest
 from pydantic_ai import Agent as PydanticAgent
@@ -46,10 +47,11 @@ from pydantic_ai.messages import (
     ModelResponse,
     TextPart,
     ToolCallPart,
+    ToolReturnPart,
 )
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.tools import DeferredToolRequests
-from pydantic_ai.usage import UsageLimits
+from pydantic_ai.usage import RunUsage, UsageLimits
 from subagents_pydantic_ai import (
     SubAgentCapability,
     SubAgentConfig,
@@ -446,5 +448,162 @@ async def test_the_capability_fields_our_adapter_passes_still_exist() -> None:
         "allowed_models",
         "capabilities_map",
         "default_agent_factory",
+        "max_agents",
+        "default_model",
+        "descriptions",
         "toolsets_factory",
     } <= declared
+
+
+def _dynamic_capability(
+    *,
+    factory: Any = None,
+    allowed_models: list[str] | None = None,
+    max_agents: int = 5,
+) -> SubAgentCapability:
+    """The library capability, configured the way our adapter configures a dynamic one."""
+    return SubAgentCapability(
+        subagents=[],
+        include_general_purpose=False,
+        delegation_configuration="persisted_and_oneshot",
+        allowed_models=allowed_models,
+        default_agent_factory=factory,
+        max_agents=max_agents,
+    )
+
+
+def _dynamic_parent(
+    tool: str,
+    args: dict[str, Any],
+    *,
+    factory: Any = None,
+    allowed_models: list[str] | None = None,
+) -> PydanticAgent[AgentDeps, Any]:
+    """A parent that calls one dynamic entry point, then answers with the result."""
+
+    def respond(messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
+        if not any(
+            isinstance(part, ToolCallPart) for message in messages for part in message.parts
+        ):
+            return ModelResponse(parts=[ToolCallPart(tool_name=tool, args=args)])
+        return ModelResponse(
+            parts=[
+                TextPart(
+                    " | ".join(
+                        str(part.content)
+                        for message in messages
+                        for part in message.parts
+                        if isinstance(part, ToolReturnPart)
+                    )
+                )
+            ]
+        )
+
+    return PydanticAgent[AgentDeps, Any](
+        model=FunctionModel(respond),
+        output_type=[str, DeferredToolRequests],
+        capabilities=[_dynamic_capability(factory=factory, allowed_models=allowed_models)],
+    )
+
+
+async def test_a_dynamic_configuration_exposes_exactly_three_entry_points() -> None:
+    """`persisted_and_oneshot` is what makes `create_agent` and `delegate` exist.
+
+    Under any other value the library refuses the four dynamic arguments outright
+    rather than ignoring them, so the five move together - and a mode that stopped
+    exposing one of these tools would leave the drift check comparing a declared
+    tool against nothing.
+    """
+    toolset = _dynamic_capability(
+        factory=lambda _config: None, allowed_models=["fast"]
+    ).get_toolset()
+    assert toolset is not None
+
+    offered = set(await toolset.get_tools(_a_run_context()))
+
+    assert {"task", "create_agent", "delegate"} <= offered
+
+
+async def test_the_factory_builds_every_specialist_and_receives_the_chosen_model() -> None:
+    """The whole of how a dynamic specialist stays metered here.
+
+    Our factory routes the build through `build_agent` with the run's budget guard,
+    and it only gets the chance because the library asks it rather than
+    constructing an `Agent` itself. It also has to be handed the model the request
+    settled on - `config["model"]` - or the specialist runs on something nobody
+    chose.
+    """
+    asked: list[SubAgentConfig] = []
+
+    def factory(config: SubAgentConfig) -> Any:
+        asked.append(config)
+        return _child_agent(_answering_child("built by our factory"), _Seen())
+
+    parent = _dynamic_parent(
+        "delegate",
+        {
+            "description": "summarise it",
+            "instructions": "You summarise.",
+            "name": "summariser",
+            "model": "fast",
+        },
+        factory=factory,
+        allowed_models=["fast"],
+    )
+
+    result = await parent.run("go", deps=AgentDeps(organization_id=uuid4()))
+
+    assert "built by our factory" in str(result.output)
+    assert [(config["name"], config["model"]) for config in asked] == [("summariser", "fast")]
+
+
+async def test_a_model_outside_the_allow_list_is_a_tool_result_naming_the_list() -> None:
+    """Not an exception, and the message carries the alternatives.
+
+    Both halves are load-bearing. A raise would end the run over a choice the model
+    can simply make differently, and the list is why our own refusals do not repeat
+    it: a model that named something wrong is told what is right by the library, so
+    the only case we refuse ourselves is the one the library cannot see - a call
+    that named nothing, which it would answer by falling back on `default_model`.
+    """
+    parent = _dynamic_parent(
+        "delegate",
+        {"description": "d", "instructions": "i", "name": "n", "model": "sonnet"},
+        factory=lambda _config: None,
+        allowed_models=["fast", "careful"],
+    )
+
+    result = await parent.run("go", deps=AgentDeps(organization_id=uuid4()))
+
+    assert "sonnet" in str(result.output)
+    assert "fast, careful" in str(result.output)
+
+
+async def test_max_agents_bounds_the_registry_create_agent_writes_into() -> None:
+    """And that registry is created per run, which is what makes nothing persist.
+
+    A registry the library shared between runs would make a specialist one
+    conversation invented addressable from another - and `create_agent` names are
+    model-authored and describe the work, so it would leak what one tenant is
+    doing to the next.
+    """
+    made = _dynamic_capability(factory=lambda _config: None, allowed_models=["fast"])
+    other = _dynamic_capability(factory=lambda _config: None, allowed_models=["fast"])
+
+    first, second = made.get_toolset(), other.get_toolset()
+
+    assert first is not None and second is not None
+    # `registry` is not on the abstract toolset type, but it is what the library
+    # documents `max_agents` as applying to.
+    assert first.registry is not second.registry  # ty: ignore[unresolved-attribute]
+    assert first.registry.max_agents == 5  # ty: ignore[unresolved-attribute]
+
+
+def _a_run_context() -> RunContext[AgentDeps]:
+    return RunContext(
+        deps=AgentDeps(organization_id=uuid4()), model=FunctionModel(_nothing), usage=RunUsage()
+    )
+
+
+def _nothing(_messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
+    return ModelResponse(parts=[TextPart("")])

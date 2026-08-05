@@ -38,10 +38,17 @@ from app.agents.capabilities.subagents._capability import (
     Delegation,
     build_delegation,
 )
+from app.agents.capabilities.subagents._journal import ActingDelegate, acting_delegate
 from app.agents.spec import DelegationMode, SpecialistSpec
 from app.agents.subagent_runtime import SUBAGENT_RUNTIME_RESOURCE, SubagentRuntime
 
-__all__ = ["DELEGATION_TOOLS", "Delegation", "SubagentsConfig"]
+__all__ = [
+    "DELEGATION_TOOLS",
+    "ActingDelegate",
+    "Delegation",
+    "SubagentsConfig",
+    "acting_delegate",
+]
 
 
 class SubagentsConfig(BaseModel):
@@ -81,20 +88,34 @@ class SubagentsConfig(BaseModel):
         default=False,
         description=(
             "Whether this agent may invent specialists at run time rather than only "
-            "using the ones it was given. Off, and off is the default for the same "
-            "reason this product exists: an agent whose instructions nobody wrote "
-            "is an agent nobody can review, budget or explain."
+            "using the ones it was given. Off by default for the same reason this "
+            "product exists: an agent whose instructions nobody wrote is an agent "
+            "nobody can review. Switched on, it adds two tools - one for a "
+            "specialist used once, one kept for as long as the reply lasts - and a "
+            "specialist is instructions plus a model and nothing else: it picks its "
+            "model from this organization's own models, spends against this run's "
+            "budget like every other delegation, gets no knowledge, tools or "
+            "delegates of its own, and is gone when the reply it was made for is. "
+            "Keeping one means "
+            "publishing an agent, which is a person's decision. Creating one needs "
+            "approval by default, because nobody has reviewed instructions a model "
+            "wrote a moment ago - turn that off per tool if this agent is meant to "
+            "run unattended."
         ),
     )
     max_depth: int = Field(
         default=1,
-        ge=0,
+        ge=1,
         le=3,
         description=(
-            "How many levels of delegation are allowed. 1 lets this agent delegate "
-            "and its delegates not; 0 turns delegation off while keeping the "
-            "configuration. Bounded low on purpose - each level multiplies the "
-            "requests one turn can make."
+            "How many levels of delegation are allowed, counting this agent's own. "
+            "1 - the default - lets this agent delegate and its delegates not; 2 "
+            "allows one nested level, so a delegate may hand work on once; 3 two. "
+            "At the bound a delegate is built without the delegation capability "
+            "rather than with one that can only refuse. Bounded low on purpose: "
+            "each level multiplies the requests one turn can make. To turn "
+            "delegation off, disable this binding - that is the one off switch, "
+            "and it keeps the configuration."
         ),
     )
     max_fanout: int = Field(
@@ -162,14 +183,22 @@ class SubagentsConfig(BaseModel):
 def _build(ctx: CapabilityBuildContext) -> Delegation | None:
     """Build from the delegation tree the runner resolved, or nothing at all.
 
-    `None` - the capability is not attached - when there is no resolved runtime or
-    it holds no delegates. That is a preview, a unit test, or an agent whose
-    delegates were all removed, and in every case the honest answer is an agent
-    without delegation rather than one carrying seven tools that can only refuse.
-    Every tool in a list is context the model pays for on every turn.
+    `None` - the capability is not attached - when there is no resolved runtime,
+    or when it holds neither a delegate nor permission to invent one. That is a
+    preview, a unit test, or an agent whose delegates were all removed, and in
+    every case the honest answer is an agent without delegation rather than one
+    carrying ten tools that can only refuse. Every tool in a list is context the
+    model pays for on every turn.
+
+    `allow_dynamic` on its own is a complete configuration and has to be treated
+    as one: an orchestrator that invents every specialist it uses has nothing to
+    pin, and requiring a delegate as well would have made the switch do nothing
+    for exactly the author who turned it on.
     """
     runtime = ctx.resources.get(SUBAGENT_RUNTIME_RESOURCE)
-    if not isinstance(runtime, SubagentRuntime) or not runtime.subagents:
+    if not isinstance(runtime, SubagentRuntime) or not (
+        runtime.subagents or runtime.dynamic is not None
+    ):
         return None
     config = ctx.config if isinstance(ctx.config, SubagentsConfig) else SubagentsConfig()
     return build_delegation(
@@ -179,8 +208,11 @@ def _build(ctx: CapabilityBuildContext) -> Delegation | None:
         include_general_purpose=config.include_general_purpose,
         max_result_chars=config.max_result_chars,
         # How far in this run's delegations already are, which is what a surface
-        # needs to nest their panels. The runner hands down what is left of the
-        # nesting budget, so the difference from the ceiling this spec set is the
-        # level: a top-level run has spent none of it and delegates at depth 0.
-        depth=max(config.max_depth - runtime.depth_remaining, 0),
+        # needs to nest their panels. Taken from the runtime, which the runner
+        # stamped while it walked the tree, rather than computed from
+        # `max_depth - depth_remaining`: those two numbers come from different
+        # specs - the ceiling is *this* agent's setting, the remainder is what the
+        # tree has left - so any delegate that configured a different ceiling
+        # reported the wrong depth and a panel nested under the wrong parent.
+        depth=runtime.depth,
     )

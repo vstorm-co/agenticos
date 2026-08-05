@@ -60,7 +60,7 @@ from pydantic_ai.models.test import TestModel
 from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai.toolsets import FunctionToolset
 from pydantic_ai.usage import RunUsage, UsageLimits
-from subagents_pydantic_ai import SubAgentConfig
+from subagents_pydantic_ai import SubAgentConfig, TaskHandle, TaskManager
 
 from app.agents.capabilities import CapabilityBinding, CapabilityBuildContext, build, get
 from app.agents.capabilities.approval import (
@@ -73,6 +73,8 @@ from app.agents.capabilities.budget import SpendEntry, SpendLedger
 from app.agents.capabilities.subagents import Delegation, SubagentsConfig
 from app.agents.capabilities.subagents._capability import _LazyAgent
 from app.agents.capabilities.subagents._events import UNNAMED_TOOL, FrameLabels, frame_for
+from app.agents.capabilities.subagents._journal import DelegationJournal
+from app.agents.capabilities.subagents._toolset import DelegatingToolset
 from app.agents.deps import AgentDeps
 from app.agents.factory import DEFAULT_MAX_STEPS
 from app.agents.spec import AgentSpec, CapabilityBindingSpec
@@ -406,6 +408,11 @@ def a_context(
 
     `run` is Pydantic AI's own run id, which is what the library scopes a task
     handle to - so a second value is how "another run's task" is spelt.
+
+    `tool_call_id` is the model's id for the `task` call, which a real context
+    always carries. It is what identifies a delegation across a park and a resume,
+    so a context without one is a context in which a suspended delegate's place
+    cannot be kept.
     """
     return RunContext(
         deps=AgentDeps(
@@ -418,6 +425,7 @@ def a_context(
         model=TestModel(),
         usage=RunUsage(),
         run_id=run,
+        tool_call_id="the-parents-task-call",
     )
 
 
@@ -510,14 +518,15 @@ class TestAttaching:
         assert isinstance(capability, Delegation)
         assert capability.journal.max_fanout == SubagentsConfig().max_fanout
 
-    async def test_the_declared_tools_are_the_ones_the_model_is_offered(self):
-        """Minus the two dynamic entry points, which are declared and not wired.
+    async def test_allow_dynamic_in_the_config_alone_offers_no_extra_tool(self):
+        """The setting has one reader, and it is not this capability.
 
-        Declared because a tool absent from `tools=` cannot be gated by the
-        approval policy or renamed by a binding. Not wired because the library
-        would build such a specialist itself, on its own default model - outside
-        this deployment's catalog, vault and budget guard. `allow_dynamic`
-        therefore changes nothing yet, and the README says so.
+        Acting on `allow_dynamic` means resolving the organization's model profiles
+        and holding the run's budget guard, both of which are the runner's. So the
+        runner reads the setting and the capability reads the *result*, on
+        `SubagentRuntime.dynamic` - and a config saying yes with no resolved
+        builder behind it offers nothing, rather than two tools whose factory does
+        not exist. `tests/test_dynamic_specialists.py` has the other direction.
         """
         capability = a_capability(a_runtime(a_delegate()), {"allow_dynamic": True})
         toolset = capability.get_toolset()
@@ -1186,6 +1195,12 @@ class TestApprovalInsideADelegation:
         platform records it as `failed`: reading it as "still going" - which is what
         `_RESOLVED` alone did - attributed the spend to nothing, never released the
         fan-out slot, and left the panel a surface had opened permanently open.
+
+        The resume path has to agree with that, and it does by having nothing to
+        agree about: the suspension happens inside a task the delegating call
+        returned from long ago, so it never propagates out of `call_tool` and no
+        place is kept. A frame here would be an offer to continue a delegation whose
+        caller has gone - a run parked on a `task` call that already answered.
         """
         recorder = Recorder()
         sink = Sink()
@@ -1210,12 +1225,16 @@ class TestApprovalInsideADelegation:
         assert "mode='sync'" in outcome.error
         assert capability.journal.in_flight() == 0
         assert sink.frames[-1].kind == "subagent_complete"
+        assert capability.journal.runtime.stash.parked == [], (
+            "a background delegation must not offer a place to continue: its caller has gone"
+        )
 
     async def test_a_sync_delegation_that_suspends_is_not_recorded_as_an_outcome(self):
         """The same status, the opposite meaning. Nothing went wrong and the answer
-        is still coming: the signal parks the parent run, and the resumed run
-        delegates again - so a row written here would describe unfinished work and
-        then be double-counted."""
+        is still coming: the signal parks the parent run, which is continued from
+        the queue with this delegate carried on rather than started again - so a row
+        written here would describe unfinished work, and then be written a second
+        time when the continuation finishes it."""
         recorder = Recorder()
 
         def defer(_ctx: RunContext[AgentDeps]) -> str:
@@ -1229,6 +1248,102 @@ class TestApprovalInsideADelegation:
             await delegate_to(capability, a_context())
 
         assert recorder.outcomes == []
+
+
+class TestKeepingASuspendedDelegatesPlace:
+    """What is stashed when a delegate stops for a person, and what is not.
+
+    The continuation itself is `tests/test_subagent_nested_resume.py`, which asserts
+    the property that matters: the same answer as an ungated run. Here is the half
+    that has to be right before that is even possible - a suspended delegate's
+    conversation kept where the resume will look for it, and nothing kept for a
+    suspension no delegate produced.
+    """
+
+    async def test_a_suspended_delegate_leaves_its_conversation_and_its_identity(self):
+        """The parent parks on `task`, so without this the delegate is simply gone.
+
+        Everything a continuation needs, and all of it plain data: the delegate's
+        messages, the `task` call that identifies the delegation on the replay, and
+        which delegate it was. A live object here would be a service holding the
+        request's session, kept past the turn that closes it.
+        """
+        agent_id, version_id = uuid4(), uuid4()
+        capability = a_capability(
+            a_runtime(
+                a_delegate(
+                    model=one_tool_call(),
+                    gated=True,
+                    agent_id=agent_id,
+                    agent_version_id=version_id,
+                )
+            )
+        )
+        ctx = a_context(approvals=Approvals())
+
+        with pytest.raises(ApprovalRequired):
+            await delegate_to(capability, ctx)
+
+        (parked,) = capability.journal.runtime.stash.parked
+        assert parked.tool_call_id == ctx.tool_call_id
+        assert (parked.subagent, parked.agent_id, parked.agent_version_id) == (
+            "researcher",
+            agent_id,
+            version_id,
+        )
+        assert parked.parent_task_id is None
+        assert parked.child_run_id is not None
+        assert parked.messages, "an empty history is a delegate that has to start again"
+
+    async def test_a_history_the_library_did_not_keep_still_leaves_a_frame(self):
+        """A frame with no messages: a delegation that will be re-run, not lost.
+
+        The library stores the history as best-effort telemetry - a serialisation
+        failure there warns rather than failing the task - so a handle can record a
+        suspension and carry no conversation. Written anyway, because the two
+        outcomes are not "continue or re-run": they are "re-run" and "this run can
+        never be continued at all". Pydantic AI refuses a resume that leaves a parked
+        call without a result, and the parked call here is the parent's `task`.
+        """
+        journal = _idle_journal(a_delegate())
+        # A handle recording the suspension and nothing else, which is what the
+        # library leaves behind when capturing the history warned instead of
+        # succeeding. Registered directly because there is no way to reach that
+        # state through a delegation: the capture is inside the library.
+        handle = TaskHandle(task_id="4f2a1b8c", subagent_name="researcher", description="find it")
+        journal.tasks.handles[handle.task_id] = handle
+        delegation = journal.begin(
+            delegate=journal.runtime.named("researcher"),
+            name="researcher",
+            prompt="find the price",
+            tool_args={},
+            tool_call_id="the-parents-task-call",
+        )
+        delegation.task_id = handle.task_id
+
+        journal.park(delegation)
+
+        (parked,) = journal.runtime.stash.parked
+        assert parked.tool_call_id == "the-parents-task-call"
+        assert parked.messages == []
+
+    async def test_a_suspension_from_a_delegation_that_never_started_keeps_nothing(self):
+        """No task id means no delegate ran, so there is nothing that could have asked.
+
+        The library assigns one before it runs anything. A suspension arriving here
+        without one therefore came from something that is not a delegate, and a frame
+        invented for it would claim the run's *own* parked calls as that delegate's -
+        which is how one agent's replay would be handed another's tool call and
+        refused.
+        """
+        journal = _idle_journal(a_delegate())
+        toolset = DelegatingToolset(wrapped=_NeverStarts(), journal=journal)
+
+        with pytest.raises(ApprovalRequired):
+            await toolset.call_tool("task", {"subagent_type": "researcher"}, a_context(), None)
+
+        assert journal.runtime.stash.parked == []
+        assert journal.in_flight() == 0
 
 
 class TestNarration:
@@ -1365,13 +1480,29 @@ class TestDelegateDeps:
         assert deps.subagent_events is sink
 
 
-def _in_the_foreground() -> bool:
-    """The `in_background` predicate for a sync delegation, spelt out.
+class _NeverStarts:
+    """A delegation tool that suspends before the library has started a task.
 
-    `_LazyAgent` takes it from the journal in production; the tests below drive
-    the stand-in directly, where there is no delegation in flight to ask about.
+    Stands in for the wrapped toolset rather than for a delegate, because that is
+    the only way to reach the case: the library assigns a task id before it runs
+    anything, so nothing a real delegate does produces a suspension without one.
     """
-    return False
+
+    async def call_tool(self, *_args: Any, **_kwargs: Any) -> Any:
+        raise ApprovalRequired
+
+
+def _idle_journal(*delegates: ResolvedSubagent) -> DelegationJournal:
+    """A journal with no delegation in flight, for driving the stand-in directly.
+
+    `_LazyAgent` asks it two things - is this delegation a background one, and is it
+    one the run already parked on - and outside a `task` call the honest answer to
+    both is no. Which is what the tests below are about: what the stand-in does when
+    it is simply running a delegate.
+    """
+    journal = DelegationJournal(runtime=a_runtime(*delegates), mode="sync", max_fanout=3, depth=0)
+    journal.tasks = TaskManager()
+    return journal
 
 
 class TestLazyDelegate:
@@ -1382,10 +1513,8 @@ class TestLazyDelegate:
         `run` the one it takes with them off. A substitution on only the path in
         use today is one that disappears the day a config changes."""
         seen: list[AgentDeps] = []
-        proxy = _LazyAgent(
-            a_delegate(model=one_tool_call(), collection_names=("kb_x",), seen=seen),
-            _in_the_foreground,
-        )
+        delegate = a_delegate(model=one_tool_call(), collection_names=("kb_x",), seen=seen)
+        proxy = _LazyAgent(delegate, _idle_journal(delegate))
 
         await proxy.run("go", deps=AgentDeps(kb_collection_names=["kb_the_parent_s"]))
 
@@ -1401,10 +1530,8 @@ class TestLazyDelegate:
             builds += 1
             return PydanticAgent(TestModel(), system_prompt="x")
 
-        proxy = _LazyAgent(
-            ResolvedSubagent(name="researcher", description="R", build=build_it),
-            _in_the_foreground,
-        )
+        delegate = ResolvedSubagent(name="researcher", description="R", build=build_it)
+        proxy = _LazyAgent(delegate, _idle_journal(delegate))
         assert builds == 0
 
         assert proxy.name is None and proxy.model is not None

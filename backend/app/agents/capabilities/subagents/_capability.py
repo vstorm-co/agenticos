@@ -30,7 +30,6 @@ to keep in step.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from typing import Any, cast
 
@@ -43,7 +42,6 @@ from pydantic_ai.toolsets import AbstractToolset, AgentToolset
 from subagents_pydantic_ai import (
     ANSWER_SUBAGENT_DESCRIPTION,
     CHECK_TASK_DESCRIPTION,
-    DELEGATE_TOOL_DESCRIPTION,
     HARD_CANCEL_TASK_DESCRIPTION,
     LIST_ACTIVE_TASKS_DESCRIPTION,
     SOFT_CANCEL_TASK_DESCRIPTION,
@@ -53,6 +51,7 @@ from subagents_pydantic_ai import (
     SubAgentConfig,
     UsageLimitsFactory,
 )
+from subagents_pydantic_ai.dynamic_agent import AgentFactory
 from subagents_pydantic_ai.prompts import SEND_MESSAGE_TO_SUBAGENT_DESCRIPTION
 
 from app.agents.capabilities._registry import CapabilityToolInfo
@@ -61,17 +60,82 @@ from app.agents.capabilities.subagents._toolset import DelegatingToolset
 from app.agents.deps import AgentDeps
 from app.agents.factory import DEFAULT_MAX_STEPS
 from app.agents.spec import DelegationMode
-from app.agents.subagent_runtime import ResolvedSubagent, SubagentRuntime
-
-CREATE_AGENT_DESCRIPTION = (
-    "Create a reusable specialized agent at run time. It is stored for the rest of "
-    "this run and can be delegated to repeatedly with the task tool."
+from app.agents.subagent_runtime import (
+    DynamicSpecialists,
+    ResolvedSubagent,
+    ResumedDelegation,
+    SubagentRuntime,
 )
-"""The one tool description this repository writes rather than imports.
 
-The library composes `create_agent`'s text from the models and capabilities a
-deployment allows, which is configuration this platform does not pass it, so
-there is no constant to import - only the sentence the catalog needs.
+MAX_DYNAMIC_SPECIALISTS = 5
+"""How many specialists one run may **keep** before `create_agent` is refused.
+
+Precisely that, because it is the library's `DynamicAgentRegistry` ceiling and
+the registry is what `create_agent` writes into. It is not a bound on how many a
+model may invent altogether: a `delegate` call registers nothing, so one-shot
+specialists are bounded by `max_fanout` on how many run at once and by the
+agent's own `max_steps` on how many calls a turn can make at all.
+
+A constant rather than a setting, because there is no author decision to make
+here that those two do not already cover - a model that has asked to *keep* six
+different specialists is not pacing badly, it is failing to reuse the ones it
+has. The library's own default is ten, halved because every one of them is an
+agent nobody reviewed.
+"""
+
+CREATE_AGENT_DESCRIPTION = """\
+Create a specialist agent and delegate to it by name with the `task` tool, as \
+many times as you need.
+
+Use this for a specialist you will hand several pieces of work to. For one job, \
+`delegate` creates and runs one in a single call. A specialist you create lasts \
+for this reply: if `task` later answers that it is unknown, create it again.
+
+## Parameters
+- **name**: How you will address it in `task` (letters, numbers and hyphens)
+- **description**: What it is for, in one line
+- **instructions**: Its system prompt. This is the whole of its behaviour
+- **model**: Required. One of the models listed in the Delegation instructions
+
+A specialist you create has **no tools, no knowledge and no delegates** - it \
+reads its instructions and the task you give it, and answers. Work needing a \
+tool goes to one of the specialists this agent was given, or is done here.
+"""
+"""What the model reads before inventing a specialist it will reuse.
+
+Written here rather than imported, for the reason the imported ones are
+imported: this text has to be true. The library composes its own from the models
+and capabilities a deployment configured, and would describe `model` as optional
+and `capabilities` as available - neither of which holds here.
+"""
+
+DELEGATE_DESCRIPTION = """\
+Create a specialist agent and hand it one piece of work, in a single call. It is \
+not kept: it cannot be addressed again afterwards.
+
+Use this for a one-off job that needs its own instructions. For a specialist you \
+will use repeatedly, `create_agent` keeps one you can address by name.
+
+## Parameters
+- **description**: The work for it to do. It cannot see this conversation, so \
+put everything it needs here
+- **instructions**: Its system prompt. This is the whole of its behaviour
+- **name**: A label for it, used in logs and progress (letters, numbers, hyphens)
+- **model**: Required. One of the models listed in the Delegation instructions
+
+A specialist you create has **no tools, no knowledge and no delegates** - it \
+reads its instructions and the work you give it, and answers. Work needing a \
+tool goes to one of the specialists this agent was given, or is done here.
+"""
+"""The same, for the one-shot entry point.
+
+`DELEGATE_TOOL_DESCRIPTION` is deliberately *not* imported, which is the one
+place this module departs from "the descriptions are the library's". Its
+parameter list describes `model` as an optional override, `capabilities` as
+attachable and `mode` as the model's choice, and all three are false here: the
+model is required, capabilities are refused, and the mode is the author's. A tool
+description is the strongest prompt in the product, so three false sentences in
+one is worse than writing our own.
 """
 
 DELEGATION_TOOLS: tuple[CapabilityToolInfo, ...] = (
@@ -106,27 +170,33 @@ DELEGATION_TOOLS: tuple[CapabilityToolInfo, ...] = (
     CapabilityToolInfo(
         id="hard_cancel_task", description=HARD_CANCEL_TASK_DESCRIPTION, side_effecting=True
     ),
-    # Declared, deliberately not yet offered - see the README. An agent nobody
-    # published and nobody reviewed is the thing `allow_dynamic` exists to hold
-    # back, so both dynamic entry points are side-effecting when they arrive.
+    # The two dynamic entry points, offered only to an agent whose author
+    # switched `allow_dynamic` on. Side-effecting, which is the one place
+    # delegation and *dynamic* delegation part company: `task` is not, because
+    # what a delegate does is gated by the delegate's own reviewed spec, and
+    # there is no reviewed spec here - the instructions were written by a model
+    # a moment ago. So a person sees the specialist before it runs, unless the
+    # author says otherwise with `tool_approval`.
     CapabilityToolInfo(
         id="create_agent", description=CREATE_AGENT_DESCRIPTION, side_effecting=True
     ),
-    CapabilityToolInfo(id="delegate", description=DELEGATE_TOOL_DESCRIPTION, side_effecting=True),
+    CapabilityToolInfo(id="delegate", description=DELEGATE_DESCRIPTION, side_effecting=True),
 )
-"""Every tool delegation has, declared once, with the library's own text.
+"""Every tool delegation has, declared once.
 
-Declared rather than derived, and all ten rather than the eight a default
+Declared rather than derived, and all ten rather than the eight a non-dynamic
 configuration offers, because a tool absent from this list cannot be gated by the
 approval policy or renamed by a binding - and the dangerous half of that is
 silent.
 
-The descriptions are **imported, not rewritten**. A tool's description is the
-strongest prompt in the product, and `TASK_TOOL_DESCRIPTION` is two hundred lines
-of hard-won guidance about when delegating is worth it and when it is not;
+Eight of the descriptions are **imported, not rewritten**. A tool's description is
+the strongest prompt in the product, and `TASK_TOOL_DESCRIPTION` is two hundred
+lines of hard-won guidance about when delegating is worth it and when it is not;
 replacing it with a one-line label for a Builder form would be a downgrade
-wearing consistency as an excuse. What is declared here is also what the model
-reads, exactly - see the `descriptions` argument in `build_delegation`.
+wearing consistency as an excuse. The two dynamic ones are written here because
+the library's describe a configuration this platform does not offer - see
+:data:`DELEGATE_DESCRIPTION`. What is declared here is what the model reads,
+exactly - see the `descriptions` argument in `build_delegation`.
 """
 
 _MODE_NOTE: dict[DelegationMode, str] = {
@@ -151,7 +221,7 @@ will not use.
 class _LazyAgent:
     """A delegate's agent: built when it is first delegated to, and run on its own deps.
 
-    Two jobs, and both exist because of how the library drives a delegation.
+    Three jobs, and each exists because of how the library drives a delegation.
 
     *Built late.* Building one resolves a model profile, assembles its
     capabilities and instruments it, so a delegate the model never calls should
@@ -161,15 +231,21 @@ class _LazyAgent:
     every run that binds this capability. This stands in until one is needed.
 
     *Run on the deps this platform decides, not the ones the library cloned.* See
-    `_own_deps`. Everything else is plain forwarding, which is enough because the
-    library documents that only `run` and `iter` are called on the object it was
-    given - and reads `event_stream_handler` off it, which is why the forwarding
-    is generic rather than a fixed pair of methods.
+    `_own_deps`.
+
+    *Continued rather than restarted, when this delegation already stopped for a
+    person.* See `_continued`. Both entry points, because which one the library
+    takes depends on whether the surface streams.
+
+    Everything else is plain forwarding, which is enough because the library
+    documents that only `run` and `iter` are called on the object it was given -
+    and reads `event_stream_handler` off it, which is why the forwarding is
+    generic rather than a fixed pair of methods.
     """
 
-    def __init__(self, delegate: ResolvedSubagent, in_background: Callable[[], bool]) -> None:
+    def __init__(self, delegate: ResolvedSubagent, journal: DelegationJournal) -> None:
         self._delegate = delegate
-        self._in_background = in_background
+        self._journal = journal
         self._agent: PydanticAgent[Any, Any] | None = None
 
     # `Any` because this forwards whatever the library asks for, on an object
@@ -181,11 +257,40 @@ class _LazyAgent:
 
     def run(self, *args: Any, **kwargs: Any) -> Any:
         """Run the delegate once, on its own deps. Returns the library's coroutine."""
-        return self._built().run(*args, **self._own_deps(kwargs))
+        resumed = self._journal.resuming()
+        if resumed is None:
+            return self._built().run(*args, **self._own_deps(kwargs))
+        return self._built().run(None, **self._own_deps(self._continuing(kwargs, resumed)))
 
     def iter(self, *args: Any, **kwargs: Any) -> Any:
         """The same, for the streamed path. Returns the library's async context manager."""
-        return self._built().iter(*args, **self._own_deps(kwargs))
+        resumed = self._journal.resuming()
+        if resumed is None:
+            return self._built().iter(*args, **self._own_deps(kwargs))
+        return self._built().iter(None, **self._own_deps(self._continuing(kwargs, resumed)))
+
+    @staticmethod
+    def _continuing(kwargs: dict[str, Any], resumed: ResumedDelegation) -> dict[str, Any]:
+        """The run arguments for a delegate that already stopped for a person.
+
+        A delegation the run parked on is *the same delegation*, and continuing it
+        is the only way a person's decision applies to the call they were shown. So
+        the task prompt the library composed is dropped - the prompt is already the
+        first message of the stored conversation, and asking again would put the
+        work to the delegate twice - and the verdicts on the calls it parked travel
+        as `deferred_tool_results`. That is exactly how a top-level parked run is
+        continued, one level further in.
+
+        Both entry points, and not for symmetry: the library drives a delegation
+        through `iter` whenever the surface streams and through `run` when it does
+        not, so a substitution on one path only would work in Slack and lose the
+        approval in web chat.
+        """
+        return {
+            **kwargs,
+            "message_history": resumed.messages,
+            "deferred_tool_results": resumed.results,
+        }
 
     def _built(self) -> PydanticAgent[Any, Any]:
         """This delegate's agent, built at most once per run."""
@@ -238,7 +343,9 @@ class _LazyAgent:
             "deps": replace(
                 clone,
                 kb_collection_names=list(self._delegate.collection_names),
-                request_approval=None if self._in_background() else clone.request_approval,
+                request_approval=(
+                    None if self._journal.in_background() else clone.request_approval
+                ),
             ),
         }
 
@@ -283,18 +390,61 @@ class Delegation(WrapperCapability[AgentDeps]):
         and the library's cannot say what this deployment enforces - the mode is
         forced from the spec and the fan-out is a ceiling the model will otherwise
         discover by being refused.
+
+        The models a dynamic specialist may run on belong here too, rather than in
+        `create_agent`'s description. A description is what the catalog declares
+        and the Builder shows, so one that grew a per-run list would be a
+        description no page could render - and `ReinjectSystemPrompt` keeps this
+        visible through a long conversation, which is where a model otherwise
+        forgets the list and starts inventing model names.
         """
-        delegates = "\n".join(
-            f"- **{delegate.name}**: {delegate.description}"
-            for delegate in self.journal.runtime.subagents
+        return "## Delegation\n\n" + "\n\n".join(
+            part
+            for part in (self._delegates_note(), self._dynamic_note(), self._ceiling_note())
+            if part
         )
+
+    def _delegates_note(self) -> str:
+        """The specialists this agent was given, or nothing when it was given none.
+
+        Empty for an agent that only invents its own, which is a complete
+        configuration: an empty bulleted list under "delegate to one of these"
+        reads as a mistake, and leaves the model wondering what it cannot see.
+        """
+        delegates = self.journal.runtime.subagents
+        if not delegates:
+            return ""
+        listed = "\n".join(f"- **{entry.name}**: {entry.description}" for entry in delegates)
         return (
-            "## Delegation\n\n"
             "Hand a self-contained piece of work to one of these specialists with "
-            f"the `task` tool:\n\n{delegates}\n\n"
-            "A specialist cannot see this conversation, so put everything it needs "
-            "in the description, and synthesise what comes back rather than relaying "
-            f"it. {_MODE_NOTE[self.journal.mode]} At most {self.journal.max_fanout} "
+            f"the `task` tool:\n\n{listed}\n\n"
+            "A specialist cannot see this conversation, so put everything it needs in "
+            "the description, and synthesise what comes back rather than relaying it."
+        )
+
+    def _dynamic_note(self) -> str:
+        """The models an invented specialist may run on, when this agent may invent one.
+
+        Named here because a model cannot otherwise know them: the organization's
+        profiles are resolved per run, and a specialist naming a model this
+        deployment does not hold is refused. Telling the model the list is what
+        turns that refusal from something it discovers into something it avoids.
+        """
+        dynamic = self.journal.runtime.dynamic
+        if dynamic is None:
+            return ""
+        models = ", ".join(f"`{label}`" for label in dynamic.allowed_models)
+        return (
+            "You may define a specialist of your own - `delegate` for one job, "
+            "`create_agent` for one you will reuse. Give it a model from this list, "
+            f"exactly as written: {models}. It gets no tools, no knowledge and no "
+            "delegates of its own, so work needing any of those stays with you or "
+            "goes to a specialist you were given."
+        )
+
+    def _ceiling_note(self) -> str:
+        return (
+            f"{_MODE_NOTE[self.journal.mode]} At most {self.journal.max_fanout} "
             "delegations run at once; asking for more is refused until one finishes."
         )
 
@@ -328,9 +478,16 @@ def build_delegation(
 ) -> Delegation:
     """Assemble the capability from a resolved runtime and its configuration.
 
+    Whether the two dynamic entry points are offered is read off the runtime
+    rather than taken as an argument, and that is deliberate: `allow_dynamic` is
+    a setting the *runner* acts on, because acting on it means resolving the
+    organization's model profiles and holding the run's budget guard. One reader
+    means the switch and the tools cannot disagree.
+
     Args:
         runtime: The delegates the runner resolved for this run, the recorder it
-            wants outcomes reported to, and the nesting budget left.
+            wants outcomes reported to, the nesting budget left, and whether this
+            agent may invent specialists of its own.
         mode: Whether delegations block, run in the background, or are decided per
             task.
         max_fanout: How many delegations may run at once.
@@ -342,10 +499,33 @@ def build_delegation(
             `wait_tasks` listing carries before pointing at `check_task`.
     """
     journal = DelegationJournal(runtime=runtime, mode=mode, max_fanout=max_fanout, depth=depth)
+    dynamic = runtime.dynamic
     capability = SubAgentCapability(
         subagents=[_config_for(delegate, journal) for delegate in runtime.subagents],
         include_general_purpose=include_general_purpose,
         max_result_chars=max_result_chars,
+        # Which entry points exist at all. `default` is `task` alone;
+        # `persisted_and_oneshot` adds `create_agent` and `delegate` - and the
+        # library refuses `allowed_models` and `default_agent_factory` under any
+        # configuration that would leave them unread, so those three move together.
+        delegation_configuration="default" if dynamic is None else "persisted_and_oneshot",
+        allowed_models=None if dynamic is None else list(dynamic.allowed_models),
+        default_agent_factory=None if dynamic is None else _specialist_factory(dynamic, journal),
+        # `0` rejects every registration, which is the honest ceiling for an agent
+        # that may not create one at all - `is not None`, not truthiness, is how the
+        # library reads it, so this is not "unlimited". It bounds `create_agent`
+        # only; a `delegate` call registers nothing.
+        max_agents=0 if dynamic is None else MAX_DYNAMIC_SPECIALISTS,
+        # `default_model` is deliberately left at the library's own, even though
+        # this platform has no default model anywhere and a specialist that names
+        # none is refused for it in `DelegatingToolset._refuse_dynamic`. Saying so
+        # here with an unusable value is the tidier shape and breaks something
+        # unrelated: the same field is what the library's general-purpose delegate
+        # is compiled from, at construction, for an agent that asked for no dynamic
+        # specialists at all - so an unusable value fails *that* agent's build
+        # instead of refusing a model's tool call. `include_general_purpose` has a
+        # problem of its own, older and worse than a default model nothing reads
+        # (agenticos#174); this is not the place to make it fatal.
         # The nesting budget the runner had left after resolving this level. The
         # library subtracts one per delegation and passes it to
         # `AgentDeps.clone_for_subagent`, which is where a delegate learns whether
@@ -355,11 +535,16 @@ def build_delegation(
         event_stream_handler_factory=journal.stream_for,
         # So the description the catalog declares is exactly the text the model
         # reads. Left alone, the library appends the delegate list to `task`'s
-        # description - and the instructions above already carry it, where
-        # `ReinjectSystemPrompt` keeps it visible through a long conversation.
-        # Two copies of one list is context paid for twice on every turn, and the
-        # catalog would show neither of them.
-        descriptions={"task": TASK_TOOL_DESCRIPTION},
+        # description and the allowed models to the other two - and the
+        # instructions above already carry both, where `ReinjectSystemPrompt`
+        # keeps them visible through a long conversation. Two copies of one list
+        # is context paid for twice on every turn, and the catalog would show
+        # neither of them.
+        descriptions={
+            "task": TASK_TOOL_DESCRIPTION,
+            "create_agent": CREATE_AGENT_DESCRIPTION,
+            "delegate": DELEGATE_DESCRIPTION,
+        },
     )
     # Late-bound, like `SubagentRuntime.ledger`: the task manager is created
     # inside the capability the journal was passed into, so this is the first
@@ -377,17 +562,75 @@ def _config_for(delegate: ResolvedSubagent, journal: DelegationJournal) -> SubAg
     empty string is the honest value; anything else would look like a prompt that
     does something.
 
-    The journal is handed over as one predicate rather than as itself: the only
-    thing the stand-in asks it is whether the delegation now executing is a
-    background one, and a delegate can be delegated to both ways within one run -
-    so the answer has to be resolved per delegation, not stored per delegate.
+    The stand-in is given the journal rather than a bound predicate, because both
+    of the questions it asks - is this delegation a background one, and is it one
+    the run already parked on - are about *the delegation now executing* rather
+    than about this delegate. A delegate can be delegated to twice in one run, once
+    each way, and once from a stashed position.
     """
     return SubAgentConfig(
         name=delegate.name,
         description=delegate.description,
         instructions="",
-        agent=_LazyAgent(delegate, journal.in_background),
+        agent=_LazyAgent(delegate, journal),
     )
+
+
+def _specialist_factory(dynamic: DynamicSpecialists, journal: DelegationJournal) -> AgentFactory:
+    """How a specialist a model invented becomes an agent of this platform's.
+
+    The whole point of the phase, and it is one line of substance: the library is
+    given a factory, so it never builds a dynamic specialist itself. Left to its
+    own devices it constructs `Agent(default_model, system_prompt=...)` - an agent
+    on a model string of the library's choosing, with no credential from this
+    organization's vault, no price attached to its requests and **no budget
+    guard**. That is an unmetered model request on a provider the organization may
+    hold no key for, and it is the reason both entry points were declared and not
+    offered for two phases.
+
+    What the factory produces instead goes through `build_agent` with the run's
+    `shared_budget`, which is the same door an inline specialist and a pinned
+    delegate come through - so its requests are checked against the total the
+    parent is adding to and recorded into it.
+
+    Built eagerly rather than lazily, unlike a resolved delegate: the model asked
+    for this one, so the cost of building it is a cost it has already chosen, and
+    building here is what lets `create_agent` answer "created" only when the agent
+    genuinely exists. The `_LazyAgent` wrapper is still what runs it, for its other
+    two jobs - the deps a delegation actually runs with, and continuing one the run
+    already parked on, neither of which a bare agent would do.
+
+    A build that raises does not reach the model as an error: `build_dynamic_agent`
+    contains every exception and answers with `Error creating agent: ...`, which
+    lands in the model's context and in no log line. That is the library's choice
+    and it is the right one for a tool call - the model can try something else -
+    but it means a misconfiguration here is visible only in a transcript.
+    """
+
+    def factory(config: SubAgentConfig) -> _LazyAgent:
+        built = dynamic.build(
+            name=config["name"],
+            instructions=config["instructions"],
+            # Present because `DelegatingToolset._refuse_dynamic` refuses a call
+            # that named no model, and one of `dynamic.allowed_models` because
+            # `subagents_pydantic_ai.dynamic_agent.validate_model` checked it
+            # against exactly that list before this factory was reached.
+            model=str(config["model"]),
+        )
+        return _LazyAgent(
+            ResolvedSubagent(
+                name=config["name"],
+                description=config["description"],
+                build=lambda: built,
+                # No collections, because a specialist nobody granted one has
+                # none - which is also what `_own_deps` writes back over the
+                # parent's, so an invented specialist cannot inherit a knowledge
+                # base by being invented inside an agent that has one.
+            ),
+            journal,
+        )
+
+    return factory
 
 
 def _limits_for(runtime: SubagentRuntime) -> UsageLimitsFactory:
@@ -407,8 +650,10 @@ def _limits_for(runtime: SubagentRuntime) -> UsageLimitsFactory:
     def limits(_ctx: RunContext[AgentDeps], config: SubAgentConfig) -> UsageLimits:
         delegate = runtime.named(config["name"])
         if delegate is None or delegate.max_steps is None:
-            # A delegate whose spec said nothing, or the library's own
-            # general-purpose subagent, which no runtime resolved.
+            # A delegate whose spec said nothing, a specialist the model invented
+            # (which no runtime resolved and whose spec nobody wrote a step limit
+            # into), or the library's own general-purpose subagent. All three get
+            # the platform default, which is the same ceiling a top-level run gets.
             return UsageLimits(request_limit=DEFAULT_MAX_STEPS)
         return UsageLimits(request_limit=delegate.max_steps)
 

@@ -65,6 +65,23 @@ class ApprovalRead(BaseSchema):
     agent_id: UUID
     tool_id: str
     tool_args: dict[str, Any]
+    subagent_name: str | None = Field(
+        default=None,
+        description=(
+            "Which delegate is asking, when the call came from inside a delegation. "
+            "Null means the agent whose run this is asked directly - `agent_id` "
+            "answers whose run, never who is acting. A queue that shows a tool name "
+            "with no actor is a queue people approve blind"
+        ),
+    )
+    subagent_agent_id: UUID | None = Field(
+        default=None,
+        description=(
+            "That delegate's own agent, for a link to it. Null for an inline "
+            "specialist, which is defined inside its parent's spec and has no agent "
+            "of its own"
+        ),
+    )
     status: str
     decided_by_user_id: UUID | None = None
     decided_at: datetime | None = None

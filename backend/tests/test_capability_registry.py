@@ -38,6 +38,7 @@ from app.agents.capabilities.skills import SAFE_SKILL_TOOLS, Skills
 from app.agents.capabilities.web_research import WebResearch
 from app.agents.subagent_runtime import (
     SUBAGENT_RUNTIME_RESOURCE,
+    DynamicSpecialists,
     ResolvedSubagent,
     SubagentRuntime,
 )
@@ -147,6 +148,12 @@ class TestToolDeclarations:
                 resources=[],
             )
         ],
+        # A delegating agent at its widest: one resolved delegate *and* permission
+        # to invent specialists, because `subagents` is the one capability whose
+        # tool list is not fixed - `create_agent` and `delegate` are offered only
+        # to an agent whose author asked for them. The widest configuration is the
+        # one worth checking: an undeclared tool can only appear where the most
+        # tools do.
         SUBAGENT_RUNTIME_RESOURCE: SubagentRuntime(
             subagents=(
                 ResolvedSubagent(
@@ -159,30 +166,22 @@ class TestToolDeclarations:
             ),
             record=None,
             depth_remaining=1,
+            dynamic=DynamicSpecialists(
+                # Never called either, for the same reason.
+                build=lambda **_: PydanticAgent(TestModel()),
+                allowed_models=("GPT-4.1 (prod)",),
+            ),
         ),
     }
+    """Everything every registered capability needs in order to build.
 
-    UNWIRED_TOOLS: dict[str, frozenset[str]] = {
-        # Declared so an operator can gate or rename them, deliberately not
-        # offered: the library builds a dynamic specialist itself, from its own
-        # default model string - an agent outside this deployment's model
-        # catalog, its vault and its budget guard, which is an unmetered model
-        # request. `backend/app/agents/capabilities/subagents/README.md` has the
-        # whole reason and what wiring them would take.
-        "subagents": frozenset({"create_agent", "delegate"}),
-    }
-    """Tools a capability declares and does not offer, named one by one.
-
-    An exception table in the test rather than a field on `CapabilityDef`, and
-    that was a deliberate reversal. The field (`drift_config`) named a
-    configuration under which a capability offered everything it declared, and
-    nothing ever read it: the drift check built with `config=None` and no
-    resources, `subagents` returned `None` there, and the whole capability was
-    skipped. Worse, had the field been read it would have *failed* - `subagents`
-    does not offer `create_agent` and `delegate` under any configuration, because
-    it does not implement them at all. The honest statement was never "configure
-    it this way", it was "these two ids are declared and not wired, and here is
-    why" - a sentence, which belongs next to the assertion it excuses.
+    There is deliberately no table of exceptions beside this. There was one -
+    `UNWIRED_TOOLS`, naming `create_agent` and `delegate` as declared and not
+    implemented, which they were for two phases - and before that a
+    `CapabilityDef.drift_config` field naming a configuration nothing read. Both
+    were ways of saying "this capability is partly outside the check". Wiring the
+    last two tools removed the need for either, so what stands in their place is
+    resources wide enough that no capability has an excuse.
     """
 
     def _built(self, definition_id: str) -> Any:
@@ -193,10 +192,6 @@ class TestToolDeclarations:
                 resources=self.RESOURCES,
             )
         )
-
-    def _expected(self, definition_id: str) -> frozenset[str]:
-        """The tool ids this capability should offer, unwired ones excluded."""
-        return get(definition_id).tool_ids - self.UNWIRED_TOOLS.get(definition_id, frozenset())
 
     def test_no_capability_escapes_the_drift_check(self):
         """A capability that cannot be built here is a capability nothing checks.
@@ -248,7 +243,7 @@ class TestToolDeclarations:
             built = self._built(definition.id)
             assert built is not None, definition.id
 
-            assert await self._offered(built) == self._expected(definition.id), definition.id
+            assert await self._offered(built) == get(definition.id).tool_ids, definition.id
 
     @pytest.mark.anyio
     async def test_renaming_every_tool_cannot_hide_an_undeclared_one(self):
@@ -273,11 +268,7 @@ class TestToolDeclarations:
             assert built, definition.id
             offered = await self._offered(built[0])
 
-            expected = frozenset(
-                tool.name
-                for tool in definition.effective_tools(overrides)
-                if tool.id in self._expected(definition.id)
-            )
+            expected = frozenset(tool.name for tool in definition.effective_tools(overrides))
             assert offered == expected, definition.id
 
 

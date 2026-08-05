@@ -24,10 +24,12 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, Protocol
 from uuid import UUID
 
 from pydantic_ai import Agent as PydanticAgent
+from pydantic_ai.messages import ModelMessage
+from pydantic_ai.tools import DeferredToolResults
 
 from app.agents.spec import DelegationMode
 
@@ -93,6 +95,71 @@ class ResolvedSubagent:
     """
 
 
+class DynamicSpecialistBuilder(Protocol):
+    """Builds the specialist a model asked for, on a model this deployment holds.
+
+    A protocol rather than a `Callable` alias because every argument is
+    keyword-only and named: the three of them are a name, a system prompt and a
+    model, all of which arrive as free text from a model's tool call, and
+    positional order is not something to get wrong there.
+    """
+
+    def __call__(self, *, name: str, instructions: str, model: str) -> PydanticAgent[Any, Any]: ...
+
+
+@dataclass(frozen=True)
+class DynamicSpecialists:
+    """Permission for a run's model to invent a specialist, and the means to build one.
+
+    `None` on the runtime - the default - is what the delegation capability reads
+    as "this agent may not", and it is then not offered `create_agent` or
+    `delegate` at all. The runner sets this from `SubagentsConfig.allow_dynamic`,
+    so the setting has exactly one reader and the capability cannot disagree with
+    it.
+
+    Why the runner and not the capability: a specialist a model invents is still
+    an agent of this platform's, which means a model profile out of the
+    organization's own catalog, its credential out of the vault, the run's
+    approval channel and - the whole reason this phase exists - the run's shared
+    budget guard. All four are database facts, and the capability holds no
+    session. Left to the library, a dynamic specialist is built from
+    `SubAgentCapability.default_model`: an agent on a provider the organization
+    may hold no key for, priced by nothing and metered by nothing, which is an
+    unmetered model request and the one thing this platform exists to refuse.
+
+    Nothing here is persisted, and that is deliberate rather than unfinished.
+    Keeping a specialist means publishing an agent, which is a person's action; one
+    invented at run time is held in a registry the delegation library creates per
+    built agent, so it lasts as long as that agent does and no longer.
+
+    Which is *not* the same as "for the run", and the difference is worth stating
+    because it is visible to a model: a run that parks on an approval is built again
+    when it is continued, so a specialist created before the park is gone after it,
+    and the transcript still carries the library's "created successfully". The model
+    is told so in `create_agent`'s description, and `task` answers "unknown
+    subagent" rather than doing something surprising - see agenticos#175.
+    """
+
+    build: DynamicSpecialistBuilder
+    allowed_models: tuple[str, ...]
+    """The labels of the organization's model profiles, as the model may name them.
+
+    Derived from the profiles rather than accepted as free text, because a model
+    naming `openai:gpt-4.1` in an organization that holds no OpenAI key writes a
+    run that dies at its first request with a provider error - and the model that
+    named it had no way to know. A label is what the Builder shows an author and
+    what `uq_credential_profile_label` makes unique inside an organization, so it
+    is the one handle a model can be given and a profile can be found by.
+
+    Never empty while a run is delegating: the delegating agent's own profile
+    resolved before this was assembled, so the catalog holds at least it. That is
+    what makes a second publish rule for `allow_dynamic` unnecessary - publish
+    validation already refuses a spec with no `model_profile_id`, and one whose
+    profile is gone, so "an organization with no usable model" is not a state a
+    run reaches.
+    """
+
+
 @dataclass(frozen=True)
 class DelegationOutcome:
     """What one delegation cost and how it ended.
@@ -139,6 +206,102 @@ run history entry it produced.
 """
 
 
+@dataclass(frozen=True)
+class ParkedDelegation:
+    """A delegation whose delegate stopped for a person, kept so it can be continued.
+
+    The reason this exists rather than the parent simply delegating again: the
+    parent parks on its own `task` call, while the approval a person decides was
+    raised by the *delegate's* gate against the delegate's tool call. Re-running
+    the delegation would present the parent's `task` id to a granted approval that
+    names something else, start the delegate's conversation from nothing, and let
+    the model call a different tool the second time round - so what a reviewer
+    approved would not be what executed. Nothing raises; the run just answers
+    differently.
+
+    Everything here is **plain data**, and that is a constraint rather than a
+    preference. This outlives the tool call it was made in and is written into
+    `agent_runs.paused_state`, while `request_approval` closes over a service
+    holding the request's `AsyncSession` and `get_db_context()` closes when the
+    turn ends. Messages and ids, never a live object.
+
+    Attributes:
+        tool_call_id: The `task` call in the **delegating** agent's transcript.
+            What identifies this delegation on the replay: the same call is
+            presented again, and that is when the delegate is continued instead of
+            started.
+        task_id: The library's id for the delegation, which the child's run row
+            and the streamed frames both carry.
+        parent_task_id: The delegation this one was made *inside*, or `None` when
+            the run's own agent made it. It is what nests the frames without
+            guessing, and it is read where the delegation opens rather than where
+            it parks, because by then this level's own delegation is the current
+            one.
+        child_run_id: Pydantic AI's run id for the delegate's suspended run, for a
+            trace that has to be joined to the one that continues it.
+        messages: The delegate's conversation as of the stop, in Pydantic AI's
+            message format. **Empty means the delegate's place could not be
+            kept** - telemetry on the library's task handle is best-effort - and
+            then the delegation is re-run from the start rather than continued.
+            The `task` call is still answered on the replay either way, because a
+            parked call left without a result makes the whole run unresumable.
+    """
+
+    tool_call_id: str
+    task_id: str
+    parent_task_id: str | None
+    subagent: str
+    agent_id: UUID | None
+    agent_version_id: UUID | None
+    child_run_id: str | None
+    messages: list[dict[str, Any]]
+
+
+@dataclass(frozen=True)
+class ResumedDelegation:
+    """A parked delegate's place, and the verdicts it was waiting on.
+
+    Handed back by the runner rather than assembled by the capability: which
+    approval row decided what is a database question, and the capability holds no
+    session.
+    """
+
+    messages: list[ModelMessage]
+    results: DeferredToolResults
+    """The decisions for the calls *this* delegate parked, and only those.
+
+    Pydantic AI refuses a resume whose results name a call the replayed response
+    does not contain, so one run's worth of verdicts cannot be handed to every
+    level - each level gets its own, and a nested delegate's are reached the same
+    way one level further in.
+    """
+
+
+@dataclass
+class DelegationStash:
+    """Where a run's parked delegations are left, and where a resume finds them.
+
+    One object per run, shared by every level of the tree, because a delegation
+    three levels down parks the run somebody started and is continued from that
+    run's stored state. Each level's journal writes into `parked` and reads out of
+    `resuming`; the runner does the opposite, which is what keeps the two
+    directions from being one ambiguous field.
+
+    The default is empty on both sides, which is a preview, a unit test, or a run
+    that never delegated - and in each case nothing parks and nothing resumes.
+    """
+
+    parked: list[ParkedDelegation] = field(default_factory=list)
+    """Filled during the run, read once when it ends. Appended to under the GIL
+    from a coroutine that never awaits, so overlapping delegations cannot
+    interleave inside it - the same property the delegation recorder's queue
+    relies on."""
+
+    resuming: dict[str, ResumedDelegation] = field(default_factory=dict)
+    """Keyed by the `task` call the delegation was made from, which is the only
+    thing the toolset knows about a delegation before it starts one."""
+
+
 @dataclass
 class SubagentRuntime:
     """Everything a run needs in order to delegate.
@@ -160,6 +323,37 @@ class SubagentRuntime:
     subagents: tuple[ResolvedSubagent, ...] = ()
     record: DelegationRecorder | None = None
     depth_remaining: int = 0
+    depth: int = 0
+    """How many delegations deep the agent holding this runtime already is.
+
+    Told rather than computed. It used to be derived as `max_depth -
+    depth_remaining`, which is only correct while every agent in the tree
+    configures the same `max_depth`: those two numbers come from *different*
+    specs - the ceiling is the delegating agent's own setting, the remainder is
+    what the tree has left - so a delegate that set a different one reported the
+    wrong depth and a surface nested its panel under the wrong parent.
+    """
+
+    dynamic: DynamicSpecialists | None = None
+    """Whether the agent holding this runtime may invent specialists, and how.
+
+    `None` - the default - is an agent that may only address the delegates it was
+    given, which is every agent unless its author switched `allow_dynamic` on.
+    Resolved by the runner for the same reason `ResolvedSubagent` is: building one
+    needs a model profile out of the database and the run's budget guard, and a
+    capability may reach neither.
+    """
+
+    stash: DelegationStash = field(default_factory=DelegationStash, repr=False)
+    """The run's parked delegations, shared by every level of the tree.
+
+    A default rather than a required argument for the same reason `record` and
+    `ledger` are optional: a preview or a unit test resolves a runtime with
+    nothing behind it, and a stash of its own is the honest answer there. The
+    runner passes one object to every level, which is what lets a resume load a
+    grandchild's place and have the grandchild's own journal find it.
+    """
+
     ledger: SpendLedger | None = field(default=None, repr=False)
 
     def named(self, name: str) -> ResolvedSubagent | None:

@@ -258,6 +258,31 @@ class ToolApproval(Base, TimestampMixin):
     tool_id: Mapped[str] = mapped_column(String(64), nullable=False)
     tool_args: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default="{}")
 
+    # Which delegate asked, when the ask came from inside a delegation. `agent_id`
+    # above is the agent whose *run* this is - the one the queue is scoped by and
+    # the one a budget alert names - so it answers "whose run" and not "who is
+    # acting". Both questions have to be answerable at once: a delegate's gated
+    # tool reaches the parent's approval channel, which is what makes a gated tool
+    # inside a delegate usable at all, and the row it writes would otherwise say
+    # `send_email` without saying who is sending it. A queue of tool names with no
+    # actor is a queue people approve blind.
+    #
+    # Null for the run's own agent, which is every approval on a run that did not
+    # delegate. `subagent_agent_id` is additionally null for an inline specialist:
+    # it is not versioned, nothing outside its parent's spec can reference it, and
+    # inventing an identity for it would create a second notion of "agent" the
+    # permission model cannot see. `subagent_name` is what a reviewer reads either
+    # way.
+    #
+    # SET NULL, not CASCADE: deleting the delegate must not delete the record of
+    # what somebody authorised it to do.
+    subagent_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    subagent_agent_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("agents.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default=ApprovalStatus.PENDING.value, index=True
     )
@@ -281,4 +306,5 @@ class ToolApproval(Base, TimestampMixin):
     )
 
     def __repr__(self) -> str:
-        return f"<ToolApproval({self.tool_id} on run {self.run_id}: {self.status})>"
+        actor = self.subagent_name or "the agent"
+        return f"<ToolApproval({self.tool_id} by {actor} on run {self.run_id}: {self.status})>"

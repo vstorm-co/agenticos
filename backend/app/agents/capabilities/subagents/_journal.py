@@ -23,6 +23,13 @@ here and why it hands the id back through a context variable: the tool call that
 started the delegation needs it to record the outcome, and the library never
 returns it for a sync task.
 
+*Where did this delegation stop, and how is it continued?* A delegate whose tool
+needs a person parks the whole run, and the run is picked up in another process,
+possibly the next day. What has to survive is the delegate's own conversation and
+the call it stopped on - `park` writes that into the run's stash and `resuming`
+reads it back on the replay. Both are here rather than in the toolset because the
+delegation record and the library's task handle are both fields of this object.
+
 Nothing in this module reads the database or knows what a run row is. It reports
 a finished delegation to `SubagentRuntime.record`, which the runner supplied, and
 a `None` recorder is not an error - it is a preview, or a test.
@@ -30,6 +37,8 @@ a `None` recorder is not an error - it is a preview, or a test.
 
 from __future__ import annotations
 
+import json
+import logging
 from collections.abc import AsyncIterable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -57,9 +66,13 @@ from app.agents.subagent_events import SubagentEventSink, SubagentFinished, Suba
 from app.agents.subagent_runtime import (
     DelegationOutcome,
     DelegationStatus,
+    ParkedDelegation,
     ResolvedSubagent,
+    ResumedDelegation,
     SubagentRuntime,
 )
+
+logger = logging.getLogger(__name__)
 
 _RESOLVED: dict[TaskStatus, DelegationStatus] = {
     TaskStatus.COMPLETED: "completed",
@@ -84,11 +97,11 @@ def _terminal_status(handle: TaskHandle, mode: Literal["sync", "async"]) -> Dele
 
     *A sync delegation* suspended on a tool that needs a person, and the answer is
     still coming - the signal propagates into the parent's own tool call, so the
-    parent run parks in the approval queue and resumes from there with the
-    delegation re-run. Recording it would write a run row for work that has not
-    finished, tell whoever reads it to look for a defect instead of for the
-    queue, and then double-count the same work when the resumed run delegates
-    again.
+    parent run parks in the approval queue and is continued from there, this
+    delegate included (:meth:`DelegationJournal.park`). Recording it would write a
+    run row for work that has not finished, tell whoever reads it to look for a
+    defect instead of for the queue, and then count the same delegation twice,
+    because the continuation records one of its own when it answers.
 
     *A background delegation* cannot suspend at all: the tool call that started it
     returned a task id long ago, so there is no caller left to hand a parked call
@@ -125,6 +138,48 @@ field would be whichever one wrote last.
 
 
 @dataclass(frozen=True)
+class ActingDelegate:
+    """Which delegate is running in this asyncio task, for a caller outside the run.
+
+    One reader, and it is the approval queue. A delegate's gated tool reaches the
+    *parent's* approval channel - that is what makes a gated tool inside a
+    delegate usable at all - so the row that channel writes says `send_email`
+    without saying who is sending it. A reviewer looking at a queue of tool names
+    with no actor is a reviewer approving blind.
+
+    Read from a context variable rather than passed through
+    `app.agents.approval.ApprovalRequest`, because the gate that builds that
+    request has no way to know: it wraps tool execution on whatever agent it was
+    built for, and a delegate is a whole second agent run away from the one that
+    owns the channel.
+    """
+
+    name: str
+    task_id: str | None
+    agent_id: UUID | None
+
+
+def acting_delegate() -> ActingDelegate | None:
+    """The delegate whose run is executing here, or `None` for the run's own agent.
+
+    The innermost one: a specialist's own specialist sets the variable again, so a
+    grandchild's gated call is attributed to the grandchild rather than to
+    whichever delegate the parent addressed.
+
+    Visible from inside a delegate's tool call because `contextvars` are copied
+    into every task a delegation spawns, and the value is set around the tool call
+    that starts one. A background delegation is never a reader: it is handed no
+    approval channel at all, for the reason `in_background` gives.
+    """
+    delegation = _CURRENT.get()
+    if delegation is None:
+        return None
+    return ActingDelegate(
+        name=delegation.name, task_id=delegation.task_id, agent_id=delegation.agent_id
+    )
+
+
+@dataclass(frozen=True)
 class _Totals:
     """A run ledger's accumulated spend at one instant."""
 
@@ -157,6 +212,23 @@ class Delegation:
     mode: Literal["sync", "async"]
     depth: int
     before: _Totals
+    tool_call_id: str | None
+    """The `task` call in the delegating agent's transcript that opened this.
+
+    What identifies the delegation across a park and a resume: the replayed run
+    presents the same call, which is how the toolset knows to continue a delegate
+    rather than start one. `None` only where a caller drives the toolset without a
+    tool call to name, which is a test.
+    """
+
+    parent_task_id: str | None
+    """The delegation this one was made inside, or `None` for the run's own agent.
+
+    Read when the delegation opens rather than when it parks: by then this
+    delegation is the current one, and the enclosing delegation - the one whose
+    tool call this toolset is executing inside - is no longer visible.
+    """
+
     agent_id: UUID | None = None
     agent_version_id: UUID | None = None
     task_id: str | None = None
@@ -267,6 +339,7 @@ class DelegationJournal:
         name: str,
         prompt: str,
         tool_args: dict[str, Any],
+        tool_call_id: str | None,
     ) -> Delegation:
         """Open a delegation, deciding the one thing the model does not get to.
 
@@ -274,17 +347,104 @@ class DelegationJournal:
         not resolve - the library's general-purpose subagent, or a name it
         invented. Either way the mode falls back to the spec's, and a name
         nobody resolved is refused by the library a moment later.
+
+        The enclosing delegation is read here, before this one becomes the current
+        value, because that is the only moment both exist: from inside
+        :meth:`delegating` a nested level can no longer see the level it was
+        delegated from, and that relationship is what nests a parked tree.
         """
         self._running += 1
+        enclosing = _CURRENT.get()
         return Delegation(
             name=name,
             prompt=prompt,
             mode=self._mode_for(delegate, tool_args),
             depth=self.depth,
             before=self._totals(),
+            tool_call_id=tool_call_id,
+            parent_task_id=None if enclosing is None else enclosing.task_id,
             agent_id=delegate.agent_id if delegate is not None else None,
             agent_version_id=delegate.agent_version_id if delegate is not None else None,
         )
+
+    def park(self, delegation: Delegation) -> None:
+        """Keep a suspended delegate's place, so the resume continues it.
+
+        Called where the suspension propagates out of the delegation - the parent's
+        own `task` call is about to park too - and it is the only moment the
+        delegate's conversation is reachable: the library saves a message history
+        on the task handle when it records the suspension, and deliberately does
+        *not* save it as a chat trace, because a trace resumed from a point whose
+        deferred results were never supplied would replay the suspension forever.
+
+        Without this the parent simply delegates again on the resume. That is not
+        a slow path, it is a wrong answer: the approval a person granted names the
+        delegate's tool call, the replayed parent presents its own `task` call, and
+        the delegate starts from nothing with the model free to call something
+        else. What a reviewer approved is not what executes, and nothing raises.
+
+        Two states are recorded rather than one, and the difference matters:
+
+        *A delegation with a task id and a saved history* is continued from where
+        it stopped.
+
+        *A delegation with a task id and no history* is stashed anyway, with no
+        messages. Telemetry on the handle is best-effort upstream, so this is
+        reachable, and the frame is still worth writing: the `task` call has to be
+        answered on the replay or Pydantic AI refuses the whole resume as
+        incomplete. The delegation is then re-run from the start - the old
+        behaviour, for a case that used to be the only one.
+
+        *A delegation with no task id at all* stashes nothing. The library assigns
+        one before it runs anything, so no delegate can have suspended; a
+        suspension arriving here without one came from something that is not a
+        delegate, and inventing a frame for it would claim the run's own parked
+        calls as a delegate's.
+        """
+        task_id = delegation.task_id
+        if task_id is None or delegation.tool_call_id is None:
+            logger.warning(
+                "delegation_suspended_before_it_started",
+                extra={"subagent": delegation.name, "task_id": task_id},
+            )
+            return
+        handle = self.tasks.get_handle(task_id)
+        history = None if handle is None else handle.message_history
+        self.runtime.stash.parked.append(
+            ParkedDelegation(
+                tool_call_id=delegation.tool_call_id,
+                task_id=task_id,
+                parent_task_id=delegation.parent_task_id,
+                subagent=delegation.name,
+                agent_id=delegation.agent_id,
+                agent_version_id=delegation.agent_version_id,
+                child_run_id=None if handle is None else handle.run_id,
+                # The library stores it as text, because it stores what
+                # `all_messages_json` produced. Parsed here rather than at the
+                # resume so that a history the runner cannot serialise fails while
+                # there is still a run to attribute the failure to.
+                messages=[] if history is None else list(json.loads(history)),
+            )
+        )
+
+    def resuming(self) -> ResumedDelegation | None:
+        """The place this delegation is being continued from, if it is being continued.
+
+        Consulted by the stand-in agent rather than by the toolset, because the
+        substitution is a *run* argument - the delegate's own history and the
+        verdicts on its parked calls - and the stand-in is where a delegation's run
+        arguments are already decided. The toolset would have to reach into the
+        library's task machinery to do the same thing.
+
+        Not consumed on read. Keyed by the `task` call, so a second delegation to
+        the same delegate later in the run has a different key and starts fresh,
+        while the library's own retry of *this* delegation legitimately continues
+        from the same point.
+        """
+        delegation = _CURRENT.get()
+        if delegation is None or delegation.tool_call_id is None:
+            return None
+        return self.runtime.stash.resuming.get(delegation.tool_call_id)
 
     async def close(self, delegation: Delegation, sink: SubagentEventSink | None) -> None:
         """Settle a delegation whose tool call has returned, or start watching it.

@@ -341,6 +341,8 @@ async def create_approval(
     agent_id: UUID,
     tool_id: str,
     tool_args: dict,
+    subagent_name: str | None = None,
+    subagent_agent_id: UUID | None = None,
 ) -> ToolApproval:
     approval = ToolApproval(
         organization_id=organization_id,
@@ -348,6 +350,8 @@ async def create_approval(
         agent_id=agent_id,
         tool_id=tool_id,
         tool_args=tool_args,
+        subagent_name=subagent_name,
+        subagent_agent_id=subagent_agent_id,
     )
     db.add(approval)
     await db.flush()

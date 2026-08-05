@@ -51,6 +51,80 @@ what the shared total grew by while it ran. That is exact for a sync delegation,
 which holds the run loop, and overlapping for concurrent ones — stated in
 `DelegationOutcome` rather than hidden.
 
+**A delegate that stopped for a person keeps its place.** See below; it is the one
+decision here that is a correctness fix rather than a policy.
+
+## Nesting: `max_depth` counts the configured agent's own level
+
+`max_depth=1` — the default — is "this agent delegates, its delegates do not". So
+the budget handed down the tree is `max_depth - 1`, and the subtraction is the whole
+of the setting's meaning rather than an off-by-one: it used to be passed straight
+through, which made the documented behaviour of `1` what `0` did and shipped a
+default that allowed one nested level nobody had asked for. `0` is no longer
+expressible: it would be a *second* off switch, and the first one — disabling the
+binding — is the one publish validation already understands.
+
+At the bound a delegate is built *without* the capability rather than with one that
+can only refuse, because that tool's description is context the model pays for on
+every turn and the first thing it does with one is try it.
+
+`SubagentRuntime.depth` is told to each level by the runner rather than computed
+from `max_depth - depth_remaining`. Those two numbers come from *different* specs —
+the ceiling is the delegating agent's own setting, the remainder is what the tree
+has left — so any delegate configuring a different ceiling reported the wrong depth,
+and a surface nested its panel under the wrong parent.
+
+## A gated tool inside a delegate, and how the run is continued
+
+This is the supported shape, and making it work is more than passing the signal
+through. A delegate whose tool needs a person reaches the *run's own* approval
+channel — that is what makes it usable at all, since the delegation holds the
+parent's tool call and there is somebody already waiting. So the row is written by
+the **delegate's** gate and names the delegate's tool and arguments: the queue is
+honest, and `subagent_name` on the row is what says who is calling it.
+
+But the parent suspends on its own `task` call. `DeferredToolRequests.approvals`
+therefore holds the *delegation*, not the delegate's tool, and replaying the parent
+with the granted approval presented an id the run never asks about — which Pydantic
+AI refuses outright. The obvious repair, delegating again, is worse than the
+refusal: the delegate starts from nothing, the model need not call the same tool the
+second time round, and **what a reviewer approved is not what executes**. Nothing
+raises.
+
+So a parked run is a tree, and three pieces carry it:
+
+- **`DelegationJournal.park`** writes the delegate's conversation, the `task` call
+  that identifies the delegation, and the delegation's parent into
+  `DelegationStash`. Called from `_toolset.py`, where the suspension propagates
+  past — the only point at which the delegation record, the library's task handle
+  and the parent's tool call id all exist at once. The library keeps the history on
+  that handle and deliberately does *not* save it as a chat trace, because a trace
+  resumed from a point whose deferred results were never supplied would replay the
+  suspension forever.
+- **`_LazyAgent._continuing`** puts it back: on the replay the same `task` call
+  arrives, `journal.resuming()` finds the place, and the delegate runs with its own
+  `message_history` and the verdicts on the calls it parked as
+  `deferred_tool_results` — which is exactly how a top-level parked run is
+  continued, one level further in. Both entry points, because the library uses
+  `iter` when retries are on and `run` when they are off.
+- **`AgentRunnerService`** owns the storage and the splitting. The tree goes into
+  `agent_runs.paused_state`, and each level gets only *its own* parked calls:
+  Pydantic AI refuses a resume whose results name a call the replayed response does
+  not contain, so one flat set for the whole tree fails the continuation.
+
+Everything in the stash is plain data, and that is a constraint rather than a
+preference: it outlives the tool call it was made in and is written to a JSONB
+column, while `request_approval` closes over a service holding the request's
+`AsyncSession`. Messages and ids, never a live object.
+
+Two things degrade rather than failing. A frame whose `messages` are empty — the
+library's history is best-effort telemetry — re-runs the delegation instead of
+continuing it, but the `task` call is still answered, because a parked call left
+without a result makes the whole run unresumable. And a suspension arriving without
+a task id keeps nothing at all: the library assigns one before it runs anything, so
+no delegate can have suspended, and a frame invented there would claim the run's own
+parked calls as a delegate's.
+
 ## What it deliberately does not do
 
 **Resolve its own delegates.** A delegate is rows: an agent, a pinned version, its
@@ -61,23 +135,9 @@ and the same reason as the workspace backend. A capability that queried for its
 own delegates would need a session per delegation, on an `AsyncSession` that is
 not concurrency-safe.
 
-**Offer the dynamic entry points.** `create_agent` and `delegate` are declared —
-a tool absent from `tools=` cannot be gated or renamed — but not wired, and
-`allow_dynamic` therefore changes nothing yet. That is not an oversight waiting
-on plumbing: the library builds a dynamic specialist itself, from its own default
-model string, which means an agent outside this deployment's model catalog, its
-vault and, most importantly, its budget guard. An unmetered model request is
-precisely what this platform exists to refuse. Wiring them means giving the
-library a factory that goes through `build_agent`, and routing both tools through
-`_toolset.py` so they cannot escape the mode, fan-out and recording decisions
-above.
-
-Declared-and-not-offered is the one thing the shared drift check has to be told
-about, and it is told in one place: `UNWIRED_TOOLS` in
-`tests/test_capability_registry.py`, which names these two ids and points back
-here. It replaced a `CapabilityDef.drift_config` field that named a configuration
-instead — a field nothing read, and one that would have failed had anything read
-it, since no configuration makes these two appear.
+**Let the library build a specialist a model invents.** See below; it is what
+`allow_dynamic` turns on, and the one place the library's own default is not
+merely inverted but replaced.
 
 **Build a delegate that is never used.** Each `SubAgentConfig` carries a
 `_LazyAgent` rather than an agent, because the library compiles every config when
@@ -169,6 +229,99 @@ default grace period is kept: nothing in this deployment shields a delegate's
 cleanup, so a cancelled delegation unwinds immediately and a setting of our own
 would be a knob nothing turns.
 
+## A specialist the model invents: `allow_dynamic`
+
+Off by default, and switched on it adds the two entry points that were declared
+and not offered for two phases: `delegate` creates a specialist and runs it in
+one call, `create_agent` keeps one and `task` reaches it by name. What held them back was never plumbing, and it is what the whole of this
+section is about.
+
+**The library builds a dynamic specialist itself, from `default_model`.** That is
+an agent on a model string of its own choosing — outside this deployment's model
+catalog, outside the vault, and outside the budget guard. An unmetered model
+request on a provider the organization may hold no key for is the one thing this
+platform exists to refuse, so the fix is not a flag but a
+`default_agent_factory`: every specialist a model invents is built by
+`build_agent` with the run's `shared_budget`, the same door an inline specialist
+and a pinned delegate come through. Its spend therefore lands on the run's shared
+ledger and the parent's cap sees it *before the parent's next request*, which is
+the property `tests/test_dynamic_specialists.py` exists to pin — reverting the
+factory fails it, in both halves.
+
+**`allowed_models` is the organization's own profiles, by label.** Free text
+would be a model naming `openai:gpt-4.1` in an organization holding no OpenAI
+key: a run that dies at its first request with a provider error, named by a model
+that had no way to know. The runner is the half that can see the profiles, so it
+resolves them — a query and a vault unseal each, paid once per run and only by an
+agent whose author asked for this — and hands them over as
+`SubagentRuntime.dynamic`. The label is the handle because it is what the Builder
+shows an author and what an organization's models are unique by.
+
+The list is never empty in a run, and that answers a rule nobody has to write:
+the delegating agent's own profile resolved before any of this, so the catalog
+holds at least it. Publish validation already refuses a spec with no
+`model_profile_id`, and one whose profile is gone — so "an organization with no
+usable model publishes `allow_dynamic`" is not a state a run reaches, and a second
+publish rule for it would be unreachable code. A profile that no longer resolves
+is left off the list with a warning rather than failing the run, for the reason
+`resolve` already applies to a fallback chain.
+
+**There is no default model, so naming none is refused.** The library would fall
+back on `SubAgentCapability.default_model`, so the omission is refused in
+`_toolset.py` and the model is pointed at the list in its instructions. Setting
+`default_model` to an unusable value instead would have been tidier and breaks
+something unrelated: the same field is what the library's general-purpose delegate
+is compiled from, at construction, for an agent that asked for no dynamic
+specialists at all.
+
+**A specialist is instructions and a model, and nothing else.** No capabilities,
+no knowledge, no skills, no MCP connections, no workspace, no delegates. Two
+consequences are worth stating because both are load-bearing. A specialist a
+model wrote cannot reach a credential the organization granted the agent that
+invented it — which is the tempting route precisely because nobody thinks of it as
+an agent. And it cannot delegate a level further, structurally rather than by a
+ceiling it could talk past: a dynamic specialist is a level like any other, and at
+`max_depth` the whole capability is removed, which removes these two tools with
+it.
+
+`capabilities_map` is therefore empty, and a model asking for a capability is
+refused rather than quietly ignored. **It stays empty until somebody builds the
+parent-intersected, author-chosen, publish-checked allowlist** — populating it
+from anything less is the ungranted-scope failure wearing a new hat, and half of
+it would be worse than none.
+
+**Creating one needs approval, by default.** This is the one place delegation and
+*dynamic* delegation part company. `task` is not side-effecting because what a
+delegate does is gated by the delegate's own reviewed spec; there is no reviewed
+spec here, so the specialist itself is the thing worth a person's eye. An author
+who wants an agent to run unattended clears it with `tool_approval`.
+
+**Nothing is persisted, and a kept one lasts less long than "the run".** The
+registry `create_agent` writes into belongs to the *built agent*, and a run that
+parks on an approval is built again when it is continued — so a specialist
+created before the park is unknown after it, while the transcript still carries
+the library's "created successfully". `create_agent`'s description says so and
+`task` answers "unknown subagent", which makes it recoverable rather than
+surprising; making the tool mean what its name says is agenticos#175. Keeping one
+properly means publishing an agent, which is a person's action.
+
+`MAX_DYNAMIC_SPECIALISTS` bounds how many one run may **keep**, which is the
+registry's ceiling and nothing else: a `delegate` call registers nothing, so
+one-shot specialists are bounded by `max_fanout` on how many run at once and by
+the agent's own `max_steps` on how many calls a turn can make.
+
+**Both entry points are routed through `_toolset.py`**, which is what puts a
+one-shot delegation under the same mode, fan-out ceiling and recording as a
+`task` call. `delegate` spells its arguments differently, so `_ENTRY_POINTS` is a
+table rather than a comparison against one name — a delegation this module does
+not see is one that escapes every decision it makes.
+
+With both wired there is nothing left for the drift check to be told about:
+`UNWIRED_TOOLS` in `tests/test_capability_registry.py` is gone, and before it a
+`CapabilityDef.drift_config` field that named a configuration nothing read. What
+stands in their place is a resource fixture wide enough — one resolved delegate
+*and* a `DynamicSpecialists` — that no capability has an excuse.
+
 ## The general-purpose delegate
 
 `include_general_purpose` defaults `False`, against the library's own default, and
@@ -180,12 +333,20 @@ metered or credentialed like everything else here. It stays configurable because
 an author may genuinely want a catch-all; it stays off by default because nobody
 should arrive at one by accident.
 
+**Switched on, it does not work at all**, and that is older than the dynamic
+entry points: the library compiles this delegate from `default_model`, so on a
+deployment with no `OPENAI_API_KEY` the build raises, and on one that has that key
+in its environment it runs a tenant's work on a deployment-wide credential —
+unpriced, unmetered, and against the one rule `model_resolver.py` states outright.
+Making the setting genuinely work means resolving this delegate here, through
+`build_agent`, like every other: agenticos#174.
+
 ## Reading the code
 
 | File | |
 |---|---|
 | `__init__.py` | `SubagentsConfig` — the Builder form — and the one `@register` |
-| `_capability.py` | The tool declarations, the adapter, and how a delegate becomes a `SubAgentConfig` |
-| `_toolset.py` | The `task` call: mode, fan-out, and settling the outcome |
+| `_capability.py` | The tool declarations, the adapter, how a delegate becomes a `SubAgentConfig`, and the factory a dynamic specialist is built by |
+| `_toolset.py` | The calls that delegate: mode, fan-out, settling the outcome, and what an invented specialist is refused |
 | `_journal.py` | What a run has delegated: in flight, what it cost, which stream is whose |
 | `_events.py` | A delegate's stream events, as frames a surface can render |
