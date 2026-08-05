@@ -19,6 +19,27 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.15] - 2026-08-05
+
+### Fixed
+
+- **A sync-only delegating agent is no longer offered the background-task tools**
+  ([#185](https://github.com/vstorm-co/agenticos/issues/185)). An agent configured
+  `mode: "sync"` can never have a background delegation, yet its model was still offered
+  the six tools that only make sense for one — `check_task`, `wait_tasks`,
+  `list_active_tasks`, `send_message_to_subagent`, and both cancels. Six tool descriptions
+  in every turn's context for actions that cannot happen, and tool descriptions are the
+  strongest prompt surface in this product. This is the same defect class as
+  [#182](https://github.com/vstorm-co/agenticos/issues/182) (0.0.8) and extends its
+  mechanism: the offered set is now computed per run. The six tools are withheld only from
+  an agent that can never reach a background delegation — mode `sync`, no delegate whose
+  `preferred_mode` is `async` or `auto`, and dynamic specialists off; anything that could
+  still produce a background delegation (an `auto` agent, or an `auto`-override on a
+  delegate, or an enabled dynamic-specialist path) keeps all of them, since the model
+  decides per delegation there. A dedicated test pins the exact tool set each of those
+  configurations is offered; the capability drift table is unchanged and does not itself
+  catch this, since its widest fixture is background-capable by construction.
+
 ## [0.0.14] - 2026-08-05
 
 ### Changed
@@ -780,7 +801,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.14...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.15...HEAD
+[0.0.15]: https://github.com/vstorm-co/agenticos/compare/v0.0.14...v0.0.15
 [0.0.14]: https://github.com/vstorm-co/agenticos/compare/v0.0.13...v0.0.14
 [0.0.13]: https://github.com/vstorm-co/agenticos/compare/v0.0.12...v0.0.13
 [0.0.12]: https://github.com/vstorm-co/agenticos/compare/v0.0.11...v0.0.12
