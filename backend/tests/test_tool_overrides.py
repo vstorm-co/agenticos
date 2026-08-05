@@ -17,7 +17,6 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, field
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from pydantic_ai.capabilities import AbstractCapability
@@ -293,7 +292,6 @@ class TestARenamedToolIsStillGated:
         """End to end: the model calls the new name and nothing happens without a human."""
         run_id = uuid.uuid4()
         channel = ApprovalChannel(
-            approvals=MagicMock(request=AsyncMock(return_value=MagicMock(id=uuid.uuid4()))),
             organization_id=uuid.uuid4(),
             agent_id=uuid.uuid4(),
             run_id=run_id,

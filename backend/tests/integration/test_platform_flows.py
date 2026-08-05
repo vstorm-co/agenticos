@@ -2125,6 +2125,7 @@ class TestDecidingAnApproval:
         )
         approvals = ApprovalService(db)
         approval = await approvals.request(
+            approval_id=uuid.uuid4(),
             organization_id=tenant.organization.id,
             run_id=run.id,
             agent_id=agent.id,
@@ -2156,6 +2157,7 @@ class TestDecidingAnApproval:
         )
         approvals = ApprovalService(db)
         approval = await approvals.request(
+            approval_id=uuid.uuid4(),
             organization_id=tenant.organization.id,
             run_id=run.id,
             agent_id=agent.id,
