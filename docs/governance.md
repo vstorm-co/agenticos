@@ -289,6 +289,13 @@ without saying whether the agent somebody is talking to or a specialist called
 delegation the thing being approved is often more consequential than the agent the
 reviewer thinks they are dealing with.
 
+Deleting that delegate does not erase the record of what it was authorised to do:
+the row keeps the delegate's name and drops only the link to its now-gone agent.
+This holds even when the delete lands while the run is still parked, before the
+approval row has been written - the deferred write ([#169](https://github.com/vstorm-co/agenticos/issues/169))
+resolves the delegates still present and writes a null id for one that vanished,
+exactly what deleting it after the row existed would have done.
+
 What the parent's run does is park, rather than be handed something that looks like
 a finished delegation. That is worth stating because it used to be otherwise: every
 agent built here declares an output type that lets a run end with its parked calls

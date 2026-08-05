@@ -5,7 +5,7 @@ role scope and on what was shared with them, so `list_visible` takes the
 predicate pieces the access layer resolved rather than re-deriving them here.
 """
 
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from uuid import UUID
 
 from sqlalchemy import func, or_, select
@@ -30,6 +30,30 @@ async def get_many(
         select(Agent).where(Agent.id.in_(list(agent_ids)), Agent.organization_id == organization_id)
     )
     return {agent.id: agent for agent in result.scalars().all()}
+
+
+async def existing_ids_locked(
+    db: AsyncSession, agent_ids: Collection[UUID], *, organization_id: UUID
+) -> set[UUID]:
+    """Which of these agents still exist, locked so they cannot be deleted until commit.
+
+    For the deferred approval write. A delegate whose gated call was parked can be
+    deleted between the call and the run's terminal write - the write is deferred to
+    that point - and its id rides on the approval row as a `SET NULL` foreign key.
+    Inserting the row would then violate that key and roll the whole parked run
+    back, so the writer nulls an id whose agent is gone. `FOR KEY SHARE` - the lock
+    an insert referencing the row would itself take - holds the survivors so a
+    concurrent delete cannot slip in between this check and that insert, which is
+    the guarantee the old inline insert had and a bare existence check would lose.
+    """
+    if not agent_ids:
+        return set()
+    result = await db.execute(
+        select(Agent.id)
+        .where(Agent.id.in_(list(agent_ids)), Agent.organization_id == organization_id)
+        .with_for_update(key_share=True)
+    )
+    return set(result.scalars().all())
 
 
 async def get(db: AsyncSession, agent_id: UUID, *, organization_id: UUID) -> Agent | None:

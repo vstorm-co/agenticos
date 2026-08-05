@@ -2027,12 +2027,27 @@ class AgentRunnerService:
         fails has to fail the run rather than strand it awaiting a decision nothing
         recorded.
 
+        The one failure that must *not* strand the run is a delegate deleted since
+        its call was parked. `subagent_agent_id` is a `SET NULL` foreign key -
+        deleting the delegate is meant to leave the record of what it was authorised
+        to do, not take it down - but that only fires for a delete that lands after
+        the row exists. Deferring the write widened the window to the whole run, so
+        a delete that lands *before* it would instead make the insert violate the
+        key and roll the parked run back. So the delegates still present are
+        resolved and locked first (:func:`agent_repo.existing_ids_locked`), and an
+        id whose agent is gone is written null - exactly what `SET NULL` would have
+        done - keeping the row, the delegate's name and the resumable run.
+
         Each row is written with the id allocated when the call was parked, so it
         matches the `paused_state` that names it and the :class:`ParkedApproval` a
         surface already drew a card from. An unparked run leaves `requested` empty
         and this does nothing.
         """
         channel = prepared.approvals
+        named = {p.subagent_agent_id for p in channel.requested if p.subagent_agent_id is not None}
+        present = await agent_repo.existing_ids_locked(
+            self.db, named, organization_id=channel.organization_id
+        )
         for parked in channel.requested:
             await self.approvals.request(
                 approval_id=parked.approval_id,
@@ -2044,7 +2059,11 @@ class AgentRunnerService:
                 tool_id=parked.tool_name,
                 tool_args=parked.tool_args,
                 subagent_name=parked.subagent,
-                subagent_agent_id=parked.subagent_agent_id,
+                # Null when the delegate's agent was deleted after the call was
+                # parked: the record of what it was authorised to do outlives it.
+                subagent_agent_id=(
+                    parked.subagent_agent_id if parked.subagent_agent_id in present else None
+                ),
             )
 
     @staticmethod
