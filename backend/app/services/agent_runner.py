@@ -105,6 +105,7 @@ from app.agents.subagent_runtime import (
     DynamicSpecialistBuilder,
     DynamicSpecialists,
     ParkedDelegation,
+    RegisteredSpecialist,
     ResolvedSubagent,
     ResumedDelegation,
     SubagentRuntime,
@@ -343,6 +344,30 @@ class DelegationFrame(BaseModel):
     )
 
 
+class DynamicSpecialistFrame(BaseModel):
+    """One specialist the run's own agent kept with `create_agent`, stored across a park.
+
+    The library holds a `create_agent` registration in a registry it builds per
+    *built* agent, and a resume is a fresh build - so without this a specialist kept
+    before an approval park was gone after it, while the replayed transcript still
+    said it had been created and `task` answered "unknown subagent" (agenticos#175).
+    The four fields are the whole of what `create_agent` was given, which is exactly
+    what a resume needs to build the specialist again on the run's shared budget.
+
+    The run's own agent's specialists only: a nested delegate's registry is its own,
+    and carrying one across a park would have to hang off that delegate's
+    :class:`DelegationFrame` the way its conversation does. See
+    :class:`app.agents.subagent_runtime.RegisteredSpecialist`.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(description="How the model addresses it in `task`")
+    description: str = Field(description="What it is for, one line")
+    instructions: str = Field(description="Its system prompt - the whole of its behaviour")
+    model: str = Field(description="The organization model profile label it runs on")
+
+
 class PausedRunState(BaseModel):
     """What a parked run needs to pick up where it stopped.
 
@@ -374,6 +399,14 @@ class PausedRunState(BaseModel):
     )
     delegations: list[DelegationFrame] = Field(
         default_factory=list, description="The delegations this run parked inside"
+    )
+    dynamic_specialists: list[DynamicSpecialistFrame] = Field(
+        default_factory=list,
+        description=(
+            "The specialists the run's own agent kept with `create_agent`, so a "
+            "park does not lose them. Empty for a run that kept none, and for one "
+            "parked before this existed"
+        ),
     )
 
 
@@ -1116,6 +1149,7 @@ class AgentRunnerService:
         resuming: dict[str, ResumedDelegation],
         already_spent: dict[str, DelegationSpend],
         already_started: dict[str, datetime | None],
+        specialists: Sequence[RegisteredSpecialist] = (),
         model_profile_id: UUID | None = None,
         version_id: UUID | None = None,
         environment_id: UUID | None = None,
@@ -1141,6 +1175,12 @@ class AgentRunnerService:
         cost before the park - and when it first began - have to be in the stash by
         then or the row it eventually writes holds only this turn's spend and begins
         at the resume.
+
+        `specialists` is the same kind of thing for `create_agent`: the specialists
+        the run's own agent kept, empty on a fresh run and filled from
+        `PausedRunState` on a resume, re-registered by the depth-0 delegation
+        capability before the replay so a kept specialist is reachable after the
+        park that created it (agenticos#175).
         """
         # A caller's override wins over the spec's choice. Only the model is
         # replaced - instructions, tools, budgets and the approval gate are the
@@ -1261,7 +1301,12 @@ class AgentRunnerService:
         run_budget = _RunBudget()
         runtimes: list[SubagentRuntime] = []
         delegations: list[RecordedDelegation] = []
-        stash = DelegationStash(resuming=resuming, spent=already_spent, started=already_started)
+        stash = DelegationStash(
+            resuming=resuming,
+            spent=already_spent,
+            started=already_started,
+            to_register=list(specialists),
+        )
         runtime = await self._delegation_runtime(
             ctx,
             spec=spec,
@@ -2208,6 +2253,11 @@ class AgentRunnerService:
         surfaces that park a run are the two that would have to agree about it
         forever. One of them would eventually not, and the failure is a resumed run
         that delegates again from nothing and answers a question nobody asked.
+
+        The kept specialists come from the same stash, snapshotted by the delegation
+        capability's `wrap_run` when the run ended - empty unless the run's own
+        agent invented one it kept, and carried forward so the resume can register
+        it again (agenticos#175).
         """
         return paused_state.model_copy(
             update={
@@ -2217,6 +2267,15 @@ class AgentRunnerService:
                     if parked.task_id is not None
                 },
                 "delegations": _delegation_frames(prepared.stash.parked),
+                "dynamic_specialists": [
+                    DynamicSpecialistFrame(
+                        name=specialist.name,
+                        description=specialist.description,
+                        instructions=specialist.instructions,
+                        model=specialist.model,
+                    )
+                    for specialist in prepared.stash.registered
+                ],
             }
         )
 
@@ -2404,6 +2463,17 @@ class AgentRunnerService:
             resuming=plan.delegations,
             already_spent=plan.spent,
             already_started=plan.started,
+            # The specialists the run's own agent kept before it parked, rebuilt
+            # into a fresh registry before the replay so `task` reaches them again.
+            specialists=[
+                RegisteredSpecialist(
+                    name=frame.name,
+                    description=frame.description,
+                    instructions=frame.instructions,
+                    model=frame.model,
+                )
+                for frame in state.dynamic_specialists
+            ],
         )
         prepared.built.ledger.book(_spend_already_booked(run))
 

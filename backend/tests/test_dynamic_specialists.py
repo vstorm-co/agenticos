@@ -69,8 +69,10 @@ from app.agents.subagent_events import SubagentEvent
 from app.agents.subagent_runtime import (
     SUBAGENT_RUNTIME_RESOURCE,
     DelegationOutcome,
+    DelegationStash,
     DynamicSpecialistBuilder,
     DynamicSpecialists,
+    RegisteredSpecialist,
     ResolvedSubagent,
     SubagentRuntime,
 )
@@ -235,8 +237,17 @@ def a_runtime(
     dynamic: DynamicSpecialists | None = None,
     ledger: SpendLedger | None = None,
     record: Recorder | None = None,
+    stash: DelegationStash | None = None,
+    depth: int = 0,
 ) -> SubagentRuntime:
-    return SubagentRuntime(subagents=delegates, record=record, dynamic=dynamic, ledger=ledger)
+    runtime = SubagentRuntime(
+        subagents=delegates, record=record, dynamic=dynamic, ledger=ledger, depth=depth
+    )
+    if stash is not None:
+        # A resume hands over a stash carrying what an earlier turn kept; a fresh
+        # run gets the default empty one.
+        runtime.stash = stash
+    return runtime
 
 
 def dynamic(
@@ -781,6 +792,155 @@ class TestADynamicDelegationIsAccountedForLikeAnyOther:
         assert "the specialist answered" in answer
         assert [outcome.subagent for outcome in recorder.outcomes] == ["summariser"]
         assert ledger.entries != []
+
+
+class TestAKeptSpecialistSurvivesTheParkThatCreatedIt:
+    """agenticos#175: a `create_agent` specialist kept before an approval park must
+    be reachable after it.
+
+    The library holds each registration in a registry it builds per *built* agent,
+    and a resume is a fresh build - so a specialist kept before the park was gone
+    after it while the replayed transcript still said it had been created, and
+    `task` answered "unknown subagent". The fix snapshots the registrations when the
+    run ends, the runner carries them in `PausedRunState`, and the resume rebuilds
+    each one into a fresh registry.
+
+    Two runtimes stand in for the park and its resume, one `build_delegation` each -
+    which is exactly what a park and a resume are, two builds of the same run. The
+    first keeps a specialist and snapshots it as the run ends; the second is handed
+    what the first kept, the way the runner hands it back through the stash.
+    """
+
+    async def test_the_run_snapshots_what_create_agent_kept(self):
+        """The capture half: when the run ends, the kept specialist is on the stash,
+        in the four fields a resume needs to build it again."""
+        runtime = a_runtime(dynamic=dynamic(specialist_builder()))
+        capability = a_capability(runtime)
+        ctx = a_context()
+
+        await call_tool(capability, ctx, "create_agent", create_args())
+        await _ends_the_run(capability, ctx)
+
+        assert runtime.stash.registered == [
+            RegisteredSpecialist(
+                name="summariser",
+                description="Summarises a document in three bullets",
+                instructions="You summarise.",
+                model=PROFILE,
+            )
+        ]
+
+    async def test_without_the_carried_registrations_the_rebuild_loses_it(self):
+        """The failure itself: a fresh build with nothing carried over answers `task`
+        with "unknown subagent", which is what every resume did before the fix."""
+        resumed = a_runtime(dynamic=dynamic(specialist_builder()))
+
+        answer = await call_tool(
+            a_capability(resumed),
+            a_context(),
+            "task",
+            {"description": "summarise it", "subagent_type": "summariser"},
+        )
+
+        assert "Unknown subagent 'summariser'" in answer
+
+    async def test_task_reaches_a_resumed_specialist_and_still_meters_it(self):
+        """The whole of the fix: the specialist the first turn kept is reachable in
+        the second, and its spend still lands on the run's shared ledger.
+
+        The metering is the half the naive fix breaks. A resume re-registers before
+        the run's budget guard exists - it is a product of `build_agent`, assigned
+        after this build - so a specialist built eagerly at re-registration would be
+        handed no guard and meter nothing. The guard is set here *after* the
+        capability is built, as the runner sets it, and the ledger entry is what
+        proves the rebuilt specialist waited for it.
+        """
+        first = a_runtime(dynamic=dynamic(specialist_builder()))
+        capability = a_capability(first)
+        await call_tool(capability, a_context(), "create_agent", create_args())
+        await _ends_the_run(capability, a_context())
+        kept = list(first.stash.registered)
+        assert [specialist.name for specialist in kept] == ["summariser"]
+
+        ledger = SpendLedger()
+        budget = _RunBudget()
+        resumed = a_runtime(
+            dynamic=dynamic(specialist_builder(budget)),
+            ledger=ledger,
+            stash=DelegationStash(to_register=kept),
+        )
+        resumed_capability = a_capability(resumed)
+        # The two assignments the runner makes after the build, in that order: the
+        # guard is a product of the build, and a lazily rebuilt specialist reads it
+        # only when `task` runs it below.
+        budget.guard = BudgetGuard(ledger=ledger, provider="openai")
+
+        answer = await call_tool(
+            resumed_capability,
+            a_context(),
+            "task",
+            {"description": "summarise it", "subagent_type": "summariser"},
+        )
+
+        assert "the specialist answered" in answer
+        assert [entry.input_tokens for entry in ledger.entries] == [SPECIALIST_TOKENS]
+
+    async def test_a_specialist_whose_model_is_gone_is_skipped_not_raised(self):
+        """A profile can be deleted between the park and the resume. That one
+        specialist reads as unknown again - the model can recreate it - rather than
+        failing the whole continuation, and any others carried over still resume."""
+        gone = RegisteredSpecialist(
+            name="summariser",
+            description="Summarises a document in three bullets",
+            instructions="You summarise.",
+            model="A model the organization no longer holds",
+        )
+        resumed = a_runtime(
+            dynamic=dynamic(specialist_builder()),
+            stash=DelegationStash(to_register=[gone]),
+        )
+
+        answer = await call_tool(
+            a_capability(resumed),
+            a_context(),
+            "task",
+            {"description": "summarise it", "subagent_type": "summariser"},
+        )
+
+        assert "Unknown subagent 'summariser'" in answer
+
+    async def test_a_nested_agents_registry_is_neither_seeded_nor_snapshotted(self):
+        """The scope of the fix: the run's own agent only.
+
+        `PausedRunState` carries a flat list of the *run's own agent's* kept
+        specialists, so a nested delegate - which has its own registry and its own
+        `create_agent` - must not read that list as its own on a resume, nor write
+        its own registrations into it when the run ends. A delegate that carried one
+        of these across a park would have to hang it off its own `DelegationFrame`
+        the way its conversation is; that is not done, so a nested agent both
+        ignores what the run kept and keeps nothing of its own here.
+        """
+        stash = DelegationStash(to_register=[a_registered("from-the-parent")])
+        nested = a_runtime(dynamic=dynamic(specialist_builder()), stash=stash, depth=1)
+        capability = a_capability(nested)
+        ctx = a_context()
+
+        # Seed skipped: the parent's kept specialist is not in this level's registry.
+        unknown = await call_tool(
+            capability, ctx, "task", {"description": "x", "subagent_type": "from-the-parent"}
+        )
+        # Snapshot skipped: what this level keeps does not land on the shared list.
+        await call_tool(capability, ctx, "create_agent", create_args(name="nested-only"))
+        await _ends_the_run(capability, ctx)
+
+        assert "Unknown subagent 'from-the-parent'" in unknown
+        assert stash.registered == []
+
+
+def a_registered(name: str) -> RegisteredSpecialist:
+    return RegisteredSpecialist(
+        name=name, description="Summarises.", instructions="You summarise.", model=PROFILE
+    )
 
 
 async def _ends_the_run(capability: Delegation, ctx: RunContext[AgentDeps]) -> None:

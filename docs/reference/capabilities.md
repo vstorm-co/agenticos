@@ -426,10 +426,18 @@ key for.
 The model may name only a model the organization has a profile for, and the refusal
 names the list. It may not attach capabilities: letting a model grant its own child
 a capability is the ungranted-scope failure wearing a new hat. It gets no knowledge,
-no delegates of its own, and nothing is persisted — keeping a specialist means
-publishing an agent, which is a person's action. `MAX_DYNAMIC_SPECIALISTS` bounds how
-many one run may keep, and a kept one lasts for the reply rather than the run
-([#175](https://github.com/vstorm-co/agenticos/issues/175)).
+no delegates of its own, and nothing is persisted across runs — keeping a specialist
+means publishing an agent, which is a person's action. `MAX_DYNAMIC_SPECIALISTS`
+bounds how many one run may keep.
+
+A kept one lasts the whole run it was invented in, an approval park included: the
+registration lives in a registry the delegation library builds per *built* agent,
+and a run that parks is built again when it is continued, so it was lost across the
+park until the registrations were carried in `PausedRunState` and re-registered on
+the replay ([#175](https://github.com/vstorm-co/agenticos/issues/175)). It does not
+survive into the *next conversation turn*, which is a fresh build with no paused
+state — a name created in one reply is unknown in the next, and `create_agent`'s
+description tells the model to create it again if `task` says so.
 
 **The delegation library's own unspecialised delegate is not offered at all**, and
 there is no setting for it. It would run on a model this deployment did not
