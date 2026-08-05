@@ -21,6 +21,19 @@ Nothing yet.
 
 ## [0.0.12] - 2026-08-05
 
+### Fixed
+
+- **A delegated run's recorded time span survives an approval park**
+  ([#191](https://github.com/vstorm-co/agenticos/issues/191)). A delegated `agent_runs`
+  row reads its span from the library's `TaskHandle`, which is correct for a single-turn
+  delegation — but one that parks on an approval and resumes runs in two processes, and
+  the resume rebuilds a fresh handle stamped at the *resume*, so the row began when the
+  person answered and dropped the entire pre-park segment. The earliest start is now
+  carried across the park the way spend is (0.0.8, #180): `ParkedDelegation` holds it,
+  `paused_state` serialises it, and the resumed turn folds it back in — the span is the
+  first segment's start and the last segment's end, and unlike cost the segments are not
+  summed. A pre-task refusal, which finds no handle, still writes no row at all.
+
 ### Changed
 
 - **Run-history routes read through the service, not the repository**
