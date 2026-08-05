@@ -70,7 +70,7 @@ dependencies = [
     # labelled per delegation (#65), and a bounded wait in `cancel_all`'s
     # `finally` so a child that swallows cancellation cannot hang our teardown
     # (#66).
-    "subagents-pydantic-ai>=0.2.16",
+    "subagents-pydantic-ai>=0.2.18",
     "cryptography>=50.0.0",
     "aiogram>=3.17,<4.0",
     "slack-sdk>=3.35.0",

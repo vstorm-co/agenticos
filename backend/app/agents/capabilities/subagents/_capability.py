@@ -758,16 +758,18 @@ def build_delegation(
         subagents=[_config_for(delegate, journal) for delegate in runtime.subagents],
         # Passed because the library's own default is `True`, not because anything
         # here can ask for it: this is a fact about somebody else's default, and
-        # the one place it is stated. The delegate it would add is compiled at
-        # construction from `default_model` - a model string of the library's
-        # choosing, resolved from no profile of this organization's, unsealed from
-        # no credential in its vault and wrapped by no budget guard - so on a
-        # deployment holding no such key the build raises, and on one that has that
-        # key in its environment a tenant's work runs on a deployment-wide
-        # credential. Neither is a delegate this platform can account for, so there
-        # is no setting for it and never was one an author could reach
-        # (agenticos#174 tracks fixing it upstream). An author who wants a
-        # catch-all writes an inline specialist, whose instructions somebody read.
+        # the one place it is stated. The delegate it would add is the library's
+        # unspecialised one - resolved from no profile of this organization's,
+        # unsealed from no credential in its vault, wrapped by no budget guard -
+        # not one this platform can account for, so there is no setting for it and
+        # never was one an author could reach. subagents-pydantic-ai 0.2.18 fixed
+        # the upstream half of this (agenticos#174): with no `default_model` and no
+        # `default_agent_factory` the library now refuses to build the delegate
+        # rather than compiling it from a model of its own choosing, so leaving
+        # this `True` would raise here instead of quietly running a tenant's work
+        # on a deployment-wide credential. Either way it is not offered; an author
+        # who wants a catch-all writes an inline specialist, whose instructions
+        # somebody read.
         include_general_purpose=False,
         max_result_chars=max_result_chars,
         # Which entry points exist at all. `default` is `task` alone;
@@ -786,14 +788,13 @@ def build_delegation(
         # Owned here rather than created inside the library, so its registrations
         # can be snapshotted when the run parks and re-seeded when it resumes.
         registry=registry,
-        # `default_model` is left at the library's own, and this platform has no
-        # default model anywhere: a specialist that names none is refused in
-        # `DelegatingToolset._refuse_dynamic`, before either entry point reaches
-        # the fallback, and the general-purpose delegate that would otherwise be
-        # compiled from it at construction is switched off above. So the field is
-        # unread here, and an unusable sentinel in its place would buy a second
-        # spelling of a refusal that already has one - as an exception rather than
-        # a tool result the model can act on.
+        # `default_model` is left unset - which since 0.2.18 is the library's own
+        # default too - because this platform has no default model anywhere: a
+        # specialist that names none is refused in `DelegatingToolset._refuse_dynamic`
+        # before it reaches the library, and the general-purpose delegate that would
+        # otherwise be built from a default is switched off above. The field is
+        # unread here; unset, the library now refuses a modelless dynamic call of its
+        # own accord too, only later and less specifically than the refusal above.
         # The nesting budget the runner had left after resolving this level. The
         # library subtracts one per delegation and passes it to
         # `AgentDeps.clone_for_subagent`, which is where a delegate learns whether
@@ -913,12 +914,14 @@ def _specialist_factory(dynamic: DynamicSpecialists, journal: DelegationJournal)
 
     The whole point of the phase, and it is one line of substance: the library is
     given a factory, so it never builds a dynamic specialist itself. Left to its
-    own devices it constructs `Agent(default_model, system_prompt=...)` - an agent
-    on a model string of the library's choosing, with no credential from this
+    own devices it would build `Agent(default_model, system_prompt=...)` - an agent
+    on a model string of its own choosing, with no credential from this
     organization's vault, no price attached to its requests and **no budget
-    guard**. That is an unmetered model request on a provider the organization may
-    hold no key for, and it is the reason both entry points were declared and not
-    offered for two phases.
+    guard**; that was an unmetered model request on a provider the organization may
+    hold no key for. Since 0.2.18, with `default_model` unset, it refuses to build
+    one at all rather than pick a model - but a refusal is not a specialist either,
+    and giving it the factory is why both entry points could move from declared and
+    not offered to offered.
 
     What the factory produces instead goes through `build_agent` with the run's
     `shared_budget`, which is the same door an inline specialist and a pinned

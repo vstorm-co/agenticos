@@ -417,11 +417,14 @@ What the switch buys is a specialist the model writes itself: instructions and a
 model, and nothing else. It is built through the same `build_agent` an inline
 specialist comes through, on the run's shared budget guard and its approval
 channel, so its requests are priced and counted against the cap somebody set. That
-is the entire reason this took a factory rather than a flag — left to itself the
-library compiles a run-time specialist from its own default model string, which is
-an agent outside this deployment's model catalog, outside its vault and outside its
-budget guard: an unmetered request, possibly to a provider the organization holds no
-key for.
+is the entire reason this took a factory rather than a flag: a specialist the
+library built for itself would sit outside this deployment's model catalog, its
+vault and its budget guard — an unmetered request, possibly to a provider the
+organization holds no key for. The factory is what routes it back through this
+platform instead. (Before `subagents-pydantic-ai` 0.2.18 the library also carried a
+default model string a modelless specialist was compiled from; 0.2.18 removed that
+fallback, so a specialist naming no model is now refused rather than built — this
+platform refuses it earlier still, in `DelegatingToolset._refuse_dynamic`.)
 
 The model may name only a model the organization has a profile for, and the refusal
 names the list. It may not attach capabilities: letting a model grant its own child
@@ -440,13 +443,15 @@ state — a name created in one reply is unknown in the next, and `create_agent`
 description tells the model to create it again if `task` says so.
 
 **The delegation library's own unspecialised delegate is not offered at all**, and
-there is no setting for it. It would run on a model this deployment did not
-configure — compiled from the library's own default model string, so outside the
-organization's profiles, its vault and the run's budget guard, exactly like the
-run-time specialist above before it took a factory. A catch-all is a legitimate
-thing to want; write it as an inline specialist, where you can read what it does
-and it is priced like everything else. Fixing the library's own is
-[#174](https://github.com/vstorm-co/agenticos/issues/174).
+there is no setting for it. Before subagents-pydantic-ai 0.2.18 it would have run on
+a model this deployment did not configure — compiled from the library's own default
+model string, outside the organization's profiles, its vault and the run's budget
+guard, exactly like the run-time specialist above before it took a factory. A
+catch-all is a legitimate thing to want; write it as an inline specialist, where you
+can read what it does and it is priced like everything else. The library's own is
+fixed as of 0.2.18 ([#174](https://github.com/vstorm-co/agenticos/issues/174)): with
+no default model or factory it now refuses to build the delegate rather than picking
+a model.
 
 What the model is told about all of this is written here rather than by the
 library: the delegates by name and description, the mode this run will actually
