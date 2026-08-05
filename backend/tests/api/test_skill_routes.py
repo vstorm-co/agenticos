@@ -6,6 +6,10 @@ filters and pages where the database is. What is left is the response itself:
 the listing is where a card learns how many files a skill has, which shelf it
 sits on, and whether it shipped with the deployment - none of which is a column
 the ORM row hands over as-is.
+
+Which is why these run the real service and stub the repository instead: the
+assembly lives in `SkillService.list_readable`, and a stubbed service would
+prove only that the route returns whatever it was handed.
 """
 
 from __future__ import annotations
@@ -14,7 +18,7 @@ import uuid
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -23,6 +27,7 @@ from app.api import deps
 from app.core.config import settings
 from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
+from app.services.skills import SkillService
 
 pytestmark = pytest.mark.anyio
 
@@ -43,9 +48,10 @@ def _row(name: str, *, category: str | None = None, files: int = 0) -> MagicMock
 
 
 @pytest.fixture
-def service() -> MagicMock:
+def repo() -> MagicMock:
+    """The two queries the listing makes, stubbed at the database edge."""
     stub = MagicMock()
-    stub.list_skills = AsyncMock(
+    stub.list_visible = AsyncMock(
         return_value=(
             [
                 # A real library name next to one no deployment ships: the
@@ -61,20 +67,26 @@ def service() -> MagicMock:
 
 
 @pytest.fixture
-def client(service: MagicMock, mock_redis: MagicMock) -> Iterator[OpenClient]:
+def client(repo: MagicMock, mock_redis: MagicMock) -> Iterator[OpenClient]:
+    # An Owner reaches every skill in the organization, so the listing resolves
+    # no grants and the repository is the only thing left to stand in for.
     context = AuthContext(
         user_id=uuid.uuid4(), organization_id=_ORGANIZATION_ID, role=OrgRoleName.OWNER
     )
     app.dependency_overrides[deps.get_auth_context] = lambda: context
     app.dependency_overrides[deps.get_redis] = lambda: mock_redis
-    app.dependency_overrides[deps.get_skill_service] = lambda: service
+    app.dependency_overrides[deps.get_skill_service] = lambda: SkillService(MagicMock())
 
     @asynccontextmanager
     async def open_client() -> AsyncIterator[AsyncClient]:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as opened:
             yield opened
 
-    yield open_client
+    with (
+        patch("app.services.skills.skill_repo.list_visible", repo.list_visible),
+        patch("app.services.skills.skill_repo.list_categories", repo.list_categories),
+    ):
+        yield open_client
     app.dependency_overrides.clear()
 
 
@@ -116,24 +128,24 @@ class TestListing:
         assert by_name["quarterly-report"]["category"] is None
 
     async def test_the_filter_choices_ride_along_with_every_page(
-        self, client: OpenClient, service: MagicMock
+        self, client: OpenClient, repo: MagicMock
     ):
         """The chips come from the whole organization, not from the page - a
         category whose skills fell on page two is still a chip on page one."""
         body = await _listed(client)
 
         assert body["categories"] == ["operations", "support"]
-        assert service.list_categories.await_count == 1
+        assert repo.list_categories.await_count == 1
 
-    async def test_the_category_filter_and_sort_reach_the_service(
-        self, client: OpenClient, service: MagicMock
+    async def test_the_category_filter_and_sort_reach_the_query(
+        self, client: OpenClient, repo: MagicMock
     ):
         """`category` repeats: two occurrences mean "either shelf", and both
-        must reach the service - an encoding that kept the last one would
+        must reach the query - an encoding that kept the last one would
         silently narrow the filter."""
         await _listed(client, "?category=support&category=devops&sort=updated")
 
-        kwargs = service.list_skills.call_args.kwargs
+        kwargs = repo.list_visible.call_args.kwargs
         assert kwargs["categories"] == ["support", "devops"]
         assert kwargs["sort"] == "updated"
 

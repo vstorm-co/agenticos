@@ -142,8 +142,16 @@ export type WSEventType =
   | "tool_approval_required"
   | "ask_user"
   | "todo_event"
-  | "subagent_status"
-  | "subagent_message"
+  // One per literal in `app/agents/subagent_events.py`. They replace
+  // `subagent_status` / `subagent_message`, which nothing ever emitted and
+  // nothing ever handled - two vocabularies for one subsystem is how a client
+  // ends up listening for a frame the server stopped sending.
+  | "subagent_start"
+  | "subagent_text_delta"
+  | "subagent_thinking_delta"
+  | "subagent_tool_call"
+  | "subagent_tool_result"
+  | "subagent_complete"
   | "context_usage"
   | "context_compacted"
   | "llm_started"
@@ -312,17 +320,152 @@ export interface SubagentStatus {
   result?: string | null;
 }
 
-export type SubagentMessageType = "info" | "steering" | "question" | "result" | "error";
-
-export interface SubagentMessage {
-  task_id: string;
-  type: SubagentMessageType;
-  text: string;
-  timestamp: string;
-}
+/* `SubagentMessage` and `SubagentMessageType` stood here, the payload of the
+   `subagent_message` event that this file used to declare. Nothing ever emitted it
+   and nothing ever handled it, so removing that name from `WSEventType` left these
+   two with no reader at all - and a second delegation vocabulary sitting beside the
+   real one is precisely how a client ends up listening for a frame the server never
+   sends. `SubagentStatus` above stays: `ResearchReplay` still references it. */
 
 export interface ContextUsage {
   pct: number;
   current: number;
   max: number;
+}
+
+/* ------------------------------------------------------------------------- *
+ * Delegation - a second agent's whole conversation inside one turn of this one.
+ *
+ * The six frames below mirror `backend/app/agents/subagent_events.py` field for
+ * field, and they are a discriminated union on `kind` for the same reason the
+ * backend's is: a surface has to switch on it. A text delta appends, a tool call
+ * opens a row, the terminal frame closes the panel and writes the cost.
+ *
+ * `WSEvent` above is left as `{ type; data?: unknown }` on purpose. Making the
+ * whole envelope a union means rewriting all twenty-odd branches in `use-chat.ts`
+ * and deleting the dead per-event interfaces beside it - `TextDeltaEvent` declares
+ * `data.delta` where the wire has always sent `content` - which is a refactor worth
+ * doing and not this one. So the union stops at the delegation payload: every frame
+ * carries `kind` inside `data` as well as in the envelope's `type`, so
+ * `data as SubagentFrame` narrows honestly from there.
+ * ------------------------------------------------------------------------- */
+
+/** Whether the parent waits for the delegate, or carries on while it works. */
+export type SubagentMode = "sync" | "async";
+
+interface SubagentFrameBase {
+  /** Unique per delegation. What keeps three concurrent specialists apart. */
+  task_id: string;
+  /** The delegate or specialist name its author gave it. */
+  subagent: string;
+  /** 0 is a specialist this run's own agent called; 1 is one that specialist called. */
+  depth: number;
+}
+
+export interface SubagentStartFrame extends SubagentFrameBase {
+  kind: "subagent_start";
+  mode: SubagentMode;
+  prompt: string;
+  /**
+   * The delegation this one was started from, null when the run's own agent made it.
+   *
+   * Read from the journal at `begin`, which is the only moment both delegations
+   * exist, and it is what nests a panel without guessing. `depth` alone cannot:
+   * two specialists running at once are both one level up from a nested start.
+   */
+  parent_task_id: string | null;
+}
+
+export interface SubagentTextDeltaFrame extends SubagentFrameBase {
+  kind: "subagent_text_delta";
+  delta: string;
+}
+
+export interface SubagentThinkingDeltaFrame extends SubagentFrameBase {
+  kind: "subagent_thinking_delta";
+  delta: string;
+}
+
+export interface SubagentToolCallFrame extends SubagentFrameBase {
+  kind: "subagent_tool_call";
+  tool_name: string;
+  tool_call_id: string;
+}
+
+export interface SubagentToolResultFrame extends SubagentFrameBase {
+  kind: "subagent_tool_result";
+  tool_name: string;
+  tool_call_id: string;
+  /** False when the tool raised, which is all the frame carries about it. */
+  ok: boolean;
+}
+
+export interface SubagentCompleteFrame extends SubagentFrameBase {
+  kind: "subagent_complete";
+  status: "completed" | "failed" | "cancelled";
+  /** Present for a delegation to a published agent, which gets a run row. */
+  run_id: string | null;
+  /** What this delegation added to the parent run's ledger, as a number. */
+  cost_usd: number | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  error: string | null;
+}
+
+export type SubagentFrame =
+  | SubagentStartFrame
+  | SubagentTextDeltaFrame
+  | SubagentThinkingDeltaFrame
+  | SubagentToolCallFrame
+  | SubagentToolResultFrame
+  | SubagentCompleteFrame;
+
+/** `running` is this surface's own: no frame says it, the absence of a terminal one does. */
+export type DelegationStatus = "running" | "completed" | "failed" | "cancelled";
+
+/**
+ * One of the delegate's own tool calls.
+ *
+ * A name and whether it worked, and nothing else - which is the contract, not a
+ * rendering choice: `SubagentToolCall` carries no arguments and
+ * `SubagentToolResult` carries no content, so a delegate's step is a line of
+ * narration rather than something to open. `ok` is null until its result lands.
+ */
+export interface DelegationStep {
+  id: string;
+  name: string;
+  ok: boolean | null;
+}
+
+/** One delegation, assembled from its frames - the thing a panel draws. */
+export interface Delegation {
+  taskId: string;
+  subagent: string;
+  depth: number;
+  mode: SubagentMode;
+  prompt: string;
+  /**
+   * The delegation this one was started from, or null at the top.
+   *
+   * Named by the start frame's `parent_task_id`, never inferred. See `parentIn` in
+   * `lib/delegations.ts` for the two cases that read as a root panel instead.
+   */
+  parentTaskId: string | null;
+  status: DelegationStatus;
+  text: string;
+  thinking: string;
+  steps: DelegationStep[];
+  /**
+   * The run row the delegate produced, once it reports one, and null until then.
+   *
+   * Only a delegation to a published agent gets a run row, so it stays null for a
+   * specialist defined inline on the parent's spec. Carried because it is the only
+   * link between a panel and the run history entry behind it - see
+   * `DelegationRecorder` in `backend/app/agents/capabilities/subagents/`.
+   */
+  runId: string | null;
+  costUsd: number | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  error: string | null;
 }

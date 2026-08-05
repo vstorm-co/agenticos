@@ -43,7 +43,7 @@ workspace**, and it is the whole file, on every turn. A two-hundred page report
 costs its full token weight when the user asks the first question and again when
 they ask "and what about March"; a fifty-megabyte CSV cannot be attached at all.
 
-An agent with the [`sandbox` capability](reference/capabilities.md#files--shell)
+An agent with the [`sandbox` capability](reference/capabilities.md#files-shell)
 gets the file instead of the text:
 
 | Attachment | No workspace | With a workspace |

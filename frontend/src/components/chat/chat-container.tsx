@@ -13,10 +13,18 @@ import { WorkspaceFiles } from "./workspace-files";
 import { FilePreviewPanel } from "./file-preview-panel";
 import { SourcesPanel } from "./sources-panel";
 import { MessageList } from "./message-list";
+import { DelegationPanels } from "./delegation-panel";
 import { PendingMessages } from "./pending-messages";
 import { ToolApprovalDialog } from "./tool-approval-dialog";
 import { QuestionPrompt } from "@/components/ui";
-import type { PendingApproval, AskUserQuestion, AskUserAnswer, Decision, TurnUsage } from "@/types";
+import type {
+  PendingApproval,
+  AskUserQuestion,
+  AskUserAnswer,
+  Decision,
+  Delegation,
+  TurnUsage,
+} from "@/types";
 import { conversationMessageToChatMessage } from "@/lib/conversation-to-chat";
 import { latestUsage } from "@/lib/message-usage";
 import { useConversationStore, useChatStore } from "@/stores";
@@ -57,6 +65,7 @@ export function ChatContainer() {
     isConnected,
     isProcessing,
     lastUsage,
+    delegations,
     sendMessage,
     stopGeneration,
     clearMessages,
@@ -207,6 +216,7 @@ export function ChatContainer() {
       // the transcript otherwise - which is what makes the strip appear on a
       // conversation somebody has just reopened instead of after their next message.
       lastUsage={lastUsage ?? latestUsage(currentMessages, currentConversationId)}
+      delegations={delegations}
       conversationId={currentConversationId}
       turns={turns}
       attachments={attachments}
@@ -240,6 +250,13 @@ interface ChatUIProps {
   isProcessing: boolean;
   /** What the last turn cost, drawn under the input. Null until one has run. */
   lastUsage: TurnUsage | null;
+  /**
+   * The turn's delegations, drawn under the transcript.
+   *
+   * Under it rather than inside the assistant message, and they outlive the turn's
+   * `complete` - a background delegation reports after the parent has answered.
+   */
+  delegations: Delegation[];
   /** The conversation the file panel reads, or null before one exists. */
   conversationId: string | null;
   /**
@@ -281,6 +298,7 @@ function ChatUI({
   isConnected,
   isProcessing,
   lastUsage,
+  delegations,
   conversationId,
   turns,
   attachments,
@@ -327,6 +345,10 @@ function ChatUI({
             ) : (
               <MessageList messages={messages} onRegenerate={onRegenerate} />
             )}
+            {/* After the transcript, not inside it: a delegation is a second agent's
+                conversation happening inside one turn of this one, and it can still be
+                streaming when the turn it belongs to has already answered. */}
+            <DelegationPanels delegations={delegations} />
             <div ref={messagesEndRef} />
           </div>
         </div>

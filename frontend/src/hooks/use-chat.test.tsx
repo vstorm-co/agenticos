@@ -364,6 +364,180 @@ describe("useChat - failures and interruptions", () => {
   });
 });
 
+describe("useChat - streaming a delegation", () => {
+  /** A `subagent_start`, replayed the way the server sends one. */
+  function startDelegation(taskId: string, subagent = "researcher", mode = "sync"): void {
+    receive("subagent_start", {
+      kind: "subagent_start",
+      task_id: taskId,
+      subagent,
+      depth: 0,
+      mode,
+      prompt: "find three papers",
+      parent_task_id: null,
+    });
+  }
+
+  it("opens a panel per delegation and fills it from its own frames", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    startDelegation("t1");
+    receive("subagent_text_delta", {
+      kind: "subagent_text_delta",
+      task_id: "t1",
+      subagent: "researcher",
+      depth: 0,
+      delta: "found three",
+    });
+
+    expect(result.current.delegations).toHaveLength(1);
+    expect(result.current.delegations[0]).toMatchObject({
+      taskId: "t1",
+      subagent: "researcher",
+      status: "running",
+      text: "found three",
+    });
+  });
+
+  it("keeps a delegation's panel alive past the turn's own complete", () => {
+    // The bug this exists to prevent. A background delegation reports *after* the
+    // parent's answer, and `complete` is what clears the streaming message - so a
+    // panel hung off that message loses the last thing a specialist said, silently,
+    // in exactly the case the delegation was started for.
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    startDelegation("t1", "researcher", "async");
+
+    receive("complete", { conversation_id: null, usage: null });
+    receive("subagent_text_delta", {
+      kind: "subagent_text_delta",
+      task_id: "t1",
+      subagent: "researcher",
+      depth: 0,
+      delta: "the last word",
+    });
+    receive("subagent_complete", {
+      kind: "subagent_complete",
+      task_id: "t1",
+      subagent: "researcher",
+      depth: 0,
+      status: "completed",
+      run_id: null,
+      cost_usd: 0.0042,
+      input_tokens: 10,
+      output_tokens: 5,
+      error: null,
+    });
+
+    expect(result.current.delegations[0]).toMatchObject({
+      status: "completed",
+      text: "the last word",
+      costUsd: 0.0042,
+    });
+  });
+
+  it("closes an unfinished delegation when the run was cancelled", () => {
+    // The cancelled path sends `stopped` (`AgentSession._run_turn`) and nothing
+    // more is coming, so a panel left running would spin forever. The frontend
+    // never read this field before.
+    const { result } = renderHook(() => useChat(), { wrapper });
+    startDelegation("t1");
+
+    receive("complete", { conversation_id: null, stopped: true });
+
+    expect(result.current.delegations[0]?.status).toBe("cancelled");
+  });
+
+  it("closes an unfinished delegation when the turn failed", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    startDelegation("t1");
+
+    receive("error", { message: "Budget exceeded" });
+
+    expect(result.current.delegations[0]?.status).toBe("cancelled");
+  });
+
+  it("closes an unfinished delegation when the person presses stop", () => {
+    // Optimistic on purpose: the server's `complete` may never arrive, because the
+    // socket can be what went away.
+    const { result } = renderHook(() => useChat(), { wrapper });
+    startDelegation("t1");
+
+    act(() => result.current.stopGeneration());
+
+    expect(result.current.delegations[0]?.status).toBe("cancelled");
+  });
+
+  it("replaces the previous turn's panels when the next message goes out", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    startDelegation("t1");
+    receive("complete", { conversation_id: null });
+
+    act(() => result.current.sendMessage("and now something else"));
+
+    expect(result.current.delegations).toEqual([]);
+  });
+
+  it("drops a frame for a delegation it has no panel for", () => {
+    // A background delegation of the previous turn reporting after the panels were
+    // replaced. A panel invented from a delta has no delegate name and no prompt.
+    const { result } = renderHook(() => useChat(), { wrapper });
+
+    receive("subagent_text_delta", {
+      kind: "subagent_text_delta",
+      task_id: "gone",
+      subagent: "researcher",
+      depth: 0,
+      delta: "nobody is listening",
+    });
+
+    expect(result.current.delegations).toEqual([]);
+  });
+
+  it("leaves the previous conversation's delegations behind when another is opened", () => {
+    // Sending a message was the only thing that cleared them, so completing a
+    // delegated turn in one conversation and then picking another from the sidebar
+    // drew that conversation's specialists, their briefs and their costs under a
+    // transcript they had nothing to do with.
+    useConversationStore.getState().setCurrentConversationId("c-a");
+    const { result } = renderHook(() => useChat(), { wrapper });
+    startDelegation("t1");
+    receive("complete", { conversation_id: null });
+    expect(result.current.delegations).toHaveLength(1);
+
+    act(() => {
+      useConversationStore.getState().setCurrentConversationId("c-b");
+    });
+
+    expect(result.current.delegations).toEqual([]);
+  });
+
+  it("keeps the panels of the turn that just learned its conversation id", () => {
+    // The first turn of a new thread is told the id by `conversation_created` while
+    // it is still streaming. That is this conversation being named, not another being
+    // opened, and clearing there would take the panels of the turn on screen.
+    const { result } = renderHook(() => useChat(), { wrapper });
+    startDelegation("t1");
+
+    receive("conversation_created", { conversation_id: "c-new" });
+
+    expect(result.current.delegations).toHaveLength(1);
+  });
+
+  it("leaves the previous tenant's delegations behind when the organization moves", () => {
+    useOrgStore.setState({ activeOrgId: "org-a" });
+    const { result, rerender } = renderHook(() => useChat(), { wrapper });
+    startDelegation("t1");
+    expect(result.current.delegations).toHaveLength(1);
+
+    act(() => {
+      useOrgStore.setState({ activeOrgId: "org-b" });
+    });
+    rerender();
+
+    expect(result.current.delegations).toEqual([]);
+  });
+});
+
 describe("useChat - the conversation a turn belongs to", () => {
   it("adopts the conversation the backend created, and puts it in the address bar", () => {
     // So a refresh mid-turn lands back on the same thread.

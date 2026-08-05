@@ -9,7 +9,6 @@ from fastapi import APIRouter, File, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 
 from app.api.deps import CurrentUser, OrganizationSvc
-from app.db.models.organization import OrgRole
 from app.schemas.organization import (
     OrganizationCreate,
     OrganizationList,
@@ -20,30 +19,13 @@ from app.schemas.organization import (
 router = APIRouter()
 
 
-def _build_org_read(org: Any, member_count: int, role: str) -> OrganizationRead:
-    return OrganizationRead(
-        id=org.id,
-        name=org.name,
-        slug=org.slug,
-        is_personal=org.is_personal,
-        avatar_url=org.avatar_url,
-        member_count=member_count,
-        role=role,
-        monthly_budget_usd=org.monthly_budget_usd,
-        created_at=org.created_at,
-        updated_at=org.updated_at,
-    )
-
-
 @router.get("", response_model=OrganizationList)
 async def list_organizations(
     service: OrganizationSvc,
     user: CurrentUser,
 ) -> Any:
     """List all organizations the current user belongs to."""
-    rows = await service.list_for_user(user.id)
-    items = [_build_org_read(row["org"], row["member_count"], row["role"]) for row in rows]
-    return OrganizationList(items=items, total=len(items))
+    return await service.list_readable_for_user(user.id)
 
 
 @router.post("", response_model=OrganizationRead, status_code=status.HTTP_201_CREATED)
@@ -54,7 +36,7 @@ async def create_organization(
 ) -> Any:
     """Create a new organization. The requesting user becomes Owner."""
     org = await service.create(data, owner_id=user.id)
-    return _build_org_read(org, member_count=1, role=OrgRole.OWNER.value)
+    return await service.read_for_user(org.id, user.id)
 
 
 @router.get("/{org_id}", response_model=OrganizationRead)
@@ -64,9 +46,7 @@ async def get_organization(
     user: CurrentUser,
 ) -> Any:
     """Get a single organization the current user is a member of."""
-    org, membership = await service.get_for_user(org_id, user.id)
-    member_count = await service.get_member_count(org_id)
-    return _build_org_read(org, member_count, membership.role)
+    return await service.read_for_user(org_id, user.id)
 
 
 @router.patch("/{org_id}", response_model=OrganizationRead)
@@ -78,10 +58,7 @@ async def update_organization(
 ) -> Any:
     """Update organization name or avatar. Requires Admin or Owner role."""
     org = await service.update(org_id, data, requester_id=user.id)
-    rows = await service.list_for_user(user.id)
-    member_count = next((r["member_count"] for r in rows if r["org"].id == org.id), 0)
-    role = next((r["role"] for r in rows if r["org"].id == org.id), "member")
-    return _build_org_read(org, member_count, role)
+    return await service.read_for_user(org.id, user.id)
 
 
 @router.delete("/{org_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
@@ -110,10 +87,7 @@ async def upload_organization_avatar(
         filename=file.filename or "avatar.jpg",
         content_type=file.content_type,
     )
-    rows = await service.list_for_user(user.id)
-    member_count = next((r["member_count"] for r in rows if r["org"].id == updated.id), 0)
-    role = next((r["role"] for r in rows if r["org"].id == updated.id), "member")
-    return _build_org_read(updated, member_count, role)
+    return await service.read_for_user(updated.id, user.id)
 
 
 @router.get("/{org_id}/avatar", response_model=None)

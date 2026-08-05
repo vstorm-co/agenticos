@@ -23,9 +23,7 @@ from app.api.deps import (
 )
 from app.core.exceptions import NotFoundError
 from app.core.permissions import Perm
-from app.db.models.knowledge_base import KnowledgeBase
 from app.repositories import sync_log as sync_log_repo
-from app.repositories.rag_document import CollectionCounts
 from app.schemas.knowledge_base import (
     KnowledgeBaseCreate,
     KnowledgeBaseList,
@@ -66,31 +64,7 @@ async def list_knowledge_bases(
     between collections, and a name alone does not distinguish the one with four
     hundred documents in it from the one somebody made and never filled.
     """
-    items = await service.list_accessible(ctx)
-    counts = await service.counts_for(items)
-    return KnowledgeBaseList(
-        items=[_read_with_counts(kb, counts.get(kb.collection_name)) for kb in items],
-        total=len(items),
-    )
-
-
-def _read_with_counts(kb: KnowledgeBase, counts: CollectionCounts | None) -> KnowledgeBaseRead:
-    """A collection as the listing shows it, contents included.
-
-    `counts` is `None` for a collection nothing has been written to - the group
-    query has no row to return for it - and the zeros that stands for are the
-    schema's own defaults.
-    """
-    read = KnowledgeBaseRead.model_validate(kb)
-    if counts is None:
-        return read
-    return read.model_copy(
-        update={
-            "document_count": counts.documents,
-            "indexed_count": counts.indexed,
-            "chunk_count": counts.chunks,
-        }
-    )
+    return await service.list_readable(ctx)
 
 
 @router.post(
@@ -116,12 +90,6 @@ async def create_knowledge_base(
     vectors are only comparable with themselves.
     """
     return await service.create(data, ctx=ctx)
-
-
-# Per-resource routes carry no `require()` gate on purpose: a role gate cannot
-# see the grants on a row, so it would refuse a Viewer holding an explicit
-# `edit` grant before the service's `resolve_access` ever widened their reach.
-# The service decides per row; the collection routes above keep the role gate.
 
 
 @router.get("/{kb_id}", response_model=KnowledgeBaseRead)
@@ -305,12 +273,6 @@ async def delete_kb_document(
             details={"kb_id": str(kb_id), "doc_id": str(doc_id)},
         )
     await rag_doc_service.delete_document(str(doc_id))
-
-
-# These mirror /rag/sync/sources but with per-KB auth (a personal KB owner
-# can wire up a Google Drive folder without admin role) and automatically
-# pin the source to `kb.collection_name` so the user can't accidentally
-# point a sync at a different collection.
 
 
 @router.get("/{kb_id}/sync-sources", response_model=SyncSourceList)

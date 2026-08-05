@@ -9,9 +9,11 @@ import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 from pydantic import ValidationError
+from pydantic_ai import Agent as PydanticAgent
 from pydantic_ai._run_context import RunContext
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.usage import RunUsage
@@ -34,6 +36,12 @@ from app.agents.capabilities.code_execution import CodeExecution, CodeExecutionC
 from app.agents.capabilities.knowledge import Knowledge, KnowledgeConfig
 from app.agents.capabilities.skills import SAFE_SKILL_TOOLS, Skills
 from app.agents.capabilities.web_research import WebResearch
+from app.agents.subagent_runtime import (
+    SUBAGENT_RUNTIME_RESOURCE,
+    DynamicSpecialists,
+    ResolvedSubagent,
+    SubagentRuntime,
+)
 from app.core.exceptions import BadRequestError
 
 
@@ -127,8 +135,9 @@ class TestToolDeclarations:
         with pytest.raises(ValidationError):
             CapabilityToolInfo.model_validate(["send_email"])
 
-    # Enough for every capability that only builds when it has something to work
-    # with; the assertions here are about names, not about search results.
+    # Enough for *every* capability to build, which is load-bearing rather than
+    # convenient - see `test_no_capability_escapes_the_drift_check`. The
+    # assertions here are about names, not about search results.
     RESOURCES = {
         "kb_collection_names": ["kb_1"],
         "skills": [
@@ -139,9 +148,90 @@ class TestToolDeclarations:
                 resources=[],
             )
         ],
+        # A delegating agent at its widest: one resolved delegate *and* permission
+        # to invent specialists, because `subagents` is the one capability whose
+        # tool list is not fixed - `create_agent` and `delegate` are offered only
+        # to an agent whose author asked for them. The widest configuration is the
+        # one worth checking: an undeclared tool can only appear where the most
+        # tools do.
+        SUBAGENT_RUNTIME_RESOURCE: SubagentRuntime(
+            subagents=(
+                ResolvedSubagent(
+                    name="researcher",
+                    description="Researches a topic.",
+                    # Never called: this test lists tools, and a delegate's agent
+                    # is built on its first delegation.
+                    build=lambda: PydanticAgent(TestModel()),
+                ),
+            ),
+            record=None,
+            depth_remaining=1,
+            dynamic=DynamicSpecialists(
+                # Never called either, for the same reason.
+                build=lambda **_: PydanticAgent(TestModel()),
+                allowed_models=("GPT-4.1 (prod)",),
+            ),
+        ),
     }
+    """Everything every registered capability needs in order to build.
 
-    def test_every_builtin_declares_the_tools_it_actually_offers(self):
+    There is deliberately no table of exceptions beside this. There was one -
+    `UNWIRED_TOOLS`, naming `create_agent` and `delegate` as declared and not
+    implemented, which they were for two phases - and before that a
+    `CapabilityDef.drift_config` field naming a configuration nothing read. Both
+    were ways of saying "this capability is partly outside the check". Wiring the
+    last two tools removed the need for either, so what stands in their place is
+    resources wide enough that no capability has an excuse.
+    """
+
+    def _built(self, definition_id: str) -> Any:
+        return get(definition_id).builder(
+            CapabilityBuildContext(
+                binding=CapabilityBinding(capability_id=definition_id),
+                config=None,
+                resources=self.RESOURCES,
+            )
+        )
+
+    def test_no_capability_escapes_the_drift_check(self):
+        """A capability that cannot be built here is a capability nothing checks.
+
+        The two tests below compare what a capability declares against what it
+        offers, and both used to answer `continue` for a builder that returned
+        `None` - which is how `subagents` sat outside the check entirely while
+        appearing to be covered by it. A capability could have added an
+        undeclared, side-effecting tool and no shared test would have noticed.
+
+        So the resources above exist to make every registered capability
+        buildable, and this is the assertion that keeps them that way: a new
+        capability needing a run-time resource fails *here*, naming itself,
+        rather than quietly opting out.
+        """
+        unbuildable = [
+            definition.id for definition in all_capabilities() if self._built(definition.id) is None
+        ]
+
+        assert unbuildable == [], (
+            "add whatever these need to TestToolDeclarations.RESOURCES; a capability "
+            "the drift check cannot build is a capability it does not check"
+        )
+
+    @staticmethod
+    async def _offered(built: Any) -> frozenset[str]:
+        """The tool names a built capability actually hands its model.
+
+        Asked of the toolset rather than read off a `.tools` mapping: a wrapper -
+        which is what a capability wrapping a library's toolset is, and what a
+        renaming binding produces - resolves its tools per run context and has no
+        such mapping at all.
+        """
+        toolset = built.get_toolset()
+        if toolset is None:
+            return frozenset()
+        return frozenset(await toolset.get_tools(_run_context()))
+
+    @pytest.mark.anyio
+    async def test_every_builtin_declares_the_tools_it_actually_offers(self):
         """Declaration feeds the Builder; the toolset is the truth.
 
         A declared tool that does not exist offers approval for nothing. The
@@ -150,19 +240,10 @@ class TestToolDeclarations:
         unattended with no way to say otherwise.
         """
         for definition in all_capabilities():
-            built = definition.builder(
-                CapabilityBuildContext(
-                    binding=CapabilityBinding(capability_id=definition.id),
-                    config=None,
-                    resources=self.RESOURCES,
-                )
-            )
-            if built is None:
-                continue
-            toolset = built.get_toolset()
-            offered = frozenset(toolset.tools) if toolset is not None else frozenset()
+            built = self._built(definition.id)
+            assert built is not None, definition.id
 
-            assert offered == definition.tool_ids, definition.id
+            assert await self._offered(built) == get(definition.id).tool_ids, definition.id
 
     @pytest.mark.anyio
     async def test_renaming_every_tool_cannot_hide_an_undeclared_one(self):
@@ -184,14 +265,8 @@ class TestToolDeclarations:
                 [CapabilityBinding(capability_id=definition.id, tool_overrides=overrides)],
                 resources=self.RESOURCES,
             )
-            if not built:
-                continue
-            toolset = built[0].get_toolset()
-            offered = (
-                frozenset(await toolset.get_tools(_run_context()))
-                if toolset is not None
-                else frozenset()
-            )
+            assert built, definition.id
+            offered = await self._offered(built[0])
 
             expected = frozenset(tool.name for tool in definition.effective_tools(overrides))
             assert offered == expected, definition.id

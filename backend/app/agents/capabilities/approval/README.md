@@ -147,3 +147,14 @@ between the library and the gate would give refusals two sources of truth.
 
 The decision is consumed once. If the model calls the same tool again later in
 the resumed run, it parks again - a second act needs a second approval.
+
+**A gated tool inside a delegate parks the whole run, and the parked state is a
+tree.** The delegate reaches this run's channel - a specialist that needs a person
+needs the person already waiting - so the row is written here, by the delegate's own
+gate, naming the delegate's tool. But the *parent* suspends on its `task` call, so
+what the run has to store is one level per agent: each one's messages and each one's
+parked calls. `ToolApproved` on a `task` call means "reach the delegation tool
+again", and the delegation capability answers it by continuing the suspended delegate
+rather than starting a new one - so the decision applies to the call a person was
+shown. `subagent_name` on the row is who was asking;
+`app/agents/capabilities/subagents/README.md` has the rest.

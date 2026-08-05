@@ -31,10 +31,28 @@ export interface AgentRunList {
 export interface ToolApproval {
   id: string;
   run_id: string;
+  /** Whose *run* this is - the agent the queue is scoped by, never who is acting. */
   agent_id: string;
   tool_id: string;
   /** Shown in full: approving a tool name without its arguments is a rubber stamp. */
   tool_args: Record<string, unknown>;
+  /**
+   * Which delegate is asking, when the call came from inside a delegation.
+   *
+   * Null means the run's own agent asked directly. A delegate's gated tool reaches
+   * the parent's approval channel, so without this the row says `send_email` and
+   * not who is sending it - and a queue of tool names with no actor is one people
+   * approve blind.
+   */
+  subagent_name: string | null;
+  /**
+   * That delegate's own agent, for a link to it.
+   *
+   * Null for an inline specialist, which is defined inside its parent's spec and has
+   * no agent of its own. So a name with no id is not a published agent, and must not
+   * be shown as one.
+   */
+  subagent_agent_id: string | null;
   status: "pending" | "approved" | "rejected" | "expired";
   decided_by_user_id: string | null;
   decided_at: string | null;

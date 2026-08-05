@@ -65,7 +65,7 @@ give the agent skills, or leave the capability off.
 ## In a workspace, a skill is also files
 
 An agent that has both skills and a
-[workspace](reference/capabilities.md#files--shell) gets each skill written into
+[workspace](reference/capabilities.md#files-shell) gets each skill written into
 it as well:
 
 ```
