@@ -274,7 +274,9 @@ export default function RunsPage() {
                     className="flex items-center justify-between gap-3 rounded-md border p-3 text-sm"
                   >
                     <span className="font-mono text-xs">{entry.model_label ?? "-"}</span>
-                    <span className="text-muted-foreground text-xs">{entry.run_count} runs</span>
+                    <span className="text-muted-foreground text-xs">
+                      {t("runCount", { count: entry.run_count })}
+                    </span>
                     <span className="font-mono">${Number(entry.cost_usd).toFixed(4)}</span>
                   </div>
                 ))
@@ -323,7 +325,9 @@ function SpendBreakdown({
               <span className={row.muted ? "text-muted-foreground italic" : "font-medium"}>
                 {row.label}
               </span>
-              <span className="text-muted-foreground ml-auto text-xs">{row.runs} runs</span>
+              <span className="text-muted-foreground ml-auto text-xs">
+                {t("runCount", { count: row.runs })}
+              </span>
               <span className="font-mono">${Number(row.cost).toFixed(4)}</span>
             </div>
           ))
