@@ -19,6 +19,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.23] - 2026-08-05
+
+### Fixed
+
+- **The E2E suite runs beside another checkout's dev server**
+  ([#223](https://github.com/vstorm-co/agenticos/issues/223)). `playwright.config.ts`
+  hardcoded ports 3000 and 4010, so the suite could not start when a `make dev` or a second
+  checkout already held them. The frontend port now derives from `E2E_PORT` (default 3000)
+  and the stub model server's from `E2E_STUB_MODEL_PORT` (default 4010), driving `baseURL`,
+  both `webServer` URLs, each server's `PORT`, and — the part that has to agree — the stub
+  URL the specs write into the model profile the backend dials, so server, specs and backend
+  all read one value. Same shape as #189: the value is *derived* from the environment, not
+  `setdefault`, so CI is exercised on the new path rather than silently left on the old one.
+  The loopback binding is kept, so the host-uvicorn path works and the containerised-backend
+  constraint is not falsely implied.
+
 ## [0.0.22] - 2026-08-05
 
 ### Added
@@ -940,7 +956,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.22...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.23...HEAD
+[0.0.23]: https://github.com/vstorm-co/agenticos/compare/v0.0.22...v0.0.23
 [0.0.22]: https://github.com/vstorm-co/agenticos/compare/v0.0.21...v0.0.22
 [0.0.21]: https://github.com/vstorm-co/agenticos/compare/v0.0.20...v0.0.21
 [0.0.20]: https://github.com/vstorm-co/agenticos/compare/v0.0.19...v0.0.20
