@@ -566,6 +566,32 @@ class TestASpecialistCannotWidenWhatItWasGranted:
 
         assert seen == [[], []]
 
+    async def test_a_specialist_the_model_invents_cannot_ask_even_when_questions_are_allowed(self):
+        """`allow_questions` opens the door for a delegate an author reviewed, and
+        never for one a model wrote a moment ago.
+
+        The author's flag reaches only the configured delegates, through
+        `_config_for`; `_autonomously` forces `can_ask_questions` off on both dynamic
+        entry points regardless, so a specialist the model invents is handed no
+        `ask_parent` tool even with questions turned on for the agent. This is the
+        refusal half of agenticos#184 - the sync feature does not leak to the shape
+        of delegate whose instructions nobody read.
+        """
+        seen: list[list[str]] = []
+        runtime = a_runtime(
+            dynamic=dynamic(specialist_builder(runs_on=specialist_model(tools_seen=seen)))
+        )
+        capability = a_capability(runtime, {"allow_questions": True})
+        ctx = a_context()
+
+        await call_tool(capability, ctx, "delegate", delegate_args(name="one-shot"))
+        await call_tool(capability, ctx, "create_agent", create_args(name="kept"))
+        await call_tool(
+            capability, ctx, "task", {"description": "summarise it", "subagent_type": "kept"}
+        )
+
+        assert seen == [[], []]
+
     async def test_a_specialist_cannot_take_a_published_delegates_handle(self):
         """Two delegates answering to one name leave the model no way to say which.
 

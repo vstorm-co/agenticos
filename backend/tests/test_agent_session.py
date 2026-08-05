@@ -731,6 +731,45 @@ class TestAskingTheUser:
 
         assert await asking == [{"answer": "eu"}]
 
+    async def test_a_delegates_single_question_is_put_to_the_client_and_answered(self):
+        """`_ask_one` is what a delegate's `ask_parent` reaches - one question in, one
+        answer string out, over the same batch channel a whole form uses."""
+        session = _session()
+        asked = _next_frame(session)
+
+        asking = asyncio.create_task(session._ask_one("Which region?", ["eu", "us"]))
+        await _wait(asked)
+
+        assert _sent_events(session) == [
+            (
+                "ask_user",
+                {
+                    "questions": [
+                        {"question": "Which region?", "options": ["eu", "us"], "allow_custom": True}
+                    ]
+                },
+            )
+        ]
+
+        await session.handle_frame(
+            {"type": "ask_user_response", "answers": [{"answer": "eu", "skipped": False}]}
+        )
+
+        assert await asking == "eu"
+
+    async def test_a_delegates_question_left_unanswered_reads_as_no_answer(self):
+        """An empty answers payload releases the delegate with "(no answer)" rather
+        than hanging it: the delegate goes on with what it already had."""
+        session = _session()
+        asked = _next_frame(session)
+
+        asking = asyncio.create_task(session._ask_one("Which region?", []))
+        await _wait(asked)
+
+        await session.handle_frame({"type": "ask_user_response", "answers": None})
+
+        assert await asking == "(no answer)"
+
 
 class TestAttachedFiles:
     async def test_a_frame_carrying_only_a_file_is_not_an_empty_message(self):

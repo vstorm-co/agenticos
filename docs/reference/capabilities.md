@@ -274,6 +274,7 @@ the YAML export and the permission model can all see it.
 |---|---|---|
 | `inline` | none | specialists defined inside this agent |
 | `mode` | `sync` | `sync`, `async`, `auto` |
+| `allow_questions` | `false` | a sync delegate may ask the parent's person |
 | `allow_dynamic` | `false` | |
 | `max_depth` | 1 | 1–3 |
 | `max_fanout` | 3 | 1–10 |
@@ -338,25 +339,34 @@ suspends anyway — a shape the library documents as undeliverable — is record
 "still running" for as long as the process lives: its spend attributed to nothing,
 its fan-out slot never released, and the panel a surface opened never closed.
 
-**And no delegate can ask a question of its own, so `answer_subagent` is offered to no
-model.** Parking for an approval is a gated tool being reviewed, not a specialist asking
-anything. This tool replies to a question a delegate asked, and the delegation library
-injects its `ask_parent` tool only into agents it built itself — every delegate here
-arrives pre-built, published delegate and inline specialist alike, and a specialist the
-model invents has the same door closed on purpose. So the tool's only possible answer is
-"that delegation is not waiting for an answer". It stays *declared*, because a tool
-absent from the declaration cannot be gated by the approval policy or renamed by a
-binding and that half of the failure is silent; it is filtered out of the offered set,
-because the other half is a description in every turn's context describing an action
-that cannot happen, and tool descriptions are the strongest prompt in this product.
+**A sync delegate may ask the parent's person, when `allow_questions` is set.** Off
+by default: a specialist works autonomously and says so if it could not. Set on, a
+delegate whose mode is sync is given the library's `ask_parent` tool, and a question
+it asks is answered by the run's own `ask_user` channel — the person already holding
+the parent's tool call — never by the model. It is the author's decision because the
+question wears a name the author published; a specialist the model *invents* never
+asks, whatever this says, because instructions a model wrote a moment ago are not the
+author's to put to a person. Only sync: a background delegation has handed back a
+task id with nobody left to answer, and `auto` may become one. Reaching a pre-built
+delegate needed an upstream change —
+[subagents-pydantic-ai#76](https://github.com/vstorm-co/subagents-pydantic-ai/pull/76)
+honours `can_ask_questions` for a caller-supplied agent, which every delegate here
+is — landing the sync half of
+[#184](https://github.com/vstorm-co/agenticos/issues/184).
 
-Opening the path is a feature rather than a repair, and the mode decides who could
-answer: a `sync` delegation's question goes to a **person**, through the run's own
-`ask_user` channel and never through this tool, while only a *background* delegation's
-question is answered by the parent's own model — which is the harder half, since the
-delegate then blocks holding a fan-out slot while nothing obliges the parent to look
-and the turn's end cancels it. Letting a sync delegate ask the person already waiting
-is [#184](https://github.com/vstorm-co/agenticos/issues/184).
+**`answer_subagent` is offered to no model.** It answers a question a *background*
+delegate parked on, and no delegate here parks on one: a sync question goes to a
+person through `ask_user` and never this tool, and an async delegate is not given
+`ask_parent` at all. So the tool's only possible answer is "that delegation is not
+waiting for an answer". It stays *declared*, because a tool absent from the
+declaration cannot be gated by the approval policy or renamed by a binding and that
+half of the failure is silent; it is filtered out of the offered set, because the
+other half is a description in every turn's context describing an action that cannot
+happen, and tool descriptions are the strongest prompt in this product. The tool
+becomes reachable only when the background half of
+[#184](https://github.com/vstorm-co/agenticos/issues/184) is answered — where the
+parent's own model answers while nothing obliges it to look, the delegate blocking
+on a fan-out slot the turn's end cancels.
 
 **`wait_tasks` truncates, and says so.** A completed task's result is cut at
 `max_result_chars` with an explicit marker pointing at `check_task`, which always

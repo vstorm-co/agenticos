@@ -217,14 +217,15 @@ exactly - see the `descriptions` argument in `build_delegation`.
 UNREACHABLE_TOOLS: frozenset[str] = frozenset({"answer_subagent"})
 """Declared for the Builder and the approval policy, and offered to no model.
 
-`answer_subagent` replies to a question a delegate asked, and no delegate here can
-ask one. The library injects its `ask_parent` tool only into agents it built
-itself, and every delegate on this platform arrives pre-built as
-`SubAgentConfig["agent"]` from :func:`_config_for` - so the library's `task` passes
-`inject_ask_parent=False` for a pinned delegate and an inline specialist alike, and
-:func:`~app.agents.capabilities.subagents._toolset._autonomously` closes the two
-dynamic entry points as well. `TaskStatus.WAITING_FOR_ANSWER` is therefore never
-reached, and this tool has nothing it could ever answer.
+`answer_subagent` replies to a question a *background* delegate parked on, and no
+delegate here parks on one. A `sync` delegate now can ask - agenticos#184, when its
+author set `allow_questions` and its mode is sync - but a sync question is answered
+by `ctx.deps.ask_user`, a person holding the parent's tool call, and never through
+this tool: the library only routes a question here for an `async` delegation, which
+parks in `TaskStatus.WAITING_FOR_ANSWER` awaiting the parent's own model. And an
+`async` delegate cannot ask: :func:`_config_for` grants `can_ask_questions` only for
+a sync-configured one, and `TaskStatus.WAITING_FOR_ANSWER` is therefore never
+reached. So this tool still has nothing it could ever answer.
 
 *Filtered rather than left out of* :data:`DELEGATION_TOOLS`, because those are two
 different failures and only one of them is loud. A tool the model is offered and
@@ -235,18 +236,15 @@ be gated by the approval policy or renamed by a binding, and *that* half is sile
 So it stays declared and stops being offered, which is the same shape the two
 dynamic entry points had while they were declared and unwired.
 
-*Opening the path instead was the alternative, and it is a feature rather than a
-repair.* Which channel answers a question is decided by the mode: a `sync`
-delegation is answered from `ask_callback` or `ctx.deps.ask_user` - a person, and
-never through this tool - so this tool becomes reachable only for a *background*
-delegation, whose question is answered by the parent's own model through a future
-the library's task manager holds. That is the harder half: the delegate blocks for
-up to `ask_timeout_seconds` holding a fan-out slot while nothing obliges the parent
-to look, and `wrap_run` cancels every background task when the turn ends - money
-spent on a question nobody was asked. So agenticos#184 - letting a `sync` delegate
-ask the person already waiting - is worth doing and would **not** empty this set on
-its own: a sync answer never arrives through this tool. Only the background half
-does, which is why the two are one issue with two halves rather than one change.
+*Opening this tool is the background half of the same question, and it is the
+harder half.* Which channel answers is decided by the mode: agenticos#184 opened
+the sync half above, answered by a person and never here. This tool becomes
+reachable only for a *background* delegation, whose question the parent's own model
+answers through a future the library's task manager holds - and the delegate blocks
+for up to `ask_timeout_seconds` holding a fan-out slot while nothing obliges the
+parent to look, and `wrap_run` cancels every background task when the turn ends:
+money spent on a question nobody was asked. So the set is emptied only when that
+half is answered too, which is why the two were one issue with two halves.
 """
 
 
@@ -716,6 +714,7 @@ def build_delegation(
     *,
     runtime: SubagentRuntime,
     mode: DelegationMode,
+    allow_questions: bool,
     max_fanout: int,
     depth: int,
     max_result_chars: int,
@@ -734,13 +733,23 @@ def build_delegation(
             agent may invent specialists of its own.
         mode: Whether delegations block, run in the background, or are decided per
             task.
+        allow_questions: Whether a delegate whose configured mode is sync may ask
+            the person waiting on this agent a question. The author's decision; off
+            for a specialist the model invents, and inert for a background or `auto`
+            delegation.
         max_fanout: How many delegations may run at once.
         depth: How far inside the run's own agent these delegations are, which is
             what a surface needs to nest their panels.
         max_result_chars: How much of a finished delegation's answer the
             `wait_tasks` listing carries before pointing at `check_task`.
     """
-    journal = DelegationJournal(runtime=runtime, mode=mode, max_fanout=max_fanout, depth=depth)
+    journal = DelegationJournal(
+        runtime=runtime,
+        mode=mode,
+        allow_questions=allow_questions,
+        max_fanout=max_fanout,
+        depth=depth,
+    )
     dynamic = runtime.dynamic
     # The registry `create_agent` writes into, owned here rather than left to the
     # library so this platform can read it back when the run ends and seed it when a
@@ -900,11 +909,24 @@ def _config_for(delegate: ResolvedSubagent, journal: DelegationJournal) -> SubAg
     the run already parked on - are about *the delegation now executing* rather
     than about this delegate. A delegate can be delegated to twice in one run, once
     each way, and once from a stashed position.
+
+    `can_ask_questions` is set explicitly rather than left to the library's `True`
+    default, and this is where the author's `allow_questions` reaches a delegate.
+    The library injects `ask_parent` into a delegate whose agent this platform
+    supplied - every one here - only when the config asks for it, so absent this
+    line a delegate would inherit the default and every one of them would gain the
+    tool. It is granted only for a delegate whose *configured* mode is sync: the
+    library answers a sync question from `ctx.deps.ask_user`, the parent's own
+    channel and the person already holding the parent's tool call, whereas a
+    background one has handed back a task id with nobody left to answer and `auto`
+    may become one. So the mode gates it as much as the flag does.
     """
+    configured_mode = delegate.preferred_mode or journal.mode
     return SubAgentConfig(
         name=delegate.name,
         description=delegate.description,
         instructions="",
+        can_ask_questions=journal.allow_questions and configured_mode == "sync",
         agent=_LazyAgent(delegate, journal),
     )
 

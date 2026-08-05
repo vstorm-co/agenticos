@@ -346,6 +346,15 @@ class DelegationJournal:
     mode: DelegationMode
     max_fanout: int
     depth: int
+    allow_questions: bool = False
+    """Whether a delegate whose configured mode is sync may ask the parent's person.
+
+    The author's decision, read by :func:`~app.agents.capabilities.subagents._capability._config_for`
+    to set `can_ask_questions` on each configured delegate. Only a delegation whose
+    configured mode is `sync` honours it - a background one has nobody left to
+    answer, and `auto` may become one - so this alone does not decide it; the mode
+    does too. Off for a specialist the model invents, always.
+    """
 
     tasks: TaskManager = field(init=False, repr=False)
     """The library's task manager, assigned once the library capability exists.
