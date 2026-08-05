@@ -578,10 +578,41 @@ export function useChat(options: UseChatOptions = {}) {
     clearQueued();
     setPendingApproval(null);
     setPendingQuestions(null);
-    // A delegation belongs to a run in one organization. Left on screen it would
-    // show the previous tenant's specialist names and prompts to the new one.
+    // A delegation belongs to a run in one organization, and to one conversation
+    // inside it - the effect below is the other half of that sentence. Left on
+    // screen it would show the previous tenant's specialist names and prompts to
+    // the new one.
     setDelegations([]);
   }, [tenantId, clearQueued]);
+
+  // The other half: a delegation belongs to a run in *this* conversation, and the
+  // panels are drawn under whatever transcript is on screen. Switching to another
+  // conversation clears the messages and the queue and used to leave the panels, so
+  // the previous thread's specialist names, prompts, streamed answers and costs were
+  // drawn under the new one - until the next message, which is the only other thing
+  // that clears them. Cleared here rather than on `complete`, which the panels
+  // deliberately outlive: a background delegation reports after the parent answered.
+  //
+  // Not keyed by conversation, deliberately. A turn that creates its conversation
+  // learns the id from `conversation_created` mid-stream, so the key would move under
+  // panels that are already open and `applyDelegationFrame` would drop every frame
+  // after it as naming a task it holds no panel for - a silent loss of the last thing
+  // a specialist said, which is the failure this whole design exists to avoid. The
+  // panels are live state that no reload restores, so keeping them for a conversation
+  // somebody may return to would also disagree with what that reload shows.
+  //
+  // A layout effect for the reason the one above is one: before the paint, so no
+  // frame of the previous conversation's panels is shown under this one's transcript.
+  const delegationsBelongTo = useRef(activeConversationId);
+  useLayoutEffect(() => {
+    const previous = delegationsBelongTo.current;
+    delegationsBelongTo.current = activeConversationId;
+    // `previous === null` is the turn that just created its conversation being told
+    // its id, not a different conversation being opened - clearing there would throw
+    // away the panels of the turn still streaming.
+    if (previous === activeConversationId || previous === null) return;
+    setDelegations([]);
+  }, [activeConversationId]);
 
   /** Record one decision on the `approvals` row it belongs to. */
   const decideApproval = useCallback(

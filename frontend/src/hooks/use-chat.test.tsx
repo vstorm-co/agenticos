@@ -493,6 +493,36 @@ describe("useChat - streaming a delegation", () => {
     expect(result.current.delegations).toEqual([]);
   });
 
+  it("leaves the previous conversation's delegations behind when another is opened", () => {
+    // Sending a message was the only thing that cleared them, so completing a
+    // delegated turn in one conversation and then picking another from the sidebar
+    // drew that conversation's specialists, their briefs and their costs under a
+    // transcript they had nothing to do with.
+    useConversationStore.getState().setCurrentConversationId("c-a");
+    const { result } = renderHook(() => useChat(), { wrapper });
+    startDelegation("t1");
+    receive("complete", { conversation_id: null });
+    expect(result.current.delegations).toHaveLength(1);
+
+    act(() => {
+      useConversationStore.getState().setCurrentConversationId("c-b");
+    });
+
+    expect(result.current.delegations).toEqual([]);
+  });
+
+  it("keeps the panels of the turn that just learned its conversation id", () => {
+    // The first turn of a new thread is told the id by `conversation_created` while
+    // it is still streaming. That is this conversation being named, not another being
+    // opened, and clearing there would take the panels of the turn on screen.
+    const { result } = renderHook(() => useChat(), { wrapper });
+    startDelegation("t1");
+
+    receive("conversation_created", { conversation_id: "c-new" });
+
+    expect(result.current.delegations).toHaveLength(1);
+  });
+
   it("leaves the previous tenant's delegations behind when the organization moves", () => {
     useOrgStore.setState({ activeOrgId: "org-a" });
     const { result, rerender } = renderHook(() => useChat(), { wrapper });
