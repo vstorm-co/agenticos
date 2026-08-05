@@ -203,18 +203,18 @@ without it, and answers "No active knowledge bases selected" to every search —
 specialist that publishes cleanly, looks correctly configured, and cannot read the
 one thing it exists to read.
 
-**A background delegation gets no approval channel.** `request_approval` closes
-over `ApprovalService`, which holds the request's `AsyncSession` — shared by the
-whole run and not concurrency-safe — and a background delegation outlives the tool
-call that started it. Asking is therefore a database write from a task the parent
-is still sharing its session with, for a decision that cannot be delivered anyway:
-the tool call returned a task id long ago, so there is no caller left to hand a
-parked call back to. The channel is handed down as `None`, which is the case the
-gate is already written for — it refuses the call, tells the model a person could
-not be asked, and the delegation goes on to answer or to say it could not. A sync
-delegation keeps the channel, because there a parked call genuinely does park the
-parent run; that is the supported shape, and `mode="sync"` is what the library's
-own message tells a model to re-delegate with.
+**A background delegation gets no approval channel.** A background delegation
+outlives the tool call that started it, and a parked call it produced could not be
+delivered anyway: the tool call returned a task id long ago, so there is no caller
+left to hand the parked call back to. The channel is handed down as `None`, which
+is the case the gate is already written for — it refuses the call, tells the model
+a person could not be asked, and the delegation goes on to answer or to say it
+could not. A sync delegation keeps the channel, because there a parked call
+genuinely does park the parent run; that is the supported shape, and `mode="sync"`
+is what the library's own message tells a model to re-delegate with. (The channel
+itself no longer holds a session — a parked call is described and the row written
+from the run's terminal write, agenticos#169 — so this is about where the decision
+can be delivered, not about a write racing the shared session.)
 
 **Let a delegate ask the parent a question.** The library's `ask_parent` tool is
 injected only into agents it built itself, and every delegate here arrives

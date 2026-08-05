@@ -412,6 +412,7 @@ async def spend_by_key(
 async def create_approval(
     db: AsyncSession,
     *,
+    approval_id: UUID,
     organization_id: UUID,
     run_id: UUID,
     agent_id: UUID,
@@ -421,6 +422,7 @@ async def create_approval(
     subagent_agent_id: UUID | None = None,
 ) -> ToolApproval:
     approval = ToolApproval(
+        id=approval_id,
         organization_id=organization_id,
         run_id=run_id,
         agent_id=agent_id,

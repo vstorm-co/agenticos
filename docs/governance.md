@@ -262,7 +262,7 @@ Resolution is most-specific-first:
 The Builder states the outcome in words rather than describing the rule, because a
 rule the reader has to run in their head is a setting nobody dares touch.
 
-Three properties worth knowing:
+Four properties worth knowing:
 
 - **A parked run is resumable.** Its message history is stored, so the decision is
   applied to the conversation it belongs to rather than starting again.
@@ -270,6 +270,12 @@ Three properties worth knowing:
 - **`required` works on any capability**, not only side-effecting ones. "This only
   reads, but in my organization somebody approves it anyway" is a real decision
   and is expressible.
+- **One model step can park several calls.** A model that answers with two
+  side-effecting calls at once - "email the customer and the account manager" -
+  parks both, each its own approval row decided on its own. The rows are written
+  when the run parks rather than as each call is gated, because the calls run
+  concurrently and the run's database session is not concurrency-safe
+  ([#169](https://github.com/vstorm-co/agenticos/issues/169)).
 
 ### An approval inside a delegation
 
@@ -282,6 +288,13 @@ without saying whether the agent somebody is talking to or a specialist called
 `researcher` is sending it, which is a queue people approve blind - and in a
 delegation the thing being approved is often more consequential than the agent the
 reviewer thinks they are dealing with.
+
+Deleting that delegate does not erase the record of what it was authorised to do:
+the row keeps the delegate's name and drops only the link to its now-gone agent.
+This holds even when the delete lands while the run is still parked, before the
+approval row has been written - the deferred write ([#169](https://github.com/vstorm-co/agenticos/issues/169))
+resolves the delegates still present and writes a null id for one that vanished,
+exactly what deleting it after the row existed would have done.
 
 What the parent's run does is park, rather than be handed something that looks like
 a finished delegation. That is worth stating because it used to be otherwise: every

@@ -527,9 +527,7 @@ class TestWhatAParkedCallRecords:
 
     @pytest.mark.anyio
     async def test_a_parked_call_records_the_row_the_decision_goes_against(self):
-        approval = MagicMock(id=uuid.uuid4())
         channel = ApprovalChannel(
-            approvals=MagicMock(request=AsyncMock(return_value=approval)),
             organization_id=uuid.uuid4(),
             agent_id=uuid.uuid4(),
             run_id=uuid.uuid4(),
@@ -540,8 +538,11 @@ class TestWhatAParkedCallRecords:
 
         await channel(request)
 
+        # The id is allocated here, not by the database: parking touches no session,
+        # so the row is written afterwards against this id (agenticos#169).
         [parked] = channel.requested
-        assert parked.approval_id == approval.id
+        assert isinstance(parked.approval_id, uuid.UUID)
+        assert channel.parked == {str(parked.approval_id): "tc-1"}
         # The model's own id as well as the row's: one addresses the decision, the
         # other addresses the card already on screen.
         assert parked.tool_call_id == "tc-1"
@@ -553,7 +554,6 @@ class TestWhatAParkedCallRecords:
         """A decision is consumed on use, so an approved call runs rather than
         parking again - and nothing is put back in front of anybody."""
         channel = ApprovalChannel(
-            approvals=MagicMock(request=AsyncMock()),
             organization_id=uuid.uuid4(),
             agent_id=uuid.uuid4(),
             run_id=uuid.uuid4(),

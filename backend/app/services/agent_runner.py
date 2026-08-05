@@ -379,12 +379,19 @@ class PausedRunState(BaseModel):
 
 @dataclass(frozen=True)
 class ParkedApproval:
-    """One tool call waiting for a person.
+    """One tool call waiting for a person, and everything its row will hold.
 
     Carries the `approvals` row id rather than the model's `tool_call_id`: the
     decision is recorded against that row, and it is the row the approvals queue
     and the notification email point at. A surface that invented its own
     identifier would be a second way to approve the same call.
+
+    The id is allocated when the call is parked rather than by the database,
+    because the row is not written until the run reaches its terminal write - see
+    :meth:`ApprovalChannel.__call__`. This is the same shape, and the same reason,
+    as :class:`RecordedDelegation`: a description the run collects while it runs
+    and :meth:`AgentRunnerService._write_approvals` turns into rows once, off the
+    shared session, when nothing is racing it.
     """
 
     approval_id: UUID
@@ -398,6 +405,12 @@ class ParkedApproval:
 
     subagent: str | None = None
     """Which delegate asked, or `None` for the run's own agent."""
+
+    subagent_agent_id: UUID | None = None
+    """That delegate's own agent, or `None` for the run's own agent or an inline
+    specialist, which has no agent of its own. Read from the delegation in flight
+    when the call is parked and carried here, because the row that names it is
+    written after the run ends, when the contextvar is long gone."""
 
     task_id: str | None = None
     """The delegation the ask came from, or `None` for the run's own agent.
@@ -420,9 +433,21 @@ class ApprovalChannel:
     Decisions are consumed on use. If the model calls the same tool a second
     time after being approved once, that is a second act on the world and needs
     its own approval - reusing the first would let one "yes" authorise a loop.
+
+    **Parking a call touches no database.** The row is *described* here and written
+    once by :meth:`AgentRunnerService._write_approvals` from the run's terminal
+    write. This is not tidiness - it is what makes the channel concurrency-safe.
+    Pydantic AI runs the tool calls from one model response concurrently, and
+    `parallel_tool_calls` is unset by default, so that is the provider's decision,
+    not the author's - a model that answers "email the customer and email the
+    account manager" in one step drives two gated calls into this channel at once.
+    Both would `await` a write on the request's `AsyncSession`, which the whole run
+    shares and which is not concurrency-safe; two inserts on it at once do not
+    produce a slow query, they corrupt the session and take the parent run row and
+    the conversation with it (agenticos#169). With the write deferred, `__call__`
+    never awaits, so the two calls cannot interleave inside it.
     """
 
-    approvals: ApprovalService
     organization_id: UUID
     agent_id: UUID
     run_id: UUID
@@ -430,11 +455,12 @@ class ApprovalChannel:
     parked: dict[str, str] = field(default_factory=dict)
 
     requested: list[ParkedApproval] = field(default_factory=list)
-    """What was parked, in enough detail for a surface to put it to somebody.
+    """What was parked, in enough detail for a surface to put it to somebody and
+    for :meth:`AgentRunnerService._write_approvals` to write the row.
 
-    Kept here rather than read back from the rows afterwards, because this is where
-    the row was created - re-reading it would be a query per parked call to recover
-    what this object had in hand.
+    Kept here rather than read back from the rows afterwards for two reasons: the
+    rows do not exist yet while the run is going, and re-reading them would be a
+    query per parked call to recover what this object already had in hand.
     """
 
     async def __call__(self, request: ApprovalRequest) -> ApprovalDecision:
@@ -450,28 +476,23 @@ class ApprovalChannel:
         # sent, and the parked state, which has to know which agent's replay this
         # call belongs to.
         delegate = acting_delegate()
-        approval = await self.approvals.request(
-            organization_id=self.organization_id,
-            run_id=self.run_id,
-            agent_id=self.agent_id,
-            # The tool the model called, not the capability that owns it: the
-            # approver is looking at "send_email", not at "email".
-            tool_id=request.tool_name,
-            tool_args=request.tool_args,
-            subagent_name=None if delegate is None else delegate.name,
-            # The delegate's own agent, which is *not* `self.agent_id`: that one is
-            # the agent whose run this is, and it is what the row is scoped by.
-            # Null for an inline specialist, which has no agent of its own.
-            subagent_agent_id=None if delegate is None else delegate.agent_id,
-        )
-        self.parked[str(approval.id)] = request.tool_call_id
+        # Allocated here, not by the database, because the row is written after the
+        # run ends. Everything below is synchronous - a `uuid4`, a dict set and a
+        # list append, each atomic under the GIL - so with no `await` in the body
+        # two concurrent gated calls cannot interleave and race the shared session.
+        approval_id = uuid4()
+        self.parked[str(approval_id)] = request.tool_call_id
         self.requested.append(
             ParkedApproval(
-                approval_id=approval.id,
+                approval_id=approval_id,
                 tool_call_id=request.tool_call_id,
                 tool_name=request.tool_name,
                 tool_args=request.tool_args,
                 subagent=None if delegate is None else delegate.name,
+                # The delegate's own agent, which is *not* `self.agent_id`: that one
+                # is the agent whose run this is and what the row is scoped by. Null
+                # for an inline specialist, which has no agent of its own.
+                subagent_agent_id=None if delegate is None else delegate.agent_id,
                 task_id=None if delegate is None else delegate.task_id,
             )
         )
@@ -1227,7 +1248,6 @@ class AgentRunnerService:
             started_with = await workspace_snapshot(workspace.backend)
 
         channel = ApprovalChannel(
-            approvals=self.approvals,
             organization_id=ctx.organization_id,
             agent_id=agent.id,
             run_id=run.id,
@@ -1988,6 +2008,64 @@ class AgentRunnerService:
                     extra={"run_id": str(parent.id), "delegation_id": str(delegation.id)},
                 )
 
+    async def _write_approvals(self, prepared: PreparedRun) -> None:
+        """Write the approval rows the run parked, once, off the shared session.
+
+        The rows are *described* while the run runs and written here, from the
+        run's terminal write - the one point at which the session is certainly not
+        being shared with a concurrent tool call. Parking a call on the channel
+        touches no database precisely so that two gated calls in one model step
+        cannot race two inserts on the request's `AsyncSession` (agenticos#169);
+        this is where that deferral is paid back. The loop is sequential, so the
+        writes it makes do not race each other either.
+
+        Unlike :meth:`_write_delegations`, a failure here is not swallowed. A
+        delegation row is attribution - the money is on the parent's row whether or
+        not the child row lands - but an approval row is what a resume reads to
+        learn a call is waiting and what it was asked to approve. A parked run
+        missing one of its rows cannot be continued for that call, so a write that
+        fails has to fail the run rather than strand it awaiting a decision nothing
+        recorded.
+
+        The one failure that must *not* strand the run is a delegate deleted since
+        its call was parked. `subagent_agent_id` is a `SET NULL` foreign key -
+        deleting the delegate is meant to leave the record of what it was authorised
+        to do, not take it down - but that only fires for a delete that lands after
+        the row exists. Deferring the write widened the window to the whole run, so
+        a delete that lands *before* it would instead make the insert violate the
+        key and roll the parked run back. So the delegates still present are
+        resolved and locked first (:func:`agent_repo.existing_ids_locked`), and an
+        id whose agent is gone is written null - exactly what `SET NULL` would have
+        done - keeping the row, the delegate's name and the resumable run.
+
+        Each row is written with the id allocated when the call was parked, so it
+        matches the `paused_state` that names it and the :class:`ParkedApproval` a
+        surface already drew a card from. An unparked run leaves `requested` empty
+        and this does nothing.
+        """
+        channel = prepared.approvals
+        named = {p.subagent_agent_id for p in channel.requested if p.subagent_agent_id is not None}
+        present = await agent_repo.existing_ids_locked(
+            self.db, named, organization_id=channel.organization_id
+        )
+        for parked in channel.requested:
+            await self.approvals.request(
+                approval_id=parked.approval_id,
+                organization_id=channel.organization_id,
+                run_id=channel.run_id,
+                agent_id=channel.agent_id,
+                # The tool the model called, not the capability that owns it: the
+                # approver is looking at "send_email", not at "email".
+                tool_id=parked.tool_name,
+                tool_args=parked.tool_args,
+                subagent_name=parked.subagent,
+                # Null when the delegate's agent was deleted after the call was
+                # parked: the record of what it was authorised to do outlives it.
+                subagent_agent_id=(
+                    parked.subagent_agent_id if parked.subagent_agent_id in present else None
+                ),
+            )
+
     @staticmethod
     async def _collect_outbound(prepared: PreparedRun) -> None:
         """Read what the turn wrote, for a surface that can deliver it.
@@ -2071,6 +2149,13 @@ class AgentRunnerService:
         # leave the run un-finished, and after the run has certainly stopped
         # using it. `close` never raises; it logs.
         await self.workspaces.close(prepared.workspace)
+
+        # The approval rows the run parked, written here rather than while it ran:
+        # parking on the channel is deferred off the shared session so two gated
+        # calls in one model step cannot race two inserts (agenticos#169), and this
+        # is where the deferral is paid back. Before the parent's terminal write,
+        # so the rows the `paused_state` names exist by the time it is stored.
+        await self._write_approvals(prepared)
 
         parked = None if paused_state is None else self._parked_tree(prepared, paused_state)
         ledger = prepared.built.ledger
