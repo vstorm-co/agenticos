@@ -271,7 +271,6 @@ the YAML export and the permission model can all see it.
 | `allow_dynamic` | `false` | |
 | `max_depth` | 1 | 1–3 |
 | `max_fanout` | 3 | 1–10 |
-| `include_general_purpose` | `false` | |
 | `max_result_chars` | 2000 | 200–20000 |
 | `share_with_delegates` | none | capability ids this agent is itself bound to |
 
@@ -376,15 +375,14 @@ publishing an agent, which is a person's action. `MAX_DYNAMIC_SPECIALISTS` bound
 many one run may keep, and a kept one lasts for the reply rather than the run
 ([#175](https://github.com/vstorm-co/agenticos/issues/175)).
 
-!!! warning "`include_general_purpose` does not work"
-
-    The library's own general-purpose delegate is off by default here, and turning it
-    on does not give you one: the library compiles it from its own `default_model`, so
-    it either fails outright or — where a provider key happens to be in the
-    environment — runs a tenant's work on a deployment-wide credential. Tracked as
-    [#174](https://github.com/vstorm-co/agenticos/issues/174). A catch-all specialist
-    is a legitimate thing to want; write it as an inline specialist, where you can read
-    what it does.
+**The delegation library's own unspecialised delegate is not offered at all**, and
+there is no setting for it. It would run on a model this deployment did not
+configure — compiled from the library's own default model string, so outside the
+organization's profiles, its vault and the run's budget guard, exactly like the
+run-time specialist above before it took a factory. A catch-all is a legitimate
+thing to want; write it as an inline specialist, where you can read what it does
+and it is priced like everything else. Fixing the library's own is
+[#174](https://github.com/vstorm-co/agenticos/issues/174).
 
 What the model is told about all of this is written here rather than by the
 library: the delegates by name and description, the mode this run will actually

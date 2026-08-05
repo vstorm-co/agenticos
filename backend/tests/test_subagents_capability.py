@@ -677,8 +677,12 @@ class TestStepLimits:
         assert _limits(runtime).request_limit == DEFAULT_MAX_STEPS
 
     async def test_a_delegate_nobody_resolved_gets_the_default_too(self):
-        """The library's general-purpose subagent, which no runtime resolved."""
-        assert _limits(a_runtime(a_delegate()), name="general-purpose").request_limit == (
+        """A name no runtime resolved - an invented specialist, or one invented outright.
+
+        The library refuses the unknown name a moment later, but the ceiling is
+        asked for first, so it has to answer rather than raise.
+        """
+        assert _limits(a_runtime(a_delegate()), name="unresolved").request_limit == (
             DEFAULT_MAX_STEPS
         )
 

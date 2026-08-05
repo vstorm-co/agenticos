@@ -344,9 +344,9 @@ class DelegationJournal:
         """Open a delegation, deciding the one thing the model does not get to.
 
         `delegate` is `None` when the model addressed something this runtime did
-        not resolve - the library's general-purpose subagent, or a name it
-        invented. Either way the mode falls back to the spec's, and a name
-        nobody resolved is refused by the library a moment later.
+        not resolve - a specialist it invented, or a name it invented outright.
+        Either way the mode falls back to the spec's, and a name nobody resolved
+        is refused by the library a moment later.
 
         The enclosing delegation is read here, before this one becomes the current
         value, because that is the only moment both exist: from inside

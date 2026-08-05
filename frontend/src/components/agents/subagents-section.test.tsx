@@ -55,11 +55,6 @@ const CONFIG_SCHEMA: JsonSchema = {
     allow_dynamic: { type: "boolean", default: false, title: "Allow dynamic" },
     max_depth: { type: "integer", default: 1, minimum: 1, maximum: 3, title: "Max depth" },
     max_fanout: { type: "integer", default: 3, minimum: 1, maximum: 10, title: "Max fanout" },
-    include_general_purpose: {
-      type: "boolean",
-      default: false,
-      title: "Include general purpose",
-    },
     max_result_chars: {
       type: "integer",
       default: 2000,
@@ -258,7 +253,6 @@ describe("the policy", () => {
     expect(screen.getByLabelText("Max fanout")).toBeVisible();
     expect(screen.getByLabelText("Max result chars")).toBeVisible();
     expect(screen.getByLabelText("Allow dynamic")).toBeVisible();
-    expect(screen.getByLabelText("Include general purpose")).toBeVisible();
     expect(screen.getByLabelText("Mode")).toBeVisible();
   });
 

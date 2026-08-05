@@ -471,9 +471,8 @@ class TestTheModelIsChosenFromTheOrganizationsOwnProfiles:
         model invented too.
 
         Refused here rather than by handing the library an unusable `default_model`,
-        which would have been the tidier shape and breaks something unrelated: the
-        same field is what its general-purpose delegate is compiled from, at
-        construction, for an agent that asked for no dynamic specialists at all.
+        because a tool result naming the models this organization holds is something
+        the model can act on, and an exception raised from inside the library is not.
         """
         answer = await call_tool(
             a_capability(a_runtime(dynamic=dynamic())),

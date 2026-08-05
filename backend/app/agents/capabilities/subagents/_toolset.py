@@ -214,11 +214,10 @@ class DelegatingToolset(WrapperToolset[AgentDeps]):
         anywhere - publish validation refuses an agent that does not name one,
         because a model an agent did not choose is one somebody else's change can
         swap underneath it. Refused here rather than by giving the library an
-        unusable `default_model`, which would have been tidier and breaks something
-        unrelated: the same field is what its general-purpose delegate is compiled
-        from, at construction, for an agent that asked for no dynamic specialists at
-        all. The list is not repeated in the message because the instructions carry
-        it and `ReinjectSystemPrompt` keeps it there.
+        unusable `default_model`, because a tool result naming what this deployment
+        allows is something the model can act on and an exception raised from inside
+        the library is not. The list is not repeated in the message because the
+        instructions carry it and `ReinjectSystemPrompt` keeps it there.
 
         *A specialist gets no capabilities.* Letting a model grant its own child a
         capability is the ungranted-scope failure wearing a new hat, so

@@ -121,7 +121,6 @@ export const DEFAULT_SUBAGENTS_CONFIG: SubagentsConfig = {
   allow_dynamic: false,
   max_depth: 1,
   max_fanout: 3,
-  include_general_purpose: false,
   max_result_chars: 2000,
   share_with_delegates: [],
 };

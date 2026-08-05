@@ -129,17 +129,6 @@ class SubagentsConfig(BaseModel):
             "until a dozen agents are running against one budget."
         ),
     )
-    include_general_purpose: bool = Field(
-        default=False,
-        description=(
-            "Whether to offer the delegation library's own unspecialised delegate "
-            "alongside the ones this agent pinned. Off, against the library's "
-            "default: it is a copy of the parent with no instructions of its own, "
-            "on the library's default model rather than one of this deployment's "
-            "profiles - so it is neither reviewable nor priced like everything else "
-            "here."
-        ),
-    )
     max_result_chars: int = Field(
         default=2000,
         ge=200,
@@ -205,7 +194,6 @@ def _build(ctx: CapabilityBuildContext) -> Delegation | None:
         runtime=runtime,
         mode=config.mode,
         max_fanout=config.max_fanout,
-        include_general_purpose=config.include_general_purpose,
         max_result_chars=config.max_result_chars,
         # How far in this run's delegations already are, which is what a surface
         # needs to nest their panels. Taken from the runtime, which the runner

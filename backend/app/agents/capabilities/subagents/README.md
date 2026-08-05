@@ -269,10 +269,8 @@ is left off the list with a warning rather than failing the run, for the reason
 **There is no default model, so naming none is refused.** The library would fall
 back on `SubAgentCapability.default_model`, so the omission is refused in
 `_toolset.py` and the model is pointed at the list in its instructions. Setting
-`default_model` to an unusable value instead would have been tidier and breaks
-something unrelated: the same field is what the library's general-purpose delegate
-is compiled from, at construction, for an agent that asked for no dynamic
-specialists at all.
+`default_model` to an unusable value instead would raise from inside the library
+where a refusal that names the allowed models is something the model can act on.
 
 **A specialist is instructions and a model, and nothing else.** No capabilities,
 no knowledge, no skills, no MCP connections, no workspace, no delegates. Two
@@ -322,24 +320,33 @@ With both wired there is nothing left for the drift check to be told about:
 stands in their place is a resource fixture wide enough — one resolved delegate
 *and* a `DynamicSpecialists` — that no capability has an excuse.
 
-## The general-purpose delegate
+## The general-purpose delegate is not offered
 
-`include_general_purpose` defaults `False`, against the library's own default, and
-the reason is worth keeping: its general-purpose subagent is a copy of the parent
-with no instructions of its own, built on the library's default model string. An
-agent whose behaviour nobody specified is the thing this product exists to
-prevent, and one on a model this deployment did not configure is not priced,
-metered or credentialed like everything else here. It stays configurable because
-an author may genuinely want a catch-all; it stays off by default because nobody
-should arrive at one by accident.
+`build_delegation` passes `include_general_purpose=False` unconditionally, against
+the library's own default of `True`. That is a fact about somebody else's default,
+stated in one place — not a setting, and never one an author could reach.
 
-**Switched on, it does not work at all**, and that is older than the dynamic
-entry points: the library compiles this delegate from `default_model`, so on a
-deployment with no `OPENAI_API_KEY` the build raises, and on one that has that key
-in its environment it runs a tenant's work on a deployment-wide credential —
-unpriced, unmetered, and against the one rule `model_resolver.py` states outright.
-Making the setting genuinely work means resolving this delegate here, through
-`build_agent`, like every other: agenticos#174.
+The library compiles this delegate at construction from `default_model`, a model
+string of its own choosing: no profile of this organization's resolves it, no
+credential of this organization's is unsealed for it, and the run's `BudgetGuard`
+never wraps it. So a deployment holding no such key fails the build outright, and
+one with that key in its process environment runs a tenant's work on a
+deployment-wide credential — unpriced, unmetered, and against the one rule
+`model_resolver.py` states outright. A switch whose two outcomes are a crash and a
+credential leak is a trap, and a warning beside it is not a guard.
+
+There was briefly an `include_general_purpose` field on `SubagentsConfig`,
+defaulting off with that warning written next to it. It was removed rather than
+deprecated because this capability had not yet merged: no published spec carried
+the field, so nothing needed coercing or migrating. It was not replaced with a
+publish-time refusal either — a control that always fails publish costs an author a
+round trip to learn it does nothing.
+
+An author who wants a catch-all writes an inline specialist, which runs on one of
+this organization's model profiles through `build_agent` like every other delegate,
+and whose instructions somebody can read. Making the library's own work means
+resolving it here the same way: agenticos#174, still open, and an upstream defect
+regardless of what this deployment configures.
 
 ## Reading the code
 

@@ -216,7 +216,6 @@ export interface SubagentsConfig {
   allow_dynamic: boolean;
   max_depth: number;
   max_fanout: number;
-  include_general_purpose: boolean;
   max_result_chars: number;
   /** Capability ids the parent is bound to that its delegates inherit. */
   share_with_delegates: string[];

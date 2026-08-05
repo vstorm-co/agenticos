@@ -473,7 +473,6 @@ def build_delegation(
     mode: DelegationMode,
     max_fanout: int,
     depth: int,
-    include_general_purpose: bool,
     max_result_chars: int,
 ) -> Delegation:
     """Assemble the capability from a resolved runtime and its configuration.
@@ -493,8 +492,6 @@ def build_delegation(
         max_fanout: How many delegations may run at once.
         depth: How far inside the run's own agent these delegations are, which is
             what a surface needs to nest their panels.
-        include_general_purpose: Whether the library's own unspecialised delegate
-            is offered alongside the resolved ones. See `SubagentsConfig`.
         max_result_chars: How much of a finished delegation's answer the
             `wait_tasks` listing carries before pointing at `check_task`.
     """
@@ -502,7 +499,19 @@ def build_delegation(
     dynamic = runtime.dynamic
     capability = SubAgentCapability(
         subagents=[_config_for(delegate, journal) for delegate in runtime.subagents],
-        include_general_purpose=include_general_purpose,
+        # Passed because the library's own default is `True`, not because anything
+        # here can ask for it: this is a fact about somebody else's default, and
+        # the one place it is stated. The delegate it would add is compiled at
+        # construction from `default_model` - a model string of the library's
+        # choosing, resolved from no profile of this organization's, unsealed from
+        # no credential in its vault and wrapped by no budget guard - so on a
+        # deployment holding no such key the build raises, and on one that has that
+        # key in its environment a tenant's work runs on a deployment-wide
+        # credential. Neither is a delegate this platform can account for, so there
+        # is no setting for it and never was one an author could reach
+        # (agenticos#174 tracks fixing it upstream). An author who wants a
+        # catch-all writes an inline specialist, whose instructions somebody read.
+        include_general_purpose=False,
         max_result_chars=max_result_chars,
         # Which entry points exist at all. `default` is `task` alone;
         # `persisted_and_oneshot` adds `create_agent` and `delegate` - and the
@@ -516,16 +525,14 @@ def build_delegation(
         # library reads it, so this is not "unlimited". It bounds `create_agent`
         # only; a `delegate` call registers nothing.
         max_agents=0 if dynamic is None else MAX_DYNAMIC_SPECIALISTS,
-        # `default_model` is deliberately left at the library's own, even though
-        # this platform has no default model anywhere and a specialist that names
-        # none is refused for it in `DelegatingToolset._refuse_dynamic`. Saying so
-        # here with an unusable value is the tidier shape and breaks something
-        # unrelated: the same field is what the library's general-purpose delegate
-        # is compiled from, at construction, for an agent that asked for no dynamic
-        # specialists at all - so an unusable value fails *that* agent's build
-        # instead of refusing a model's tool call. `include_general_purpose` has a
-        # problem of its own, older and worse than a default model nothing reads
-        # (agenticos#174); this is not the place to make it fatal.
+        # `default_model` is left at the library's own, and this platform has no
+        # default model anywhere: a specialist that names none is refused in
+        # `DelegatingToolset._refuse_dynamic`, before either entry point reaches
+        # the fallback, and the general-purpose delegate that would otherwise be
+        # compiled from it at construction is switched off above. So the field is
+        # unread here, and an unusable sentinel in its place would buy a second
+        # spelling of a refusal that already has one - as an exception rather than
+        # a tool result the model can act on.
         # The nesting budget the runner had left after resolving this level. The
         # library subtracts one per delegation and passes it to
         # `AgentDeps.clone_for_subagent`, which is where a delegate learns whether
@@ -652,8 +659,9 @@ def _limits_for(runtime: SubagentRuntime) -> UsageLimitsFactory:
         if delegate is None or delegate.max_steps is None:
             # A delegate whose spec said nothing, a specialist the model invented
             # (which no runtime resolved and whose spec nobody wrote a step limit
-            # into), or the library's own general-purpose subagent. All three get
-            # the platform default, which is the same ceiling a top-level run gets.
+            # into), or a name that resolves to nothing at all and is refused a
+            # moment later. All three get the platform default, which is the same
+            # ceiling a top-level run gets.
             return UsageLimits(request_limit=DEFAULT_MAX_STEPS)
         return UsageLimits(request_limit=delegate.max_steps)
 
