@@ -213,6 +213,13 @@ uv run agenticos cmd bootstrap --org "Acme"
 # holding the wrong token.
 uv run agenticos cmd doctor
 
+# Find published agents that lend a skill their publisher could not reach. The
+# publish-time check on skill_ids only guards new publishes; this is the offline
+# half, naming versions frozen before it that still hand a private skill to every
+# run. Report-only - a spec is exported into a client's own git, so unbinding is a
+# person's call. Exits non-zero when it finds one, so a cron can gate on it.
+uv run agenticos cmd audit-skill-bindings
+
 # Install the bundled skills (refund-policy, code-review, incident-report)
 uv run agenticos cmd seed-skills
 uv run agenticos cmd seed-skills --org <org-id> --dry-run

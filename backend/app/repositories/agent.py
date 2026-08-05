@@ -106,6 +106,32 @@ async def list_all_published(db: AsyncSession) -> list[Agent]:
     return list(result.scalars().all())
 
 
+async def list_current_versions(db: AsyncSession) -> list[tuple[Agent, AgentVersion]]:
+    """Every published agent paired with the version that actually runs.
+
+    Deliberately unscoped, like :func:`list_all_published`, and for the same
+    narrow reason: the only caller is the `audit-skill-bindings` sweep, which is
+    about the deployment rather than a tenant and must reach every organization's
+    agents. Grep for this function when auditing cross-tenant reads.
+
+    The join is on `current_version_id`, so exactly the frozen spec a run reads is
+    returned - one row per agent, not its whole history. A rollback publishes a
+    *new* current version rather than re-pointing at an old one, so the current
+    version is the whole of what any run can load; historical versions cannot be
+    reached without first becoming current, which a later sweep would then see.
+
+    Published only. A draft has no frozen version to run, and an archived agent
+    refuses new runs - neither can hand a skill to anybody.
+    """
+    result = await db.execute(
+        select(Agent, AgentVersion)
+        .join(AgentVersion, AgentVersion.id == Agent.current_version_id)
+        .where(Agent.status == AgentStatus.PUBLISHED.value)
+        .order_by(Agent.organization_id, Agent.slug)
+    )
+    return list(result.tuples().all())
+
+
 async def create(
     db: AsyncSession,
     *,
