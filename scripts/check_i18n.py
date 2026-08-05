@@ -161,19 +161,19 @@ def offences(path: Path) -> list[tuple[int, str]]:
         for match in ATTR.finditer(line):
             if is_copy(match.group(2)):
                 found.append((number, f'{match.group(1)}="{match.group(2)}"'))
-        for match in (() if typescript else JSX_TEXT.finditer(line)):
+        for match in () if typescript else JSX_TEXT.finditer(line):
             # `percent >= 80 && "text-amber-600"` reads as a text node to a regex.
             # An operator between the angle brackets means it is an expression.
             if is_copy(match.group(1)) and not re.search(r"&&|\|\||=>", match.group(1)):
                 found.append((number, f"text {match.group(1)!r}"))
-        for match in (() if typescript else MIXED.finditer(line)):
+        for match in () if typescript else MIXED.finditer(line):
             rest = re.sub(r"\{[^{}]*\}", " ", match.group(1))
             if len(WORDS.findall(rest)) >= 2 and not re.search(r"&&|\|\||=>", rest):
                 found.append((number, f"text {' '.join(match.group(1).split())!r}"))
-        for match in (() if typescript else COUNT.finditer(line)):
+        for match in () if typescript else COUNT.finditer(line):
             if is_copy(match.group(1)):
                 found.append((number, f"count {' '.join(match.group(0).strip().split())!r}"))
-        for match in (() if "className" in line else TEMPLATE.finditer(line)):
+        for match in () if "className" in line else TEMPLATE.finditer(line):
             body = re.sub(r"\$\{[^{}]*\}", "\x00", match.group(1))
             if TWO_WORDS.search(body) and not MACHINE_READ.search(body):
                 found.append((number, f"template {match.group(1)!r}"))
@@ -217,7 +217,7 @@ def missing_keys(path: Path, catalog: dict) -> list[tuple[int, str]]:
             continue
         for key in re.findall(r'\bt\(\s*"([^"]+)"', line):
             if not any(_holds(catalog, f"{namespace}.{key}") for namespace in namespaces):
-                found.append((number, f'{key} (in {", ".join(namespaces)})'))
+                found.append((number, f"{key} (in {', '.join(namespaces)})"))
     return found
 
 
