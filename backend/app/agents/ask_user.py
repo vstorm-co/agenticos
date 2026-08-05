@@ -33,13 +33,24 @@ class QuestionItem(BaseModel):
     )
 
 
+def render_answer(answer: dict[str, Any] | None) -> str:
+    """One collected answer, as the model should read it.
+
+    A missing or malformed entry is "(no answer)" rather than an error: the surface
+    returns a list parallel to the questions, and a delegate that asked one question
+    reads one answer whether or not the person typed anything.
+    """
+    if not isinstance(answer, dict):
+        return "(no answer)"
+    if answer.get("skipped"):
+        return "(skipped)"
+    return str(answer.get("answer", "")).strip() or "(no answer)"
+
+
 def format_answers(questions: list[dict[str, Any]], answers: list[dict[str, Any]]) -> str:
     """Render the collected answers as a readable Q/A transcript for the model."""
     lines: list[str] = []
     for i, q in enumerate(questions):
-        a = answers[i] if i < len(answers) else {}
-        if not isinstance(a, dict):
-            a = {}
-        ans = "(skipped)" if a.get("skipped") else str(a.get("answer", "")).strip() or "(no answer)"
-        lines.append(f"Q: {q.get('question', '')}\nA: {ans}")
+        a = answers[i] if i < len(answers) else None
+        lines.append(f"Q: {q.get('question', '')}\nA: {render_answer(a)}")
     return "\n\n".join(lines)

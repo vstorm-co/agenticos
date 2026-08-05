@@ -70,6 +70,10 @@ dependencies = [
     # labelled per delegation (#65), and a bounded wait in `cancel_all`'s
     # `finally` so a child that swallows cancellation cannot hang our teardown
     # (#66).
+    # 0.2.17 first carried the caller-supplied-subagent ask_parent fix a sync
+    # delegate needs to reach the person waiting on its parent
+    # (subagents-pydantic-ai#76); 0.2.18 also fixes the general-purpose delegate
+    # (#78), so the floor is 0.2.18.
     "subagents-pydantic-ai>=0.2.18",
     "cryptography>=50.0.0",
     "aiogram>=3.17,<4.0",

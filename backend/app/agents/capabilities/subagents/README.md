@@ -216,27 +216,34 @@ itself no longer holds a session — a parked call is described and the row writ
 from the run's terminal write, agenticos#169 — so this is about where the decision
 can be delivered, not about a write racing the shared session.)
 
-**Let a delegate ask the parent a question.** The library's `ask_parent` tool is
-injected only into agents it built itself, and every delegate here arrives
-pre-built — so `task` passes `inject_ask_parent=False` for a pinned delegate and an
-inline specialist alike, and `_autonomously` closes the two dynamic entry points as
-well. A specialist works autonomously and says so if it could not; a specialist that
-needs a person reaches one through its own capabilities, on the parent's channels,
-which `AgentDeps.clone_for_subagent` passes down.
+**A delegate asks the parent a question only when its author allows it.** Off by
+default: a specialist works autonomously and says so if it could not. An author who
+wants the other behaviour sets `allow_questions`, and `_config_for` then grants
+`can_ask_questions` to each configured delegate whose mode is sync — a sync question
+is answered by `ctx.deps.ask_user`, the person already holding the parent's tool
+call, which `AgentDeps.clone_for_subagent` passes down. It is granted only for a
+sync delegation: a background one has handed back a task id with nobody left to
+answer, and `auto` may become one. A specialist a model *invents* never asks,
+whatever the author set — `_autonomously` holds the two dynamic entry points to
+autonomy, because a question wearing instructions a model wrote a moment ago is not
+the author's to put to a person. Reaching a pre-built delegate at all took an
+upstream change: the library injected `ask_parent` only into agents it built itself
+until subagents-pydantic-ai#76, which honours `can_ask_questions` for a
+caller-supplied agent too — every delegate here is one.
 
 So **`answer_subagent` is declared and offered to nobody** — `UNREACHABLE_TOOLS`,
-applied as a filter in `get_toolset`. It replies to a question that cannot be asked,
-and the library adds it to its toolset unconditionally, so the offered set is the
-only place the decision can be made. Declared still, because a tool absent from
-`tools=` can be neither gated by the approval policy nor renamed by a binding, and
-that half is silent; filtered, because the other half is a description in every
-turn's context inviting a call whose only answer is "that delegation is not waiting
-for an answer". Opening the path is a feature rather than a repair, and which
-channel answers depends on the mode: a `sync` question is answered by a *person*,
-through `ask_user`, and never through this tool — so it becomes reachable only for a
-background delegation, whose question the parent's own model answers while nothing
-obliges it to look. agenticos#184 is the sync half, worth doing on its own terms, and
-it would not make this tool reachable.
+applied as a filter in `get_toolset`. It answers a question a *background* delegate
+parked on, and no delegate here parks on one: a sync question goes to a person
+through `ask_user` and never this tool, and an async delegate is not granted
+`can_ask_questions` at all. The library adds the tool to its toolset
+unconditionally, so the offered set is the only place the decision can be made.
+Declared still, because a tool absent from `tools=` can be neither gated by the
+approval policy nor renamed by a binding, and that half is silent; filtered, because
+the other half is a description in every turn's context inviting a call whose only
+answer is "that delegation is not waiting for an answer". agenticos#184 opened the
+sync half — a person answering — and left this tool unreachable; the background half,
+where the parent's own model answers while nothing obliges it to look, is what would
+empty the set.
 
 ## Background delegation, and what it costs
 

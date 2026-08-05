@@ -78,6 +78,7 @@ from app.agents.capabilities.subagents import Delegation, SubagentsConfig
 from app.agents.capabilities.subagents._capability import (
     BACKGROUND_LIFECYCLE_TOOLS,
     UNREACHABLE_TOOLS,
+    _config_for,
     _LazyAgent,
 )
 from app.agents.capabilities.subagents._events import UNNAMED_TOOL, FrameLabels, frame_for
@@ -85,7 +86,7 @@ from app.agents.capabilities.subagents._journal import DelegationJournal
 from app.agents.capabilities.subagents._toolset import DelegatingToolset
 from app.agents.deps import AgentDeps
 from app.agents.factory import DEFAULT_MAX_STEPS
-from app.agents.spec import AgentSpec, CapabilityBindingSpec
+from app.agents.spec import AgentSpec, CapabilityBindingSpec, DelegationMode
 from app.agents.subagent_events import SubagentEvent
 from app.agents.subagent_runtime import (
     SUBAGENT_RUNTIME_RESOURCE,
@@ -166,6 +167,24 @@ def handing_on(to: str, *, ledger: SpendLedger) -> FunctionModel:
         return ModelResponse(
             parts=[ToolCallPart("task", {"description": "check the claim", "subagent_type": to})]
         )
+
+    return FunctionModel(respond)
+
+
+def asking(question: str, *, prefix: str = "answer: ") -> FunctionModel:
+    """A delegate that asks the parent one question, then answers with what came back.
+
+    Two requests, like `handing_on`: an `ask_parent` call first, then - once the
+    person's answer is a tool result - the final text built from it. No
+    `stream_function`, so nothing narrates and the library drives the delegate
+    through `run`; a streamed half would be a branch these ask tests never reach.
+    """
+
+    def respond(messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
+        returned = _tool_results(messages)
+        if returned:
+            return ModelResponse(parts=[TextPart(f"{prefix}{' '.join(returned)}")])
+        return ModelResponse(parts=[ToolCallPart("ask_parent", {"question": question})])
 
     return FunctionModel(respond)
 
@@ -497,11 +516,30 @@ class Approvals:
         return ApprovalPending()
 
 
+class Asker:
+    """Stands in for the person waiting on the parent, reached through `ask_user`.
+
+    The one-question shape `subagents_pydantic_ai`'s `ask_parent` calls
+    `ctx.deps.ask_user` with - a question and options in, one answer string out.
+    Records the questions so a test can assert the delegate reached a person rather
+    than guessing.
+    """
+
+    def __init__(self, answer: str = "euros") -> None:
+        self.answer = answer
+        self.asked: list[str] = []
+
+    async def __call__(self, question: str, _options: list[str]) -> str:
+        self.asked.append(question)
+        return self.answer
+
+
 def a_context(
     sink: Sink | None = None,
     approvals: Approvals | None = None,
     *,
     run: str = "run-1",
+    asker: Asker | None = None,
 ) -> RunContext[AgentDeps]:
     """A parent run, with an organization, a run id and collections of its own.
 
@@ -524,6 +562,7 @@ def a_context(
             kb_collection_names=["kb_only_the_parent_may_read"],
             subagent_events=sink,
             request_approval=approvals,
+            ask_user=asker,
         ),
         model=TestModel(),
         usage=RunUsage(),
@@ -624,9 +663,10 @@ class TestAttaching:
     async def test_a_delegating_agent_is_offered_no_way_to_answer_a_question(self):
         """The exact set a delegating agent's model reads, and why one is missing.
 
-        `answer_subagent` replies to a question a delegate asked, and no delegate
-        here can ask one: the library injects its `ask_parent` tool only into agents
-        it built itself, and every delegate arrives pre-built. So the tool could only
+        `answer_subagent` answers a question a *background* delegate parked on, and
+        no delegate here parks on one: a sync delegate that may ask (agenticos#184)
+        is answered by a person through `ask_user`, never this tool, and an async
+        delegate is not granted `can_ask_questions` at all. So the tool could only
         ever answer "that delegation is not waiting for an answer" - from a
         description in every turn's context, which is the strongest prompt surface in
         this product.
@@ -634,7 +674,7 @@ class TestAttaching:
         It stays *declared*, which is the second assertion. A tool absent from
         `tools=` can be neither gated by the approval policy nor renamed by a
         binding, and that half of the same failure is silent. `UNREACHABLE_TOOLS`
-        says what making it reachable would take, and why agenticos#184 is only
+        says what making it reachable would take, and why agenticos#184 was only
         half of that.
 
         `async`, so that this stays a statement about `answer_subagent` alone: it is
@@ -781,6 +821,70 @@ class TestOfferedSet:
         capability = a_capability(a_runtime(a_delegate(preferred_mode="sync")), {"mode": "sync"})
 
         assert not (await self._offered(capability) & BACKGROUND_LIFECYCLE_TOOLS)
+
+
+class TestAskingTheParent:
+    """A sync delegate may ask the person waiting on the parent, when its author allows.
+
+    Off by default, gated on the mode, and never open to a specialist a model
+    invented - the three things agenticos#184 turns on, without turning on more.
+    `TestADynamicSpecialist` in `test_dynamic_specialists.py` holds the last of those.
+    """
+
+    async def test_a_sync_delegate_reaches_the_person_and_finishes_on_the_answer(self):
+        """The whole feature, end to end and through the real library.
+
+        The delegate asks, a person answers through the run's `ask_user` channel,
+        and the delegation finishes using the answer - which the library injects
+        `ask_parent` for a caller-supplied delegate to do only since
+        subagents-pydantic-ai#76.
+        """
+        asker = Asker("euros")
+        capability = a_capability(
+            a_runtime(a_delegate(model=asking("which currency should I use?"))),
+            {"allow_questions": True},
+        )
+
+        answer = await delegate_to(capability, a_context(asker=asker))
+
+        assert asker.asked == ["which currency should I use?"]
+        assert "euros" in answer
+
+    def test_the_author_flag_and_the_mode_together_gate_asking(self):
+        """`can_ask_questions` is granted only for a sync delegation whose author
+        set `allow_questions` - the one combination with a person there to answer.
+
+        A background delegation has handed back a task id with nobody waiting, and
+        `auto` may become one, so neither is granted it however the flag is set. A
+        delegate's own `preferred_mode` decides which it is, in both directions.
+        """
+
+        def may_ask(*, allow: bool, mode: DelegationMode, preferred: DelegationMode | None = None):
+            journal = DelegationJournal(
+                runtime=a_runtime(), mode=mode, allow_questions=allow, max_fanout=3, depth=0
+            )
+            return _config_for(a_delegate(preferred_mode=preferred), journal).get(
+                "can_ask_questions"
+            )
+
+        assert may_ask(allow=True, mode="sync") is True
+        assert may_ask(allow=False, mode="sync") is False
+        assert may_ask(allow=True, mode="async") is False
+        assert may_ask(allow=True, mode="auto") is False
+        assert may_ask(allow=True, mode="async", preferred="sync") is True
+        assert may_ask(allow=True, mode="sync", preferred="async") is False
+
+    async def test_answer_subagent_stays_unoffered_even_when_questions_are_allowed(self):
+        """The sync half never routes through `answer_subagent`: a person answers it.
+
+        So opening questions must not start offering the tool - only the background
+        half, which no delegate here reaches, ever would. See `UNREACHABLE_TOOLS`.
+        """
+        capability = a_capability(a_runtime(a_delegate()), {"allow_questions": True})
+        toolset = capability.get_toolset()
+        assert toolset is not None
+
+        assert "answer_subagent" not in await toolset.get_tools(a_context())
 
 
 class TestRecording:

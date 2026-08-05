@@ -20,7 +20,17 @@ from uuid import UUID
 from app.agents.approval import ApprovalDecision, ApprovalRequest
 from app.agents.subagent_events import SubagentEventSink
 
-AskUserCallback = Callable[[list[dict[str, Any]]], Awaitable[list[dict[str, Any]]]]
+AskUserCallback = Callable[[str, list[str]], Awaitable[str]]
+"""How a delegate reaches the person waiting on its parent, and back.
+
+One question in, one answer out, which is the shape `subagents_pydantic_ai`'s
+`ask_parent` tool calls `ctx.deps.ask_user` with - this field exists to feed that
+tool and nothing here calls it otherwise. A surface that batches its elicitation
+(the WebSocket asks a whole list at once) adapts that to this one-question shape at
+its edge; a surface that cannot hold a question open leaves it `None`, and a
+delegate that would ask is told a person could not be reached.
+"""
+
 ApprovalCallback = Callable[[ApprovalRequest], Awaitable[ApprovalDecision]]
 
 
