@@ -4,9 +4,10 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Activity, CheckCircle2, XCircle } from "lucide-react";
 
-import { RunStatusBadge } from "@/components/agents/status-badge";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ApprovalDelegate } from "@/components/runs/approval-delegate";
+import { FocusedRun } from "@/components/runs/focused-run";
+import { RunTable } from "@/components/runs/run-table";
 import { EmptyState, LoadingState } from "@/components/states";
 import {
   Badge,
@@ -35,7 +36,18 @@ export default function RunsPage() {
   // link a dead end dressed as a filter.
   const searchParams = useSearchParams();
   const agentId = searchParams.get("agent");
+  // `?run=` is how a delegation panel in a chat hands over. A delegated run is
+  // deliberately not in the list below - see `useRuns` - so the only way to
+  // reach one is to name it, and `FocusedRun` is what answers.
+  const focusedRunId = searchParams.get("run");
   const { runs, isLoading } = useRuns(agentId ?? undefined);
+  // The three figures above the tabs are the organization's, so this one is read
+  // without the agent filter even when the table below carries it. Narrowed, it
+  // would be one agent's runs - counted the per-agent way, delegations included -
+  // sitting beside the organization's bill, which is two different questions with
+  // one label between them. Same query as the table when nothing is narrowed, so
+  // it costs a request only on the way in from the Builder.
+  const { total: organizationRuns } = useRuns();
   const { approvals, decide } = useApprovals();
   const { spend } = useSpend(30);
   const { can } = usePermissions();
@@ -81,7 +93,12 @@ export default function RunsPage() {
         <Card>
           <CardContent className="space-y-1 p-5">
             <p className="text-muted-foreground text-xs tracking-wide uppercase">{t("runs")}</p>
-            <p className="font-mono text-2xl">{runs.length}</p>
+            {/* The count the server reports, not the length of one page of
+                fifty - and top-level runs only, which is what makes it agree
+                with the figure beside it. A fan-out turn is one run here and
+                one run in that total; it used to be four and one. */}
+            <p className="font-mono text-2xl">{organizationRuns}</p>
+            <p className="text-muted-foreground text-xs">{t("delegationsCountedInTheir")}</p>
           </CardContent>
         </Card>
         <Card>
@@ -176,63 +193,37 @@ export default function RunsPage() {
               </CardDescription>
               {/* Said out loud, with the way out beside it. A filtered table that
                   does not mention the filter is a table somebody reads as the
-                  whole history, and then wonders where the rest of the runs went. */}
-              {agentId !== null && (
+                  whole history, and then wonders where the rest of the runs went.
+                  `?run=` narrows harder than `?agent=` and so says so first. */}
+              {focusedRunId !== null ? (
                 <p className="text-muted-foreground text-xs">
-                  Narrowed to one agent.{" "}
+                  {t("narrowedToOneRun")}{" "}
                   <Link href={ROUTES.RUNS} className="underline underline-offset-4">
-                    {t("showEveryAgent")}
+                    {t("showEveryRun")}
                   </Link>
                 </p>
+              ) : (
+                agentId !== null && (
+                  <p className="text-muted-foreground text-xs">
+                    {t("narrowedToOneAgent")}{" "}
+                    <Link href={ROUTES.RUNS} className="underline underline-offset-4">
+                      {t("showEveryAgent")}
+                    </Link>
+                  </p>
+                )
               )}
             </CardHeader>
             <CardContent>
-              {runs.length === 0 ? (
+              {focusedRunId !== null ? (
+                <FocusedRun runId={focusedRunId} />
+              ) : runs.length === 0 ? (
                 <EmptyState
                   icon={Activity}
                   title={t("noRunsYet")}
                   description={t("nothingHasRun")}
                 />
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[40rem] text-sm">
-                    <thead>
-                      <tr className="text-muted-foreground border-b text-left">
-                        <th className="py-2 font-medium">{t("status")}</th>
-                        <th className="px-3 py-2 font-medium">{t("surface")}</th>
-                        <th className="px-3 py-2 font-medium">{t("model")}</th>
-                        <th className="px-3 py-2 text-right font-medium">{t("tokens")}</th>
-                        <th className="px-3 py-2 text-right font-medium">{t("cost")}</th>
-                        <th className="px-3 py-2 font-medium">{t("started")}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {runs.map((run) => (
-                        <tr key={run.id} className="border-b last:border-0">
-                          <td className="py-2">
-                            <RunStatusBadge status={run.status} />
-                          </td>
-                          <td className="text-muted-foreground px-3 py-2">{run.surface}</td>
-                          <td className="px-3 py-2 font-mono text-xs">{run.model_label ?? "-"}</td>
-                          <td className="px-3 py-2 text-right font-mono text-xs">
-                            {run.input_tokens + run.output_tokens}
-                          </td>
-                          <td className="px-3 py-2 text-right font-mono text-xs">
-                            ${Number(run.cost_usd).toFixed(4)}
-                            {run.cost_is_partial && (
-                              <span className="text-muted-foreground" title={t("modelRunHadNo")}>
-                                {" +"}
-                              </span>
-                            )}
-                          </td>
-                          <td className="text-muted-foreground px-3 py-2 text-xs">
-                            {run.started_at ? formatDate(run.started_at) : "-"}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <RunTable runs={runs} />
               )}
             </CardContent>
           </Card>
