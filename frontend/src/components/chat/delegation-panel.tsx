@@ -1,12 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { ChevronDown, Users } from "lucide-react";
 
+import { usePermissions } from "@/hooks";
+import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { childrenOf, rootsOf } from "@/lib/delegations";
 import { toolStep } from "@/lib/tool-steps";
+import { Perm } from "@/types/permissions";
 import type { Delegation, DelegationStatus } from "@/types";
 import { AgentStep } from "./agent-step";
 import { MarkdownContent } from "./markdown-content";
@@ -75,6 +79,7 @@ const STATUS_KEY: Record<DelegationStatus, string> = {
  */
 function DelegationPanel({ delegation, all }: { delegation: Delegation; all: Delegation[] }) {
   const t = useTranslations("chat.delegation");
+  const { can } = usePermissions();
   const [open, setOpen] = useState(delegation.status === "running");
   // The render-time transition `ToolCallCard` uses rather than an effect: a panel
   // that has finished must not be shown open for a frame first. Comparing against
@@ -186,6 +191,25 @@ function DelegationPanel({ delegation, all }: { delegation: Delegation; all: Del
 
           {delegation.error !== null && (
             <p className="text-destructive text-[12px] leading-relaxed">{delegation.error}</p>
+          )}
+
+          {/* The run this delegation produced, which is the only place its cost,
+              its model and its tokens are recorded as its own rather than folded
+              into the parent's. In the body rather than the header, because the
+              header is a button and a link inside one is not a link.
+
+              Absent for an inline specialist, which gets no run row at all - the
+              same shape as an unlinked delegate in the approval queue, where a
+              missing id means there is no page rather than a forgotten link. And
+              absent for a caller without `runs:view`, who would land on a page
+              the server refuses. */}
+          {delegation.runId !== null && can(Perm.runsView) && (
+            <Link
+              href={`${ROUTES.RUNS}?run=${delegation.runId}`}
+              className="text-muted-foreground hover:text-foreground inline-block text-[12px] underline underline-offset-4"
+            >
+              {t("openInRunHistory")}
+            </Link>
           )}
 
           {/* Nested under the work that produced them: a specialist delegates

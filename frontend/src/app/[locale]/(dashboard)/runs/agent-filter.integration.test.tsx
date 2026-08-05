@@ -67,7 +67,23 @@ describe("Activity, arriving from the Builder", () => {
     render(<RunsPage />, { wrapper });
 
     await waitFor(() => expect(runsCalls()).not.toHaveLength(0));
-    expect(runsCalls()[0]?.[1]).toEqual({ params: { agent_id: "agent-42" } });
+    // Including what the agent did as somebody's delegate: narrowed to one
+    // agent, that is the only record of what it itself cost.
+    expect(runsCalls().map((call) => call[1])).toContainEqual({
+      params: { agent_id: "agent-42", include_delegations: "true" },
+    });
+  });
+
+  it("still counts the organization's runs beside the organization's bill", async () => {
+    // The stat cards above the tabs are the organization's, and the middle one
+    // used to follow the table's filter - so arriving from the Builder put one
+    // agent's run count next to the whole organization's month.
+    params.set("agent", "agent-42");
+
+    render(<RunsPage />, { wrapper });
+
+    await waitFor(() => expect(runsCalls()).not.toHaveLength(0));
+    expect(runsCalls().map((call) => call[1])).toContainEqual(undefined);
   });
 
   it("asks for the whole organization when the URL names nobody", async () => {

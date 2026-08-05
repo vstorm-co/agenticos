@@ -12,6 +12,10 @@ vi.mock("./markdown-content", () => ({
     <div data-testid="markdown">{content}</div>
   ),
 }));
+// Panels are what this file is about, not who may open a run. The link that
+// permission gates is proved through the real hook in
+// `delegation-panel.integration.test.tsx`.
+vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can: () => true }) }));
 
 function delegation(overrides: Partial<Delegation> = {}): Delegation {
   return {

@@ -194,14 +194,43 @@ async def list_runs(
     *,
     organization_id: UUID,
     agent_id: UUID | None = None,
+    parent_run_id: UUID | None = None,
+    include_delegations: bool = False,
     skip: int = 0,
     limit: int = 50,
 ) -> tuple[list[AgentRun], int]:
+    """Run history, newest first, and which kind of row it contains.
+
+    Delegated rows are left out by default, which is the organization's
+    question. Every run shares the parent's spend ledger, so a delegation's
+    `cost_usd` is already inside its parent's; interleaved, the cost column
+    invites a sum that double-counts every delegation, and the count beside it
+    disagrees with a month-to-date figure that `sum_cost_since` correctly takes
+    only from top-level rows. `total` counts what the page shows.
+
+    `include_delegations` mirrors `sum_cost_since`, and for the same reason: a
+    list narrowed to **one agent** is the per-agent question, where a delegate's
+    rows are the only record of what it itself did. Without them an agent that
+    only ever runs as somebody's delegate has an empty history next to a spend
+    figure of forty dollars.
+
+    `parent_run_id` asks the third question, "what did this run delegate", which
+    is what `agent_runs_parent_run_id_idx` exists for and takes precedence over
+    both: those rows are the delegations of one named run, so a surface can say
+    whose they are rather than leaving a reader to guess which of four rows a
+    person started.
+    """
     query = select(AgentRun).where(AgentRun.organization_id == organization_id)
     count_query = select(func.count(AgentRun.id)).where(AgentRun.organization_id == organization_id)
     if agent_id is not None:
         query = query.where(AgentRun.agent_id == agent_id)
         count_query = count_query.where(AgentRun.agent_id == agent_id)
+    if parent_run_id is not None:
+        query = query.where(AgentRun.parent_run_id == parent_run_id)
+        count_query = count_query.where(AgentRun.parent_run_id == parent_run_id)
+    elif not include_delegations:
+        query = query.where(AgentRun.parent_run_id.is_(None))
+        count_query = count_query.where(AgentRun.parent_run_id.is_(None))
 
     query = query.order_by(AgentRun.started_at.desc().nullslast()).offset(skip).limit(limit)
     items = list((await db.execute(query)).scalars().all())

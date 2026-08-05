@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from app.schemas.base import BaseSchema
 
@@ -47,9 +47,35 @@ class AgentRunRead(BaseSchema):
         description=(
             "Which delegation produced this run, matching the task id the "
             "streamed `subagent_*` frames carry - so a delegation panel in a "
-            "chat and a row in run history can be shown to be the same thing."
+            "chat and a row in run history can be shown to be the same thing. "
+            "Null whenever `parent_run_id` is, because a handle with no "
+            "delegation left to reach is worse than no handle."
         ),
     )
+
+    @model_validator(mode="after")
+    def _no_delegation_handle_without_a_delegation(self) -> "AgentRunRead":
+        """Withhold the task id of a delegation that no longer has a parent.
+
+        `agent_runs.parent_run_id` is `ON DELETE SET NULL`, which is the right
+        arithmetic - deleting the parent removes the row that contained this
+        cost, so the orphan *should* start counting toward the organization's
+        bill - but the database nulls one column and leaves the other, so the
+        row becomes a top-level run still carrying a delegation handle. The
+        transcript that handle named went with the parent.
+
+        Dropped here rather than in the database, and rather than in each
+        reader. A trigger would be the only way to null the second column: the
+        parent is usually deleted by a cascade from its agent, with no
+        application code in the transaction to do it - and a trigger on every
+        insert into the hottest table in the schema is a permanent cost for a
+        case that happens when somebody deletes an agent. Every surface reads
+        this schema, so nulling it once here is the same guarantee for a tenth
+        of the weight. The stored value stays wrong and unread.
+        """
+        if self.parent_run_id is None:
+            self.subagent_task_id = None
+        return self
 
 
 class AgentRunList(BaseSchema):
