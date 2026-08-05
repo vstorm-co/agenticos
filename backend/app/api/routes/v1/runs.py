@@ -9,11 +9,10 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 
-from app.api.deps import AgentRunnerSvc, ApprovalSvc, Auth, DBSession, require
-from app.core.exceptions import NotFoundError, ValidationError
+from app.api.deps import AgentRunnerSvc, ApprovalSvc, Auth, require
+from app.core.exceptions import ValidationError
 from app.core.permissions import Perm
 from app.db.models.agent_run import RunStatus
-from app.repositories import agent_run_repo
 from app.schemas.agent import AgentRunResult
 from app.schemas.agent_run import (
     AgentRunList,
@@ -32,25 +31,35 @@ router = APIRouter()
 
 @router.get("/runs", response_model=AgentRunList, dependencies=[Depends(require(Perm.RUNS_VIEW))])
 async def list_runs(
-    db: DBSession,
+    service: AgentRunnerSvc,
     ctx: Auth,
     agent_id: UUID | None = Query(None),
     status: str | None = Query(
         None, description="Comma-separated run statuses, e.g. failed,budget_exceeded"
+    ),
+    parent_run_id: UUID | None = Query(
+        None, description="List one run's delegations instead of the top level"
+    ),
+    include_delegations: bool = Query(
+        False, description="Include delegated runs - what one agent itself did"
     ),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
     """Runs for the organization, newest first, optionally for one agent.
 
+    Top-level runs only by default - see the service for why a delegated row
+    and a run somebody started are never summed down one column.
+
     `status` takes a list because the operator's natural question is a set of
     outcomes - "what failed or ran out of budget" - not one status at a time.
     """
-    items, total = await agent_run_repo.list_runs(
-        db,
-        organization_id=ctx.organization_id,
+    items, total = await service.list_runs(
+        ctx,
         agent_id=agent_id,
         statuses=_parse_statuses(status),
+        parent_run_id=parent_run_id,
+        include_delegations=include_delegations,
         skip=skip,
         limit=limit,
     )
@@ -74,12 +83,9 @@ def _parse_statuses(raw: str | None) -> list[str] | None:
 @router.get(
     "/runs/{run_id}", response_model=AgentRunRead, dependencies=[Depends(require(Perm.RUNS_VIEW))]
 )
-async def get_run(run_id: UUID, db: DBSession, ctx: Auth) -> Any:
+async def get_run(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
     """One run. The step-by-step trace lives in Logfire under its trace id."""
-    run = await agent_run_repo.get_run(db, run_id, organization_id=ctx.organization_id)
-    if run is None:
-        raise NotFoundError(message="Run not found", details={"run_id": str(run_id)})
-    return run
+    return await service.get_run(ctx, run_id)
 
 
 @router.post(

@@ -48,6 +48,13 @@ SKIP_DIRS = {
     ".git",
     ".next",
     ".venv",
+    # A git worktree is another checkout of this repository, so scanning one
+    # reports every finding twice - and `SELF` only excludes *this* copy of this
+    # script, not the copies of it living under each worktree, each of which
+    # contains the literal double backticks in its own error message. So with any
+    # worktree checked out the hook fails on itself and nothing else can be
+    # committed. Found the hard way, with six worktrees open at once.
+    "worktrees",
     "__pycache__",
     "node_modules",
     "htmlcov",
@@ -117,9 +124,7 @@ def fix(path: Path) -> int:
 
     for number in offenders:
         index = number - 1
-        original[index] = PAIR.sub(
-            lambda match: f"`{match.group('body')}`", original[index]
-        )
+        original[index] = PAIR.sub(lambda match: f"`{match.group('body')}`", original[index])
 
     path.write_text("".join(original), encoding="utf-8")
     return len(offenders)
@@ -142,9 +147,7 @@ def walk(roots: list[Path]) -> Iterator[Path]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("paths", nargs="*", type=Path, default=[Path()])
-    parser.add_argument(
-        "--fix", action="store_true", help="rewrite them to single backticks"
-    )
+    parser.add_argument("--fix", action="store_true", help="rewrite them to single backticks")
     args = parser.parse_args()
 
     found = 0
@@ -166,9 +169,7 @@ def main() -> int:
         print(f"\nRewrote {found} line(s).")
         return 0
 
-    print(
-        f"\n{found} line(s) use ``double backticks``, which render literally. Run with --fix."
-    )
+    print(f"\n{found} line(s) use ``double backticks``, which render literally. Run with --fix.")
     return 1
 
 

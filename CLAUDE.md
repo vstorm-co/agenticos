@@ -117,20 +117,22 @@ silent. `.claude/README.md` lists all thirteen and explains the layout.
 ```bash
 make dev                                          # postgres, redis, api, worker, frontend
 make platform-bootstrap BOOTSTRAP_API_KEY=sk-...  # an org, an owner, a model, an agent
-make check                                        # what CI runs — before every PR
+make check                                        # every CI job but e2e — before every PR
 ```
 
 `make help` lists the rest. Day to day:
 
 | | |
 |---|---|
-| `make lint` / `make format` | ruff + ty + eslint + tsc + the i18n guard |
+| `make lint` / `make format` | ruff + ty + eslint + prettier + tsc + the two guards + codespell |
+| `make lint-backend` / `make lint-frontend` | one half of it — CI runs them in two jobs |
 | `make test-fast` | no coverage — the write-run-write loop |
 | `make test` | backend + the 100% gate on the platform layer |
 | `make test-integration` | only the tests needing a real database |
 | `make test-frontend` / `make test-frontend-cov` | vitest / vitest with the gate CI applies |
 | `make test-e2e` | Playwright — needs a backend and its seed |
 | `make test-migrations` | the whole chain forwards and back |
+| `make db-check` | `alembic check` — a model change with no migration fails here (in `make check`) |
 | `make db-migrate` / `make db-upgrade` | autogenerate / apply |
 | `make docs` / `make docs-build` | serve on :8001 (`DOCS_PORT=` to move it) / `--strict` |
 | `uv run agenticos cmd doctor` | can this deployment actually run an agent? |
@@ -153,7 +155,10 @@ cd backend  && uv run pytest tests/api/test_workspace_routes.py -k bytes -x
 Once before the push — not after every edit — run `make lint` and the coverage gate for
 the half you touched: `make test` or `make test-frontend-cov`. **`bun run test:run` does
 not measure coverage**, so a frontend suite where every test passes still fails the job;
-that is how `test-frontend` went red on `feat/sandbox` after a green local run. Then read
+that is how `test-frontend` went red on `feat/sandbox` after a green local run. Before
+the pull request, `make check` — every CI job except `e2e`, about five minutes, and
+`backend/tests/test_ci_parity.py` is what keeps that claim true rather than aspirational
+(#143 found four divergences at once). Then read
 the answer rather than guessing at it: `gh pr checks <n>`, and
 `gh run view --job <id> --log-failed` for whatever is red. `.claude/rules/testing.md` has
 the scoped commands and the traps; the pull request reviewer is under Git below, and it is
@@ -412,6 +417,13 @@ If the reviewer is wrong — and it is, sometimes; it does not always know what 
 file's surrounding code already does — say so in the commit body or the pull
 request, with the reason, rather than churning the code to silence it.
 
+`github-code-quality[bot]` opens threads on the same ruleset and cannot be
+filtered. Three of its findings are **already adjudicated** in
+`docs/code-review.md` — a bare `await <task>`, `...` as a `Protocol` body, and a
+`pytest.fail` fall-through. Resolve those with a pointer to that section; do not
+write a fresh essay per thread, and do not rewrite the cancellation idiom to
+satisfy a query that does not model `await`.
+
 ### A bug you find is a bug you file
 
 **Every defect found along the way gets a GitHub issue** — `gh issue create`,
@@ -429,3 +441,82 @@ An issue says what breaks, the sequence that triggers it, the `file:line`, and
 how you would know it was fixed. Say plainly whether the current branch caused
 it or merely found it — "pre-existing, found reviewing #105" is information the
 next reader needs. `#106` is the shape to copy.
+
+### File it triaged, not bare
+
+**An issue with no labels, no type, no project and no milestone is an issue
+somebody else has to triage by hand, and until they do it is invisible to every
+view the board is read through.** So set all five at creation. Guessing wrong is
+cheap and fixable; leaving them empty is what actually costs, because nothing
+surfaces the gap.
+
+```bash
+gh issue create --repo vstorm-co/agenticos \
+  --title "…" --body-file draft.md \
+  --label bug,severity:medium,effort:s \
+  --project VstormOS \
+  --milestone "W1 · Aug 3–7"
+```
+
+| | What to set, and how to choose |
+|---|---|
+| **Labels** | One kind (`bug`, `enhancement`, `documentation`, `dependencies`, `ci`, `meta`), plus `severity:*` on a bug, `effort:*` always, plus `frontend` / `security` where they apply. `gh label list` is the list; do not invent one. |
+| **Type** | `Bug`, `Feature` or `Task`. Needs GraphQL — see below. |
+| **Project** | `VstormOS` for anything in this repo. (`Vstorm OSS` is the cross-repo board; do not use it for issues here.) |
+| **Milestone** | The current week, unless the work genuinely belongs later. `gh api repos/vstorm-co/agenticos/milestones --jq '.[].title'` — never hardcode a week from an example, including this one. |
+| **Status** | The project's own field, defaulting to `Backlog`. Leave it there: `In progress` is a claim about somebody's day, not about the issue. |
+
+`gh` has **no `--type` flag** on `create` or `edit` (checked on 2.83.2), so the
+type is a second call. The ids are stable, and the REST ones are the wrong ones —
+GraphQL needs the global node id:
+
+```bash
+node=$(gh api repos/vstorm-co/agenticos/issues/N --jq .node_id)
+gh api graphql -f query='mutation($i:ID!,$t:ID!){
+  updateIssueIssueType(input:{issueId:$i,issueTypeId:$t}){issue{number issueType{name}}}}' \
+  -f i="$node" -f t="IT_kwDOBMvQGs4A22d_"   # Bug
+```
+
+`Task = IT_kwDOBMvQGs4A22d7` · `Bug = IT_kwDOBMvQGs4A22d_` ·
+`Feature = IT_kwDOBMvQGs4A22eD`. Re-derive with
+`gh api graphql -f query='{organization(login:"vstorm-co"){issueTypes(first:10){nodes{id name}}}}'`
+if a mutation answers `NOT_FOUND`.
+
+**Inherit from the issue you are working on.** Filing a defect found while
+working #40 is not filing into a vacuum: unless there is a reason to differ, take
+its milestone, its project and its `priority:*`, and reference it in the body —
+`Found reviewing #40` — so the two read as one thread of work rather than two
+unrelated rows a week apart. If the new issue *blocks* the one you are on, say so
+in both directions, because a blocker nobody can see from the blocked issue is a
+blocker that gets discovered by being hit.
+
+### And it says where it sits — [#168](https://github.com/vstorm-co/agenticos/issues/168)
+
+**#168 is the issue map**: what the clusters are, which chains block which, and
+what has no scope yet. Read it before filing and **name at least one existing
+issue in the body** — the cluster it belongs to, or the issue it most nearly
+duplicates. "Checked, nothing related" is a fine answer; silence is not, because
+an unlinked issue is one that gets worked twice or not at all.
+
+That is not hypothetical. Before the map: 17 open issues referenced nothing and
+were referenced by nothing; #13 and #30 were one bug filed twice, the second
+saying "the same URL normalisation as the avatar-proxy issue" without the
+number; #7 and #18 were one failure in two middlewares; #139 called itself the
+hub for "several page-level complaints" and named none of them; and five issues
+had **empty bodies**, which no amount of linking fixes.
+
+Filing changes the map, so **update #168 in the same breath** — add the number
+to its cluster, and to the spine if it blocks something. The graph is cheap to
+re-derive when in doubt:
+
+```bash
+gh issue list --state open --limit 300 --json number,title,body   # then grep '#[0-9]'
+```
+
+**Pass `--limit`.** It defaults to 30 and caps at 100 — under a hundred open
+issues that silently drops the lowest numbers, which is how #2 through #7 once
+read as closed and a blocker chain read as already done.
+
+An issue that closes a whole cluster says so (`Closes #147, #148`). One that
+only takes a checkbox out of a bag issue like #33 ticks the box there instead —
+that is how a batch issue stays honest about what is left.

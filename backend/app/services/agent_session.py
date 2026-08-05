@@ -14,7 +14,6 @@ from pydantic_ai import (
     PartDeltaEvent,
     PartStartEvent,
     TextPartDelta,
-    ToolCallPartDelta,
 )
 from pydantic_ai.messages import (
     TextPart,
@@ -22,7 +21,9 @@ from pydantic_ai.messages import (
     ThinkingPartDelta,
 )
 
+from app.agents.ask_user import QuestionItem, render_answer
 from app.agents.capabilities.budget import BudgetExceeded
+from app.agents.subagent_events import SubagentEvent
 from app.core.exceptions import AppException, AuthorizationError
 from app.db.models.chat_file import ChatFile
 from app.db.models.organization import Organization
@@ -68,6 +69,14 @@ class AgentSession:
         self.current_conversation_id: str | None = None
         self._turn_task: asyncio.Task[None] | None = None
         self._ask_user_future: asyncio.Future[list[dict[str, Any]]] | None = None
+        # One question round on the wire at a time. The client renders a single
+        # `ask_user` form and its `ask_user_response` carries no correlation, and
+        # `_ask_user_future` is one slot - so two delegates asking at once (a
+        # fan-out of sync delegates, each reaching `ask_parent`) would otherwise
+        # have the second overwrite the first's future and strand it. The lock
+        # holds each round until its answer arrives, so questions queue rather
+        # than collide.
+        self._ask_lock = asyncio.Lock()
 
     async def handle_frame(self, data: dict[str, Any]) -> None:
         """Dispatch one incoming WebSocket frame.
@@ -206,8 +215,9 @@ class AgentSession:
                     conversation_id=(
                         UUID(self.current_conversation_id) if self.current_conversation_id else None
                     ),
-                    ask_user=self._ask_user,
+                    ask_user=self._ask_one,
                     stream=stream,
+                    subagent_events=self._subagent_event,
                     # The chat may run a published agent on another of the
                     # organization's models. Only the model changes; the run
                     # records which one, and the budget is the agent's.
@@ -298,21 +308,63 @@ class AgentSession:
             logger.exception("Error processing agent request")
             await send_event(self.websocket, "error", {"message": str(e)})
 
+    async def _ask_one(self, question: str, options: list[str]) -> str:
+        """Put one question to the client and return the answer as a string.
+
+        The shape `AgentDeps.ask_user` promises, and what a delegate's `ask_parent`
+        calls. It adapts the one-question protocol to this surface's batch channel -
+        a list of one - so the WebSocket keeps a single wire format for one question
+        and several, and the delegate reads back the rendered answer.
+        """
+        item = QuestionItem(question=question, options=options)
+        answers = await self._ask_user([item.model_dump()])
+        return render_answer(answers[0] if answers else None)
+
     async def _ask_user(self, questions: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Pause the run: ask the client questions and block until they answer.
 
         Emits an `ask_user` event with the whole batch, then awaits a future the
         frame dispatcher completes when the matching `ask_user_response` arrives.
         The client returns a list of answers parallel to the questions.
+
+        Held under `_ask_lock` so a second round - another delegate's question -
+        waits for this one's answer rather than overwriting its future.
         """
-        loop = asyncio.get_running_loop()
-        fut: asyncio.Future[list[dict[str, Any]]] = loop.create_future()
-        self._ask_user_future = fut
-        try:
-            await send_event(self.websocket, "ask_user", {"questions": questions})
-            return await fut
-        finally:
-            self._ask_user_future = None
+        async with self._ask_lock:
+            loop = asyncio.get_running_loop()
+            fut: asyncio.Future[list[dict[str, Any]]] = loop.create_future()
+            self._ask_user_future = fut
+            try:
+                await send_event(self.websocket, "ask_user", {"questions": questions})
+                return await fut
+            finally:
+                self._ask_user_future = None
+
+    async def _subagent_event(self, event: SubagentEvent) -> None:
+        """Forward one frame from inside a delegation, under the frame's own name.
+
+        The wire `type` *is* the frame's `kind` rather than a name chosen here.
+        Two spellings of one frame - the literal in the union and a string in this
+        method - is a drift nothing would catch: the client would keep switching on
+        a case the server had stopped sending, and a delegation would simply not
+        appear. `kind` stays in the payload as well, so the client narrows the
+        object it already parsed instead of re-deriving the discriminator from the
+        envelope.
+
+        `cost_usd` is sent as a JSON number. Pydantic serialises a `Decimal` as a
+        string in JSON mode, and this wire already reports a turn's cost as a
+        number (see `usage_report.usage_frame`) - a delegation's share of that cost
+        is the same quantity and must not arrive in a different shape.
+
+        Nothing is awaited on the client's behalf: `send_event` answers `False` on
+        a closed socket rather than raising, so a background delegation whose
+        frames outlive the tab does not take the run down with it.
+        """
+        frame = event.model_dump(mode="json")
+        cost = frame.get("cost_usd")
+        if cost is not None:
+            frame["cost_usd"] = float(cost)
+        await send_event(self.websocket, event.kind, frame)
 
     async def _attached_files(self, file_ids: list[Any]) -> list[ChatFile]:
         """The rows for the files this frame attached.
@@ -348,7 +400,18 @@ class AgentSession:
                 await send_event(self.websocket, "call_tools_start", {})
                 async with node.stream(agent_run.ctx) as handle_stream:
                     await self._stream_tool_events(handle_stream, collected_tool_calls)
-            elif Agent.is_end_node(node) and agent_run.result is not None:
+            else:
+                # The end node, and the only kind left. Iterating an `AgentRun`
+                # yields a user-prompt, a model-request or a call-tools node, or
+                # `End` - `AgentRun._task_to_node` has no fourth answer, and the
+                # graph's one other node is reachable only through
+                # `agent_run.next()`, which this does not use. `End` also means
+                # the graph run holds its `EndMarker`, so `agent_run.result` is
+                # populated there. `is_end_node(node) and agent_run.result is not
+                # None` was therefore a condition that could not be false, and
+                # had it ever been it would have dropped the frame carrying the
+                # answer without saying anything. Whatever made it false now
+                # raises instead, and reaches the client as `error`.
                 await send_event(
                     self.websocket,
                     "final_result",
@@ -382,25 +445,34 @@ class AgentSession:
                         {"index": event.index, "content": event.part.content},
                     )
             elif isinstance(event, PartDeltaEvent):
-                if isinstance(event.delta, TextPartDelta):
+                delta = event.delta
+                if isinstance(delta, TextPartDelta):
                     await send_event(
                         self.websocket,
                         "text_delta",
-                        {"index": event.index, "content": event.delta.content_delta},
+                        {"index": event.index, "content": delta.content_delta},
                     )
-                elif isinstance(event.delta, ThinkingPartDelta):
-                    if event.delta.content_delta:
-                        collected_thinking.append(event.delta.content_delta)
+                elif isinstance(delta, ThinkingPartDelta):
+                    # Only when there is something to show. A reasoning delta can
+                    # carry a `signature_delta` alone - the provider's proof it
+                    # produced the reasoning - and forwarding that would put
+                    # base64 in the reasoning pane and in the stored trace.
+                    if delta.content_delta:
+                        collected_thinking.append(delta.content_delta)
                         await send_event(
                             self.websocket,
                             "thinking_delta",
-                            {"index": event.index, "content": event.delta.content_delta},
+                            {"index": event.index, "content": delta.content_delta},
                         )
-                elif isinstance(event.delta, ToolCallPartDelta):
+                else:
+                    # A tool-call delta, and the only kind left:
+                    # `ModelResponsePartDelta` is text, thinking or tool-call, so
+                    # an `isinstance` here was a third condition that could not be
+                    # false.
                     await send_event(
                         self.websocket,
                         "tool_call_delta",
-                        {"index": event.index, "args_delta": event.delta.args_delta},
+                        {"index": event.index, "args_delta": delta.args_delta},
                     )
             elif isinstance(event, FinalResultEvent):
                 await send_event(

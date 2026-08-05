@@ -21,6 +21,26 @@ export interface AgentRun {
   error: string | null;
   started_at: string | null;
   ended_at: string | null;
+  /**
+   * The run this one was delegated from, or null for a run somebody started.
+   *
+   * The two must not be read the same way. Every run shares one spend ledger,
+   * so a parent's `cost_usd` already contains its children's - a page that
+   * interleaves them has a cost column nobody can add up, next to a
+   * month-to-date figure that correctly counts the parent once. `GET /runs`
+   * therefore lists only top-level runs unless `parent_run_id` asks for one
+   * run's delegations, and this is how a row from that answer says so.
+   */
+  parent_run_id: string | null;
+  /**
+   * Which delegation produced this run - the `task_id` its `subagent_*` frames
+   * carried, so a panel in a transcript and a row here are visibly one thing.
+   *
+   * Null whenever `parent_run_id` is: deleting a parent orphans the child, and
+   * the backend withholds a handle whose transcript went with the parent rather
+   * than sending one that reaches nothing.
+   */
+  subagent_task_id: string | null;
 }
 
 export interface AgentRunList {
@@ -31,10 +51,28 @@ export interface AgentRunList {
 export interface ToolApproval {
   id: string;
   run_id: string;
+  /** Whose *run* this is - the agent the queue is scoped by, never who is acting. */
   agent_id: string;
   tool_id: string;
   /** Shown in full: approving a tool name without its arguments is a rubber stamp. */
   tool_args: Record<string, unknown>;
+  /**
+   * Which delegate is asking, when the call came from inside a delegation.
+   *
+   * Null means the run's own agent asked directly. A delegate's gated tool reaches
+   * the parent's approval channel, so without this the row says `send_email` and
+   * not who is sending it - and a queue of tool names with no actor is one people
+   * approve blind.
+   */
+  subagent_name: string | null;
+  /**
+   * That delegate's own agent, for a link to it.
+   *
+   * Null for an inline specialist, which is defined inside its parent's spec and has
+   * no agent of its own. So a name with no id is not a published agent, and must not
+   * be shown as one.
+   */
+  subagent_agent_id: string | null;
   status: "pending" | "approved" | "rejected" | "expired";
   decided_by_user_id: string | null;
   decided_at: string | null;

@@ -94,6 +94,60 @@ services, which in turn delegate to repositories.
 - Each connector provides `list_files()` and `download_file()`
 - Registered in `CONNECTOR_REGISTRY` for discovery at runtime
 
+## Agent runs: a capability never fetches
+
+The layering above has one more rule inside an agent run, and it is the reason the
+runner is as large as it is. **A capability does not touch the database.** Anything
+it needs from one — the collection names its spec binds, the skills it may load, the
+workspace it writes to, the delegates it may call — is resolved by the service
+*before* the run starts and handed over as `resources`, a dict the capability may
+read and cannot add to. What the model asks is *what* to search; it never learns
+*where*.
+
+Two entries in that dict are seams to other subsystems rather than plain data:
+
+| Resource | Left by the runner | Read by |
+|---|---|---|
+| `WORKSPACE_BACKEND_RESOURCE` | the opened sandbox session | the `sandbox` capability |
+| `SUBAGENT_RUNTIME_RESOURCE` | the resolved delegation tree | the `subagents` capability |
+
+Delegation is the sharpest case for the rule. A delegate is a row; so are its pinned
+version, its collections, its skills and its secrets, and every one of them has to
+pass `resolve_access` before it is read. So the runner walks the whole tree — the
+nesting, the depth bound, the refusal of a delegate already running above it in the
+same run — while it still holds a session and an auth context, and leaves behind
+closures that build an already-resolved agent plus a recorder that writes one row.
+What happens at run time is CPU work and Pydantic AI.
+
+It cannot be the other way round: the request's `AsyncSession` is shared by
+everything in the run and is not concurrency-safe, so a tree walked at run time
+would be a query from inside a tool call — and a fan-out would be several of them at
+once, which corrupts the session the rest of the request is using rather than merely
+being slow.
+
+The absence of a resource is never an error. A preview, a unit test or an agent
+whose delegates were all removed resolves nothing, and the capability then offers no
+delegates rather than raising — exactly as the workspace capability falls back to an
+in-memory backend.
+
+### Schema
+
+`0007_delegated_runs` adds two columns to `agent_runs`. `parent_run_id` is a
+self-referential foreign key saying which run delegated this one, and it is what
+keeps the organization's monthly total honest — see
+[Governance](governance.md#what-a-delegated-run-is-recorded-as). It is
+`ON DELETE SET NULL` for the same arithmetic: deleting the parent removes the row
+that contained this cost, so a delegation row that becomes top-level is one that
+*should* start counting, while cascading would delete the record of money that was
+spent. `subagent_task_id` is the delegation library's own task id, which is what
+joins the row to the handle the parent's model saw in its transcript — and because
+a foreign key can only null its own column, that handle outlives the delete and is
+withheld by `AgentRunRead` rather than nulled by a trigger on the hottest insert
+table in the schema. The index on `parent_run_id` serves
+`list_runs(parent_run_id=...)`, which is what `GET /runs?parent_run_id=` asks; see
+[Governance](governance.md#what-run-history-shows) for why run history never lists
+the two kinds of row together.
+
 ## Key Files
 
 - Entry point: `app/main.py`

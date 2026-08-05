@@ -1,12 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  addMonths,
-  inRange,
-  isSameOrAfterMonth,
-  monthGrid,
-  yearMonthOf,
-} from "./calendar";
+import { addMonths, inRange, isSameOrAfterMonth, monthGrid, yearMonthOf } from "./calendar";
 
 describe("monthGrid", () => {
   it("is always 42 cells, Monday-first", () => {

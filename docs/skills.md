@@ -65,7 +65,7 @@ give the agent skills, or leave the capability off.
 ## In a workspace, a skill is also files
 
 An agent that has both skills and a
-[workspace](reference/capabilities.md#files--shell) gets each skill written into
+[workspace](reference/capabilities.md#files-shell) gets each skill written into
 it as well:
 
 ```
@@ -167,3 +167,28 @@ compose — `skills` for the procedure, `knowledge` for the evidence.
 Skills are organization-scoped resources, governed like agents and collections:
 visibility plus per-row grants on top of the role. See
 [Permissions](permissions.md#layer-3-visibility-and-grants).
+
+**Binding a skill lends it.** Every run of the agent reads the body and the files,
+whoever ran it, so publishing an agent whose `skill_ids` name a skill requires the
+*publisher* to hold `skills:view` on that row — through `resolve_access`, so a grant
+counts and a member who was shared one skill can bind it without being promoted.
+A skill they cannot reach is refused as `Skill not found: <id>`, worded identically
+to an id that does not exist: skills are bound by UUID from the API and from a
+hand-edited draft, not only picked from the Builder's list, and a refusal that read
+differently would map the organization's private skills one guess at a time. The
+same check runs on an [inline specialist's](concepts.md#delegate-vs-inline-specialist)
+`skill_ids`, reported with the specialist's name.
+
+At run time nothing is re-checked: the frozen spec's skills are resolved inside the
+run's organization and handed to the agent. That is the rule collections and
+delegates already follow — [the reference is checked once, at
+publish](permissions.md#delegation-is-not-a-privilege-boundary) — and the
+alternative is worse in two specific ways. Every context with no subject (an API
+key, an embedded widget, a channel message) is refused by `resolve_access` by
+design, so a per-runner check would strip every skill from exactly those surfaces;
+and where there is a subject, one published version would give a member — whose role
+reaches shared skills only — thinner instructions than it gives a builder, with the
+difference visible nowhere.
+
+A skill deleted or disabled after publish is skipped with a warning rather than
+failing the run — the agent is less capable, not broken.

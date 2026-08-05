@@ -3,7 +3,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useApprovals, useRuns, useSpend } from "./use-runs";
+import { useApprovals, useDelegatedRuns, useRun, useRuns, useSpend } from "./use-runs";
 import { apiClient } from "@/lib/api-client";
 
 vi.mock("@/lib/api-client", () => ({
@@ -26,11 +26,17 @@ describe("useRuns", () => {
     expect(apiClient.get).toHaveBeenCalledWith("/runs", undefined);
   });
 
-  it("narrows to one agent when asked", async () => {
+  it("narrows to one agent, and counts what it did as a delegate", async () => {
+    // The per-agent question takes the opposite arithmetic to the bill: a
+    // delegate's rows are the only record of its own spend, so an agent that
+    // only ever runs as somebody's delegate would otherwise have no history at
+    // all beside a spend figure that is not zero.
     vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
     const { result } = renderHook(() => useRuns("a1"), { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(apiClient.get).toHaveBeenCalledWith("/runs", { params: { agent_id: "a1" } });
+    expect(apiClient.get).toHaveBeenCalledWith("/runs", {
+      params: { agent_id: "a1", include_delegations: "true" },
+    });
   });
 
   it("fetches nothing for a caller that is not ready to ask", () => {
@@ -49,6 +55,44 @@ describe("useRuns", () => {
 
     await waitFor(() => expect(result.current.error).toBeTruthy());
     expect(result.current.runs).toEqual([]);
+  });
+});
+
+describe("useRun", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("reads one run by id, because a delegated one is not in the list", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ id: "run-77" });
+    const { result } = renderHook(() => useRun("run-77"), { wrapper });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(apiClient.get).toHaveBeenCalledWith("/runs/run-77");
+    expect(result.current.run).toEqual({ id: "run-77" });
+  });
+
+  it("hands back the refusal rather than an absent run", async () => {
+    // "This run was deleted" and "the request was refused" are the same absence,
+    // and only one of them is the reader's problem.
+    vi.mocked(apiClient.get).mockRejectedValue(new Error("Missing required permission"));
+    const { result } = renderHook(() => useRun("run-77"), { wrapper });
+
+    await waitFor(() => expect(result.current.error).toBeTruthy());
+    expect(result.current.run).toBeUndefined();
+  });
+});
+
+describe("useDelegatedRuns", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("asks for one run's delegations by parent", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [{ id: "run-child" }], total: 1 });
+    const { result } = renderHook(() => useDelegatedRuns("run-parent"), { wrapper });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(apiClient.get).toHaveBeenCalledWith("/runs", {
+      params: { parent_run_id: "run-parent" },
+    });
+    expect(result.current.total).toBe(1);
   });
 });
 

@@ -261,6 +261,32 @@ the connection's name — so the frontend matches that prefix against the server
 caller can see and shows the server's own logo beside the step. A miss reads as the
 humanised tool name, which is what it read as before.
 
+**A delegation is a panel, not a pause.** When the agent hands work to
+[a delegate or a specialist](concepts.md#delegate-vs-inline-specialist), that
+delegation is a second agent's whole conversation happening inside one turn of the
+first — left alone it is a tool call named `task` that goes quiet for thirty seconds.
+So it streams into a panel of its own: which specialist is working, its text and its
+reasoning as they are generated, its *own* tool calls (which may reach a collection
+the parent cannot even see), and on close its status, its tokens and its share of the
+turn's cost. Every frame carries the delegation's task id and its depth, because a
+fan-out of three is three panels and interleaving three specialists into one
+paragraph is worse than not streaming at all — and an opening frame carries the task
+id of the delegation it was made *inside*, so a specialist that delegates further
+nests under the right panel rather than under whichever one started most recently.
+A child's text is never folded into the
+parent's answer: that would put words in the parent's mouth its own model never
+generated, and the conversation is persisted with them.
+
+A delegate can stop for a person too — a gated tool inside a specialist parks the
+whole turn in the approval queue. The panel then closes into a *waiting for a
+person* state rather than spinning on "working" for as long as the approver takes,
+and the delegation keeps the task id it parked under so its identity survives the
+resume rather than a second panel appearing beside the first. The resume itself
+runs over HTTP (`POST /runs/{id}/resume`), which carries no delegation frames, so
+the waiting panel is moved to the resumed run's own outcome — completed, failed or
+cancelled — from that answer; a resume that parks again on a fresh decision leaves
+it waiting.
+
 The assistant's answer is **not** in a bubble; only the person's message is. An answer
 is prose with headings, code and tables in it, and a rounded fill around that fights
 every one of them.
@@ -271,6 +297,23 @@ is the source language and `pl.json` holds only what has actually been translate
 English rather than the key. `make lint` runs `scripts/check_i18n.py`, which fails both
 ways: on copy left in a component, and on a key a component reads that the catalog does
 not hold.
+
+### A delegation on a surface that cannot show one
+
+Every other surface — Slack, Telegram, Mattermost, the REST API, a schedule — gets no
+delegation frames at all. The delegation still runs and is still recorded; it is
+simply not narrated, the same arrangement `ask_user` has.
+
+That default is load-bearing rather than convenient, and it is the one thing to know
+before adding a surface that wants the panels. **Attaching a handler to a delegation
+changes the transport, not just the observability**: the library drives each child
+through `iter()` and opens a *streamed* request for it. So a delegate whose model or
+provider cannot stream works perfectly from the API and stops working the moment
+somebody opens the chat window — the same published version, the same agent, failing
+on one surface. Which is why a handler is attached only where a sink exists, rather
+than unconditionally for the benefit of the one surface that draws them.
+`tests/test_subagents_library_contract.py` pins that property of the library, so a
+release that starts falling back to a plain request turns red and says so.
 
 ### Files
 

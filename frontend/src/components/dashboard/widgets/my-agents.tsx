@@ -29,9 +29,7 @@ export function MyAgentsWidget({ title, period, seeAll }: DashboardWidgetProps) 
     { from: period.from, to: period.to },
     { enabled: policy.showRunCounts },
   );
-  const runCounts = new Map(
-    (usage.usage?.by_agent ?? []).map((row) => [row.agent_id, row.runs]),
-  );
+  const runCounts = new Map((usage.usage?.by_agent ?? []).map((row) => [row.agent_id, row.runs]));
 
   const rows = filterAgentRows(agents, policy, userId).slice(0, 6);
 
@@ -53,9 +51,7 @@ export function MyAgentsWidget({ title, period, seeAll }: DashboardWidgetProps) 
                 className="border-border flex min-w-0 flex-col gap-1 rounded-lg border p-3"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-foreground truncate text-sm font-medium">
-                    {agent.name}
-                  </span>
+                  <span className="text-foreground truncate text-sm font-medium">{agent.name}</span>
                   <span
                     className={cn(
                       "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium",

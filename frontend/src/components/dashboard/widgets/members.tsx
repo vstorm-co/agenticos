@@ -29,10 +29,7 @@ export function MembersWidget({ title }: DashboardWidgetProps) {
   }
 
   return (
-    <WidgetFrame
-      title={title}
-      seeAll={activeOrgId ? ROUTES.ORG_MEMBERS(activeOrgId) : undefined}
-    >
+    <WidgetFrame title={title} seeAll={activeOrgId ? ROUTES.ORG_MEMBERS(activeOrgId) : undefined}>
       {isLoading ? (
         <WidgetSkeleton />
       ) : error ? (

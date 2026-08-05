@@ -32,7 +32,8 @@ export function BudgetHeadroomWidget({ title }: DashboardWidgetProps) {
   const organization =
     organizations.data?.find((candidate) => candidate.id === activeOrgId) ??
     organizations.data?.[0];
-  const cap = organization?.monthly_budget_usd != null ? Number(organization.monthly_budget_usd) : null;
+  const cap =
+    organization?.monthly_budget_usd != null ? Number(organization.monthly_budget_usd) : null;
   const used = Number(spend?.month_to_date_usd ?? 0);
 
   const perAgentUsed = new Map<string, number>();
@@ -44,7 +45,10 @@ export function BudgetHeadroomWidget({ title }: DashboardWidgetProps) {
   );
 
   return (
-    <WidgetFrame title={title} seeAll={organization ? ROUTES.ORG_SETTINGS(organization.id) : undefined}>
+    <WidgetFrame
+      title={title}
+      seeAll={organization ? ROUTES.ORG_SETTINGS(organization.id) : undefined}
+    >
       {isLoading || organizations.isLoading ? (
         <WidgetSkeleton />
       ) : error ? (

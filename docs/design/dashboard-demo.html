@@ -1248,9 +1248,9 @@ function calMonth(first, side) {
   const nav = side === "left"
     ? `<button class="cal-nav prev" aria-label="Previous month">‹</button>`
     : `<button class="cal-nav next" aria-label="Next month"${atNow ? " disabled" : ""}>›</button>`;
-  const dows = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].map((x) => `<span class="dow">${x}</span>`).join("");
+  const weekdays = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].map((x) => `<span class="dow">${x}</span>`).join("");
   const title = first.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
-  return `<div class="cal-month"><div class="cal-head">${nav}${title}</div><div class="cal-grid">${dows}${days}</div></div>`;
+  return `<div class="cal-month"><div class="cal-head">${nav}${title}</div><div class="cal-grid">${weekdays}${days}</div></div>`;
 }
 
 function retryWidget(id) {

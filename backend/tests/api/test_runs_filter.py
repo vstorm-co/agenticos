@@ -4,6 +4,10 @@ Asserted on what the repository is *asked for*, not on rendered rows: the
 filter's failure mode is silent - an ignored or half-applied predicate still
 answers 200 with plausible rows - so the test pins the predicate itself, and
 separately that an unknown status is refused instead of matching nothing.
+
+The patch point is the repository as `AgentRunnerService` sees it, because the
+route reaches run history through the service rather than the repository - the
+layering the rest of this codebase follows.
 """
 
 from __future__ import annotations
@@ -38,7 +42,7 @@ async def _client() -> AsyncIterator[AsyncClient]:
 
 async def test_a_status_list_reaches_the_repository_as_a_list(monkeypatch):
     list_runs = AsyncMock(return_value=([], 0))
-    monkeypatch.setattr("app.api.routes.v1.runs.agent_run_repo.list_runs", list_runs)
+    monkeypatch.setattr("app.services.agent_runner.agent_run_repo.list_runs", list_runs)
 
     async with _client() as client:
         resp = await client.get("/api/v1/runs", params={"status": "failed,budget_exceeded"})
@@ -49,7 +53,7 @@ async def test_a_status_list_reaches_the_repository_as_a_list(monkeypatch):
 
 async def test_no_status_param_means_no_status_predicate(monkeypatch):
     list_runs = AsyncMock(return_value=([], 0))
-    monkeypatch.setattr("app.api.routes.v1.runs.agent_run_repo.list_runs", list_runs)
+    monkeypatch.setattr("app.services.agent_runner.agent_run_repo.list_runs", list_runs)
 
     async with _client() as client:
         resp = await client.get("/api/v1/runs")
@@ -61,7 +65,7 @@ async def test_no_status_param_means_no_status_predicate(monkeypatch):
 async def test_an_unknown_status_is_refused_not_matched_against_nothing(monkeypatch):
     """`?status=falied` answering an empty 200 would read as "no failures"."""
     list_runs = AsyncMock(return_value=([], 0))
-    monkeypatch.setattr("app.api.routes.v1.runs.agent_run_repo.list_runs", list_runs)
+    monkeypatch.setattr("app.services.agent_runner.agent_run_repo.list_runs", list_runs)
 
     async with _client() as client:
         resp = await client.get("/api/v1/runs", params={"status": "failed,falied"})
@@ -73,10 +77,45 @@ async def test_an_unknown_status_is_refused_not_matched_against_nothing(monkeypa
 
 async def test_stray_commas_and_spaces_do_not_change_the_question(monkeypatch):
     list_runs = AsyncMock(return_value=([], 0))
-    monkeypatch.setattr("app.api.routes.v1.runs.agent_run_repo.list_runs", list_runs)
+    monkeypatch.setattr("app.services.agent_runner.agent_run_repo.list_runs", list_runs)
 
     async with _client() as client:
         resp = await client.get("/api/v1/runs", params={"status": " failed , ,budget_exceeded,"})
 
     assert resp.status_code == 200
     assert list_runs.call_args.kwargs["statuses"] == ["failed", "budget_exceeded"]
+
+
+async def test_the_status_filter_composes_with_the_delegation_default(monkeypatch):
+    """Two narrowings, not one replacing the other.
+
+    `?status=` and the top-level-only default answer different questions, and a
+    resolution that dropped either would look right: the failures page would
+    quietly include delegated rows whose parent is already listed as failed, or
+    the delegation default would swallow the status filter and show everything.
+    """
+    list_runs = AsyncMock(return_value=([], 0))
+    monkeypatch.setattr("app.services.agent_runner.agent_run_repo.list_runs", list_runs)
+
+    async with _client() as client:
+        resp = await client.get("/api/v1/runs", params={"status": "failed"})
+
+    assert resp.status_code == 200
+    kwargs = list_runs.call_args.kwargs
+    assert kwargs["statuses"] == ["failed"]
+    assert kwargs["include_delegations"] is False
+
+
+async def test_a_delegation_listing_can_still_be_narrowed_by_status(monkeypatch):
+    list_runs = AsyncMock(return_value=([], 0))
+    monkeypatch.setattr("app.services.agent_runner.agent_run_repo.list_runs", list_runs)
+
+    async with _client() as client:
+        resp = await client.get(
+            "/api/v1/runs", params={"status": "failed", "include_delegations": "true"}
+        )
+
+    assert resp.status_code == 200
+    kwargs = list_runs.call_args.kwargs
+    assert kwargs["statuses"] == ["failed"]
+    assert kwargs["include_delegations"] is True

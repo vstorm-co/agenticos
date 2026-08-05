@@ -429,6 +429,217 @@ class ModelSettingsSpec(BaseModel):
         }
 
 
+DelegationMode = Literal["sync", "async", "auto"]
+
+
+class SubagentRef(BaseModel):
+    """One published agent this agent may delegate to, pinned to a version.
+
+    Two ids rather than one, and the second is the whole point. A delegate is a
+    real agent - versioned, permission-checked at publish, with its own
+    capabilities, its own model and its own collections - and a reference that
+    named only the agent would let its behaviour change under a published parent
+    with nothing recording that anything had changed. Pinning means a fix to a
+    delegate reaches its callers when somebody says so, which is the same
+    guarantee publishing gives everywhere else in this product.
+
+    The cost of pinning is real and is paid in the Builder: a parent whose
+    delegate has moved on is stale, and staleness that nothing surfaces is a bug
+    frozen in place forever. The draft compares each pin against the delegate's
+    current version and offers to move it.
+
+    A pin whose version no longer exists **fails the run**, loudly, naming the
+    delegate. Never a quiet fall back to the current version: the reason to pin
+    is that nothing changes without a decision, and a silent upgrade is worse
+    than a refusal because nobody finds out.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    agent_id: UUID = Field(description="The delegate. Must be an agent the publisher may run.")
+    agent_version_id: UUID = Field(
+        description="Which published version of it, pinned at publish time",
+    )
+    preferred_mode: DelegationMode | None = Field(
+        default=None,
+        description=(
+            "Override the capability's mode for this delegate alone. A slow "
+            "specialist is the case: the parent can carry on while it works."
+        ),
+    )
+
+
+class SpecialistSpec(BaseModel):
+    """A specialist defined inside another agent, rather than published.
+
+    Worth having, and worth being honest about. A "summarise this in three
+    bullets" specialist should not require somebody to publish an agent, and this
+    is that: a name, a description the parent's model reads before delegating,
+    instructions, and - because a summariser that cannot read the collection is
+    useless - its own capabilities, collections and skills.
+
+    Which makes it an agent in every way except one, and the exception is the
+    important one: **a specialist is not versioned.** It has no version row, it
+    cannot be pinned, nothing else can reference it, and editing the parent
+    changes it. That is the difference between this and :class:`SubagentRef`, and
+    it is why the Builder must present them as two different things rather than
+    two tabs of one.
+
+    The risk this shape exists to contain is a second, parallel notion of
+    "agent" - one that publish validation does not walk and the permission model
+    cannot see. It is contained by refusing to write a second format: this is a
+    *typed subset of* :class:`AgentSpec`, using the same
+    :class:`CapabilityBindingSpec`, validated by the same recursive pass in
+    `validate_spec`, and assembled by the same `build_agent`. One spec type, one
+    validator, one builder, one Builder component, each used recursively. If any
+    of those five grows a second copy for specialists, the copy is the bug.
+
+    Deliberately absent, each because it only means something for a thing with a
+    version or an owner:
+
+    - `budget` - inside a delegation the *parent's* caps bind. Two budget guards
+      metering one shared ledger would double-count every request.
+    - `notifications` and `observability` - a specialist is not the subject of an
+      alert or a Logfire service; the run it happens inside is.
+    - `mcp_server_ids` - an MCP connection is organization-scoped configuration,
+      and reaching one through a specialist nobody published is the wrong door.
+      There is deliberately **no** route to one from here: `share_with_delegates`
+      lends *capability bindings*, and an MCP connection is not a capability, so
+      naming one there would configure nothing. A specialist that needs an
+      external tool is a specialist that should be a published agent.
+    - `subagents` - a specialist does not delegate further. Nesting is what
+      `max_depth` bounds, and it is bounded for published delegates, which are
+      reviewable.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(
+        min_length=1,
+        max_length=64,
+        pattern=r"^[a-zA-Z0-9_-]+$",
+        description=(
+            "How the parent's model addresses this specialist. Constrained to what "
+            "a tool argument can carry, because that is what it becomes."
+        ),
+    )
+    description: str = Field(
+        min_length=1,
+        max_length=1000,
+        description=(
+            "What the parent's model reads when deciding whether to delegate here. "
+            "The highest-leverage prompt in a delegation - 'researches a topic and "
+            "cites sources' gets used; 'helper' does not."
+        ),
+    )
+    instructions: str = Field(
+        min_length=1,
+        description="The specialist's system prompt. Its behaviour lives here, not in code.",
+    )
+    model_profile_id: UUID | None = Field(
+        default=None,
+        description="Which model profile it runs on; null runs it on the parent's",
+    )
+    model_settings: ModelSettingsSpec = Field(
+        default_factory=ModelSettingsSpec,
+        description="Per-specialist overrides on top of its profile",
+    )
+    capabilities: list[CapabilityBindingSpec] = Field(
+        default_factory=list,
+        description=(
+            "What this specialist can do. Validated exactly as the parent's are, "
+            "including scopes and secrets, so a specialist cannot be the quiet "
+            "route to a capability the organization has not granted."
+        ),
+    )
+    collection_ids: list[UUID] = Field(
+        default_factory=list,
+        description=(
+            "Knowledge collections it may search. Checked at publish against the "
+            "publisher's own access - a specialist is a tempting place to smuggle "
+            "in a collection nobody may read, precisely because it does not look "
+            "like an agent."
+        ),
+    )
+    skill_ids: list[UUID] = Field(
+        default_factory=list,
+        description=(
+            "Skills it may read. Checked at publish against the publisher's own "
+            "access, exactly as `collection_ids` is - a skill is know-how somebody "
+            "wrote, and a private one bound here would be read by every run."
+        ),
+    )
+    max_steps: int | None = Field(
+        default=None,
+        ge=1,
+        le=200,
+        description=(
+            "How many model requests this specialist may make per delegation. "
+            "Null uses the platform default. This is the only thing between a "
+            "delegation and a loop that delegates to a loop."
+        ),
+    )
+    preferred_mode: DelegationMode | None = Field(
+        default=None,
+        description="Override the capability's mode for this specialist alone",
+    )
+
+    @field_validator("capabilities")
+    @classmethod
+    def _ids_are_unique(
+        cls, capabilities: list[CapabilityBindingSpec]
+    ) -> list[CapabilityBindingSpec]:
+        """A capability bound twice would silently shadow itself.
+
+        The same rule as :class:`AgentSpec`, restated rather than shared, because
+        a `field_validator` is not inherited across unrelated models - and a
+        specialist that could bind `knowledge` twice would build one of the two
+        and give no indication which.
+        """
+        counts = Counter(capability.id for capability in capabilities)
+        duplicates = sorted(cap_id for cap_id, count in counts.items() if count > 1)
+        if duplicates:
+            raise ValueError(f"Capability bound more than once: {', '.join(duplicates)}")
+        return capabilities
+
+    def bindings(self) -> list[CapabilityBinding]:
+        """The specialist's capabilities as the registry consumes them."""
+        return [capability.to_binding() for capability in self.capabilities]
+
+    def to_agent_spec(self, *, fallback_model_profile_id: UUID | None) -> AgentSpec:
+        """This specialist as the spec the factory already knows how to build.
+
+        The one method that keeps "one spec type, one validator, one builder" true
+        rather than aspirational. A specialist is a subset of an agent, so the way
+        to build one is to say which agent it is and hand it to `build_agent` -
+        not to write a second assembly path that will drift from the first the
+        moment a field is added to either.
+
+        `fallback_model_profile_id` is the parent's, used when the specialist
+        names none: a specialist with no model of its own runs on the model of the
+        agent that called it, which is both the least surprising answer and the
+        only one that works when the parent is the only agent whose profile the
+        author chose.
+
+        The fields this drops are the ones :class:`SpecialistSpec` deliberately
+        does not have - budget, notifications, observability, MCP connections,
+        subagents - so they arrive at their `AgentSpec` defaults: no cap of its
+        own (the run's caps bind), no alerts of its own, no Logfire project of its
+        own, no connections, and no delegating further.
+        """
+        return AgentSpec(
+            name=self.name,
+            description=self.description,
+            instructions=self.instructions,
+            model_profile_id=self.model_profile_id or fallback_model_profile_id,
+            model_settings=self.model_settings,
+            capabilities=self.capabilities,
+            collection_ids=self.collection_ids,
+            skill_ids=self.skill_ids,
+            max_steps=self.max_steps,
+        )
+
+
 def _binding_id(binding: Any) -> Any:
     """The capability id of a binding, raw from JSON or already parsed."""
     return binding.get("id") if isinstance(binding, dict) else getattr(binding, "id", None)
@@ -490,13 +701,36 @@ class AgentSpec(BaseModel):
         default_factory=list,
         description="Knowledge collections this agent may search",
     )
-    skill_ids: list[UUID] = Field(default_factory=list)
+    skill_ids: list[UUID] = Field(
+        default_factory=list,
+        description=(
+            "Skills this agent may read. Checked at publish against the "
+            "publisher's own access: binding a skill hands its body and its files "
+            "to every run of the agent, so it can only lend what the publisher "
+            "could read themselves."
+        ),
+    )
     mcp_server_ids: list[UUID] = Field(
         default_factory=list,
         description=(
             "Organization-scoped MCP connections this agent may call. Personal "
             "connections are refused at publish: a published agent's reach cannot "
             "depend on whose session runs it."
+        ),
+    )
+
+    subagents: list[SubagentRef] = Field(
+        default_factory=list,
+        description=(
+            "Published agents this agent may delegate to, each pinned to a "
+            "version. Top level rather than inside the delegation capability's "
+            "config, for the same reason `collection_ids` and `mcp_server_ids` "
+            "are: a reference to another row in this organization is a property "
+            "of the agent, it is what publish validation walks, and it is what "
+            "makes the `agents:run` check on each one a sibling of the collection "
+            "check rather than something invented inside one capability. The "
+            "capability's own config then carries policy only - depth, fan-out, "
+            "mode, and the inline specialists, which are not references at all."
         ),
     )
 
@@ -575,6 +809,24 @@ class AgentSpec(BaseModel):
         if duplicates:
             raise ValueError(f"Capability bound more than once: {', '.join(duplicates)}")
         return capabilities
+
+    @field_validator("subagents")
+    @classmethod
+    def _one_pin_per_delegate(cls, subagents: list[SubagentRef]) -> list[SubagentRef]:
+        """The same agent cannot be delegated to twice.
+
+        Two pins of one agent are two delegates with one name - the delegate's
+        own, which is what the parent's model addresses it by - so the model
+        would have no way to say which it meant and the second would shadow the
+        first. Refused here rather than at publish because it needs nothing from
+        the database, so a hand-written YAML import is caught by the same rule as
+        the Builder.
+        """
+        counts = Counter(ref.agent_id for ref in subagents)
+        duplicates = sorted(str(agent_id) for agent_id, count in counts.items() if count > 1)
+        if duplicates:
+            raise ValueError(f"Agent delegated to more than once: {', '.join(duplicates)}")
+        return subagents
 
     def bindings(self) -> list[CapabilityBinding]:
         """The spec's capabilities as the registry consumes them."""

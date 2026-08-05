@@ -32,6 +32,7 @@ import json
 import logging
 import secrets
 from typing import Any
+from urllib.parse import parse_qs
 
 import httpx
 
@@ -50,6 +51,29 @@ logger = logging.getLogger(__name__)
 # Mattermost closes an idle socket; the client is expected to keep it warm.
 _PING_SECONDS = 30.0
 _HTTP_TIMEOUT = 20.0
+
+
+def decode_webhook_body(raw: str) -> dict[str, Any]:
+    """One outgoing-webhook body, whichever encoding the integration was given.
+
+    Mattermost sends JSON or `application/x-www-form-urlencoded` depending on
+    how the integration was set up, and the two halves of receiving one - the
+    token check below and the message itself - have to agree on which it was.
+    They did not. The token was found by trying JSON and falling back to a form
+    parse; the message was decoded from the declared Content-Type instead, so a
+    body whose header disagreed with its bytes authenticated and then parsed to
+    nothing. The webhook answered 200 and the message was never delivered.
+
+    Which is why the header is not consulted at all: what a body *is* settles
+    it, and a form body is never valid JSON. Anything neither reads as an empty
+    payload, which downstream takes as "no message here" - and no token can be
+    found in it, so this cannot widen what authenticates.
+    """
+    try:
+        parsed = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return {key: values[0] for key, values in parse_qs(raw).items()}
+    return parsed if isinstance(parsed, dict) else {}
 
 
 class MattermostAdapter(ChannelAdapter):
@@ -260,16 +284,8 @@ class MattermostAdapter(ChannelAdapter):
         """
         if not secret or not body:
             return False
-        try:
-            payload = json.loads(body)
-        except (json.JSONDecodeError, TypeError):
-            # Mattermost can also send `application/x-www-form-urlencoded`.
-            from urllib.parse import parse_qs
-
-            parsed = parse_qs(body)
-            token = (parsed.get("token") or [""])[0]
-        else:
-            token = str(payload.get("token", "")) if isinstance(payload, dict) else ""
+        payload = decode_webhook_body(body)
+        token = str(payload.get("token", ""))
         return bool(token) and secrets.compare_digest(token, secret)
 
     # --- normalising -------------------------------------------------------

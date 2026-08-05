@@ -209,6 +209,47 @@ in its own copy, because a permission that is wider than its subjects expect is
 only defensible if they can find that out. A narrower answer would be a
 permission of its own, not a quieter route.
 
+## Delegation is not a privilege boundary
+
+An agent can [delegate to another agent](concepts.md#delegate-vs-inline-specialist),
+and the authorization model for that is the one collections and MCP connections
+already follow: **the reference is checked once, when the parent is published, and
+the delegate then runs for everyone who can run the parent.**
+
+Concretely, publishing an agent that names a delegate requires the publisher to
+hold `AGENTS_RUN` on that delegate's row - through `resolve_access`, so an explicit
+grant counts and a Viewer who was shared one agent can pin it. At run time nothing
+is re-checked: the delegation acts as the same user, in the same organization, on
+the delegate's own published capabilities.
+
+That is deliberate, and the alternative is worse. Re-checking per caller would make
+one published agent work for one colleague and not another, on the same version,
+with the difference visible nowhere - and it would mean a support agent's answer
+depended on which of its delegates the *asker* happened to have been granted.
+Lending a delegate is lending what you hold, exactly as binding a collection is.
+
+!!! note "A refusal reads 'Agent not found'"
+
+    A missing row, another organization's row, and a row this publisher may not run
+    are reported identically and on purpose. A refusal that distinguished them
+    would map the organization's private agents one guess at a time.
+
+    The pinned *version* is checked to belong to the agent named, not merely to
+    exist: a version id from another agent is a cross-tenant read wearing a
+    valid-looking UUID.
+
+An inline specialist gets the same checks the parent's own bindings get - capability
+scopes, secret ownership, collection access, [skill access](skills.md#access), and
+its model profile if it names one - each reported with the specialist's name so a
+Builder form can point at the right input. A specialist is the tempting place to
+smuggle in a collection nobody shared, precisely because nobody thinks of it as an
+agent.
+
+The deployment-wide switch is separate, and it is a capability scope rather than a
+permission: `agents:delegate`. It answers "may agents call agents in this
+deployment at all", which no per-row check can. See
+[Scopes](reference/capabilities.md#scopes).
+
 ## Contexts with no subject
 
 `AuthContext.user_id` is optional, and that is a statement rather than a

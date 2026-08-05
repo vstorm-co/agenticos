@@ -35,7 +35,7 @@ export {
   useSandboxSessions,
 } from "./use-sandbox-connections";
 export { useSecrets, useSecretPurposes, kindInfo } from "./use-secrets";
-export { useApprovals, useRuns, useSpend } from "./use-runs";
+export { useApprovals, useDelegatedRuns, useRun, useRuns, useSpend } from "./use-runs";
 export {
   usePeopleUsage,
   useRatingsSummary,

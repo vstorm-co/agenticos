@@ -121,7 +121,8 @@ export function useAdminOrganizations(limit = 5, options?: { enabled?: boolean }
 export function useAdminRatingsSummary(options?: { enabled?: boolean }) {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.admin.ratings("summary"),
-    queryFn: () => apiClient.get<RatingSummary>("/admin/ratings/summary", { params: { days: "30" } }),
+    queryFn: () =>
+      apiClient.get<RatingSummary>("/admin/ratings/summary", { params: { days: "30" } }),
     enabled: options?.enabled ?? true,
   });
   return { summary: data ?? null, isLoading, error, refetch };

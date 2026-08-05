@@ -3,20 +3,23 @@
 Goal: 100% on both stacks, with as few exclusions as we can defend. This file is
 the running ledger - what is done, what is left, and how much of it there is.
 
-Two gates, and only one of them is in `make check`:
+Two gates, and both are in `make check`:
 
 | | Runs | Currently |
 |---|---|---|
 | Backend platform layer | `make test` / `make check` | **100%**, enforced |
 | Backend whole app | `make coverage-all` (informational) | **66%** - 4,538 of 14,814 statements uncovered |
-| Frontend, measured set | `bun run test:coverage` - **CI only** | **100%** statements, lines and functions; 98.7% branches, enforced |
+| Frontend, measured set | `make test-frontend-cov` / `make check` | **100%** statements, lines and functions; 97.5% branches, enforced |
 | Frontend, whole of `src` | informational | see the table below |
 
-`make check` runs `test:run`, not `test:coverage`. That is why the frontend gate
-sat red without anyone noticing; the thresholds are now **100/98/100/100** and the
-`include` list is what has *finished*, widened one layer at a time.
+`make check` ran `test:run`, not `test:coverage`, until #36 - which is why the
+frontend gate sat red without anyone noticing - and then ran the gate but not
+eslint, tsc, `next build`, the docs build or the dependency audit, until #143. It
+now runs every CI job except `e2e`, and `backend/tests/test_ci_parity.py` fails if
+that stops being true. The `include` list is what has *finished*, widened one layer
+at a time.
 
-Branches are gated at 98 rather than 100 for one reason: TypeScript-required
+Branches are gated below 100 for one reason: TypeScript-required
 guards whose other half no caller can reach - `event.target.files ?? []`,
 `pop() ?? "text"`, a `?? ""` on a value an early return already proved, a
 `typeof window === "undefined"` in a client module. Each is a narrowing, not a

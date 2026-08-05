@@ -285,8 +285,7 @@ describe("the steward's dashboard", () => {
 
     await waitFor(() => expect(callsTo("/stats/usage").length).toBeGreaterThan(0));
     const orgCalls = callsTo("/stats/usage").filter(
-      ([, options]) =>
-        (options as { params: Record<string, string> }).params.scope === "org",
+      ([, options]) => (options as { params: Record<string, string> }).params.scope === "org",
     );
     expect(orgCalls.length).toBeGreaterThan(0);
     expect(callsTo("/admin/stats")).toHaveLength(0);
@@ -419,8 +418,7 @@ describe("the member's dashboard", () => {
 
     await waitFor(() => expect(callsTo("/stats/usage").length).toBeGreaterThan(0));
     const named = callsTo("/stats/usage").filter(
-      ([, options]) =>
-        (options as { params: Record<string, string> }).params.group_by === "user",
+      ([, options]) => (options as { params: Record<string, string> }).params.group_by === "user",
     );
     expect(named).toHaveLength(0);
   });

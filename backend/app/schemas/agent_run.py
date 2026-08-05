@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from app.schemas.base import BaseSchema
 
@@ -32,6 +32,50 @@ class AgentRunRead(BaseSchema):
     error: str | None = None
     started_at: datetime | None = None
     ended_at: datetime | None = None
+    parent_run_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The run this one was delegated from, or null for a run somebody "
+            "started. Sent because otherwise nothing outside the database can "
+            "tell a delegated run from a top-level one, and the two must not be "
+            "read the same way: a parent's cost already contains its children's, "
+            "so a surface that sums a page of rows double-counts every delegation."
+        ),
+    )
+    subagent_task_id: str | None = Field(
+        default=None,
+        description=(
+            "Which delegation produced this run, matching the task id the "
+            "streamed `subagent_*` frames carry - so a delegation panel in a "
+            "chat and a row in run history can be shown to be the same thing. "
+            "Null whenever `parent_run_id` is, because a handle with no "
+            "delegation left to reach is worse than no handle."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def _no_delegation_handle_without_a_delegation(self) -> "AgentRunRead":
+        """Withhold the task id of a delegation that no longer has a parent.
+
+        `agent_runs.parent_run_id` is `ON DELETE SET NULL`, which is the right
+        arithmetic - deleting the parent removes the row that contained this
+        cost, so the orphan *should* start counting toward the organization's
+        bill - but the database nulls one column and leaves the other, so the
+        row becomes a top-level run still carrying a delegation handle. The
+        transcript that handle named went with the parent.
+
+        Dropped here rather than in the database, and rather than in each
+        reader. A trigger would be the only way to null the second column: the
+        parent is usually deleted by a cascade from its agent, with no
+        application code in the transaction to do it - and a trigger on every
+        insert into the hottest table in the schema is a permanent cost for a
+        case that happens when somebody deletes an agent. Every surface reads
+        this schema, so nulling it once here is the same guarantee for a tenth
+        of the weight. The stored value stays wrong and unread.
+        """
+        if self.parent_run_id is None:
+            self.subagent_task_id = None
+        return self
 
 
 class AgentRunList(BaseSchema):
@@ -47,6 +91,23 @@ class ApprovalRead(BaseSchema):
     agent_id: UUID
     tool_id: str
     tool_args: dict[str, Any]
+    subagent_name: str | None = Field(
+        default=None,
+        description=(
+            "Which delegate is asking, when the call came from inside a delegation. "
+            "Null means the agent whose run this is asked directly - `agent_id` "
+            "answers whose run, never who is acting. A queue that shows a tool name "
+            "with no actor is a queue people approve blind"
+        ),
+    )
+    subagent_agent_id: UUID | None = Field(
+        default=None,
+        description=(
+            "That delegate's own agent, for a link to it. Null for an inline "
+            "specialist, which is defined inside its parent's spec and has no agent "
+            "of its own"
+        ),
+    )
     status: str
     decided_by_user_id: UUID | None = None
     decided_at: datetime | None = None

@@ -1,12 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  LAYOUTS,
-  resolveAudience,
-  SPAN_CLASS,
-  visibleSections,
-  type AudienceId,
-} from "./layouts";
+import { LAYOUTS, resolveAudience, SPAN_CLASS, visibleSections, type AudienceId } from "./layouts";
 import { WIDGETS } from "./registry";
 import { Perm, type Permission } from "@/types/permissions";
 

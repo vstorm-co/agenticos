@@ -16,7 +16,12 @@ from app.repositories import (
     resource_grant_repo,
 )
 from app.repositories.rag_document import CollectionCounts
-from app.schemas.knowledge_base import KnowledgeBaseCreate, KnowledgeBaseUpdate
+from app.schemas.knowledge_base import (
+    KnowledgeBaseCreate,
+    KnowledgeBaseList,
+    KnowledgeBaseRead,
+    KnowledgeBaseUpdate,
+)
 from app.services.access import COLLECTION, visible_resource_ids
 from app.services.collection_access import readable_kb, writable_kb
 from app.services.embedding_resolution import EMBEDDING_KEY_PURPOSES
@@ -47,9 +52,44 @@ def _no_knowledge_base(kb_id: UUID) -> NotFoundError:
     return NotFoundError(message="Knowledge base not found", details={"kb_id": str(kb_id)})
 
 
+def _with_counts(kb: KnowledgeBase, counts: CollectionCounts | None) -> KnowledgeBaseRead:
+    """A collection as the listing shows it, contents included.
+
+    `counts` is `None` for a collection nothing has been written to - the group
+    query has no row to return for it - and the zeros that stands for are the
+    schema's own defaults.
+    """
+    read = KnowledgeBaseRead.model_validate(kb)
+    if counts is None:
+        return read
+    return read.model_copy(
+        update={
+            "document_count": counts.documents,
+            "indexed_count": counts.indexed,
+            "chunk_count": counts.chunks,
+        }
+    )
+
+
 class KnowledgeBaseService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
+
+    async def list_readable(
+        self, ctx: AuthContext, *, shared_with_me: bool = False
+    ) -> KnowledgeBaseList:
+        """The listing: the bases this caller may read, each with its contents.
+
+        The two halves below answer separate questions - which rows are in reach,
+        and what each one holds - and joining them is this method's whole job, so
+        the route never has to know that a listing takes two queries.
+        """
+        items = await self.list_accessible(ctx, shared_with_me=shared_with_me)
+        counts = await self.counts_for(items)
+        return KnowledgeBaseList(
+            items=[_with_counts(kb, counts.get(kb.collection_name)) for kb in items],
+            total=len(items),
+        )
 
     async def list_accessible(
         self, ctx: AuthContext, *, shared_with_me: bool = False

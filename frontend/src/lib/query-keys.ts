@@ -74,6 +74,10 @@ export const qk = {
     all: () => ["runs"] as const,
     list: (agentId?: string) => ["runs", "list", agentId ?? "all"] as const,
     detail: (id: string) => ["runs", id] as const,
+    // A separate key from `list`, because it is a separate question: `list`
+    // answers "the top level", this answers "what did this run delegate", and
+    // caching one as the other would show a run's children as the whole history.
+    delegations: (parentRunId: string) => ["runs", "list", "delegations", parentRunId] as const,
     approvals: () => ["runs", "approvals"] as const,
     spend: (days: number) => ["runs", "spend", days] as const,
     /** Failed or out-of-budget runs, for the dashboard's recent-failures card. */

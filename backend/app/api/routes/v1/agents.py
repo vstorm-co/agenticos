@@ -188,9 +188,15 @@ async def save_draft(
     response_model=None,
 )
 async def validate_draft(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) -> None:
-    """Check the draft without publishing - what the Builder calls as you type."""
+    """Check the draft without publishing - what the Builder calls as you type.
+
+    `agent_id` is passed on so the cycle check can see a delegation loop that
+    closes on *this* agent. Without it the Builder would call a draft valid and
+    publish would refuse it one round trip later, which is the worst place to
+    learn it: the person has already left the form.
+    """
     agent = await service.get(ctx, agent_id, perm=Perm.AGENTS_EDIT)
-    await service.validate_spec(ctx, AgentSpec.model_validate(agent.draft_spec))
+    await service.validate_spec(ctx, AgentSpec.model_validate(agent.draft_spec), agent_id=agent.id)
 
 
 @router.post(

@@ -17,7 +17,6 @@ from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 
 from app.api.deps import Auth, SkillSvc, require
 from app.core.permissions import Perm
-from app.db.models.skill import Skill
 from app.repositories.skill import SkillSort
 from app.schemas.skill import (
     LibrarySkillList,
@@ -30,32 +29,11 @@ from app.schemas.skill import (
     SkillResourceRead,
     SkillResourceSummary,
     SkillResourceUpdate,
-    SkillSummary,
     SkillUpdate,
 )
 from app.services import skill_library
-from app.services.skills import SUGGESTED_CATEGORIES
 
 router = APIRouter()
-
-
-def _summary(skill: Skill, bundled_names: frozenset[str]) -> SkillSummary:
-    """A skill as the listing shows it.
-
-    `built_in` is a name match against the shipped library because that is
-    all installing keeps: an install copies the folder into an ordinary row,
-    and the name - unique per organization, never editable - is the one trace
-    of where it came from.
-    """
-    return SkillSummary(
-        id=skill.id,
-        name=skill.name,
-        description=skill.description,
-        category=skill.category,
-        enabled=skill.enabled,
-        file_count=len(skill.resources),
-        built_in=skill.name in bundled_names,
-    )
 
 
 @router.get("", response_model=SkillList, dependencies=[Depends(require(Perm.SKILLS_VIEW))])
@@ -63,8 +41,6 @@ async def list_skills(
     service: SkillSvc,
     ctx: Auth,
     q: str | None = Query(None, max_length=100, description="Match on name or description"),
-    # Repeatable: `?category=devops&category=data` means "either shelf". One
-    # value keeps meaning what it always did.
     category: list[str] | None = Query(None, description="Exact categories to filter to"),
     sort: SkillSort = Query("name", description="`name` A-Z, or `updated` newest change first"),
     shared_with_me: bool = Query(
@@ -75,12 +51,10 @@ async def list_skills(
 ) -> Any:
     """Names and descriptions - the Builder's picker, not the bodies.
 
-    `total` is the count before paging, which is what a pager needs and a page
-    cannot supply. `categories` is the whole organization's, not the page's:
-    a filter chip that vanished with the page it filtered would strand whoever
-    pressed it.
+    Carries the whole organization's categories and the suggested ones
+    alongside the page, so the filters around it survive paging.
     """
-    items, total = await service.list_skills(
+    return await service.list_readable(
         ctx,
         shared_with_me=shared_with_me,
         search=q,
@@ -88,13 +62,6 @@ async def list_skills(
         sort=sort,
         skip=skip,
         limit=limit,
-    )
-    bundled_names = frozenset(entry.name for entry in skill_library.library())
-    return SkillList(
-        items=[_summary(skill, bundled_names) for skill in items],
-        total=total,
-        categories=await service.list_categories(ctx),
-        suggested_categories=list(SUGGESTED_CATEGORIES),
     )
 
 

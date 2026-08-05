@@ -35,17 +35,14 @@ export default function DashboardPage() {
   const t = useTranslations("dashboard");
   const { can, role, isAppAdmin, isLoading } = usePermissions();
   const searchParams = useSearchParams();
-  const [period, setPeriod] = useState<Period>(() =>
-    parsePeriodParam(searchParams.get("period")),
-  );
+  const [period, setPeriod] = useState<Period>(() => parsePeriodParam(searchParams.get("period")));
   const [sectionsParam, setSectionsParam] = useState<string | null>(() =>
     searchParams.get("sections"),
   );
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const organizations = useOrganizationList();
   const activeOrgName = useMemo(
-    () =>
-      organizations.data?.find((organization) => organization.id === activeOrgId)?.name ?? null,
+    () => organizations.data?.find((organization) => organization.id === activeOrgId)?.name ?? null,
     [organizations.data, activeOrgId],
   );
 

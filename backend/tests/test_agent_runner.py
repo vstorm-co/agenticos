@@ -6,7 +6,9 @@ failure, and a run parked on an approval can be picked up again - on the version
 it was parked on, with the spend it had already booked.
 """
 
+import asyncio
 import uuid
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
@@ -18,11 +20,19 @@ from pydantic_ai.usage import RequestUsage
 
 from app.agents.capabilities.approval import ApprovalGranted, ApprovalRejected
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope, SpendLedger
-from app.agents.spec import AgentSpec, ObservabilitySpec
-from app.core.exceptions import BadRequestError, NotFoundError
+from app.agents.spec import AgentSpec, CapabilityBindingSpec, ObservabilitySpec
+from app.agents.subagent_runtime import DelegationSpend, DelegationStash, ParkedDelegation
+from app.core.exceptions import BadRequestError, NotFoundError, RunExecutionError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import ApprovalStatus, RunStatus, RunSurface
-from app.services.agent_runner import AgentRunnerService, ApprovalChannel, month_start
+from app.services.agent_runner import (
+    AgentRunnerService,
+    ApprovalChannel,
+    ParkedApproval,
+    PausedRunState,
+    RecordedDelegation,
+    month_start,
+)
 from app.services.approvals import ApprovalService
 
 
@@ -34,6 +44,10 @@ def _db(monthly_budget_usd: Decimal | None = None):
     db = MagicMock()
     db.flush = AsyncMock()
     db.refresh = AsyncMock()
+    # `_run` commits its own terminal write rather than leaving it to the session
+    # context, because that exit rolls back on an exception and is skipped
+    # entirely by a cancellation.
+    db.commit = AsyncMock()
     # `db.get` is how the organization row - and with it the org-wide spending
     # cap the runner reads for every run - comes back. Uncapped by default,
     # which is what an organization that never opened the setting looks like.
@@ -47,6 +61,11 @@ def _prepared(ledger: SpendLedger | None = None):
     prepared.built = MagicMock()
     prepared.built.ledger = ledger or SpendLedger()
     prepared.approvals.parked = {}
+    # Real containers, not mocks: `finish` walks both to fold the delegation tree
+    # into whatever parked state the surface reported, and a `MagicMock` is not
+    # iterable. An agent that never delegated leaves them empty.
+    prepared.approvals.requested = []
+    prepared.stash = DelegationStash()
     return prepared
 
 
@@ -435,6 +454,68 @@ class TestSpendReporting:
         assert timedelta(days=7) <= looked_back < timedelta(days=7, seconds=30)
 
 
+class TestReadingRunHistory:
+    """The two reads behind the run-history surface, scoped in the service so
+    the route never touches the repository - and so the tenant boundary has one
+    home rather than two."""
+
+    @pytest.mark.anyio
+    async def test_listing_runs_scopes_to_the_callers_organization(self):
+        """A listing is read for the caller's org, never for all of them, and the
+        filter and page pass straight through."""
+        ctx = _ctx()
+        agent_id = uuid.uuid4()
+        rows = ([MagicMock(), MagicMock()], 2)
+
+        with patch(
+            "app.services.agent_runner.agent_run_repo.list_runs",
+            new=AsyncMock(return_value=rows),
+        ) as listed:
+            items, total = await AgentRunnerService(_db()).list_runs(
+                ctx, agent_id=agent_id, skip=10, limit=25
+            )
+
+        assert (items, total) == rows
+        assert listed.call_args.kwargs["organization_id"] == ctx.organization_id
+        assert listed.call_args.kwargs["agent_id"] == agent_id
+        assert listed.call_args.kwargs["skip"] == 10
+        assert listed.call_args.kwargs["limit"] == 25
+
+    @pytest.mark.anyio
+    async def test_getting_a_run_reads_it_within_the_callers_organization(self):
+        """The single read carries the org id so it can only ever return a row
+        the caller's organization owns."""
+        ctx = _ctx()
+        run_id = uuid.uuid4()
+        run = MagicMock(id=run_id)
+
+        with patch(
+            "app.services.agent_runner.agent_run_repo.get_run",
+            new=AsyncMock(return_value=run),
+        ) as fetched:
+            got = await AgentRunnerService(_db()).get_run(ctx, run_id)
+
+        assert got is run
+        assert fetched.call_args.args[1] == run_id
+        assert fetched.call_args.kwargs["organization_id"] == ctx.organization_id
+
+    @pytest.mark.anyio
+    async def test_a_run_in_another_organization_is_not_found(self):
+        """The repository filters on organization, so a foreign id returns no row
+        - and a tenant cannot tell a neighbour's run from one that never was."""
+        ctx = _ctx()
+        run_id = uuid.uuid4()
+
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.get_run",
+                new=AsyncMock(return_value=None),
+            ),
+            pytest.raises(NotFoundError),
+        ):
+            await AgentRunnerService(_db()).get_run(ctx, run_id)
+
+
 class TestWhatAParkedCallRecords:
     """Enough for a surface to put the decision in front of somebody.
 
@@ -446,9 +527,7 @@ class TestWhatAParkedCallRecords:
 
     @pytest.mark.anyio
     async def test_a_parked_call_records_the_row_the_decision_goes_against(self):
-        approval = MagicMock(id=uuid.uuid4())
         channel = ApprovalChannel(
-            approvals=MagicMock(request=AsyncMock(return_value=approval)),
             organization_id=uuid.uuid4(),
             agent_id=uuid.uuid4(),
             run_id=uuid.uuid4(),
@@ -459,8 +538,11 @@ class TestWhatAParkedCallRecords:
 
         await channel(request)
 
+        # The id is allocated here, not by the database: parking touches no session,
+        # so the row is written afterwards against this id (agenticos#169).
         [parked] = channel.requested
-        assert parked.approval_id == approval.id
+        assert isinstance(parked.approval_id, uuid.UUID)
+        assert channel.parked == {str(parked.approval_id): "tc-1"}
         # The model's own id as well as the row's: one addresses the decision, the
         # other addresses the card already on screen.
         assert parked.tool_call_id == "tc-1"
@@ -472,7 +554,6 @@ class TestWhatAParkedCallRecords:
         """A decision is consumed on use, so an approved call runs rather than
         parking again - and nothing is put back in front of anybody."""
         channel = ApprovalChannel(
-            approvals=MagicMock(request=AsyncMock()),
             organization_id=uuid.uuid4(),
             agent_id=uuid.uuid4(),
             run_id=uuid.uuid4(),
@@ -741,6 +822,121 @@ class TestRunAccounting:
         assert finish.call_args.kwargs["status"] == RunStatus.FAILED.value
 
 
+class TestStoppingANonStreamingRun:
+    """A cancelled run, through `execute`.
+
+    `asyncio.CancelledError` is a `BaseException`, so neither `except` clause in
+    `_run` sees it, and both halves of the accounting failed independently: the
+    status stayed at its initial `FAILED` with no error text, and the terminal
+    write was rolled back by a session exit that only commits on a clean one -
+    leaving the row `RUNNING` for ever, and the delegations underneath it
+    recorded nowhere.
+
+    The shape is `tests/test_agent_session.py::TestStoppingATurnMidDelegation`'s:
+    the ledger matters as much as the status, because a cancelled run that spent
+    two dollars and records zero is the hole cancellation opens.
+    """
+
+    @pytest.mark.anyio
+    async def test_a_cancelled_run_is_recorded_as_cancelled_with_what_it_spent(self):
+        """Cancelled is not failed, and the tokens spent up to here were spent.
+
+        Recorded as `FAILED` with `error=None` before the fix, which is precisely
+        the confusion `BUDGET_EXCEEDED` was given its own status to avoid: an
+        operator filtering run history for problems wades through runs that were
+        working correctly and were stopped.
+        """
+        db = _db()
+        service = AgentRunnerService(db)
+        ledger = SpendLedger()
+        ledger.record("gpt-4.1", RequestUsage(input_tokens=1_000_000), "openai")
+        prepared = _prepared(ledger)
+        prepared.built.agent.run = AsyncMock(side_effect=asyncio.CancelledError)
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()) as finish,
+            # Re-raised, not swallowed: whoever cancelled is entitled to see it
+            # happen, and a `CancelledError` absorbed here would leave the task
+            # that requested the stop waiting for one that never arrives.
+            pytest.raises(asyncio.CancelledError),
+        ):
+            await service.execute(_ctx(), uuid.uuid4(), "hello")
+
+        recorded = finish.call_args.kwargs
+        assert recorded["status"] == RunStatus.CANCELLED.value
+        assert recorded["error"] is None
+        assert recorded["cost_usd"] == Decimal("2.00")
+        # And it survives. `get_db_session` commits on a clean exit, which a
+        # propagating `BaseException` is not, so without this the row above was
+        # written and then rolled straight back.
+        db.commit.assert_awaited_once()
+
+    @pytest.mark.anyio
+    async def test_a_cancelled_run_keeps_the_delegation_rows_underneath_it(self):
+        """Same rollback, one level down.
+
+        A delegate's row is the only record of what that agent cost, so a
+        delegation that spent money and recorded nothing is a bill nobody can
+        explain. The rows go in after the parent's - they carry `parent_run_id` -
+        so the commit has to come after both, and this asserts the order rather
+        than only that each happened.
+        """
+        db = _db()
+        service = AgentRunnerService(db)
+        moment = datetime(2026, 8, 5, 9, 0, tzinfo=UTC)
+        delegation = RecordedDelegation(
+            id=uuid.uuid4(),
+            agent_id=uuid.uuid4(),
+            agent_version_id=uuid.uuid4(),
+            task_id="4f2a1b8c",
+            status=RunStatus.CANCELLED,
+            model_label="gpt-4.1",
+            provider="openai",
+            secret_id=uuid.uuid4(),
+            input_tokens=7,
+            output_tokens=3,
+            cost_usd=Decimal("2.00"),
+            cost_is_partial=False,
+            started_at=moment,
+            ended_at=moment,
+        )
+        prepared = _prepared()
+        prepared.delegations = [delegation]
+        prepared.built.agent.run = AsyncMock(side_effect=asyncio.CancelledError)
+
+        order: list[str] = []
+
+        def note(name: str) -> Callable[..., Awaitable[MagicMock]]:
+            async def call(*_args: Any, **_kwargs: Any) -> MagicMock:
+                order.append(name)
+                return MagicMock()
+
+            return call
+
+        db.commit = AsyncMock(side_effect=note("commit"))
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch(
+                "app.services.agent_runner.agent_run_repo.finish_run",
+                new=AsyncMock(side_effect=note("parent")),
+            ),
+            patch(
+                "app.services.agent_runner.agent_run_repo.record_delegated_run",
+                new=AsyncMock(side_effect=note("delegation")),
+            ) as write,
+            pytest.raises(asyncio.CancelledError),
+        ):
+            await service.execute(_ctx(), uuid.uuid4(), "hello")
+
+        assert order == ["parent", "delegation", "commit"]
+        written = write.await_args.kwargs
+        assert written["run_id"] == delegation.id
+        assert written["status"] == RunStatus.CANCELLED.value
+        assert written["cost_usd"] == Decimal("2.00")
+
+
 class TestApprovals:
     @pytest.mark.anyio
     async def test_deciding_records_the_arguments_that_were_authorised(self):
@@ -845,7 +1041,86 @@ class TestParking:
         assert recorded["paused_state"] == {
             "messages": [],
             "tool_call_ids": {"approval-1": "call-1"},
+            # A run that delegated nothing parks with an empty tree, which is what
+            # makes the older two-key payload above still resumable: every field
+            # added for delegation reads as "this run delegated nothing".
+            "delegated_approvals": {},
+            "delegations": [],
+            # And no kept specialists, which is a run that invented none - or, as
+            # here, one whose agent binds no delegation at all (agenticos#175).
+            "dynamic_specialists": [],
         }
+
+    @pytest.mark.anyio
+    async def test_the_delegation_tree_is_folded_in_without_the_surface_supplying_it(self):
+        """A surface reports its own position; the tree underneath is the runner's.
+
+        Both surfaces that park a run construct the state themselves, and a
+        delegation is a tool call named `task` that either answers or does not - so
+        neither can see what a delegate was in the middle of. Folding it in here is
+        the same reasoning as resolving the run's budget caps here: a thing every
+        surface has to remember is a thing the next surface will not, and this one
+        fails by answering a different question rather than by raising.
+        """
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.approvals.parked = {"approval-1": "the-delegates-call"}
+        prepared.approvals.requested = [
+            ParkedApproval(
+                approval_id=uuid.UUID(int=1),
+                tool_call_id="the-delegates-call",
+                tool_name="send_email",
+                tool_args={},
+                subagent="researcher",
+                task_id="4f2a1b8c",
+            )
+        ]
+        prepared.stash = DelegationStash(
+            parked=[
+                ParkedDelegation(
+                    tool_call_id="the-parents-task-call",
+                    task_id="4f2a1b8c",
+                    parent_task_id=None,
+                    subagent="researcher",
+                    agent_id=None,
+                    agent_version_id=None,
+                    child_run_id="a-child-run",
+                    messages=[{"kind": "request", "parts": []}],
+                    spent=DelegationSpend(
+                        cost_usd=Decimal("0.25"), input_tokens=7, output_tokens=3
+                    ),
+                    started_at=datetime(2026, 8, 5, 9, 0, tzinfo=UTC),
+                )
+            ]
+        )
+
+        with patch(
+            "app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()
+        ) as finish:
+            await service.finish(
+                prepared,
+                status=RunStatus.AWAITING_APPROVAL,
+                # Exactly what a streaming surface passes: its messages and its
+                # channel's parked calls, and nothing about the delegation.
+                paused_state=PausedRunState(messages=[], tool_call_ids={"approval-1": "x"}),
+            )
+
+        stored = finish.call_args.kwargs["paused_state"]
+        assert [frame["subagent"] for frame in stored["delegations"]] == ["researcher"]
+        assert stored["delegations"][0]["tool_call_id"] == "the-parents-task-call"
+        # And what the delegation had already cost, because the turn that continues
+        # it measures against a ledger of its own - so a frame without this leaves
+        # the child's run row holding the tail of the delegation and none of the
+        # work that led up to the approval.
+        assert stored["delegations"][0]["cost_usd"] == "0.25"
+        assert stored["delegations"][0]["input_tokens"] == 7
+        # And when the delegate first began, so the row written when it ends begins
+        # there rather than at the resume that settles it (agenticos#245).
+        assert stored["delegations"][0]["started_at"] == "2026-08-05T09:00:00Z"
+        # And which agent's replay each parked approval belongs to, which is what
+        # keeps a delegate's call out of the parent's continuation - Pydantic AI
+        # refuses a resume whose results name a call the replay does not contain.
+        assert stored["delegated_approvals"] == {str(uuid.UUID(int=1)): "4f2a1b8c"}
 
     @pytest.mark.anyio
     async def test_a_finished_run_stops_being_resumable(self):
@@ -1144,6 +1419,132 @@ class TestResume:
             await service.resume(_ctx(), run.id)
 
         assert status_when_replayed == [RunStatus.RUNNING.value]
+
+    @pytest.mark.anyio
+    async def test_a_run_whose_spec_no_longer_builds_is_still_resumable(self):
+        """A build that refuses must not spend the decision that got it there.
+
+        `claim_parked_run` only ever hands out a run that is still
+        `awaiting_approval`, so a run flipped to `running` by an attempt that then
+        failed to build is a run nobody can finish - carrying an approval a person
+        granted, and reporting nothing. The build therefore happens while the row
+        is still parked.
+
+        The failure here is the one that happens to real deployments: the secret a
+        binding names was deleted after the run parked, so the unsealed map no
+        longer holds it and the registry refuses rather than running the
+        capability without its key. What proves the run survived it is the second
+        attempt reaching the same refusal - not "this run is not waiting for
+        approval".
+        """
+        service = AgentRunnerService(_db())
+        approval = self._approval(status=ApprovalStatus.APPROVED.value, tool_args={})
+        run = _parked_run(
+            paused_state={"messages": [], "tool_call_ids": {str(approval.id): "call-1"}}
+        )
+        version = MagicMock()
+        version.spec = AgentSpec(
+            name="Researcher",
+            model_profile_id=uuid.uuid4(),
+            capabilities=[
+                CapabilityBindingSpec(
+                    id="web_research",
+                    config={"method": "tavily"},
+                    secret_id=uuid.uuid4(),
+                )
+            ],
+        ).model_dump(mode="json")
+
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                new=AsyncMock(return_value=run),
+            ),
+            patch(
+                "app.services.agent_runner.agent_run_repo.list_approvals_for_run",
+                new=AsyncMock(return_value=[approval]),
+            ),
+            patch(
+                "app.services.agent_runner.agent_repo.get_version",
+                new=AsyncMock(return_value=version),
+            ),
+            patch.object(service.registry, "get", new=AsyncMock(return_value=MagicMock())),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            # What a deleted secret looks like from here: the id resolves to
+            # nothing, which is exactly what `resolve_for_bindings` returns for a
+            # row that is gone.
+            patch.object(service.secrets, "resolve_for_bindings", new=AsyncMock(return_value={})),
+        ):
+            for _ in range(2):
+                with pytest.raises(BadRequestError, match="no longer has"):
+                    await service.resume(_ctx(), run.id)
+
+        assert run.status == RunStatus.AWAITING_APPROVAL.value
+
+    @pytest.mark.anyio
+    async def test_a_resume_whose_continuation_fails_records_the_status_and_conveys_it(self):
+        """The failure reaches the caller, and the recorded status travels with it.
+
+        The gap #262 fixes: when the continuation raises, `_run` records the run
+        `failed` and commits it, then re-raises - and the resume route used to let
+        that raw exception through with no status, so a web-chat surface (which
+        learns a delegate's outcome only from this HTTP answer) left an
+        `awaiting_approval` panel waiting on a decision already spent, on a run that
+        can no longer be resumed. `resume` now re-raises `RunExecutionError` carrying
+        the recorded status, while still surfacing the failure - the original
+        exception is chained, not swallowed.
+        """
+        service = AgentRunnerService(_db())
+        approval = self._approval(status=ApprovalStatus.APPROVED.value, tool_args={})
+        run = _parked_run(
+            paused_state={"messages": [], "tool_call_ids": {str(approval.id): "call-1"}}
+        )
+        built = self._built()
+        blew_up = RuntimeError("the tool the approval unblocked then failed")
+        built.agent.run = AsyncMock(side_effect=blew_up)
+
+        # The real `finish` runs; `finish_run` is the one call stubbed, and it stamps
+        # the terminal status onto the row the way the repository does - which is what
+        # makes `run.status` the recorded truth by the time `resume` reads it.
+        async def record_terminal_status(*args: Any, **kwargs: Any) -> Any:
+            run.status = kwargs["status"]
+            return run
+
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                new=AsyncMock(return_value=run),
+            ),
+            patch(
+                "app.services.agent_runner.agent_run_repo.list_approvals_for_run",
+                new=AsyncMock(return_value=[approval]),
+            ),
+            patch(
+                "app.services.agent_runner.agent_repo.get_version",
+                new=AsyncMock(return_value=self._version()),
+            ),
+            patch("app.services.agent_runner.build_agent", return_value=built),
+            patch(
+                "app.services.agent_runner.agent_run_repo.finish_run",
+                new=AsyncMock(side_effect=record_terminal_status),
+            ),
+            patch.object(service.registry, "get", new=AsyncMock(return_value=MagicMock())),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            pytest.raises(RunExecutionError) as raised,
+        ):
+            await service.resume(_ctx(), run.id)
+
+        # The run was recorded terminal, and the caller is told which status.
+        assert run.status == RunStatus.FAILED.value
+        assert raised.value.details == {"run_id": str(run.id), "status": RunStatus.FAILED.value}
+        # The failure is conveyed, not hidden: the original exception is chained.
+        assert raised.value.__cause__ is blew_up
 
 
 class TestWhoTheRunSaysItIs:

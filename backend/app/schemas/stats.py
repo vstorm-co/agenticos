@@ -5,6 +5,14 @@ window, so they share one query, one loading state and one failure instead of
 eight half-loaded answers drifting apart. Every block is a slice of the same
 set of runs, which is what keeps the numbers mutually consistent - the status
 counts sum to `total_runs` because they are the same rows counted twice.
+
+That set is **top-level runs only**: a delegated run's tokens are already
+inside its parent's row, so counting both would bill one run twice, and a
+delegated row copies its parent's `user_id` and `surface`, so counting both
+would also invent a second person and a second arrival. `by_agent` is the one
+block that departs from this and says why on
+:func:`app.repositories.agent_run.runs_by_agent`; its bars can therefore
+exceed `total_runs`, and nothing sums them.
 """
 
 from datetime import date, datetime

@@ -31,7 +31,10 @@ export function McpHealthWidget({ title, seeAll }: DashboardWidgetProps) {
           <StatusList
             rows={connections.map((connection) => ({
               label: connection.name,
-              sub: connection.last_status === "error" ? (connection.last_error ?? undefined) : undefined,
+              sub:
+                connection.last_status === "error"
+                  ? (connection.last_error ?? undefined)
+                  : undefined,
               pill:
                 connection.last_status === "error"
                   ? connection.last_checked_at

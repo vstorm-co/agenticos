@@ -53,7 +53,14 @@ class RunStatus(enum.StrEnum):
 
 
 class RunSurface(enum.StrEnum):
-    """Where a run came from. The same agent, many faces."""
+    """Where a run came from. The same agent, many faces.
+
+    A delegation is deliberately not one of them: a Slack mention that delegated
+    to a researcher is still Slack, and adding a member here would make "where
+    did this come from" and "was this delegated" the same column with room for
+    only one answer. `parent_run_id IS NOT NULL` is the second question, and it
+    is the one people actually ask.
+    """
 
     PLAYGROUND = "playground"
     WEB = "web"
@@ -124,6 +131,30 @@ class AgentRun(Base, TimestampMixin):
         ForeignKey("agent_environments.id", ondelete="SET NULL"),
         nullable=True,
     )
+
+    # The run this one was delegated from, and the delegation's own id inside it.
+    # Both null for a run somebody started, which is every run except a
+    # delegation to a published agent - an inline specialist has no agent to
+    # attribute a row to, so it gets none.
+    #
+    # `SET NULL`, not `CASCADE`, and the reason is arithmetic rather than
+    # sentiment. The parent's row already contains the delegation's tokens (one
+    # shared ledger per run), which is why the organization's monthly total
+    # counts only rows where this is null. Delete the parent and that containment
+    # is gone: the child's cost is no longer inside anything, and a row that
+    # becomes top-level is exactly what should start counting. Cascading would
+    # instead delete the record of money that was spent.
+    parent_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("agent_runs.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    # The task id the delegation library handed the parent's model, so a row
+    # joins to the handle the parent saw - `check_task('4f2a1b8c')` in a
+    # transcript and this row are then the same delegation rather than two
+    # things that look related.
+    subagent_task_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
     surface: Mapped[str] = mapped_column(String(16), nullable=False, default=RunSurface.WEB.value)
     status: Mapped[str] = mapped_column(
@@ -228,6 +259,31 @@ class ToolApproval(Base, TimestampMixin):
     tool_id: Mapped[str] = mapped_column(String(64), nullable=False)
     tool_args: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default="{}")
 
+    # Which delegate asked, when the ask came from inside a delegation. `agent_id`
+    # above is the agent whose *run* this is - the one the queue is scoped by and
+    # the one a budget alert names - so it answers "whose run" and not "who is
+    # acting". Both questions have to be answerable at once: a delegate's gated
+    # tool reaches the parent's approval channel, which is what makes a gated tool
+    # inside a delegate usable at all, and the row it writes would otherwise say
+    # `send_email` without saying who is sending it. A queue of tool names with no
+    # actor is a queue people approve blind.
+    #
+    # Null for the run's own agent, which is every approval on a run that did not
+    # delegate. `subagent_agent_id` is additionally null for an inline specialist:
+    # it is not versioned, nothing outside its parent's spec can reference it, and
+    # inventing an identity for it would create a second notion of "agent" the
+    # permission model cannot see. `subagent_name` is what a reviewer reads either
+    # way.
+    #
+    # SET NULL, not CASCADE: deleting the delegate must not delete the record of
+    # what somebody authorised it to do.
+    subagent_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    subagent_agent_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("agents.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default=ApprovalStatus.PENDING.value, index=True
     )
@@ -251,4 +307,5 @@ class ToolApproval(Base, TimestampMixin):
     )
 
     def __repr__(self) -> str:
-        return f"<ToolApproval({self.tool_id} on run {self.run_id}: {self.status})>"
+        actor = self.subagent_name or "the agent"
+        return f"<ToolApproval({self.tool_id} by {actor} on run {self.run_id}: {self.status})>"

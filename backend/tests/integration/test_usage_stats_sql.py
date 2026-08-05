@@ -800,3 +800,222 @@ class TestPersonRows:
         assert result.by_user is not None
         assert [(row.user_id, row.runs) for row in result.by_user] == [(owner.id, 1)]
         assert result.total_runs is None
+
+
+class TestDelegationsAndDoubleCounting:
+    """Which side of `include_delegations` each dashboard aggregate takes.
+
+    A delegated run's tokens are already inside its parent's row, so an
+    aggregate that counts both bills one run twice - the failure that is
+    invisible in a mocked test, because it is a property of the predicate and
+    not of the arithmetic above it.
+    """
+
+    async def _parent_and_child(
+        self, db, organization, agent, child_agent, *, user_id, cost, child_cost
+    ):
+        parent = await _run(
+            db,
+            organization=organization,
+            agent=agent,
+            started_at=START,
+            duration_seconds=10,
+            user_id=user_id,
+            cost=cost,
+        )
+        child = await _run(
+            db,
+            organization=organization,
+            agent=child_agent,
+            started_at=START,
+            duration_seconds=1,
+            user_id=user_id,
+            cost=child_cost,
+        )
+        child.parent_run_id = parent.id
+        await db.flush()
+        return parent, child
+
+    async def test_the_period_cost_does_not_bill_a_delegation_twice(self, db) -> None:
+        organization, owner = await _org_with_owner(db, "Billing")
+        agent = await _agent(db, organization, owner)
+        delegate = await _agent(db, organization, owner, slug="researcher")
+        await self._parent_and_child(
+            db,
+            organization,
+            agent,
+            delegate,
+            user_id=owner.id,
+            cost=Decimal("1.00"),
+            child_cost=Decimal("0.40"),
+        )
+
+        total = await agent_run_repo.sum_cost_window(
+            db, organization_id=organization.id, start=START, end=END
+        )
+        by_provider = await agent_run_repo.cost_by_provider_window(
+            db, organization_id=organization.id, start=START, end=END
+        )
+
+        # The parent's 1.00 already contains the child's 0.40.
+        assert total == Decimal("1.00")
+        assert sum(cost for _, cost in by_provider) == Decimal("1.00")
+
+    async def test_a_delegation_is_not_a_second_run_a_second_person_or_a_second_arrival(
+        self, db
+    ) -> None:
+        organization, owner = await _org_with_owner(db, "Counting")
+        agent = await _agent(db, organization, owner)
+        delegate = await _agent(db, organization, owner, slug="researcher")
+        await self._parent_and_child(
+            db,
+            organization,
+            agent,
+            delegate,
+            user_id=owner.id,
+            cost=Decimal("1.00"),
+            child_cost=Decimal("0.40"),
+        )
+
+        assert (
+            await agent_run_repo.count_runs(
+                db, organization_id=organization.id, start=START, end=END
+            )
+        ) == 1
+        assert (
+            await agent_run_repo.count_distinct_users(
+                db, organization_id=organization.id, start=START, end=END
+            )
+        ) == 1
+        surfaces = await agent_run_repo.runs_by_dimension(
+            db, organization_id=organization.id, start=START, end=END, dimension="surface"
+        )
+        assert surfaces == [(RunSurface.WEB.value, 1)]
+        people = await agent_run_repo.usage_by_user(
+            db, organization_id=organization.id, start=START, end=END, limit=10
+        )
+        assert [(row[0], row[3]) for row in people] == [(owner.id, 1)]
+
+    async def test_the_status_split_still_sums_to_the_total(self, db) -> None:
+        """The donut's invariant, which a half-applied filter would break."""
+        organization, owner = await _org_with_owner(db, "Donut")
+        agent = await _agent(db, organization, owner)
+        delegate = await _agent(db, organization, owner, slug="researcher")
+        await self._parent_and_child(
+            db,
+            organization,
+            agent,
+            delegate,
+            user_id=owner.id,
+            cost=Decimal("1.00"),
+            child_cost=Decimal("0.40"),
+        )
+
+        total = await agent_run_repo.count_runs(
+            db, organization_id=organization.id, start=START, end=END
+        )
+        statuses = await agent_run_repo.runs_by_dimension(
+            db, organization_id=organization.id, start=START, end=END, dimension="status"
+        )
+
+        assert sum(count for _, count in statuses) == total
+
+    async def test_latency_measures_what_the_person_waited_not_the_delegate(self, db) -> None:
+        organization, owner = await _org_with_owner(db, "Latency2")
+        agent = await _agent(db, organization, owner)
+        delegate = await _agent(db, organization, owner, slug="researcher")
+        await self._parent_and_child(
+            db,
+            organization,
+            agent,
+            delegate,
+            user_id=owner.id,
+            cost=Decimal("1.00"),
+            child_cost=Decimal("0.40"),
+        )
+
+        p50, _ = await agent_run_repo.latency_percentiles_ms(
+            db, organization_id=organization.id, start=START, end=END
+        )
+
+        # The parent's ten seconds, not a median pulled down by the child's one.
+        assert p50 == 10000.0
+
+    async def test_a_delegate_only_agent_is_not_reported_as_forgotten(self, db) -> None:
+        """The one block that counts delegations, and the reason it does.
+
+        Excluded, this agent has no row, and the adoption card names every
+        published agent without one as forgotten and offers to archive it.
+        """
+        organization, owner = await _org_with_owner(db, "Adoption")
+        agent = await _agent(db, organization, owner)
+        delegate = await _agent(db, organization, owner, slug="researcher")
+        await self._parent_and_child(
+            db,
+            organization,
+            agent,
+            delegate,
+            user_id=owner.id,
+            cost=Decimal("1.00"),
+            child_cost=Decimal("0.40"),
+        )
+
+        rows = await agent_run_repo.runs_by_agent(
+            db, organization_id=organization.id, start=START, end=END
+        )
+
+        assert {row[0] for row in rows} == {agent.id, delegate.id}
+
+    async def test_a_delegate_only_agent_can_still_compare_its_versions(self, db) -> None:
+        organization, owner = await _org_with_owner(db, "Versions2")
+        parent_agent = await _agent(db, organization, owner)
+        delegate = await _agent(db, organization, owner, slug="researcher")
+        version = AgentVersion(
+            id=uuid.uuid4(),
+            agent_id=delegate.id,
+            organization_id=organization.id,
+            version=1,
+            spec={"name": delegate.name},
+        )
+        db.add(version)
+        await db.flush()
+        _, child = await self._parent_and_child(
+            db,
+            organization,
+            parent_agent,
+            delegate,
+            user_id=owner.id,
+            cost=Decimal("1.00"),
+            child_cost=Decimal("0.40"),
+        )
+        child.agent_version_id = version.id
+        await db.flush()
+
+        rows = await agent_run_repo.usage_by_version(
+            db, organization_id=organization.id, agent_id=delegate.id, start=START, end=END
+        )
+
+        assert [(row[1], row[2]) for row in rows] == [(1, 1)]
+
+    async def test_a_deleted_parent_makes_its_child_count(self, db) -> None:
+        """`ondelete=SET NULL`: the cost is no longer inside anything."""
+        organization, owner = await _org_with_owner(db, "Orphaned")
+        agent = await _agent(db, organization, owner)
+        delegate = await _agent(db, organization, owner, slug="researcher")
+        parent, _ = await self._parent_and_child(
+            db,
+            organization,
+            agent,
+            delegate,
+            user_id=owner.id,
+            cost=Decimal("1.00"),
+            child_cost=Decimal("0.40"),
+        )
+
+        await db.delete(parent)
+        await db.flush()
+
+        total = await agent_run_repo.sum_cost_window(
+            db, organization_id=organization.id, start=START, end=END
+        )
+        assert total == Decimal("0.40")

@@ -58,7 +58,11 @@ export function FilterRow({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <div className="flex flex-wrap items-center gap-1" role="group" aria-label={t("period.label")}>
+      <div
+        className="flex flex-wrap items-center gap-1"
+        role="group"
+        aria-label={t("period.label")}
+      >
         {PERIOD_PRESETS.map((preset: PeriodPreset) => (
           <button
             key={preset}
@@ -88,9 +92,7 @@ export function FilterRow({
               )}
             >
               <CalendarRange className="size-3.5" aria-hidden />
-              {period.preset === "custom"
-                ? `${period.from} – ${period.to}`
-                : t("period.custom")}
+              {period.preset === "custom" ? `${period.from} – ${period.to}` : t("period.custom")}
             </button>
           </PopoverTrigger>
           <PopoverContent align="start" className="w-auto p-4">
@@ -114,8 +116,7 @@ export function FilterRow({
             {sections
               .filter((section) => section.titleKey !== null)
               .map((section) => {
-                const checked =
-                  selectedSections === null || selectedSections.includes(section.id);
+                const checked = selectedSections === null || selectedSections.includes(section.id);
                 return (
                   <DropdownMenuCheckboxItem
                     key={section.id}

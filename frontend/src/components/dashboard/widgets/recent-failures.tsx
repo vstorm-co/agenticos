@@ -38,7 +38,9 @@ export function RecentFailuresWidget({ title, seeAll }: DashboardWidgetProps) {
                   {names.get(run.agent_id) ?? t("unknownAgent")}
                 </span>
                 <span className="text-muted-foreground block truncate text-xs">
-                  {run.status === "budget_exceeded" ? t("budgetExceeded") : (run.error ?? t("failed"))}
+                  {run.status === "budget_exceeded"
+                    ? t("budgetExceeded")
+                    : (run.error ?? t("failed"))}
                   {run.started_at ? ` · ${timeAgo(run.started_at)}` : ""}
                 </span>
               </span>

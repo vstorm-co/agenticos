@@ -32,11 +32,15 @@ The backend needs a `VAULT_MASTER_KEY`. Without one it falls back to
 See [`CLAUDE.md`](CLAUDE.md#testing) for the full picture. The short version:
 
 ```bash
-make test           # backend, with the coverage gate
-make test-frontend  # vitest unit + integration
-make test-e2e       # playwright
-make check          # lint, format, types, everything
+make test               # backend, with the coverage gate
+make test-frontend      # vitest unit + integration, no coverage
+make test-frontend-cov  # the same, plus the gate CI applies
+make test-e2e           # playwright
+make check              # every CI job except e2e — run this before a pull request
 ```
+
+**`make test-frontend` measures no coverage, and the frontend's only gate is a
+coverage threshold.** It is the loop; `make check` is the answer.
 
 **The platform layer is held at 100% coverage** and CI enforces it. That means
 `app/agents/`, the permission catalog, the vault, and the services built on top.

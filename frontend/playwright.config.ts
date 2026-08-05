@@ -1,6 +1,36 @@
 import { defineConfig, devices } from "@playwright/test";
 
 /**
+ * The two ports the suite occupies, each derived from the environment so the
+ * suite can run beside another checkout that already holds the defaults.
+ *
+ * Derived rather than `setdefault`: `Number(process.env.X ?? default)` reads
+ * whatever is set and falls back only when nothing is — so `E2E_PORT=3100`
+ * moves the whole suite while an unset environment (CI, and `make test-e2e`
+ * with nothing exported) stays on the historical 3000/4010. A default that
+ * ignored an already-set value would leave CI on the fixed port with the new
+ * code never exercised there, which is the trap #189 named for the test
+ * database name.
+ *
+ * `E2E_STUB_MODEL_PORT` is read here *and* in `journey.spec.ts` and
+ * `delegation.spec.ts`, both with the same `?? 4010` default: the specs dial
+ * the stub through a model profile whose Endpoint is
+ * `http://127.0.0.1:${E2E_STUB_MODEL_PORT}/v1`, so the number the backend
+ * learns and the number the stub binds have to be the one value. Passing it
+ * into the stub's `webServer.env` below is what forbids them to disagree even
+ * if the config later chose the port itself.
+ *
+ * The stub binds loopback (`127.0.0.1`), and the backend reaches it by that
+ * address — so the backend has to share the host's loopback. That is the
+ * host-uvicorn path CI runs and `journey.spec.ts` needs; a backend in a
+ * container cannot reach `127.0.0.1:${E2E_STUB_MODEL_PORT}` and this file does
+ * not pretend otherwise. Moving the port does not change that.
+ */
+const FRONTEND_PORT = Number(process.env.E2E_PORT ?? 3000);
+const STUB_MODEL_PORT = Number(process.env.E2E_STUB_MODEL_PORT ?? 4010);
+const BASE_URL = `http://localhost:${FRONTEND_PORT}`;
+
+/**
  * Playwright E2E test configuration.
  *
  * See https://playwright.dev/docs/test-configuration.
@@ -43,12 +73,23 @@ export default defineConfig({
      */
     timeout: 15_000,
   },
-  /* Reporter to use. See https://playwright.dev/docs/test-reporters */
-  reporter: [["list"], ["html", { outputFolder: "playwright-report" }]],
+  /*
+   * Reporter to use. See https://playwright.dev/docs/test-reporters
+   *
+   * `fixture-reporter` is last so its banner is the final thing printed. It says
+   * one thing the other two cannot: that a red run was the `setup` or `seed`
+   * project, and that no product spec ran at all — which is what three separate
+   * branches spent a diagnosis each working out by hand (#132).
+   */
+  reporter: [
+    ["list"],
+    ["html", { outputFolder: "playwright-report" }],
+    ["./e2e/fixture-reporter.ts"],
+  ],
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
-    baseURL: process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3000",
+    baseURL: BASE_URL,
 
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: "on-first-retry",
@@ -124,7 +165,13 @@ export default defineConfig({
        * older checkout thought a model should say.
        */
       command: "bun run e2e/stub-model-server.ts",
-      url: "http://127.0.0.1:4010/health",
+      url: `http://127.0.0.1:${STUB_MODEL_PORT}/health`,
+      // Handed the port explicitly rather than left to inherit it: the server
+      // and the two specs that dial it read the same variable, so binding one
+      // port while the profile names another becomes impossible instead of a
+      // pair of silent `element(s) not found` failures in journey and
+      // delegation.
+      env: { E2E_STUB_MODEL_PORT: String(STUB_MODEL_PORT) },
       reuseExistingServer: false,
       timeout: 30 * 1000,
     },
@@ -144,7 +191,12 @@ export default defineConfig({
       // proxies to the backend, so a broken data layer would look like a frontend
       // that never started, and Playwright would report nothing at all instead of
       // the specs that failed.
-      url: "http://localhost:3000",
+      url: BASE_URL,
+      // Both commands read `PORT` - `next dev` when it is not given `-p`, and the
+      // standalone `server.js` always - so this one variable moves whichever one
+      // runs. The `dev` and `start` scripts dropped their hardcoded `-p 3000` for
+      // exactly this: the port lives here now, not in package.json.
+      env: { PORT: String(FRONTEND_PORT) },
       reuseExistingServer: !process.env.CI,
       timeout: 120 * 1000,
     },

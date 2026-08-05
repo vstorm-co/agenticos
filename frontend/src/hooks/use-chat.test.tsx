@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useChat } from "./use-chat";
+import { ApiError } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
 import {
   useAgentSelectionStore,
@@ -297,12 +298,23 @@ describe("useChat - the streamed answer", () => {
     expect(result.current.isProcessing).toBe(false);
   });
 
-  it("ignores the model lifecycle frames", () => {
-    // They exist for future status UI; today they must not open a message.
+  it("ignores the narration frames the server sends around every turn", () => {
+    // The six frames `agent_session.py` sends that this hook deliberately does not
+    // read. They must pass through without opening a message, because a turn that
+    // began with one of these would show an empty assistant bubble before the model
+    // said anything.
+    //
+    // This replaces a test that replayed `llm_started` and `llm_completed` - two
+    // frames no backend surface has ever sent. It passed, which was the problem: it
+    // made a `case` arm nothing could reach look covered and load-bearing.
     renderHook(() => useChat(), { wrapper });
 
-    receive("llm_started", {});
-    receive("llm_completed", {});
+    receive("user_prompt", { content: "How long?" });
+    receive("user_prompt_processed", { prompt: "How long?" });
+    receive("part_start", { index: 0, part_type: "TextPart" });
+    receive("call_tools_start", {});
+    receive("tool_call_delta", { index: 0, args_delta: '{"q":' });
+    receive("final_result_start", { tool_name: null });
 
     expect(useChatStore.getState().messages).toEqual([]);
   });
@@ -361,6 +373,197 @@ describe("useChat - failures and interruptions", () => {
     act(() => result.current.stopGeneration());
 
     expect(frame(0)).toEqual({ type: "stop" });
+  });
+});
+
+describe("useChat - streaming a delegation", () => {
+  /** A `subagent_start`, replayed the way the server sends one. */
+  function startDelegation(taskId: string, subagent = "researcher", mode = "sync"): void {
+    receive("subagent_start", {
+      kind: "subagent_start",
+      task_id: taskId,
+      subagent,
+      depth: 0,
+      mode,
+      prompt: "find three papers",
+      parent_task_id: null,
+    });
+  }
+
+  it("opens a panel per delegation and fills it from its own frames", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    startDelegation("t1");
+    receive("subagent_text_delta", {
+      kind: "subagent_text_delta",
+      task_id: "t1",
+      subagent: "researcher",
+      depth: 0,
+      delta: "found three",
+    });
+
+    expect(result.current.delegations).toHaveLength(1);
+    expect(result.current.delegations[0]).toMatchObject({
+      taskId: "t1",
+      subagent: "researcher",
+      status: "running",
+      text: "found three",
+    });
+  });
+
+  it("keeps a delegation's panel alive past the turn's own complete", () => {
+    // The bug this exists to prevent. A background delegation reports *after* the
+    // parent's answer, and `complete` is what clears the streaming message - so a
+    // panel hung off that message loses the last thing a specialist said, silently,
+    // in exactly the case the delegation was started for.
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    startDelegation("t1", "researcher", "async");
+
+    receive("complete", { conversation_id: null, usage: null });
+    receive("subagent_text_delta", {
+      kind: "subagent_text_delta",
+      task_id: "t1",
+      subagent: "researcher",
+      depth: 0,
+      delta: "the last word",
+    });
+    receive("subagent_complete", {
+      kind: "subagent_complete",
+      task_id: "t1",
+      subagent: "researcher",
+      depth: 0,
+      status: "completed",
+      run_id: null,
+      cost_usd: 0.0042,
+      input_tokens: 10,
+      output_tokens: 5,
+      error: null,
+    });
+
+    expect(result.current.delegations[0]).toMatchObject({
+      status: "completed",
+      text: "the last word",
+      costUsd: 0.0042,
+    });
+  });
+
+  it("closes a delegate's panel into a waiting state when it stops for a person", () => {
+    // A sync delegate that parks on an approval sends `subagent_awaiting_approval`
+    // and no `subagent_complete` until the person decides. The panel must stop
+    // reading "working" rather than spin for the length of the wait.
+    const { result } = renderHook(() => useChat(), { wrapper });
+    startDelegation("t1");
+
+    receive("subagent_awaiting_approval", {
+      kind: "subagent_awaiting_approval",
+      task_id: "t1",
+      subagent: "researcher",
+      depth: 0,
+    });
+
+    expect(result.current.delegations[0]?.status).toBe("awaiting_approval");
+  });
+
+  it("closes an unfinished delegation when the run was cancelled", () => {
+    // The cancelled path sends `stopped` (`AgentSession._run_turn`) and nothing
+    // more is coming, so a panel left running would spin forever. The frontend
+    // never read this field before.
+    const { result } = renderHook(() => useChat(), { wrapper });
+    startDelegation("t1");
+
+    receive("complete", { conversation_id: null, stopped: true });
+
+    expect(result.current.delegations[0]?.status).toBe("cancelled");
+  });
+
+  it("closes an unfinished delegation when the turn failed", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    startDelegation("t1");
+
+    receive("error", { message: "Budget exceeded" });
+
+    expect(result.current.delegations[0]?.status).toBe("cancelled");
+  });
+
+  it("closes an unfinished delegation when the person presses stop", () => {
+    // Optimistic on purpose: the server's `complete` may never arrive, because the
+    // socket can be what went away.
+    const { result } = renderHook(() => useChat(), { wrapper });
+    startDelegation("t1");
+
+    act(() => result.current.stopGeneration());
+
+    expect(result.current.delegations[0]?.status).toBe("cancelled");
+  });
+
+  it("replaces the previous turn's panels when the next message goes out", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    startDelegation("t1");
+    receive("complete", { conversation_id: null });
+
+    act(() => result.current.sendMessage("and now something else"));
+
+    expect(result.current.delegations).toEqual([]);
+  });
+
+  it("drops a frame for a delegation it has no panel for", () => {
+    // A background delegation of the previous turn reporting after the panels were
+    // replaced. A panel invented from a delta has no delegate name and no prompt.
+    const { result } = renderHook(() => useChat(), { wrapper });
+
+    receive("subagent_text_delta", {
+      kind: "subagent_text_delta",
+      task_id: "gone",
+      subagent: "researcher",
+      depth: 0,
+      delta: "nobody is listening",
+    });
+
+    expect(result.current.delegations).toEqual([]);
+  });
+
+  it("leaves the previous conversation's delegations behind when another is opened", () => {
+    // Sending a message was the only thing that cleared them, so completing a
+    // delegated turn in one conversation and then picking another from the sidebar
+    // drew that conversation's specialists, their briefs and their costs under a
+    // transcript they had nothing to do with.
+    useConversationStore.getState().setCurrentConversationId("c-a");
+    const { result } = renderHook(() => useChat(), { wrapper });
+    startDelegation("t1");
+    receive("complete", { conversation_id: null });
+    expect(result.current.delegations).toHaveLength(1);
+
+    act(() => {
+      useConversationStore.getState().setCurrentConversationId("c-b");
+    });
+
+    expect(result.current.delegations).toEqual([]);
+  });
+
+  it("keeps the panels of the turn that just learned its conversation id", () => {
+    // The first turn of a new thread is told the id by `conversation_created` while
+    // it is still streaming. That is this conversation being named, not another being
+    // opened, and clearing there would take the panels of the turn on screen.
+    const { result } = renderHook(() => useChat(), { wrapper });
+    startDelegation("t1");
+
+    receive("conversation_created", { conversation_id: "c-new" });
+
+    expect(result.current.delegations).toHaveLength(1);
+  });
+
+  it("leaves the previous tenant's delegations behind when the organization moves", () => {
+    useOrgStore.setState({ activeOrgId: "org-a" });
+    const { result, rerender } = renderHook(() => useChat(), { wrapper });
+    startDelegation("t1");
+    expect(result.current.delegations).toHaveLength(1);
+
+    act(() => {
+      useOrgStore.setState({ activeOrgId: "org-b" });
+    });
+    rerender();
+
+    expect(result.current.delegations).toEqual([]);
   });
 });
 
@@ -641,6 +844,145 @@ describe("useChat - approvals and questions", () => {
       .getState()
       .messages.filter((message) => message.role === "assistant");
     expect(answers.at(-1)?.content).toBe("Done - 3 rows deleted.");
+  });
+
+  it("closes a parked delegate's panel once the run is approved and resumes", async () => {
+    // The crux of agenticos#173. A sync delegate parks on an approval and its panel
+    // reads "waiting for approval". The resume runs over HTTP - no delegation frames
+    // reach this socket - so without reconciling the panel from its answer it would
+    // read "waiting" forever, under a transcript already showing the resumed reply.
+    post.mockImplementation((url: string) =>
+      url.endsWith("/resume")
+        ? Promise.resolve({ run_id: "r-9", output: "Sent.", status: "completed" })
+        : Promise.resolve({}),
+    );
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("subagent_start", {
+      kind: "subagent_start",
+      task_id: "t1",
+      subagent: "researcher",
+      depth: 0,
+      mode: "sync",
+      prompt: "send the summary",
+      parent_task_id: null,
+    });
+    receive("subagent_text_delta", {
+      kind: "subagent_text_delta",
+      task_id: "t1",
+      subagent: "researcher",
+      depth: 0,
+      delta: "drafting",
+    });
+    receive("subagent_awaiting_approval", {
+      kind: "subagent_awaiting_approval",
+      task_id: "t1",
+      subagent: "researcher",
+      depth: 0,
+    });
+    receive("tool_approval_required", {
+      run_id: "r-9",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "send_email", args: {} }],
+      review_configs: [],
+    });
+    expect(result.current.delegations[0]?.status).toBe("awaiting_approval");
+
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "approve" }]);
+    });
+
+    // Terminal now - and it still holds what it streamed before it parked.
+    expect(result.current.delegations[0]).toMatchObject({ status: "completed", text: "drafting" });
+  });
+
+  it("leaves a parked delegate waiting when the resume parks again", async () => {
+    // A continuation can stop on a fresh decision. The delegate is still waiting, so
+    // its panel must not be closed to a terminal state it has not reached.
+    post.mockImplementation((url: string) =>
+      url.endsWith("/resume")
+        ? Promise.resolve({ run_id: "r-9", output: "", status: "awaiting_approval" })
+        : Promise.resolve({}),
+    );
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("subagent_start", {
+      kind: "subagent_start",
+      task_id: "t1",
+      subagent: "researcher",
+      depth: 0,
+      mode: "sync",
+      prompt: "send the summary",
+      parent_task_id: null,
+    });
+    receive("subagent_awaiting_approval", {
+      kind: "subagent_awaiting_approval",
+      task_id: "t1",
+      subagent: "researcher",
+      depth: 0,
+    });
+    receive("tool_approval_required", {
+      run_id: "r-9",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "send_email", args: {} }],
+      review_configs: [],
+    });
+
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "approve" }]);
+    });
+
+    expect(result.current.delegations[0]?.status).toBe("awaiting_approval");
+  });
+
+  it("closes a parked delegate's panel when the resume's continuation fails", async () => {
+    // agenticos#262. The approval is granted and the continuation *raises*: the
+    // resume does not return, so there is no `status` to reconcile from - but the
+    // backend recorded the run `failed` and sent it in the error body. Without
+    // reading it, the panel reads "waiting for approval" forever, on a run that can
+    // no longer be resumed. It must close to `failed`, and the decided approval must
+    // not come back for a retry that would only 400.
+    post.mockImplementation((url: string) =>
+      url.endsWith("/resume")
+        ? Promise.reject(
+            new ApiError(500, "The run failed while continuing after approval", {
+              error: {
+                code: "RUN_EXECUTION_FAILED",
+                message: "The run failed while continuing after approval",
+                details: { run_id: "r-9", status: "failed" },
+              },
+            }),
+          )
+        : Promise.resolve({}),
+    );
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("subagent_start", {
+      kind: "subagent_start",
+      task_id: "t1",
+      subagent: "researcher",
+      depth: 0,
+      mode: "sync",
+      prompt: "send the summary",
+      parent_task_id: null,
+    });
+    receive("subagent_awaiting_approval", {
+      kind: "subagent_awaiting_approval",
+      task_id: "t1",
+      subagent: "researcher",
+      depth: 0,
+    });
+    receive("tool_approval_required", {
+      run_id: "r-9",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "send_email", args: {} }],
+      review_configs: [],
+    });
+    expect(result.current.delegations[0]?.status).toBe("awaiting_approval");
+
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "approve" }]);
+    });
+
+    expect(result.current.delegations[0]?.status).toBe("failed");
+    // Not restored: the run is terminal, so a retry cannot succeed.
+    expect(result.current.pendingApproval).toBeNull();
   });
 
   it("adds nothing when the resumed run answered with nothing", async () => {

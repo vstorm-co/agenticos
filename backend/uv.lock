@@ -9,7 +9,7 @@ resolution-markers = [
 
 [[package]]
 name = "agenticos"
-version = "0.0.6"
+version = "0.0.27"
 source = { editable = "." }
 dependencies = [
     { name = "aiogram" },
@@ -52,6 +52,7 @@ dependencies = [
     { name = "slack-sdk" },
     { name = "slowapi" },
     { name = "sqlalchemy", extra = ["asyncio"] },
+    { name = "subagents-pydantic-ai" },
     { name = "tabulate" },
     { name = "tavily-python" },
     { name = "tqdm" },
@@ -119,6 +120,7 @@ requires-dist = [
     { name = "slack-sdk", specifier = ">=3.35.0" },
     { name = "slowapi", specifier = ">=0.1.9" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.51" },
+    { name = "subagents-pydantic-ai", specifier = ">=0.2.18" },
     { name = "tabulate", specifier = ">=0.9.0" },
     { name = "tavily-python", specifier = ">=0.7.27" },
     { name = "tqdm", specifier = ">=4.70.0" },
@@ -4931,6 +4933,20 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/eb/e3/7c1dc7381d9f8ab7d854328ebfa884e62cb3f3d8549ddfd37c7814f42afa/starlette-1.3.1.tar.gz", hash = "sha256:05d0213193f2fbaae60e2ecb593b4add4262ad4e46536b54abe36f11a71724e0", size = 2703240, upload-time = "2026-06-12T09:23:11.602Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ec/bb/2799cc2ede3ed41131f8975621e7213dfc7ef4acbbaadfa440f32500c370/starlette-1.3.1-py3-none-any.whl", hash = "sha256:c7372aae11c3c3f26a42df7bd626cec2f47d03483d261d369516a615a53714c6", size = 73632, upload-time = "2026-06-12T09:23:10.017Z" },
+]
+
+[[package]]
+name = "subagents-pydantic-ai"
+version = "0.2.18"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pydantic" },
+    { name = "pydantic-ai-slim" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/26/1d/776ff26ca85ca659092a5cf47452577abefd22a794f49d5abcd04a3d9c28/subagents_pydantic_ai-0.2.18.tar.gz", hash = "sha256:5153bc2372f994d0f2b0ceec09b6b88fe08b8aa7990c3546f084b82a2157b1ac", size = 644494, upload-time = "2026-08-05T16:02:47.644Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ed/37/98e6305c56116f297f2c82ed175c06a5ad86b2805b300733e15da24405d0/subagents_pydantic_ai-0.2.18-py3-none-any.whl", hash = "sha256:82d1933b4f8aacc63a65f098768a39170882a675afe40450ca962d34141c480a", size = 82053, upload-time = "2026-08-05T16:02:46.343Z" },
 ]
 
 [[package]]

@@ -68,9 +68,21 @@ and a cost.
 
 A run that fails still records what it spent. A run that stops on its budget is
 recorded as `budget_exceeded` rather than `failed`, so an operator filtering for
-problems does not wade through the platform working correctly. A run that parks on
-an approval is `awaiting_approval` and is resumable - its message history is
-stored so the decision can be applied to the conversation it belongs to.
+problems does not wade through the platform working correctly. A run somebody
+stopped - the composer's stop button, a socket that went away, a delegation
+cancelled from above - is `cancelled` for the same reason, on every surface and
+not only the streaming one. A run that parks on an approval is
+`awaiting_approval` and is resumable - its message history is
+stored so the decision can be applied to the conversation it belongs to. A run that
+parks *inside a delegation* stores one level per agent, each with its own
+conversation, so approving continues the delegate that stopped rather than starting
+its work again.
+
+A run can also contain another run. When an agent delegates to a published agent,
+that delegation gets an `agent_runs` row of its own carrying `parent_run_id` - so
+"what did the researcher cost this month" has an answer - while both share one
+spend ledger. There is no `delegated` status, because how a run *ended* and how it
+*started* are two questions and `parent_run_id` answers the second.
 
 Run history filters on exactly this: `GET /runs` takes a comma-separated list of
 statuses (`?status=failed,budget_exceeded`), because the operator's question is
@@ -79,7 +91,7 @@ than silently matching nothing - an empty page must mean "no such runs".
 
 ---
 
-## Two more, because they are easy to confuse
+## Three more, because they are easy to confuse
 
 ### Capability vs tool
 
@@ -112,6 +124,65 @@ fragments. A skill costs nothing until it is opened and then returns the whole
 document.
 
 See [Skills](skills.md) for the format and the comparison in full.
+
+### Delegate vs inline specialist
+
+An agent can hand part of a job to another agent. There are two ways to say who
+that other agent is, they look alike in the Builder's own vocabulary, and almost
+everything that matters about delegation follows from which one you picked.
+
+A **delegate** is another published agent in the organization, referenced by
+`agent_id` *and* `agent_version_id` - pinned. It is addressed by its slug, the
+same handle a channel mention resolves.
+
+An **inline specialist** is defined inside the parent's own spec: a name, a
+description the parent's model reads before delegating, instructions, and - because
+a summariser that cannot read the collection is useless - its own model, its own
+capabilities, its own collections and skills, and its own step limit.
+
+Which makes a specialist an agent in every way except one, and it is worth being
+precise about which. Four things make something an agent here:
+
+| | A published delegate | An inline specialist |
+|---|---|---|
+| **Versioned** | yes - pinned, and a pin only moves when somebody moves it | **no** |
+| **Permission-checked at publish** | yes - `agents:run` on that row | yes - the same scope, secret, collection and skill checks the parent's own bindings get |
+| **Its own capabilities** | yes - its published spec's | yes - its own, plus what the parent shares |
+| **Metered and capped** | yes | yes - by the run's caps, which is [what binds inside any delegation](governance.md#delegation-spends-the-parents-budget) |
+
+**The missing one is the version**, and everything a specialist cannot do follows
+from it: nothing else can reference it, editing the parent changes it, it gets no
+run row of its own, and it cannot delegate further. A published delegate is
+reviewable and exportable; a specialist is a paragraph in somebody else's spec.
+
+So a specialist is for the work that should not require publishing an agent -
+"summarise this in three bullets" - and a delegate is for a capability the
+organization owns and reuses.
+
+!!! important "One notion of 'agent', used recursively"
+
+    The risk this shape exists to contain is a *second*, parallel notion of agent
+    - one that publish validation does not walk and the permission model cannot
+    see. A specialist would have been the obvious place for it: it does not look
+    like an agent, which is exactly why it is the tempting place to reach a
+    collection nobody shared or a capability nobody granted.
+
+    It is contained by refusing to write a second format. A specialist is a typed
+    *subset* of the spec, using the same capability bindings, checked by the same
+    recursive publish pass, and assembled by the same builder. One spec type, one
+    validator, one builder, one Builder component - each used recursively. If any
+    of those grows a second copy for specialists, the copy is the bug.
+
+**A pin fails loudly rather than drifting.** A delegate whose pinned version no
+longer exists fails the run and names the delegate; there is deliberately no fall
+back to its current version, because the reason to pin is that nothing changes
+without a decision and a silent upgrade is worse than a refusal - nobody finds
+out. The cost of that is paid in the Builder, which compares each pin against what
+the delegate publishes now and offers to move it.
+
+See the [`subagents` capability](reference/capabilities.md#delegation) for the
+ceilings and the tools, and [Permissions](permissions.md#delegation-is-not-a-privilege-boundary)
+for who may delegate to what.
 
 ---
 

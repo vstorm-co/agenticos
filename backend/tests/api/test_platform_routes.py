@@ -34,7 +34,7 @@ from httpx import ASGITransport, AsyncClient
 
 from app.api import deps
 from app.core.config import settings
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import NotFoundError, RunExecutionError
 from app.core.permissions import ROLE_PERMS, AuthContext, OrgRoleName, Perm, Scope
 from app.db.models.resource_grant import Visibility
 from app.main import app
@@ -751,6 +751,37 @@ class TestSharingRoutesRefuseWithoutAGrant:
         # Reading reports the row as missing rather than forbidden, so ids
         # cannot be probed; changing it is an outright refusal.
         assert response.status_code == (404 if method == "GET" else 403)
+
+
+class TestResumeConveysAFailedContinuation:
+    """A resume whose continuation raised is a 5xx that still names the run's status.
+
+    The service records the run terminal and re-raises `RunExecutionError` carrying
+    that status (agenticos#262). This proves the HTTP layer does not discard it: the
+    failure is a 500 - not swallowed into a success - and the recorded status rides
+    in the error envelope's `details`, which is the only place a web-chat surface can
+    read a delegate's outcome when the resume did not return.
+    """
+
+    async def test_a_failed_resume_answers_5xx_with_the_status_in_the_body(
+        self, as_role: ClientFactory, synthetic_roles: None
+    ) -> None:
+        run_id = uuid4()
+
+        class _Failing:
+            async def resume(self, *args: Any, **kwargs: Any) -> Any:
+                raise RunExecutionError(
+                    details={"run_id": str(run_id), "status": "failed"}
+                ) from RuntimeError("the tool the approval unblocked then failed")
+
+        overrides = {deps.get_agent_runner_service: lambda: _Failing()}
+        async with as_role(only(Perm.APPROVALS_DECIDE), overrides) as client:
+            response = await client.post(_url(f"/runs/{run_id}/resume"))
+
+        assert response.status_code == 500
+        body = response.json()
+        assert body["error"]["code"] == "RUN_EXECUTION_FAILED"
+        assert body["error"]["details"] == {"run_id": str(run_id), "status": "failed"}
 
 
 # -- the stats routes, whose gate is the scope parameter ----------------------

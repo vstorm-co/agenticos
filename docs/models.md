@@ -195,6 +195,25 @@ is why a keyless provider records none: there is no key to attribute it to. Cost
 is checked *before* each model request and recorded even when the run fails. See
 [Budgets](governance.md#budgets).
 
+### A delegation resolves its own profile
+
+One run can involve several models. A [delegate](concepts.md#delegate-vs-inline-specialist)
+runs on the profile *its own* spec names, resolved when the runner walks the
+delegation tree; an inline specialist that names none runs on the profile of the
+agent that called it, which is both the least surprising answer and the only one
+that works when the parent's is the only profile the author chose.
+
+Those requests are metered against the parent run's single ledger, but they are
+**priced per provider**: the delegate's guard shares the ledger, the caps and the
+month's baselines, and takes its own provider. Sharing the parent's outright would
+price an Anthropic delegate against OpenAI's catalog — silently, and usually as
+unpriced, which under-reports the run and flags a perfectly priceable one as a
+floor.
+
+The child run row a delegation writes names the model that answered it, so the cost
+dashboard groups a delegated turn under the model that actually ran rather than
+under the parent's.
+
 ## Setting one up
 
 The [first-agent walkthrough](first-agent.md) does this end to end. In short:

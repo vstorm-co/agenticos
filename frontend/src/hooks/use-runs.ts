@@ -5,17 +5,57 @@ import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import { getErrorMessage } from "@/lib/utils";
-import type { AgentRunList, ApprovalList, CostSummary, ToolApproval } from "@/types/runs";
+import type { AgentRun, AgentRunList, ApprovalList, CostSummary, ToolApproval } from "@/types/runs";
 
-/** Run history for the organization, or for one agent. */
+/**
+ * Run history for the organization, or for one agent.
+ *
+ * The two are different questions and take opposite arithmetic, which is why
+ * `agentId` changes more than a filter. Without one this is the organization's
+ * history and delegated rows are excluded, so the count agrees with a bill that
+ * charges a parent's run once. With one it is what *that agent* did, and its
+ * delegated rows are the only record of that - an agent which only ever runs as
+ * somebody's delegate would otherwise show an empty history beside a spend
+ * figure of forty dollars.
+ *
+ * One run's delegations are asked for by parent, with `useDelegatedRuns`.
+ */
 export function useRuns(agentId?: string, options?: { enabled?: boolean }) {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.runs.list(agentId),
     queryFn: () =>
-      apiClient.get<AgentRunList>("/runs", agentId ? { params: { agent_id: agentId } } : undefined),
+      apiClient.get<AgentRunList>(
+        "/runs",
+        agentId ? { params: { agent_id: agentId, include_delegations: "true" } } : undefined,
+      ),
     enabled: options?.enabled ?? true,
   });
   return { runs: data?.items ?? [], total: data?.total ?? 0, isLoading, error, refetch };
+}
+
+/**
+ * One run, by id - where a link from somewhere else lands.
+ *
+ * Fetched on its own rather than found in the list, because the run being asked
+ * about is usually a delegated one and the list deliberately does not contain
+ * those. `error` is returned because a run that is gone and a run the caller may
+ * not read are the same absence, and only one of them is the reader's problem.
+ */
+export function useRun(runId: string) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: qk.runs.detail(runId),
+    queryFn: () => apiClient.get<AgentRun>(`/runs/${runId}`),
+  });
+  return { run: data, isLoading, error };
+}
+
+/** What one run delegated - the rows the top-level list leaves out. */
+export function useDelegatedRuns(parentRunId: string) {
+  const { data, isLoading } = useQuery({
+    queryKey: qk.runs.delegations(parentRunId),
+    queryFn: () => apiClient.get<AgentRunList>("/runs", { params: { parent_run_id: parentRunId } }),
+  });
+  return { runs: data?.items ?? [], total: data?.total ?? 0, isLoading };
 }
 
 /**
@@ -44,7 +84,14 @@ export function useApprovals() {
     onError: (error) => toast.error(getErrorMessage(error)),
   });
 
-  return { approvals: data?.items ?? [], total: data?.total ?? 0, isLoading, error, refetch, decide };
+  return {
+    approvals: data?.items ?? [],
+    total: data?.total ?? 0,
+    isLoading,
+    error,
+    refetch,
+    decide,
+  };
 }
 
 /** Month-to-date spend plus a per-agent breakdown. */

@@ -25,6 +25,13 @@ cost a second place for every change to sit, so it was removed.
 | Stale approvals dismissed on a new push | Ruleset |
 | No force push, no deletion | Ruleset |
 | No commit made while standing on `main` | `no-commit-to-branch` in `.pre-commit-config.yaml` |
+| Spelling, across every tracked file | codespell — as a hook on the files a commit touches, and as `make lint-spelling` in CI's `lint` job over the whole tree |
+
+A hook only ever reads what a commit touches, which makes it a poor gate on its
+own: a misspelling that merges with its file sits there until somebody edits that
+file for an unrelated reason, and their commit is refused by a word they did not
+write. That is why the spelling check is in the table twice — the hook is the fast
+feedback, `make lint-spelling` is what keeps the claim true for the tree.
 
 The status checks are listed individually today. They should collapse into a
 single aggregating `All Checks Passed` job, so that adding a CI job stops meaning
@@ -91,3 +98,10 @@ a required check, so it cannot fail a build — but its findings are review
 threads, and the ruleset above requires those resolved. Replying is not enough —
 somebody has to mark the thread resolved before the merge button comes back. See
 [code-review.md](code-review.md).
+
+CodeQL's quality half opens threads on the same terms, as
+`github-code-quality[bot]`. It cannot be filtered by rule or by path — the only
+switch is off, for a whole language, which is not a trade worth making —
+so [code-review.md](code-review.md#codeql-and-the-findings-that-block-a-merge)
+lists the findings already adjudicated instead, and resolving one of those costs a
+click rather than an essay.

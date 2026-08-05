@@ -25,11 +25,7 @@ export function PlatformWidget({ title, seeAll }: DashboardWidgetProps) {
           {(
             [
               ["organizations", stats.total_organizations, null],
-              [
-                "users",
-                stats.total_users,
-                t("active24h", { count: stats.active_users_24h ?? 0 }),
-              ],
+              ["users", stats.total_users, t("active24h", { count: stats.active_users_24h ?? 0 })],
               ["agents", stats.total_agents, null],
               ["conversations", stats.total_conversations, null],
             ] as const

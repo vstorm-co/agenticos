@@ -53,11 +53,7 @@ describe("filterAgentRows", () => {
   });
 
   it("with agents:edit the caller's own rows stay", () => {
-    const rows = filterAgentRows(
-      [mine, shared],
-      myAgentsPolicy(holds(Perm.agentsEdit)),
-      ME,
-    );
+    const rows = filterAgentRows([mine, shared], myAgentsPolicy(holds(Perm.agentsEdit)), ME);
 
     expect(rows.map((row) => row.id)).toEqual(["a1", "a2"]);
   });

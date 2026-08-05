@@ -93,8 +93,4 @@ export {
 
 export { Pager, SearchInput, useDebounced, useListControls, PAGE_SIZE } from "./list-controls";
 
-export {
-  DateRangePicker,
-  type DateRange,
-  type DateRangePickerProps,
-} from "./date-range-picker";
+export { DateRangePicker, type DateRange, type DateRangePickerProps } from "./date-range-picker";

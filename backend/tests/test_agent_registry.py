@@ -114,6 +114,21 @@ def _agent(ctx: AuthContext, **overrides):
     return agent
 
 
+def _skill(ctx: AuthContext, *, owner_user_id=None):
+    """A private skill row in the caller's organization.
+
+    Owned by the caller unless `owner_user_id` says otherwise, so role scope
+    alone reaches it - and giving it away is how a test asks for a skill the
+    publisher can see the id of and nothing more.
+    """
+    return MagicMock(
+        id=uuid.uuid4(),
+        organization_id=ctx.organization_id,
+        owner_user_id=owner_user_id or ctx.user_id,
+        visibility=Visibility.PRIVATE.value,
+    )
+
+
 def _version(agent_id, *, number: int = 1, spec: AgentSpec | None = None):
     version = MagicMock()
     version.id = uuid.uuid4()
@@ -627,6 +642,7 @@ class TestValidateSpec:
     async def test_a_spec_whose_references_all_resolve_raises_nothing(self):
         ctx = _ctx()
         collection_id = uuid.uuid4()
+        skill = _skill(ctx)
 
         with (
             patch(
@@ -641,15 +657,109 @@ class TestValidateSpec:
                 f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_id",
                 new=AsyncMock(return_value=MagicMock()),
             ),
+            patch(
+                f"{REGISTRY_PATH}.skill_repo.get_many",
+                new=AsyncMock(return_value={skill.id: skill}),
+            ),
         ):
             await AgentRegistryService(_db()).validate_spec(
                 ctx,
                 _spec(
                     capabilities=[{"id": "clock"}, {"id": "knowledge"}],
                     collection_ids=[collection_id],
+                    skill_ids=[skill.id],
                     model_profile_id=uuid.uuid4(),
                     mcp_server_ids=[uuid.uuid4()],
                 ),
+            )
+
+
+class TestSkillValidation:
+    """Binding a skill lends it, so publish checks the publisher can read it.
+
+    A bound skill's body and files are handed to every run of the agent, and
+    skills are bound by UUID - from the API, or by hand-editing a draft - not only
+    picked from a list the Builder filtered. Without this check a member whose role
+    reaches only shared skills could bind a colleague's private one and read it
+    through the agent.
+    """
+
+    @staticmethod
+    async def _problems(ctx: AuthContext, spec: AgentSpec, **repos) -> list[str]:
+        """The problems publishing this spec reports, with the model resolving."""
+        with (
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            patch(f"{REGISTRY_PATH}.skill_repo.get_many", new=AsyncMock(**repos)),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await AgentRegistryService(_db()).validate_spec(ctx, spec)
+
+        assert refused.value.details is not None
+        problems: list[str] = refused.value.details["problems"]
+        return problems
+
+    @pytest.mark.anyio
+    async def test_a_skill_this_organization_does_not_have_is_not_found(self):
+        """Including another tenant's: the repository filters by organization, so
+        an id from elsewhere arrives here as an absence."""
+        skill_id = uuid.uuid4()
+
+        problems = await self._problems(
+            _ctx(),
+            _spec(skill_ids=[skill_id], model_profile_id=uuid.uuid4()),
+            return_value={},
+        )
+
+        assert problems == [f"Skill not found: {skill_id}"]
+
+    @pytest.mark.anyio
+    async def test_a_private_skill_the_publisher_cannot_reach_is_not_found(self):
+        """The leak this check closes, reported as an absence.
+
+        A member's role reaches shared skills only, so a colleague's private one
+        is refused - and told the same thing as an id that does not exist, because
+        a refusal that read differently would map the organization's private
+        skills one guess at a time.
+        """
+        ctx = _ctx(OrgRoleName.MEMBER)
+        private = _skill(ctx, owner_user_id=uuid.uuid4())
+
+        with patch(
+            "app.services.access.resource_grant_repo.get_level", new=AsyncMock(return_value=None)
+        ):
+            problems = await self._problems(
+                ctx,
+                _spec(skill_ids=[private.id], model_profile_id=uuid.uuid4()),
+                return_value={private.id: private},
+            )
+
+        assert problems == [f"Skill not found: {private.id}"]
+
+    @pytest.mark.anyio
+    async def test_a_grant_lets_a_member_bind_a_skill_they_do_not_own(self):
+        """A grant widens what a role allows, here as everywhere else."""
+        ctx = _ctx(OrgRoleName.MEMBER)
+        shared = _skill(ctx, owner_user_id=uuid.uuid4())
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.skill_repo.get_many",
+                new=AsyncMock(return_value={shared.id: shared}),
+            ),
+            patch(
+                "app.services.access.resource_grant_repo.get_level",
+                new=AsyncMock(return_value=GrantLevel.READ),
+            ),
+        ):
+            await AgentRegistryService(_db()).validate_spec(
+                ctx, _spec(skill_ids=[shared.id], model_profile_id=uuid.uuid4())
             )
 
 
