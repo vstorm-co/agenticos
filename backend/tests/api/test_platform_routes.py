@@ -782,6 +782,7 @@ class TestStatsScopeIsDecidedInTheService:
             ("cost_by_provider_window", []),
             ("count_distinct_users", 0),
             ("count_pending_approval_runs", 0),
+            ("usage_by_user", []),
         ):
             monkeypatch.setattr(
                 f"app.services.stats.agent_run_repo.{name}", AsyncMock(return_value=value)
@@ -844,6 +845,23 @@ class TestStatsScopeIsDecidedInTheService:
         """Zero rows is the honest answer for a viewer; 403 would be a lie."""
         async with as_role(OrgRoleName.VIEWER, self._service()) as client:
             response = await client.get(_url(path, "?scope=own"))
+
+        assert response.status_code == 200
+
+    async def test_naming_the_organizations_people_is_refused_without_runs_view(
+        self, synthetic_roles: None, stats_repos: None, as_role: ClientFactory
+    ) -> None:
+        """group_by=user is the one shape that answers with names, not counts."""
+        async with as_role(all_but(Perm.RUNS_VIEW), self._service()) as client:
+            response = await client.get(_url("/stats/usage", "?scope=org&group_by=user"))
+
+        assert response.status_code == 403
+
+    async def test_a_member_may_still_ask_the_person_table_about_themselves(
+        self, stats_repos: None, as_role: ClientFactory
+    ) -> None:
+        async with as_role(OrgRoleName.MEMBER, self._service()) as client:
+            response = await client.get(_url("/stats/usage", "?scope=own&group_by=user"))
 
         assert response.status_code == 200
 

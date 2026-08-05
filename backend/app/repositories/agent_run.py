@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, ToolApproval
 from app.db.models.organization_secret import OrganizationSecret
+from app.db.models.user import User
 
 
 async def create_run(
@@ -500,6 +501,48 @@ async def usage_by_version(
         )
         for row in result.all()
     ]
+
+
+async def usage_by_user(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    start: datetime,
+    end: datetime,
+    user_id: UUID | None = None,
+    limit: int,
+) -> list[tuple[UUID, str, str | None, int, Decimal, datetime]]:
+    """Per-person aggregates for the window, busiest first.
+
+    Returns (user_id, email, full_name, runs, cost_usd, last_run_at). The
+    inner JOIN drops runs with no user behind them - a channel message from
+    somebody with no account, or a run whose user was deleted - which is what
+    keeps this table consistent with `count_distinct_users`, since SQL's
+    COUNT(DISTINCT ...) ignores nulls the same way.
+
+    Ordered by runs, then by email so equal counts do not reshuffle between
+    two requests for the same window.
+    """
+    conditions = _window_conditions(
+        organization_id=organization_id, start=start, end=end, user_id=user_id
+    )
+    runs = func.count(AgentRun.id)
+    result = await db.execute(
+        select(
+            User.id,
+            User.email,
+            User.full_name,
+            runs,
+            func.coalesce(func.sum(AgentRun.cost_usd), 0),
+            func.max(AgentRun.started_at),
+        )
+        .join(User, User.id == AgentRun.user_id)
+        .where(*conditions)
+        .group_by(User.id, User.email, User.full_name)
+        .order_by(runs.desc(), User.email.asc())
+        .limit(limit)
+    )
+    return [(row[0], row[1], row[2], row[3], Decimal(row[4]), row[5]) for row in result.all()]
 
 
 async def count_pending_approval_runs(

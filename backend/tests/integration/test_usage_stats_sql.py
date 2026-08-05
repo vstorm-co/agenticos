@@ -674,3 +674,129 @@ class TestVersionRows:
         assert (row.version, row.runs, row.completed_runs) == (1, 1, 1)
         assert row.p95_ms == 2000
         assert (row.like_count, row.rating_count) == (0, 0)
+
+
+class TestPersonRows:
+    async def test_people_rank_by_runs_and_carry_what_they_cost(self, db) -> None:
+        organization, owner = await _org_with_owner(db, "People")
+        agent = await _agent(db, organization, owner)
+        busy, quiet = await _user(db), await _user(db)
+
+        for _ in range(3):
+            await _run(
+                db,
+                organization=organization,
+                agent=agent,
+                started_at=START,
+                user_id=busy.id,
+                cost=Decimal("1.50"),
+            )
+        await _run(
+            db,
+            organization=organization,
+            agent=agent,
+            started_at=START + timedelta(days=2),
+            user_id=quiet.id,
+            cost=Decimal("0.25"),
+        )
+
+        rows = await agent_run_repo.usage_by_user(
+            db, organization_id=organization.id, start=START, end=END, limit=10
+        )
+
+        assert [(row[0], row[3], row[4]) for row in rows] == [
+            (busy.id, 3, Decimal("4.50")),
+            (quiet.id, 1, Decimal("0.25")),
+        ]
+        assert rows[1][5] == START + timedelta(days=2)
+
+    async def test_a_run_with_nobody_behind_it_names_nobody(self, db) -> None:
+        """The same rows COUNT(DISTINCT user_id) skips - the two must agree."""
+        organization, owner = await _org_with_owner(db, "Anonymous")
+        agent = await _agent(db, organization, owner)
+        person = await _user(db)
+        await _run(db, organization=organization, agent=agent, started_at=START, user_id=person.id)
+        await _run(db, organization=organization, agent=agent, started_at=START, user_id=None)
+
+        rows = await agent_run_repo.usage_by_user(
+            db, organization_id=organization.id, start=START, end=END, limit=10
+        )
+        active = await agent_run_repo.count_distinct_users(
+            db, organization_id=organization.id, start=START, end=END
+        )
+
+        assert [row[0] for row in rows] == [person.id]
+        assert active == len(rows)
+
+    async def test_the_limit_keeps_the_busiest_not_an_arbitrary_page(self, db) -> None:
+        organization, owner = await _org_with_owner(db, "Limited")
+        agent = await _agent(db, organization, owner)
+        people = [await _user(db) for _ in range(4)]
+        for index, person in enumerate(people):
+            for _ in range(index + 1):
+                await _run(
+                    db,
+                    organization=organization,
+                    agent=agent,
+                    started_at=START,
+                    user_id=person.id,
+                )
+
+        rows = await agent_run_repo.usage_by_user(
+            db, organization_id=organization.id, start=START, end=END, limit=2
+        )
+
+        assert [(row[0], row[3]) for row in rows] == [(people[3].id, 4), (people[2].id, 3)]
+
+    async def test_another_organizations_people_are_not_named(self, db) -> None:
+        mine, my_owner = await _org_with_owner(db, "Mine")
+        theirs, their_owner = await _org_with_owner(db, "Theirs")
+        my_agent = await _agent(db, mine, my_owner)
+        their_agent = await _agent(db, theirs, their_owner)
+        shared_person = await _user(db)
+        await _run(
+            db, organization=mine, agent=my_agent, started_at=START, user_id=shared_person.id
+        )
+        for _ in range(9):
+            await _run(
+                db,
+                organization=theirs,
+                agent=their_agent,
+                started_at=START,
+                user_id=shared_person.id,
+            )
+
+        rows = await agent_run_repo.usage_by_user(
+            db, organization_id=mine.id, start=START, end=END, limit=10
+        )
+
+        assert [(row[0], row[3]) for row in rows] == [(shared_person.id, 1)]
+
+    async def test_own_scope_answers_with_the_callers_single_row(self, db) -> None:
+        organization, owner = await _org_with_owner(db, "OwnRow")
+        agent = await _agent(db, organization, owner)
+        someone_else = await _user(db)
+        await _run(db, organization=organization, agent=agent, started_at=START, user_id=owner.id)
+        for _ in range(5):
+            await _run(
+                db,
+                organization=organization,
+                agent=agent,
+                started_at=START,
+                user_id=someone_else.id,
+            )
+
+        ctx = AuthContext(
+            user_id=owner.id, organization_id=organization.id, role=OrgRoleName.MEMBER.value
+        )
+        result = await StatsService(db).usage_by_user(
+            ctx,
+            scope="own",
+            from_date=START.date(),
+            to_date=END.date() - timedelta(days=1),
+            limit=10,
+        )
+
+        assert result.by_user is not None
+        assert [(row.user_id, row.runs) for row in result.by_user] == [(owner.id, 1)]
+        assert result.total_runs is None

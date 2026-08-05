@@ -32,6 +32,7 @@ from app.schemas.stats import (
     DayCount,
     LatencyMs,
     ModelCount,
+    PersonUsageRow,
     ProviderCost,
     ScopedRatingSummary,
     StatusCount,
@@ -316,6 +317,54 @@ class StatsService:
             scope=scope,
             agent_id=agent_id,
             by_version=by_version,
+        )
+
+    async def usage_by_user(
+        self,
+        ctx: AuthContext,
+        *,
+        scope: UsageScope = "org",
+        from_date: date | None = None,
+        to_date: date | None = None,
+        limit: int,
+    ) -> UsageStats:
+        """Per-person rows for the window - the who-is-using-it card's answer.
+
+        Named people, so the scope rule earns its keep here more than
+        anywhere else on this endpoint: `scope=org` is refused without
+        runs:view, and `scope=own` narrows to the caller, which answers with
+        their own single row rather than with everybody's.
+
+        Fills only the envelope and `by_user`, for the same reason
+        usage_by_version() does: the card asking this question already holds
+        the composed response, and the count it sits under comes from there.
+        """
+        user_id = self._scope_filter(ctx, scope)
+        window = resolve_window(from_date, to_date)
+
+        rows = await agent_run_repo.usage_by_user(
+            self.db,
+            organization_id=ctx.organization_id,
+            start=window.start,
+            end=window.end,
+            user_id=user_id,
+            limit=limit,
+        )
+        return UsageStats(
+            from_date=window.from_date,
+            to_date=window.to_date,
+            scope=scope,
+            by_user=[
+                PersonUsageRow(
+                    user_id=row_user_id,
+                    email=email,
+                    full_name=full_name,
+                    runs=runs,
+                    cost_usd=cost,
+                    last_run_at=last_run_at,
+                )
+                for row_user_id, email, full_name, runs, cost, last_run_at in rows
+            ],
         )
 
     async def ratings_summary(

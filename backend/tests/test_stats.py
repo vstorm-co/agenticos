@@ -24,6 +24,9 @@ from app.services.stats import StatsService, resolve_window
 pytestmark = pytest.mark.anyio
 
 
+_AT = datetime(2026, 8, 4, 9, 30, tzinfo=UTC)
+
+
 def _ctx(role: str = OrgRoleName.OWNER.value) -> AuthContext:
     return AuthContext(user_id=uuid4(), organization_id=uuid4(), role=role)
 
@@ -43,6 +46,7 @@ def repos(monkeypatch: pytest.MonkeyPatch) -> dict[str, AsyncMock]:
         ("count_distinct_users", 0),
         ("count_pending_approval_runs", 0),
         ("usage_by_version", []),
+        ("usage_by_user", []),
     ):
         mock = AsyncMock(return_value=value)
         monkeypatch.setattr(f"app.services.stats.agent_run_repo.{name}", mock)
@@ -300,6 +304,52 @@ class TestVersionGrouping:
         with pytest.raises(AuthorizationError):
             await StatsService(MagicMock()).usage_by_version(
                 _ctx(role=OrgRoleName.MEMBER.value), agent_id=uuid4(), scope="org"
+            )
+
+
+class TestPersonGrouping:
+    async def test_rows_carry_the_person_and_what_they_cost(self, repos) -> None:
+        first, second = uuid4(), uuid4()
+        repos["usage_by_user"].return_value = [
+            (first, "k.nowak@example.com", "Katarzyna Nowak", 381, Decimal("15.60"), _AT),
+            (second, "j.wisniewski@example.com", None, 300, Decimal("12.32"), _AT),
+        ]
+
+        result = await StatsService(MagicMock()).usage_by_user(_ctx(), limit=10)
+
+        assert result.by_user is not None
+        busiest, next_one = result.by_user
+        assert (busiest.user_id, busiest.email) == (first, "k.nowak@example.com")
+        assert (busiest.runs, busiest.cost_usd) == (381, Decimal("15.60"))
+        assert busiest.full_name == "Katarzyna Nowak"
+        assert next_one.full_name is None
+        assert next_one.last_run_at == _AT
+
+    async def test_the_envelope_skips_the_composed_blocks(self, repos) -> None:
+        result = await StatsService(MagicMock()).usage_by_user(_ctx(), limit=10)
+
+        assert result.by_user == []
+        assert result.total_runs is None
+        assert result.active_users is None
+        repos["count_runs"].assert_not_called()
+
+    async def test_the_limit_reaches_the_repository(self, repos) -> None:
+        await StatsService(MagicMock()).usage_by_user(_ctx(), limit=6)
+
+        assert repos["usage_by_user"].call_args.kwargs["limit"] == 6
+
+    async def test_own_scope_narrows_the_table_to_the_callers_own_row(self, repos) -> None:
+        ctx = _ctx(role=OrgRoleName.MEMBER.value)
+
+        await StatsService(MagicMock()).usage_by_user(ctx, scope="own", limit=10)
+
+        assert repos["usage_by_user"].call_args.kwargs["user_id"] == ctx.user_id
+
+    async def test_naming_the_organizations_people_demands_runs_view(self, repos) -> None:
+        """The card names people, so the refusal matters more here than anywhere."""
+        with pytest.raises(AuthorizationError):
+            await StatsService(MagicMock()).usage_by_user(
+                _ctx(role=OrgRoleName.MEMBER.value), scope="org", limit=10
             )
 
 

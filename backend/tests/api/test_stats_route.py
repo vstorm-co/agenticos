@@ -31,6 +31,7 @@ def _service() -> MagicMock:
     service = MagicMock()
     service.usage = AsyncMock(return_value=envelope)
     service.usage_by_version = AsyncMock(return_value=envelope)
+    service.usage_by_user = AsyncMock(return_value=envelope)
     return service
 
 
@@ -82,6 +83,39 @@ async def test_group_by_version_without_an_agent_is_refused():
 
     assert resp.status_code == 422
     service.usage_by_version.assert_not_called()
+
+
+async def test_group_by_user_asks_the_person_question_without_an_agent():
+    service = _service()
+
+    async with _client(service) as client:
+        resp = await client.get("/api/v1/stats/usage", params={"group_by": "user", "limit": 6})
+
+    assert resp.status_code == 200
+    assert service.usage_by_user.call_args.kwargs["limit"] == 6
+    service.usage.assert_not_called()
+    service.usage_by_version.assert_not_called()
+
+
+async def test_the_person_table_defaults_to_ten_rows():
+    service = _service()
+
+    async with _client(service) as client:
+        resp = await client.get("/api/v1/stats/usage", params={"group_by": "user"})
+
+    assert resp.status_code == 200
+    assert service.usage_by_user.call_args.kwargs["limit"] == 10
+
+
+async def test_an_unbounded_person_table_is_refused():
+    """A card cannot render five hundred names; an unbounded limit would try."""
+    service = _service()
+
+    async with _client(service) as client:
+        resp = await client.get("/api/v1/stats/usage", params={"group_by": "user", "limit": 500})
+
+    assert resp.status_code == 422
+    service.usage_by_user.assert_not_called()
 
 
 async def test_a_dimension_outside_the_contract_is_a_422_not_an_empty_answer():

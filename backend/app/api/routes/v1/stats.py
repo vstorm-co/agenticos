@@ -27,17 +27,19 @@ async def usage_stats(
     from_: date | None = Query(None, alias="from", description="First day, inclusive (UTC)"),
     to: date | None = Query(None, description="Last day, inclusive (UTC)"),
     scope: Literal["org", "own"] = Query("org"),
-    group_by: Literal["version"] | None = Query(
+    group_by: Literal["version", "user"] | None = Query(
         None,
         description=(
             "An on-demand dimension instead of the composed response. The"
             " vocabulary is fixed as day | surface | agent | version | user |"
             " status | model | exposure | environment; this release implements"
-            " version - the composed response already answers the first six,"
-            " and exposure and environment land with the Activity page."
+            " version and user - the composed response already answers day,"
+            " surface, agent, status and model, and exposure and environment"
+            " land with the Activity page."
         ),
     ),
     agent_id: UUID | None = Query(None, description="Required when group_by=version"),
+    limit: int = Query(10, ge=1, le=100, description="Rows to return when group_by=user"),
 ) -> Any:
     """Runs in a window, sliced every way the dashboard asks at once.
 
@@ -45,7 +47,9 @@ async def usage_stats(
     one loading state and one failure, instead of eight half-loaded answers
     drifting apart. Defaults to the last 30 days; all bucketing is UTC.
     A `group_by` request answers only its own dimension - version-to-version
-    comparison is per agent, so it demands an `agent_id`.
+    comparison is per agent, so it demands an `agent_id`; the per-person
+    dimension is org-wide and takes a `limit` instead, because a card cannot
+    render five hundred names and an unbounded one would try.
     """
     if group_by == "version":
         if agent_id is None:
@@ -55,6 +59,10 @@ async def usage_stats(
             )
         return await service.usage_by_version(
             ctx, agent_id=agent_id, scope=scope, from_date=from_, to_date=to
+        )
+    if group_by == "user":
+        return await service.usage_by_user(
+            ctx, scope=scope, from_date=from_, to_date=to, limit=limit
         )
     return await service.usage(ctx, scope=scope, from_date=from_, to_date=to)
 

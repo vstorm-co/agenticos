@@ -200,6 +200,15 @@ it recognizes the grant-aware ones, and
 `tests/api/test_platform_routes.py::TestStatsScopeIsDecidedInTheService` proves
 the refusals.
 
+The shape that makes this worth spelling out is `?group_by=user`, which answers
+with names, emails and what each person's runs cost. It is the same scope rule
+and no additional permission: `runs:view` is what reveals it, which means
+builder and operator see it as well as owner and admin. That is a deliberate
+call rather than an oversight - the dashboard card carrying these rows says so
+in its own copy, because a permission that is wider than its subjects expect is
+only defensible if they can find that out. A narrower answer would be a
+permission of its own, not a quieter route.
+
 ## Contexts with no subject
 
 `AuthContext.user_id` is optional, and that is a statement rather than a

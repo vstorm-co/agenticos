@@ -7,7 +7,7 @@ set of runs, which is what keeps the numbers mutually consistent - the status
 counts sum to `total_runs` because they are the same rows counted twice.
 """
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 from uuid import UUID
@@ -142,6 +142,30 @@ class VersionUsageRow(BaseSchema):
     rating_count: int
 
 
+class PersonUsageRow(BaseSchema):
+    """One person's share of the window - the who-is-using-it card's row.
+
+    Runs with no user behind them are excluded rather than collected into an
+    "unattributed" row: a channel message from somebody with no account, and a
+    run whose user was deleted (the foreign key SET-NULLs), both land in that
+    bucket, and neither is a person this card can name. That exclusion is also
+    what keeps the card consistent with the `active_users` count it sits
+    under, which counts distinct non-null users over the same rows.
+
+    Ordered by `runs`, deliberately not by cost - the same rows sorted by
+    spend read as a league table, and the question the card answers is
+    adoption. Cost rides along as a column because the alternative is the
+    reader cross-referencing it by hand.
+    """
+
+    user_id: UUID
+    email: str
+    full_name: str | None
+    runs: int
+    cost_usd: Decimal
+    last_run_at: datetime
+
+
 class UsageStats(BaseSchema):
     """The answer of `GET /stats/usage` - one envelope, sections per question.
 
@@ -171,3 +195,4 @@ class UsageStats(BaseSchema):
     pending_approvals: int | None = None
     agent_id: UUID | None = None
     by_version: list[VersionUsageRow] | None = None
+    by_user: list[PersonUsageRow] | None = None
