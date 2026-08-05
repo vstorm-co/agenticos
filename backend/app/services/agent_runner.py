@@ -52,6 +52,7 @@ agent already resolved, and a recorder that writes one row.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
@@ -2400,8 +2401,22 @@ class AgentRunnerService:
     ) -> tuple[str, AgentRun]:
         """Execute the agent and account for it, however it ends.
 
-        The one place a run is executed, so a parked call, a budget stop and a
-        crash are all recorded the same way whether the run is new or resumed.
+        The one place a run is executed, so a parked call, a budget stop, a
+        cancellation and a crash are all recorded the same way whether the run is
+        new or resumed.
+
+        **A cancellation is one of those endings, and it needs both halves.**
+        `asyncio.CancelledError` is a `BaseException`, so it reaches neither
+        handler below on its own: the status stayed at its initial `FAILED` with
+        no error text, which sends an operator filtering run history for problems
+        through runs that were working correctly and were stopped - exactly what
+        `BUDGET_EXCEEDED` was given its own status to avoid. And the commit is not
+        optional either. `get_db_session` commits on a clean exit, and a
+        propagating `BaseException` is not one, so the terminal write was rolled
+        back and the row stayed `RUNNING` for ever - taking the delegation rows
+        :meth:`finish` queues with it, which is how a delegate that spent real
+        money came to be recorded nowhere. Committing here is what makes the row
+        survive; re-raising is what lets whoever cancelled see it happen.
         """
         status = RunStatus.FAILED
         error: str | None = None
@@ -2434,6 +2449,13 @@ class AgentRunnerService:
             else:
                 output = result.output
                 status = RunStatus.COMPLETED
+        except asyncio.CancelledError:
+            # The caller went away, or a delegation this run sits under was
+            # stopped. Cancelled is not failed, and the tokens spent up to here
+            # were still spent.
+            status = RunStatus.CANCELLED
+            logger.info("Run %s cancelled", prepared.run.id)
+            raise
         except BudgetExceeded as exc:
             # Not a malfunction - the platform working. Recorded separately so
             # an operator filtering for problems does not wade through it.
@@ -2453,6 +2475,12 @@ class AgentRunnerService:
                 paused_state=paused,
                 budget_scope=budget_scope,
             )
+            # Committed here rather than left to the session context: that exit
+            # rolls back on any exception, and cancellation never reaches it at
+            # all, since `CancelledError` is not an `Exception`. A run that
+            # failed, was stopped or ran out of budget still spent money, and a
+            # run missing from history is a run nobody is accountable for.
+            await self.db.commit()
 
         return output, prepared.run
 

@@ -6,7 +6,9 @@ failure, and a run parked on an approval can be picked up again - on the version
 it was parked on, with the spend it had already booked.
 """
 
+import asyncio
 import uuid
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
@@ -28,6 +30,7 @@ from app.services.agent_runner import (
     ApprovalChannel,
     ParkedApproval,
     PausedRunState,
+    RecordedDelegation,
     month_start,
 )
 from app.services.approvals import ApprovalService
@@ -41,6 +44,10 @@ def _db(monthly_budget_usd: Decimal | None = None):
     db = MagicMock()
     db.flush = AsyncMock()
     db.refresh = AsyncMock()
+    # `_run` commits its own terminal write rather than leaving it to the session
+    # context, because that exit rolls back on an exception and is skipped
+    # entirely by a cancellation.
+    db.commit = AsyncMock()
     # `db.get` is how the organization row - and with it the org-wide spending
     # cap the runner reads for every run - comes back. Uncapped by default,
     # which is what an organization that never opened the setting looks like.
@@ -751,6 +758,121 @@ class TestRunAccounting:
             await service.execute(_ctx(), uuid.uuid4(), "hello")
 
         assert finish.call_args.kwargs["status"] == RunStatus.FAILED.value
+
+
+class TestStoppingANonStreamingRun:
+    """A cancelled run, through `execute`.
+
+    `asyncio.CancelledError` is a `BaseException`, so neither `except` clause in
+    `_run` sees it, and both halves of the accounting failed independently: the
+    status stayed at its initial `FAILED` with no error text, and the terminal
+    write was rolled back by a session exit that only commits on a clean one -
+    leaving the row `RUNNING` for ever, and the delegations underneath it
+    recorded nowhere.
+
+    The shape is `tests/test_agent_session.py::TestStoppingATurnMidDelegation`'s:
+    the ledger matters as much as the status, because a cancelled run that spent
+    two dollars and records zero is the hole cancellation opens.
+    """
+
+    @pytest.mark.anyio
+    async def test_a_cancelled_run_is_recorded_as_cancelled_with_what_it_spent(self):
+        """Cancelled is not failed, and the tokens spent up to here were spent.
+
+        Recorded as `FAILED` with `error=None` before the fix, which is precisely
+        the confusion `BUDGET_EXCEEDED` was given its own status to avoid: an
+        operator filtering run history for problems wades through runs that were
+        working correctly and were stopped.
+        """
+        db = _db()
+        service = AgentRunnerService(db)
+        ledger = SpendLedger()
+        ledger.record("gpt-4.1", RequestUsage(input_tokens=1_000_000), "openai")
+        prepared = _prepared(ledger)
+        prepared.built.agent.run = AsyncMock(side_effect=asyncio.CancelledError)
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()) as finish,
+            # Re-raised, not swallowed: whoever cancelled is entitled to see it
+            # happen, and a `CancelledError` absorbed here would leave the task
+            # that requested the stop waiting for one that never arrives.
+            pytest.raises(asyncio.CancelledError),
+        ):
+            await service.execute(_ctx(), uuid.uuid4(), "hello")
+
+        recorded = finish.call_args.kwargs
+        assert recorded["status"] == RunStatus.CANCELLED.value
+        assert recorded["error"] is None
+        assert recorded["cost_usd"] == Decimal("2.00")
+        # And it survives. `get_db_session` commits on a clean exit, which a
+        # propagating `BaseException` is not, so without this the row above was
+        # written and then rolled straight back.
+        db.commit.assert_awaited_once()
+
+    @pytest.mark.anyio
+    async def test_a_cancelled_run_keeps_the_delegation_rows_underneath_it(self):
+        """Same rollback, one level down.
+
+        A delegate's row is the only record of what that agent cost, so a
+        delegation that spent money and recorded nothing is a bill nobody can
+        explain. The rows go in after the parent's - they carry `parent_run_id` -
+        so the commit has to come after both, and this asserts the order rather
+        than only that each happened.
+        """
+        db = _db()
+        service = AgentRunnerService(db)
+        moment = datetime(2026, 8, 5, 9, 0, tzinfo=UTC)
+        delegation = RecordedDelegation(
+            id=uuid.uuid4(),
+            agent_id=uuid.uuid4(),
+            agent_version_id=uuid.uuid4(),
+            task_id="4f2a1b8c",
+            status=RunStatus.CANCELLED,
+            model_label="gpt-4.1",
+            provider="openai",
+            secret_id=uuid.uuid4(),
+            input_tokens=7,
+            output_tokens=3,
+            cost_usd=Decimal("2.00"),
+            cost_is_partial=False,
+            started_at=moment,
+            ended_at=moment,
+        )
+        prepared = _prepared()
+        prepared.delegations = [delegation]
+        prepared.built.agent.run = AsyncMock(side_effect=asyncio.CancelledError)
+
+        order: list[str] = []
+
+        def note(name: str) -> Callable[..., Awaitable[MagicMock]]:
+            async def call(*_args: Any, **_kwargs: Any) -> MagicMock:
+                order.append(name)
+                return MagicMock()
+
+            return call
+
+        db.commit = AsyncMock(side_effect=note("commit"))
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch(
+                "app.services.agent_runner.agent_run_repo.finish_run",
+                new=AsyncMock(side_effect=note("parent")),
+            ),
+            patch(
+                "app.services.agent_runner.agent_run_repo.record_delegated_run",
+                new=AsyncMock(side_effect=note("delegation")),
+            ) as write,
+            pytest.raises(asyncio.CancelledError),
+        ):
+            await service.execute(_ctx(), uuid.uuid4(), "hello")
+
+        assert order == ["parent", "delegation", "commit"]
+        written = write.await_args.kwargs
+        assert written["run_id"] == delegation.id
+        assert written["status"] == RunStatus.CANCELLED.value
+        assert written["cost_usd"] == Decimal("2.00")
 
 
 class TestApprovals:
