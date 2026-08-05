@@ -28,7 +28,7 @@ export function useRuns(agentId?: string, options?: { enabled?: boolean }) {
 export function useApprovals() {
   const queryClient = useQueryClient();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.runs.approvals(),
     queryFn: () => apiClient.get<ApprovalList>("/approvals"),
     refetchInterval: 30_000,
@@ -44,14 +44,14 @@ export function useApprovals() {
     onError: (error) => toast.error(getErrorMessage(error)),
   });
 
-  return { approvals: data?.items ?? [], total: data?.total ?? 0, isLoading, decide };
+  return { approvals: data?.items ?? [], total: data?.total ?? 0, isLoading, error, refetch, decide };
 }
 
 /** Month-to-date spend plus a per-agent breakdown. */
 export function useSpend(days = 30) {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.runs.spend(days),
     queryFn: () => apiClient.get<CostSummary>("/spend", { params: { days: String(days) } }),
   });
-  return { spend: data, isLoading };
+  return { spend: data, isLoading, error, refetch };
 }

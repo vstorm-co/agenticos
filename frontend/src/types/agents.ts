@@ -191,6 +191,11 @@ export interface Agent {
   shared_user_count?: number;
   /** Surfaces with an active binding ("slack", "telegram", ...). Listing only. */
   channels?: string[];
+  /**
+   * The published version's monthly cap - the one the runner enforces, not
+   * the draft's promise. Null for drafts and uncapped agents. Listing only.
+   */
+  budget_monthly_usd?: number | null;
   created_at?: string;
   /**
    * `null` until the row is first updated - `TimestampSchema.updated_at` is

@@ -909,7 +909,340 @@
     "revokeSession": "Revoke session",
     "revokeSession2": "Revoke session",
     "sessionRevoked": "Session revoked",
-    "sessionsLength0": ") : sessions.length === 0 ? ("
+    "sessionsLength0": ") : sessions.length === 0 ? (",
+    "title": "Dashboard",
+    "seeAll": "See all",
+    "subtitles": {
+      "app_admin": "The whole deployment first, then your organization - same page, more answers.",
+      "steward": "Adoption, cost, and what needs a decision.",
+      "builder": "Are the agents you build actually used - and are they healthy?",
+      "operator": "Is everything running, and what is waiting on you?",
+      "member": "Pick up where you left off.",
+      "viewer": "What has been shared with you."
+    },
+    "period": {
+      "label": "Period",
+      "1d": "Today",
+      "7d": "Last 7 days",
+      "30d": "Last 30 days",
+      "90d": "Last 90 days",
+      "tm": "This month",
+      "lm": "Last month",
+      "custom": "Custom range"
+    },
+    "sectionsFilter": {
+      "label": "Sections",
+      "all": "All sections"
+    },
+    "sections": {
+      "deployment": "Deployment",
+      "attention": "Needs attention",
+      "usage": "Usage & cost",
+      "people": "People & quality",
+      "workspace": "Your workspace",
+      "build": "Your agents",
+      "adoption": "How your builds behave",
+      "health": "Health"
+    },
+    "actions": {
+      "newChat": "New chat",
+      "createAgent": "Create an agent",
+      "reviewApprovals": "Review approvals",
+      "invite": "Invite a teammate"
+    },
+    "orgDivider": {
+      "label": "Organization",
+      "note": "Everything below is this organization"
+    },
+    "errors": {
+      "title": "Couldn't load this",
+      "description": "The request failed. The rest of the page is unaffected - every card fails alone.",
+      "retry": "Retry"
+    },
+    "widgets": {
+      "platform": {
+        "title": "Platform at a glance",
+        "organizations": "Organizations",
+        "users": "Users",
+        "agents": "Agents",
+        "conversations": "Conversations",
+        "active24h": "{count} active in 24 h",
+        "empty": {
+          "title": "Nothing here yet",
+          "description": "A fresh deployment: no organizations beyond bootstrap, no runs."
+        }
+      },
+      "health": {
+        "title": "Service health",
+        "status": {
+          "healthy": "ok",
+          "unhealthy": "down",
+          "unconfigured": "unconfigured",
+          "not_checked": "not checked"
+        },
+        "empty": {
+          "title": "No services report",
+          "description": "The health probe has not answered yet."
+        }
+      },
+      "top-orgs": {
+        "title": "Top organizations",
+        "organization": "Organization",
+        "members": "Members",
+        "agents": "Agents",
+        "empty": {
+          "title": "No organizations yet",
+          "description": "Only the bootstrap organization exists."
+        }
+      },
+      "platform-ratings": {
+        "title": "Answer quality, deployment-wide",
+        "subline": "rated positive - {count} ratings across all organizations",
+        "empty": {
+          "title": "No ratings yet",
+          "description": "Nobody has rated an answer anywhere on the deployment."
+        }
+      },
+      "runs": {
+        "title": "Runs over time",
+        "unit": "runs",
+        "delta": "vs the previous period",
+        "empty": {
+          "title": "No runs in this period",
+          "description": "Publish an agent and give it a surface - adoption shows up here."
+        }
+      },
+      "outcomes": {
+        "title": "Outcomes",
+        "completed": "completed",
+        "attention": "1 in {n} runs needed attention this period",
+        "status": {
+          "completed": "Completed",
+          "failed": "Failed",
+          "budget_exceeded": "Budget exceeded",
+          "awaiting_approval": "Awaiting approval",
+          "other": "Running or cancelled"
+        },
+        "empty": {
+          "title": "No runs in this period",
+          "description": "Outcome split appears with the first run."
+        }
+      },
+      "surfaces": {
+        "title": "Where runs come from",
+        "names": {
+          "playground": "Playground",
+          "web": "Web chat",
+          "embed": "Widget",
+          "api": "HTTP API",
+          "slack": "Slack",
+          "telegram": "Telegram",
+          "mattermost": "Mattermost",
+          "schedule": "Schedule"
+        },
+        "empty": {
+          "title": "No runs in this period",
+          "description": "Playground, web chat, API, Slack, Telegram, Mattermost and the embedded widget land here."
+        }
+      },
+      "agents": {
+        "title": "Agents: adopted and forgotten",
+        "idle": "Published but idle this period:",
+        "empty": {
+          "title": "No published agents",
+          "description": "Nothing has been published in this organization yet."
+        }
+      },
+      "latency": {
+        "title": "Latency",
+        "p50": "Median (p50)",
+        "p95": "Slowest 5% (p95)",
+        "subline": "Started to finished, over every run in the period.",
+        "empty": {
+          "title": "No completed runs",
+          "description": "Latency needs at least one finished run."
+        }
+      },
+      "active-users": {
+        "title": "Active people",
+        "headline": "{active} of {total} members",
+        "subline": "ran an agent in this period - a count, deliberately not a table of names",
+        "empty": {
+          "title": "Nobody has run anything",
+          "description": "Adoption starts with the first person's first run."
+        }
+      },
+      "spend": {
+        "title": "Spend",
+        "unit": "in this period",
+        "delta": "vs the previous period",
+        "notRecorded": "not recorded",
+        "monthToDate": "This month so far: {amount} - calendar month, reconciles with the invoice; deliberately not scoped by the period filter.",
+        "empty": {
+          "title": "Nothing spent yet",
+          "description": "Model cost lands here run by run."
+        }
+      },
+      "model-mix": {
+        "title": "Models behind the runs",
+        "notRecorded": "not recorded",
+        "subline": "As recorded on each run (model_label).",
+        "empty": {
+          "title": "No runs in this period",
+          "description": "The model mix appears with the first run."
+        }
+      },
+      "version-compare": {
+        "title": "Version to version",
+        "subline": "{agent} - {current} (current) vs {previous}, only runs that executed each version",
+        "metric": {
+          "runs": "Runs",
+          "completed": "Success rate",
+          "p95": "p95 latency",
+          "cost": "Cost per run",
+          "ratings": "Positive ratings"
+        },
+        "empty": {
+          "title": "Only one version has run",
+          "description": "Publish a new version - the comparison appears once both have runs in the period."
+        }
+      },
+      "approvals": {
+        "title": "Waiting on a decision",
+        "wants": "wants to call {tool}",
+        "waiting": "waiting {ago}",
+        "review": "Review",
+        "more": "{count} more in the queue",
+        "empty": {
+          "title": "Nothing waiting",
+          "description": "Every approval has been decided. This card earns its place by being empty."
+        }
+      },
+      "recent-failures": {
+        "title": "Recent failures",
+        "unknownAgent": "Unknown agent",
+        "budgetExceeded": "budget exceeded mid-run",
+        "failed": "failed",
+        "open": "Open runs",
+        "empty": {
+          "title": "No failures",
+          "description": "Every run in this period finished cleanly."
+        }
+      },
+      "budget-headroom": {
+        "title": "Budget headroom",
+        "headline": "of the {cap} monthly cap - {left} left",
+        "cause": "Agents with their own caps - the donut's budget_exceeded is the symptom; this is the cause.",
+        "empty": {
+          "title": "No monthly cap set",
+          "description": "Set one on the organization - headroom shows here before budget_exceeded does."
+        }
+      },
+      "mcp-health": {
+        "title": "Integrations",
+        "downSince": "down since {ago}",
+        "down": "down",
+        "checked": "checked {ago}",
+        "unchecked": "not probed yet",
+        "subline": "A server that stops answering quietly takes its tools from every agent using it.",
+        "empty": {
+          "title": "No MCP servers connected",
+          "description": "Connect one from the catalog - its health lands here."
+        }
+      },
+      "knowledge-freshness": {
+        "title": "Knowledge sync",
+        "synced": "synced {ago}",
+        "neverSynced": "never synced",
+        "failing": "failing",
+        "fresh": "fresh",
+        "empty": {
+          "title": "No sync sources",
+          "description": "Collections synced from Drive or S3 report their freshness here."
+        }
+      },
+      "members": {
+        "title": "Members",
+        "view": "View members",
+        "roles": {
+          "owner": "Owner",
+          "admin": "Admin",
+          "builder": "Builder",
+          "operator": "Operator",
+          "member": "Member",
+          "viewer": "Viewer"
+        },
+        "empty": {
+          "title": "Just you",
+          "description": "Invite somebody - adoption needs people."
+        }
+      },
+      "org-ratings": {
+        "title": "Answer quality",
+        "subline": "of {count} rated answers were positive this period",
+        "empty": {
+          "title": "No ratings yet",
+          "description": "Thumbs on answers land here."
+        }
+      },
+      "my-agents": {
+        "title": "Your agents",
+        "sharedTitle": "Agents shared with you",
+        "yours": "yours",
+        "shared": "shared",
+        "runs": "{count} runs",
+        "openChat": "Open chat",
+        "empty": {
+          "title": "No agents yet",
+          "description": "Nothing is shared with you yet - ask a builder, or create your own."
+        }
+      },
+      "conversations": {
+        "title": "Continue where you left off",
+        "untitled": "Untitled conversation",
+        "continue": "Continue",
+        "empty": {
+          "title": "No conversations yet",
+          "description": "Start one from an agent card - it will be waiting here."
+        }
+      },
+      "my-activity": {
+        "title": "Your activity",
+        "unit": "runs by you in this period",
+        "pending": "{count} of your runs are waiting on someone's decision",
+        "empty": {
+          "title": "No runs of yours yet",
+          "description": "Run any agent - your own history shows here, and only to you."
+        }
+      },
+      "my-top-agents": {
+        "title": "Agents you use most",
+        "subline": "Your own runs in this period - nobody else's.",
+        "empty": {
+          "title": "No runs of yours yet",
+          "description": "Run any agent - your favourites show up here."
+        }
+      },
+      "my-quality": {
+        "title": "Answer quality in your chats",
+        "subline": "of {count} rated answers in your conversations",
+        "empty": {
+          "title": "No rated answers yet",
+          "description": "Rate answers with a thumbs up or down - your own trend lands here."
+        }
+      },
+      "shared-with-you": {
+        "title": "Shared with you",
+        "agents": "Agents",
+        "collections": "Collections",
+        "skills": "Skills",
+        "subline": "Everything somebody shared with you - browse it from the sidebar.",
+        "empty": {
+          "title": "Nothing shared yet",
+          "description": "When somebody shares an agent, a collection or a skill, it counts here."
+        }
+      }
+    }
   },
   "errors": {
     "forbidden": "Access forbidden",
