@@ -19,6 +19,7 @@ Once, before pushing — `make check` runs all of it, in this order:
 ```bash
 make lint               # ruff, ruff format, ty, eslint, prettier, tsc, and the two guards
 make test               # the suite plus the 100% gate on the platform layer
+make db-check           # alembic check — a model change with no migration fails here
 make test-frontend-cov  # the frontend suite plus its own gate
 make build-frontend     # next build — the route tree, which tsc and vitest do not see
 make docs-build         # mkdocs --strict — a dead link is a failure

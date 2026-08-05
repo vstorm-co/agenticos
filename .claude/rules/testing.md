@@ -36,8 +36,9 @@ make lint               # ruff, ruff format, ty, eslint, prettier, tsc, the two 
 make test               # backend + the 100% gate on the platform layer
 make test-frontend-cov  # frontend + its gate: 100% lines/stmts/funcs, 97.5% branches
 make test-integration   # only if the change is near the database
-make check              # every CI job except e2e - lint, test, test-frontend-cov,
-                        # build-frontend, docs-build, audit. About five minutes.
+make check              # every CI job except e2e - lint, test, db-check,
+                        # test-frontend-cov, build-frontend, docs-build, audit.
+                        # About five minutes.
 ```
 
 `make check` is CI, not an approximation of it: `.github/workflows/ci.yml` calls

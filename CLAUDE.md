@@ -132,6 +132,7 @@ make check                                        # every CI job but e2e — bef
 | `make test-frontend` / `make test-frontend-cov` | vitest / vitest with the gate CI applies |
 | `make test-e2e` | Playwright — needs a backend and its seed |
 | `make test-migrations` | the whole chain forwards and back |
+| `make db-check` | `alembic check` — a model change with no migration fails here (in `make check`) |
 | `make db-migrate` / `make db-upgrade` | autogenerate / apply |
 | `make docs` / `make docs-build` | serve on :8001 (`DOCS_PORT=` to move it) / `--strict` |
 | `uv run agenticos cmd doctor` | can this deployment actually run an agent? |
