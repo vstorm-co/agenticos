@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { AgentMap, MAP_ICONS, type MapNode } from "./agent-map";
+import { AgentMap, MAP_ICONS, type MapDelegate, type MapNode } from "./agent-map";
 
 function node(overrides: Partial<MapNode> = {}): MapNode {
   return {
@@ -16,12 +16,23 @@ function node(overrides: Partial<MapNode> = {}): MapNode {
   };
 }
 
+function delegate(overrides: Partial<MapDelegate> = {}): MapDelegate {
+  return {
+    key: "delegate:a1",
+    name: "Researcher",
+    kind: "delegate",
+    mode: null,
+    href: "/agents/a1",
+    ...overrides,
+  };
+}
+
 describe("AgentMap", () => {
   it("says what is attached, by name", () => {
     render(<AgentMap agentName="Support" instructions="Be brief." nodes={[node()]} />);
 
     expect(
-      within(screen.getByRole("group", { name: "Skills" })).getByText("refund-policy"),
+      within(screen.getByRole("button", { name: "Skills" })).getByText("refund-policy"),
     ).toBeInTheDocument();
   });
 
@@ -56,8 +67,8 @@ describe("AgentMap", () => {
       />,
     );
 
-    expect(screen.getByRole("group", { name: "Channels" })).toBeInTheDocument();
-    expect(screen.getByRole("group", { name: "Skills" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Channels" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Skills" })).toBeInTheDocument();
     expect(container.querySelectorAll("path.map-flow")).toHaveLength(2);
   });
 
@@ -71,7 +82,7 @@ describe("AgentMap", () => {
     );
 
     expect(
-      within(screen.getByRole("group", { name: "Skills" })).getByText("3"),
+      within(screen.getByRole("button", { name: "Skills" })).getByText("3"),
     ).toBeInTheDocument();
   });
 
@@ -90,6 +101,243 @@ describe("AgentMap", () => {
     rerender(<AgentMap agentName="Support" instructions="Be brief." nodes={[node()]} />);
 
     expect(container.querySelectorAll("path.map-flow")).toHaveLength(1);
+  });
+});
+
+/**
+ * Delegates and specialists.
+ *
+ * A subagent is another agent, not a tool, so it is a different kind of node -
+ * grouped under a heading, edged to the hub like everything else, and (for a
+ * published delegate) a way through to its own page.
+ */
+describe("AgentMap delegation", () => {
+  it("draws each delegate as its own node under a delegation heading", () => {
+    render(
+      <AgentMap
+        agentName="Support"
+        instructions="Be brief."
+        nodes={[]}
+        delegates={[
+          delegate(),
+          delegate({
+            key: "specialist:triage",
+            name: "triage",
+            kind: "specialist",
+            href: undefined,
+          }),
+        ]}
+      />,
+    );
+
+    const group = screen.getByRole("region", { name: "Delegation" });
+    expect(within(group).getByRole("button", { name: "Researcher" })).toBeInTheDocument();
+    expect(within(group).getByRole("button", { name: "triage" })).toBeInTheDocument();
+  });
+
+  it("measures an edge for a delegate too, not only for a capability", () => {
+    const { container } = render(
+      <AgentMap
+        agentName="Support"
+        instructions="Be brief."
+        nodes={[node()]}
+        delegates={[delegate()]}
+      />,
+    );
+
+    expect(container.querySelectorAll("path.map-flow")).toHaveLength(2);
+  });
+
+  it("hides the delegation heading when there is nothing to delegate to", () => {
+    // Every agent that never delegates would otherwise carry an empty heading,
+    // which is noise, not the finding an empty capability box is.
+    render(<AgentMap agentName="Support" instructions="Be brief." nodes={[node()]} />);
+
+    expect(screen.queryByRole("region", { name: "Delegation" })).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * Interactivity - the map is a control now, not a picture.
+ *
+ * Clicking or pressing Enter on a node focuses it: a detail panel opens, the
+ * node's own edge lights and the rest dim. Escape and a click on the canvas are
+ * the two ways back.
+ */
+describe("AgentMap focus", () => {
+  it("opens a detail panel for the node that was clicked", async () => {
+    render(<AgentMap agentName="Support" instructions="Be brief." nodes={[node()]} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Skills" }));
+
+    expect(screen.getByRole("region", { name: "Details for Skills" })).toBeInTheDocument();
+  });
+
+  it("focuses an input-side node as readily as an output one", async () => {
+    // Both columns are focusable; an input node is wired through the same path
+    // as an output, and only clicking one proves the left column is not inert.
+    render(
+      <AgentMap
+        agentName="Support"
+        instructions="Be brief."
+        nodes={[node({ key: "channels", title: "Channels", side: "in", items: ["slack"] })]}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Channels" }));
+
+    expect(screen.getByRole("region", { name: "Details for Channels" })).toBeInTheDocument();
+  });
+
+  it("dims the nodes that are not focused", async () => {
+    render(
+      <AgentMap
+        agentName="Support"
+        instructions="Be brief."
+        nodes={[node(), node({ key: "mcp", title: "MCP", icon: MAP_ICONS.mcp })]}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Skills" }));
+
+    expect(screen.getByRole("button", { name: "MCP" }).className).toContain("opacity-40");
+    expect(screen.getByRole("button", { name: "Skills" }).className).not.toContain("opacity-40");
+  });
+
+  it("lights the focused node's edge and dims the rest", async () => {
+    const { container } = render(
+      <AgentMap
+        agentName="Support"
+        instructions="Be brief."
+        nodes={[node(), node({ key: "mcp", title: "MCP", icon: MAP_ICONS.mcp })]}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Skills" }));
+
+    const paths = [...container.querySelectorAll("path.map-flow")];
+    const lit = paths.filter((path) => path.classList.contains("stroke-brand"));
+    const dimmed = paths.filter((path) => path.classList.contains("opacity-20"));
+    expect(lit).toHaveLength(1);
+    expect(dimmed).toHaveLength(1);
+  });
+
+  it("activates a node from the keyboard with Enter", async () => {
+    render(<AgentMap agentName="Support" instructions="Be brief." nodes={[node()]} />);
+
+    const button = screen.getByRole("button", { name: "Skills" });
+    button.focus();
+    expect(button).toHaveFocus();
+    await userEvent.keyboard("{Enter}");
+
+    expect(screen.getByRole("region", { name: "Details for Skills" })).toBeInTheDocument();
+  });
+
+  it("clears the focus on Escape", async () => {
+    render(<AgentMap agentName="Support" instructions="Be brief." nodes={[node()]} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Skills" }));
+    expect(screen.getByRole("region", { name: "Details for Skills" })).toBeInTheDocument();
+
+    await userEvent.keyboard("{Escape}");
+
+    expect(screen.queryByRole("region", { name: "Details for Skills" })).not.toBeInTheDocument();
+  });
+
+  it("clears the focus when the canvas is clicked, not a node", async () => {
+    const { container } = render(
+      <AgentMap agentName="Support" instructions="Be brief." nodes={[node()]} />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Skills" }));
+    expect(screen.getByRole("region", { name: "Details for Skills" })).toBeInTheDocument();
+
+    const viewport = container.querySelector<HTMLElement>("[style*='transform']")!.parentElement!;
+    fireEvent.click(viewport);
+
+    expect(screen.queryByRole("region", { name: "Details for Skills" })).not.toBeInTheDocument();
+  });
+
+  it("toggles a node off when it is clicked a second time", async () => {
+    render(<AgentMap agentName="Support" instructions="Be brief." nodes={[node()]} />);
+
+    const button = screen.getByRole("button", { name: "Skills" });
+    await userEvent.click(button);
+    expect(screen.getByRole("region", { name: "Details for Skills" })).toBeInTheDocument();
+
+    await userEvent.click(button);
+    expect(screen.queryByRole("region", { name: "Details for Skills" })).not.toBeInTheDocument();
+  });
+
+  it("links a published delegate through to its own page", async () => {
+    // The one place the map leaves itself: a delegate has a version and a page,
+    // so the map walks the delegation tree one hop at a time.
+    render(
+      <AgentMap
+        agentName="Support"
+        instructions="Be brief."
+        nodes={[]}
+        delegates={[delegate({ name: "Researcher", href: "/agents/a1" })]}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Researcher" }));
+
+    expect(screen.getByRole("link", { name: "Open Researcher" })).toHaveAttribute(
+      "href",
+      "/agents/a1",
+    );
+  });
+
+  it("offers no link for an inline specialist, and says why", async () => {
+    // A specialist is not versioned and has no page - a dead link would be worse
+    // than none, so the panel explains the absence instead.
+    render(
+      <AgentMap
+        agentName="Support"
+        instructions="Be brief."
+        nodes={[]}
+        delegates={[
+          delegate({
+            key: "specialist:triage",
+            name: "triage",
+            kind: "specialist",
+            href: undefined,
+          }),
+        ]}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "triage" }));
+
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Defined inside this agent, with no page of its own."),
+    ).toBeInTheDocument();
+  });
+
+  it("names the mode a delegate hands back on", async () => {
+    render(
+      <AgentMap
+        agentName="Support"
+        instructions="Be brief."
+        nodes={[]}
+        delegates={[delegate({ mode: "async" })]}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Researcher" }));
+
+    expect(screen.getByText("Hands back: Async")).toBeInTheDocument();
+  });
+
+  it("closes the panel from its own close button", async () => {
+    render(<AgentMap agentName="Support" instructions="Be brief." nodes={[node()]} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Skills" }));
+    await userEvent.click(screen.getByRole("button", { name: "Close details" }));
+
+    expect(screen.queryByRole("region", { name: "Details for Skills" })).not.toBeInTheDocument();
   });
 });
 
