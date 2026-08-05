@@ -19,6 +19,19 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.13] - 2026-08-05
+
+### Fixed
+
+- **`bootstrap` ensures the model profile it names, rather than adopting any it finds**
+  ([#172](https://github.com/vstorm-co/agenticos/issues/172)). On a database that had
+  been used before, `make platform-bootstrap` adopted whatever model profile already
+  existed instead of ensuring the one it was told to create — so the agent it published
+  ran on a profile nobody asked for, and several E2E specs that assume the named profile
+  failed on any database not freshly created. It now ensures the profile it names,
+  creating it when absent and matching by name when present, so a second bootstrap is
+  idempotent rather than dependent on what the database happened to hold.
+
 ## [0.0.12] - 2026-08-05
 
 ### Fixed
@@ -751,7 +764,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.12...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.13...HEAD
+[0.0.13]: https://github.com/vstorm-co/agenticos/compare/v0.0.12...v0.0.13
 [0.0.12]: https://github.com/vstorm-co/agenticos/compare/v0.0.11...v0.0.12
 [0.0.11]: https://github.com/vstorm-co/agenticos/compare/v0.0.10...v0.0.11
 [0.0.10]: https://github.com/vstorm-co/agenticos/compare/v0.0.9...v0.0.10
