@@ -14,7 +14,6 @@ from pydantic_ai import (
     PartDeltaEvent,
     PartStartEvent,
     TextPartDelta,
-    ToolCallPartDelta,
 )
 from pydantic_ai.messages import (
     TextPart,
@@ -376,7 +375,15 @@ class AgentSession:
                 await send_event(self.websocket, "call_tools_start", {})
                 async with node.stream(agent_run.ctx) as handle_stream:
                     await self._stream_tool_events(handle_stream, collected_tool_calls)
-            elif Agent.is_end_node(node) and agent_run.result is not None:
+            else:
+                # The end node, and the only kind left: the graph yields a
+                # user-prompt, a model-request, a call-tools or an `End` node and
+                # nothing else. `result` is populated the moment `End` is
+                # returned, so `is_end_node(node) and agent_run.result is not
+                # None` was a condition that could not be false - and had it
+                # ever been, it would have dropped the frame carrying the answer
+                # without saying anything. A node kind the library adds later
+                # raises here instead, which reaches the client as `error`.
                 await send_event(
                     self.websocket,
                     "final_result",
@@ -410,25 +417,33 @@ class AgentSession:
                         {"index": event.index, "content": event.part.content},
                     )
             elif isinstance(event, PartDeltaEvent):
-                if isinstance(event.delta, TextPartDelta):
+                delta = event.delta
+                if isinstance(delta, TextPartDelta):
                     await send_event(
                         self.websocket,
                         "text_delta",
-                        {"index": event.index, "content": event.delta.content_delta},
+                        {"index": event.index, "content": delta.content_delta},
                     )
-                elif isinstance(event.delta, ThinkingPartDelta):
-                    if event.delta.content_delta:
-                        collected_thinking.append(event.delta.content_delta)
+                elif isinstance(delta, ThinkingPartDelta):
+                    # A signature delta carries no content - the provider's proof
+                    # it produced the reasoning - and forwarding it would put
+                    # base64 in the reasoning pane and in the stored trace.
+                    if delta.content_delta:
+                        collected_thinking.append(delta.content_delta)
                         await send_event(
                             self.websocket,
                             "thinking_delta",
-                            {"index": event.index, "content": event.delta.content_delta},
+                            {"index": event.index, "content": delta.content_delta},
                         )
-                elif isinstance(event.delta, ToolCallPartDelta):
+                else:
+                    # A tool-call delta, and the only kind left:
+                    # `ModelResponsePartDelta` is text, thinking or tool-call, so
+                    # an `isinstance` here was a third condition that could not be
+                    # false.
                     await send_event(
                         self.websocket,
                         "tool_call_delta",
-                        {"index": event.index, "args_delta": event.delta.args_delta},
+                        {"index": event.index, "args_delta": delta.args_delta},
                     )
             elif isinstance(event, FinalResultEvent):
                 await send_event(

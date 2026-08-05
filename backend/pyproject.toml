@@ -328,6 +328,7 @@ include = [
     "app/services/agent_exposure.py",
     "app/services/agent_registry.py",
     "app/services/agent_runner.py",
+    "app/services/agent_session.py",
     "app/repositories/agent_workspace.py",
     "app/repositories/sandbox_connection.py",
     "app/repositories/skill_proposal.py",
@@ -440,6 +441,10 @@ include = [
     "app/services/agent_exposure.py",
     "app/services/agent_registry.py",
     "app/services/agent_runner.py",
+    # The whole dashboard chat wire format: every frame the WebSocket sends and
+    # every frame it accepts. It sat outside both gates while `use-chat.ts`
+    # switched on its names, which is the drift #144 describes.
+    "app/services/agent_session.py",
     "app/repositories/agent_workspace.py",
     "app/repositories/sandbox_connection.py",
     "app/repositories/skill_proposal.py",
