@@ -159,11 +159,32 @@ gh variable set AI_REVIEW_EFFORT --repo vstorm-co/agenticos --body high
 gh variable set AI_REVIEW_MAX_CHANGED_LINES --repo vstorm-co/agenticos --body 2000
 ```
 
+Those are the shape, not the current setting. Read the live values from
+repository settings (or `gh variable list`) — the whole reason these are
+variables is that changing one should not be a commit, so a number written here
+is a number that goes stale silently.
+
 | Variable | |
 |---|---|
 | `AI_REVIEW_MODEL` | The model Codex runs. Must be a slug the installed CLI carries metadata for |
 | `AI_REVIEW_EFFORT` | Reasoning effort: `low`, `medium`, `high`, `xhigh` |
 | `AI_REVIEW_MAX_CHANGED_LINES` | Above this, the pass is declined with an explanation |
+
+`AI_REVIEW_MAX_CHANGED_LINES` is a spending guard, not a capability limit, and
+raising it trades one cost for another. Below it the reviewer reads the whole
+diff; above it the pass would be truncated, which costs about the same and
+answers about a fraction — so the workflow declines and says "split this pull
+request" instead. Raise it and a large branch does get read; it also means the
+most expensive combination this workflow can produce (a whole feature branch at
+`xhigh`) is now reachable by adding one label. Worth knowing before labelling
+several stacked branches, each of which carries the diff of the one below it.
+
+And it is measured **per run, against the current head** — so a branch that fit
+when you set the number does not necessarily fit after you act on the review.
+That has already happened here: a branch measured 18,924 lines, the limit was
+raised to 20,000 for it, six commits of review fixes took it to 20,215, and the
+next pass declined by 215 lines. If a diff is close to the ceiling, read the
+number the declining comment prints rather than the one you last saw.
 
 They are variables rather than constants in the file because bumping a model
 should not be a commit, and a value with no default is a value somebody has to
