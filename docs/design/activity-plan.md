@@ -11,7 +11,7 @@ Four findings, in the order that matters:
 
 1. **`logfire_trace_id` has never been written.** It is a parameter of
    `AgentRunner.finish()` (`app/services/agent_runner.py:406`) that no caller passes —
-   not the playground, not web chat, not the API, not a channel, not a schedule. The
+   not web chat, not the API, not a channel, not the embedded widget. The
    column is always `NULL`. The "link out" had no data behind it.
 2. **Nothing stores a Logfire project URL.** `LOGFIRE_TOKEN` is a write credential
    (`app/core/config.py:43`); a deep link needs an organization and project slug, which
@@ -49,6 +49,34 @@ invisible to its reader is worse than one that admits a gap.
 
 Rows written before the migration keep `run_id = NULL`. The detail view says so — *"steps
 were not recorded for runs before <date>"* — rather than falling back to a time window.
+
+### The migration is necessary and not sufficient
+
+`run_id` links messages to runs; it does not create messages. Writing the transcript is the
+caller's job, and only web chat on its success path does it in full:
+
+| Surface | What a detail view could show today |
+|---|---|
+| web chat, run succeeded | everything — prompt, reasoning, tool arguments and results |
+| web chat, run failed | the prompt only; the exception skips `persist_assistant_turn` (`agent_session.py:222`) |
+| a channel bot's default agent | prompt and answer as text — no tool calls, model or version (`channels/router.py:108`, `:136`) |
+| embed widget | nothing; a conversation row is created and left empty (`embed_session.py:142`) |
+| `@mention` on a channel | nothing (`channels/router.py:148`) |
+| API | nothing, even when the caller passes a `conversation_id` (`agents.py:368`) |
+| a run resumed after an approval | nothing — `resume` replays through `_run`, which writes no messages (`agent_runner.py:600`) |
+
+`tool_calls` rows are written in exactly one place in the repository — `app/services/agent.py:225`,
+inside `persist_assistant_turn` — from a list only the streaming path fills. A non-streaming
+surface has no access to them at all.
+
+**Decision: #205 fixes the recording; this page does not.** Five write paths in the chat and
+channel subsystems is not an Activity change, and folding it in would roughly double this
+branch. So the detail view carries a **third** case beside *we recorded this* and *before the
+migration*: **this surface does not record steps**, naming the surface. When #205 lands the
+same view fills in with no frontend change.
+
+A panel that is empty and silent is the failure this page exists to remove. A panel that is
+empty and says why is the deliverable.
 
 ## 3. The six items in #45, reassessed against the code
 
@@ -193,12 +221,23 @@ the two pages read as one product:
   button; a **Clear filters** link appears only when something is narrowed. The bar
   renders inside the Run history card in every state — an empty result whose way out
   (Clear) has vanished is a dead end.
-- **The surface list is the honest one.** The dead `RunSurface.SCHEDULE` — defined,
-  never assigned — is not offered. `embed` and `mattermost` are offered but flagged:
-  today an embedded run is stamped `web` (`embed_session.py`) and a Mattermost mention
-  falls through to `api` (`channels/mentions.py`), so those two options only return
-  truth after the recording widening #149's review settled — priced in §7 and shared
-  with #37's stage 2, whichever lands first.
+- **The surface list is the honest one.** Two of the seven `RunSurface` values are dead —
+  defined and never assigned — and neither is offered. `SCHEDULE` is the known one.
+  `PLAYGROUND` is the second and less obvious: it is only the default of `execute()`'s
+  `surface` parameter (`agent_runner.py:503`), and every one of the four call sites passes
+  a surface explicitly, so no row is ever stamped with it. A filter option that can only
+  ever return nothing is a filter that makes a reader doubt the data, not the filter.
+  `embed` and `mattermost` are offered but flagged: today an embedded run is stamped
+  `web` (`embed_session.py:164`) and a Mattermost mention falls through to `api`
+  (`channels/mentions.py`), so those two only return truth after the recording widening
+  #149's review settled — priced in §7 and shared with #37's stage 2, whichever lands
+  first (`e76af9d` on that branch already carries it).
+- **"Triggered by" is who a run *ran as*, which is not always who asked.**
+  `agent_runs.user_id` is `ctx.user_id` (`agent_runner.py:345`), and for an embedded widget
+  that is the widget's **owner**: the visitor is anonymous and has no row anywhere. The
+  column is right and the bare label would be a lie, so the detail view names whose
+  identity it is. It also decides what an own-scoped member would see if §4 is accepted —
+  their widget's traffic is their own rows.
 - **The version strip — the builder's feedback loop, where the builder already
   lands.** `?agent=` is the hand-off from the agent page, so when the runs tab is
   narrowed to an agent, a strip of per-version chips renders above the table: runs,
@@ -294,6 +333,13 @@ its own, so the two pages disagree nowhere. The select lists every organization 
   DEENUU1 prefers: the per-org picker alone already covers "look at a client's
   Activity without joining their org", and the By organization card drops with it.
 
+**The budget percentage is a member's figure, and the app admin is not one.**
+`GET /orgs/{org_id}` calls `get_for_user` (`organization.py:34`), so it 404s for an
+organization the admin never joined, and `AdminOrganizationRead` carries no
+`monthly_budget_usd`. So in both app-admin modes the month figure renders as an **amount
+with no percentage** unless the app-admin response grows the field. Said rather than
+faked: a percentage of a cap nobody read is a number somebody would act on.
+
 The divider is absent for every non-app-admin identity; their Activity is the active
 organization, and the sidebar switcher owns that.
 
@@ -301,7 +347,7 @@ organization, and the sidebar switcher owns that.
 
 | Change | Cost |
 |---|---|
-| `messages.run_id` — column, FK, write path on every surface | Alembic migration + `agent_runner` and the chat write path |
+| `messages.run_id` — column, FK, and the write path where there is one | Alembic migration + the chat write path (`persist_user_turn` / `persist_assistant_turn`). The surfaces that write no messages at all are #205's, not this branch's — §2 |
 | `list_runs` — `status` (a **list**: `failed,budget_exceeded` is also #37's Recent-failures query), `surface`, `user_id`, `started_from`, `started_to`, `environment_id`, `exposure_id`, `agent_version_id` | Repository + route + `AgentRunList` unchanged; every column already on the run row |
 | Surface recording widening — `RunSurface.EMBED` stamped by `embed_session.py`, `mattermost` added to `_SURFACES` in `channels/mentions.py` | Two small service changes. Shared with #37's stage 2 — whichever branch lands first ships it, the other inherits |
 | `ApprovalRead` — agent name, triggering user | Schema + approval service join. No migration |
@@ -311,19 +357,30 @@ organization, and the sidebar switcher owns that.
 | `/spend` — accept `from`/`to` alongside `days`, so the range control is honest | Route + `agent_runner` cost queries |
 | `/spend` — a partial-cost run count, so "every total below is a floor" has a number | Aggregate `cost_is_partial` in the existing cost query. No migration |
 | `CostByAgent` — agent **name** alongside `agent_id`, **one row per agent** (today `cost_breakdown` splits an agent across its models), plus the agent's **monthly cap** and **month-to-date** so the cap column is honest | Schema + join + grouping; cap from the spec's `budget.monthly_usd`, MTD from the query `/spend` already runs. No migration |
-| `AgentRunRead` | Nothing new needed |
-| Budget context on the month figure | Nothing new — `organizations.monthly_budget_usd` is already on `GET /orgs/{org_id}` |
+| `AgentRunRead` — `conversation_id`, so the detail view has something to open | Schema only; the column is already on the run row. No migration |
+| **The detail view's own read** — one run's messages and tool calls, under `RUNS_VIEW` | **A new route, not a reuse.** `GET /conversations/{id}/messages` cannot serve this: it filters `Conversation.user_id == the caller` deliberately (`conversation.py:347` — *"`organization_id` keeps this out of another tenant's transcript; `user_id` keeps it out of a colleague's"*), so an owner opening a colleague's run gets a 404. Embed and channel conversations carry `user_id = NULL` and are unreadable by anyone through it. Run-scoped route + repository read + a cross-tenant refusal test. **Relaxing the conversation endpoint instead is not on the table** — its docstring records that as a bug already fixed once |
+| Budget context on the month figure | `GET /orgs/{org_id}` serves it **for a member**. It calls `get_for_user` (`organization.py:34`), so an app admin who never joined the organization gets a 404, and `AdminOrganizationRead` carries no `monthly_budget_usd`. For those organizations the month figure renders as an amount with no percentage, unless the app-admin response grows the field — §6a |
 | "All organizations" mode (§6a) — `organization_id`-optional `/runs`, `/approvals`, `/spend`, refused for anyone but an app admin | Route + repository on all three; the one honestly droppable line here |
 
 Everything else is frontend.
 
 ## 8. Filed separately, found while writing this
 
-- **`AgentRunRead.logfire_trace_id` is documented as *"Deep-link into the full trace"* and
-  is always `null`** (`app/schemas/agent_run.py:29`). The public API promises something it
-  never delivers. Independent of this page. Removal is the likely fix: the only candidate
-  consumer, #52, independently rejected the same Logfire assumption and plans to work from
-  stored rows — so nothing waits on this field being written.
+- **#205 — five of seven surfaces record no transcript.** The matrix is in §2. It decides
+  what this page can show and what it has to admit, so it is the one item here that
+  changes a deliverable rather than sitting beside it. Filed rather than folded in, and
+  the detail view is built so that #205 landing fills it in without a frontend change.
+- **#218 — `AgentRunRead.logfire_trace_id` is documented as *"Deep-link into the full
+  trace"* and is always `null`** (`app/schemas/agent_run.py:29`), and `GET /runs/{run_id}`
+  repeats the promise in a docstring the reference docs publish (`runs.py:51`). The public
+  API says where to look and hands over nothing to look with. Independent of this page
+  either way. Removal is the fix, and this is the third independent read to reach it: #52
+  rejected the same Logfire assumption for its own reasons, and §1 rejected it here.
+- **`RunSurface.PLAYGROUND` is dead, like `SCHEDULE`** (§6) — two values nothing assigns,
+  on a column the API returns and a filter would otherwise offer. `app/db/models/agent_run.py`
+  already has a third of these: `ApprovalStatus.EXPIRED`, which #178 covers. **Recommendation:
+  widen #178 to all three rather than open two more issues** — one file, one clean-up, and
+  the decision in each case is the same one (assign it or delete it).
 
 A second find — "Spend by agent" listing model labels because `CostByAgent` carries no
 name (`runs/page.tsx:285`) — started here, but the mockup shows it fixed and the change
@@ -344,5 +401,12 @@ is one join, so it moved into scope: §7 prices it.
   ~100-line guidance, and #45 counts the split as part of the work, not extra
 - `messages.run_id` covered by an integration test against a real database: two runs in
   one conversation, each detail view showing only its own steps
+- the detail read proven to be authorized rather than owned: an owner opening a
+  **colleague's** run gets its steps, the same request for another tenant's run is
+  refused, and the conversation endpoint one route over is left exactly as strict as it
+  is today
+- a run on a surface that records nothing renders the third case of §2, naming the
+  surface — asserted by a test, because "empty" and "not recorded" are the same pixels
+  and this page exists to stop that
 - `bun run type-check && bun run lint && bun run test:run` clean
 - `make check` clean

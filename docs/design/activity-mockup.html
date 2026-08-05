@@ -479,11 +479,18 @@ const STATUSES = [
   { id: "cancelled", label: "cancelled", cls: "idle" },
 ];
 /* `embed` and `mattermost` are ahead of the recorder: an embed run is stamped
-   `web` and a mattermost mention falls through to `api`. `schedule` is absent
-   because RunSurface.SCHEDULE is defined and never assigned. */
-const SURFACES = ["playground", "web", "api", "embed", "slack", "telegram", "mattermost"];
+   `web` and a mattermost mention falls through to `api`. Two RunSurface values
+   are absent because nothing ever assigns them: SCHEDULE, and PLAYGROUND, which
+   is only the default of execute()'s surface parameter - all four call sites
+   pass one explicitly. */
+const SURFACES = ["web", "api", "embed", "slack", "telegram", "mattermost"];
 /* Surfaces that run without a conversation, so there is no transcript to show. */
-const NO_CONVERSATION = new Set(["api", "playground"]);
+const NO_CONVERSATION = new Set(["api"]);
+/* What each surface writes to `messages` today. An embed run creates a
+   conversation and leaves it empty; a channel bot writes the answer as text and
+   never the tool calls behind it. Both are the recording gap, not this page's. */
+const RECORDS_NOTHING = new Set(["embed"]);
+const RECORDS_TEXT_ONLY = new Set(["slack", "telegram", "mattermost"]);
 
 /* cap mirrors AgentSpec.budget.monthly_usd - per agent, nullable. */
 const AGENTS = [
@@ -512,7 +519,7 @@ const EXPOSURES = [
   { id: "x6", org: "initech", surface: "telegram", name: "Initech assistant — Telegram" },
 ];
 /* An org only produces channel runs through the bindings it actually has. */
-const surfacesFor = (orgId) => ["playground", "web", "api", "embed",
+const surfacesFor = (orgId) => ["web", "api", "embed",
   ...new Set(EXPOSURES.filter((x) => x.org === orgId).map((x) => x.surface))];
 
 /* agent_runs.environment_id - which named environment resolved the version. */
@@ -571,7 +578,11 @@ function readHash() {
     const [from, to] = period.split("..");
     if (parseIsoDay(from) <= parseIsoDay(to)) current.period = { from, to };
   }
-  const org = p.get("org") === "all" ? ALL_ORGS : ORGS.find((o) => o.id === p.get("org"));
+  // All-organizations is an app admin's mode, and the hash is not a trusted source:
+  // an owner reading it would be scoped to an organization that holds no agents.
+  const org = p.get("org") === "all" && current.identity.isAppAdmin
+    ? ALL_ORGS
+    : ORGS.find((o) => o.id === p.get("org"));
   if (org) current.org = org;
   if (["approvals", "runs", "spend"].includes(p.get("tab"))) current.tab = p.get("tab");
   const st = (p.get("status") || "").split(",").filter((s) => STATUSES.some((x) => x.id === s));
@@ -689,7 +700,10 @@ function genRuns([from, to]) {
         env: rnd() < 0.85 ? "production" : "staging",
         exposure: ["slack", "telegram", "mattermost"].includes(surface)
           ? pick(rnd, EXPOSURES.filter((x) => x.org === orgId && x.surface === surface)) : null,
-        user: NO_CONVERSATION.has(surface) && rnd() < 0.6 ? null : pick(rnd, orgUsers),
+        // An embed run carries the widget owner's identity, not a visitor's: the run
+        // row stores ctx.user_id, and a visitor has no row anywhere.
+        user: surface === "embed" ? orgUsers[0]
+          : NO_CONVERSATION.has(surface) && rnd() < 0.6 ? null : pick(rnd, orgUsers),
         tin, tout,
         cost: unpriced ? 0 : (tin * 3e-6 + tout * 1.5e-5) * (model.includes("opus") ? 5 : model.includes("haiku") ? 0.3 : 1),
         partial: unpriced,
@@ -892,15 +906,21 @@ function orgDivider() {
 function kpis(periodRuns, approvals) {
   const err = current.state === "error";
   const empty = current.state === "empty";
-  // organizations.monthly_budget_usd is already on GET /orgs/{org_id}.
   const mtd = err || empty ? 0 : monthToDateSpend();
-  const budget = isAllOrgs() ? null : current.org.budget;
+  // The cap comes from GET /orgs/{org_id}, which requires a membership. An app
+  // admin activates an organization without joining it, so for them there is no
+  // cap to read and the figure stays an amount - a percentage of a cap nobody
+  // read is a number somebody would act on.
+  const budget = isAllOrgs() || current.identity.isAppAdmin ? null : current.org.budget;
   const pct = budget && !err && !empty ? Math.round((mtd / budget) * 100) : null;
   const cards = [
     { goto: "spend", lbl: "Spend this month", v: err || empty ? "—" : money(mtd),
       tone: pct === null ? "" : pct >= 90 ? "err" : pct >= 70 ? "warn" : "",
       sub: pct === null ? "Calendar month, so it reconciles against an invoice."
-        : `Calendar month — ${pct}% of the ${money(budget)} monthly budget.` },
+        : `Calendar month — ${pct}% of the ${money(budget)} monthly budget.`,
+      note: current.identity.isAppAdmin
+        ? "no cap here: /orgs/{org_id} needs a membership and AdminOrganizationRead has no monthly_budget_usd"
+        : null },
     { goto: "runs", lbl: isAllOrgs() ? "Runs, all organizations" : "Runs", v: err ? "—" : fmt(periodRuns.length),
       sub: `${periodLabel()} — the total from the API, not the ${PAGE_SIZE} rows on a page.` },
   ];
@@ -913,7 +933,9 @@ function kpis(periodRuns, approvals) {
     data-goto="${c.goto}" title="Open the ${c.goto} tab">
     <div class="lbl sub">${esc(c.lbl)}</div>
     <div class="big" style="margin:2px 0 3px${c.tone ? `;color:var(--${c.tone})` : ""}">${c.v}</div>
-    <div class="sub">${esc(c.sub)}</div></div>`).join("")}</div>`;
+    <div class="sub">${esc(c.sub)}</div>
+    ${c.note ? `<span class="chips anno" style="margin-top:6px"><span class="badge-new">${esc(c.note)}</span></span>` : ""}
+    </div>`).join("")}</div>`;
 }
 
 function tabStrip(approvals) {
@@ -1198,7 +1220,10 @@ function runDetail(r) {
     // The version comes from the run row - agent_runs.agent_version_id - so it
     // is there even when the transcript is not.
     ["Agent", `${esc(r.agent.name)} <span class="sub">v${r.version}</span>`],
-    ["Triggered by", r.user ? esc(r.user.name) : `<span class="sub">nobody — ${r.surface}</span>`],
+    ["Triggered by", r.surface === "embed"
+      ? `${esc(r.user.name)} <span class="sub">the widget's owner — the visitor is anonymous,
+          and the run carries the identity it ran as</span>`
+      : r.user ? esc(r.user.name) : `<span class="sub">nobody — ${r.surface}</span>`],
     ["Surface", r.surface + (r.exposure ? ` <span class="sub">via ${esc(r.exposure.name)}</span>` : "")],
     ["Environment", r.env],
     ["Model", `<span class="mono">${r.model}</span>`],
@@ -1219,6 +1244,12 @@ function runDetail(r) {
     body = `<div class="notice">The <b>${r.surface}</b> surface ran this without a conversation,
       so there is no transcript to show. Status, cost and any error are all there is — and all
       there ever was.</div>`;
+  } else if (RECORDS_NOTHING.has(r.surface)) {
+    body = `<div class="notice">The <b>${r.surface}</b> surface writes no messages at all today, so
+      there is nothing for a run to link to — a conversation is opened and left empty. The run
+      itself is complete: status, cost, tokens and any error are all recorded. This view fills in
+      on its own once the recording gap is closed, with no change here.</div>`;
+    missing = ["#205 — embed and mention runs write no messages"];
   } else if (r.started < RUN_ID_SINCE) {
     body = `<div class="notice">Steps were not recorded for runs before
       <b>${fmtDay(RUN_ID_SINCE)}</b>, when <span class="chip">messages.run_id</span> started being
@@ -1227,13 +1258,13 @@ function runDetail(r) {
     missing = ["messages.run_id"];
   } else {
     const sc = r.script;
+    const textOnly = RECORDS_TEXT_ONLY.has(r.surface);
     const toolStatus = r.status === "failed" ? "failed" : r.status === "awaiting_approval" ? "pending" : "completed";
-    body = `<ol class="steps">
-      <li class="step"><span class="who">user</span><p class="say">${esc(sc.ask)}</p></li>
-      <li class="step"><span class="who">assistant · v${r.agent.version}</span>
-        ${toolStatus === "completed" && sc.say ? `<p class="say">${esc(sc.say)}</p>` : ""}
-        ${sc.think ? `<p class="think">${esc(sc.think)}</p>` : ""}
-        <div class="tool">
+    const tool = textOnly
+      ? `<div class="notice" style="margin:8px 0 0">A channel run records the answer as text and
+          not the calls behind it, so the tool this run made — its name, arguments and result —
+          was never written. Everything above is what exists.</div>`
+      : `<div class="tool">
           <div class="tool-head">
             <span class="tn">${esc(sc.tool)}</span>
             <span class="pill ${toolStatus === "completed" ? "ok" : toolStatus === "failed" ? "err" : "warn"}">${toolStatus}</span>
@@ -1243,11 +1274,19 @@ function runDetail(r) {
           ${toolStatus === "pending" ? ""
             : `<div class="pre-label">Result</div><pre>${esc(toolStatus === "failed"
               ? "HTTP 503 Service Unavailable (attempt 3/3)" : sc.result)}</pre>`}
-        </div>
-        ${toolStatus === "pending" ? `<p class="sub" style="margin-top:8px">Parked — it is in the
+        </div>`;
+    body = `<ol class="steps">
+      <li class="step"><span class="who">user</span><p class="say">${esc(sc.ask)}</p></li>
+      <li class="step"><span class="who">assistant · v${r.version}</span>
+        ${toolStatus === "completed" && sc.say ? `<p class="say">${esc(sc.say)}</p>` : ""}
+        ${sc.think && !textOnly ? `<p class="think">${esc(sc.think)}</p>` : ""}
+        ${tool}
+        ${toolStatus === "pending" && !textOnly ? `<p class="sub" style="margin-top:8px">Parked — it is in the
           Approvals tab, and nothing else in this run has happened yet.</p>` : ""}
       </li></ol>`;
-    missing = ["messages.run_id"];
+    missing = textOnly
+      ? ["messages.run_id", "#205 — a channel run records no tool calls"]
+      : ["messages.run_id"];
   }
 
   return `<div class="detail">
@@ -1256,7 +1295,11 @@ function runDetail(r) {
         <div class="sub" style="margin-top:3px">Assembled from
           <span class="chip">agent_runs</span> <span class="chip">messages</span>
           <span class="chip">tool_calls</span> — no Logfire in the path.</div></div>
-      ${anno(["GET /api/v1/conversations/{id}/messages"], missing)}
+      ${anno(["GET /api/v1/runs/{run_id}/steps"], [
+        "a new route: /conversations/{id}/messages filters on the caller owning the conversation, so it 404s on a colleague's run",
+        "AgentRunRead carries no conversation_id",
+        ...missing,
+      ])}
     </div>
     <dl class="facts">${facts}</dl>
     ${err}${body}
