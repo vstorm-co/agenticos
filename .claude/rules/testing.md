@@ -61,6 +61,16 @@ Traps, each of which has cost a red job here:
 - **A red `e2e` may not be yours.** `sharing.spec.ts` and `skills.spec.ts` flake
   (#154) - check `gh run list --branch <branch>` for the same spec passing a run later
   before changing anything.
+- **A red `e2e` in `[setup]` or `[seed]` ran no product spec at all.** They are project
+  dependencies, so Playwright skips what depends on them and the log reads "1 failed,
+  7 passed, 17 did not run". `e2e/fixture-reporter.ts` prints a banner saying so - read
+  it before touching product code. Creating a row through a dialog goes through
+  `submitDialog`, never `click(submit)` then `expect(row).toBeVisible()`: an open Radix
+  dialog takes the page out of the accessibility tree, so that shape reports
+  `element(s) not found` for a refusal it never looked at (#132). And a **fixture** step
+  asserts through the API, never on the row appearing - the refetch after a write is
+  sometimes answered with the pre-write list (#230), which is a product bug and must not
+  be reported as a broken fixture.
 - **Coverage instrumentation slows tests enough to trip a 5s `testTimeout`.** A
   heavy spec that passes under `test:run` can time out under `test:coverage`; re-run
   before believing it.
