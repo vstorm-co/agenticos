@@ -211,9 +211,25 @@ own message tells a model to re-delegate with.
 
 **Let a delegate ask the parent a question.** The library's `ask_parent` tool is
 injected only into agents it built itself, and every delegate here arrives
-pre-built. A specialist works autonomously and says so if it could not; a
-specialist that needs a person reaches one through its own capabilities, on the
-parent's channels, which `AgentDeps.clone_for_subagent` passes down.
+pre-built — so `task` passes `inject_ask_parent=False` for a pinned delegate and an
+inline specialist alike, and `_autonomously` closes the two dynamic entry points as
+well. A specialist works autonomously and says so if it could not; a specialist that
+needs a person reaches one through its own capabilities, on the parent's channels,
+which `AgentDeps.clone_for_subagent` passes down.
+
+So **`answer_subagent` is declared and offered to nobody** — `UNREACHABLE_TOOLS`,
+applied as a filter in `get_toolset`. It replies to a question that cannot be asked,
+and the library adds it to its toolset unconditionally, so the offered set is the
+only place the decision can be made. Declared still, because a tool absent from
+`tools=` can be neither gated by the approval policy nor renamed by a binding, and
+that half is silent; filtered, because the other half is a description in every
+turn's context inviting a call whose only answer is "that delegation is not waiting
+for an answer". Opening the path is a feature rather than a repair, and which
+channel answers depends on the mode: a `sync` question is answered by a *person*,
+through `ask_user`, and never through this tool — so it becomes reachable only for a
+background delegation, whose question the parent's own model answers while nothing
+obliges it to look. agenticos#184 is the sync half, worth doing on its own terms, and
+it would not make this tool reachable.
 
 ## Background delegation, and what it costs
 
@@ -359,11 +375,19 @@ one-shot delegation under the same mode, fan-out ceiling and recording as a
 table rather than a comparison against one name — a delegation this module does
 not see is one that escapes every decision it makes.
 
-With both wired there is nothing left for the drift check to be told about:
-`UNWIRED_TOOLS` in `tests/test_capability_registry.py` is gone, and before it a
-`CapabilityDef.drift_config` field that named a configuration nothing read. What
-stands in their place is a resource fixture wide enough — one resolved delegate
-*and* a `DynamicSpecialists` — that no capability has an excuse.
+Wiring both removed `UNWIRED_TOOLS` from `tests/test_capability_registry.py`, and
+before it a `CapabilityDef.drift_config` field that named a configuration nothing
+read. What stands in their place is a resource fixture wide enough — one resolved
+delegate *and* a `DynamicSpecialists` — that no capability has an excuse for not
+building.
+
+An exception table is back, and it is a narrower claim than either of those:
+`DECLARED_AND_NOT_OFFERED` names `answer_subagent`, subtracted from the expectation
+rather than exempting the capability, so everything else about `subagents` is still
+compared in both directions. That "nothing left to be told about" only held while a
+declared tool was declared and *unwired*; a declared tool that is declared and
+deliberately *unoffered* is a state the check has to know about, or it reads the
+filter as drift.
 
 ## The general-purpose delegate is not offered
 

@@ -617,7 +617,6 @@ class TestWhenTheEntryPointsAreOfferedAtAll:
             "check_task",
             "wait_tasks",
             "list_active_tasks",
-            "answer_subagent",
             "send_message_to_subagent",
             "soft_cancel_task",
             "hard_cancel_task",

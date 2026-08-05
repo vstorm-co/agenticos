@@ -38,7 +38,10 @@ what it was configured with and none of these three is expressible that way. See
 
 *A specialist never asks the parent a question.* Which is a decision about the
 arguments rather than about the call, so it is applied to them on the way past:
-see :func:`_autonomously`.
+see :func:`_autonomously`. This is the half of that decision the two dynamic entry
+points need; the library closes the configured ones itself, and
+:data:`~app.agents.capabilities.subagents._capability.UNREACHABLE_TOOLS` is what
+the two of them together mean for the tool that would have answered.
 
 Three entry points therefore reach a delegation - `task`, `delegate`, and `task`
 addressing something `create_agent` registered - and all three come through here.
