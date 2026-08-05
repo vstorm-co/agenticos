@@ -92,6 +92,7 @@ const STEWARD_SECTIONS: SectionDef[] = [
       { widget: "model-mix", span: "s6" },
       { widget: "latency", span: "s4" },
       { widget: "active-users", span: "s8" },
+      { widget: "top-people", span: "s12" },
     ],
   },
   {
@@ -154,6 +155,7 @@ export const LAYOUTS: Record<AudienceId, SectionDef[]> = {
         { widget: "surfaces", span: "s4" },
         { widget: "agents", span: "s6" },
         { widget: "spend", span: "s6" },
+        { widget: "top-people", span: "s12" },
       ],
     },
     {
@@ -197,6 +199,7 @@ export const LAYOUTS: Record<AudienceId, SectionDef[]> = {
         { widget: "surfaces", span: "s6" },
         { widget: "latency", span: "s4" },
         { widget: "active-users", span: "s8" },
+        { widget: "top-people", span: "s12" },
       ],
     },
     {

@@ -30,6 +30,7 @@ export type WidgetId =
   | "agents"
   | "latency"
   | "active-users"
+  | "top-people"
   | "spend"
   | "model-mix"
   | "version-compare"
@@ -83,6 +84,10 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
   agents: { id: "agents", gate: holds(Perm.runsView), defaultSpan: "s6", seeAll: ROUTES.AGENTS },
   latency: { id: "latency", gate: holds(Perm.runsView), defaultSpan: "s4" },
   "active-users": { id: "active-users", gate: holds(Perm.runsView), defaultSpan: "s8" },
+  // The only card that answers with names. Same gate as the count it sits
+  // under, which means builder and operator see it too - the card says so
+  // rather than the layouts quietly withholding it from some of them.
+  "top-people": { id: "top-people", gate: holds(Perm.runsView), defaultSpan: "s12" },
   spend: { id: "spend", gate: holds(Perm.runsView), defaultSpan: "s6", seeAll: ROUTES.RUNS },
   "model-mix": { id: "model-mix", gate: holds(Perm.runsView), defaultSpan: "s6" },
   "version-compare": {
@@ -103,12 +108,10 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultSpan: "s5",
     seeAll: ROUTES.RUNS,
   },
-  "budget-headroom": {
-    id: "budget-headroom",
-    gate: holds(Perm.runsView),
-    defaultSpan: "s4",
-    seeAll: ROUTES.RUNS,
-  },
+  // No seeAll here: the page worth reaching from the headroom card is the
+  // organization's settings, whose path carries an id this catalog has no
+  // access to, so the widget computes its own.
+  "budget-headroom": { id: "budget-headroom", gate: holds(Perm.runsView), defaultSpan: "s4" },
   "mcp-health": {
     id: "mcp-health",
     gate: holds(Perm.mcpManage),

@@ -412,6 +412,9 @@
       "label": "Organizacja",
       "note": "Wszystko poniżej dotyczy tej organizacji"
     },
+    "states": {
+      "loading": "Ładowanie"
+    },
     "errors": {
       "title": "Nie udało się załadować",
       "description": "Żądanie nie powiodło się. Reszta strony działa - każda karta zawodzi osobno.",
@@ -524,10 +527,25 @@
       "active-users": {
         "title": "Aktywne osoby",
         "headline": "{active} z {total} członków",
-        "subline": "uruchomiło agenta w tym okresie - liczba, celowo nie tabela nazwisk",
+        "subline": "uruchomiło agenta w tym okresie - to nagłówek; nazwiska są w tabeli poniżej",
         "empty": {
           "title": "Nikt nic nie uruchomił",
           "description": "Adopcja zaczyna się od pierwszego uruchomienia pierwszej osoby."
+        }
+      },
+      "top-people": {
+        "title": "Kto z tego korzysta",
+        "columns": {
+          "person": "Osoba",
+          "runs": "Uruchomienia",
+          "cost": "Koszt",
+          "lastRun": "Ostatnie"
+        },
+        "others": "{count, plural, =1 {1 kolejna osoba uruchomiła co najmniej jednego agenta} few {# kolejne osoby uruchomiły co najmniej jednego agenta} many {# kolejnych osób uruchomiło co najmniej jednego agenta} other {# kolejnych osób uruchomiło co najmniej jednego agenta}}",
+        "disclosure": "Widzi to każdy z uprawnieniem runs:view - także budowniczowie i operatorzy, nie tylko właściciele i administratorzy.",
+        "empty": {
+          "title": "Nikt nic nie uruchomił",
+          "description": "Pierwsze uruchomienie pierwszej osoby wpisze tu nazwisko."
         }
       },
       "spend": {
@@ -701,5 +719,9 @@
         }
       }
     }
+  },
+  "ui": {
+    "nextMonths": "Następne miesiące",
+    "previousMonths": "Poprzednie miesiące"
   }
 }

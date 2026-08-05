@@ -954,6 +954,9 @@
       "label": "Organization",
       "note": "Everything below is this organization"
     },
+    "states": {
+      "loading": "Loading"
+    },
     "errors": {
       "title": "Couldn't load this",
       "description": "The request failed. The rest of the page is unaffected - every card fails alone.",
@@ -1066,10 +1069,25 @@
       "active-users": {
         "title": "Active people",
         "headline": "{active} of {total} members",
-        "subline": "ran an agent in this period - a count, deliberately not a table of names",
+        "subline": "ran an agent in this period - the headline; the names are in the table below",
         "empty": {
           "title": "Nobody has run anything",
           "description": "Adoption starts with the first person's first run."
+        }
+      },
+      "top-people": {
+        "title": "Who is using it",
+        "columns": {
+          "person": "Person",
+          "runs": "Runs",
+          "cost": "Cost",
+          "lastRun": "Last run"
+        },
+        "others": "{count, plural, =1 {1 more person ran at least one agent} other {# more people ran at least one agent}}",
+        "disclosure": "Everyone holding runs:view sees this - builders and operators as well as owners and admins.",
+        "empty": {
+          "title": "Nobody has run anything",
+          "description": "The first person's first run puts a name here."
         }
       },
       "spend": {
@@ -3063,10 +3081,12 @@
     "flexH10W": "flex h-10 w-10 items-center justify-center",
     "markdown": "Markdown",
     "next": "Next",
+    "nextMonths": "Next months",
     "nextPage": "Next page",
     "noResults": "No results.",
     "nothingWrittenYet": "Nothing written yet.",
     "preview": "Preview",
+    "previousMonths": "Previous months",
     "previousPage": "Previous page",
     "questionFromAssistant": "Question from the assistant",
     "skip": "Skip",

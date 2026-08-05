@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import {
   addMonths,
@@ -45,6 +46,7 @@ function monthLabel({ year, month }: YearMonth): string {
  * pending first click and which months are on screen.
  */
 export function DateRangePicker({ value, onChange, maxDate, className }: DateRangePickerProps) {
+  const t = useTranslations("ui");
   const today = new Date().toISOString().slice(0, 10);
   const latest = maxDate ?? today;
   const [pending, setPending] = React.useState<string | null>(null);
@@ -77,7 +79,7 @@ export function DateRangePicker({ value, onChange, maxDate, className }: DateRan
       <div className="flex items-center justify-between pb-2">
         <button
           type="button"
-          aria-label="Previous months"
+          aria-label={t("previousMonths")}
           className="hover:bg-accent rounded-md p-1"
           onClick={() => setVisible((current) => addMonths(current, -1))}
         >
@@ -85,7 +87,7 @@ export function DateRangePicker({ value, onChange, maxDate, className }: DateRan
         </button>
         <button
           type="button"
-          aria-label="Next months"
+          aria-label={t("nextMonths")}
           disabled={atTheEnd}
           className="hover:bg-accent rounded-md p-1 disabled:pointer-events-none disabled:opacity-40"
           onClick={() => setVisible((current) => addMonths(current, 1))}

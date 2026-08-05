@@ -14,8 +14,13 @@ import { cn } from "@/lib/utils";
  */
 
 export function WidgetSkeleton({ rows = 3, className }: { rows?: number; className?: string }) {
+  const t = useTranslations("dashboard.states");
   return (
-    <div role="status" aria-label="Loading" className={cn("animate-pulse space-y-3 py-1", className)}>
+    <div
+      role="status"
+      aria-label={t("loading")}
+      className={cn("animate-pulse space-y-3 py-1", className)}
+    >
       {Array.from({ length: rows }, (_, index) => (
         <div
           key={index}

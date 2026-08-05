@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 
 import { useAgents, useOrganizationList, useSpend } from "@/hooks";
 import { useOrgStore } from "@/stores";
+import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { formatUsd } from "../format";
 import { WidgetFrame } from "../widget-frame";
@@ -15,8 +16,13 @@ import type { DashboardWidgetProps } from "./types";
  * shows the symptom of. Both figures are calendar-month by design (a cap is
  * monthly), so this card deliberately ignores the period filter. Per-agent
  * bars appear for agents whose published spec carries its own cap.
+ *
+ * Its "see all" is computed rather than taken from the registry, because the
+ * page worth reaching from here is the one holding the cap, and that path
+ * carries the organization's id. Raising the cap is still somewhere else -
+ * this is navigation, not a budget-request flow.
  */
-export function BudgetHeadroomWidget({ title, seeAll }: DashboardWidgetProps) {
+export function BudgetHeadroomWidget({ title }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.budget-headroom");
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const organizations = useOrganizationList();
@@ -38,7 +44,7 @@ export function BudgetHeadroomWidget({ title, seeAll }: DashboardWidgetProps) {
   );
 
   return (
-    <WidgetFrame title={title} seeAll={seeAll}>
+    <WidgetFrame title={title} seeAll={organization ? ROUTES.ORG_SETTINGS(organization.id) : undefined}>
       {isLoading || organizations.isLoading ? (
         <WidgetSkeleton />
       ) : error ? (

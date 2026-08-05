@@ -74,6 +74,16 @@ export interface VersionUsageRow {
   rating_count: number;
 }
 
+export interface PersonUsageRow {
+  user_id: string;
+  email: string;
+  full_name: string | null;
+  runs: number;
+  /** Serialised Decimal - never parse into a float for arithmetic. */
+  cost_usd: string;
+  last_run_at: string;
+}
+
 export interface UsageStats {
   from: string;
   to: string;
@@ -94,6 +104,8 @@ export interface UsageStats {
   /** group_by=version only. */
   agent_id: string | null;
   by_version: VersionUsageRow[] | null;
+  /** group_by=user only, capped by the request's limit. */
+  by_user: PersonUsageRow[] | null;
 }
 
 export interface RatingsByDay {

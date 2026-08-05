@@ -3,7 +3,12 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useRatingsSummary, useUsageStats, useVersionUsage } from "./use-usage-stats";
+import {
+  usePeopleUsage,
+  useRatingsSummary,
+  useUsageStats,
+  useVersionUsage,
+} from "./use-usage-stats";
 import { apiClient } from "@/lib/api-client";
 
 vi.mock("@/lib/api-client", () => ({
@@ -85,6 +90,58 @@ describe("useVersionUsage", () => {
 
   it("stays quiet when disabled even with an agent", () => {
     renderHook(() => useVersionUsage("agent-1", PERIOD, { enabled: false }), { wrapper });
+
+    expect(apiClient.get).not.toHaveBeenCalled();
+  });
+});
+
+describe("usePeopleUsage", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("asks the person dimension with a bounded row count", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ by_user: [] });
+    const { result } = renderHook(() => usePeopleUsage(PERIOD), { wrapper });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(apiClient.get).toHaveBeenCalledWith("/stats/usage", {
+      params: {
+        from: PERIOD.from,
+        to: PERIOD.to,
+        scope: "org",
+        group_by: "user",
+        limit: "6",
+      },
+    });
+  });
+
+  it("hands back the rows it was given", async () => {
+    const row = {
+      user_id: "u1",
+      email: "k.nowak@example.com",
+      full_name: null,
+      runs: 381,
+      cost_usd: "15.60",
+      last_run_at: "2026-08-04T09:30:00Z",
+    };
+    vi.mocked(apiClient.get).mockResolvedValue({ by_user: [row] });
+    const { result } = renderHook(() => usePeopleUsage(PERIOD, { limit: 3 }), { wrapper });
+
+    await waitFor(() => expect(result.current.byUser).toEqual([row]));
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "/stats/usage",
+      expect.objectContaining({ params: expect.objectContaining({ limit: "3" }) }),
+    );
+  });
+
+  it("answers with no rows rather than undefined while it loads", () => {
+    vi.mocked(apiClient.get).mockReturnValue(new Promise(() => {}));
+    const { result } = renderHook(() => usePeopleUsage(PERIOD), { wrapper });
+
+    expect(result.current.byUser).toEqual([]);
+  });
+
+  it("fetches nothing when the widget's gate said no", () => {
+    renderHook(() => usePeopleUsage(PERIOD, { enabled: false }), { wrapper });
 
     expect(apiClient.get).not.toHaveBeenCalled();
   });

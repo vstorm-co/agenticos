@@ -84,7 +84,27 @@ const USAGE = {
   pending_approvals: null,
   agent_id: null,
   by_version: null,
+  by_user: null,
 };
+
+const PEOPLE = [
+  {
+    user_id: "u1",
+    email: "k.nowak@example.com",
+    full_name: "Katarzyna Nowak",
+    runs: 24,
+    cost_usd: "1.10",
+    last_run_at: "2026-08-04T09:30:00Z",
+  },
+  {
+    user_id: "u2",
+    email: "j.wisniewski@example.com",
+    full_name: null,
+    runs: 16,
+    cost_usd: "0.54",
+    last_run_at: "2026-08-03T17:05:00Z",
+  },
+];
 
 const RATINGS = {
   from: "2026-07-07",
@@ -101,6 +121,9 @@ const RATINGS = {
 function respond(path: string, options?: { params?: Record<string, string> }): unknown {
   switch (path) {
     case "/stats/usage":
+      if (options?.params?.group_by === "user") {
+        return { ...USAGE, by_user: PEOPLE };
+      }
       if (options?.params?.group_by === "version") {
         return { ...USAGE, by_version: [], agent_id: options.params.agent_id };
       }
@@ -272,6 +295,21 @@ describe("the steward's dashboard", () => {
     expect((await screen.findAllByText("Support triage")).length).toBeGreaterThan(0);
   });
 
+  it("names the people who used it, and says how far the list reaches", async () => {
+    render(<DashboardPage />, { wrapper });
+
+    expect(await screen.findByText("Katarzyna Nowak")).toBeInTheDocument();
+    // No display name stored - the email identifies the person instead.
+    expect(screen.getByText("j.wisniewski@example.com")).toBeInTheDocument();
+    // The one card that answers with names carries its own audience note.
+    expect(screen.getByText("dashboard.widgets.top-people.disclosure")).toBeInTheDocument();
+
+    const [, options] = callsTo("/stats/usage").find(
+      ([, opts]) => (opts as { params: Record<string, string> }).params.group_by === "user",
+    )!;
+    expect((options as { params: Record<string, string> }).params.limit).toBe("6");
+  });
+
   it("a 502 on the stats endpoint costs the usage cards, not the page", async () => {
     vi.mocked(apiClient.get).mockImplementation((path: string, options?: unknown) =>
       path === "/stats/usage"
@@ -371,5 +409,19 @@ describe("the member's dashboard", () => {
     }
     expect(callsTo("/approvals")).toHaveLength(0);
     expect(callsTo("/orgs/org1/members")).toHaveLength(0);
+  });
+
+  it("never asks who else is using it", async () => {
+    auth.role = "member";
+    auth.can = holds("agents:view", "agents:edit", "agents:run", "collections:view");
+
+    render(<DashboardPage />, { wrapper });
+
+    await waitFor(() => expect(callsTo("/stats/usage").length).toBeGreaterThan(0));
+    const named = callsTo("/stats/usage").filter(
+      ([, options]) =>
+        (options as { params: Record<string, string> }).params.group_by === "user",
+    );
+    expect(named).toHaveLength(0);
   });
 });

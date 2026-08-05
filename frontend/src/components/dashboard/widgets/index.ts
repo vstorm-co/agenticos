@@ -10,6 +10,7 @@ import type { ComponentType } from "react";
 
 import type { WidgetId } from "@/lib/dashboard/registry";
 import { ActiveUsersWidget } from "./active-users";
+import { TopPeopleWidget } from "./top-people";
 import { AgentsAdoptionWidget } from "./agents-adoption";
 import { ApprovalsWidget } from "./approvals";
 import { BudgetHeadroomWidget } from "./budget-headroom";
@@ -48,6 +49,7 @@ export const WIDGET_COMPONENTS: Record<WidgetId, ComponentType<DashboardWidgetPr
   agents: AgentsAdoptionWidget,
   latency: LatencyWidget,
   "active-users": ActiveUsersWidget,
+  "top-people": TopPeopleWidget,
   spend: SpendWidget,
   "model-mix": ModelMixWidget,
   "version-compare": VersionCompareWidget,

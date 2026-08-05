@@ -87,6 +87,8 @@ export const qk = {
       ["stats", "usage", scope, from, to] as const,
     usageByVersion: (agentId: string, from: string, to: string) =>
       ["stats", "usage", "version", agentId, from, to] as const,
+    usageByUser: (scope: string, from: string, to: string, limit: number) =>
+      ["stats", "usage", "user", scope, from, to, limit] as const,
   },
   ratings: {
     summary: (scope: string, from: string, to: string) =>
