@@ -309,7 +309,9 @@ class TestControlFrames:
             first = session._turn_task
             assert first is not None
             await first
-            session._turn_task = first  # as the callback has not run yet
+            # Put it back: awaiting it here ran the callback, which is the one
+            # thing a client's frame cannot wait for.
+            session._turn_task = first
 
             await session.handle_frame(_message("second"))
             second = session._turn_task
@@ -412,19 +414,18 @@ class TestATurnThatFinished:
         """`persist_user_turn` logs and swallows a write failure, deliberately - a
         lost row must not lose an answer somebody is waiting for. There is then
         nothing to save the assistant message against, but the client still has to
-        be told the turn is over or its composer never comes back."""
-        session = _session()
-        persist_assistant = AsyncMock(return_value=None)
+        be told the turn is over or its composer never comes back.
 
-        with (
-            _chat(AsyncMock(return_value=_finished_turn()), conversation=None),
-            patch("app.services.agent_session.persist_assistant_turn", new=persist_assistant),
-        ):
+        The frame list is what pins it: `persist_assistant_turn` is stubbed to
+        answer with an id, so a write attempted against no conversation would show
+        up here as a `message_saved` pointing at `null`."""
+        session = _session()
+
+        with _chat(AsyncMock(return_value=_finished_turn()), conversation=None):
             await session.process_message(_message())
 
         assert _frame_types(session) == ["user_prompt", "complete"]
         assert _sent_events(session)[-1] == ("complete", {"conversation_id": None, "usage": None})
-        persist_assistant.assert_not_called()
 
     async def test_an_assistant_message_that_did_not_save_is_not_announced_as_saved(self):
         """`message_saved` is what swaps the client's temporary id for the real

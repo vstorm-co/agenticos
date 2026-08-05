@@ -376,14 +376,17 @@ class AgentSession:
                 async with node.stream(agent_run.ctx) as handle_stream:
                     await self._stream_tool_events(handle_stream, collected_tool_calls)
             else:
-                # The end node, and the only kind left: the graph yields a
-                # user-prompt, a model-request, a call-tools or an `End` node and
-                # nothing else. `result` is populated the moment `End` is
-                # returned, so `is_end_node(node) and agent_run.result is not
-                # None` was a condition that could not be false - and had it
-                # ever been, it would have dropped the frame carrying the answer
-                # without saying anything. A node kind the library adds later
-                # raises here instead, which reaches the client as `error`.
+                # The end node, and the only kind left. Iterating an `AgentRun`
+                # yields a user-prompt, a model-request or a call-tools node, or
+                # `End` - `AgentRun._task_to_node` has no fourth answer, and the
+                # graph's one other node is reachable only through
+                # `agent_run.next()`, which this does not use. `End` also means
+                # the graph run holds its `EndMarker`, so `agent_run.result` is
+                # populated there. `is_end_node(node) and agent_run.result is not
+                # None` was therefore a condition that could not be false, and
+                # had it ever been it would have dropped the frame carrying the
+                # answer without saying anything. Whatever made it false now
+                # raises instead, and reaches the client as `error`.
                 await send_event(
                     self.websocket,
                     "final_result",
@@ -425,8 +428,9 @@ class AgentSession:
                         {"index": event.index, "content": delta.content_delta},
                     )
                 elif isinstance(delta, ThinkingPartDelta):
-                    # A signature delta carries no content - the provider's proof
-                    # it produced the reasoning - and forwarding it would put
+                    # Only when there is something to show. A reasoning delta can
+                    # carry a `signature_delta` alone - the provider's proof it
+                    # produced the reasoning - and forwarding that would put
                     # base64 in the reasoning pane and in the stored trace.
                     if delta.content_delta:
                         collected_thinking.append(delta.content_delta)
