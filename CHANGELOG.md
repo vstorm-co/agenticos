@@ -19,6 +19,24 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.20] - 2026-08-05
+
+### Fixed
+
+- **A `create_agent` specialist survives the approval park that interrupts it**
+  ([#175](https://github.com/vstorm-co/agenticos/issues/175)). A specialist the model
+  writes at run time is documented as lasting for the reply, but it did not survive a
+  *second* approval park: the library's dynamic-agent registry belongs to the built agent,
+  and a resume rebuilds the agent fresh, so `task` answered "unknown subagent" for a
+  specialist the model was told it could keep. The specialist's definition — a name,
+  instructions, a model — is now carried in the run's `paused_state` alongside the spend,
+  timings and approval rows already kept there, and a resumed turn re-seeds the registry
+  through the same factory, so the specialist arrives with the run's shared budget guard
+  and approval channel exactly as it did the first time. `max_agents` still bounds how many
+  one run may keep, so a resume cannot exceed it by rebuilding. This survives within one
+  run; a dynamic specialist is still never persisted across runs — keeping one past its run
+  means promoting it to a published agent, which is a person's action.
+
 ## [0.0.19] - 2026-08-05
 
 ### Added
@@ -884,7 +902,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.19...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.20...HEAD
+[0.0.20]: https://github.com/vstorm-co/agenticos/compare/v0.0.19...v0.0.20
 [0.0.19]: https://github.com/vstorm-co/agenticos/compare/v0.0.18...v0.0.19
 [0.0.18]: https://github.com/vstorm-co/agenticos/compare/v0.0.17...v0.0.18
 [0.0.17]: https://github.com/vstorm-co/agenticos/compare/v0.0.16...v0.0.17
