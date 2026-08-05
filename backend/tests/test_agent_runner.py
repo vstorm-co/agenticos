@@ -1024,6 +1024,7 @@ class TestParking:
                     spent=DelegationSpend(
                         cost_usd=Decimal("0.25"), input_tokens=7, output_tokens=3
                     ),
+                    started_at=datetime(2026, 8, 5, 9, 0, tzinfo=UTC),
                 )
             ]
         )
@@ -1048,6 +1049,9 @@ class TestParking:
         # work that led up to the approval.
         assert stored["delegations"][0]["cost_usd"] == "0.25"
         assert stored["delegations"][0]["input_tokens"] == 7
+        # And when the delegate first began, so the row written when it ends begins
+        # there rather than at the resume that settles it (agenticos#245).
+        assert stored["delegations"][0]["started_at"] == "2026-08-05T09:00:00Z"
         # And which agent's replay each parked approval belongs to, which is what
         # keeps a delegate's call out of the parent's continuation - Pydantic AI
         # refuses a resume whose results name a call the replay does not contain.

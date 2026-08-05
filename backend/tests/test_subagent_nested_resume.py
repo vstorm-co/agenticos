@@ -34,6 +34,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 from uuid import UUID, uuid4
@@ -517,7 +518,7 @@ async def _resume(parked: _Parked, delegate: Callable[[DelegationStash], Resolve
     """
     decided, approved_args = _verdicts(parked.state, parked.queue)
     plan = _resume_plan(parked.state, approved_args)
-    stash = DelegationStash(resuming=plan.delegations, spent=plan.spent)
+    stash = DelegationStash(resuming=plan.delegations, spent=plan.spent, started=plan.started)
     agent, deps = _orchestrator(
         delegate(stash), stash=stash, channel=_channel(parked.queue, decided=decided)
     )
@@ -747,6 +748,7 @@ class TestWhenAPlaceCannotBeKept:
         frame out would turn a delegation that has to start again into a run nobody
         can ever finish.
         """
+        began = datetime(2026, 8, 5, 9, 0, tzinfo=UTC)
         state = PausedRunState(
             messages=[],
             tool_call_ids={},
@@ -758,6 +760,7 @@ class TestWhenAPlaceCannotBeKept:
                     cost_usd=Decimal("0.25"),
                     input_tokens=INPUT_TOKENS,
                     output_tokens=OUTPUT_TOKENS,
+                    started_at=began,
                 )
             ],
         )
@@ -777,6 +780,10 @@ class TestWhenAPlaceCannotBeKept:
                 output_tokens=OUTPUT_TOKENS,
             )
         }
+        # When it first began is carried on the same terms, and for the same reason:
+        # a delegation re-run from the start still began when it began, and the row
+        # must not read as having started at the resume.
+        assert plan.started == {"the-task-call": began}
 
 
 class TestAnOlderParkedRun:
@@ -951,7 +958,9 @@ async def _until_it_answers(
         if state is not None:
             decided, approved_args = _verdicts(state, queue)
             plan = _resume_plan(state, approved_args)
-            stash = DelegationStash(resuming=plan.delegations, spent=plan.spent)
+            stash = DelegationStash(
+                resuming=plan.delegations, spent=plan.spent, started=plan.started
+            )
             history = ModelMessagesTypeAdapter.validate_python(state.messages)
             results = plan.results
         channel = _channel(queue, decided=decided)
@@ -1135,3 +1144,110 @@ class TestWhatADelegateSpentBeforeItParked:
         (inner,) = outer.delegations
         assert (outer.subagent, inner.subagent) == (MIDDLE, SPECIALIST)
         assert inner.cost_usd == Decimal("0.25")
+
+
+class TestWhenADelegateFirstBegan:
+    """A delegation's row begins where its delegate first began, not where it settled.
+
+    The clock's half of the same shape as the cost (agenticos#180): a delegate does
+    the work, asks a person to act on the result, and parks. The turn that continues
+    it is a different process whose task handle is stamped at the *resume* - so a row
+    written off that handle alone begins when the person answered, dropping the whole
+    pre-park segment. The earliest start is carried across the park through
+    `paused_state` (agenticos#245), so the recorded span covers every turn the
+    delegate ran in.
+
+    Driven through the real capability, the real gate and the runner's real split of
+    the verdicts, and through `paused_state` as JSON each park - the trip the start
+    actually makes, so nothing here would pass on a carry that survived only in
+    memory.
+    """
+
+    async def test_a_park_and_resume_span_the_first_start_and_the_last_end(self):
+        """One park: the row begins in the turn before the approval, not after it.
+
+        Off the resume handle alone `started_at` would be the moment the person
+        answered - strictly later than the delegate first ran. Carried, it is the
+        first segment's, which is exactly the frame the first park wrote; the end is
+        the last segment's, so the span covers both turns.
+        """
+        recorder = Recorder()
+
+        parked, answer = await _until_it_answers(
+            lambda _stash, metering: _specialist_delegate(
+                gated=True, calls=[], charge=metering.charge, agent_id=uuid4()
+            ),
+            turn_costs=(Decimal("0.25"), Decimal("0.75")),
+            parent_cost=Decimal("0.10"),
+            recorder=recorder,
+        )
+
+        assert answer == "answer: weather: Krakow: 21C and clear"
+        assert len(parked) == 1
+        (first_segment,) = parked[0].delegations
+        (outcome,) = recorder.outcomes
+        # The recorded start is the first segment's, carried across the park - not
+        # the resume-turn handle's, which is strictly later and is what the bug
+        # recorded.
+        assert first_segment.started_at is not None
+        assert outcome.started_at == first_segment.started_at
+        # And the end is the last segment's, so the span is both turns, not one
+        # instant.
+        assert outcome.ended_at is not None
+        assert outcome.ended_at > outcome.started_at
+
+    async def test_two_parks_keep_the_first_start_across_both(self):
+        """The earliest start survives more than one park.
+
+        A park carries the *earliest* start rather than the turn that wrote it, the
+        way it carries a running cost total. Carrying the latest would move the start
+        forward on each park and record the third segment's - the same bug one turn
+        along, which the one-park case above would not catch.
+        """
+        recorder = Recorder()
+
+        parked, answer = await _until_it_answers(
+            lambda _stash, metering: _specialist_delegate(
+                gated=True, calls=[], cities=("Krakow", "Warsaw"), charge=metering.charge
+            ),
+            turn_costs=(Decimal("0.25"), Decimal("0.75"), Decimal("0.50")),
+            parent_cost=Decimal("0.10"),
+            recorder=recorder,
+        )
+
+        assert answer == "answer: weather: Krakow: 21C and clear | Warsaw: 21C and clear"
+        assert len(parked) == 2
+        first_start = parked[0].delegations[0].started_at
+        assert first_start is not None
+        # Both parks carry that same first start, not each turn's own - which is what
+        # keeps the second park from moving the recorded beginning forward.
+        assert [frame.started_at for state in parked for frame in state.delegations] == [
+            first_start,
+            first_start,
+        ]
+        (outcome,) = recorder.outcomes
+        assert outcome.started_at == first_start
+        assert outcome.ended_at is not None and outcome.ended_at > first_start
+
+    def test_a_resumed_delegation_keeps_its_carried_start_when_a_segment_has_none(self):
+        """A carried start wins even when the settling segment stamped none.
+
+        Telemetry on a handle is best-effort, so a resumed delegation can reach a
+        settlement whose handle carries no start of its own - or park again with its
+        handle already evicted. `_span_start` then keeps what earlier turns carried
+        rather than dropping the delegation's beginning, which is the branch the
+        park-and-resume paths above never take because their handles always stamp
+        one.
+        """
+        began = datetime(2026, 8, 5, 9, 0, tzinfo=UTC)
+        journal = _journal_mid_delegation(_specialist_delegate(gated=False, calls=[]), resuming={})
+        delegation = journal.begin(
+            delegate=None,
+            name=SPECIALIST,
+            prompt="",
+            tool_args={},
+            tool_call_id="the-task-call",
+        )
+        delegation.carried_started_at = began
+
+        assert journal._span_start(delegation, None) == began

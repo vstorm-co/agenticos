@@ -130,9 +130,11 @@ the transcript is the record.
     a delegate cancelled or failed before it began executing - records a zero-length
     span at that end, never a null; and where the library refuses before a handle
     exists at all - an unknown `chat_trace_id` - no delegated row is written. A
-    delegation that parked on an approval spans only the segment that settled it: its
-    pre-park span is not yet carried across the resume, tracked in
-    [#245](https://github.com/vstorm-co/agenticos/issues/245).
+    delegation that parked on an approval spans every turn it ran in: its earliest
+    start is carried across the park the way its cost is (below), so the row begins
+    when the delegate first began and ends when it finally did - not at the resume
+    that settled it. The two are not summed the way the cost is; the honest answer
+    is the first segment's start and the last segment's end.
 
 **A delegation that parked on an approval is more than one share.** Its turns ran
 in different processes against different ledgers, and a resumed turn's ledger is a
