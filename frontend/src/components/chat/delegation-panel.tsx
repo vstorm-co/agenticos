@@ -54,6 +54,10 @@ const TONE: Record<DelegationStatus, string> = {
   completed: "text-muted-foreground/70",
   failed: "text-destructive",
   cancelled: "text-muted-foreground/70",
+  // The amber a parked tool call uses (`AgentStep`'s `parked` state): waiting for a
+  // person, not working and not done - and never a spinner, which is a lie that
+  // does not resolve until somebody decides.
+  awaiting_approval: "text-amber-600",
 };
 
 /**
@@ -67,6 +71,7 @@ const STATUS_KEY: Record<DelegationStatus, string> = {
   completed: "finished",
   failed: "failed",
   cancelled: "stopped",
+  awaiting_approval: "awaiting",
 };
 
 /**

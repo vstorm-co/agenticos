@@ -158,6 +158,16 @@ describe("DelegationPanels - how a delegation ended", () => {
     expect(screen.getByText("stopped")).toBeInTheDocument();
   });
 
+  it("shows a delegate that stopped for a person as waiting, not working", () => {
+    // The bug this state exists to fix: a parked delegate must not read "working…"
+    // for the length of the wait. The panel mounts closed, like any non-running one.
+    render(<DelegationPanels delegations={[delegation({ status: "awaiting_approval" })]} />);
+
+    expect(screen.getByText("waiting for approval")).toBeInTheDocument();
+    expect(screen.queryByText("working…")).toBeNull();
+    expect(screen.getByRole("button")).toHaveAttribute("aria-expanded", "false");
+  });
+
   it("reports the tokens behind the cost, and zero for a run that measured none", () => {
     render(
       <DelegationPanels

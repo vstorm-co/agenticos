@@ -80,7 +80,12 @@ from app.agents.capabilities.budget import SpendShare, booked_to
 from app.agents.capabilities.subagents._events import FrameLabels, frame_for
 from app.agents.deps import AgentDeps
 from app.agents.spec import DelegationMode
-from app.agents.subagent_events import SubagentEventSink, SubagentFinished, SubagentStarted
+from app.agents.subagent_events import (
+    SubagentAwaitingApproval,
+    SubagentEventSink,
+    SubagentFinished,
+    SubagentStarted,
+)
 from app.agents.subagent_runtime import (
     DelegationOutcome,
     DelegationSpend,
@@ -120,7 +125,10 @@ def _terminal_status(handle: TaskHandle, mode: Literal["sync", "async"]) -> Dele
     delegate included (:meth:`DelegationJournal.park`). Recording it would write a
     run row for work that has not finished, tell whoever reads it to look for a
     defect instead of for the queue, and then count the same delegation twice,
-    because the continuation records one of its own when it answers.
+    because the continuation records one of its own when it answers. `None` here
+    refuses the *outcome*, not the *frame*: the panel a surface opened still closes,
+    with a `SubagentAwaitingApproval` that :meth:`DelegationJournal._narrate_parked`
+    sends instead of a run row.
 
     *A background delegation* cannot suspend at all: the tool call that started it
     returned a task id long ago, so there is no caller left to hand a parked call
@@ -194,7 +202,7 @@ def acting_delegate() -> ActingDelegate | None:
     if delegation is None:
         return None
     return ActingDelegate(
-        name=delegation.name, task_id=delegation.task_id, agent_id=delegation.agent_id
+        name=delegation.name, task_id=delegation.public_id, agent_id=delegation.agent_id
     )
 
 
@@ -266,7 +274,35 @@ class Delegation:
     agent_id: UUID | None = None
     agent_version_id: UUID | None = None
     task_id: str | None = None
+    """The library's id for this delegation *on this turn*, for looking the live
+    handle up. Set when the library resolves the event-stream handler, and fresh on
+    every replay - a resumed delegation is a new library task with a new one, which
+    is why it is not what a surface keys a panel on. See :attr:`public_id`."""
+
+    stable_id: str | None = None
+    """The id this delegation keeps across a park and a resume, or `None` until one.
+
+    Set only when the run is *continuing* a delegation that stopped for a person:
+    :meth:`begin` reads it from the resume stash, where it is the `task_id` the
+    delegation streamed under before it parked. Everything a surface or a run row
+    reads - frames, the recorded outcome, the parked record - carries
+    :attr:`public_id`, so the continuation reopens the panel that was left waiting
+    rather than opening a second one beside it (agenticos#173)."""
+
     started: bool = False
+
+    @property
+    def public_id(self) -> str | None:
+        """The delegation's identity for anything outside the library.
+
+        The id it keeps across every park, falling back to the library's id on a
+        delegation that has never parked - which is all of them until one does. Used
+        wherever the delegation is *named* to a reader: its frames, its recorded
+        outcome and the record a park leaves. The library's own :attr:`task_id` is
+        used only to find the live task handle, and the two diverge exactly once -
+        on the turn a parked delegation is continued.
+        """
+        return self.stable_id or self.task_id
 
     async def ensure_started(self, task_id: str, sink: SubagentEventSink) -> None:
         """Announce this delegation, at most once.
@@ -392,15 +428,19 @@ class DelegationJournal:
         delegated from, and that relationship is what nests a parked tree.
 
         A delegation the run is *continuing* opens here too - the replay presents
-        the same `task` call - which is why what it already spent, and when it first
-        began, are both read here. The ledger key allocated here is fresh, and this
-        turn's ledger has never held an entry under any other, so without `carried`
-        the continuation would be the whole of the delegation's recorded cost;
+        the same `task` call - which is why three things it carried are read here:
+        what it already spent, when it first began, and the id it streamed under
+        before the park. A continuation keeps the delegation's identity so it
+        reopens the panel it left waiting rather than opening a second one beside it
+        (`stable_id`). The ledger key allocated here is fresh, and this turn's ledger
+        has never held an entry under any other, so without `carried` the
+        continuation would be the whole of the delegation's recorded cost;
         `carried_started_at` is the same fact for the clock, so the row does not
         begin at the resume.
         """
         self._running += 1
         enclosing = _CURRENT.get()
+        resumed = None if tool_call_id is None else self.runtime.stash.resuming.get(tool_call_id)
         return Delegation(
             name=name,
             prompt=prompt,
@@ -408,9 +448,10 @@ class DelegationJournal:
             depth=self.depth,
             ledger_key=uuid4().hex,
             tool_call_id=tool_call_id,
-            parent_task_id=None if enclosing is None else enclosing.task_id,
+            parent_task_id=None if enclosing is None else enclosing.public_id,
             carried=self.runtime.stash.already_spent(tool_call_id),
             carried_started_at=self.runtime.stash.already_started(tool_call_id),
+            stable_id=None if resumed is None else resumed.task_id,
             agent_id=delegate.agent_id if delegate is not None else None,
             agent_version_id=delegate.agent_version_id if delegate is not None else None,
         )
@@ -473,7 +514,10 @@ class DelegationJournal:
         self.runtime.stash.parked.append(
             ParkedDelegation(
                 tool_call_id=delegation.tool_call_id,
-                task_id=task_id,
+                # The id the delegation streamed under, not this turn's library id:
+                # a delegation parking for the second time keeps the identity of the
+                # first, so the resume reopens one panel rather than a chain of them.
+                task_id=delegation.stable_id or task_id,
                 parent_task_id=delegation.parent_task_id,
                 subagent=delegation.name,
                 agent_id=delegation.agent_id,
@@ -516,13 +560,67 @@ class DelegationJournal:
         until its task reaches a terminal status, which `settle_background` looks
         for. *When* the settlement happens no longer decides what the delegation is
         recorded as spending - the ledger already knows which requests were its.
+
+        A sync delegation whose call returned *without* an outcome is the third
+        case, and it is not a background one: a sync delegate that stopped for a
+        person. :meth:`settle` declines to record it - the continuation records the
+        real outcome - but the panel a surface opened still has to close, and the
+        fan-out slot still has to be released rather than the delegation being
+        filed into `_background` where nothing would ever settle it (agenticos#173).
+        `_narrate_parked` does the first; the `_running` decrement above did the
+        second. Told apart from a background delegation still running by its handle:
+        a parked one is `DEFERRED`, a running one is not.
         """
         self._running -= 1
         task_id = delegation.task_id
         if task_id is None:
             return
-        if not await self.settle(task_id, delegation, sink):
+        if await self.settle(task_id, delegation, sink):
+            return
+        if self._parked(delegation, task_id):
+            await self._narrate_parked(delegation, task_id, sink)
+        else:
             self._background[task_id] = delegation
+
+    def _parked(self, delegation: Delegation, task_id: str) -> bool:
+        """Whether a sync delegation's unsettled call stopped for a person.
+
+        The one shape :meth:`settle` refuses that is not "a background task still
+        running": a sync delegate whose gated tool suspended, leaving its handle
+        `DEFERRED`. A cancelled sync delegation is *not* this - its handle is still
+        `RUNNING`, and it belongs in `_background` for :meth:`cancel_in_flight` to
+        finish - which is why the status is checked rather than the mode alone.
+        """
+        handle = self.tasks.get_handle(task_id)
+        return (
+            delegation.mode == "sync"
+            and handle is not None
+            and handle.status is TaskStatus.DEFERRED
+        )
+
+    async def _narrate_parked(
+        self, delegation: Delegation, task_id: str, sink: SubagentEventSink | None
+    ) -> None:
+        """Close the panel of a sync delegation that stopped for a person.
+
+        A frame, never an outcome: nothing is recorded here (that is the whole point
+        of `_terminal_status` answering `None` for a sync `DEFERRED`), and the
+        continuation writes the run row when the person decides. `ensure_started`
+        first, so a delegation that produced no stream events at all still opens its
+        panel before this closes it - a close for a panel nobody opened is a panel a
+        reader never learns about. Both frames carry the id the delegation is named
+        by (`stable_id` across a park, else this turn's `task_id`), so a resume
+        reopens this panel rather than the continuation opening a second one.
+        """
+        if sink is None:
+            return
+        public = delegation.stable_id or task_id
+        await delegation.ensure_started(public, sink)
+        await sink(
+            SubagentAwaitingApproval(
+                task_id=public, subagent=delegation.name, depth=delegation.depth
+            )
+        )
 
     def cancel_in_flight(self) -> None:
         """Finish every delegation still going as cancelled, and report any that ignored it.
@@ -620,11 +718,16 @@ class DelegationJournal:
         if status is None:
             return False
 
+        # The id the delegation is *named* by, which is the one it streamed under
+        # before any park - so its recorded outcome and its closing frame reach the
+        # same panel across a resume. `task_id` above is the library's handle key,
+        # which a continuation allocates fresh; see `Delegation.public_id`.
+        public = delegation.stable_id or task_id
         spent = self._spent(delegation)
         run_id = await self._record(
             DelegationOutcome(
                 subagent=delegation.name,
-                task_id=task_id,
+                task_id=public,
                 status=status,
                 cost_usd=spent.cost_usd,
                 input_tokens=spent.input_tokens,
@@ -644,10 +747,10 @@ class DelegationJournal:
             )
         )
         if sink is not None:
-            await delegation.ensure_started(task_id, sink)
+            await delegation.ensure_started(public, sink)
             await sink(
                 SubagentFinished(
-                    task_id=task_id,
+                    task_id=public,
                     subagent=delegation.name,
                     depth=delegation.depth,
                     status=status,
@@ -683,12 +786,17 @@ class DelegationJournal:
         sink = ctx.deps.subagent_events
         if sink is None:
             return None
-        labels = FrameLabels(task_id=task_id, subagent=delegation.name, depth=delegation.depth)
+        # The delegation's public id, not the library's `task_id`: on a continuation
+        # the library hands a fresh id, and streaming under it would open a second
+        # panel beside the one this delegation left waiting for a person.
+        # `delegation.task_id` above stays the library's - the live handle's key.
+        public = delegation.stable_id or task_id
+        labels = FrameLabels(task_id=public, subagent=delegation.name, depth=delegation.depth)
 
         async def stream(
             _ctx: RunContext[AgentDeps], events: AsyncIterable[AgentStreamEvent]
         ) -> None:
-            await delegation.ensure_started(task_id, sink)
+            await delegation.ensure_started(public, sink)
             async for event in events:
                 frame = frame_for(event, labels)
                 if frame is not None:

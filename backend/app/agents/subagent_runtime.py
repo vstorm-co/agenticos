@@ -359,6 +359,18 @@ class ResumedDelegation:
     session.
     """
 
+    task_id: str
+    """The library's id for this delegation on the turn it parked.
+
+    Carried so the continuation keeps the delegation's identity across the park:
+    the resumed run is a fresh library task with a fresh id, and a delegation that
+    adopted that id would stream under a `task_id` no earlier frame used - so a
+    surface opens a *second* panel beside the one still reading "waiting for a
+    person" rather than reopening it (agenticos#173). The journal adopts this as
+    the delegation's public id and looks the live handle up under the new one; see
+    `Delegation.public_id`.
+    """
+
     messages: list[ModelMessage]
     results: DeferredToolResults
     """The decisions for the calls *this* delegate parked, and only those.

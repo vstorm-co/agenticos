@@ -14,6 +14,7 @@
  */
 
 import type { Delegation, DelegationStatus, SubagentFrame, SubagentStartFrame } from "@/types";
+import type { RunStatus } from "@/types/runs";
 
 /**
  * Which delegation a nested one belongs to, as its start frame names it.
@@ -44,8 +45,18 @@ function parentIn(current: Delegation[], named: string | null | undefined): stri
 function started(current: Delegation[], frame: SubagentStartFrame): Delegation[] {
   // A `task_id` is unique per delegation, so a second start for one is a repeat
   // rather than a second delegation - keeping the first preserves whatever has
-  // already streamed into it.
-  if (current.some((delegation) => delegation.taskId === frame.task_id)) return current;
+  // already streamed into it. The one repeat that is not a no-op is a resume: a
+  // delegation that parked for a person is continued under the same id, so its
+  // panel goes back to running rather than staying on "waiting for a person".
+  const existing = current.find((delegation) => delegation.taskId === frame.task_id);
+  if (existing) {
+    return existing.status === "awaiting_approval"
+      ? updated(current, frame.task_id, (delegation) => ({
+          ...delegation,
+          status: "running" as DelegationStatus,
+        }))
+      : current;
+  }
   return [
     ...current,
     {
@@ -128,6 +139,15 @@ export function applyDelegationFrame(current: Delegation[], frame: SubagentFrame
       return updated(current, frame.task_id, (delegation) =>
         withResult(delegation, frame.tool_call_id, frame.ok),
       );
+    case "subagent_awaiting_approval":
+      // The delegate stopped for a person. Close the panel with a state that says
+      // so, rather than leaving it reading "working" for the length of the wait -
+      // and never, if nobody decides. No cost and no run id: the continuation
+      // records the outcome when the person decides.
+      return updated(current, frame.task_id, (delegation) => ({
+        ...delegation,
+        status: "awaiting_approval" as DelegationStatus,
+      }));
     case "subagent_complete":
       return updated(current, frame.task_id, (delegation) => ({
         ...delegation,
@@ -160,6 +180,51 @@ export function closeOpenDelegations(current: Delegation[]): Delegation[] {
     delegation.status === "running"
       ? { ...delegation, status: "cancelled" as DelegationStatus }
       : delegation,
+  );
+}
+
+/**
+ * A resumed run's terminal status, as the disposition its parked panels take.
+ *
+ * `running` and `awaiting_approval` are absent on purpose: neither is terminal, so
+ * a panel waiting on a person stays waiting (`resolveAwaitingOnResume`). A run has
+ * no `budget_exceeded` counterpart on a delegation panel, so it reads as `failed` -
+ * the delegate stopped without finishing, which is what `failed` says.
+ */
+const TERMINAL_DELEGATION_STATUS: Partial<Record<RunStatus, DelegationStatus>> = {
+  completed: "completed",
+  failed: "failed",
+  cancelled: "cancelled",
+  budget_exceeded: "failed",
+};
+
+/**
+ * Move panels waiting on a person to the outcome of the run that has now resumed.
+ *
+ * A sync delegate that parks on an approval leaves its panel `awaiting_approval`,
+ * and in web chat the resume that follows the decision runs over HTTP
+ * (`POST /runs/{id}/resume`), not over the socket this conversation streams. So no
+ * `subagent_complete` reaches `applyDelegationFrame`, and without this the panel
+ * reads "waiting for approval" forever - the resumed answer appears above a
+ * delegation that never leaves the waiting state (agenticos#173). This supplies the
+ * closing the socket did not: the resumed run's own status is the only per-delegation
+ * outcome available over HTTP, so every panel still waiting takes it.
+ *
+ * A resume that parks *again* (`awaiting_approval`, or a run still `running`) is not
+ * terminal and changes nothing: the delegate is waiting on a fresh decision, and
+ * closing its panel would claim an outcome that has not happened. Cost, tokens and
+ * the run id stay as they were - the frame that carries them never came, and
+ * inventing them is worse than leaving them null.
+ *
+ * Returns the same array when nothing waits or the run has not settled, so a resume
+ * with no delegation in it costs no render.
+ */
+export function resolveAwaitingOnResume(current: Delegation[], runStatus: RunStatus): Delegation[] {
+  const resolved = TERMINAL_DELEGATION_STATUS[runStatus];
+  if (resolved === undefined) return current;
+  if (!current.some((delegation) => delegation.status === "awaiting_approval")) return current;
+  return current.map((delegation) =>
+    delegation.status === "awaiting_approval" ? { ...delegation, status: resolved } : delegation,
   );
 }
 

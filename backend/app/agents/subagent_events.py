@@ -122,6 +122,30 @@ class SubagentToolResult(_SubagentFrame):
     ok: bool = Field(description="False when the tool raised, so a surface can mark it")
 
 
+class SubagentAwaitingApproval(_SubagentFrame):
+    """A sync delegation stopped for a person, and the answer is still coming.
+
+    Not an outcome, and deliberately not a `SubagentFinished`: the delegate
+    suspended on a tool that needs approval, the signal parked the whole parent
+    run, and the continuation records the real outcome when the person decides
+    (see `DelegationJournal.settle` and `_terminal_status`). Reporting it as
+    `failed` would send a reader looking for a defect instead of for the approval
+    queue, and `completed` would claim work that has not happened.
+
+    So it carries no cost and no run id - there is nothing to record yet - and its
+    only job is to close the panel a surface opened, replacing "the researcher is
+    working" with "waiting for a person" for however long the approver takes.
+    Without it the panel spins forever, which is the bug this frame exists to fix
+    (agenticos#173).
+
+    Only a *sync* delegation reaches this: a background one has no caller left to
+    park, so a tool of its that defers is a `SubagentFinished(status="failed")`
+    instead - see `_terminal_status`.
+    """
+
+    kind: Literal["subagent_awaiting_approval"] = "subagent_awaiting_approval"
+
+
 class SubagentFinished(_SubagentFrame):
     """A delegation ended, however it ended.
 
@@ -153,6 +177,7 @@ SubagentEvent = Annotated[
     | SubagentThinkingDelta
     | SubagentToolCall
     | SubagentToolResult
+    | SubagentAwaitingApproval
     | SubagentFinished,
     Field(discriminator="kind"),
 ]
