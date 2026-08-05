@@ -9,7 +9,7 @@ from sqlalchemy import and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.db.models.conversation import Message
+from app.db.models.conversation import Conversation, Message
 from app.db.models.message_rating import MessageRating
 from app.db.models.user import User
 
@@ -212,6 +212,77 @@ async def get_rating_summary(
     ratings_by_day = [
         {"date": str(row.date), "likes": row.likes or 0, "dislikes": row.dislikes or 0}
         for row in daily_result
+    ]
+
+    return {
+        "total_ratings": row.total or 0,
+        "like_count": row.likes or 0,
+        "dislike_count": row.dislikes or 0,
+        "average_rating": float(row.avg_rating) if row.avg_rating else 0.0,
+        "with_comments": row.with_comments or 0,
+        "ratings_by_day": ratings_by_day,
+    }
+
+
+async def get_rating_summary_scoped(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    start: datetime,
+    end: datetime,
+    user_id: UUID | None = None,
+) -> dict[str, Any]:
+    """The summary's shape, bounded to one organization's conversations.
+
+    Ratings carry no organization of their own, so the tenant bound is a
+    two-hop join: rating -> message -> conversation. `user_id` narrows to the
+    caller's own conversations, which is what scope=own means - a rating can
+    only ever be given by a conversation's owner, so "my conversations" and
+    "ratings I gave" are the same set.
+    """
+    conditions = [
+        Conversation.organization_id == organization_id,
+        MessageRating.created_at >= start,
+        MessageRating.created_at < end,
+    ]
+    if user_id is not None:
+        conditions.append(Conversation.user_id == user_id)
+
+    counts_query = (
+        select(
+            func.count().label("total"),
+            func.sum(case((MessageRating.rating == 1, 1), else_=0)).label("likes"),
+            func.sum(case((MessageRating.rating == -1, 1), else_=0)).label("dislikes"),
+            func.avg(MessageRating.rating).label("avg_rating"),
+            func.sum(
+                case(
+                    (and_(MessageRating.comment.isnot(None), MessageRating.comment != ""), 1),
+                    else_=0,
+                )
+            ).label("with_comments"),
+        )
+        .join(Message, Message.id == MessageRating.message_id)
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .where(*conditions)
+    )
+    row = (await db.execute(counts_query)).one()
+
+    day = func.date(func.timezone("UTC", MessageRating.created_at))
+    daily_query = (
+        select(
+            day.label("date"),
+            func.sum(case((MessageRating.rating == 1, 1), else_=0)).label("likes"),
+            func.sum(case((MessageRating.rating == -1, 1), else_=0)).label("dislikes"),
+        )
+        .join(Message, Message.id == MessageRating.message_id)
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .where(*conditions)
+        .group_by(day)
+        .order_by(day)
+    )
+    ratings_by_day = [
+        {"date": str(entry.date), "likes": entry.likes or 0, "dislikes": entry.dislikes or 0}
+        for entry in await db.execute(daily_query)
     ]
 
     return {

@@ -179,9 +179,9 @@ exactly the moment it should be narrowed to nothing.
     `tests/api/test_platform_routes.py` enforces both halves.
 
 There is a third placement, for a route whose *parameter* decides the question.
-`GET /stats/usage` serves two askers behind one path: `scope=org` reads
-everybody's runs and demands `runs:view`, while `scope=own` reads only the
-caller's own rows and demands nothing beyond a signed-in membership. A
+`GET /stats/usage` and `GET /ratings/summary` serve two askers behind one path:
+`scope=org` reads everybody's rows and demands `runs:view`, while `scope=own`
+reads only the caller's own and demands nothing beyond a signed-in membership. A
 route-level `require(runs:view)` would refuse a member's `scope=own` before the
 parameter was ever read, so the route carries no gate and `StatsService` makes
 the decision - the same principle as per-resource routes (the layer that can

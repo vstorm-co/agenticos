@@ -33,6 +33,7 @@ from app.schemas.stats import (
     LatencyMs,
     ModelCount,
     ProviderCost,
+    ScopedRatingSummary,
     StatusCount,
     SurfaceCount,
     UsageStats,
@@ -315,4 +316,31 @@ class StatsService:
             scope=scope,
             agent_id=agent_id,
             by_version=by_version,
+        )
+
+    async def ratings_summary(
+        self,
+        ctx: AuthContext,
+        *,
+        scope: UsageScope = "org",
+        from_date: date | None = None,
+        to_date: date | None = None,
+    ) -> ScopedRatingSummary:
+        """Answer quality for the organization, or for the caller's own chats.
+
+        The same scope rule as usage(): org-wide answers demand runs:view,
+        the caller's own demand only a caller. Distinct from the app admin's
+        deployment-wide summary, which this deliberately does not replace.
+        """
+        user_id = self._scope_filter(ctx, scope)
+        window = resolve_window(from_date, to_date)
+        summary = await message_rating_repo.get_rating_summary_scoped(
+            self.db,
+            organization_id=ctx.organization_id,
+            start=window.start,
+            end=window.end,
+            user_id=user_id,
+        )
+        return ScopedRatingSummary(
+            from_date=window.from_date, to_date=window.to_date, scope=scope, **summary
         )

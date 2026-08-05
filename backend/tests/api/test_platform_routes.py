@@ -472,10 +472,13 @@ _PLATFORM_PREFIXES = (
     "/runs",
     "/approvals",
     "/spend",
-    # The dashboard's aggregates. Without the prefix here the sweep would pass
-    # over them silently - the worst kind of pass, since these routes carry no
-    # `require()` at all and depend entirely on the service deciding per scope.
+    # The dashboard's aggregates. Without the prefixes here the sweep would
+    # pass over them silently - the worst kind of pass, since these routes
+    # carry no `require()` at all and depend entirely on the service deciding
+    # per scope. `/ratings` does not collide with the app-admin
+    # `/admin/ratings`, whose tail starts with `/admin`.
     "/stats",
+    "/ratings",
     "/skills",
     "/providers",
     "/audit",
@@ -753,7 +756,7 @@ class TestSharingRoutesRefuseWithoutAGrant:
 # -- the stats routes, whose gate is the scope parameter ----------------------
 
 
-_STATS_PATHS = ("/stats/usage",)
+_STATS_PATHS = ("/stats/usage", "/ratings/summary")
 
 
 class TestStatsScopeIsDecidedInTheService:
@@ -785,6 +788,19 @@ class TestStatsScopeIsDecidedInTheService:
             )
         monkeypatch.setattr(
             "app.services.stats.member_repo.count_for_org", AsyncMock(return_value=0)
+        )
+        monkeypatch.setattr(
+            "app.services.stats.message_rating_repo.get_rating_summary_scoped",
+            AsyncMock(
+                return_value={
+                    "total_ratings": 0,
+                    "like_count": 0,
+                    "dislike_count": 0,
+                    "average_rating": 0.0,
+                    "with_comments": 0,
+                    "ratings_by_day": [],
+                }
+            ),
         )
 
     @staticmethod

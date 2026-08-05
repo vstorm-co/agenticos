@@ -15,7 +15,7 @@ from fastapi import APIRouter, Query
 
 from app.api.deps import Auth, StatsSvc
 from app.core.exceptions import ValidationError
-from app.schemas.stats import UsageStats
+from app.schemas.stats import ScopedRatingSummary, UsageStats
 
 router = APIRouter()
 
@@ -57,3 +57,20 @@ async def usage_stats(
             ctx, agent_id=agent_id, scope=scope, from_date=from_, to_date=to
         )
     return await service.usage(ctx, scope=scope, from_date=from_, to_date=to)
+
+
+@router.get("/ratings/summary", response_model=ScopedRatingSummary)
+async def ratings_summary(
+    service: StatsSvc,
+    ctx: Auth,
+    from_: date | None = Query(None, alias="from", description="First day, inclusive (UTC)"),
+    to: date | None = Query(None, description="Last day, inclusive (UTC)"),
+    scope: Literal["org", "own"] = Query("org"),
+) -> Any:
+    """Answer quality: the thumbs split and its per-day series.
+
+    `scope=org` is the organization's rated answers, under runs:view;
+    `scope=own` is the caller's own conversations, at any role. Distinct from
+    `GET /admin/ratings/summary`, which is deployment-wide and app-admin only.
+    """
+    return await service.ratings_summary(ctx, scope=scope, from_date=from_, to_date=to)

@@ -419,6 +419,133 @@ class TestSurfacesAndCost:
         assert by_provider == {"anthropic": Decimal("1.5"), "openai": Decimal("0.5")}
 
 
+class TestScopedRatings:
+    async def _rated_conversation(
+        self,
+        db,
+        *,
+        organization: Organization,
+        owner_id: uuid.UUID | None,
+        rater: User,
+        rating: int,
+        rated_at: datetime,
+    ) -> None:
+        conversation = Conversation(
+            id=uuid.uuid4(), organization_id=organization.id, user_id=owner_id, title="Chat"
+        )
+        db.add(conversation)
+        await db.flush()
+        message = Message(
+            id=uuid.uuid4(), conversation_id=conversation.id, role="assistant", content="answer"
+        )
+        db.add(message)
+        await db.flush()
+        db.add(
+            MessageRating(
+                id=uuid.uuid4(),
+                message_id=message.id,
+                user_id=rater.id,
+                rating=rating,
+                created_at=rated_at,
+            )
+        )
+        await db.flush()
+
+    async def test_a_rating_in_another_organizations_conversation_is_excluded(self, db) -> None:
+        home, home_owner = await _org_with_owner(db, "HomeRatings")
+        other, other_owner = await _org_with_owner(db, "OtherRatings")
+        in_window = START + timedelta(days=1)
+        await self._rated_conversation(
+            db,
+            organization=home,
+            owner_id=home_owner.id,
+            rater=home_owner,
+            rating=1,
+            rated_at=in_window,
+        )
+        # Owned by the home owner but living in the other tenant - the case an
+        # owner-keyed query would leak.
+        await self._rated_conversation(
+            db,
+            organization=other,
+            owner_id=home_owner.id,
+            rater=home_owner,
+            rating=-1,
+            rated_at=in_window,
+        )
+
+        ctx = AuthContext(
+            user_id=home_owner.id, organization_id=home.id, role=OrgRoleName.OWNER.value
+        )
+        result = await StatsService(db).ratings_summary(
+            ctx, from_date=START.date(), to_date=END.date() - timedelta(days=1)
+        )
+
+        assert (result.total_ratings, result.like_count, result.dislike_count) == (1, 1, 0)
+
+    async def test_own_scope_sees_only_the_callers_conversations(self, db) -> None:
+        organization, owner = await _org_with_owner(db, "OwnRatings")
+        colleague = await _user(db)
+        db.add(
+            OrganizationMember(
+                id=uuid.uuid4(),
+                organization_id=organization.id,
+                user_id=colleague.id,
+                role=OrgRoleName.MEMBER.value,
+            )
+        )
+        in_window = START + timedelta(days=1)
+        await self._rated_conversation(
+            db,
+            organization=organization,
+            owner_id=colleague.id,
+            rater=colleague,
+            rating=1,
+            rated_at=in_window,
+        )
+        await self._rated_conversation(
+            db,
+            organization=organization,
+            owner_id=owner.id,
+            rater=owner,
+            rating=-1,
+            rated_at=in_window,
+        )
+
+        ctx = AuthContext(
+            user_id=colleague.id, organization_id=organization.id, role=OrgRoleName.MEMBER.value
+        )
+        result = await StatsService(db).ratings_summary(
+            ctx, scope="own", from_date=START.date(), to_date=END.date() - timedelta(days=1)
+        )
+
+        assert (result.total_ratings, result.like_count) == (1, 1)
+        assert result.ratings_by_day == [
+            {"date": in_window.date().isoformat(), "likes": 1, "dislikes": 0}
+        ]
+
+    async def test_a_rating_outside_the_window_is_not_counted(self, db) -> None:
+        organization, owner = await _org_with_owner(db, "WindowRatings")
+        await self._rated_conversation(
+            db,
+            organization=organization,
+            owner_id=owner.id,
+            rater=owner,
+            rating=1,
+            rated_at=END + timedelta(days=1),
+        )
+
+        ctx = AuthContext(
+            user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER.value
+        )
+        result = await StatsService(db).ratings_summary(
+            ctx, from_date=START.date(), to_date=END.date() - timedelta(days=1)
+        )
+
+        assert result.total_ratings == 0
+        assert result.ratings_by_day == []
+
+
 class TestVersionRows:
     async def _version(self, db, agent: Agent, number: int) -> AgentVersion:
         version = AgentVersion(

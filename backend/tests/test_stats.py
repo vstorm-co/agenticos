@@ -55,6 +55,20 @@ def repos(monkeypatch: pytest.MonkeyPatch) -> dict[str, AsyncMock]:
         "app.services.stats.message_rating_repo.rating_counts_by_version", version_ratings
     )
     mocks["rating_counts_by_version"] = version_ratings
+    scoped_summary = AsyncMock(
+        return_value={
+            "total_ratings": 0,
+            "like_count": 0,
+            "dislike_count": 0,
+            "average_rating": 0.0,
+            "with_comments": 0,
+            "ratings_by_day": [],
+        }
+    )
+    monkeypatch.setattr(
+        "app.services.stats.message_rating_repo.get_rating_summary_scoped", scoped_summary
+    )
+    mocks["get_rating_summary_scoped"] = scoped_summary
     return mocks
 
 
@@ -286,4 +300,43 @@ class TestVersionGrouping:
         with pytest.raises(AuthorizationError):
             await StatsService(MagicMock()).usage_by_version(
                 _ctx(role=OrgRoleName.MEMBER.value), agent_id=uuid4(), scope="org"
+            )
+
+
+class TestRatingsSummary:
+    async def test_org_scope_reads_the_whole_organization(self, repos) -> None:
+        ctx = _ctx()
+        repos["get_rating_summary_scoped"].return_value = {
+            "total_ratings": 214,
+            "like_count": 195,
+            "dislike_count": 19,
+            "average_rating": 0.82,
+            "with_comments": 12,
+            "ratings_by_day": [{"date": "2026-07-01", "likes": 10, "dislikes": 1}],
+        }
+
+        result = await StatsService(MagicMock()).ratings_summary(
+            ctx, from_date=date(2026, 7, 1), to_date=date(2026, 7, 31)
+        )
+
+        call = repos["get_rating_summary_scoped"].call_args
+        assert call.kwargs["organization_id"] == ctx.organization_id
+        assert call.kwargs["user_id"] is None
+        assert (result.total_ratings, result.like_count) == (214, 195)
+        assert result.scope == "org"
+        payload = result.model_dump(by_alias=True, mode="json")
+        assert (payload["from"], payload["to"]) == ("2026-07-01", "2026-07-31")
+
+    async def test_own_scope_narrows_to_the_callers_conversations(self, repos) -> None:
+        ctx = _ctx(role=OrgRoleName.MEMBER.value)
+
+        result = await StatsService(MagicMock()).ratings_summary(ctx, scope="own")
+
+        assert repos["get_rating_summary_scoped"].call_args.kwargs["user_id"] == ctx.user_id
+        assert result.scope == "own"
+
+    async def test_org_scope_demands_runs_view_here_too(self, repos) -> None:
+        with pytest.raises(AuthorizationError):
+            await StatsService(MagicMock()).ratings_summary(
+                _ctx(role=OrgRoleName.VIEWER.value), scope="org"
             )

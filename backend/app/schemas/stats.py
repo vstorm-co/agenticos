@@ -15,6 +15,7 @@ from uuid import UUID
 from pydantic import Field
 
 from app.schemas.base import BaseSchema
+from app.schemas.message_rating import RatingSummary
 
 
 class DayCount(BaseSchema):
@@ -103,6 +104,21 @@ class CostBlock(BaseSchema):
     period_usd: Decimal
     previous_period_usd: Decimal
     by_provider: list[ProviderCost]
+
+
+class ScopedRatingSummary(RatingSummary):
+    """The rating summary's shape, bounded to a window and a scope.
+
+    Same bones as the deployment-wide `GET /admin/ratings/summary` so the
+    chart ports, plus the envelope saying which window and whose answers:
+    `scope=org` is the organization's, `scope=own` the caller's own
+    conversations. `ratings_by_day` stays sparse - days nobody rated are
+    absent, as in the admin summary.
+    """
+
+    from_date: date = Field(alias="from")
+    to_date: date = Field(alias="to")
+    scope: Literal["org", "own"]
 
 
 class VersionUsageRow(BaseSchema):
