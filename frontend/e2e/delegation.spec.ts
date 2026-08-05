@@ -203,9 +203,9 @@ test("an agent delegates to another, and both runs are recorded", async ({ page 
     "the delegate answered but has no run of its own; the delegation was not recorded",
   ).toHaveCount(1);
   // Metered, which is the part a row's existence does not prove. The delegation's
-  // share of the run is measured as what the shared ledger grew by while it ran,
-  // so a token count of zero here is the whole recording path having written a row
-  // and measured nothing - and it would still read as a finished delegation
+  // share of the run is the part of the shared ledger its own requests booked, so a
+  // token count of zero here is the whole recording path having written a row and
+  // attributed nothing to it - and it would still read as a finished delegation
   // everywhere else. The cost beside it is deliberately only checked for shape: a
   // delegation this small prices to $0.0000, so the number says the cell rendered
   // rather than that money was counted.

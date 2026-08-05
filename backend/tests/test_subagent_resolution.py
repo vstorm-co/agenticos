@@ -53,7 +53,6 @@ from app.services.agent_registry import DELEGATION_CAPABILITY_ID
 from app.services.agent_runner import (
     AgentRunnerService,
     RecordedDelegation,
-    _RunBudget,
     month_start,
 )
 
@@ -1115,14 +1114,12 @@ async def _record(
     outcome: DelegationOutcome,
     *,
     attribution: dict[uuid.UUID, Any] | None = None,
-    unpriced: bool = False,
 ) -> _Recorded:
     """Report one delegation to a recorder, and see what it left behind."""
     run = _parent_run()
     queued: list[Any] = []
     record = AgentRunnerService(_db())._delegation_recorder(
         run=run,
-        budget=_RunBudget(guard=MagicMock(ledger=MagicMock(has_unpriced_models=unpriced))),
         attribution=attribution or {},
         queued=queued,
     )
@@ -1203,16 +1200,30 @@ class TestRecordingADelegation:
 
         assert result.only.status is RunStatus.CANCELLED
 
-    async def test_an_unpriced_model_makes_the_delegations_share_a_floor(self):
-        """The number is a delta of the run's ledger, so if any model in the run
-        had no price this share is a floor too. Measured when the delegation is
-        reported, not when the row is written."""
+    async def test_an_unpriced_request_of_its_own_makes_a_delegations_share_a_floor(self):
+        """The flag travels with the share, so it describes the delegate's requests.
+
+        Read off the outcome rather than off the run's ledger, which is what it used
+        to be: a *parent* on a model `genai-prices` does not know made every child
+        row in the run partial, while a delegate that genuinely went unpriced inside
+        an otherwise priced run was marked nothing at all once the parent's requests
+        were all priced.
+        """
+        version_id = uuid.uuid4()
+        outcome = _outcome(agent_id=uuid.uuid4(), agent_version_id=version_id, cost_is_partial=True)
+
+        result = await _record(outcome, attribution={version_id: _model()})
+
+        assert result.only.cost_is_partial is True
+
+    async def test_a_delegation_whose_own_requests_were_priced_is_not_a_floor(self):
+        """The other half: the run's other agents cannot mark this share partial."""
         version_id = uuid.uuid4()
         outcome = _outcome(agent_id=uuid.uuid4(), agent_version_id=version_id)
 
-        result = await _record(outcome, attribution={version_id: _model()}, unpriced=True)
+        result = await _record(outcome, attribution={version_id: _model()})
 
-        assert result.only.cost_is_partial is True
+        assert result.only.cost_is_partial is False
 
     async def test_an_inline_specialist_records_nothing(self):
         """It has no agent to attribute a row to: it is not versioned, nothing
@@ -1265,7 +1276,6 @@ class TestTwoDelegationsInOneStep:
         queued: list[Any] = []
         record = AgentRunnerService(_db())._delegation_recorder(
             run=_parent_run(),
-            budget=_RunBudget(guard=MagicMock(ledger=MagicMock(has_unpriced_models=False))),
             attribution={version_id: _model()},
             queued=queued,
         )

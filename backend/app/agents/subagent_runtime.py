@@ -165,31 +165,39 @@ class DelegationOutcome:
     """What one delegation cost and how it ended.
 
     Reported to the runner so it can write the child's run row. The numbers are
-    a *delta* of the run's shared ledger, measured across the delegation, rather
-    than a ledger of the child's own: the child records into the parent's ledger
-    by construction - which is what makes the parent's budget see a delegate's
-    spend before the next request - so the only honest way to say what one
-    delegation cost is what the total grew by while it ran.
+    this delegation's **share of the run's one shared ledger**: the requests its
+    own agent made, and only those. There is still one ledger per run - a delegate
+    records into the parent's by construction, which is what makes the parent's
+    budget see a delegate's spend before the next request - but every entry in it
+    carries the delegation that booked it, so the share is filtered out of the
+    ledger rather than inferred from it. See
+    :func:`app.agents.capabilities.budget.booked_to`.
 
-    The measurement is exact only while one delegation runs at a time, and
-    **`sync` mode does not guarantee that** - a correction worth stating plainly,
-    because the opposite is the obvious assumption. A `sync` delegation holds its
-    own tool call, but pydantic-ai executes several tool calls from one model
-    response concurrently, so a parent whose model emits two `task` calls in one
-    step overlaps two delegations without either of them being asynchronous. Two
-    overlapping deltas then each contain some of the other's spend.
+    Exact in both modes and at every depth, which the arithmetic that came before
+    it was not (agenticos#180). It measured the *growth* of the shared total across
+    the delegation, and that number is only the delegation's while nothing else in
+    the run spends inside the window - which a background delegation violates by
+    definition, and which `sync` does not guarantee either, because pydantic-ai
+    executes several tool calls from one model response concurrently. A mid-tree
+    delegate's window also contained what its own delegates spent, and their rows
+    record that again, so `monthly_spend` for a delegate that delegates counted its
+    grandchildren.
 
-    The approximation is therefore stated rather than hidden: the parent's run row
-    is the authority for a run's cost, and a child row's share is indicative -
-    `docs/governance.md` says so. Splitting it exactly would need a ledger per
-    agent, which is precisely the design that stops the parent's cap from binding
-    at all.
+    What is still true of the delta reasoning: **the parent's row is the authority
+    for what a run cost.** Its `cost_usd` is the whole ledger, delegates included,
+    which is what the organization is billed for; the child rows divide the same
+    money by agent. `agent_run_repo.sum_cost_since` is where that division lives
+    and `docs/governance.md` explains it.
 
-    **A delegation that parked is more than one delta.** Its turns ran in different
+    `cost_is_partial` is per share rather than per run for the same reason: a
+    parent on a model `genai-prices` does not know makes the *parent's* total a
+    floor, and says nothing about a delegate that ran on a priced one.
+
+    **A delegation that parked is more than one share.** Its turns ran in different
     processes against different ledgers, so what is reported here is every segment
-    added together - the deltas of the turns after each resume plus
-    :class:`DelegationSpend`, which the park kept. One `AgentRun` row is written,
-    once, by the turn that finishes the delegation.
+    added together - this turn's share plus :class:`DelegationSpend`, which the park
+    kept, `cost_is_partial` included. One `AgentRun` row is written, once, by the
+    turn that finishes the delegation.
     """
 
     subagent: str
@@ -198,6 +206,7 @@ class DelegationOutcome:
     cost_usd: Decimal
     input_tokens: int
     output_tokens: int
+    cost_is_partial: bool = False
     agent_id: UUID | None = None
     agent_version_id: UUID | None = None
     error: str | None = None
@@ -238,6 +247,17 @@ class DelegationSpend:
     cost_usd: Decimal = Decimal(0)
     input_tokens: int = 0
     output_tokens: int = 0
+    has_unpriced_models: bool = False
+    """Whether any segment of this delegation made a request `genai-prices` could not
+    price - the total is then a floor, not a cost.
+
+    Carried across the park for the same reason the money is, and OR'd rather than
+    replaced when the segments are added. `cost_is_partial` is read per share now
+    rather than off the whole run, so a delegate that went unpriced *before* the
+    approval and resumed onto a priced model would otherwise have its row claim an
+    exact cost for money nobody priced - the one number on a delegated row nothing
+    downstream can re-derive.
+    """
 
 
 @dataclass(frozen=True)

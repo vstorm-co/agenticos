@@ -96,9 +96,19 @@ ENTRY = SpendEntry(
 )
 """What one delegate request costs in these tests.
 
-A fixed entry appended by the delegate's own model rather than a real price
-lookup: the number under test is the *delta* the journal measures, and a delta of
-an unpriced model is zero however correct the measurement is.
+A fixed entry booked by the delegate's own model rather than a real price lookup:
+the number under test is the *share* the journal attributes, and a share of an
+unpriced model is zero however correct the attribution is.
+"""
+
+PARENT_REQUEST = SpendEntry(
+    model_name="test", input_tokens=200, output_tokens=100, cost_usd=Decimal("0.05"), priced=True
+)
+"""One request the parent makes on its own account, while or after a delegate runs.
+
+Deliberately not the same number as `ENTRY`, and ten of them are twice the whole
+delegation: an assertion about whose spend is whose has to fail when the two are
+confused, and equal numbers make that indistinguishable from arithmetic.
 """
 
 
@@ -106,8 +116,11 @@ def answering(text: str = "found it", *, ledger: SpendLedger | None = None) -> F
     """A model that answers once, spending into the run's ledger if there is one.
 
     Standing in for the budget guard, which is what records a real request. The
-    delegate spends into the *parent's* ledger by construction - that is the whole
-    reason a delegation's cost can be measured as a delta at all.
+    delegate spends into the *parent's* ledger by construction - one ledger per
+    run - and `book` is how the guard puts an entry into it, so it is how this
+    spends too: booking is where the entry is stamped with the delegation that
+    made it, and an entry appended around that is an entry attributed to the run's
+    own agent.
 
     Both halves are supplied because a delegation on a surface that narrates it is
     *streamed*: the library resolves an event handler, which puts the delegate's
@@ -117,15 +130,39 @@ def answering(text: str = "found it", *, ledger: SpendLedger | None = None) -> F
 
     def respond(_messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
         if ledger is not None:
-            ledger.entries.append(ENTRY)
+            ledger.book(ENTRY)
         return ModelResponse(parts=[TextPart(text)])
 
     async def stream(_messages: list[ModelMessage], _info: AgentInfo) -> AsyncIterator[str]:
         if ledger is not None:
-            ledger.entries.append(ENTRY)
+            ledger.book(ENTRY)
         yield text
 
     return FunctionModel(respond, stream_function=stream)
+
+
+def handing_on(to: str, *, ledger: SpendLedger) -> FunctionModel:
+    """A model that delegates once and then answers with what came back.
+
+    Two requests, both booked to whichever delegation is running when they are made
+    - which is the whole point when this model is a *delegate's*: its own two
+    requests are its own, and the third request the run makes is its delegate's.
+
+    No `stream_function`, unlike `answering`: nothing here narrates, so no sink is
+    handed down the tree, so the library resolves no event handler and drives every
+    delegation through `run`. A streamed half would be a branch no test reaches.
+    """
+
+    def respond(messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
+        ledger.book(ENTRY)
+        returned = _tool_results(messages)
+        if returned:
+            return ModelResponse(parts=[TextPart(" ".join(returned))])
+        return ModelResponse(
+            parts=[ToolCallPart("task", {"description": "check the claim", "subagent_type": to})]
+        )
+
+    return FunctionModel(respond)
 
 
 def looping() -> FunctionModel:
@@ -661,9 +698,16 @@ class TestAttaching:
 
 
 class TestRecording:
-    """What a delegation cost, measured as the run ledger's growth across it."""
+    """What a delegation cost: its own share of the run's one shared ledger.
 
-    async def test_a_delegation_records_what_the_ledger_grew_by(self):
+    Its own, and the emphasis is the whole of agenticos#180. The number used to be
+    the ledger's *growth* across the delegation, which is the delegation's only
+    while nothing else in the run spends inside the window - and a background
+    delegation breaks that by definition. `TestBackgroundDelegations` and
+    `TestADelegateThatDelegates` hold the two halves.
+    """
+
+    async def test_a_delegation_records_what_its_own_requests_cost(self):
         ledger = SpendLedger()
         recorder = Recorder(run_id=uuid4())
         agent_id, version_id = uuid4(), uuid4()
@@ -689,10 +733,10 @@ class TestRecording:
         assert (outcome.agent_id, outcome.agent_version_id) == (agent_id, version_id)
         assert outcome.error is None
 
-    async def test_only_this_delegation_s_share_of_the_ledger_is_attributed(self):
-        """The delta, not the total: the parent has already spent before it delegates."""
+    async def test_what_the_parent_spent_before_delegating_is_not_the_delegates(self):
+        """The share, not the total: the parent has already spent before it delegates."""
         ledger = SpendLedger()
-        ledger.entries.append(ENTRY)
+        ledger.book(ENTRY)
         recorder = Recorder()
         capability = a_capability(
             a_runtime(a_delegate(model=answering(ledger=ledger)), ledger=ledger, record=recorder)
@@ -940,6 +984,45 @@ class TestBackgroundDelegations:
         # second delegation is still executing in a task nobody awaits.
         await ends_the_run(capability, ctx)
 
+    async def test_what_the_parent_spends_after_it_finishes_is_not_the_delegates(self):
+        """The defect agenticos#180 was filed for, with its own numbers.
+
+        A background delegation is settled when it is next *polled* - the following
+        `task` call, or `wrap_run`'s `finally` - which is arbitrarily later than the
+        delegate finished. Measured as the growth of the shared total across that
+        window, this delegation's $0.25 was reported as $0.75: the parent's ten
+        requests, worth $0.50, landed on a delegate that had already answered. The
+        error grows with however long the parent runs afterwards, and the number is
+        what `agent_runs.cost_usd`, `SubagentFinished.cost_usd` and the delegation
+        panel all carry.
+        """
+        ledger = SpendLedger()
+        recorder = Recorder()
+        capability = a_capability(
+            a_runtime(a_delegate(model=answering(ledger=ledger)), ledger=ledger, record=recorder),
+            {"mode": "async"},
+        )
+        ctx = a_context()
+
+        started = await delegate_to(capability, ctx)
+        assert "found it" in await call_tool(
+            capability, ctx, "wait_tasks", {"task_ids": [task_id_in(started)]}
+        )
+        # The parent carries on and answers, which is what puts the settlement at
+        # the end of the run rather than anywhere near the delegate.
+        for _ in range(10):
+            ledger.book(PARENT_REQUEST)
+
+        assert await ends_the_run(capability, ctx) == "the parent answered"
+
+        (outcome,) = recorder.outcomes
+        assert outcome.status == "completed"
+        assert outcome.cost_usd == ENTRY.cost_usd
+        assert (outcome.input_tokens, outcome.output_tokens) == (7, 3)
+        # The parent's row is still the authority for the whole run, and it holds
+        # every dollar: the share divides that total, it does not shrink it.
+        assert ledger.total_usd == ENTRY.cost_usd + PARENT_REQUEST.cost_usd * 10
+
     async def test_one_that_is_still_running_keeps_its_slot(self):
         """The sweep before each delegation must not close the books early.
 
@@ -1088,6 +1171,75 @@ class TestBackgroundDelegations:
         assert logged.task_ids == ["a1b2c3"]  # ty: ignore[unresolved-attribute] - from `extra`
 
         outlived.cancel()
+
+
+class TestADelegateThatDelegates:
+    """Three levels, and each one's spend recorded once.
+
+    The second half of agenticos#180, and the quieter one. A mid-tree delegate's
+    row and its own delegate's row both land in `monthly_spend(agent_id=...)`,
+    which passes `include_delegations=True` - so a share that contained what the
+    level below spent made "the researcher cost $X this month" the same money
+    counted twice, on a number nobody can check against anything.
+    """
+
+    @staticmethod
+    def _tree(ledger: SpendLedger, recorder: Recorder) -> tuple[Delegation, UUID, UUID]:
+        """A parent, a researcher that delegates, and a fact-checker that answers.
+
+        Assembled the way the runner assembles one: a runtime *per level*, each
+        carrying the same ledger and the same recorder, and the delegation
+        capability of one level bound to the agent of the level above it. `depth`
+        is stamped by the runner rather than derived, which is why the inner
+        runtime carries its own.
+        """
+        checker = ResolvedSubagent(
+            name="fact-checker",
+            description="Checks one claim.",
+            build=delegate_agent(answering("checked", ledger=ledger)),
+            agent_id=uuid4(),
+            agent_version_id=uuid4(),
+        )
+        inner = a_capability(
+            a_runtime(checker, ledger=ledger, record=recorder, depth_remaining=0, depth=1)
+        )
+        researcher = ResolvedSubagent(
+            name="researcher",
+            description="Researches a topic and cites its sources.",
+            build=lambda: PydanticAgent(
+                handing_on("fact-checker", ledger=ledger),
+                output_type=[str, DeferredToolRequests],
+                capabilities=[inner],
+            ),
+            agent_id=uuid4(),
+            agent_version_id=uuid4(),
+        )
+        outer = a_capability(a_runtime(researcher, ledger=ledger, record=recorder))
+        return outer, researcher.agent_id, checker.agent_id
+
+    async def test_each_level_is_recorded_with_only_its_own_spend(self):
+        """The grandchild's cost appears in exactly one row: the grandchild's.
+
+        Three requests are made: two by the researcher - the one that delegates and
+        the one that answers - and one by the fact-checker. Measured as a delta the
+        researcher's window contained all three, so $0.75 was recorded against the
+        researcher and $0.25 against the fact-checker: $1.00 of child rows for a run
+        that cost $0.75.
+        """
+        ledger = SpendLedger()
+        recorder = Recorder()
+        capability, researcher, checker = self._tree(ledger, recorder)
+
+        assert "checked" in await delegate_to(capability, a_context())
+
+        by_agent = {outcome.agent_id: outcome for outcome in recorder.outcomes}
+        assert by_agent[checker].cost_usd == ENTRY.cost_usd
+        assert by_agent[researcher].cost_usd == ENTRY.cost_usd * 2
+        # The whole run, once. The child rows divide the parent's total rather than
+        # overlapping it, which is what `sum_cost_since(include_delegations=True)`
+        # relies on to answer one agent's month.
+        assert ledger.total_usd == ENTRY.cost_usd * 3
+        assert sum(outcome.cost_usd for outcome in recorder.outcomes) == ledger.total_usd
 
 
 class TestTaskLifecycle:
