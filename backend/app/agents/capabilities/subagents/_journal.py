@@ -75,6 +75,7 @@ from subagents_pydantic_ai import (
     TaskStatus,
     decide_execution_mode,
 )
+from subagents_pydantic_ai.registry import DynamicAgentRegistry
 
 from app.agents.capabilities.budget import SpendShare, booked_to
 from app.agents.capabilities.subagents._events import FrameLabels, frame_for
@@ -91,6 +92,7 @@ from app.agents.subagent_runtime import (
     DelegationSpend,
     DelegationStatus,
     ParkedDelegation,
+    RegisteredSpecialist,
     ResolvedSubagent,
     ResumedDelegation,
     SubagentRuntime,
@@ -354,6 +356,17 @@ class DelegationJournal:
     next line.
     """
 
+    registry: DynamicAgentRegistry | None = field(default=None, init=False, repr=False)
+    """The library registry `create_agent` writes into, when this agent may invent one.
+
+    `None` when the agent's author did not switch `allow_dynamic` on - then neither
+    entry point is offered and nothing registers. Otherwise `build_delegation`
+    creates the registry, hands it to the library capability so `create_agent`
+    writes into the one this journal can read, and assigns it here. That is what
+    lets :meth:`record_created_specialists` snapshot it when the run ends, so a
+    kept specialist survives an approval park (agenticos#175).
+    """
+
     _running: int = field(default=0, init=False)
     _background: dict[str, Delegation] = field(default_factory=dict, init=False)
 
@@ -532,6 +545,37 @@ class DelegationJournal:
                 started_at=self._span_start(delegation, handle),
             )
         )
+
+    def record_created_specialists(self) -> None:
+        """Snapshot the kept specialists into the stash, so an approval park keeps them.
+
+        Called from `wrap_run` on the way out of the run's own agent, and a no-op
+        otherwise: a nested delegate (`depth != 0`), or an agent that may not invent
+        one at all (`registry is None`, no `create_agent` offered). The library holds
+        each `create_agent` registration in a registry it builds per *built* agent, so
+        a resume - a fresh build - starts with an empty one; writing what the registry
+        holds now into the stash is what lets the runner carry it into
+        `PausedRunState` and re-register it on the replay. See
+        :func:`~app.agents.capabilities.subagents._capability.build_delegation`.
+
+        The whole registry, not this turn's new registrations only: a resume seeds the
+        registry *before* the replay, so what it holds at the end is the seeded ones
+        plus any the model added this turn, which is exactly what a second park must
+        keep. Assigned rather than appended, because the stash is built fresh each turn
+        and this is its one writer - a run that ends without parking simply throws the
+        snapshot away with the stash.
+        """
+        if self.registry is None or self.depth != 0:
+            return
+        self.runtime.stash.registered[:] = [
+            RegisteredSpecialist(
+                name=config["name"],
+                description=config["description"],
+                instructions=config["instructions"],
+                model=str(config.get("model", "")),
+            )
+            for config in self.registry.list_configs()
+        ]
 
     def resuming(self) -> ResumedDelegation | None:
         """The place this delegation is being continued from, if it is being continued.

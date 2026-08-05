@@ -1046,6 +1046,9 @@ class TestParking:
             # added for delegation reads as "this run delegated nothing".
             "delegated_approvals": {},
             "delegations": [],
+            # And no kept specialists, which is a run that invented none - or, as
+            # here, one whose agent binds no delegation at all (agenticos#175).
+            "dynamic_specialists": [],
         }
 
     @pytest.mark.anyio

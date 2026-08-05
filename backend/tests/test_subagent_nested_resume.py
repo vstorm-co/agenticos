@@ -883,7 +883,11 @@ class TestAnOlderParkedRun:
         queue.decide(approved=True)
 
         state = PausedRunState.model_validate(stored)
-        assert (state.delegations, state.delegated_approvals) == ([], {})
+        assert (state.delegations, state.delegated_approvals, state.dynamic_specialists) == (
+            [],
+            {},
+            [],
+        )
         plan = _resume_plan(
             state, {parked.tool_call_id: parked.tool_args for parked in channel.requested}
         )

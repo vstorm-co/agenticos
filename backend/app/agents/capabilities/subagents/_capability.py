@@ -34,7 +34,8 @@ which has a handle and no task - and it says what the sweep does not guarantee.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+import logging
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field, replace
 from typing import Any, cast
 
@@ -58,6 +59,7 @@ from subagents_pydantic_ai import (
 )
 from subagents_pydantic_ai.dynamic_agent import AgentFactory
 from subagents_pydantic_ai.prompts import SEND_MESSAGE_TO_SUBAGENT_DESCRIPTION
+from subagents_pydantic_ai.registry import DynamicAgentRegistry
 
 from app.agents.capabilities._registry import CapabilityToolInfo
 from app.agents.capabilities.subagents._journal import DelegationJournal
@@ -67,10 +69,13 @@ from app.agents.factory import DEFAULT_MAX_STEPS
 from app.agents.spec import DelegationMode
 from app.agents.subagent_runtime import (
     DynamicSpecialists,
+    RegisteredSpecialist,
     ResolvedSubagent,
     ResumedDelegation,
     SubagentRuntime,
 )
+
+logger = logging.getLogger(__name__)
 
 MAX_DYNAMIC_SPECIALISTS = 5
 """How many specialists one run may **keep** before `create_agent` is refused.
@@ -691,12 +696,20 @@ class Delegation(WrapperCapability[AgentDeps]):
         nothing will check again. Nothing here can stop it, so
         `cancel_in_flight` names it in a warning instead, and this docstring says
         so rather than claiming the terminal status is a certainty.
+
+        *And the kept specialists are snapshotted*, so a run that parks on an
+        approval carries them into `PausedRunState` and finds them again on the
+        replay - the library's registry is per built agent and a resume builds a
+        fresh one, which is what lost a specialist across a park until now
+        (agenticos#175). A no-op unless this is the run's own agent and it may
+        invent one; see `DelegationJournal.record_created_specialists`.
         """
         try:
             return await super().wrap_run(ctx, handler=handler)
         finally:
             self.journal.cancel_in_flight()
             await self.journal.settle_background(ctx.deps.subagent_events)
+            self.journal.record_created_specialists()
 
 
 def build_delegation(
@@ -729,6 +742,18 @@ def build_delegation(
     """
     journal = DelegationJournal(runtime=runtime, mode=mode, max_fanout=max_fanout, depth=depth)
     dynamic = runtime.dynamic
+    # The registry `create_agent` writes into, owned here rather than left to the
+    # library so this platform can read it back when the run ends and seed it when a
+    # run resumes. A resume fills `stash.to_register`; only the run's own agent's
+    # registry is seeded from it - a nested delegate has its own registry and its
+    # own `create_agent`, and a flat list of the run's specialists is not its to
+    # replay. `None` when the agent may not invent one, and then the library needs no
+    # registry either.
+    registry = (
+        None
+        if dynamic is None
+        else _seeded_registry(dynamic, journal, runtime.stash.to_register if depth == 0 else [])
+    )
     capability = SubAgentCapability(
         subagents=[_config_for(delegate, journal) for delegate in runtime.subagents],
         # Passed because the library's own default is `True`, not because anything
@@ -755,8 +780,12 @@ def build_delegation(
         # `0` rejects every registration, which is the honest ceiling for an agent
         # that may not create one at all - `is not None`, not truthiness, is how the
         # library reads it, so this is not "unlimited". It bounds `create_agent`
-        # only; a `delegate` call registers nothing.
+        # only; a `delegate` call registers nothing. Read only when no `registry` is
+        # passed: the one above carries its own ceiling, set to the same constant.
         max_agents=0 if dynamic is None else MAX_DYNAMIC_SPECIALISTS,
+        # Owned here rather than created inside the library, so its registrations
+        # can be snapshotted when the run parks and re-seeded when it resumes.
+        registry=registry,
         # `default_model` is left at the library's own, and this platform has no
         # default model anywhere: a specialist that names none is refused in
         # `DelegatingToolset._refuse_dynamic`, before either entry point reaches
@@ -789,7 +818,71 @@ def build_delegation(
     # inside the capability the journal was passed into, so this is the first
     # moment both exist.
     journal.tasks = capability.task_manager
+    # The registry `create_agent` writes into, so `record_created_specialists` can
+    # snapshot it when the run ends. `None` for an agent that may not invent one.
+    journal.registry = registry
     return Delegation(wrapped=capability, journal=journal)
+
+
+def _seeded_registry(
+    dynamic: DynamicSpecialists,
+    journal: DelegationJournal,
+    specialists: Sequence[RegisteredSpecialist],
+) -> DynamicAgentRegistry:
+    """The library registry `create_agent` writes into, with a resume's kept ones in it.
+
+    Empty on a fresh run - `specialists` is empty unless a resume filled the stash -
+    and re-populated on a resume, so a specialist kept before an approval park is
+    reachable through `task` after it (agenticos#175). Each one is registered the way
+    `create_agent` would have: a `_LazyAgent` whose build goes through
+    `DynamicSpecialists.build`, the same door an inline specialist and a pinned
+    delegate come through, so it reaches `build_agent` with the run's shared budget
+    guard and meters against the run's ledger like every other delegation.
+
+    Built *lazily*, which is the one place a re-registration departs from
+    :func:`_specialist_factory`: the factory builds at once, and the run's budget
+    guard is a product of `build_agent` that the runner assigns *after* this
+    capability is built - so a seeded specialist built here would be handed no guard
+    and meter nothing, the one property agenticos#175 was careful not to break. The
+    build is deferred to the first `task`, by when the guard is in place, exactly as
+    a resolved delegate's is.
+
+    A model this deployment no longer holds is skipped rather than raised: a profile
+    can be deleted between the park and the resume, and one gone specialist must not
+    fail the whole continuation - the model reads "unknown subagent" for that one
+    name and can create it again, which is the pre-fix behaviour for it alone.
+    """
+    registry = DynamicAgentRegistry(max_agents=MAX_DYNAMIC_SPECIALISTS)
+    for specialist in specialists:
+        if specialist.model not in dynamic.allowed_models:
+            logger.warning(
+                "dynamic_specialist_not_re_registered_model_gone",
+                extra={"subagent": specialist.name, "model": specialist.model},
+            )
+            continue
+        config = SubAgentConfig(
+            name=specialist.name,
+            description=specialist.description,
+            instructions=specialist.instructions,
+            model=specialist.model,
+            # As `_autonomously` set it at creation: a specialist here never asks the
+            # parent a question. See `_toolset._autonomously` and `UNREACHABLE_TOOLS`.
+            can_ask_questions=False,
+        )
+        # `s=specialist` binds the loop variable into the closure, so every lazy
+        # build resolves its own specialist rather than the last of the loop.
+        agent = _LazyAgent(
+            ResolvedSubagent(
+                name=specialist.name,
+                description=specialist.description,
+                build=lambda s=specialist: dynamic.build(
+                    name=s.name, instructions=s.instructions, model=s.model
+                ),
+            ),
+            journal,
+        )
+        registry.register(config, agent)
+    return registry
 
 
 def _config_for(delegate: ResolvedSubagent, journal: DelegationJournal) -> SubAgentConfig:
