@@ -38,27 +38,22 @@ export function useRuns(agentId?: string, options?: { enabled?: boolean }) {
  *
  * Fetched on its own rather than found in the list, because the run being asked
  * about is usually a delegated one and the list deliberately does not contain
- * those. Disabled until there is an id, so the caller can render one component
- * for "a run was named" and "none was".
+ * those. `error` is returned because a run that is gone and a run the caller may
+ * not read are the same absence, and only one of them is the reader's problem.
  */
-export function useRun(runId: string | null) {
+export function useRun(runId: string) {
   const { data, isLoading, error } = useQuery({
-    queryKey: qk.runs.detail(runId ?? "none"),
-    queryFn: () => apiClient.get<AgentRun>(`/runs/${runId as string}`),
-    enabled: runId !== null,
+    queryKey: qk.runs.detail(runId),
+    queryFn: () => apiClient.get<AgentRun>(`/runs/${runId}`),
   });
   return { run: data, isLoading, error };
 }
 
 /** What one run delegated - the rows the top-level list leaves out. */
-export function useDelegatedRuns(parentRunId: string | null) {
+export function useDelegatedRuns(parentRunId: string) {
   const { data, isLoading } = useQuery({
-    queryKey: qk.runs.delegations(parentRunId ?? "none"),
-    queryFn: () =>
-      apiClient.get<AgentRunList>("/runs", {
-        params: { parent_run_id: parentRunId as string },
-      }),
-    enabled: parentRunId !== null,
+    queryKey: qk.runs.delegations(parentRunId),
+    queryFn: () => apiClient.get<AgentRunList>("/runs", { params: { parent_run_id: parentRunId } }),
   });
   return { runs: data?.items ?? [], total: data?.total ?? 0, isLoading };
 }

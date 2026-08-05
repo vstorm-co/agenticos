@@ -70,14 +70,6 @@ describe("useRun", () => {
     expect(result.current.run).toEqual({ id: "run-77" });
   });
 
-  it("asks for nothing when no run was named", () => {
-    // The caller renders one component either way, so the hook is what decides
-    // not to fetch - `/runs/null` would be a 422 on every page load.
-    renderHook(() => useRun(null), { wrapper });
-
-    expect(apiClient.get).not.toHaveBeenCalled();
-  });
-
   it("hands back the refusal rather than an absent run", async () => {
     // "This run was deleted" and "the request was refused" are the same absence,
     // and only one of them is the reader's problem.
@@ -101,12 +93,6 @@ describe("useDelegatedRuns", () => {
       params: { parent_run_id: "run-parent" },
     });
     expect(result.current.total).toBe(1);
-  });
-
-  it("asks for nothing when there is no run to ask about", () => {
-    renderHook(() => useDelegatedRuns(null), { wrapper });
-
-    expect(apiClient.get).not.toHaveBeenCalled();
   });
 });
 
