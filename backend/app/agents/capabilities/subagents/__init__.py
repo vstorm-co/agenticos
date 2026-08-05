@@ -143,11 +143,16 @@ class SubagentsConfig(BaseModel):
     share_with_delegates: list[str] = Field(
         default_factory=list,
         description=(
-            "Capability ids bound on this agent that its inline specialists inherit, "
-            "such as an MCP connection or a sandbox. Named one by one rather than "
-            "shared by default: a specialist that silently gained the parent's "
-            "credentials would be the quiet route around what the parent was "
-            "granted."
+            "Capability ids bound on this agent that its delegates and inline "
+            "specialists inherit - a workspace being the case it exists for, so a "
+            "researcher writes a file and a writer reads it. Named one by one "
+            "rather than shared by default: a delegate that silently gained the "
+            "parent's credentials would be the quiet route around what the parent "
+            "was granted. Delegation itself is refused here, however the spec asks: "
+            "a delegate that inherited it would read the parent's config as its "
+            "own - the parent's specialists, and an allow_dynamic its author never "
+            "set. Only a capability is shareable, so an MCP connection is not: "
+            "those are named on the spec, not bound."
         ),
     )
 

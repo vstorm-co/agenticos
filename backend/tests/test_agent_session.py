@@ -43,6 +43,7 @@ from pydantic_ai import Agent as PydanticAgent
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolCallPart, ToolReturnPart
 from pydantic_ai.models.function import AgentInfo, DeltaToolCall, DeltaToolCalls, FunctionModel
 from pydantic_ai.tools import DeferredToolRequests
+from subagents_pydantic_ai import TaskStatus
 
 from app.agents.capabilities import CapabilityBinding, build
 from app.agents.capabilities.budget import SpendEntry, SpendLedger
@@ -234,6 +235,11 @@ class TestForwardingDelegationFrames:
                     "depth": 0,
                     "mode": "sync",
                     "prompt": "find three papers",
+                    # On the wire even when it is `None`, because the client
+                    # switches on its presence to nest a panel: a field a surface
+                    # only sometimes receives is a field it has to guess about, and
+                    # guessing the parent is what this replaced.
+                    "parent_task_id": None,
                 },
             )
         ]
@@ -424,7 +430,7 @@ class _Turn:
     run's shared ledger, and the cancellation path from `stop` to the run row.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, mode: str = "async") -> None:
         self.ledger = SpendLedger()
         self.spent = asyncio.Event()
         self.outcomes: list[DelegationOutcome] = []
@@ -436,7 +442,7 @@ class _Turn:
             ledger=self.ledger,
         )
         capabilities = build(
-            [CapabilityBinding(capability_id="subagents", config={"mode": "async"})],
+            [CapabilityBinding(capability_id="subagents", config={"mode": mode})],
             resources={SUBAGENT_RUNTIME_RESOURCE: self.runtime},
         )
         (delegation,) = capabilities
@@ -519,13 +525,62 @@ class _Turn:
 
 
 class TestStoppingATurnMidDelegation:
-    """`stop` while a background delegation is running, through the real teardown.
+    """`stop` while a delegation is running, through the real teardown.
 
     One scenario, four assertions, because the failures are independent: a leaked
     task keeps spending against a closed session, a missing terminal frame leaves
     the client's spinner running forever, an unrecorded delegation loses its cost,
     and a run row written as if nothing was spent is a bill nobody can explain.
+
+    Both modes, because the library covers neither of them the same way and
+    covered `sync` - **the default** - not at all: a sync delegation has a handle
+    and no task, so `TaskManager.cancel_all` never sees it, and
+    `asyncio.CancelledError` is a `BaseException`, so `_run_sync`'s handlers never
+    see it either.
     """
+
+    async def test_a_stopped_sync_delegation_is_cancelled_rather_than_left_running(self):
+        """The default mode, stopped mid-delegation.
+
+        Every failure this class exists for at once, and none of them raises: the
+        handle stayed `RUNNING`, so the delegation was filed as still going, its
+        two dollars were attributed to nothing, the fan-out slot was never
+        released, and the panel the client had opened was never closed.
+        """
+        turn = _Turn(mode="sync")
+        session = _session()
+        alive_before = len(asyncio.all_tasks())
+
+        with turn.patched():
+            await session.handle_frame({"message": "price this up", "agent_id": str(uuid4())})
+            await turn.in_flight()
+            assert turn.delegation.journal.in_flight() == 1
+
+            await session.handle_frame({"type": "stop"})
+
+        journal = turn.delegation.journal
+        # A sync delegation has no asyncio task of its own, so the handle is the
+        # only place its status lives - and it is what decides whether the
+        # delegation is ever recorded.
+        assert [handle.status for handle in journal.tasks.list_handles()] == [TaskStatus.CANCELLED]
+        assert journal.in_flight() == 0
+        assert len(asyncio.all_tasks()) == alive_before
+        assert session._turn_task is None
+
+        assert _sent_events(session)[-1] == (
+            "complete",
+            {"conversation_id": _CONVERSATION, "stopped": True},
+        )
+        assert [
+            event_type for event_type, _data in _sent_events(session) if "subagent" in event_type
+        ] == ["subagent_start", "subagent_complete"]
+
+        # What the ledger accumulated while the delegate was running, on the
+        # delegation's own record and on the run row.
+        (outcome,) = turn.outcomes
+        assert outcome.status == "cancelled"
+        assert outcome.cost_usd == _DELEGATE_REQUEST.cost_usd
+        assert turn.finished == [(RunStatus.CANCELLED, _DELEGATE_REQUEST.cost_usd, 7, 3)]
 
     async def test_a_stopped_turn_leaves_nothing_running_and_still_books_what_it_spent(self):
         turn = _Turn()

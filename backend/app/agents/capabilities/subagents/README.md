@@ -39,6 +39,14 @@ which is resolved here rather than inside the library: `SubagentStarted.mode` ha
 to be concrete *before* the delegation runs, because it is what tells a surface
 whether to keep a panel open after the parent has answered.
 
+A delegate may pin a mode of its own (`ResolvedSubagent.preferred_mode`), and then
+*that* delegation runs its way rather than the agent's. Which means the
+instructions cannot state one mode and stop: an agent configured `sync` with one
+delegate pinned `async` told its model "each delegation blocks until the specialist
+answers" and then handed that delegate back a task id. So a delegate that overrides
+is marked in the list `get_instructions` renders, and the ceiling note says the
+exceptions are there — what the model reads has to be what will happen.
+
 **Fan-out is bounded.** A run may launch background delegations and carry on, so
 without a ceiling it can keep launching them. The refusal is a tool result the
 model can act on — wait, or do the work itself — never an exception, because a
@@ -73,6 +81,15 @@ from `max_depth - depth_remaining`. Those two numbers come from *different* spec
 the ceiling is the delegating agent's own setting, the remainder is what the tree
 has left — so any delegate configuring a different ceiling reported the wrong depth,
 and a surface nested its panel under the wrong parent.
+
+**And the parent is told too, for the same reason.** Depth alone says which *level* a
+delegation is on, not which delegation it belongs to, so a surface with only the
+depth has to guess — "the most recent still-running delegation one level up", which
+is wrong the moment two are running, which is the ordinary fan-out: a researcher's
+helper drawn inside the writer's panel, and the researcher showing no children. The
+journal already reads the enclosing delegation at `begin` for the parked tree, so
+`SubagentStarted` carries the same `parent_task_id` — `None` for a delegation the
+run's own agent started.
 
 ## A gated tool inside a delegate, and how the run is continued
 
@@ -217,17 +234,34 @@ going" is what `_RESOLVED` alone did, and it failed three ways at once: the spen
 was attributed to nothing, the fan-out slot was never released, and the panel a
 surface had opened never closed.
 
-**Cancellation is the library's, verified under ours.** `SubAgentCapability.wrap_run`
-cancels every task the run started and waits up to `cancel_grace_seconds` for each
-to unwind; this capability's `wrap_run` then settles whatever those cancellations
-produced, which is why a stopped turn still records what its delegate spent. The
-cancel that matters here arrives from outside — `AgentSession` cancels `_turn_task`
+**Cancellation is half the library's, and the other half is here.**
+`SubAgentCapability.wrap_run` cancels every *task* the run started and waits up to
+`cancel_grace_seconds` for each to unwind. Two things that leaves:
+
+A **sync** delegation — the default mode — has no task, only a handle, so nothing
+in that sweep touches it; and `asyncio.CancelledError` is a `BaseException`, so the
+library's `_run_sync`, whose every `except` names an `Exception` subclass, does not
+touch the handle either. A `stop` arriving mid-delegation therefore left the handle
+`RUNNING`, `_terminal_status` answered "not over", and the delegation was filed as
+still going and never recorded — the spend attributed to nothing, the fan-out slot
+never released, the panel never closed. So `Delegation.wrap_run` finishes everything
+still in flight as cancelled *before* settling, which covers every mode and, because
+each level wraps its own run, every nesting level. A delegation parked on an approval
+is untouched by that sweep: `DEFERRED` is already terminal and `TaskHandle.finish`
+keeps the first terminal status.
+
+And the grace period **expires** — it does not guarantee the delegate stopped. A
+delegate whose cleanup outlasts it is still executing after the row is written:
+writing into a workspace `finish` closed, appending to a ledger whose `cost_usd` was
+already persisted. Nothing here can stop it, so it is logged
+(`delegation_outlived_the_run`) rather than claimed not to happen. The library's
+default grace period is kept: nothing in this deployment shields a delegate's
+cleanup, so a setting of our own would be a knob nothing turns.
+
+The cancel that matters arrives from outside — `AgentSession` cancels `_turn_task`
 for a `stop` frame and for `shutdown` — so it is asserted through that teardown
 rather than in isolation, in
-`tests/test_agent_session.py::TestStoppingATurnMidDelegation`. The library's
-default grace period is kept: nothing in this deployment shields a delegate's
-cleanup, so a cancelled delegation unwinds immediately and a setting of our own
-would be a knob nothing turns.
+`tests/test_agent_session.py::TestStoppingATurnMidDelegation`, in both modes.
 
 ## A specialist the model invents: `allow_dynamic`
 

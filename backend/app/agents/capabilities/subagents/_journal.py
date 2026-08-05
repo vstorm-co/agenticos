@@ -253,6 +253,10 @@ class Delegation:
                 depth=self.depth,
                 mode=self.mode,
                 prompt=self.prompt,
+                # The delegation this one was made inside, so a surface nests the
+                # panel instead of guessing which one it belongs under. `None` for
+                # a delegation the run's own agent started.
+                parent_task_id=self.parent_task_id,
             )
         )
 
@@ -462,6 +466,55 @@ class DelegationJournal:
         if not await self.settle(task_id, delegation, sink):
             self._background[task_id] = delegation
 
+    def cancel_in_flight(self) -> None:
+        """Finish every delegation still going as cancelled, and report any that ignored it.
+
+        Called from the capability's `wrap_run` before the last settlement, and
+        what it exists for is the **sync** delegation of a cancelled turn - the
+        default mode, and the one case nothing else covers. `asyncio.CancelledError`
+        is a `BaseException`, so the library's `_run_sync` - whose every `except`
+        names an `Exception` subclass - never touches the handle when a cancel
+        travels through a blocking delegation; and `TaskManager.cancel_all` walks
+        `tasks`, which a sync delegation has no entry in, only `handles`. So the
+        handle stays `RUNNING`, :func:`_terminal_status` answers `None`,
+        :meth:`close` files the delegation into `_background` as "still going" and
+        :meth:`settle_background` leaves it there - which is all three failures
+        `_terminal_status` exists to prevent, at once: the spend attributed to
+        nothing, the fan-out slot never released, and the panel a surface opened
+        never closed.
+
+        One sweep on the way out of the run rather than an
+        `except asyncio.CancelledError` at each entry point: there are three of
+        those, and a `finally` on the run also covers every nesting level, because
+        each level wraps its own run with its own journal.
+
+        **A parked delegation is left untouched.** `TaskHandle.finish` records only
+        the first terminal transition and `DEFERRED` is already terminal, so a
+        delegate waiting on a person keeps that status and stays unrecorded - which
+        is the point: the continuation records it when it answers.
+
+        Walked handle-first rather than delegation-first so there is no branch for a
+        handle the library has already evicted: there is nothing to finish, and
+        :meth:`settle` reads a delegation whose handle is gone as nothing left to
+        watch.
+
+        The warning is the honest half of the guarantee. `cancel_all` waits at most
+        `cancel_grace_seconds` and then logs and moves on, so a delegate whose
+        cleanup swallowed the cancel is *still executing* once the row is written -
+        writing into a workspace `finish` closed, and appending to a ledger whose
+        `cost_usd` was already persisted. Nothing here can stop it; a line naming
+        the delegation is what makes that state diagnosable rather than a cost that
+        appears from nowhere.
+        """
+        for task_id, handle in self.tasks.handles.items():
+            if task_id in self._background:
+                handle.finish(
+                    TaskStatus.CANCELLED, error="The run ended before this delegation finished"
+                )
+        outlived = [task_id for task_id, task in self.tasks.tasks.items() if not task.done()]
+        if outlived:
+            logger.warning("delegation_outlived_the_run", extra={"task_ids": outlived})
+
     async def settle_background(self, sink: SubagentEventSink | None) -> None:
         """Record every background delegation that has finished since the last look.
 
@@ -469,10 +522,27 @@ class DelegationJournal:
         a fan-out check, so a finished task stops occupying a slot, and after the
         run, where the library has already cancelled and awaited whatever was
         still running.
+
+        **The entry is claimed before anything is awaited**, and put back when the
+        delegation turns out not to have finished. A plain `del` after the `await`
+        was a check-then-act on a dict two coroutines reach: `_delegate` drains
+        before its fan-out check and Pydantic AI runs several tool calls from one
+        model response concurrently, so two delegations starting together both
+        walked the same finished entry the moment the sink yielded. That wrote a
+        second child `AgentRun` row for one delegation - double-billing the
+        delegate's own monthly total - sent the panel a second `subagent_complete`,
+        and raised `KeyError` out of `call_tool` *before* `journal.begin`, where
+        nothing settles the delegation and the run dies. Putting the entry back is
+        free: :meth:`settle` answers `False` without awaiting anything, so no
+        delegation is ever missing from `in_flight` while it is still running.
         """
-        for task_id, delegation in list(self._background.items()):
-            if await self.settle(task_id, delegation, sink):
-                del self._background[task_id]
+        for task_id in list(self._background):
+            delegation = self._background.pop(task_id, None)
+            if delegation is None:
+                # A concurrent drain claimed this one and is recording it.
+                continue
+            if not await self.settle(task_id, delegation, sink):
+                self._background[task_id] = delegation
 
     async def settle(
         self, task_id: str, delegation: Delegation, sink: SubagentEventSink | None

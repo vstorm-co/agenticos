@@ -23,9 +23,11 @@ directly would mean a field added upstream arrives switched on, in every publish
 agent, with nothing in this repository saying so.
 
 What is deliberately *not* wrapped: the toolset's own task management, the
-background task cancellation in `wrap_run`, and the retry behaviour. Those are the
-library's job and it does them; re-implementing them here would be a second copy
-to keep in step.
+cancellation of background *tasks* in `wrap_run`, and the retry behaviour. Those
+are the library's job and it does them; re-implementing them here would be a second
+copy to keep in step. `Delegation.wrap_run` adds to that cancellation rather than
+replacing it - what the library's own sweep cannot reach is a `sync` delegation,
+which has a handle and no task - and it says what the sweep does not guarantee.
 """
 
 from __future__ import annotations
@@ -153,6 +155,20 @@ DELEGATION_TOOLS: tuple[CapabilityToolInfo, ...] = (
     ),
     # A reply to a question a delegate asked, inside this run. It unblocks work
     # rather than acting on anything outside it.
+    #
+    # Declared and offered, and **no delegation this deployment runs can ever use
+    # it**: the tool answers a task in `WAITING_FOR_ANSWER`, which is reached only
+    # through the library's `ask_parent`, and nothing here injects that tool. A
+    # configured subagent - which every pinned delegate and every inline specialist
+    # is, since all of them arrive as `SubAgentConfig["agent"]` - is compiled with
+    # `inject_ask_parent=False`, and the two registry paths that would get it are
+    # handed `can_ask_questions: False` by `_autonomously`. So the description
+    # promises the model something the deployment cannot keep, and the model will
+    # find no task to answer. It stays declared because a tool absent from this
+    # list cannot be gated by the approval policy or renamed by a binding, which is
+    # the more dangerous half. Removing it - or making it usable - belongs with
+    # whatever decides whether a delegate may ask its parent anything at all, which
+    # is a decision about the product and not about this list.
     CapabilityToolInfo(
         id="answer_subagent", description=ANSWER_SUBAGENT_DESCRIPTION, side_effecting=False
     ),
@@ -215,6 +231,32 @@ _MODE_NOTE: dict[DelegationMode, str] = {
 A table rather than three branches: what the model is told and what the platform
 enforces come from one place, so an instruction cannot describe a mode the run
 will not use.
+
+The *configured* mode, which is not the mode of every delegation - see
+:data:`_DELEGATE_MODE_NOTE`.
+"""
+
+_DELEGATE_MODE_NOTE: dict[DelegationMode, str] = {
+    "sync": "this one blocks until it answers",
+    "async": (
+        "this one runs in the background: `task` answers with a task id, and "
+        "`check_task` or `wait_tasks` collects the result"
+    ),
+    "auto": (
+        "this one blocks for simple work and runs in the background for longer "
+        "work, collected with `check_task` or `wait_tasks`"
+    ),
+}
+"""How a delegate that overrides the agent's mode is explained, beside its name.
+
+The mode is per *delegation*, not per run: `_mode_for` prefers
+`ResolvedSubagent.preferred_mode`, which is exactly what that field is for. So an
+agent configured `sync` with one delegate pinned `async` used to be told "each
+delegation blocks until the specialist answers" and then handed a task id for that
+delegate - the instruction and the behaviour disagreeing, silently, on the one
+delegation the author had singled out. The ceiling note still states the
+configured mode, because it is what every other delegation uses, including a
+specialist the model invents and a name it made up.
 """
 
 
@@ -410,11 +452,19 @@ class Delegation(WrapperCapability[AgentDeps]):
         Empty for an agent that only invents its own, which is a complete
         configuration: an empty bulleted list under "delegate to one of these"
         reads as a mistake, and leaves the model wondering what it cannot see.
+
+        A delegate whose `preferred_mode` overrides the agent's carries that here,
+        beside its own name, because that is where the model reads about it and
+        because :meth:`_ceiling_note` can only state one mode - see
+        :data:`_DELEGATE_MODE_NOTE`.
         """
         delegates = self.journal.runtime.subagents
         if not delegates:
             return ""
-        listed = "\n".join(f"- **{entry.name}**: {entry.description}" for entry in delegates)
+        listed = "\n".join(
+            f"- **{entry.name}**: {entry.description}{self._override_note(entry)}"
+            for entry in delegates
+        )
         return (
             "Hand a self-contained piece of work to one of these specialists with "
             f"the `task` tool:\n\n{listed}\n\n"
@@ -442,9 +492,35 @@ class Delegation(WrapperCapability[AgentDeps]):
             "goes to a specialist you were given."
         )
 
+    def _override_note(self, delegate: ResolvedSubagent) -> str:
+        """How this delegate runs, when that is not how the agent's other ones do.
+
+        Nothing for a delegate that pinned no mode of its own, and nothing for one
+        that pinned the mode the agent is already configured with - a parenthesis
+        repeating the sentence two lines below it is context paid for on every turn
+        for no information.
+        """
+        preferred = delegate.preferred_mode
+        if preferred is None or preferred == self.journal.mode:
+            return ""
+        return f" ({_DELEGATE_MODE_NOTE[preferred]})"
+
     def _ceiling_note(self) -> str:
+        """The mode every other delegation uses, and the fan-out that bounds them all.
+
+        "Every other" because a delegate may pin its own, and one sentence cannot
+        state two modes; those are marked in the list above, and this says so rather
+        than contradicting them. The mode named here is still the one the model
+        needs: it is what a specialist it invents and a name it made up will run
+        with.
+        """
+        excepted = (
+            " A specialist marked otherwise above runs the way its own note says."
+            if any(self._override_note(entry) for entry in self.journal.runtime.subagents)
+            else ""
+        )
         return (
-            f"{_MODE_NOTE[self.journal.mode]} At most {self.journal.max_fanout} "
+            f"{_MODE_NOTE[self.journal.mode]}{excepted} At most {self.journal.max_fanout} "
             "delegations run at once; asking for more is refused until one finishes."
         )
 
@@ -453,17 +529,36 @@ class Delegation(WrapperCapability[AgentDeps]):
     ) -> AgentRunResult[Any]:
         """Run the agent, then account for whatever was still delegating.
 
-        The library's own `wrap_run` - which this defers to - cancels every
-        background task this run started and waits for each to unwind, so by the
-        time it returns every delegation has reached a terminal status. This is
-        therefore the last moment one can be recorded, and it is the moment that
-        matters: a run that launched a background delegation and answered without
-        collecting it would otherwise leave that delegation's spend attributed to
-        nothing at all.
+        The last moment a delegation can be recorded, and the moment that matters:
+        a run that launched a background delegation and answered without collecting
+        it would otherwise leave that delegation's spend attributed to nothing at
+        all. Two steps, in this order:
+
+        *Everything still in flight is finished as cancelled* -
+        :meth:`DelegationJournal.cancel_in_flight`. This is not a formality the
+        library has already performed. Its own `wrap_run`, which this defers to,
+        cancels every background task and then **waits at most
+        `cancel_grace_seconds`**, after which it logs and leaves the task running;
+        and it never touches a *sync* delegation at all, because that one has a
+        handle and no task. A `stop` mid-delegation on the default mode therefore
+        left the handle `RUNNING` and the delegation unrecorded until this ran
+        first.
+
+        *Then whatever those cancellations produced is settled and reported.*
+
+        What is **not** guaranteed is that every delegation has *stopped* by the
+        time this returns: the grace period expires, it does not conclude. A
+        delegate whose cleanup outlasts it is still executing while the row is
+        written - writing into a workspace `finish` closed, appending to a ledger
+        whose `cost_usd` was already persisted, and spending against a budget
+        nothing will check again. Nothing here can stop it, so
+        `cancel_in_flight` names it in a warning instead, and this docstring says
+        so rather than claiming the terminal status is a certainty.
         """
         try:
             return await super().wrap_run(ctx, handler=handler)
         finally:
+            self.journal.cancel_in_flight()
             await self.journal.settle_background(ctx.deps.subagent_events)
 
 

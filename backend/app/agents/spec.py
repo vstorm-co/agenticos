@@ -503,7 +503,10 @@ class SpecialistSpec(BaseModel):
       alert or a Logfire service; the run it happens inside is.
     - `mcp_server_ids` - an MCP connection is organization-scoped configuration,
       and reaching one through a specialist nobody published is the wrong door.
-      Bind it on the parent and share it with `share_with_delegates`.
+      There is deliberately **no** route to one from here: `share_with_delegates`
+      lends *capability bindings*, and an MCP connection is not a capability, so
+      naming one there would configure nothing. A specialist that needs an
+      external tool is a specialist that should be a published agent.
     - `subagents` - a specialist does not delegate further. Nesting is what
       `max_depth` bounds, and it is bounded for published delegates, which are
       reviewable.

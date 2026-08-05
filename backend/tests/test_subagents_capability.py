@@ -23,6 +23,8 @@ repository.
 from __future__ import annotations
 
 import asyncio
+import json
+import logging
 import re
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
@@ -60,7 +62,7 @@ from pydantic_ai.models.test import TestModel
 from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai.toolsets import FunctionToolset
 from pydantic_ai.usage import RunUsage, UsageLimits
-from subagents_pydantic_ai import SubAgentConfig, TaskHandle, TaskManager
+from subagents_pydantic_ai import SubAgentConfig, TaskHandle, TaskManager, TaskStatus
 
 from app.agents.capabilities import CapabilityBinding, CapabilityBuildContext, build, get
 from app.agents.capabilities.approval import (
@@ -186,6 +188,37 @@ def one_tool_call(text: str | None = "found it") -> FunctionModel:
             yield answer(messages)
         else:
             yield {0: DeltaToolCall(name="ping", json_args="{}")}
+
+    return FunctionModel(respond, stream_function=stream)
+
+
+def delegating_to(subagent: str) -> FunctionModel:
+    """A model that delegates once and answers from what came back.
+
+    For the delegate in the middle of a tree: the agent holding this model carries
+    a delegation capability of its own, so its `task` call is a second level, which
+    is the only way a nested delegation happens at all.
+    """
+    args = {"description": "find the price", "subagent_type": subagent}
+
+    def respond(messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
+        returned = _tool_results(messages)
+        if returned:
+            return ModelResponse(parts=[TextPart(f"relayed: {returned[-1]}")])
+        return ModelResponse(parts=[ToolCallPart("task", args, tool_call_id="the-middles-call")])
+
+    async def stream(
+        messages: list[ModelMessage], _info: AgentInfo
+    ) -> AsyncIterator[str | DeltaToolCalls]:
+        returned = _tool_results(messages)
+        if returned:
+            yield f"relayed: {returned[-1]}"
+        else:
+            yield {
+                0: DeltaToolCall(
+                    name="task", json_args=json.dumps(args), tool_call_id="the-middles-call"
+                )
+            }
 
     return FunctionModel(respond, stream_function=stream)
 
@@ -330,6 +363,19 @@ def a_delegate(
     )
 
 
+def a_second_delegate() -> ResolvedSubagent:
+    """Another delegate, for what only shows up beside a first one.
+
+    One is enough for almost everything here; a *list* is what makes "this one runs
+    differently" a statement about one line rather than about the agent.
+    """
+    return ResolvedSubagent(
+        name="writer",
+        description="Turns notes into prose.",
+        build=delegate_agent(answering("written")),
+    )
+
+
 class Recorder:
     """Stands in for the runner, which writes a child run row and answers with its id."""
 
@@ -345,11 +391,20 @@ class Recorder:
 class Sink:
     """Stands in for a surface that can show a delegation while it happens."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, yielding: bool = False) -> None:
         self.frames: list[SubagentEvent] = []
+        # Whether writing a frame lets another coroutine run. The one sink that
+        # matters writes to a WebSocket, so it does. Off by default because a sink
+        # that yields makes every test in this file interleave differently for no
+        # reason; on where the interleaving *is* the test - a drain that awaited
+        # this and then acted on what it had read before, in
+        # `test_two_delegations_settling_at_once_record_it_once`.
+        self.yielding = yielding
 
     async def __call__(self, frame: SubagentEvent) -> None:
         self.frames.append(frame)
+        if self.yielding:
+            await asyncio.sleep(0)
 
     @property
     def kinds(self) -> list[str]:
@@ -361,9 +416,14 @@ def a_runtime(
     ledger: SpendLedger | None = None,
     record: Callable[[DelegationOutcome], Awaitable[UUID | None]] | None = None,
     depth_remaining: int = 1,
+    depth: int = 0,
 ) -> SubagentRuntime:
     return SubagentRuntime(
-        subagents=delegates, record=record, depth_remaining=depth_remaining, ledger=ledger
+        subagents=delegates,
+        record=record,
+        depth_remaining=depth_remaining,
+        depth=depth,
+        ledger=ledger,
     )
 
 
@@ -759,6 +819,42 @@ class TestMode:
         assert "Task started in background" in await delegate_to(capability, ctx)
         await ends_the_run(capability, ctx)
 
+    def test_the_instructions_mark_the_delegate_that_does_not_follow_that_mode(self):
+        """What the model reads has to be what happens.
+
+        The ceiling note can only state one mode, and the mode is per *delegation*:
+        an agent configured `sync` with one delegate pinned `async` told its model
+        "each delegation blocks until the specialist answers" and then handed that
+        delegate back a task id - so the model polled nothing, or waited for an
+        answer that had already been given to it as an id. The configured mode is
+        still stated, because it is what a specialist the model invents and a name
+        it made up will run with.
+        """
+        capability = a_capability(
+            a_runtime(a_delegate(preferred_mode="async"), a_second_delegate()), {"mode": "sync"}
+        )
+
+        instructions = capability.get_instructions()
+        researcher, writer = (line for line in instructions.splitlines() if line.startswith("- **"))
+
+        assert "runs in the background" in researcher
+        assert "check_task" in researcher
+        assert "(" not in writer
+        assert "Each delegation blocks until the specialist answers." in instructions
+        assert "A specialist marked otherwise above runs the way its own note says." in instructions
+
+    def test_a_delegate_pinning_the_mode_it_would_have_had_is_not_marked(self):
+        """A parenthesis repeating the sentence two lines below it is context paid
+        for on every turn for no information."""
+        capability = a_capability(
+            a_runtime(a_delegate(preferred_mode="async"), a_second_delegate()), {"mode": "async"}
+        )
+
+        instructions = capability.get_instructions()
+
+        assert "(" not in instructions.split("A specialist cannot see")[0]
+        assert "marked otherwise" not in instructions
+
     async def test_auto_hands_the_decision_to_the_task_s_own_characteristics(self):
         """The one mode where what the model says about the work decides.
 
@@ -845,6 +941,59 @@ class TestBackgroundDelegations:
         assert [outcome.status for outcome in recorder.outcomes] == ["cancelled"]
         assert sink.kinds[-1] == "subagent_complete"
 
+    async def test_two_delegations_settling_at_once_record_it_once(self):
+        """The drain every delegation runs before its fan-out check, twice at once.
+
+        Pydantic AI executes several tool calls from one model response
+        concurrently, so a model that emits two `task` calls in one step runs two
+        `_delegate` coroutines - and each drains the finished background
+        delegations first. The entry used to be removed *after* the sink was
+        awaited, and a sink that writes to a WebSocket yields, so both coroutines
+        walked the same finished delegation: a second child `AgentRun` row for one
+        delegation - double-billing that delegate's own monthly total - a second
+        `subagent_complete` for a panel already closed, and a `KeyError` out of
+        `call_tool` *before* `journal.begin`, where nothing settles the delegation
+        and the run dies.
+
+        Two delegations waiting to be settled rather than one, because that is what
+        makes the drains genuinely overlap: claiming an entry is atomic - the
+        snapshot and the `pop` have no `await` between them - so the second drain
+        only ever finds an entry gone when the first one is *part way* through a
+        list of several.
+        """
+        ledger = SpendLedger()
+        recorder = Recorder()
+        sink = Sink(yielding=True)
+        capability = a_capability(
+            a_runtime(a_delegate(model=answering(ledger=ledger)), ledger=ledger, record=recorder),
+            {"mode": "async", "max_fanout": 4},
+        )
+        ctx = a_context(sink)
+        started: list[str] = []
+
+        async def delegate_once() -> None:
+            started.append(task_id_in(await delegate_to(capability, ctx)))
+
+        # Two `task` calls from one model response, which is how they overlap at
+        # all - and then again once both have something to settle.
+        async with anyio.create_task_group() as group:
+            group.start_soon(delegate_once)
+            group.start_soon(delegate_once)
+        finished = list(started)
+        await call_tool(capability, ctx, "wait_tasks", {"task_ids": finished})
+
+        async with anyio.create_task_group() as group:
+            group.start_soon(delegate_once)
+            group.start_soon(delegate_once)
+
+        closed = [frame.task_id for frame in sink.frames if frame.kind == "subagent_complete"]
+        recorded = [outcome.task_id for outcome in recorder.outcomes]
+        assert [recorded.count(task_id) for task_id in finished] == [1, 1]
+        assert [closed.count(task_id) for task_id in finished] == [1, 1]
+        assert capability.journal.in_flight() == 2
+
+        await ends_the_run(capability, ctx)
+
     async def test_nothing_is_still_running_once_the_run_has_ended(self):
         """The guarantee every test in this file depends on, asserted once.
 
@@ -868,6 +1017,39 @@ class TestBackgroundDelegations:
 
         assert capability.journal.tasks.list_active_tasks() == []
         assert len(asyncio.all_tasks()) == before
+
+    async def test_a_delegate_that_outlived_the_cancel_is_named_in_a_warning(
+        self, caplog: pytest.LogCaptureFixture
+    ):
+        """The guarantee above is bounded, and this capability used to claim it was not.
+
+        `TaskManager.cancel_all` cancels every task and then waits at most
+        `cancel_grace_seconds` before logging and moving on - deliberately, because
+        an unbounded wait inside a `finally` hangs the application instead of one
+        delegation. So "the run ended" does not mean "the delegate stopped": one
+        whose cleanup outlasts the grace period is still executing after the row is
+        written, writing into a workspace `finish` closed and appending to a ledger
+        whose `cost_usd` was already persisted. Nothing here can stop it - the state
+        is constructed rather than raced for, because what is under test is that it
+        is *reported*, with the delegation named, rather than costing money from
+        nowhere.
+        """
+        journal = _idle_journal(a_delegate())
+        outlived = asyncio.create_task(asyncio.sleep(30))
+        journal.tasks.handles["a1b2c3"] = TaskHandle(
+            task_id="a1b2c3", subagent_name="researcher", description="find the price"
+        )
+        journal.tasks.tasks["a1b2c3"] = outlived
+
+        with caplog.at_level(logging.WARNING):
+            journal.cancel_in_flight()
+
+        (logged,) = [
+            record for record in caplog.records if record.message == "delegation_outlived_the_run"
+        ]
+        assert logged.task_ids == ["a1b2c3"]  # ty: ignore[unresolved-attribute] - from `extra`
+
+        outlived.cancel()
 
 
 class TestTaskLifecycle:
@@ -1081,12 +1263,16 @@ class TestTaskLifecycle:
     async def test_answering_a_delegate_finds_nothing_to_answer(self):
         """`answer_subagent` is declared, offered, and inert here - deliberately.
 
-        The library injects its `ask_parent` tool only into agents it built itself,
-        and every delegate on this platform arrives pre-built, so no specialist can
-        ask a question and this tool can never have one to answer. It stays
-        declared because a tool absent from `tools=` cannot be gated or renamed, and
-        because the shape is what would change if a delegate ever could ask. What it
-        must not do is invent an answer.
+        A task only reaches `WAITING_FOR_ANSWER` through the library's `ask_parent`,
+        and nothing in this deployment injects that tool. Both halves are closed: a
+        configured subagent - which every pinned delegate and every inline
+        specialist is, since all of them arrive as `SubAgentConfig["agent"]` - is
+        compiled with `inject_ask_parent=False`, and the two registry paths that
+        would get it are handed `can_ask_questions: False` by `_autonomously`. So no
+        specialist can ask a question and this tool can never have one to answer. It
+        stays declared because a tool absent from `tools=` cannot be gated or
+        renamed, and because the shape is what would change if a delegate ever could
+        ask. What it must not do is invent an answer.
         """
         capability = a_capability(a_runtime(a_delegate(model=blocking())), {"mode": "async"})
         ctx = a_context()
@@ -1238,7 +1424,15 @@ class TestApprovalInsideADelegation:
         is still coming: the signal parks the parent run, which is continued from
         the queue with this delegate carried on rather than started again - so a row
         written here would describe unfinished work, and then be written a second
-        time when the continuation finishes it."""
+        time when the continuation finishes it.
+
+        Including at the end of the run, which is where the parked delegation meets
+        the sweep that finishes everything still in flight as cancelled. `DEFERRED`
+        is already terminal and `TaskHandle.finish` keeps the first terminal status,
+        so the sweep passes over it - and it has to, or every approval a delegate
+        parks on would be filed as a cancelled delegation the moment the parent run
+        returned its deferred requests.
+        """
         recorder = Recorder()
 
         def defer(_ctx: RunContext[AgentDeps]) -> str:
@@ -1247,11 +1441,19 @@ class TestApprovalInsideADelegation:
         capability = a_capability(
             a_runtime(a_delegate(model=one_tool_call(), on_call=defer), record=recorder)
         )
+        ctx = a_context()
 
         with pytest.raises(ApprovalRequired):
-            await delegate_to(capability, a_context())
+            await delegate_to(capability, ctx)
 
         assert recorder.outcomes == []
+
+        await ends_the_run(capability, ctx)
+
+        assert recorder.outcomes == []
+        assert [handle.status for handle in capability.journal.tasks.list_handles()] == [
+            TaskStatus.DEFERRED
+        ]
 
 
 class TestKeepingASuspendedDelegatesPlace:
@@ -1367,6 +1569,40 @@ class TestNarration:
         assert len({frame.task_id for frame in sink.frames}) == 1
         assert {frame.depth for frame in sink.frames} == {0}
         assert sink.frames[-1].run_id == recorder.run_id
+
+    async def test_a_nested_delegation_names_the_delegation_it_was_made_inside(self):
+        """Depth says which level; only this says which panel.
+
+        A surface with the depth alone has to guess the parent - "the most recent
+        still-running delegation one level up" - and that is wrong whenever two
+        delegations at that depth are running, which is the ordinary fan-out: the
+        researcher's helper drawn inside the writer's panel, and the researcher
+        showing no children. `SubagentRuntime.depth` is told rather than computed
+        for exactly this reason, and the linkage was already read at `begin` for the
+        parked tree; the frame simply carries it now.
+        """
+        sink = Sink()
+        middle = ResolvedSubagent(
+            name="editor",
+            description="Puts the researcher's answer into shape.",
+            build=lambda: PydanticAgent(
+                delegating_to("researcher"),
+                system_prompt="You coordinate.",
+                output_type=[str, DeferredToolRequests],
+                # Its own capability, its own runtime, one level in - the way the
+                # runner builds a delegate that may delegate on.
+                capabilities=[a_capability(a_runtime(a_delegate(), depth_remaining=0, depth=1))],
+            ),
+        )
+        capability = a_capability(a_runtime(middle))
+
+        await delegate_to(capability, a_context(sink), subagent_type="editor")
+
+        opened = [frame for frame in sink.frames if frame.kind == "subagent_start"]
+        outer, nested = opened
+        assert (outer.subagent, outer.depth, outer.parent_task_id) == ("editor", 0, None)
+        assert (nested.subagent, nested.depth) == ("researcher", 1)
+        assert nested.parent_task_id == outer.task_id
 
     async def test_a_delegation_that_produced_no_events_still_opens_its_panel(self):
         """A `subagent_complete` for a panel nobody opened is a delegation a

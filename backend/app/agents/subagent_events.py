@@ -13,9 +13,12 @@ are what make them readable rather than noise, and all three are structural:
 text deltas from three children interleaved into one paragraph are worse than no
 streaming at all. `task_id` is what lets a surface keep three panels instead.
 
-*Every frame carries its depth.* A specialist that delegates further is legal up
-to `max_depth`, and a reader needs to know whether the researcher is talking or
-the researcher's own assistant is.
+*Every frame carries its depth, and an opening frame says whose child it is.* A
+specialist that delegates further is legal up to `max_depth`, and a reader needs
+to know whether the researcher is talking or the researcher's own assistant is -
+and, at a depth below the first, which of two running researchers it belongs to.
+Both are told rather than inferred: a surface that computes either one computes it
+wrongly the moment a fan-out has more than one delegation at that depth.
 
 *They are a separate channel, never the parent's.* A child's text is not the
 parent's answer. Inlining it would put words in the parent's mouth that its own
@@ -59,11 +62,28 @@ class SubagentStarted(_SubagentFrame):
     parent's answer, and a surface that tears its panels down on the terminal
     frame would drop the last thing a specialist said. Knowing which kind it is
     at the start is what lets a surface keep the panel open.
+
+    It carries `parent_task_id` for the same class of reason `depth` is *told*
+    rather than computed (see `SubagentRuntime.depth`): a surface that derives a
+    relationship it was not given derives it wrongly. Without this field the
+    frontend had to guess - "the most recent still-running delegation one level
+    up" - which is wrong whenever two delegations at that depth are running,
+    which is the ordinary fan-out case: a researcher's own helper was drawn
+    inside the writer's panel, and the researcher showed no children.
     """
 
     kind: Literal["subagent_start"] = "subagent_start"
     mode: Literal["sync", "async"]
     prompt: str = Field(description="What the parent asked this delegate to do")
+    parent_task_id: str | None = Field(
+        default=None,
+        description=(
+            "The `task_id` of the delegation this one was made inside, and `None` "
+            "for one the run's own agent started - which is every delegation at "
+            "depth 0. Read where the delegation opens, because that is the only "
+            "moment both it and the enclosing one exist."
+        ),
+    )
 
 
 class SubagentTextDelta(_SubagentFrame):
