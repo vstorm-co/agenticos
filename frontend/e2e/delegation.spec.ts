@@ -348,9 +348,16 @@ async function publish(page: Page): Promise<void> {
  * A precondition rather than an assertion about a page, and the honest way to get
  * one: the run table is paginated and shared by every agent in the organization,
  * so counting rows on screen would answer a different question.
+ *
+ * `include_delegations` because the delegate this is asked about has *only*
+ * delegated runs. Without it the endpoint answers with the runs somebody started
+ * against that agent - always zero here - and the precondition would pass over
+ * exactly the leftover row it exists to rule out.
  */
 async function runCount(page: Page, agentId: string): Promise<number> {
-  const response = await page.request.get("/api/runs", { params: { agent_id: agentId } });
+  const response = await page.request.get("/api/runs", {
+    params: { agent_id: agentId, include_delegations: "true" },
+  });
   expect(response.ok(), `/api/runs answered ${response.status()}`).toBe(true);
   return ((await response.json()) as { total: number }).total;
 }

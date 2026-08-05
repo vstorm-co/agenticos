@@ -405,6 +405,148 @@ class TestTheCostScreen:
         assert spent == Decimal("0.40")
 
 
+class TestWhatRunHistoryLists:
+    """The page and the bill have to be readable side by side.
+
+    `organization_monthly_spend` counts the parent once. A list that interleaved
+    the children put four rows and an additive cost column next to that figure,
+    which is the contradiction #181 reports - so the list carries the same
+    default, and the total counts what the page shows.
+    """
+
+    async def test_a_fan_out_turn_lists_as_one_run(self, db):
+        org = await _org(db)
+        orchestrator = await _agent(db, org, slug="orchestrator")
+        researcher = await _agent(db, org, slug="researcher")
+        version = await _version(db, researcher)
+        parent = await _run(db, org=org, agent=orchestrator, cost=Decimal("1.00"))
+        for task_id in ("4f2a1b8c", "9abbab49", "c07de1a2"):
+            await _delegated(
+                db,
+                org=org,
+                agent=researcher,
+                version=version,
+                parent=parent,
+                cost=Decimal("0.40"),
+                task_id=task_id,
+            )
+
+        items, total = await agent_run_repo.list_runs(db, organization_id=org.id)
+
+        # One row, and a total that agrees with it - not four rows summing to
+        # $2.20 beside a month-to-date of $1.00.
+        assert [run.id for run in items] == [parent.id]
+        assert total == 1
+
+    async def test_asking_for_one_runs_delegations_returns_them_and_nothing_else(self, db):
+        """The query `agent_runs_parent_run_id_idx` was created for."""
+        org = await _org(db)
+        orchestrator = await _agent(db, org, slug="orchestrator")
+        researcher = await _agent(db, org, slug="researcher")
+        version = await _version(db, researcher)
+        parent = await _run(db, org=org, agent=orchestrator, cost=Decimal("1.00"))
+        other_parent = await _run(db, org=org, agent=orchestrator, cost=Decimal("2.00"))
+        mine = await _delegated(
+            db, org=org, agent=researcher, version=version, parent=parent, cost=Decimal("0.40")
+        )
+        await _delegated(
+            db,
+            org=org,
+            agent=researcher,
+            version=version,
+            parent=other_parent,
+            cost=Decimal("0.70"),
+            task_id="9abbab49",
+        )
+
+        items, total = await agent_run_repo.list_runs(
+            db, organization_id=org.id, parent_run_id=parent.id
+        )
+
+        assert [run.id for run in items] == [mine.id]
+        assert total == 1
+
+    async def test_one_agents_history_contains_what_it_did_as_a_delegate(self, db):
+        """The other half of the same arithmetic `sum_cost_since` already has.
+
+        A delegate's rows are the only record of what it itself did, so an agent
+        that only ever runs as somebody's delegate has no history at all without
+        them - beside a per-agent spend figure that is not zero, which is the
+        contradiction in the other direction."""
+        org = await _org(db)
+        orchestrator = await _agent(db, org, slug="orchestrator")
+        researcher = await _agent(db, org, slug="researcher")
+        parent = await _run(db, org=org, agent=orchestrator, cost=Decimal("1.00"))
+        child = await _delegated(
+            db,
+            org=org,
+            agent=researcher,
+            version=await _version(db, researcher),
+            parent=parent,
+            cost=Decimal("0.40"),
+        )
+
+        included, total = await agent_run_repo.list_runs(
+            db, organization_id=org.id, agent_id=researcher.id, include_delegations=True
+        )
+        excluded, _ = await agent_run_repo.list_runs(
+            db, organization_id=org.id, agent_id=researcher.id
+        )
+
+        assert [run.id for run in included] == [child.id]
+        assert total == 1
+        assert excluded == []
+
+    async def test_a_named_parent_wins_over_including_delegations(self, db):
+        """Otherwise "what did this run delegate" would answer with every
+        delegation in the organization."""
+        org = await _org(db)
+        orchestrator = await _agent(db, org, slug="orchestrator")
+        researcher = await _agent(db, org, slug="researcher")
+        version = await _version(db, researcher)
+        parent = await _run(db, org=org, agent=orchestrator, cost=Decimal("1.00"))
+        elsewhere = await _run(db, org=org, agent=orchestrator, cost=Decimal("2.00"))
+        mine = await _delegated(
+            db, org=org, agent=researcher, version=version, parent=parent, cost=Decimal("0.40")
+        )
+        await _delegated(
+            db,
+            org=org,
+            agent=researcher,
+            version=version,
+            parent=elsewhere,
+            cost=Decimal("0.70"),
+            task_id="9abbab49",
+        )
+
+        items, total = await agent_run_repo.list_runs(
+            db, organization_id=org.id, parent_run_id=parent.id, include_delegations=True
+        )
+
+        assert [run.id for run in items] == [mine.id]
+        assert total == 1
+
+    async def test_another_tenants_run_delegates_nothing_to_this_caller(self, db):
+        """A parent id is guessable; the organization filter is what refuses it."""
+        mine, theirs = await _org(db), await _org(db)
+        researcher = await _agent(db, theirs, slug="researcher")
+        parent = await _run(db, org=theirs, agent=researcher, cost=Decimal("1.00"))
+        await _delegated(
+            db,
+            org=theirs,
+            agent=researcher,
+            version=await _version(db, researcher),
+            parent=parent,
+            cost=Decimal("0.40"),
+        )
+
+        items, total = await agent_run_repo.list_runs(
+            db, organization_id=mine.id, parent_run_id=parent.id
+        )
+
+        assert (items, total) == ([], 0)
+
+
 class TestDeletingTheParent:
     async def test_the_delegation_keeps_its_cost_and_starts_counting(self, db):
         """`SET NULL`, not `CASCADE`, and the reason is arithmetic. The row that

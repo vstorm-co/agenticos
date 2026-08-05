@@ -21,6 +21,26 @@ export interface AgentRun {
   error: string | null;
   started_at: string | null;
   ended_at: string | null;
+  /**
+   * The run this one was delegated from, or null for a run somebody started.
+   *
+   * The two must not be read the same way. Every run shares one spend ledger,
+   * so a parent's `cost_usd` already contains its children's - a page that
+   * interleaves them has a cost column nobody can add up, next to a
+   * month-to-date figure that correctly counts the parent once. `GET /runs`
+   * therefore lists only top-level runs unless `parent_run_id` asks for one
+   * run's delegations, and this is how a row from that answer says so.
+   */
+  parent_run_id: string | null;
+  /**
+   * Which delegation produced this run - the `task_id` its `subagent_*` frames
+   * carried, so a panel in a transcript and a row here are visibly one thing.
+   *
+   * Null whenever `parent_run_id` is: deleting a parent orphans the child, and
+   * the backend withholds a handle whose transcript went with the parent rather
+   * than sending one that reaches nothing.
+   */
+  subagent_task_id: string | null;
 }
 
 export interface AgentRunList {
