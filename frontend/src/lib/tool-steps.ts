@@ -145,7 +145,7 @@ export interface McpCall {
   server: string;
   /** The tool as the server named it, without the connection prefix. */
   action: string;
-  /** Host of the server's URL, which is what picks its logo. Null if unparseable. */
+  /** Host of the server's URL, which is what picks its logo. Null if unparsable. */
   domain: string | null;
 }
 
