@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useChat } from "./use-chat";
+import { ApiError } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
 import {
   useAgentSelectionStore,
@@ -929,6 +930,59 @@ describe("useChat - approvals and questions", () => {
     });
 
     expect(result.current.delegations[0]?.status).toBe("awaiting_approval");
+  });
+
+  it("closes a parked delegate's panel when the resume's continuation fails", async () => {
+    // agenticos#262. The approval is granted and the continuation *raises*: the
+    // resume does not return, so there is no `status` to reconcile from - but the
+    // backend recorded the run `failed` and sent it in the error body. Without
+    // reading it, the panel reads "waiting for approval" forever, on a run that can
+    // no longer be resumed. It must close to `failed`, and the decided approval must
+    // not come back for a retry that would only 400.
+    post.mockImplementation((url: string) =>
+      url.endsWith("/resume")
+        ? Promise.reject(
+            new ApiError(500, "The run failed while continuing after approval", {
+              error: {
+                code: "RUN_EXECUTION_FAILED",
+                message: "The run failed while continuing after approval",
+                details: { run_id: "r-9", status: "failed" },
+              },
+            }),
+          )
+        : Promise.resolve({}),
+    );
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("subagent_start", {
+      kind: "subagent_start",
+      task_id: "t1",
+      subagent: "researcher",
+      depth: 0,
+      mode: "sync",
+      prompt: "send the summary",
+      parent_task_id: null,
+    });
+    receive("subagent_awaiting_approval", {
+      kind: "subagent_awaiting_approval",
+      task_id: "t1",
+      subagent: "researcher",
+      depth: 0,
+    });
+    receive("tool_approval_required", {
+      run_id: "r-9",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "send_email", args: {} }],
+      review_configs: [],
+    });
+    expect(result.current.delegations[0]?.status).toBe("awaiting_approval");
+
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "approve" }]);
+    });
+
+    expect(result.current.delegations[0]?.status).toBe("failed");
+    // Not restored: the run is terminal, so a retry cannot succeed.
+    expect(result.current.pendingApproval).toBeNull();
   });
 
   it("adds nothing when the resumed run answered with nothing", async () => {

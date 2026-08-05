@@ -124,6 +124,28 @@ class ConfigurationError(AppException):
     status_code = 503
 
 
+class RunExecutionError(AppException):
+    """A run failed while executing, its terminal status already recorded (500).
+
+    Raised by :meth:`~app.services.agent_runner.AgentRunnerService.resume` when the
+    continuation of a parked run *itself* raises. `AgentRunnerService._run` has by
+    then recorded the run `failed` (or `cancelled`) and committed it, so the failure
+    is durable and this does not swallow it - the caller still gets a 5xx. What it
+    adds is the recorded status in `details`: the resume answer is the only place a
+    web-chat surface learns a delegate's outcome (the continuation ran over HTTP, not
+    the socket the conversation streams), and the raising path used to discard that
+    answer - leaving a panel waiting on a decision already spent and a run that can no
+    longer be resumed (agenticos#262). The original exception is chained, and `_run`
+    has already logged it; the message here stays generic for the same reason the
+    unhandled-exception handler's does - a raw run error is not a thing to put on the
+    wire.
+    """
+
+    message = "The run failed while continuing after approval"
+    code = "RUN_EXECUTION_FAILED"
+    status_code = 500
+
+
 class DatabaseError(AppException):
     """Database error (500)."""
 
