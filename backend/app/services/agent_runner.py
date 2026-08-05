@@ -330,6 +330,14 @@ class DelegationFrame(BaseModel):
             "per delegation now, so the turn that resumes cannot re-derive it"
         ),
     )
+    started_at: datetime | None = Field(
+        default=None,
+        description=(
+            "When this delegation's delegate first began, so the row written when it "
+            "ends begins at its first segment rather than at the resume. The earliest "
+            "start across every segment so far; null when none was ever stamped"
+        ),
+    )
     delegations: list[DelegationFrame] = Field(
         default_factory=list, description="Delegations this delegate had itself parked on"
     )
@@ -502,6 +510,7 @@ def _delegation_frames(parked: Sequence[ParkedDelegation]) -> list[DelegationFra
                 input_tokens=entry.spent.input_tokens,
                 output_tokens=entry.spent.output_tokens,
                 cost_is_partial=entry.spent.has_unpriced_models,
+                started_at=entry.started_at,
                 delegations=frames(by_parent.get(entry.task_id, [])),
             )
             for entry in entries
@@ -537,6 +546,15 @@ class _ResumePlan:
     the only place that money is attributed to the delegate's own agent.
     """
 
+    started: dict[str, datetime | None]
+    """When each delegation in the tree first began, on the same key.
+
+    The clock's companion to :attr:`spent`, and filled for every frame the same
+    way: when the delegate first ran is a fact whether or not its place was kept,
+    and the row written when the delegation ends must begin there rather than at
+    the resume that settled it.
+    """
+
 
 def _resume_plan(state: PausedRunState, decided_args: Mapping[str, dict[str, Any]]) -> _ResumePlan:
     """Split a parked run's verdicts across the agents that were waiting on them.
@@ -556,6 +574,7 @@ def _resume_plan(state: PausedRunState, decided_args: Mapping[str, dict[str, Any
 
     resuming: dict[str, ResumedDelegation] = {}
     spent: dict[str, DelegationSpend] = {}
+    started: dict[str, datetime | None] = {}
 
     def level(frames: list[DelegationFrame], own: list[str]) -> DeferredToolResults:
         results = DeferredToolResults()
@@ -565,16 +584,18 @@ def _resume_plan(state: PausedRunState, decided_args: Mapping[str, dict[str, Any
             )
         for frame in frames:
             results.approvals[frame.tool_call_id] = ToolApproved()
-            # Before the `continue` below, because what a delegation has spent is
-            # not conditional on its place having been kept: a delegation re-run
-            # from the start still spent it, and the row written when it ends is
-            # where that money reaches the delegate's own agent.
+            # Before the `continue` below, because neither what a delegation has
+            # spent nor when it first began is conditional on its place having been
+            # kept: a delegation re-run from the start still spent it and still
+            # began when it began, and the row written when it ends is where both
+            # reach the delegate's own agent.
             spent[frame.tool_call_id] = DelegationSpend(
                 cost_usd=frame.cost_usd,
                 input_tokens=frame.input_tokens,
                 output_tokens=frame.output_tokens,
                 has_unpriced_models=frame.cost_is_partial,
             )
+            started[frame.tool_call_id] = frame.started_at
             if not frame.messages:
                 # The delegate's place was not kept, so there is nothing to
                 # continue. The `task` call is still answered above - a parked call
@@ -591,6 +612,7 @@ def _resume_plan(state: PausedRunState, decided_args: Mapping[str, dict[str, Any
         results=level(state.delegations, by_delegation.get(None, [])),
         delegations=resuming,
         spent=spent,
+        started=started,
     )
 
 
@@ -1050,6 +1072,7 @@ class AgentRunnerService:
             decided={},
             resuming={},
             already_spent={},
+            already_started={},
             version_id=version_id,
             environment_id=effective_environment_id,
         )
@@ -1070,6 +1093,7 @@ class AgentRunnerService:
         decided: dict[str, ApprovalDecision],
         resuming: dict[str, ResumedDelegation],
         already_spent: dict[str, DelegationSpend],
+        already_started: dict[str, datetime | None],
         model_profile_id: UUID | None = None,
         version_id: UUID | None = None,
         environment_id: UUID | None = None,
@@ -1089,10 +1113,12 @@ class AgentRunnerService:
         into the assembly rather than into the run call: a verdict is answered by
         the approval gate of whichever agent asked, and a stashed delegate is
         continued by the delegation capability of whichever agent delegated - so
-        both have to be in place before anything is built. `already_spent` travels
-        with them because it is read at the same moment: the delegation is opened by
-        the replayed `task` call, and what it cost before the park has to be in the
-        stash by then or the row it eventually writes holds only this turn's spend.
+        both have to be in place before anything is built. `already_spent` and
+        `already_started` travel with them because all three are read at the same
+        moment: the delegation is opened by the replayed `task` call, and what it
+        cost before the park - and when it first began - have to be in the stash by
+        then or the row it eventually writes holds only this turn's spend and begins
+        at the resume.
         """
         # A caller's override wins over the spec's choice. Only the model is
         # replaced - instructions, tools, budgets and the approval gate are the
@@ -1214,7 +1240,7 @@ class AgentRunnerService:
         run_budget = _RunBudget()
         runtimes: list[SubagentRuntime] = []
         delegations: list[RecordedDelegation] = []
-        stash = DelegationStash(resuming=resuming, spent=already_spent)
+        stash = DelegationStash(resuming=resuming, spent=already_spent, started=already_started)
         runtime = await self._delegation_runtime(
             ctx,
             spec=spec,
@@ -1825,14 +1851,21 @@ class AgentRunnerService:
         row already contains these tokens, because a run has one ledger - and
         `agent_run_repo.sum_cost_since` is where that division lives.
 
-        The timing is honest about what it knows: a `DelegationOutcome` carries no
-        start, so both ends are the moment the delegation was reported. Queueing
-        does not make that worse - it is measured here, not at the write - and the
-        parent's row remains the authority on the run's real span. That is the one
-        thing on this row still measured at the settlement rather than at the
-        delegation: the *cost* no longer is, so a background delegation's row is
-        exact about what it spent and wrong about when it spent it -
-        agenticos#191, which the handle already carries the answer to.
+        The span is the delegation's own, off the task handle: `started_at` when
+        the delegate started and `ended_at` when it reached a terminal status,
+        carried through :class:`DelegationOutcome`. Neither is the settlement
+        instant, which for a background delegation is the poll that collected it -
+        arbitrarily later than the delegate finished, and what once gave every
+        background row a duration of zero ordered after work that preceded it
+        (agenticos#191). A delegation that parked on an approval and resumed spans
+        both turns: `started_at` is the first segment's, carried across the park the
+        way its cost is, and `ended_at` the last (agenticos#245). A terminal handle
+        that ended without a start - a delegate cancelled or failed before executing
+        - falls back to that end, and a handle carrying neither falls back to `now`:
+        both columns are non-null and a delegation with no recorded span still has
+        to write one. (A refusal *before* a handle exists writes no row at all -
+        :meth:`DelegationJournal.settle` returns first.) The parent's row remains the
+        authority on the run's real span.
         """
 
         async def record(outcome: DelegationOutcome) -> UUID | None:
@@ -1850,7 +1883,14 @@ class AgentRunnerService:
                 )
                 return None
 
+            # The delegation's own span, off the handle. `now` only when the handle
+            # carried none - a delegation the library refused before it started a
+            # task never ran, and both columns are non-null. `ended_at` falls back
+            # to the start rather than to `now`, so a handle missing its end reads
+            # as a zero-duration run at the right time, never a negative span.
             now = datetime.now(UTC)
+            started_at = outcome.started_at or outcome.ended_at or now
+            ended_at = outcome.ended_at or started_at
             delegated = RecordedDelegation(
                 id=uuid4(),
                 agent_id=outcome.agent_id,
@@ -1868,8 +1908,8 @@ class AgentRunnerService:
                 # parent's row a floor and says nothing about a delegate that ran
                 # on a priced one.
                 cost_is_partial=outcome.cost_is_partial,
-                started_at=now,
-                ended_at=now,
+                started_at=started_at,
+                ended_at=ended_at,
                 error=outcome.error,
             )
             # `append` is atomic under the GIL and this coroutine never awaits, so
@@ -2277,6 +2317,7 @@ class AgentRunnerService:
             decided=decided,
             resuming=plan.delegations,
             already_spent=plan.spent,
+            already_started=plan.started,
         )
         prepared.built.ledger.book(_spend_already_booked(run))
 

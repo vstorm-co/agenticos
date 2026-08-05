@@ -60,6 +60,7 @@ from collections.abc import AsyncIterable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID, uuid4
 
@@ -251,6 +252,17 @@ class Delegation:
     continuation and nothing before it. :meth:`_spent` adds the two.
     """
 
+    carried_started_at: datetime | None = None
+    """When this delegation's delegate first began, if an earlier turn recorded it.
+
+    `None` for a delegation this run started, which is all of them until one parks -
+    and then :meth:`_span_start` takes the start off this turn's own handle, the
+    whole span. Set only on a replay, from the stash the park wrote, so the row this
+    delegation eventually writes begins at its first segment rather than at the
+    resume. Unlike :attr:`carried` it is not summed - :meth:`_span_start` keeps the
+    earlier of it and this segment's start.
+    """
+
     agent_id: UUID | None = None
     agent_version_id: UUID | None = None
     task_id: str | None = None
@@ -380,10 +392,12 @@ class DelegationJournal:
         delegated from, and that relationship is what nests a parked tree.
 
         A delegation the run is *continuing* opens here too - the replay presents
-        the same `task` call - which is why what it already spent is read here as
-        well. The ledger key allocated here is fresh, and this turn's ledger has
-        never held an entry under any other, so without `carried` the continuation
-        would be the whole of the delegation's recorded cost.
+        the same `task` call - which is why what it already spent, and when it first
+        began, are both read here. The ledger key allocated here is fresh, and this
+        turn's ledger has never held an entry under any other, so without `carried`
+        the continuation would be the whole of the delegation's recorded cost;
+        `carried_started_at` is the same fact for the clock, so the row does not
+        begin at the resume.
         """
         self._running += 1
         enclosing = _CURRENT.get()
@@ -396,6 +410,7 @@ class DelegationJournal:
             tool_call_id=tool_call_id,
             parent_task_id=None if enclosing is None else enclosing.task_id,
             carried=self.runtime.stash.already_spent(tool_call_id),
+            carried_started_at=self.runtime.stash.already_started(tool_call_id),
             agent_id=delegate.agent_id if delegate is not None else None,
             agent_version_id=delegate.agent_version_id if delegate is not None else None,
         )
@@ -439,6 +454,12 @@ class DelegationJournal:
         a delegation on its second park carries the first park's total as well. So
         the frame holds a running sum, and the turn that finally settles the
         delegation records one row for all of it - see :meth:`_spent`.
+
+        When the delegate first began is written the same way, and read back the
+        same way on the resume - but the frame keeps the *earliest* start rather
+        than a sum (:meth:`_span_start`), because the honest span of a delegation
+        that stopped and started again is its first begin to its last end, not the
+        length of any one segment.
         """
         task_id = delegation.task_id
         if task_id is None or delegation.tool_call_id is None:
@@ -464,6 +485,7 @@ class DelegationJournal:
                 # there is still a run to attribute the failure to.
                 messages=[] if history is None else list(json.loads(history)),
                 spent=self._spent(delegation),
+                started_at=self._span_start(delegation, handle),
             )
         )
 
@@ -611,6 +633,14 @@ class DelegationJournal:
                 agent_id=delegation.agent_id,
                 agent_version_id=delegation.agent_version_id,
                 error=handle.error,
+                # The delegation's own span, not this settlement. The library
+                # stamps both when the delegate starts and when it ends, which for
+                # a background one is well before the poll that collects it here.
+                # `_span_start` reaches past this handle to the first segment's
+                # start when the delegation parked and resumed; the end is always
+                # this handle's, the last segment to settle.
+                started_at=self._span_start(delegation, handle),
+                ended_at=handle.completed_at,
             )
         )
         if sink is not None:
@@ -741,6 +771,31 @@ class DelegationJournal:
             output_tokens=delegation.carried.output_tokens + share.output_tokens,
             has_unpriced_models=delegation.carried.has_unpriced_models or share.has_unpriced_models,
         )
+
+    def _span_start(self, delegation: Delegation, handle: TaskHandle | None) -> datetime | None:
+        """When this delegation first began, across every turn it has run in.
+
+        The clock's counterpart to :meth:`_spent`, and read at the same two moments:
+        by :meth:`park`, so the frame carries the earliest start into the next turn
+        rather than restamping it, and by :meth:`settle`, so the row begins where the
+        delegate first began. Unlike the cost the segments are *not* added - a
+        delegation's honest start is its earliest, not the sum of its parts - so this
+        is the earlier of what earlier turns carried (`carried_started_at`) and this
+        segment's own (`handle.started_at`).
+
+        Either may be `None`: `carried_started_at` for a delegation that never
+        parked, and this segment's start when the handle is gone (the park branch
+        that stashes without a handle) or telemetry never stamped one. A present
+        start always wins over a missing one; both `None` reports `None`, and the
+        recorder falls back rather than write a null.
+        """
+        this_segment = None if handle is None else handle.started_at
+        carried = delegation.carried_started_at
+        if carried is None:
+            return this_segment
+        if this_segment is None:
+            return carried
+        return min(carried, this_segment)
 
     def _share(self, delegation: Delegation) -> SpendShare:
         """What this delegation booked into the run's ledger, or zeros if nothing meters.
