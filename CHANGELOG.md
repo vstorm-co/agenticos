@@ -19,6 +19,24 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.9] - 2026-08-05
+
+### Fixed
+
+- **Five WebSocket frames the frontend declared but no backend surface sends**
+  ([#195](https://github.com/vstorm-co/agenticos/issues/195)). `use-chat.ts` and
+  `WSEventType` named `llm_started`, `llm_completed`, `todo_event`, `context_usage` and
+  `context_compacted` — two with live `case` arms and a test asserting a dead branch
+  behaves. That is [#144](https://github.com/vstorm-co/agenticos/issues/144) in the
+  opposite direction: #144 was the frontend matching tool names the backend had stopped
+  sending; this is frames it never started. With `app/services/agent_session.py` now fully
+  covered and in the gate (0.0.8, #165), the set of frames a surface actually emits is
+  knowable exactly — none of the five is among them, on the dashboard socket, the channel
+  surface or the embed. The union members, the `case` arms, the payload interfaces and the
+  test for the dead branch are gone, along with two per-event interfaces whose field names
+  disagreed with the wire (`TextDeltaEvent.data.delta` for the wire's `content`,
+  `ToolResultEvent.tool_name`/`result` for `tool_call_id`/`content`).
+
 ## [0.0.8] - 2026-08-05
 
 Everything that landed after delegation and before the next feature: the branches that
@@ -661,7 +679,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.8...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.9...HEAD
+[0.0.9]: https://github.com/vstorm-co/agenticos/compare/v0.0.8...v0.0.9
 [0.0.8]: https://github.com/vstorm-co/agenticos/compare/v0.0.7...v0.0.8
 [0.0.7]: https://github.com/vstorm-co/agenticos/compare/v0.0.6...v0.0.7
 [0.0.6]: https://github.com/vstorm-co/agenticos/compare/v0.0.5...v0.0.6
