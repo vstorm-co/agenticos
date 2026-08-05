@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MessageItem } from "./message-item";
+import { MessageItem, runsOf } from "./message-item";
 import { useAuthStore, useChatStore, useFilePreviewStore } from "@/stores";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 import type { Agent } from "@/types/agents";
@@ -28,8 +28,10 @@ vi.mock("./markdown-content", () => ({
 }));
 // The card is tested on its own; here it only needs to be identifiable.
 vi.mock("./tool-call-card", () => ({
-  ToolCallCard: ({ toolCall }: { toolCall: ToolCall }) => (
-    <div data-testid={`tool-${toolCall.id}`}>{toolCall.name}</div>
+  ToolCallCard: ({ toolCall, startOpen }: { toolCall: ToolCall; startOpen?: boolean }) => (
+    <div data-testid={`tool-${toolCall.id}`} data-open={String(startOpen === true)}>
+      {toolCall.name}
+    </div>
   ),
 }));
 // Ratings own their own fetch; this file cares only that they are offered.
@@ -539,5 +541,135 @@ describe("a turn split across several messages", () => {
     const { container } = item({ role: "user", content: "x" }, { groupPosition: "first" });
 
     expect(container.querySelector(".ring-2")).toBeNull();
+  });
+});
+
+describe("what a turn cost, under the turn", () => {
+  const usage = {
+    input_tokens: 1200,
+    output_tokens: 300,
+    cost_usd: 0.0125,
+    budget_percent: null,
+    agent_budget_percent: null,
+    sandbox: null,
+  };
+
+  it("prices an assistant answer where the answer is", () => {
+    item({ usage });
+
+    expect(screen.getByText(/\u21931,200/)).toBeVisible();
+    expect(screen.getByText(/\$0\.0125/)).toBeVisible();
+  });
+
+  it("says nothing on a reloaded turn, which carries no measurement", () => {
+    // Usage is measured when a run finishes and is not stored per message, so
+    // absent means "not recorded" - and zeroes would be a claim.
+    item({});
+
+    expect(screen.queryByText(/\u2193/)).toBeNull();
+  });
+
+  it("never prices a person's own message", () => {
+    item({ role: "user", content: "How long do refunds take?", usage });
+
+    expect(screen.queryByText(/\u2193/)).toBeNull();
+  });
+});
+
+/**
+ * How a turn's parts become stretches of work.
+ *
+ * The grouping is what makes consecutive tool calls read as one thread rather than a
+ * dashed line of separately bordered rows - and what a part of any other kind closes,
+ * because the agent said something and what follows is new work.
+ */
+describe("the runs a turn is made of", () => {
+  const tool = (id: string) => ({
+    id,
+    type: "tool" as const,
+    toolCall: { id: `tc-${id}`, name: "ls", args: {}, status: "completed" as const },
+  });
+
+  it("gathers consecutive tool calls into one run", () => {
+    const runs = runsOf([tool("a"), tool("b"), tool("c")]);
+
+    expect(runs).toHaveLength(1);
+    const [run] = runs;
+    expect(run?.kind === "tools" && run.parts).toHaveLength(3);
+    expect(run?.isLast).toBe(true);
+  });
+
+  it("closes a run when the agent says something", () => {
+    const runs = runsOf([tool("a"), { id: "t1", type: "text", content: "Done." }, tool("b")]);
+
+    expect(runs.map((run) => run.kind)).toEqual(["tools", "other", "tools"]);
+    expect(runs.at(-1)?.isLast).toBe(true);
+  });
+
+  it("drops an empty text or thinking part rather than drawing an empty bubble", () => {
+    expect(runsOf([{ id: "t1", type: "text", content: "" }])).toEqual([]);
+    expect(runsOf([{ id: "t2", type: "thinking" }])).toEqual([]);
+    expect(runsOf([])).toEqual([]);
+  });
+});
+
+/**
+ * Which step is open when a conversation is reopened.
+ *
+ * `openLastStep` is set for one turn - the last that used a tool, see
+ * `lastToolTurnIndex` - and inside it exactly one step opens: the last of the last run.
+ * Opening every finished call turned a reopened thread into a wall of results; opening
+ * none of them hid the thing that had just been asked for.
+ */
+describe("the step a reopened turn leaves open", () => {
+  const toolPart = (id: string) => ({
+    id: `p-${id}`,
+    type: "tool" as const,
+    toolCall: { id: `tc-${id}`, name: "ls", args: {}, status: "completed" as const },
+  });
+
+  it("opens the run's last step and leaves the ones before it closed", () => {
+    render(
+      <MessageItem message={message({ parts: [toolPart("a"), toolPart("b")] })} openLastStep />,
+    );
+
+    expect(screen.getByTestId("tool-tc-a")).toHaveAttribute("data-open", "false");
+    expect(screen.getByTestId("tool-tc-b")).toHaveAttribute("data-open", "true");
+  });
+
+  it("opens nothing in a run the agent has already answered after", () => {
+    // The reader's eye belongs on the answer, not on the listing that led to it.
+    render(
+      <MessageItem
+        message={message({ parts: [toolPart("a"), { id: "p-t", type: "text", content: "Done." }] })}
+        openLastStep
+      />,
+    );
+
+    expect(screen.getByTestId("tool-tc-a")).toHaveAttribute("data-open", "false");
+  });
+
+  it("keeps every step in view while the turn is still running", () => {
+    // Folding a run that is still being written hides the step that is happening.
+    render(
+      <MessageItem
+        message={message({ parts: [toolPart("a"), toolPart("b")], isStreaming: true })}
+      />,
+    );
+
+    expect(screen.getByTestId("tool-tc-a")).toBeVisible();
+    expect(screen.getByTestId("tool-tc-b")).toBeVisible();
+  });
+
+  it("opens the last call of a turn saved before parts existed", () => {
+    // An old thread has `toolCalls` and no parts, and has to read the same way.
+    const calls: ToolCall[] = [
+      { id: "old-1", name: "ls", args: {}, status: "completed" },
+      { id: "old-2", name: "read_file", args: {}, status: "completed" },
+    ];
+    render(<MessageItem message={message({ parts: [], toolCalls: calls })} openLastStep />);
+
+    expect(screen.getByTestId("tool-old-1")).toHaveAttribute("data-open", "false");
+    expect(screen.getByTestId("tool-old-2")).toHaveAttribute("data-open", "true");
   });
 });

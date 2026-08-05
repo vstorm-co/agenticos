@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui";
 import type { ModelSettingsSpec } from "@/types/agents";
+import { useTranslations } from "next-intl";
 
 interface ModelSettingsFormProps {
   value: ModelSettingsSpec;
@@ -49,6 +50,7 @@ const RESTING: Record<"temperature" | "top_p", number> = { temperature: 1, top_p
  * control removes the key rather than writing `null`.
  */
 export function ModelSettingsForm({ value, onChange, disabled }: ModelSettingsFormProps) {
+  const t = useTranslations("agents");
   /** Remove the key rather than store an empty value - see the note above. */
   const set = <K extends keyof ModelSettingsSpec>(key: K, next: ModelSettingsSpec[K]) => {
     const updated = { ...value };
@@ -64,8 +66,8 @@ export function ModelSettingsForm({ value, onChange, disabled }: ModelSettingsFo
     <div className="space-y-6">
       <OptionalSlider
         id="model-temperature"
-        label="Temperature"
-        description="How varied the answer is. Near 0 for classification and extraction, higher for drafting. Some providers cap this at 1, and reasoning models reject it entirely - leave it alone there."
+        label={t("temperature")}
+        description={t("howVariedAnswerNear")}
         max={2}
         value={value.temperature}
         resting={RESTING.temperature}
@@ -75,8 +77,8 @@ export function ModelSettingsForm({ value, onChange, disabled }: ModelSettingsFo
 
       <OptionalSlider
         id="model-top-p"
-        label="Top P"
-        description="Consider only the most likely tokens making up this much probability mass. Set this or temperature, not both."
+        label={t("topP")}
+        description={t("considerOnlyMostLikely")}
         max={1}
         value={value.top_p}
         resting={RESTING.top_p}
@@ -87,8 +89,8 @@ export function ModelSettingsForm({ value, onChange, disabled }: ModelSettingsFo
       <div className="grid gap-6 sm:grid-cols-2">
         <OptionalSetting
           htmlFor="model-max-tokens"
-          label="Max tokens"
-          description="The longest answer the model may generate."
+          label={t("maxTokens")}
+          description={t("longestAnswerModelMay")}
           onReset={value.max_tokens === undefined ? undefined : () => set("max_tokens", undefined)}
           disabled={disabled}
         >
@@ -107,8 +109,8 @@ export function ModelSettingsForm({ value, onChange, disabled }: ModelSettingsFo
 
         <OptionalSetting
           htmlFor="model-timeout"
-          label="Timeout (seconds)"
-          description="How long one model request may take before it is abandoned."
+          label={t("timeoutSeconds")}
+          description={t("howLongOneModel")}
           onReset={value.timeout === undefined ? undefined : () => set("timeout", undefined)}
           disabled={disabled}
         >
@@ -128,8 +130,8 @@ export function ModelSettingsForm({ value, onChange, disabled }: ModelSettingsFo
 
       <OptionalSetting
         htmlFor="model-parallel-tool-calls"
-        label="Tool calls"
-        description="Running them one at a time makes a conversation easier to follow, and easier to approve."
+        label={t("toolCalls")}
+        description={t("runningThemOneAt")}
         disabled={disabled}
       >
         {/*
@@ -150,8 +152,8 @@ export function ModelSettingsForm({ value, onChange, disabled }: ModelSettingsFo
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="default">{PROVIDER_DEFAULT}</SelectItem>
-            <SelectItem value="parallel">Several at once</SelectItem>
-            <SelectItem value="sequential">One at a time</SelectItem>
+            <SelectItem value="parallel">{t("severalAtOnce")}</SelectItem>
+            <SelectItem value="sequential">{t("oneAtTime")}</SelectItem>
           </SelectContent>
         </Select>
       </OptionalSetting>

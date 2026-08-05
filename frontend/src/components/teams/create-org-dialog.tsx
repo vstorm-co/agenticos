@@ -14,6 +14,7 @@ import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { useOrganizations } from "@/hooks";
 import { submitFailure } from "@/lib/api-error";
+import { useTranslations } from "next-intl";
 
 /** What the backend accepts, so an over-long name is refused before it is sent. */
 const MAX_NAME = 128;
@@ -25,6 +26,7 @@ interface CreateOrgDialogProps {
 }
 
 export function CreateOrgDialog({ open, onOpenChange, onCreated }: CreateOrgDialogProps) {
+  const t = useTranslations("teams");
   const [name, setName] = useState("");
   const [nameError, setNameError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -55,10 +57,10 @@ export function CreateOrgDialog({ open, onOpenChange, onCreated }: CreateOrgDial
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Create organization</DialogTitle>
+          <DialogTitle>{t("createOrganization")}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <FormField label="Organization name" htmlFor="org-name" error={nameError}>
+          <FormField label={t("organizationName")} htmlFor="org-name" error={nameError}>
             <Input
               id="org-name"
               value={name}
@@ -66,17 +68,17 @@ export function CreateOrgDialog({ open, onOpenChange, onCreated }: CreateOrgDial
                 setName(e.target.value);
                 setNameError(null);
               }}
-              placeholder="My Team"
+              placeholder={t("myTeam")}
               maxLength={MAX_NAME}
               autoFocus
             />
           </FormField>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
+              {t("cancel")}
             </Button>
             <Button type="submit" disabled={!name.trim() || isSubmitting}>
-              {isSubmitting ? "Creating..." : "Create"}
+              {isSubmitting ? t("creating2") : t("create2")}
             </Button>
           </DialogFooter>
         </form>

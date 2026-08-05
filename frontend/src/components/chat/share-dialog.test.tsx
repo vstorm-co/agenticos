@@ -11,7 +11,6 @@ const revokeShare = vi.fn();
 const listedMembers = vi.fn<() => OrganizationMember[]>(() => []);
 const listedShares = vi.fn<() => Record<string, unknown>[]>(() => []);
 
-vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/hooks", () => ({
   useConversationShares: () => ({
@@ -88,16 +87,16 @@ describe("the share dialog", () => {
   it("offers an email field only - there is no user id input", () => {
     renderDialog();
 
-    expect(screen.getByLabelText("memberEmail")).toHaveAttribute("type", "email");
+    expect(screen.getByLabelText("Email address")).toHaveAttribute("type", "email");
     expect(screen.queryByPlaceholderText(/user id/i)).not.toBeInTheDocument();
   });
 
   it("suggests matching organization members while typing", async () => {
     renderDialog();
 
-    await userEvent.type(screen.getByLabelText("memberEmail"), "sam");
+    await userEvent.type(screen.getByLabelText("Email address"), "sam");
 
-    const listbox = screen.getByRole("listbox", { name: "memberSuggestions" });
+    const listbox = screen.getByRole("listbox", { name: "Matching members" });
     expect(listbox).toHaveTextContent("sam@example.com");
     expect(listbox).toHaveTextContent("Sam Fisher");
     expect(listbox).not.toHaveTextContent("nina@example.com");
@@ -106,10 +105,10 @@ describe("the share dialog", () => {
   it("fills the email when a suggestion is picked", async () => {
     renderDialog();
 
-    await userEvent.type(screen.getByLabelText("memberEmail"), "nina");
+    await userEvent.type(screen.getByLabelText("Email address"), "nina");
     await userEvent.click(screen.getByRole("option", { name: /nina@example.com/ }));
 
-    expect(screen.getByLabelText("memberEmail")).toHaveValue("nina@example.com");
+    expect(screen.getByLabelText("Email address")).toHaveValue("nina@example.com");
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
   });
 
@@ -117,7 +116,7 @@ describe("the share dialog", () => {
     shareConversation.mockResolvedValue({});
     renderDialog();
 
-    await userEvent.type(screen.getByLabelText("memberEmail"), "nina@example.com");
+    await userEvent.type(screen.getByLabelText("Email address"), "nina@example.com");
     await userEvent.click(screen.getByRole("button", { name: "Share conversation" }));
 
     // As `shared_with_email`, not `shared_with`: the latter is a UUID field,
@@ -154,7 +153,7 @@ describe("sharing a conversation", () => {
     // View and edit are different grants; defaulting to edit would hand somebody
     // more than was asked for.
     renderDialog();
-    await userEvent.type(screen.getByLabelText("memberEmail"), "sam@example.com");
+    await userEvent.type(screen.getByLabelText("Email address"), "sam@example.com");
     await userEvent.click(screen.getByRole("combobox"));
     await userEvent.click(screen.getByRole("option", { name: "Edit" }));
 
@@ -168,7 +167,7 @@ describe("sharing a conversation", () => {
 
   it("shares with view access unless told otherwise", async () => {
     renderDialog();
-    await userEvent.type(screen.getByLabelText("memberEmail"), "sam@example.com");
+    await userEvent.type(screen.getByLabelText("Email address"), "sam@example.com");
 
     await userEvent.click(screen.getByRole("button", { name: "Share conversation" }));
 
@@ -181,12 +180,12 @@ describe("sharing a conversation", () => {
   it("empties the field on success, so the next share starts clean", async () => {
     const { toast } = await import("sonner");
     renderDialog();
-    await userEvent.type(screen.getByLabelText("memberEmail"), "sam@example.com");
+    await userEvent.type(screen.getByLabelText("Email address"), "sam@example.com");
 
     await userEvent.click(screen.getByRole("button", { name: "Share conversation" }));
 
-    expect(screen.getByLabelText("memberEmail")).toHaveValue("");
-    expect(toast.success).toHaveBeenCalledWith("conversationShared");
+    expect(screen.getByLabelText("Email address")).toHaveValue("");
+    expect(toast.success).toHaveBeenCalledWith("Conversation shared");
   });
 
   it("keeps what was typed when the share is refused, and says why", async () => {
@@ -195,12 +194,12 @@ describe("sharing a conversation", () => {
     const { toast } = await import("sonner");
     shareConversation.mockRejectedValue(new Error("Not in this organization"));
     renderDialog();
-    await userEvent.type(screen.getByLabelText("memberEmail"), "outsider@example.com");
+    await userEvent.type(screen.getByLabelText("Email address"), "outsider@example.com");
 
     await userEvent.click(screen.getByRole("button", { name: "Share conversation" }));
 
     expect(toast.error).toHaveBeenCalledWith("Not in this organization");
-    expect(screen.getByLabelText("memberEmail")).toHaveValue("outsider@example.com");
+    expect(screen.getByLabelText("Email address")).toHaveValue("outsider@example.com");
   });
 
   it("shares with nobody when the field is empty", async () => {
@@ -219,14 +218,14 @@ describe("sharing by link", () => {
     shareConversation.mockResolvedValue({ id: "s-1", share_token: "tok-123" });
     renderDialog();
 
-    await userEvent.click(screen.getByRole("button", { name: /generateShareLink/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Generate share link/ }));
 
     expect(shareConversation).toHaveBeenCalledWith("c1", {
       generate_link: true,
       permission: "view",
     });
     expect(screen.getByText(`${window.location.origin}/shared/tok-123`)).toBeInTheDocument();
-    expect(toast.success).toHaveBeenCalledWith("linkGenerated");
+    expect(toast.success).toHaveBeenCalledWith("Share link generated");
   });
 
   it("offers a copy only once there is a link to copy", async () => {
@@ -234,7 +233,7 @@ describe("sharing by link", () => {
     renderDialog();
     expect(screen.queryByRole("button", { name: "Copy share link" })).toBeNull();
 
-    await userEvent.click(screen.getByRole("button", { name: /generateShareLink/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Generate share link/ }));
     const copyButton = await screen.findByRole("button", { name: "Copy share link" });
     await userEvent.click(copyButton);
 
@@ -247,7 +246,7 @@ describe("sharing by link", () => {
     shareConversation.mockResolvedValue({ id: "s-1" });
     renderDialog();
 
-    await userEvent.click(screen.getByRole("button", { name: /generateShareLink/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Generate share link/ }));
 
     expect(screen.queryByRole("button", { name: "Copy share link" })).toBeNull();
   });
@@ -257,7 +256,7 @@ describe("sharing by link", () => {
     shareConversation.mockRejectedValue(new Error("Link sharing is off for this organization"));
     renderDialog();
 
-    await userEvent.click(screen.getByRole("button", { name: /generateShareLink/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Generate share link/ }));
 
     expect(toast.error).toHaveBeenCalledWith("Link sharing is off for this organization");
   });
@@ -268,7 +267,7 @@ describe("sharing by link", () => {
     await userEvent.click(screen.getByRole("combobox"));
     await userEvent.click(screen.getByRole("option", { name: "Edit" }));
 
-    await userEvent.click(screen.getByRole("button", { name: /generateShareLink/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Generate share link/ }));
 
     expect(shareConversation).toHaveBeenCalledWith("c1", {
       generate_link: true,
@@ -298,7 +297,7 @@ describe("who it is shared with", () => {
   it("says nothing at all when it is shared with nobody", () => {
     renderDialog();
 
-    expect(screen.queryByText("sharedWith")).toBeNull();
+    expect(screen.queryByText("Shared with")).toBeNull();
   });
 
   it("revokes the share whose button was pressed", async () => {
@@ -309,11 +308,11 @@ describe("who it is shared with", () => {
     ]);
     renderDialog();
 
-    const [, second] = screen.getAllByRole("button", { name: "revokeAccess" });
+    const [, second] = screen.getAllByRole("button", { name: "Revoke access" });
     await userEvent.click(second!);
 
     expect(revokeShare).toHaveBeenCalledWith("c1", "s-2");
-    expect(toast.success).toHaveBeenCalledWith("accessRevoked");
+    expect(toast.success).toHaveBeenCalledWith("Access revoked");
   });
 
   it("says why a revoke was refused", async () => {
@@ -324,7 +323,7 @@ describe("who it is shared with", () => {
     ]);
     renderDialog();
 
-    await userEvent.click(screen.getByRole("button", { name: "revokeAccess" }));
+    await userEvent.click(screen.getByRole("button", { name: "Revoke access" }));
 
     expect(toast.error).toHaveBeenCalledWith("Not yours to revoke");
   });

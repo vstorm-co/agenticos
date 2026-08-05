@@ -26,6 +26,7 @@ Run these from the project root directory.
 | `make format` | Auto-format code with ruff |
 | `make lint` | Lint and type-check code (ruff + ty) |
 | `make clean` | Remove cache files (__pycache__, .pytest_cache, etc.) |
+| `make sandbox-token` | Generate the sandbox service's own `SANDBOXD_TOKEN` into `backend/.env`, once. `make dev` runs it for you; it never regenerates, because a new token orphans every workspace the service is holding. The connection form offers to store the same value in the vault, so it does not have to be pasted anywhere |
 
 
 ### Database
@@ -177,7 +178,10 @@ uv run agenticos cmd bootstrap \
 # Without a key the agent is created but cannot run
 uv run agenticos cmd bootstrap --org "Acme"
 
-# Can this deployment actually run an agent? Database, vault, a usable model.
+# Can this deployment actually run an agent? Database, vault, a usable model,
+# and every registered sandbox connection - probed one by one, credential
+# included, because `/healthz` is unauthenticated and answers for a service
+# holding the wrong token.
 uv run agenticos cmd doctor
 
 # Install the bundled skills (refund-policy, code-review, incident-report)

@@ -256,9 +256,9 @@ export default function AdminConversationsPage() {
         header: t("status"),
         cell: (conv) =>
           conv.is_archived ? (
-            <Badge variant="secondary">Archived</Badge>
+            <Badge variant="secondary">{t("archived")}</Badge>
           ) : (
-            <Badge variant="default">Active</Badge>
+            <Badge variant="default">{t("active")}</Badge>
           ),
       },
       {
@@ -297,9 +297,9 @@ export default function AdminConversationsPage() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="archived">Archived</SelectItem>
-            <SelectItem value="all">All</SelectItem>
+            <SelectItem value="active">{t("active2")}</SelectItem>
+            <SelectItem value="archived">{t("archived2")}</SelectItem>
+            <SelectItem value="all">{t("all")}</SelectItem>
           </SelectContent>
         </Select>
 
@@ -308,10 +308,10 @@ export default function AdminConversationsPage() {
           onValueChange={(v) => setSelectedUserId(v === "all" ? null : v)}
         >
           <SelectTrigger className="w-[260px]">
-            <SelectValue placeholder="All owners" />
+            <SelectValue placeholder={t("allOwners")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All owners</SelectItem>
+            <SelectItem value="all">{t("allOwners2")}</SelectItem>
             {userOptions.map((u) => (
               <SelectItem key={u.id} value={u.id}>
                 <span className="flex items-center gap-2">
@@ -332,10 +332,10 @@ export default function AdminConversationsPage() {
           onValueChange={(v) => setSelectedAgentId(v === "all" ? null : v)}
         >
           <SelectTrigger className="w-[220px]">
-            <SelectValue placeholder="All agents" />
+            <SelectValue placeholder={t("allAgents")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All agents</SelectItem>
+            <SelectItem value="all">{t("allAgents2")}</SelectItem>
             {agents.map((agent) => (
               <SelectItem key={agent.id} value={agent.id}>
                 <span className="flex items-center gap-2">
@@ -402,6 +402,7 @@ function PaginationBar({
   onPrev: () => void;
   onNext: () => void;
 }) {
+  const t = useTranslations("pages.admin");
   if (total === 0) return null;
   const start = page * pageSize + 1;
   const end = Math.min(total, (page + 1) * pageSize);
@@ -416,7 +417,7 @@ function PaginationBar({
           size="sm"
           onClick={onPrev}
           disabled={page === 0 || isLoading}
-          aria-label="Previous page"
+          aria-label={t("previousPage")}
         >
           <ChevronLeft className="h-4 w-4" />
         </Button>
@@ -428,7 +429,7 @@ function PaginationBar({
           size="sm"
           onClick={onNext}
           disabled={page >= totalPages - 1 || isLoading}
-          aria-label="Next page"
+          aria-label={t("nextPage")}
         >
           <ChevronRight className="h-4 w-4" />
         </Button>

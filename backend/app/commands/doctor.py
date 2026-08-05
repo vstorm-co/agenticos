@@ -90,6 +90,102 @@ def _vault_configured() -> tuple[str, str]:
     return "healthy", "a key is configured"
 
 
+async def _sandbox_connections(db: Any) -> tuple[str, str]:
+    """Whether every registered sandbox host can actually be reached.
+
+    Unconfigured is not a failure: the `state` backend needs no service and is
+    what a default install runs on. What *is* a failure is a connection that is
+    registered and does not answer - an agent bound to it then fails on its
+    first tool call, inside somebody's conversation, with a connection error
+    nobody was watching for.
+
+    Every active `docker` connection in the deployment is probed, not one
+    address: an organization may run two hosts, and a deployment hosts many
+    organizations. Daytona is skipped because there is nothing local to reach -
+    the credential is validated by their API on first use.
+
+    The token is checked as well as the address. `/healthz` is deliberately
+    unauthenticated, so a probe that stopped there would report a healthy
+    service to a deployment holding the wrong secret while every session was
+    still refused. The credential is unsealed here for that one request and
+    never printed - a doctor line that leaked a token would be worse than the
+    outage it diagnoses.
+    """
+    from sqlalchemy import select
+
+    from app.db.models.organization_secret import OrganizationSecret
+    from app.db.models.sandbox_connection import SandboxConnection
+
+    rows = (
+        (
+            await db.execute(
+                select(SandboxConnection, OrganizationSecret)
+                .outerjoin(OrganizationSecret, OrganizationSecret.id == SandboxConnection.secret_id)
+                .where(SandboxConnection.is_active.is_(True))
+                .where(SandboxConnection.kind == "docker")
+            )
+        )
+        .tuples()
+        .all()
+    )
+    if not rows:
+        return "unconfigured", "no sandbox connection registered - only 'state' workspaces run"
+
+    problems: list[str] = []
+    healthy = 0
+    for connection, secret in rows:
+        detail = await _probe_connection(connection, secret)
+        if detail is None:
+            healthy += 1
+        else:
+            problems.append(f"{connection.name}: {detail}")
+
+    if problems:
+        return "unhealthy", "; ".join(problems)
+    return "healthy", f"{healthy} connection(s) answered /policy with a runtime"
+
+
+async def _probe_connection(connection: Any, secret: Any) -> str | None:
+    """What is wrong with one connection, or `None` if nothing is."""
+    from app.core.secret_kinds import ApiKeySecret, SecretKind, unseal_secret
+    from app.core.vault import VaultScope
+
+    if secret is None:
+        return "no credential in the vault - re-attach one"
+    try:
+        unsealed = unseal_secret(
+            secret.sealed_secret,
+            kind=SecretKind(secret.kind),
+            scope=VaultScope.organization(connection.organization_id),
+            key_version=secret.key_version,
+        )
+    except Exception as exc:
+        return f"its credential could not be unsealed: {exc}"
+    if not isinstance(unsealed, ApiKeySecret):
+        return f"its credential is a {secret.kind}, which cannot authenticate a sandbox service"
+
+    import httpx
+
+    base = (connection.base_url or "").rstrip("/")
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            (await client.get(f"{base}/healthz")).raise_for_status()
+            policy = await client.get(
+                f"{base}/policy",
+                headers={"X-Sandbox-Token": unsealed.api_key.get_secret_value()},
+            )
+    except Exception as exc:
+        return f"{base} did not answer: {exc}"
+
+    if policy.status_code == 401:
+        return "the service answered but refused its credential"
+    if policy.status_code != 200:
+        return f"/policy answered {policy.status_code}"
+    if not policy.json().get("runtimes"):
+        return "the service allows no runtime, so no sandbox can start"
+    return None
+
+
 async def _run() -> int:
     failures = 0
     async with get_db_context() as db:
@@ -114,6 +210,14 @@ async def _run() -> int:
 
     status, detail = _vault_configured()
     failures += _report("vault", status, detail)
+
+    # A session of its own, after the vault check rather than beside the database
+    # ones above: unsealing a connection's credential is meaningless while the
+    # vault has no key, and reporting "did not answer" for that would name the
+    # wrong cause.
+    async with get_db_context() as db:
+        status, detail = await _sandbox_connections(db)
+    failures += _report("sandbox connections", status, detail)
 
     return failures
 

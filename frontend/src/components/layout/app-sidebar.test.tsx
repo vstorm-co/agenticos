@@ -194,10 +194,13 @@ describe("the navigation definition", () => {
   });
 
   it("gives every platform destination a permission to hide behind", () => {
-    // Dashboard, Chat and Organizations are open to any member by design;
-    // everything else must state what it needs, or a Viewer is shown pages
-    // that will refuse them.
-    const open = new Set(["dashboard", "chat", "organizations"]);
+    // Dashboard, Chat and Organizations are open to any member by design, and so
+    // is Workspaces: it lists the files an agent kept *for the person looking*,
+    // and the backend narrows it to what they are part of - a permission here
+    // would hide somebody's own files behind an operator's authority.
+    // Everything else must state what it needs, or a Viewer is shown pages that
+    // will refuse them.
+    const open = new Set(["dashboard", "chat", "organizations", "workspaces"]);
     const unguarded = NAV_GROUPS.filter((group) => !group.adminOnly)
       .flatMap((group) => group.items)
       .filter((item) => !item.permission && !open.has(item.labelKey));

@@ -13,7 +13,12 @@ interface Secret {
   kind: string;
 }
 
-const state = { secrets: [] as Secret[] };
+const state = {
+  secrets: [] as Secret[],
+  // The inline form writes through `useSecrets().create`, and what this card owes
+  // it is the callback: a key added there is the key selected here.
+  create: { mutate: vi.fn(), isPending: false },
+};
 
 vi.mock("@/hooks", () => ({ useSecrets: () => state }));
 
@@ -35,7 +40,9 @@ function mount(value: ObservabilitySpec | null = null) {
 }
 
 beforeEach(() => {
+  vi.clearAllMocks();
   state.secrets = [secret()];
+  state.create = { mutate: vi.fn(), isPending: false };
 });
 
 describe("the tracing card", () => {
@@ -58,13 +65,35 @@ describe("the tracing card", () => {
     });
   });
 
-  it("says where to put a token when the vault has none", () => {
-    // Rather than an empty picker, which reads as a broken control.
+  it("lets a token be added here when the vault has none", () => {
+    // Rather than an empty picker and a sentence pointing somewhere else: the
+    // answer to "no tokens stored yet" is a form, and a picker with nothing in it
+    // and nowhere to go is a dead end.
     state.secrets = [];
     mount();
 
-    expect(screen.getByText(/No Logfire tokens stored yet/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Vault" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Add a key/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Open the Vault/ })).toBeInTheDocument();
+  });
+
+  it("selects a token added inline, so nobody has to re-pick it", async () => {
+    // The whole point of the inline form: a key added there is the key this agent
+    // traces with, without a round trip through the Vault and back.
+    state.secrets = [];
+    // The real mutation calls `onSuccess` with the stored secret; the stub has to
+    // as well, or the callback under test never runs.
+    state.create.mutate = vi.fn((_input, options) => options?.onSuccess?.({ id: "s-new" }));
+    const { onChange } = mount();
+
+    await userEvent.click(screen.getByRole("button", { name: /Add a key/ }));
+    await userEvent.type(screen.getByLabelText("Key"), "pylf_v1_x");
+    await userEvent.click(screen.getByRole("button", { name: "Save key" }));
+
+    expect(state.create.mutate).toHaveBeenCalledWith(
+      expect.objectContaining({ purpose: "logfire" }),
+      expect.anything(),
+    );
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ token_secret_id: "s-new" }));
   });
 
   it("says the spec keeps a reference once there is something to pick", () => {

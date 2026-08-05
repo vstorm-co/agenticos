@@ -16,6 +16,7 @@ import {
 } from "@/lib/mcp-servers";
 import { cn } from "@/lib/utils";
 import type { McpCatalogEntry } from "@/types/mcp";
+import { useTranslations } from "next-intl";
 
 interface McpServerPickerProps {
   /** The organization's servers - the only ones an agent may be bound to. */
@@ -70,6 +71,7 @@ export function McpServerPicker({
   onToggle,
   disabled,
 }: McpServerPickerProps) {
+  const t = useTranslations("agents");
   const [connectedOnly, setConnectedOnly] = useState(false);
   const chosen = new Set(selectedIds);
   const known = new Set(connections.map((connection) => connection.id));
@@ -115,7 +117,7 @@ export function McpServerPicker({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <SearchInput value={list.query} onChange={list.setQuery} placeholder="Search servers…" />
+        <SearchInput value={list.query} onChange={list.setQuery} placeholder={t("searchServers")} />
         {/* The catalog is mostly servers nobody has connected, and only a
             connected one can be bound - so "hide the rest" is the filter this
             picker actually needs. */}
@@ -124,7 +126,7 @@ export function McpServerPicker({
             checked={connectedOnly}
             onCheckedChange={(next) => setConnectedOnly(next === true)}
           />
-          Connected only
+          {t("connectedOnly")}
         </label>
       </div>
 
@@ -187,6 +189,7 @@ function ServerCard({
   onToggle: (connectionId: string) => void;
   disabled?: boolean;
 }) {
+  const t = useTranslations("agents");
   const state = connectionState(connection);
   const isOn = connection !== null && selected(connection.id);
   const bindable = connection !== null;
@@ -231,7 +234,7 @@ function ServerCard({
       >
         {body}
         <Plug className="text-muted-foreground mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-        <span className="sr-only">Connect this server first</span>
+        <span className="sr-only">{t("connectServerFirst")}</span>
       </Link>
     );
   }
@@ -245,7 +248,7 @@ function ServerCard({
       disabled={disabled}
       onClick={() => onToggle(connection.id)}
       className={cn(
-        "flex items-start gap-3 rounded-xl border p-4 text-left transition-colors",
+        t("flexItemsStartGap2"),
         isOn ? "border-brand bg-brand/5" : "hover:border-foreground/20",
         disabled && "cursor-not-allowed opacity-60",
       )}
@@ -257,12 +260,12 @@ function ServerCard({
 
 /** Spec references this Builder cannot resolve - named, so they are not lost silently. */
 function OrphanedIds({ ids }: { ids: string[] }) {
+  const t = useTranslations("agents");
   if (ids.length === 0) return null;
   return (
     <p className="text-muted-foreground text-xs">
-      This agent also references {ids.length} server{ids.length === 1 ? "" : "s"} this organization
-      does not offer - removed since, or carried in from an imported spec. Publishing is refused
-      until they are cleared: <span className="font-mono break-all">{ids.join(", ")}</span>
+      {t("orphanedServers", { count: ids.length })}{" "}
+      <span className="font-mono break-all">{ids.join(", ")}</span>
     </p>
   );
 }

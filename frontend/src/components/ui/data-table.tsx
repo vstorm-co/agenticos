@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 
 export interface Column<T> {
   /** Stable key for the column. */
@@ -53,6 +54,7 @@ export function DataTable<T>({
   skeletonRows = 6,
   className,
 }: DataTableProps<T>) {
+  const t = useTranslations("ui");
   const showEmpty = !loading && rows && rows.length === 0;
 
   return (
@@ -126,7 +128,7 @@ export function DataTable<T>({
 
       {showEmpty && (
         <div className="text-muted-foreground px-4 py-12 text-center text-sm">
-          {empty ?? "No results."}
+          {empty ?? t("noResults")}
         </div>
       )}
     </div>

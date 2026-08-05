@@ -30,6 +30,7 @@ import type { AdminUserRead } from "@/hooks/use-admin-users";
 import { cn, formatDate } from "@/lib/utils";
 import { useChanged } from "@/hooks/use-changed";
 
+import { useTranslations } from "next-intl";
 const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
 type SortDir = "asc" | "desc";
 // Keys the backend can sort on (route → service → repo).
@@ -45,6 +46,7 @@ function getInitials(nameOrEmail: string): string {
 }
 
 export default function AdminUsersPage() {
+  const t = useTranslations("pages.admin");
   const { users, total, isLoading, fetchUsers, updateUser, deleteUser, impersonateUser } =
     useAdminUsers();
   const [search, setSearch] = useState("");
@@ -110,7 +112,7 @@ export default function AdminUsersPage() {
             dir={sort.dir}
             onClick={() => toggleSort("email")}
           >
-            User
+            {t("user")}
           </SortHeader>
         ),
         cell: (u) => (
@@ -133,14 +135,14 @@ export default function AdminUsersPage() {
       {
         key: "role",
         hideBelow: "md",
-        header: "Role",
+        header: t("role"),
         cell: (u) => (
           <div className="flex items-center gap-1.5">
             <span className="text-sm capitalize">{u.role}</span>
             {u.is_app_admin && (
               <Badge variant="outline" className="gap-0.5 font-normal">
                 <Shield className="h-2.5 w-2.5" />
-                App
+                {t("app")}
               </Badge>
             )}
           </div>
@@ -149,18 +151,18 @@ export default function AdminUsersPage() {
       {
         key: "is_active",
         hideBelow: "sm",
-        header: "Status",
+        header: t("status"),
         cell: (u) =>
           u.is_active ? (
             <Badge
               variant="outline"
               className="border-border bg-foreground/5 text-foreground font-normal"
             >
-              Active
+              {t("active")}
             </Badge>
           ) : (
             <Badge variant="outline" className="border-border text-muted-foreground font-normal">
-              Suspended
+              {t("suspended")}
             </Badge>
           ),
       },
@@ -173,7 +175,7 @@ export default function AdminUsersPage() {
             dir={sort.dir}
             onClick={() => toggleSort("created_at")}
           >
-            Joined
+            {t("joined")}
           </SortHeader>
         ),
         cell: (u) => (
@@ -194,7 +196,7 @@ export default function AdminUsersPage() {
               handleOpenUser(u);
             }}
           >
-            Inspect
+            {t("inspect")}
           </Button>
         ),
       },
@@ -211,7 +213,7 @@ export default function AdminUsersPage() {
         <div className="relative min-w-[240px] flex-1">
           <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
           <Input
-            placeholder="Search by email or name…"
+            placeholder={t("searchByEmailName")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-10"
@@ -242,7 +244,7 @@ export default function AdminUsersPage() {
         getRowKey={(u) => u.id}
         loading={isLoading && users.length === 0}
         onRowClick={handleOpenUser}
-        empty={search ? `No users match "${search}".` : "No users yet."}
+        empty={search ? t("noUsersMatch", { query: search }) : t("noUsersYet")}
       />
 
       {total > 0 && (
@@ -256,7 +258,7 @@ export default function AdminUsersPage() {
               size="sm"
               onClick={() => setPage((p) => Math.max(0, p - 1))}
               disabled={page === 0 || isLoading}
-              aria-label="Previous page"
+              aria-label={t("previousPage2")}
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
@@ -268,7 +270,7 @@ export default function AdminUsersPage() {
               size="sm"
               onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
               disabled={page >= totalPages - 1 || isLoading}
-              aria-label="Next page"
+              aria-label={t("nextPage2")}
             >
               <ChevronRight className="h-4 w-4" />
             </Button>

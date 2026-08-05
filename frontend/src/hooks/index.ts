@@ -3,6 +3,7 @@ export { useCopyToClipboard } from "./use-copy-to-clipboard";
 export { useAdminUsers } from "./use-admin-users";
 export { useWebSocket } from "./use-websocket";
 export { useChat } from "./use-chat";
+export { useConversationWorkspace } from "./use-conversation-workspace";
 export { useConversations } from "./use-conversations";
 export { useConversationShares } from "./use-conversation-shares";
 export { useAdminConversations } from "./use-admin-conversations";
@@ -15,6 +16,7 @@ export { useSlashCommands, isBuiltinEnabled, BUILTIN_COMMAND_LIST } from "./use-
 export { useReusableIntegrations } from "./use-reusable-integrations";
 export { useMcpConnections } from "./use-mcp-connections";
 export { useOrgMcpConnections } from "./use-org-mcp-connections";
+export { useMcpToolServers } from "./use-mcp-tool-servers";
 export { usePermissions, useRoleCatalog, useAssignableRoles } from "./use-permissions";
 export {
   useAgent,
@@ -25,8 +27,27 @@ export {
 } from "./use-agents";
 export { useMcpCatalog, useMcpServers, type McpServerRow } from "./use-mcp-servers";
 export { useModelProviders, useProviderModels, providerInfo } from "./use-model-providers";
+export {
+  useLocalSandboxService,
+  useSandboxConnections,
+  useSandboxEvents,
+  useSandboxPolicy,
+  useSandboxSessions,
+} from "./use-sandbox-connections";
 export { useSecrets, useSecretPurposes, kindInfo } from "./use-secrets";
 export { useApprovals, useRuns, useSpend } from "./use-runs";
+export {
+  useAllWorkspaceFiles,
+  useSandboxWorkspaces,
+  useWorkspaceFiles,
+} from "./use-sandbox-workspaces";
+export {
+  downloadWorkspaceFile,
+  useFileDownload,
+  useWorkspaceFileBytes,
+  useWorkspaceFileText,
+} from "./use-workspace-file";
+export { useSkillChanges } from "./use-skill-changes";
 export { useSkill, useSkillLibrary, useSkillResource, useSkills } from "./use-skills";
 export { useSharing } from "./use-sharing";
 export { useEmbeds } from "./use-embeds";

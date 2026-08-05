@@ -2,9 +2,10 @@
 
 import uuid
 from datetime import datetime
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -105,6 +106,23 @@ class Message(Base, TimestampMixin):
         nullable=True,
     )
     tokens_used: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    input_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    output_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    """What this turn cost, split, because the two are priced an order of magnitude
+    apart: one total cannot say whether an answer was expensive because of a long
+    context or a long answer.
+
+    Beside `tokens_used` rather than replacing it - that column is written by the
+    template's own path and read by nothing here, and dropping a column to tidy a
+    model is a migration somebody else's fork has to run."""
+
+    cost_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
+    """Money, at the same scale as `agent_runs.cost_usd` and the organization's cap.
+
+    Null on every message written before it was recorded, and on any turn whose cost
+    could not be read. Null means "not recorded" - a client draws nothing, because
+    "$0.0000" under an answer that cost money is worse than saying nothing."""
 
     conversation: Mapped["Conversation"] = relationship("Conversation", back_populates="messages")
     tool_calls: Mapped[list["ToolCall"]] = relationship(

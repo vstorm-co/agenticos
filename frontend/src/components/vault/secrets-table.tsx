@@ -18,6 +18,7 @@ import {
 } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import type { Secret, SecretPurpose } from "@/types/secrets";
+import { useTranslations } from "next-intl";
 
 interface SecretsTableProps {
   secrets: readonly Secret[];
@@ -29,8 +30,12 @@ interface SecretsTableProps {
 }
 
 /** What a key is for, in words, falling back to the stored id for a custom one. */
-function purposeLabel(purposes: readonly SecretPurpose[], purpose: string | undefined): string {
-  if (!purpose || purpose === "custom") return "Custom service";
+function purposeLabel(
+  purposes: readonly SecretPurpose[],
+  purpose: string | undefined,
+  t: (key: string) => string,
+): string {
+  if (!purpose || purpose === "custom") return t("customService");
   return purposes.find((entry) => entry.id === purpose)?.label ?? purpose;
 }
 
@@ -43,16 +48,15 @@ function purposeLabel(purposes: readonly SecretPurpose[], purpose: string | unde
  * shared with nobody. Collapsing them into one number is how somebody deletes
  * the wrong key.
  */
-function reach(secret: Secret): { label: string; detail: string | null } {
+function reach(
+  secret: Secret,
+  t: (key: string, values?: Record<string, number>) => string,
+): { label: string; detail: string | null } {
   const shared = secret.shared_with ?? 0;
-  const people = shared === 1 ? "1 person" : `${shared} people`;
-  if (secret.visibility === "private") {
-    return { label: "Private", detail: shared === 0 ? null : `shared with ${people}` };
-  }
-  if (secret.visibility === "team") {
-    return { label: "Team", detail: shared === 0 ? null : `shared with ${people}` };
-  }
-  return { label: "Organization", detail: null };
+  const sharedWith = shared === 0 ? null : t("sharedWithPeople", { count: shared });
+  if (secret.visibility === "private") return { label: t("visibilityPrivate"), detail: sharedWith };
+  if (secret.visibility === "team") return { label: t("visibilityTeam"), detail: sharedWith };
+  return { label: t("visibilityOrg"), detail: null };
 }
 
 /** Two letters for a face nobody uploaded, and nothing at all for nobody. */
@@ -75,6 +79,7 @@ export function SecretsTable({
   onRotate,
   onDelete,
 }: SecretsTableProps) {
+  const t = useTranslations("vault");
   return (
     <Table
       className={cn(
@@ -91,17 +96,17 @@ export function SecretsTable({
     >
       <TableHeader>
         <TableRow>
-          <TableHead>Key</TableHead>
-          <TableHead>For</TableHead>
-          <TableHead>Access</TableHead>
-          <TableHead>Added by</TableHead>
-          <TableHead>Used by</TableHead>
-          {canManage && <TableHead className="w-32 text-right">Actions</TableHead>}
+          <TableHead>{t("key")}</TableHead>
+          <TableHead>{t("for")}</TableHead>
+          <TableHead>{t("access")}</TableHead>
+          <TableHead>{t("addedBy")}</TableHead>
+          <TableHead>{t("usedBy")}</TableHead>
+          {canManage && <TableHead className="w-32 text-right">{t("actions")}</TableHead>}
         </TableRow>
       </TableHeader>
       <TableBody>
         {secrets.map((secret) => {
-          const access = reach(secret);
+          const access = reach(secret, t);
           const used = secret.used_by ?? [];
           return (
             <TableRow key={secret.id}>
@@ -119,7 +124,7 @@ export function SecretsTable({
               </TableCell>
 
               <TableCell className="text-muted-foreground text-sm">
-                {purposeLabel(purposes, secret.purpose)}
+                {purposeLabel(purposes, secret.purpose, t)}
               </TableCell>
 
               <TableCell>
@@ -152,12 +157,12 @@ export function SecretsTable({
                 ) : (
                   // The key outlives the person, which is itself worth seeing:
                   // it is the one nobody is going to rotate.
-                  <span className="text-muted-foreground text-xs">no longer here</span>
+                  <span className="text-muted-foreground text-xs">{t("noLongerHere")}</span>
                 )}
               </TableCell>
 
               <TableCell className="text-muted-foreground text-xs">
-                {used.length === 0 ? "not used yet" : used.map((usage) => usage.name).join(", ")}
+                {used.length === 0 ? t("notUsedYet") : used.map((usage) => usage.name).join(", ")}
               </TableCell>
 
               {canManage && (
@@ -166,7 +171,7 @@ export function SecretsTable({
                     <Button
                       variant="ghost"
                       size="icon"
-                      aria-label={`Manage access to ${secret.name}`}
+                      aria-label={t("manageAccessTo", { name: secret.name })}
                       onClick={() => onShare(secret)}
                     >
                       <Users className="h-4 w-4" />

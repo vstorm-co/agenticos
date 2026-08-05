@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Upload } from "lucide-react";
 
+import { useTranslations } from "next-intl";
 interface DragDropOverlayProps {
   /** Called when files are dropped. Validate / size-check inside. */
   onDrop: (files: File[]) => void;
@@ -24,10 +25,11 @@ interface DragDropOverlayProps {
 export function DragDropOverlay({
   onDrop,
   disabled,
-  title = "Drop files to upload",
-  description = "Files will be added to the active collection",
+  title,
+  description,
   acceptedFormats,
 }: DragDropOverlayProps) {
+  const t = useTranslations("rag");
   const [active, setActive] = useState(false);
   const counter = useRef(0);
 
@@ -84,8 +86,10 @@ export function DragDropOverlay({
         <div className="bg-brand text-brand-foreground mx-auto flex h-14 w-14 items-center justify-center rounded-full">
           <Upload className="h-6 w-6" />
         </div>
-        <h2 className="text-foreground mt-6 text-2xl font-bold tracking-tight">{title}</h2>
-        <p className="text-foreground/65 mt-2 text-sm">{description}</p>
+        <h2 className="text-foreground mt-6 text-2xl font-bold tracking-tight">
+          {title ?? t("dropFiles")}
+        </h2>
+        <p className="text-foreground/65 mt-2 text-sm">{description ?? t("dropFilesDetail")}</p>
 
         {acceptedFormats && acceptedFormats.length > 0 && (
           <div className="mt-5 flex flex-wrap justify-center gap-1.5">

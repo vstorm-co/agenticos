@@ -21,6 +21,7 @@ const state = {
   isLoading: false,
   create: { mutateAsync: vi.fn(), isPending: false },
   setActive: { mutate: vi.fn(), isPending: false },
+  setUsageReporting: { mutate: vi.fn(), isPending: false },
   remove: { mutate: vi.fn(), isPending: false },
 };
 
@@ -36,6 +37,7 @@ function bot(overrides: Partial<ChannelBot> = {}): ChannelBot {
     webhook_url: "https://app.test/hook",
     has_slack_signing_secret: false,
     has_slack_app_token: false,
+    usage_reporting: { mode: "near_limit", near_limit_percent: 80, every_n: 10 },
     created_at: "2026-07-30T10:00:00Z",
     ...overrides,
   };
@@ -351,5 +353,43 @@ describe("registering a bot", () => {
     await userEvent.type(screen.getByLabelText("Bot token"), "1234567890123");
 
     expect(screen.getByRole("button", { name: "Register" })).toBeDisabled();
+  });
+});
+
+describe("what a bot says about what a turn cost", () => {
+  it("offers the four modes, because a footer on every reply is noise", async () => {
+    // And silence is worse: a bot that stops answering on a budget cap looks
+    // broken unless somebody said so beforehand.
+    state.bots = [bot()];
+    render(<ChannelBotsPanel canManage />);
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Usage reporting on Support bot" }));
+
+    expect(screen.getByRole("option", { name: "usage: log only" })).toBeVisible();
+    expect(screen.getByRole("option", { name: /near a limit/ })).toBeVisible();
+    expect(screen.getByRole("option", { name: /every 10 messages/ })).toBeVisible();
+    expect(screen.getByRole("option", { name: /every reply/ })).toBeVisible();
+  });
+
+  it("changes the mode and keeps the thresholds it was not asked about", async () => {
+    state.bots = [bot({ usage_reporting: { mode: "off", near_limit_percent: 65, every_n: 5 } })];
+    render(<ChannelBotsPanel canManage />);
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Usage reporting on Support bot" }));
+    await userEvent.click(screen.getByRole("option", { name: /every reply/ }));
+
+    expect(state.setUsageReporting.mutate).toHaveBeenCalledWith({
+      botId: "b-1",
+      usageReporting: { mode: "always", near_limit_percent: 65, every_n: 5 },
+    });
+  });
+
+  it("waits rather than queueing a second change", async () => {
+    state.bots = [bot()];
+    state.setUsageReporting.isPending = true;
+    render(<ChannelBotsPanel canManage />);
+
+    expect(screen.getByRole("combobox", { name: "Usage reporting on Support bot" })).toBeDisabled();
+    state.setUsageReporting.isPending = false;
   });
 });

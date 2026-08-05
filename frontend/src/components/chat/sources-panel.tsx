@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { FileText, Globe, Link, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 import type { SourceItem } from "@/lib/chat-sources";
 import { cn } from "@/lib/utils";
@@ -113,12 +114,13 @@ function WebSourceRow({ item, highlighted }: { item: SourceItem; highlighted: bo
 }
 
 export function SourcesPanel() {
+  const t = useTranslations("chat");
   const { isOpen, sources, highlightedIndex, close } = useSourcesPanelStore();
 
   useEffect(() => {
     if (!isOpen) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") close();
+      if (e.key === t("escape4")) close();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -140,7 +142,7 @@ export function SourcesPanel() {
         <button
           type="button"
           onClick={close}
-          aria-label="Close sources panel"
+          aria-label={t("closeSourcesPanel")}
           className="text-foreground/50 hover:text-foreground hover:bg-foreground/8 rounded-md p-1 transition-colors"
         >
           <X className="h-4 w-4" />
@@ -153,7 +155,7 @@ export function SourcesPanel() {
           <section className="space-y-2">
             {ragSources.length > 0 && webSources.length > 0 && (
               <h3 className="text-foreground/45 font-mono text-[10px] tracking-wider uppercase">
-                Knowledge base
+                {t("knowledgeBase")}
               </h3>
             )}
             {ragSources.map((s) => (
@@ -170,7 +172,7 @@ export function SourcesPanel() {
           <section className="space-y-2">
             {ragSources.length > 0 && (
               <h3 className="text-foreground/45 font-mono text-[10px] tracking-wider uppercase">
-                Web
+                {t("web")}
               </h3>
             )}
             {webSources.map((s) => (

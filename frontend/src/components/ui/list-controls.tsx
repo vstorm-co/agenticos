@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 
 /** What a page holds before somebody has to ask for the next one. */
 export const PAGE_SIZE = 50;
@@ -114,6 +115,7 @@ export function Pager({
   /** Plural, for the count line: "servers", "skills". */
   noun: string;
 }) {
+  const t = useTranslations("ui");
   if (pageCount <= 1) {
     return matched === total ? null : (
       <p className="text-muted-foreground text-xs">
@@ -134,7 +136,7 @@ export function Pager({
           size="sm"
           disabled={page === 0}
           onClick={() => onPage(page - 1)}
-          aria-label="Previous page"
+          aria-label={t("previousPage")}
         >
           <ChevronLeft className="h-4 w-4" />
         </Button>
@@ -143,7 +145,7 @@ export function Pager({
           size="sm"
           disabled={page >= pageCount - 1}
           onClick={() => onPage(page + 1)}
-          aria-label="Next page"
+          aria-label={t("nextPage")}
         >
           <ChevronRight className="h-4 w-4" />
         </Button>

@@ -4,9 +4,12 @@ import { useMemo, useState } from "react";
 import { ShieldAlert } from "lucide-react";
 
 import { CapabilityDetail } from "@/components/agents/capability-settings";
+import { WorkspaceSection } from "@/components/agents/workspace-section";
 import { SearchInput, Switch } from "@/components/ui";
+import { SANDBOX_ID } from "@/lib/agent-spec";
 import { cn } from "@/lib/utils";
 import type { CapabilityBindingSpec, CapabilityCatalogEntry } from "@/types/agents";
+import { useTranslations } from "next-intl";
 
 interface CapabilityWorkbenchProps {
   catalog: CapabilityCatalogEntry[];
@@ -66,6 +69,7 @@ export function CapabilityWorkbench({
   onChange,
   disabled,
 }: CapabilityWorkbenchProps) {
+  const t = useTranslations("agents");
   const enabled = new Set(selected.filter((binding) => binding.enabled).map((b) => b.id));
   const [focusedId, setFocusedId] = useState<string | null>(null);
 
@@ -103,18 +107,24 @@ export function CapabilityWorkbench({
   if (catalog.length === 0) return null;
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
-      <div className="space-y-3">
+    // One frame, one height, whichever capability is showing. The page used to be
+    // as tall as whatever was selected: opening the workspace - the tallest panel
+    // by far - and then clicking a short one left the document scrolled past its
+    // own content, hundreds of pixels of nothing below the MCP section. Both
+    // columns now scroll inside a fixed pane, so choosing a capability moves
+    // nothing on the page around it.
+    <div className="grid gap-4 lg:h-[36rem] lg:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
+      <div className="flex min-h-0 flex-col gap-3">
         {catalog.length > 8 && (
           <SearchInput
             value={query}
             onChange={setQuery}
-            placeholder="Search capabilities…"
+            placeholder={t("searchCapabilities")}
             className="w-full sm:w-full"
           />
         )}
 
-        <div className="space-y-4 lg:max-h-[36rem] lg:overflow-y-auto lg:pr-1">
+        <div className="min-h-0 space-y-4 lg:flex-1 lg:overflow-y-auto lg:pr-1">
           {categories.length === 0 && (
             <p className="text-muted-foreground px-1 py-6 text-sm">
               No capability or tool matches “{query}”.
@@ -132,6 +142,18 @@ export function CapabilityWorkbench({
                   enabled={enabled.has(entry.id)}
                   focused={focused?.id === entry.id}
                   disabled={disabled}
+                  // "7 tools" is the least useful thing to say about the
+                  // workspace in a list: which backend it runs is what somebody
+                  // is scanning for, and it is the only capability whose row can
+                  // answer that.
+                  subtitle={
+                    entry.id === SANDBOX_ID
+                      ? backendLabel(
+                          selected.find((binding) => binding.id === entry.id),
+                          enabled.has(entry.id),
+                        )
+                      : undefined
+                  }
                   onFocus={() => setFocusedId(entry.id)}
                   onToggle={() => onToggle(entry.id)}
                 />
@@ -141,7 +163,11 @@ export function CapabilityWorkbench({
         </div>
       </div>
 
-      <div className="min-w-0">
+      {/* Scrolls in its own pane rather than lengthening the page. Without this
+          the workspace panel - the one capability with tiles, two selects, a
+          warning and a nested settings form - set the height of the whole
+          Builder. */}
+      <div className="min-h-0 min-w-0 lg:overflow-y-auto lg:pr-1">
         {focused && (
           <div className="space-y-3">
             {/* The switch travels with the panel as well as sitting in the row.
@@ -150,12 +176,12 @@ export function CapabilityWorkbench({
             <div className="border-border bg-card flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3">
               <div className="min-w-0">
                 <p className="text-sm font-medium">
-                  {isOn ? `${focused.name} is on` : `Give this agent ${focused.name}`}
+                  {isOn
+                    ? t("capabilityIsOn", { name: focused.name })
+                    : t("giveThisAgent", { name: focused.name })}
                 </p>
                 <p className="text-muted-foreground mt-0.5 text-xs">
-                  {isOn
-                    ? "Everything below applies to this agent alone."
-                    : "Read it here first - the settings below are what switching it on configures."}
+                  {isOn ? t("everythingBelowAppliesAgent") : t("readHereFirstSettings")}
                 </p>
               </div>
               <Switch
@@ -171,16 +197,31 @@ export function CapabilityWorkbench({
               />
             </div>
 
-            <CapabilityDetail
-              binding={bound ?? unboundBinding(focused.id)}
-              definition={focused}
-              onChange={onChange}
-              // A capability nobody granted has nothing to configure yet, so its
-              // controls are shown at their real values and left inert. The
-              // alternative - live controls writing to a binding that does not
-              // exist - would make reading a capability grant it by accident.
-              disabled={disabled || !isOn}
-            />
+            {/* The workspace's configuration is a choice between three
+                backends and who shares them, not a set of fields - and one of
+                those scopes shares files between people, which a generated form
+                cannot warn about. Enablement is still the switch above, the same
+                one every capability has. */}
+            {focused.id === SANDBOX_ID ? (
+              <WorkspaceSection
+                definition={focused}
+                binding={bound}
+                onChange={onChange}
+                disabled={disabled || !isOn}
+              />
+            ) : (
+              <CapabilityDetail
+                binding={bound ?? unboundBinding(focused.id)}
+                definition={focused}
+                onChange={onChange}
+                // A capability nobody granted has nothing to configure yet, so
+                // its controls are shown at their real values and left inert.
+                // The alternative - live controls writing to a binding that does
+                // not exist - would make reading a capability grant it by
+                // accident.
+                disabled={disabled || !isOn}
+              />
+            )}
           </div>
         )}
       </div>
@@ -188,11 +229,23 @@ export function CapabilityWorkbench({
   );
 }
 
+/** What the workspace row says it is, rather than how many tools it has. */
+function backendLabel(binding: CapabilityBindingSpec | undefined, enabled: boolean): string {
+  if (!enabled) return "no workspace";
+  const backend = (binding?.config as { backend?: string } | undefined)?.backend ?? "state";
+  // The kind of host - a container service or Daytona - belongs to the
+  // connection rather than the spec, so the row says what the agent gets and not
+  // where it runs. "Where" is on the connection, which the detail panel names.
+  if (backend === "service") return "files and a shell";
+  return "files, no shell";
+}
+
 function CapabilityRow({
   entry,
   enabled,
   focused,
   disabled,
+  subtitle,
   onFocus,
   onToggle,
 }: {
@@ -200,9 +253,11 @@ function CapabilityRow({
   enabled: boolean;
   focused: boolean;
   disabled?: boolean;
+  subtitle?: string;
   onFocus: () => void;
   onToggle: () => void;
 }) {
+  const t = useTranslations("agents");
   return (
     <div
       className={cn(
@@ -219,15 +274,14 @@ function CapabilityRow({
         <span className="flex flex-wrap items-center gap-1.5">
           <span className="text-sm font-medium">{entry.name}</span>
           {entry.side_effecting && (
-            <ShieldAlert className="text-muted-foreground h-3 w-3" aria-label="acts on the world" />
+            <ShieldAlert className="text-muted-foreground h-3 w-3" aria-label={t("actsWorld")} />
           )}
         </span>
         <span className="text-muted-foreground mt-0.5 block text-xs">
-          {entry.tools.length === 0
-            ? "no tools - changes how it runs"
-            : entry.tools.length === 1
-              ? "1 tool"
-              : `${entry.tools.length} tools`}
+          {subtitle ??
+            (entry.tools.length === 0
+              ? t("noToolsChangesHow")
+              : t("toolCount", { count: entry.tools.length }))}
         </span>
       </button>
 
@@ -237,7 +291,7 @@ function CapabilityRow({
       <Switch
         checked={enabled}
         disabled={disabled}
-        aria-label={`Give this agent ${entry.name}`}
+        aria-label={t("giveThisAgent", { name: entry.name })}
         onCheckedChange={onToggle}
         className="mt-0.5 shrink-0"
       />

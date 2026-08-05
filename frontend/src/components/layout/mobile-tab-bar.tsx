@@ -6,10 +6,9 @@ import { useTranslations } from "next-intl";
 import { Database, LayoutDashboard, MessageSquare, Search, Settings } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-import { useAuth } from "@/hooks";
 import { stripLocale } from "@/lib/active-route";
 import { ROUTES } from "@/lib/constants";
-import { cn, isAppAdmin } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 interface TabItem {
   label: string;
@@ -23,7 +22,6 @@ interface TabItem {
 export function MobileTabBar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { user } = useAuth();
   const t = useTranslations("nav");
 
   // `stripLocale`, not a two-letter regex. The regex matched *any* two letters,
@@ -35,11 +33,7 @@ export function MobileTabBar() {
   const items: TabItem[] = [
     { label: t("chat"), href: ROUTES.CHAT, icon: MessageSquare, startsWith: true },
     { label: t("kb"), href: ROUTES.KB, icon: Database, startsWith: true },
-    {
-      label: t("home"),
-      href: isAppAdmin(user) ? ROUTES.DASHBOARD : ROUTES.CHAT,
-      icon: LayoutDashboard,
-    },
+    { label: t("home"), href: ROUTES.DASHBOARD, icon: LayoutDashboard },
     {
       label: t("search"),
       icon: Search,
@@ -65,13 +59,13 @@ export function MobileTabBar() {
   return (
     <nav
       role="navigation"
-      aria-label="Primary"
+      aria-label={t("primary")}
       className="border-foreground/10 bg-background/95 supports-[backdrop-filter]:bg-background/85 fixed inset-x-0 bottom-0 z-40 flex items-stretch justify-around border-t pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden"
     >
       {items.map((item) => {
         const active = isActive(item);
         const className = cn(
-          "flex flex-1 flex-col items-center justify-center gap-1 py-2.5 text-[10px] font-medium uppercase tracking-wider transition-colors min-h-[56px]",
+          t("flexFlex1Flex"),
           active ? "text-brand" : "text-foreground/55 hover:text-foreground",
         );
         const inner = (

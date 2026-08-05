@@ -35,7 +35,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -51,6 +51,8 @@ from app.agents.capabilities.approval import (
     ApprovalRequest,
 )
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope, SpendEntry, metered_by
+from app.agents.capabilities.sandbox import WORKSPACE_BACKEND_RESOURCE, WorkspaceIdentity
+from app.agents.capabilities.sandbox._identity import SessionScope
 from app.agents.deps import AgentDeps
 from app.agents.factory import BuiltAgent, build_agent
 from app.agents.spec import AgentSpec, ObservabilitySpec
@@ -59,6 +61,7 @@ from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent
 from app.db.models.agent_exposure import AgentExposure
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, RunSurface
+from app.db.models.chat_file import ChatFile
 from app.repositories import (
     agent_environment_repo,
     agent_repo,
@@ -67,11 +70,18 @@ from app.repositories import (
 )
 from app.services.agent_registry import DEFAULT_GRANTED_SCOPES, AgentRegistryService
 from app.services.approvals import ApprovalService
+from app.services.attachments import AttachmentRouter
+from app.services.channels.attachments import files_written, workspace_snapshot
+from app.services.channels.base import OutgoingAttachment
 from app.services.mcp_connection import build_toolsets_for_agent
 from app.services.model_profile import ModelProfileService
 from app.services.notifications import NotificationService
 from app.services.organization import OrganizationService
 from app.services.organization_secret import OrganizationSecretService
+from app.services.sandbox_workspace import OpenWorkspace, SandboxWorkspaceService
+from app.services.skill_proposal import SkillProposalService
+from app.services.skill_workspace import MaterialisedSkills, collect_changes
+from app.services.skill_workspace import materialise as materialise_skills
 from app.services.skills import SkillService
 from app.services.spend import month_start, organization_monthly_spend
 
@@ -95,6 +105,26 @@ class PausedRunState(BaseModel):
     )
 
 
+@dataclass(frozen=True)
+class ParkedApproval:
+    """One tool call waiting for a person.
+
+    Carries the `approvals` row id rather than the model's `tool_call_id`: the
+    decision is recorded against that row, and it is the row the approvals queue
+    and the notification email point at. A surface that invented its own
+    identifier would be a second way to approve the same call.
+    """
+
+    approval_id: UUID
+    tool_call_id: str
+    """The model's own id for the call, so a surface can resolve the card it drew
+    for it. Carried beside the row id rather than instead of it: one addresses the
+    decision, the other addresses what is on screen."""
+
+    tool_name: str
+    tool_args: dict[str, Any]
+
+
 @dataclass
 class ApprovalChannel:
     """A run's connection to the approval queue.
@@ -115,6 +145,14 @@ class ApprovalChannel:
     decided: dict[str, ApprovalDecision] = field(default_factory=dict)
     parked: dict[str, str] = field(default_factory=dict)
 
+    requested: list[ParkedApproval] = field(default_factory=list)
+    """What was parked, in enough detail for a surface to put it to somebody.
+
+    Kept here rather than read back from the rows afterwards, because this is where
+    the row was created - re-reading it would be a query per parked call to recover
+    what this object had in hand.
+    """
+
     async def __call__(self, request: ApprovalRequest) -> ApprovalDecision:
         decision = self.decided.pop(request.tool_call_id, None)
         if decision is not None:
@@ -130,6 +168,14 @@ class ApprovalChannel:
             tool_args=request.tool_args,
         )
         self.parked[str(approval.id)] = request.tool_call_id
+        self.requested.append(
+            ParkedApproval(
+                approval_id=approval.id,
+                tool_call_id=request.tool_call_id,
+                tool_name=request.tool_name,
+                tool_args=request.tool_args,
+            )
+        )
         return ApprovalPending()
 
 
@@ -147,6 +193,59 @@ class PreparedRun:
     spec: AgentSpec
     built: BuiltAgent
     approvals: ApprovalChannel
+    workspace: OpenWorkspace | None = None
+    """The sandbox this run writes to, when its spec asks for one.
+
+    Carried on the prepared run rather than hidden in the agent because it has
+    to be *closed*: a `state` workspace is only stored by the flush in
+    :meth:`AgentRunnerService.finish`, and nothing else in the process knows the
+    run is over.
+    """
+
+    materialised_skills: MaterialisedSkills | None = None
+    """The skill files written into that workspace, as they were written.
+
+    Kept so that `finish` can tell what the agent changed from what it was given.
+    Diffing against the database instead would re-propose every change a reviewer
+    already discarded, on every turn of a conversation whose workspace outlives
+    the run.
+    """
+
+    workspace_at_start: set[str] | None = None
+    """Every path the workspace held before the turn ran.
+
+    What the turn *added* is the difference against this. Compared against a
+    snapshot rather than modification times: a `state` workspace has none, and a
+    container's clock is not ours to trust.
+
+    `None` means there was no readable workspace to snapshot - no sandbox at all,
+    or a host that would not answer - and nothing is posted back. It is not an
+    empty set: the difference is computed against this, so an empty one would make
+    every file already in the workspace read as the turn's own output.
+    """
+
+    outbound: list[OutgoingAttachment] = field(default_factory=list)
+    """Files the turn produced, read in `finish` before the workspace closes.
+
+    Filled there rather than returned by the run, because a `run`-scoped workspace
+    is released by `close` and a caller reading it afterwards would find nothing.
+    """
+
+    outbound_refused: list[str] = field(default_factory=list)
+    """Produced files a reply cannot carry - too large, or past the per-reply cap.
+
+    Named rather than dropped: an agent told its file was delivered will tell the
+    user the same.
+    """
+
+    ctx: AuthContext | None = None
+    """Who ran it, for recording a proposal in `finish`.
+
+    A workspace flush needs no tenant - it writes a row it already holds - but a
+    proposal does: it is stored against an organization and read by a reviewer
+    there. Carried rather than re-derived, because `finish` is called from a
+    `finally` where the request may already be gone.
+    """
 
     @property
     def deps(self) -> AgentDeps:
@@ -181,6 +280,8 @@ class AgentRunnerService:
         self.secrets = OrganizationSecretService(db)
         self.approvals = ApprovalService(db)
         self.organizations = OrganizationService(db)
+        self.workspaces = SandboxWorkspaceService(db)
+        self.proposals = SkillProposalService(db)
 
     async def _collection_names(self, spec: AgentSpec, ctx: AuthContext) -> list[str]:
         """Vector-store collection names for the agent's bound collections.
@@ -210,6 +311,7 @@ class AgentRunnerService:
         *,
         surface: RunSurface = RunSurface.PLAYGROUND,
         conversation_id: UUID | None = None,
+        channel_key: str | None = None,
         user_name: str | None = None,
         extra_toolsets: list[Any] | None = None,
         exposure: AgentExposure | None = None,
@@ -254,6 +356,7 @@ class AgentRunnerService:
             existing_run=None,
             surface=surface,
             conversation_id=conversation_id,
+            channel_key=channel_key,
             model_profile_id=model_profile_id,
             user_name=user_name,
             extra_toolsets=extra_toolsets,
@@ -272,6 +375,7 @@ class AgentRunnerService:
         existing_run: AgentRun | None,
         surface: RunSurface,
         conversation_id: UUID | None,
+        channel_key: str | None = None,
         user_name: str | None,
         extra_toolsets: list[Any] | None,
         exposure: AgentExposure | None,
@@ -310,7 +414,7 @@ class AgentRunnerService:
 
         # Everything a capability needs but must not fetch itself. Resolved once,
         # server-side, so the model cannot influence what an agent reaches.
-        resources = {
+        resources: dict[str, Any] = {
             "kb_collection_names": await self._collection_names(spec, ctx),
             "skills": await self.skills.resolve_for_agent(ctx, spec.skill_ids),
         }
@@ -364,6 +468,44 @@ class AgentRunnerService:
         async def org_period_spend() -> Decimal:
             return await self.monthly_spend(ctx)
 
+        # Opened after the run row, because a run-scoped workspace keys on it,
+        # and before the agent, because the capability reads the backend out of
+        # `resources`. Nothing starts here for a container-backed one: the
+        # client opens its session on the first tool call, so an agent granted a
+        # workspace it never touches costs nothing.
+        workspace = await self.workspaces.open(
+            spec,
+            ctx=ctx,
+            identity=WorkspaceIdentity(
+                organization_id=ctx.organization_id,
+                agent_id=agent.id,
+                run_id=run.id,
+                conversation_id=conversation_id,
+                user_id=None if ctx.user_id is None else str(ctx.user_id),
+                channel_key=channel_key,
+            ),
+            # What the binding that admitted this run says, if it says anything.
+            # The same agent in web chat and on a Slack bot is one agent in two
+            # situations, and one value for both was the wrong shape.
+            scope_override=(
+                cast("SessionScope | None", exposure.session_scope)
+                if exposure is not None and exposure.session_scope
+                else None
+            ),
+        )
+        materialised: MaterialisedSkills | None = None
+        started_with: set[str] | None = None
+        if workspace is not None:
+            resources[WORKSPACE_BACKEND_RESOURCE] = workspace.backend
+            # Skills as files, beside the shell that can run them. A skill whose
+            # resource is a script was previously handed to the model as text it
+            # could quote and not execute, while the same agent had `execute` one
+            # tool call away.
+            materialised = await materialise_skills(workspace.backend, resources["skills"])
+            # After the skills are written, so materialising them does not read as
+            # the turn's own output.
+            started_with = await workspace_snapshot(workspace.backend)
+
         channel = ApprovalChannel(
             approvals=self.approvals,
             organization_id=ctx.organization_id,
@@ -395,7 +537,62 @@ class AgentRunnerService:
             request_approval=channel,
         )
 
-        return PreparedRun(run=run, agent=agent, spec=spec, built=built, approvals=channel)
+        return PreparedRun(
+            run=run,
+            agent=agent,
+            spec=spec,
+            built=built,
+            approvals=channel,
+            workspace=workspace,
+            materialised_skills=materialised,
+            workspace_at_start=started_with,
+            ctx=ctx,
+        )
+
+    @staticmethod
+    async def _collect_outbound(prepared: PreparedRun) -> None:
+        """Read what the turn wrote, for a surface that can deliver it.
+
+        Read for every run rather than only for the channels that use it, because
+        the alternative is a flag threaded from three surfaces into `prepare` to
+        decide whether a glob happens - and a glob of a workspace the process is
+        already holding is cheaper than that plumbing. A surface with nowhere to
+        put a file simply ignores the list.
+        """
+        if prepared.workspace is None:
+            return
+        delivered = await files_written(prepared.workspace.backend, prepared.workspace_at_start)
+        prepared.outbound.extend(delivered.attachments)
+        prepared.outbound_refused.extend(delivered.refused)
+
+    async def _propose_skill_changes(self, prepared: PreparedRun) -> None:
+        """Record what this run wrote to its skills, as something a person decides.
+
+        Never raises. It is called from the same `finally` that records what the
+        run cost, so a failure here - a name taken since, a workspace that cannot
+        be listed - must not replace whatever actually happened to the run.
+
+        The change is not applied. A skill is instructions every agent bound to it
+        follows on every run, so an agent that could edit one directly could
+        rewrite what another agent does, inside a conversation nobody is
+        reviewing. `app/db/models/skill_proposal.py` has the rest of the
+        reasoning.
+        """
+        workspace = prepared.workspace
+        state = prepared.materialised_skills
+        if workspace is None or state is None or prepared.ctx is None:
+            return
+        try:
+            changes = await collect_changes(workspace.backend, state)
+            if changes:
+                await self.proposals.record(
+                    prepared.ctx,
+                    changes,
+                    agent_id=prepared.agent.id,
+                    conversation_id=prepared.run.conversation_id,
+                )
+        except Exception:
+            logger.exception("skill_proposal_record_failed", extra={"run_id": str(prepared.run.id)})
 
     async def finish(
         self,
@@ -422,6 +619,16 @@ class AgentRunnerService:
         error message - and it decides who gets mailed: an agent's cap is its
         author's to raise, the organization's is not.
         """
+        # Both before the workspace closes, because a run-scoped one is released
+        # by `close` and its files are gone afterwards.
+        await self._collect_outbound(prepared)
+        await self._propose_skill_changes(prepared)
+
+        # Before the run row is written, so a workspace flush that fails cannot
+        # leave the run un-finished, and after the run has certainly stopped
+        # using it. `close` never raises; it logs.
+        await self.workspaces.close(prepared.workspace)
+
         ledger = prepared.built.ledger
         finished = await agent_run_repo.finish_run(
             self.db,
@@ -508,9 +715,13 @@ class AgentRunnerService:
         *,
         surface: RunSurface = RunSurface.API,
         conversation_id: UUID | None = None,
+        channel_key: str | None = None,
         message_history: list[Any] | None = None,
         exposure: AgentExposure | None = None,
         environment_id: UUID | None = None,
+        attachments: list[ChatFile] | None = None,
+        outbound: list[OutgoingAttachment] | None = None,
+        outbound_refused: list[str] | None = None,
     ) -> tuple[str, AgentRun]:
         """Run an agent to completion and return its answer.
 
@@ -520,6 +731,19 @@ class AgentRunnerService:
         `environment_id` runs the version that environment pins - the API's way
         of exercising a dev environment before promoting it.
 
+        `attachments` are files that arrived with the message. They are routed
+        here rather than by the caller because where an attachment *goes* depends
+        on whether the agent has a workspace, and only `prepare` knows that - the
+        same reason the streaming path routes them after preparing rather than
+        before.
+
+        `outbound` and `outbound_refused` are filled with what the agent produced
+        and what a reply cannot carry. Lists the caller passes in rather than a
+        third return value: the workspace is closed before this returns - a
+        run-scoped one is released outright - so a caller cannot read it
+        afterwards, and every other caller of this method would have to unpack a
+        tuple it has no use for.
+
         An empty answer with the run in `awaiting_approval` means a tool call
         is parked; the caller shows the queue rather than an answer.
         """
@@ -528,15 +752,29 @@ class AgentRunnerService:
             agent_id,
             surface=surface,
             conversation_id=conversation_id,
+            channel_key=channel_key,
             exposure=exposure,
             environment_id=environment_id,
         )
-        return await self._run(
+        # `str | list[Any]`, not `str`: an attached image is folded in as
+        # `BinaryContent` beside the text, and narrowing that back to a string
+        # would hand the model a path where it should have been handed a picture.
+        assembled: str | list[Any] = prompt
+        if attachments:
+            assembled = await AttachmentRouter(
+                prepared.workspace.backend if prepared.workspace is not None else None
+            ).build_prompt(prompt, attachments)
+        answered = await self._run(
             prepared,
-            user_prompt=prompt,
+            user_prompt=assembled,
             message_history=message_history,
             deferred_tool_results=None,
         )
+        if outbound is not None:
+            outbound.extend(prepared.outbound)
+        if outbound_refused is not None:
+            outbound_refused.extend(prepared.outbound_refused)
+        return answered
 
     async def resume(self, ctx: AuthContext, run_id: UUID) -> tuple[str, AgentRun]:
         """Continue a parked run now that its tool calls have been decided.
@@ -704,7 +942,7 @@ class AgentRunnerService:
         self,
         prepared: PreparedRun,
         *,
-        user_prompt: str | None,
+        user_prompt: str | list[Any] | None,
         message_history: list[Any] | None,
         deferred_tool_results: DeferredToolResults | None,
     ) -> tuple[str, AgentRun]:

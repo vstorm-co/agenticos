@@ -5,6 +5,7 @@ import { FileText, Tag, Trash2 } from "lucide-react";
 import { Badge, Button, Card, CardContent } from "@/components/ui";
 import { categoryLabel } from "@/components/skills/category-input";
 import type { SkillSummary } from "@/types/providers";
+import { useTranslations } from "next-intl";
 
 interface SkillCardProps {
   skill: SkillSummary;
@@ -12,12 +13,6 @@ interface SkillCardProps {
   canEdit: boolean;
   onOpen: () => void;
   onDelete: () => void;
-}
-
-/** The file count in words, so a zero reads as an answer rather than a glitch. */
-function fileCount(count: number): string {
-  if (count === 0) return "No files";
-  return count === 1 ? "1 file" : `${count} files`;
 }
 
 /**
@@ -29,6 +24,7 @@ function fileCount(count: number): string {
  * unbadged, so the exceptions can be found at a glance.
  */
 export function SkillCard({ skill, canEdit, onOpen, onDelete }: SkillCardProps) {
+  const t = useTranslations("skills");
   return (
     <Card className="hover:border-foreground/20 h-full transition-colors">
       <CardContent className="flex items-start justify-between gap-3 p-5">
@@ -38,7 +34,7 @@ export function SkillCard({ skill, canEdit, onOpen, onDelete }: SkillCardProps) 
               {skill.name}
             </span>
             {skill.built_in && <Badge variant="secondary">built-in</Badge>}
-            {!skill.enabled && <Badge variant="outline">disabled</Badge>}
+            {!skill.enabled && <Badge variant="outline">{t("disabled")}</Badge>}
           </span>
           <span className="text-muted-foreground line-clamp-2 block text-sm">
             {skill.description}
@@ -46,7 +42,7 @@ export function SkillCard({ skill, canEdit, onOpen, onDelete }: SkillCardProps) 
           <span className="text-muted-foreground flex items-center gap-3 text-xs">
             <span className="flex items-center gap-1">
               <FileText className="h-3.5 w-3.5 shrink-0" />
-              {fileCount(skill.file_count)}
+              {t("fileCount", { count: skill.file_count })}
             </span>
             {skill.category !== null && (
               <span className="flex min-w-0 items-center gap-1">

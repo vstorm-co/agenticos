@@ -35,7 +35,22 @@ There is no `(marketing)` route group.
   in a component.
 - **Register query keys** in `query-keys.ts` so invalidation stays consistent.
 - **Stores hold UI/ephemeral state only.** Server data lives in the query layer.
-- **Every user-facing string through `next-intl`.** Never hardcode copy.
+- **Every user-facing string through `next-intl`**, and `make lint` enforces it:
+  `scripts/check_i18n.py` fails on a string a person would read sitting in a
+  component - a text node, a readable attribute, a toast, a sentence in a ternary -
+  and on the reverse, a key a component reads that `messages/en.json` does not hold.
+  A genuine non-string takes `i18n-exempt: <reason>`; the reason is required.
+- **A count is an ICU `plural`, never a ternary.** `{n} file{n === 1 ? "" : "s"}`
+  and `count === 1 ? "1 skill" : \`${count} skills\`` are sentences only English
+  builds that way, so they are refused too - the message holds
+  `{count, plural, =1 {1 skill} other {# skills}}` and the component passes `count`.
+  Same for a text node that mixes words with an interpolation (`Owned by {email}`):
+  it is one message with a named parameter, not English with a hole in it.
+- **English is the source language, and `pl.json` holds only what is translated.**
+  `src/i18n.ts` merges `en.json` underneath every locale, so a missing translation
+  renders English instead of the key. A module-level table of labels cannot call a
+  translator, so it holds *keys* and the component translates at the point of use;
+  a pure helper either answers with a key or takes `t`.
 - Keep components under ~100 lines; extract when they grow.
 - Do not hand-edit `src/lib/mcp-logos.generated.ts` — run `bun run gen:mcp-logos`.
 
@@ -55,7 +70,22 @@ network before the component, and never write a test that asserts only on chrome
 
 ## Verify
 
+From `frontend/` — at the repository root vitest finds no config and reports phantom
+failures. While writing, run only what covers the change:
+
 ```bash
-cd frontend
-bun run type-check && bun run lint && bun run test:run
+bunx vitest run src/components/chat/usage-strip.test.tsx
 ```
+
+Once, before the push:
+
+```bash
+bun run type-check && bun run lint && bun run test:coverage
+```
+
+**`test:coverage`, not `test:run`.** The job CI runs measures coverage and fails under
+100% lines/statements/functions or 97.5% branches on `src/{app/api,lib,stores,hooks}`
+and most of `src/components`, so a suite where every test passes can still be red. A
+dead branch is easier to delete than to cover: a `?? ""` behind a check that already
+proved the value, or an optional prop two callers always pass, is one the gate is
+right to notice.

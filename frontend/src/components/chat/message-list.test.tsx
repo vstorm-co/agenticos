@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MessageList } from "./message-list";
+import { MessageList, lastToolTurnIndex } from "./message-list";
 import type { ChatMessage } from "@/types";
 
 const state = vi.hoisted(() => ({
@@ -11,6 +11,7 @@ const state = vi.hoisted(() => ({
     agent?: string;
     groupPosition?: string;
     canRegenerate: boolean;
+    openLastStep: boolean;
   }[],
 }));
 
@@ -23,11 +24,13 @@ vi.mock("./message-item", () => ({
     message,
     agent,
     groupPosition,
+    openLastStep,
     onRegenerate,
   }: {
     message: ChatMessage;
     agent?: { name: string };
     groupPosition?: string;
+    openLastStep?: boolean;
     onRegenerate?: () => void;
   }) => {
     state.rendered.push({
@@ -35,6 +38,7 @@ vi.mock("./message-item", () => ({
       agent: agent?.name,
       groupPosition,
       canRegenerate: onRegenerate !== undefined,
+      openLastStep: openLastStep === true,
     });
     return (
       <div data-testid={`message-${message.id}`}>
@@ -59,6 +63,14 @@ function message(overrides: Partial<ChatMessage> = {}): ChatMessage {
 }
 
 const rendered = (id: string) => state.rendered.find((entry) => entry.id === id);
+
+const TOOL = {
+  id: "tc-1",
+  name: "write_file",
+  args: { path: "notes.md" },
+  status: "completed" as const,
+  result: "Wrote 1 lines",
+};
 
 beforeEach(() => {
   state.agents = [];
@@ -223,5 +235,66 @@ describe("the transcript", () => {
     expect(rendered("m-1")?.groupPosition).toBe("first");
     expect(rendered("m-2")?.groupPosition).toBe("single");
     expect(rendered("m-3")?.groupPosition).toBe("last");
+  });
+
+  it("opens the last step of the last turn that used a tool, not of the last turn", async () => {
+    // The case this got wrong: an agent writes a file and then answers about it in
+    // prose. Anchoring on "the newest assistant message" left the file it had just
+    // written folded away, which is the one thing somebody reopening the chat wants.
+    render(
+      <MessageList
+        messages={[
+          message({ id: "wrote", parts: [{ id: "p1", type: "tool", toolCall: TOOL }] }),
+          message({ id: "spoke", content: "Done — the file is there." }),
+        ]}
+      />,
+    );
+
+    expect(rendered("wrote")?.openLastStep).toBe(true);
+    expect(rendered("spoke")?.openLastStep).toBe(false);
+  });
+
+  it("opens nothing in a conversation where no turn used a tool", () => {
+    render(<MessageList messages={[message({ id: "a" }), message({ id: "b" })]} />);
+
+    expect(state.rendered.every((entry) => !entry.openLastStep)).toBe(true);
+  });
+});
+
+/**
+ * Which turn's work stays open.
+ *
+ * Its own function because the answer depends on the messages around a message, and
+ * the awkward cases are all off-screen: a tool turn followed by prose, a user message
+ * after both, and a transcript with no tool call in it at all.
+ */
+describe("the last turn that used a tool", () => {
+  it("finds the most recent one, past anything said after it", () => {
+    const messages = [
+      message({ id: "a", parts: [{ id: "p1", type: "tool", toolCall: TOOL }] }),
+      message({ id: "b", parts: [{ id: "p2", type: "tool", toolCall: TOOL }] }),
+      message({ id: "c", content: "prose" }),
+      message({ id: "d", role: "user", content: "thanks" }),
+    ];
+
+    expect(lastToolTurnIndex(messages)).toBe(1);
+  });
+
+  it("counts a legacy message that carries its calls beside its parts", () => {
+    // Messages written before parts existed keep them on `toolCalls`.
+    expect(lastToolTurnIndex([message({ id: "a", toolCalls: [TOOL] })])).toBe(0);
+  });
+
+  it("answers -1 when nothing used a tool", () => {
+    expect(lastToolTurnIndex([message({ id: "a" })])).toBe(-1);
+    expect(lastToolTurnIndex([])).toBe(-1);
+  });
+
+  it("never answers with a user message, whatever it carries", () => {
+    const messages = [
+      message({ id: "u", role: "user", parts: [{ id: "p", type: "tool", toolCall: TOOL }] }),
+    ];
+
+    expect(lastToolTurnIndex(messages)).toBe(-1);
   });
 });

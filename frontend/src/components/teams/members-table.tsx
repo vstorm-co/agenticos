@@ -21,6 +21,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Trash2 } from "lucide-react";
 import { useAssignableRoles } from "@/hooks";
 import type { OrganizationMember, OrgRole } from "@/types";
+import { useTranslations } from "next-intl";
 
 interface MembersTableProps {
   members: OrganizationMember[];
@@ -47,13 +48,14 @@ const roleBadgeVariant: Record<OrgRole, "default" | "secondary" | "outline"> = {
  * permission matrix that does answer it is a different page. One line each,
  * here, at the moment of the decision.
  */
+/** The catalog key for each role's one line; the words are in `messages/en.json`. */
 const roleBlurb: Record<OrgRole, string> = {
-  owner: "Everything, including billing and transferring the organization",
-  admin: "Everything except ownership - members, keys, budgets",
-  builder: "Builds and publishes agents, skills and collections",
-  operator: "Runs agents and decides approvals; does not change them",
-  member: "Uses what is shared with them",
-  viewer: "Reads only",
+  owner: "roleOwnerDetail",
+  admin: "roleAdminDetail",
+  builder: "roleBuilderDetail",
+  operator: "roleOperatorDetail",
+  member: "roleMemberDetail",
+  viewer: "roleViewerDetail",
 };
 
 export function MembersTable({
@@ -63,15 +65,16 @@ export function MembersTable({
   onRoleChange,
   onRemove,
 }: MembersTableProps) {
+  const t = useTranslations("teams");
   const assignable = useAssignableRoles();
 
   return (
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>Member</TableHead>
-          <TableHead>Role</TableHead>
-          <TableHead>Joined</TableHead>
+          <TableHead>{t("member")}</TableHead>
+          <TableHead>{t("role2")}</TableHead>
+          <TableHead>{t("joined")}</TableHead>
           {canManage && <TableHead className="w-12" />}
         </TableRow>
       </TableHeader>
@@ -91,7 +94,7 @@ export function MembersTable({
                   <div>
                     <p className="text-sm font-medium">{m.full_name ?? m.email}</p>
                     {m.full_name && <p className="text-muted-foreground text-xs">{m.email}</p>}
-                    {isSelf && <span className="text-muted-foreground text-xs">(you)</span>}
+                    {isSelf && <span className="text-muted-foreground text-xs">{t("you")}</span>}
                   </div>
                 </div>
               </TableCell>
@@ -109,7 +112,9 @@ export function MembersTable({
                         <SelectItem key={role} value={role}>
                           <span className="flex flex-col">
                             <span className="capitalize">{role}</span>
-                            <span className="text-muted-foreground text-xs">{roleBlurb[role]}</span>
+                            <span className="text-muted-foreground text-xs">
+                              {t(roleBlurb[role])}
+                            </span>
                           </span>
                         </SelectItem>
                       ))}

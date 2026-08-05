@@ -1,13 +1,11 @@
 "use client";
+import { useTranslations } from "next-intl";
 
 /** "market_data" -> "Market Data", "fire" -> "Fire". */
-export function formatSkillName(name: string): string {
-  return name
-    .split("_")
-    .filter(Boolean)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
-}
+// One implementation, in `lib/tool-steps.ts`, because the step label above a
+// `load_skill` call and the heading inside its result are the same words - and two
+// title-casers drift the first time one of them learns about an acronym.
+export { titleWords as formatSkillName } from "@/lib/tool-steps";
 
 /** Extract the description text from a `load_skill` XML result.
  *  The library returns <skill><name>…</name><description>…</description>…</skill>. */
@@ -19,10 +17,11 @@ export function parseLoadSkillResult(result: string): { description: string } | 
 
 /** Clean card for a loaded skill - just the description, no raw XML. */
 export function LoadSkillResult({ resultText, status }: { resultText: string; status: string }) {
+  const t = useTranslations("chat.tools");
   if (!resultText || status !== "completed") {
     return (
       <p className="text-muted-foreground py-2 text-xs italic">
-        {status === "error" ? "Failed to load skill." : "Loading…"}
+        {status === "error" ? t("failedToLoadSkill") : t("loading")}
       </p>
     );
   }

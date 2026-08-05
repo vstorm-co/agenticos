@@ -3,6 +3,7 @@ import { ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 
 export interface Crumb {
   label: string;
@@ -30,10 +31,11 @@ export function PageHeader({
   actions,
   className,
 }: PageHeaderProps) {
+  const t = useTranslations("dashboard");
   return (
     <div className={cn("mb-6 md:mb-8", className)}>
       {breadcrumbs && breadcrumbs.length > 0 && (
-        <nav aria-label="Breadcrumb" className="mb-3">
+        <nav aria-label={t("breadcrumb")} className="mb-3">
           <ol className="text-muted-foreground flex flex-wrap items-center gap-1.5 text-xs">
             {breadcrumbs.map((c, i) => {
               const last = i === breadcrumbs.length - 1;

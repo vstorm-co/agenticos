@@ -317,14 +317,24 @@ export function useConversations() {
     // selection to the first published agent as usual.
     const { defaultAgentId, select } = useAgentSelectionStore.getState();
     if (defaultAgentId) select(defaultAgentId);
-    // If current conversation is empty (no messages), just reuse it
+    // Reuse the conversation already open when it is empty, so a stray click does
+    // not leave an untitled row in the sidebar.
+    //
+    // **Empty means nothing on screen**, which is the chat store and not only the
+    // fetched list. A conversation created over the websocket never has its
+    // messages fetched - `conversation_created` sets the store's id and the `?id=`
+    // before `fetchConversations` reads them, so that fetch skips - and
+    // `currentMessages` therefore stays empty for a thread that has just answered.
+    // Judged on that list alone this reused it: the transcript was cleared while
+    // the id and the `?id=` survived, so the strip under the input went on
+    // reporting the previous turn's tokens and its workspace fill, the file panel
+    // stayed open on the old workspace, and the next message landed in the
+    // conversation the user thought they had left.
     const currentId = useConversationStore.getState().currentConversationId;
     if (currentId) {
-      const msgs = useConversationStore.getState().currentMessages;
-      if (msgs.length === 0) {
-        clearMessages();
-        return;
-      }
+      const fetched = useConversationStore.getState().currentMessages;
+      const onScreen = useChatStore.getState().messages;
+      if (fetched.length === 0 && onScreen.length === 0) return;
     }
     clearMessages();
     setCurrentMessages([]);

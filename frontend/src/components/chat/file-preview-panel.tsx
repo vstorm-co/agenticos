@@ -7,6 +7,7 @@ import { useFilePreviewStore } from "@/stores";
 import { getFileUrl } from "@/lib/file-api";
 import { cn } from "@/lib/utils";
 import { FileKindIcon, FilePreviewCard, extOf, previewKind } from "./file-preview-card";
+import { useTranslations } from "next-intl";
 
 const DEFAULT_WIDTH = 480;
 const MIN_WIDTH = 320;
@@ -19,6 +20,7 @@ const STORAGE_KEY = "filePreviewPanelWidth";
  * edge to resize, and the chosen width persists across sessions.
  */
 export function FilePreviewPanel() {
+  const t = useTranslations("chat");
   const file = useFilePreviewStore((s) => s.file);
   const close = useFilePreviewStore((s) => s.close);
 
@@ -73,17 +75,14 @@ export function FilePreviewPanel() {
     <aside
       className="border-foreground/10 bg-card relative flex h-full max-w-full shrink-0 flex-col border-l"
       style={{ width: `${width}px` }}
-      aria-label="File preview"
+      aria-label={t("filePreview")}
     >
       <div
         role="separator"
         aria-orientation="vertical"
-        aria-label="Resize file preview"
+        aria-label={t("resizeFilePreview")}
         onMouseDown={onMouseDown}
-        className={cn(
-          "group absolute top-0 left-0 z-20 h-full w-1.5 -translate-x-1/2 cursor-col-resize",
-          isDragging && "bg-foreground/20",
-        )}
+        className={cn(t("groupAbsoluteTop0"), isDragging && "bg-foreground/20")}
       >
         <div className="bg-foreground/0 group-hover:bg-foreground/15 absolute top-1/2 left-1/2 h-12 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full transition-colors" />
       </div>
@@ -105,14 +104,14 @@ export function FilePreviewPanel() {
           target="_blank"
           rel="noopener noreferrer"
           className="text-foreground/55 hover:bg-foreground/5 hover:text-foreground inline-flex h-7 w-7 items-center justify-center rounded-md transition-colors"
-          title="Open in new tab"
+          title={t("openNewTab")}
         >
           <ExternalLink className="h-3.5 w-3.5" />
         </a>
         <a
           href={downloadUrl}
           className="text-foreground/55 hover:bg-foreground/5 hover:text-foreground inline-flex h-7 w-7 items-center justify-center rounded-md transition-colors"
-          title="Download"
+          title={t("download2")}
         >
           <Download className="h-3.5 w-3.5" />
         </a>
@@ -120,8 +119,8 @@ export function FilePreviewPanel() {
           type="button"
           onClick={close}
           className="text-foreground/55 hover:bg-foreground/5 hover:text-foreground inline-flex h-7 w-7 items-center justify-center rounded-md transition-colors"
-          aria-label="Close preview"
-          title="Close"
+          aria-label={t("closePreview")}
+          title={t("close")}
         >
           <X className="h-4 w-4" />
         </button>

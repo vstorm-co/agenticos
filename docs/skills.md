@@ -62,6 +62,55 @@ A spec binds skills by id in `skill_ids`, so an agent sees the ones it was given
 and nothing else. Enabling the capability with no skills bound is not useful —
 give the agent skills, or leave the capability off.
 
+## In a workspace, a skill is also files
+
+An agent that has both skills and a
+[workspace](reference/capabilities.md#files--shell) gets each skill written into
+it as well:
+
+```
+/skills/<name>/SKILL.md      the body, with its name and description
+/skills/<name>/<resource>    each resource, beside it
+```
+
+This is what makes a skill's script useful. A skill whose resource is
+`reconcile.py` was previously handed to the model as text it could quote and not
+run, while the same agent had `execute` one tool call away. On disk, it runs.
+
+There is no `run_skill_script`. The sandbox's own `execute` already carries the
+workspace's permission rules and the operator's ceilings; a second way to run
+things would be a second set of rules to get wrong.
+
+## An agent can propose a change; a person makes it
+
+Those files are writable, and what the agent writes is **not** applied. A skill is
+instructions every agent bound to it follows on every run — an agent that could
+edit one directly could rewrite what another agent does, inside a conversation
+nobody is reviewing, and the next reader would have no way to tell a considered
+improvement from a hallucinated one.
+
+So a write becomes a proposal, and it appears above the list on the Skills page
+for anyone holding `skills:edit`:
+
+- **Apply** rewrites the skill and bumps its version, which reaches every bound
+  agent on its next run.
+- **Discard** keeps the record. An agent proposing the same edit repeatedly is
+  telling somebody something about the skill, and a deleted row makes that
+  invisible.
+
+A decision is final: applying twice would bump a version against a body already
+stored, and discarding something applied would tell a reader it never landed. The
+proposal carries the whole body rather than a diff, so a reviewer weeks later is
+comparing two complete versions instead of applying a patch somewhere it was never
+meant to go. A directory the agent created with no `SKILL.md` in it, and one whose
+frontmatter it mangled, are both refused rather than guessed at — and a *deleted*
+resource is deliberately not a change, because a file the model never touched and
+one it meant to delete leave the same absence.
+
+Three turns of one conversation refining the same skill leave one proposal, not
+three: a reviewer asked the same question three times has been given more work
+rather than more information.
+
 ## Getting skills into an organization
 
 **Write one.** Skills → New, in the UI. This is the normal path.
