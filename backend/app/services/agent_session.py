@@ -69,6 +69,14 @@ class AgentSession:
         self.current_conversation_id: str | None = None
         self._turn_task: asyncio.Task[None] | None = None
         self._ask_user_future: asyncio.Future[list[dict[str, Any]]] | None = None
+        # One question round on the wire at a time. The client renders a single
+        # `ask_user` form and its `ask_user_response` carries no correlation, and
+        # `_ask_user_future` is one slot - so two delegates asking at once (a
+        # fan-out of sync delegates, each reaching `ask_parent`) would otherwise
+        # have the second overwrite the first's future and strand it. The lock
+        # holds each round until its answer arrives, so questions queue rather
+        # than collide.
+        self._ask_lock = asyncio.Lock()
 
     async def handle_frame(self, data: dict[str, Any]) -> None:
         """Dispatch one incoming WebSocket frame.
@@ -318,15 +326,19 @@ class AgentSession:
         Emits an `ask_user` event with the whole batch, then awaits a future the
         frame dispatcher completes when the matching `ask_user_response` arrives.
         The client returns a list of answers parallel to the questions.
+
+        Held under `_ask_lock` so a second round - another delegate's question -
+        waits for this one's answer rather than overwriting its future.
         """
-        loop = asyncio.get_running_loop()
-        fut: asyncio.Future[list[dict[str, Any]]] = loop.create_future()
-        self._ask_user_future = fut
-        try:
-            await send_event(self.websocket, "ask_user", {"questions": questions})
-            return await fut
-        finally:
-            self._ask_user_future = None
+        async with self._ask_lock:
+            loop = asyncio.get_running_loop()
+            fut: asyncio.Future[list[dict[str, Any]]] = loop.create_future()
+            self._ask_user_future = fut
+            try:
+                await send_event(self.websocket, "ask_user", {"questions": questions})
+                return await fut
+            finally:
+                self._ask_user_future = None
 
     async def _subagent_event(self, event: SubagentEvent) -> None:
         """Forward one frame from inside a delegation, under the frame's own name.
