@@ -8,11 +8,12 @@ predicate pieces the access layer resolved rather than re-deriving them here.
 from collections.abc import Sequence
 from uuid import UUID
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
+from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.resource_grant import Visibility
 
 
@@ -150,6 +151,49 @@ async def list_environment_versions(db: AsyncSession) -> list[tuple[Agent, Agent
         .join(AgentVersion, AgentVersion.id == AgentEnvironment.version_id)
         .where(Agent.status == AgentStatus.PUBLISHED.value)
         .order_by(Agent.organization_id, Agent.slug)
+    )
+    return list(result.tuples().all())
+
+
+async def list_active_run_versions(db: AsyncSession) -> list[tuple[Agent, AgentVersion]]:
+    """Every version a non-terminal run still loads, each with its agent.
+
+    The third seed of the runnable set, beside :func:`list_current_versions` and
+    :func:`list_environment_versions`, and unscoped for the same reason: the
+    `audit-skill-bindings` sweep is deployment-wide. A run records the version it
+    executed in `agent_version_id`, and a run that has not ended still loads it: a
+    `running` run is executing it now, and an `awaiting_approval` run reloads it
+    when :meth:`AgentRunnerService.resume` continues it. The four terminal states -
+    `completed`, `failed`, `cancelled` and `budget_exceeded` - never load it again,
+    so there `agent_version_id` is only a historical record.
+    A parked run resumes only from stored `paused_state`; one without it can never
+    continue, so it is excluded rather than seeding a version no resume can reach.
+
+    Unlike the two companion seeds this does **not** filter to published agents.
+    `resume` re-assembles the parked version through `registry.get`, which checks
+    the agent exists and the caller may run it but not its status - so a run parked
+    before its agent was archived still resumes and still hands out that version's
+    skills. The join to `AgentVersion` drops a run whose version was deleted
+    (`agent_version_id` is `SET NULL`): there is then nothing left to reload.
+
+    A hot version with many live runs is returned once per run; the sweep
+    deduplicates by version id, exactly as it does for the default environment
+    appearing in both companion seeds.
+    """
+    result = await db.execute(
+        select(Agent, AgentVersion)
+        .select_from(AgentRun)
+        .join(AgentVersion, AgentVersion.id == AgentRun.agent_version_id)
+        .join(Agent, Agent.id == AgentVersion.agent_id)
+        .where(
+            or_(
+                AgentRun.status == RunStatus.RUNNING.value,
+                and_(
+                    AgentRun.status == RunStatus.AWAITING_APPROVAL.value,
+                    AgentRun.paused_state.isnot(None),
+                ),
+            )
+        )
     )
     return list(result.tuples().all())
 

@@ -217,9 +217,11 @@ uv run agenticos cmd doctor
 # publish-time check on skill_ids only guards new publishes; this is the offline
 # half, naming versions frozen before it that still hand a private skill to a run.
 # It sweeps every version a run can load, not only the current one: each named
-# environment's pinned version and each delegate a spec pins, not just the default
-# pointer. Report-only - a spec is exported into a client's own git, so unbinding
-# is a person's call. Exits non-zero when it finds one, so a cron can gate on it.
+# environment's pinned version, each version a non-terminal run (running, or parked
+# awaiting approval) still reloads, and each delegate a spec pins - the last only as
+# deep as max_depth lets a run reach, so a grandchild past the ceiling is not flagged.
+# Report-only - a spec is exported into a client's own git, so unbinding is a person's
+# call. Exits non-zero when it finds one, so a cron can gate on it.
 uv run agenticos cmd audit-skill-bindings
 
 # Install the bundled skills (refund-policy, code-review, incident-report)

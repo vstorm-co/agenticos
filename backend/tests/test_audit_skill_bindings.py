@@ -319,18 +319,76 @@ class TestFindingsFor:
         emails.assert_not_awaited()
 
 
+def _pins(*refs: tuple[uuid.UUID, uuid.UUID], max_depth: int = 1, enabled: bool = True) -> dict:
+    """A delegating spec that pins each `(agent_id, version_id)` given.
+
+    The delegation *binding* is what makes a pin followable: the runner reads pins
+    only when it is switched on, so a spec that just carried `subagents` with no
+    enabled binding delegates to nothing.
+    """
+    return {
+        "name": "Boss",
+        "subagents": [{"agent_id": str(a), "agent_version_id": str(v)} for a, v in refs],
+        "capabilities": [
+            {"id": "subagents", "enabled": enabled, "config": {"max_depth": max_depth}}
+        ],
+    }
+
+
 class TestExecutableVersions:
-    def _pair(self, spec: dict | None = None, *, status: str = AgentStatus.PUBLISHED.value):
+    ORG = uuid.uuid4()
+
+    def _pair(
+        self,
+        spec: dict | None = None,
+        *,
+        status: str = AgentStatus.PUBLISHED.value,
+        org: uuid.UUID | None = None,
+        agent_id: uuid.UUID | None = None,
+    ):
+        org = org or self.ORG
         agent = SimpleNamespace(
-            organization_id=uuid.uuid4(), slug=uuid.uuid4().hex[:6], name="A", status=status
+            id=agent_id or uuid.uuid4(),
+            organization_id=org,
+            slug=uuid.uuid4().hex[:6],
+            name="A",
+            status=status,
         )
         version = SimpleNamespace(
             id=uuid.uuid4(),
+            organization_id=org,
             version=1,
             published_by_user_id=uuid.uuid4(),
             spec=spec or {"name": "A"},
         )
         return agent, version
+
+    async def _run(self, *, current=(), environment=(), active=(), pairs=()):
+        by_version = {v.id: (a, v) for a, v in pairs}
+
+        async def resolve(_db, ids):
+            return [by_version[i] for i in ids if i in by_version]
+
+        with (
+            patch.object(
+                sweep.agent_repo, "list_current_versions", new=AsyncMock(return_value=list(current))
+            ),
+            patch.object(
+                sweep.agent_repo,
+                "list_environment_versions",
+                new=AsyncMock(return_value=list(environment)),
+            ),
+            patch.object(
+                sweep.agent_repo,
+                "list_active_run_versions",
+                new=AsyncMock(return_value=list(active)),
+            ),
+            patch.object(
+                sweep.agent_repo, "get_versions_with_agents", new=AsyncMock(side_effect=resolve)
+            ),
+        ):
+            found = await sweep._executable_versions(MagicMock())
+        return {v.id for _, v in found}
 
     @pytest.mark.anyio
     async def test_it_unions_current_and_named_environment_pins_without_duplicates(self):
@@ -338,83 +396,71 @@ class TestExecutableVersions:
         seeds - it must be counted once."""
         current = self._pair()
         named = self._pair()
-        with (
-            patch.object(
-                sweep.agent_repo,
-                "list_current_versions",
-                new=AsyncMock(return_value=[current]),
-            ),
-            patch.object(
-                sweep.agent_repo,
-                "list_environment_versions",
-                new=AsyncMock(return_value=[current, named]),
-            ),
-            patch.object(
-                sweep.agent_repo, "get_versions_with_agents", new=AsyncMock(return_value=[])
-            ),
-        ):
-            found = await sweep._executable_versions(MagicMock())
-        assert sorted(v.id for _, v in found) == sorted({current[1].id, named[1].id})
+        found = await self._run(current=[current], environment=[current, named])
+        assert found == {current[1].id, named[1].id}
 
     @pytest.mark.anyio
-    async def test_it_follows_a_pinned_delegate_version_a_named_environment_reaches(self):
-        """The delegate version is reachable only through the parent's pin, not
-        through any environment of its own."""
+    async def test_a_version_only_a_live_run_holds_is_seeded(self):
+        """A run still executing or parked reloads its version even when nothing
+        current or environment-pinned points to it any more."""
+        parked = self._pair()
+        found = await self._run(active=[parked])
+        assert parked[1].id in found
+
+    @pytest.mark.anyio
+    async def test_it_follows_a_pinned_delegate_version(self):
+        """A delegate version is reachable only through the parent's pin. Its own
+        spec binds no further delegate, so the closure stops at it."""
         delegate = self._pair()
-        parent = self._pair(
-            {
-                "name": "Parent",
-                "subagents": [
-                    {"agent_id": str(uuid.uuid4()), "agent_version_id": str(delegate[1].id)}
-                ],
-            }
-        )
-        with (
-            patch.object(
-                sweep.agent_repo, "list_current_versions", new=AsyncMock(return_value=[parent])
-            ),
-            patch.object(
-                sweep.agent_repo, "list_environment_versions", new=AsyncMock(return_value=[])
-            ),
-            patch.object(
-                sweep.agent_repo,
-                "get_versions_with_agents",
-                new=AsyncMock(side_effect=[[delegate], []]),
-            ),
-        ):
-            found = await sweep._executable_versions(MagicMock())
-        assert delegate[1].id in {v.id for _, v in found}
+        parent = self._pair(_pins((delegate[0].id, delegate[1].id), max_depth=2))
+        found = await self._run(current=[parent], pairs=[delegate])
+        assert delegate[1].id in found
 
     @pytest.mark.anyio
-    async def test_a_pin_to_an_already_seen_version_does_not_loop(self):
-        """A pins B and B pins A: the closure must terminate, each seen once."""
+    async def test_a_grandchild_beyond_the_depth_ceiling_is_not_reached(self):
+        """root `max_depth=1`: its direct delegate is inspected, but that
+        delegate's own pinned grandchild is not - the runner builds the delegate
+        without delegation at the ceiling, so no run loads the grandchild."""
+        grandchild = self._pair()
+        child = self._pair(_pins((grandchild[0].id, grandchild[1].id), max_depth=2))
+        root = self._pair(_pins((child[0].id, child[1].id), max_depth=1))
+        found = await self._run(current=[root], pairs=[child, grandchild])
+        assert child[1].id in found
+        assert grandchild[1].id not in found
+
+    @pytest.mark.anyio
+    async def test_a_grandchild_within_the_depth_ceiling_is_reached(self):
+        """root `max_depth=2`: one nested level is allowed, so the grandchild the
+        delegate pins is loaded and must be inspected."""
+        grandchild = self._pair()
+        child = self._pair(_pins((grandchild[0].id, grandchild[1].id), max_depth=2))
+        root = self._pair(_pins((child[0].id, child[1].id), max_depth=2))
+        found = await self._run(current=[root], pairs=[child, grandchild])
+        assert grandchild[1].id in found
+
+    @pytest.mark.anyio
+    async def test_a_delegates_own_ceiling_caps_the_budget_it_passes_down(self):
+        """A caller cannot buy a delegate more nesting than its author allowed:
+        root `max_depth=3` reaches the child and its grandchild, but the child's
+        own `max_depth=1` stops the tree there - the great-grandchild is out."""
+        great = self._pair()
+        grandchild = self._pair(_pins((great[0].id, great[1].id), max_depth=2))
+        child = self._pair(_pins((grandchild[0].id, grandchild[1].id), max_depth=1))
+        root = self._pair(_pins((child[0].id, child[1].id), max_depth=3))
+        found = await self._run(current=[root], pairs=[child, grandchild, great])
+        assert grandchild[1].id in found
+        assert great[1].id not in found
+
+    @pytest.mark.anyio
+    async def test_a_cycle_terminates_and_each_version_is_seen_once(self):
+        """A pins B and B pins A, both at a depth that would recurse forever: the
+        closure must terminate, each version expanded only at its deepest budget."""
         a = self._pair()
         b = self._pair()
-        a[1].spec = {
-            "name": "A",
-            "subagents": [{"agent_id": str(uuid.uuid4()), "agent_version_id": str(b[1].id)}],
-        }
-        b[1].spec = {
-            "name": "B",
-            "subagents": [{"agent_id": str(uuid.uuid4()), "agent_version_id": str(a[1].id)}],
-        }
-
-        async def _resolve(_db, ids):
-            return [b] if b[1].id in ids else [a] if a[1].id in ids else []
-
-        with (
-            patch.object(
-                sweep.agent_repo, "list_current_versions", new=AsyncMock(return_value=[a])
-            ),
-            patch.object(
-                sweep.agent_repo, "list_environment_versions", new=AsyncMock(return_value=[])
-            ),
-            patch.object(
-                sweep.agent_repo, "get_versions_with_agents", new=AsyncMock(side_effect=_resolve)
-            ),
-        ):
-            found = await sweep._executable_versions(MagicMock())
-        assert sorted(v.id for _, v in found) == sorted({a[1].id, b[1].id})
+        a[1].spec = _pins((b[0].id, b[1].id), max_depth=3)
+        b[1].spec = _pins((a[0].id, a[1].id), max_depth=3)
+        found = await self._run(current=[a], pairs=[a, b])
+        assert found == {a[1].id, b[1].id}
 
     @pytest.mark.anyio
     async def test_a_pin_to_an_archived_delegate_is_dropped(self):
@@ -422,29 +468,38 @@ class TestExecutableVersions:
         version can no longer load through the pin - flagging it would report a
         binding no run can reach."""
         delegate = self._pair(status=AgentStatus.ARCHIVED.value)
-        parent = self._pair(
-            {
-                "name": "Parent",
-                "subagents": [
-                    {"agent_id": str(uuid.uuid4()), "agent_version_id": str(delegate[1].id)}
-                ],
-            }
-        )
-        with (
-            patch.object(
-                sweep.agent_repo, "list_current_versions", new=AsyncMock(return_value=[parent])
-            ),
-            patch.object(
-                sweep.agent_repo, "list_environment_versions", new=AsyncMock(return_value=[])
-            ),
-            patch.object(
-                sweep.agent_repo,
-                "get_versions_with_agents",
-                new=AsyncMock(return_value=[delegate]),
-            ),
-        ):
-            found = await sweep._executable_versions(MagicMock())
-        assert delegate[1].id not in {v.id for _, v in found}
+        parent = self._pair(_pins((delegate[0].id, delegate[1].id)))
+        found = await self._run(current=[parent], pairs=[delegate])
+        assert delegate[1].id not in found
+
+    @pytest.mark.anyio
+    async def test_a_pin_to_a_version_of_a_different_agent_is_dropped(self):
+        """The pin names one agent but the version belongs to another; the runner
+        refuses it (`version.agent_id != ref.agent_id`), so the sweep must too."""
+        delegate = self._pair()
+        parent = self._pair(_pins((uuid.uuid4(), delegate[1].id)))
+        found = await self._run(current=[parent], pairs=[delegate])
+        assert delegate[1].id not in found
+
+    @pytest.mark.anyio
+    async def test_a_pin_across_organizations_is_dropped(self):
+        """The runner resolves every delegate in the run's own tenant, so a pin to
+        another organization's version resolves to nothing and never loads."""
+        delegate = self._pair(org=uuid.uuid4())
+        parent = self._pair(_pins((delegate[0].id, delegate[1].id)))
+        found = await self._run(current=[parent], pairs=[delegate])
+        assert delegate[1].id not in found
+
+    @pytest.mark.anyio
+    async def test_a_disabled_delegation_binding_follows_no_pins(self):
+        """Pins frozen in a spec whose delegation binding is switched off are not
+        followed: the runner builds the agent without the capability, so no run
+        reaches the delegate."""
+        delegate = self._pair()
+        parent = self._pair(_pins((delegate[0].id, delegate[1].id), enabled=False))
+        found = await self._run(current=[parent], pairs=[delegate])
+        assert parent[1].id in found
+        assert delegate[1].id not in found
 
 
 class TestScan:

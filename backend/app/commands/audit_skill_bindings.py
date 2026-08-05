@@ -15,9 +15,11 @@ anybody gets is that the *next* publish of that agent is refused. This sweep is
 the offline half: it names those versions so an operator can decide what to do.
 
 It scans every version a run can load, not only `current_version_id`: a named
-environment can stay pinned to an older version while the default moves on, and
-a parent can pin a delegate version by id - both execute, so both are checked.
-See :func:`_executable_versions`.
+environment can stay pinned to an older version while the default moves on, a
+non-terminal run reloads the exact version it was executing, and a parent can pin
+a delegate version by id - each executes, so each is checked, and a pin is
+followed only as deep as `max_depth` lets a run reach. See
+:func:`_executable_versions`.
 It is report-only on purpose. A spec is what a client exports into their own git
 repository, so silently unbinding a skill would rewrite something outside this
 deployment; the decision stays with a person.
@@ -97,23 +99,38 @@ class Finding:
     status: BindingStatus
 
 
+def _delegation_config(spec: AgentSpec) -> SubagentsConfig | None:
+    """This spec's delegation policy, or `None` if it does not delegate.
+
+    Mirrors the runtime's `_delegation_config`: an agent delegates only through a
+    delegation binding that is *switched on*, so an absent or disabled one carries
+    no specialists, no pins and no depth cap - and the runner then follows nothing.
+    Unlike the runtime's, the config is parsed defensively rather than assumed
+    valid: this sweep reads frozen specs from before publish validation covered
+    them, and one whose config does not parse as `SubagentsConfig` could not build
+    the capability, so it too delegates to nothing rather than being guessed at.
+    """
+    binding = delegation_binding(spec)
+    if binding is None:
+        return None
+    try:
+        return SubagentsConfig.model_validate(binding.config)
+    except ValidationError:
+        return None
+
+
 def _bindings(spec: AgentSpec) -> list[SkillBinding]:
     """Every skill this spec binds - its own, and each inline specialist's.
 
     A delegating agent carries specialists inside its delegation capability, and
     each specialist has its own `skill_ids` that publish validates through the
-    same `_skill_problems`. A config that does not parse as `SubagentsConfig` is
-    skipped rather than guessed at: the capability would not build from it, so
-    those specialists never run and can lend nothing - the same reason
-    `_delegate_problems` stops there.
+    same `_skill_problems`. An agent that does not delegate - see
+    :func:`_delegation_config` - has no specialists, so only its own `skill_ids`
+    are returned.
     """
     bindings = [SkillBinding(skill_id=skill_id, specialist=None) for skill_id in spec.skill_ids]
-    binding = delegation_binding(spec)
-    if binding is not None:
-        try:
-            config = SubagentsConfig.model_validate(binding.config)
-        except ValidationError:
-            return bindings
+    config = _delegation_config(spec)
+    if config is not None:
         for specialist in config.inline:
             bindings.extend(
                 SkillBinding(skill_id=skill_id, specialist=specialist.name)
@@ -239,52 +256,109 @@ async def _with_publisher_email(
 async def _executable_versions(db: AsyncSession) -> list[tuple[Agent, AgentVersion]]:
     """Every version a run can load, each with its agent, deduplicated.
 
-    Three ways a frozen version reaches a run, and only the first is
+    Four ways a frozen version reaches a run, and only the first is
     `current_version_id`:
 
     - the default environment, which is `current_version_id`;
     - any named environment, which can stay pinned to an older version while the
       default moves on;
+    - a non-terminal run - one still `running`, or `awaiting_approval` and
+      resumable - which reloads the exact version it was executing, whatever is
+      current now (`list_active_run_versions`);
     - a `SubagentRef` in an executing spec, which pins a delegate version by id
       and is followed by the caller - transitively, since that delegate's own
       spec can pin further.
 
     A sweep that looked only at the current version would report a production
-    environment pinned to an unsafe v1 as clean, and miss a parent still
-    delegating to a delegate's unsafe pinned version. So the environments seed the
-    set and the pins close it, id by id, until nothing new is reached.
+    environment pinned to an unsafe v1 as clean, miss a parked run that will
+    resume on one, and miss a parent still delegating to a delegate's unsafe
+    pinned version. So those three seed the set and the pins close it, id by id,
+    until nothing new is reached.
 
-    A delegate whose agent has since been archived is dropped, because the runner
-    refuses to delegate to an archived agent (`_resolve_delegate` in
-    `agent_runner.py`): its pinned version can no longer load through that pin, so
-    reporting it would be flagging a binding no run can reach. The seeds cannot be
-    archived - both queries filter to published agents - so the check is only ever
-    needed on the delegates the closure reaches.
+    **The closure follows a pin no further than a run would.** Delegation is
+    bounded by `max_depth`, so following pins to unlimited depth would inspect -
+    and could flag - a grandchild the runner never loads, exposing a binding no
+    run can reach. Each pin therefore carries a *budget*, the depth still left
+    below it, mirroring `_resolve_delegate` in `agent_runner.py`: a seed follows
+    its pins at `max_depth - 1`, a delegate reached with budget `b` is inspected
+    but follows its own pins only when `b > 0` and then at
+    `min(b - 1, its own max_depth - 1)` - the lower of what the tree has left and
+    what the delegate's author allowed. A delegate reached by two paths is
+    followed as deep as the *deepest* path allows, so `followed` records the
+    greatest budget each version has already been expanded with and re-expands one
+    reached deeper. Reading a version's `max_depth` runs through
+    :func:`_delegation_config`, so a version whose delegation binding is absent,
+    disabled or unparsable follows no pins at all - exactly as the runner builds
+    it without the capability.
+
+    A pin is dropped, before its depth is even considered, whenever the runner
+    would refuse it: to a version of a *different* agent than the pin names, to
+    another organization's version, or to an *archived* agent - the three refusals
+    `_resolve_delegate` raises. A run cannot load through such a pin, so flagging
+    what it reaches would be reporting a binding no run can reach. The seeds
+    themselves are trusted: the two published-agent seeds cannot be archived, and a
+    parked run's own version is one a resume loads directly rather than through a
+    pin.
     """
     seen: dict[UUID, tuple[Agent, AgentVersion]] = {}
-    frontier: list[AgentVersion] = []
+    specs: dict[UUID, AgentSpec] = {}
+    # version id -> greatest pin-following budget it has already been expanded
+    # with, so a delegate reached again by a deeper path is followed further while
+    # one reached no deeper is not re-walked - which is also what terminates a
+    # cycle (A pins B, B pins A).
+    followed: dict[UUID, int] = {}
+    # (version, budget): the depth still left for following *this* version's pins.
+    frontier: list[tuple[AgentVersion, int]] = []
+
+    def _remember(agent: Agent, version: AgentVersion) -> AgentSpec:
+        """Record a version as executable and return its parsed spec, once."""
+        seen.setdefault(version.id, (agent, version))
+        spec = specs.get(version.id)
+        if spec is None:
+            spec = AgentSpec.model_validate(version.spec)
+            specs[version.id] = spec
+        return spec
+
     seeds = [
         *await agent_repo.list_current_versions(db),
         *await agent_repo.list_environment_versions(db),
+        *await agent_repo.list_active_run_versions(db),
     ]
     for agent, version in seeds:
-        if version.id not in seen:
-            seen[version.id] = (agent, version)
-            frontier.append(version)
+        config = _delegation_config(_remember(agent, version))
+        if config is not None:
+            # A seed is the root of its own tree: its pins are followed at its own
+            # ceiling, exactly as `_subagent_runtime` starts the runner at
+            # `max_depth - 1`.
+            frontier.append((version, config.max_depth - 1))
 
     while frontier:
-        version = frontier.pop()
-        spec = AgentSpec.model_validate(version.spec)
-        pin_ids = [ref.agent_version_id for ref in spec.subagents]
-        for agent, pinned in await agent_repo.get_versions_with_agents(db, pin_ids):
+        version, budget = frontier.pop()
+        if followed.get(version.id, -1) >= budget:
+            continue
+        followed[version.id] = budget
+        refs = {ref.agent_version_id: ref for ref in specs[version.id].subagents}
+        for agent, pinned in await agent_repo.get_versions_with_agents(db, list(refs)):
+            ref = refs[pinned.id]
+            if agent.id != ref.agent_id:
+                # The pin names one agent but this version belongs to another;
+                # `_resolve_delegate` refuses it (`version.agent_id != ref.agent_id`).
+                continue
+            if pinned.organization_id != version.organization_id:
+                # A pin across organizations: the runner resolves every delegate in
+                # the run's own tenant and finds nothing, so it too never loads.
+                continue
             if agent.status == AgentStatus.ARCHIVED.value:
                 continue
-            # A cycle (A pins B, B pins A) or two parents pinning one delegate
-            # reach the same version twice; the first sighting wins and the rest
-            # are skipped here, which is what makes the closure terminate.
-            if pinned.id not in seen:
-                seen[pinned.id] = (agent, pinned)
-                frontier.append(pinned)
+            pinned_spec = _remember(agent, pinned)
+            if budget <= 0:
+                # The edge to this delegate had no budget left, so the runner built
+                # it without delegation: it is inspected, but its pins are not
+                # followed - the grandchild the ceiling exists to keep out.
+                continue
+            pinned_config = _delegation_config(pinned_spec)
+            if pinned_config is not None:
+                frontier.append((pinned, min(budget - 1, pinned_config.max_depth - 1)))
 
     return list(seen.values())
 
