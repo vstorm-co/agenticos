@@ -62,7 +62,7 @@ from subagents_pydantic_ai.prompts import SEND_MESSAGE_TO_SUBAGENT_DESCRIPTION
 from subagents_pydantic_ai.registry import DynamicAgentRegistry
 
 from app.agents.capabilities._registry import CapabilityToolInfo
-from app.agents.capabilities.subagents._journal import DelegationJournal
+from app.agents.capabilities.subagents._journal import DelegationJournal, enclosing_tool_call_id
 from app.agents.capabilities.subagents._toolset import DelegatingToolset
 from app.agents.deps import AgentDeps
 from app.agents.factory import DEFAULT_MAX_STEPS
@@ -699,8 +699,10 @@ class Delegation(WrapperCapability[AgentDeps]):
         approval carries them into `PausedRunState` and finds them again on the
         replay - the library's registry is per built agent and a resume builds a
         fresh one, which is what lost a specialist across a park until now
-        (agenticos#175). A no-op unless this is the run's own agent and it may
-        invent one; see `DelegationJournal.record_created_specialists`.
+        (agenticos#175, agenticos#254). This runs at every level: a nested delegate's
+        wrap_run executes inside its enclosing `delegating` block, so its snapshot is
+        keyed by that block's `task` call and rides on its own frame. A no-op unless
+        this level may invent one; see `DelegationJournal.record_created_specialists`.
         """
         try:
             return await super().wrap_run(ctx, handler=handler)
@@ -753,15 +755,18 @@ def build_delegation(
     dynamic = runtime.dynamic
     # The registry `create_agent` writes into, owned here rather than left to the
     # library so this platform can read it back when the run ends and seed it when a
-    # run resumes. A resume fills `stash.to_register`; only the run's own agent's
-    # registry is seeded from it - a nested delegate has its own registry and its
-    # own `create_agent`, and a flat list of the run's specialists is not its to
-    # replay. `None` when the agent may not invent one, and then the library needs no
-    # registry either.
+    # run resumes. A resume fills `stash.to_register`, keyed by the `task` call each
+    # level was delegated from: `None` for the run's own agent, the enclosing call for
+    # a nested delegate - which is the current delegation here, because a nested level
+    # is built from inside its enclosing `delegating` block. Each level seeds only its
+    # own key, so a nested delegate rebuilds its own specialists rather than the run's
+    # own agent's (agenticos#254). `None` when the agent may not invent one, and then
+    # the library needs no registry either.
+    key = None if depth == 0 else enclosing_tool_call_id()
     registry = (
         None
         if dynamic is None
-        else _seeded_registry(dynamic, journal, runtime.stash.to_register if depth == 0 else [])
+        else _seeded_registry(dynamic, journal, runtime.stash.specialists_to_register(key))
     )
     capability = SubAgentCapability(
         subagents=[_config_for(delegate, journal) for delegate in runtime.subagents],

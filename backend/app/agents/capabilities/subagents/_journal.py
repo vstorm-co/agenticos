@@ -208,6 +208,20 @@ def acting_delegate() -> ActingDelegate | None:
     )
 
 
+def enclosing_tool_call_id() -> str | None:
+    """The `task` call the delegation now executing was made from, or `None` at the top.
+
+    This is the key a level's kept specialists ride on across a park - the same key
+    its conversation, spend and start already use. A nested delegate is built and its
+    run wrapped from *inside* the enclosing `delegating` block, so the enclosing
+    delegation is the current one at both the moment its registry is seeded
+    (`build_delegation`) and the moment it is snapshotted (`record_created_specialists`).
+    `None` is the run's own agent, delegated from nowhere and keyed as such.
+    """
+    delegation = _CURRENT.get()
+    return None if delegation is None else delegation.tool_call_id
+
+
 @dataclass
 class Delegation:
     """One delegation, from the tool call that opened it to the outcome recorded for it.
@@ -373,7 +387,8 @@ class DelegationJournal:
     creates the registry, hands it to the library capability so `create_agent`
     writes into the one this journal can read, and assigns it here. That is what
     lets :meth:`record_created_specialists` snapshot it when the run ends, so a
-    kept specialist survives an approval park (agenticos#175).
+    kept specialist survives an approval park - at the run's own agent (agenticos#175)
+    and at a nested delegate (agenticos#254) alike.
     """
 
     _running: int = field(default=0, init=False)
@@ -556,27 +571,34 @@ class DelegationJournal:
         )
 
     def record_created_specialists(self) -> None:
-        """Snapshot the kept specialists into the stash, so an approval park keeps them.
+        """Snapshot this level's kept specialists into the stash, so an approval park keeps them.
 
-        Called from `wrap_run` on the way out of the run's own agent, and a no-op
-        otherwise: a nested delegate (`depth != 0`), or an agent that may not invent
-        one at all (`registry is None`, no `create_agent` offered). The library holds
-        each `create_agent` registration in a registry it builds per *built* agent, so
-        a resume - a fresh build - starts with an empty one; writing what the registry
-        holds now into the stash is what lets the runner carry it into
-        `PausedRunState` and re-register it on the replay. See
+        Called from `wrap_run` on the way out of *every* level that may invent one,
+        and a no-op for an agent that may not (`registry is None`, no `create_agent`
+        offered). The library holds each `create_agent` registration in a registry it
+        builds per *built* agent, so a resume - a fresh build - starts with an empty
+        one; writing what the registry holds now into the stash is what lets the runner
+        carry it into `PausedRunState` and re-register it on the replay. See
         :func:`~app.agents.capabilities.subagents._capability.build_delegation`.
+
+        Keyed by the `task` call this level was delegated from - `None` for the run's
+        own agent, a nested level's enclosing call otherwise, read off the current
+        delegation, which is still the enclosing one here because a nested run is
+        wrapped from inside the enclosing `delegating` block. That is the same key the
+        level's conversation, spend and start already ride on, and it is what lets a
+        nested delegate's kept specialists hang off its own `DelegationFrame` rather
+        than being lost with the run's own agent's flat list (agenticos#254).
 
         The whole registry, not this turn's new registrations only: a resume seeds the
         registry *before* the replay, so what it holds at the end is the seeded ones
         plus any the model added this turn, which is exactly what a second park must
-        keep. Assigned rather than appended, because the stash is built fresh each turn
-        and this is its one writer - a run that ends without parking simply throws the
-        snapshot away with the stash.
+        keep. One writer per key, and the stash is built fresh each turn - a run that
+        ends without parking simply throws the snapshot away with the stash.
         """
-        if self.registry is None or self.depth != 0:
+        if self.registry is None:
             return
-        self.runtime.stash.registered[:] = [
+        key = None if self.depth == 0 else enclosing_tool_call_id()
+        self.runtime.stash.registered[key] = [
             RegisteredSpecialist(
                 name=config["name"],
                 description=config["description"],
