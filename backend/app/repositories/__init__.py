@@ -27,6 +27,9 @@ from app.repositories import agent_embed as agent_embed_repo
 from app.repositories import agent_environment as agent_environment_repo
 from app.repositories import agent_exposure as agent_exposure_repo
 from app.repositories import agent_run as agent_run_repo
+from app.repositories import agent_workspace as agent_workspace_repo
+from app.repositories import sandbox_connection as sandbox_connection_repo
+from app.repositories import skill_proposal as skill_proposal_repo
 from app.repositories import audit_log as audit_log_repo
 from app.repositories import ingestion_spend as ingestion_spend_repo
 from app.repositories import credential as credential_repo
@@ -70,6 +73,9 @@ __all__ = [
     "agent_exposure_repo",
     "agent_embed_repo",
     "agent_run_repo",
+    "agent_workspace_repo",
+    "sandbox_connection_repo",
+    "skill_proposal_repo",
     "ingestion_spend_repo",
     "skill_repo",
 ]

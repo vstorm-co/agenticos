@@ -3,7 +3,11 @@
 import { useState } from "react";
 import { Check } from "lucide-react";
 
-import { modelIdIsWellFormed, modelPlaceholder } from "@/components/agents/add-model";
+import {
+  modelIdIsWellFormed,
+  modelPlaceholder,
+  placeholderWords,
+} from "@/components/agents/add-model";
 import { ProviderIcon } from "@/components/vault/provider-icon";
 import {
   Button,
@@ -15,8 +19,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
+import { InlineSecret } from "@/components/vault/inline-secret";
 import { useModelProviders, useProviderModels, useSecretPurposes, useSecrets } from "@/hooks";
 import { getErrorMessage } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 
 interface ChatModelPickerProps {
   /** The model profile this conversation runs on, or null for the agent's own. */
@@ -36,6 +42,7 @@ interface ChatModelPickerProps {
  * answer, and the refusal says so here rather than after the first message.
  */
 export function ChatModelPicker({ value, onChange }: ChatModelPickerProps) {
+  const t = useTranslations("chat.modelPicker");
   const { profiles, createProfile } = useModelProviders();
   const { purposes } = useSecretPurposes();
   const { secrets } = useSecrets();
@@ -72,7 +79,9 @@ export function ChatModelPicker({ value, onChange }: ChatModelPickerProps) {
 
     const key = secrets.find((secret) => secret.purpose === provider.id);
     if (key === undefined) {
-      setFailure(`No ${provider.label} key in the vault. Add one on the Vault page first.`);
+      // The form below offers to add one, so this says what is missing rather than
+      // sending somebody to another page for it.
+      setFailure(t("noProviderKey", { provider: provider.label }));
       return;
     }
 
@@ -107,7 +116,7 @@ export function ChatModelPicker({ value, onChange }: ChatModelPickerProps) {
       )}
 
       <div className="space-y-1.5">
-        <Label htmlFor="chat-model-provider">Provider</Label>
+        <Label htmlFor="chat-model-provider">{t("provider")}</Label>
         <Select
           value={providerId}
           onValueChange={(next) => {
@@ -117,7 +126,7 @@ export function ChatModelPicker({ value, onChange }: ChatModelPickerProps) {
           }}
         >
           <SelectTrigger id="chat-model-provider">
-            <SelectValue placeholder="Choose a provider" />
+            <SelectValue placeholder={t("chooseProvider")} />
           </SelectTrigger>
           <SelectContent className="max-h-80">
             {providers.map((entry) => {
@@ -137,7 +146,7 @@ export function ChatModelPicker({ value, onChange }: ChatModelPickerProps) {
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="chat-model-id">Model</Label>
+        <Label htmlFor="chat-model-id">{t("model")}</Label>
         {/* A list where the provider publishes one, and a plain field where it
             does not - the same control either way, because the list is never
             authoritative. */}
@@ -150,7 +159,7 @@ export function ChatModelPicker({ value, onChange }: ChatModelPickerProps) {
             setFailure(null);
           }}
           disabled={provider === undefined}
-          placeholder={modelPlaceholder(provider?.id)}
+          placeholder={placeholderWords(modelPlaceholder(provider?.id), t)}
           className="font-mono"
         />
         {suggestions.length > 0 && (
@@ -165,8 +174,21 @@ export function ChatModelPicker({ value, onChange }: ChatModelPickerProps) {
         {failure !== null && <p className="text-destructive text-xs">{failure}</p>}
       </div>
 
+      {/* A key can be added here rather than on another page. A picker that can only
+          offer what is already stored, and answers "add one in the Vault" when
+          nothing is, is a dead end - and the provider is already chosen, so the
+          purpose this key needs is known. */}
+      {provider !== undefined && !secrets.some((secret) => secret.purpose === provider.id) && (
+        <InlineSecret
+          kind="api_key"
+          purpose={provider.id}
+          suggestedName={provider.label}
+          onCreated={() => setFailure(null)}
+        />
+      )}
+
       <Button type="button" size="sm" disabled={!canApply} onClick={apply}>
-        Run on this model
+        {t("runModel")}
       </Button>
     </div>
   );

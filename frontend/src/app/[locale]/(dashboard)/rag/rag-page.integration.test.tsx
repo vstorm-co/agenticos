@@ -78,7 +78,7 @@ function mockApi(kbList: KnowledgeBase[] | Error) {
 
 async function openSearchTab() {
   const user = userEvent.setup();
-  await user.click(await screen.findByRole("button", { name: "rag.tabs.search" }));
+  await user.click(await screen.findByRole("button", { name: "pages.kb.search" }));
   return user;
 }
 
@@ -97,8 +97,12 @@ describe("write controls are gated on collections:edit (#31)", () => {
     render(<RAGPage />, { wrapper });
 
     await waitFor(() => expect(screen.getByText("Handbook")).toBeInTheDocument());
-    expect(screen.queryByRole("button", { name: "rag.newBase" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "rag.card.deleteAria" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "pages.kb.newKnowledgeBase" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "pages.kb.deleteKnowledgeBase" }),
+    ).not.toBeInTheDocument();
   });
 
   it("an editor sees both, so the viewer assertion is not passing vacuously", async () => {
@@ -108,8 +112,10 @@ describe("write controls are gated on collections:edit (#31)", () => {
     render(<RAGPage />, { wrapper });
 
     await waitFor(() => expect(screen.getByText("Handbook")).toBeInTheDocument());
-    expect(screen.getByRole("button", { name: "rag.newBase" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "rag.card.deleteAria" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "pages.kb.newKnowledgeBase" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "pages.kb.deleteKnowledgeBase" }),
+    ).toBeInTheDocument();
   });
 
   it("a viewer's empty state offers no create call-to-action", async () => {
@@ -117,9 +123,13 @@ describe("write controls are gated on collections:edit (#31)", () => {
 
     render(<RAGPage />, { wrapper });
 
-    await waitFor(() => expect(screen.getByText("rag.empty.title")).toBeInTheDocument());
-    expect(screen.getByText("rag.empty.viewerHint")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "rag.empty.cta" })).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByText("pages.kb.noKnowledgeBasesYet")).toBeInTheDocument(),
+    );
+    expect(screen.getByText("pages.kb.nothingHasBeenShared")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "pages.kb.createKnowledgeBase" }),
+    ).not.toBeInTheDocument();
   });
 });
 
@@ -129,8 +139,8 @@ describe("a failed list renders an error, not an empty state (#32)", () => {
 
     render(<RAGPage />, { wrapper });
 
-    await waitFor(() => expect(screen.getByText("rag.listFailedTitle")).toBeInTheDocument());
-    expect(screen.queryByText("rag.empty.title")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("pages.kb.listFailedTitle")).toBeInTheDocument());
+    expect(screen.queryByText("pages.kb.noKnowledgeBasesYet")).not.toBeInTheDocument();
   });
 });
 

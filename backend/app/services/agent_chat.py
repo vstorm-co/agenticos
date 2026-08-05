@@ -26,6 +26,7 @@ import asyncio
 import logging
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -36,12 +37,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
 from app.agents.deps import AgentDeps, AskUserCallback
+from app.agents.subagent_events import SubagentEventSink
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import AuthContext
 from app.db.models.agent_run import RunStatus, RunSurface
+from app.db.models.chat_file import ChatFile
+from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.repositories import member_repo
-from app.services.agent_runner import AgentRunnerService, PausedRunState
+from app.services.agent_runner import (
+    AgentRunnerService,
+    ParkedApproval,
+    PausedRunState,
+    PreparedRun,
+)
+from app.services.attachments import AttachmentRouter
+from app.services.usage_report import UsageReport, UsageReportService
 
 logger = logging.getLogger(__name__)
 
@@ -172,6 +183,39 @@ class ChatTurn:
     which cannot run - carried rather than assumed so the transcript records
     what actually happened."""
 
+    run_id: UUID | None = None
+    """The run these approvals belong to, for resuming it once they are decided."""
+
+    parked: tuple[ParkedApproval, ...] = ()
+    """Tool calls this turn stopped on, if it stopped.
+
+    Present so the surface can put the decision in front of whoever is already
+    looking, instead of only naming a queue. The queue stays the record - these
+    are the same rows - so a decision made here and one made there are the same
+    decision.
+    """
+
+    usage: UsageReport | None = None
+    """What the turn cost, and how full its workspace is.
+
+    Built after `finish`, because that is what writes the tokens and the cost to
+    the run row - reading it earlier would report a turn as free. `None` only when
+    assembling it failed, which is deliberately not allowed to lose an answer
+    somebody is waiting for.
+    """
+
+
+def _as_text(user_input: str | Sequence[UserContent]) -> str:
+    """The text half of a prompt a surface may already have assembled.
+
+    Surfaces hand this a plain string today. The signature allows the richer
+    shape because Pydantic AI does, and a caller passing one would otherwise
+    have its attachments silently appended to a `repr`.
+    """
+    if isinstance(user_input, str):
+        return user_input
+    return "".join(part for part in user_input if isinstance(part, str))
+
 
 class ChatAgentRunner:
     """Runs a published agent for one turn of a streaming chat."""
@@ -179,6 +223,7 @@ class ChatAgentRunner:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
         self.runner = AgentRunnerService(db)
+        self.usage = UsageReportService(db)
 
     async def run(
         self,
@@ -188,9 +233,11 @@ class ChatAgentRunner:
         agent_id: UUID,
         user_input: str | Sequence[UserContent],
         message_history: list[ModelMessage],
+        attachments: list[ChatFile] | None = None,
         conversation_id: UUID | None,
         ask_user: AskUserCallback,
         stream: ChatStream,
+        subagent_events: SubagentEventSink | None = None,
         model_profile_id: UUID | None = None,
         environment_id: UUID | None = None,
     ) -> ChatTurn:
@@ -201,13 +248,24 @@ class ChatAgentRunner:
             organization_id: The organization the socket is active in; the agent
                 is resolved here and nowhere else.
             agent_id: The published agent the frame named.
-            user_input: The prompt, images and file text already assembled by
-                the surface.
+            user_input: The prompt. Attachments are *not* folded in by the
+                surface - see `attachments`.
+            attachments: Files the user attached, routed once the workspace is
+                known. It has to happen here rather than in the surface: where a
+                file goes depends on whether this agent has a workspace, and
+                that is decided by `prepare`, which has not run yet when a
+                surface is assembling its prompt.
             message_history: The conversation so far, in Pydantic AI's format.
             conversation_id: The chat thread, so the run is findable from it.
             ask_user: How the agent puts a question to the person who is sitting
                 there. Only a live surface can offer this.
             stream: Iterates the run and forwards its events to the client.
+            subagent_events: Where a delegation's frames go, for a surface that
+                can draw one. Defaults to `None`, and the default is load-bearing
+                rather than convenient: attaching a handler makes the library open
+                a *streamed* request for every child, so a delegate whose provider
+                cannot stream works from the API and breaks the moment somebody
+                watches it. A surface passes this only if it can show the frames.
 
         Returns:
             The answer to show and persist, and the model that produced it. A
@@ -233,10 +291,18 @@ class ChatAgentRunner:
             # how a dev environment is exercised from the chat before promotion.
             environment_id=environment_id,
         )
-        # The approval channel was wired by `prepare`; this is the half only a
-        # live surface can provide. Without it, an agent whose instructions tell
-        # it to ask first has no way to ask.
+        # The approval channel was wired by `prepare`; these are the halves only a
+        # live surface can provide. Without `ask_user`, an agent whose instructions
+        # tell it to ask first has no way to ask; without `subagent_events`, a
+        # delegation is a tool call named `task` that goes quiet for thirty seconds.
         prepared.deps.ask_user = ask_user
+        prepared.deps.subagent_events = subagent_events
+
+        if attachments:
+            router = AttachmentRouter(
+                prepared.workspace.backend if prepared.workspace is not None else None
+            )
+            user_input = await router.build_prompt(_as_text(user_input), attachments)
 
         status = RunStatus.FAILED
         error: str | None = None
@@ -303,7 +369,50 @@ class ChatAgentRunner:
             model_label=prepared.built.model_label,
             agent_id=prepared.agent.id,
             agent_version_id=prepared.run.agent_version_id,
+            run_id=prepared.run.id,
+            parked=tuple(prepared.approvals.requested),
+            usage=await self._usage(ctx, prepared),
         )
+
+    async def _usage(self, ctx: AuthContext, prepared: PreparedRun) -> UsageReport | None:
+        """What this turn cost, for the chat to show.
+
+        Always includes the workspace: a person watching an agent work is exactly
+        who wants to know the scratch space is nearly full, and unlike a channel
+        there is no noise argument against saying so - the client decides whether
+        to draw it.
+
+        Never raises. The answer has already been produced and committed; losing
+        it to a failed accounting read would be the worst possible trade.
+        """
+        try:
+            return await self.usage.for_run(
+                ctx,
+                prepared.run,
+                period_spend_usd=await self.runner.monthly_spend(ctx),
+                budget_usd=await self._budget(ctx),
+                # The agent's own cap as well: it is the one whoever is looking at
+                # this agent can actually raise, and reporting only the
+                # organization's tells an author nothing they can act on.
+                agent_spend_usd=await self.runner.monthly_spend(ctx, agent_id=prepared.agent.id),
+                agent_budget_usd=(
+                    None
+                    if prepared.spec.budget is None
+                    else self._as_decimal(prepared.spec.budget.monthly_usd)
+                ),
+                include_sandbox=True,
+            )
+        except Exception:
+            logger.warning("chat_usage_report_failed", extra={"run_id": str(prepared.run.id)})
+            return None
+
+    @staticmethod
+    def _as_decimal(value: float | None) -> Decimal | None:
+        return None if value is None else Decimal(str(value))
+
+    async def _budget(self, ctx: AuthContext) -> Decimal | None:
+        organization = await self.db.get(Organization, ctx.organization_id)
+        return None if organization is None else organization.monthly_budget_usd
 
     async def _context(self, user: User, organization_id: UUID) -> AuthContext:
         """The connected user's standing in the organization they are chatting in.

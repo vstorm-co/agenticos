@@ -26,7 +26,9 @@ tools listed.
 | `skills` | Skills | knowledge | `list_skills`, `load_skill`, `read_skill_resource` | `knowledge:read` | — |
 | `web_research` | Web search | research | `web_search` | `web:read` | for paid services |
 | `code_execution` | Run Python | analysis | `run_python` | `code:execute` | — |
+| `sandbox` | Files & shell | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | for Daytona |
 | `charts` | Charts | analysis | `create_chart` | — | — |
+| `subagents` | Delegation | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
 | `thinking` | Thinking | reasoning | none, by design | — | — |
 | `clock` | Date and time | utility | none, by design | — | — |
 
@@ -35,6 +37,11 @@ rather than what it can reach, and `clock` puts the date in the instructions —
 neither leaves anything for a person to approve, so neither declares a tool. A
 capability with genuinely no tools says so with `tools=()` rather than omitting
 the argument; see [Add a capability](../howto/add-capability.md).
+
+**This column is what a capability declares, which is not always what a model is
+offered.** Delegation is the one place the two differ: `create_agent` and `delegate`
+appear only under `allow_dynamic`, and `answer_subagent` appears to nobody at all —
+both explained under [Delegation](#delegation) below.
 
 ## Knowledge search
 
@@ -108,6 +115,135 @@ Capped rather than open-ended, and per agent rather than per deployment: an auth
 raising a limit for one data-heavy agent should not need an operator or a
 redeploy.
 
+## Files & shell
+
+`ls`, `read_file`, `glob`, `grep` — *reading.*
+`write_file`, `edit_file`, `execute` — *writing and running.*
+
+A workspace that survives between turns. `code_execution` computes and forgets;
+this remembers, and on a container-backed backend it has a real shell. An agent
+granted both computes with one and keeps its work in the other — which is the
+normal pairing on the `state` backend, because that one has no shell at all.
+
+| Config | Default | Values |
+|---|---|---|
+| `backend` | `state` | `state`, `service` |
+| `connection_id` | null | a registered sandbox connection; null takes the organization's default. `service` only |
+| `session_scope` | `conversation` | `run`, `conversation`, `channel`, `user`, `agent` |
+| `runtime` | null | an alias that connection's service allows; `service` only |
+| `include_execute` | `true` | removes the shell entirely when off, rather than gating it |
+
+There is no `docker` or `daytona` backend to choose. *Where* a sandbox runs is a
+property of the connection an operator registered — Sandboxes in the app — so
+naming the connection is naming the kind. Choosing them separately made it
+possible to choose two things that disagree.
+
+**`backend` is infrastructure; `session_scope` is a data-sharing policy.** Getting
+the first wrong costs a feature. Getting the second wrong shows one person
+another person's files, so it is worth reading twice:
+
+| Scope | Who shares the workspace |
+|---|---|
+| `run` | Nobody — a fresh one every turn |
+| `conversation` | Everyone in that chat. On Slack a thread *is* a chat, so threads do not share |
+| `channel` | Every thread in one channel. A direct message has its own chat id, so people still get their own |
+| `user` | One person, across every surface they reach this agent on |
+| `agent` | **Everyone who talks to this agent**, across the organization |
+
+`conversation` and `channel` exist as separate answers because a chat platform
+makes them different things. `SlackAdapter` folds `thread_ts` into the chat id, so
+`conversation` on Slack means one workspace per thread — fifty threads in a busy
+channel is fifty containers and a `429` for the fifty-first person to reply.
+
+The scope in the spec is the **default**. Each channel the agent is published to
+can override it, on the exposure: an agent reached in web chat and on a Slack bot
+is one agent in two situations, and one value for both was the wrong shape.
+`user` scope is what carries a workspace across surfaces — the same person picking
+up in Slack a conversation they started in web chat finds their files there.
+
+`agent` is the one that crosses a boundary between people. The Builder warns at
+the field, the file panel labels whose workspace it is rather than calling it "this
+conversation's files", and setting it is recorded in the audit log — because a user
+who sees a file they did not create should be able to find out why.
+
+**Changing the backend or the connection starts a fresh workspace rather than
+reattaching to the old one.** A stored document, a container's volume and a
+Daytona sandbox are three different things, and two `sandboxd` installations are
+two different things — so each gets its own workspace, and the previous one stays
+where it is, still listed and still readable. Moving a live agent is therefore not
+a way to carry its files across; the agent finds an empty workspace on the new
+host. Since `connection_id: null` means "the organization's default", marking a
+different connection as default has the same effect without any spec changing.
+
+A spec chooses a connection and never an image, a mount, a network mode or a
+ceiling. Those belong to whoever runs the deployment: a spec is authored in a
+browser by anyone holding `edit` on the agent, and one that could name a container
+image could name one whose entrypoint mounts the host. `runtime` is an alias, and
+the Builder offers only the aliases that connection's service reports — read live,
+because a stored copy would offer one the service has since stopped allowing.
+
+What each backend costs to run:
+
+| Backend | Needs | Shell | Where files live |
+|---|---|---|---|
+| `state` | nothing | no | this database, capped at `SANDBOX_STATE_MAX_BYTES` |
+| `service` | a registered connection | yes | a container on that host, or Daytona's cloud on the organization's own account |
+
+An operator can see what is running: Sandboxes lists this organization's open
+sandboxes on its default host with their runtimes, idle times and memory, and the
+activity log per sandbox. See [Configuration](../configuration.md#agent-workspaces).
+
+Publishing is refused for a `service` workspace when the organization has
+registered no connection, when the one it names is gone, or when that connection
+has no credential — each by name, because all three are states a deployment
+reaches *after* an agent was published and the fix is an operator's rather than the
+author's.
+
+**Only `execute` asks.** Side-effecting is declared per tool, and of the seven only
+running a command is: a workspace is scratch space deleted with the conversation it
+belongs to, so writing a file in it is not the class of act sending an email is —
+and an agent that has to ask before every `write_file` cannot do multi-step work at
+all, which is how an author ends up turning the gate off entirely and losing the one
+that mattered. `execute` runs arbitrary commands on somebody's host.
+
+A binding that wants the stricter behaviour sets it per tool:
+`tool_approval: {"write_file": "required"}`. See [Governance](../governance.md) for
+how an approval is put to a person.
+
+**Some paths are refused whatever the approval policy says.** Credentials
+(`**/.env`, `**/*.pem`, `**/*.key`, `**/credentials*`, `**/.ssh/**`, `**/.aws/**`)
+and the system tree (`/etc/**`, `/usr/**`, `/proc/**` and their siblings) cannot be
+read, written or edited — the agent gets a readable refusal and can carry on. `grep`
+is filtered rather than refused, since a pattern over `/` legitimately covers the
+workspace: matches inside an off-limits file are dropped, so a search cannot return
+a line from one. Names are not secret, so `ls` and `glob` still show what is there;
+only the contents are withheld.
+
+A command that *names* one of those paths is refused too, so `cat /etc/shadow`
+does not get round the rule by asking a different tool. That is defence in depth
+and not a boundary, and the difference matters: a shell reaches a file in ways
+string inspection cannot see, so what actually makes execution safe is the
+container's isolation and the operator's network mode. There is no allowlist of
+command strings, because one is defeated by `sh -c`.
+
+And none of it is a substitute for the approval gate: refusal here is the code's
+flat no, while `execute` asking a person is the decision an operator owns.
+
+Files somebody attaches to a message land in `/uploads` — see
+[File processing](../file-processing.md).
+
+**Skills become files too.** An agent with both a workspace and skills gets each
+skill as `/skills/<name>/SKILL.md` with its resources beside it, which is what
+makes a skill's script runnable at all: it is on disk next to the shell that can
+run it. There is deliberately no `run_skill_script` — `execute` already has the
+approval gate and the operator's ceilings behind it, and a second execution path
+would be a second set of rules to get wrong.
+
+Those files are writable, and what the agent writes does **not** become a skill. A
+skill is instructions every agent bound to it follows on every run, so a change is
+recorded as a proposal and somebody holding `skills:edit` accepts or discards it —
+see [Skills](../skills.md).
+
 ## Charts
 
 `create_chart` — *Draw a chart of numbers you already have, so the user can see
@@ -115,6 +251,194 @@ them.*
 
 Renders numbers the model already has. It does not fetch, compute or aggregate —
 pair it with `code_execution` or `knowledge` for that. No configuration.
+
+## Delegation
+
+`task` — *hand a self-contained piece of work to one of this agent's specialists.*
+`check_task`, `wait_tasks`, `list_active_tasks` — *following one that is running.*
+`send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task` — *steering or
+stopping one.*
+`create_agent`, `delegate` — *a specialist the model writes for itself, when the author allows it.*
+`answer_subagent` — *declared, and offered to no model.*
+
+One agent handing part of a job to another, each on its own model with its own
+knowledge and its own step limit, addressed by name. There are two shapes of
+delegate and the difference decides how it is reviewed, versioned and billed —
+[Concepts](../concepts.md#delegate-vs-inline-specialist) is where that is
+explained. Which *published* agents this one may delegate to is not in this
+config: it is `subagents` at the top level of the spec, where publish validation,
+the YAML export and the permission model can all see it.
+
+| Config | Default | Range |
+|---|---|---|
+| `inline` | none | specialists defined inside this agent |
+| `mode` | `sync` | `sync`, `async`, `auto` |
+| `allow_dynamic` | `false` | |
+| `max_depth` | 1 | 1–3 |
+| `max_fanout` | 3 | 1–10 |
+| `max_result_chars` | 2000 | 200–20000 |
+| `share_with_delegates` | none | capability ids this agent is itself bound to, except `subagents` |
+
+**The mode is the author's decision, not the model's.** The library's `task` tool
+takes a `mode` argument defaulting to `sync`, so "the model chose to wait" and
+"the model said nothing" are the same call — there is no way to honour both a
+setting and a choice, and the setting was reviewed. So the argument is replaced on
+the way through, and `auto` is how an author deliberately hands the decision over.
+`auto` is resolved *before* the delegation starts, because whether a panel stays
+open after the parent has answered depends on the answer. A pinned delegate or a
+specialist may override the mode for itself: one slow researcher is the case worth
+running in the background. The instructions **mark that delegate**, beside its
+name — a single sentence stating the configured mode was a promise the overriding
+delegate then broke, telling the model to expect an answer and handing it a task
+id.
+
+**Fan-out and nesting are ceilings, not errors.** Past `max_fanout` the next
+delegation comes back as a tool result the model can act on — wait, or do the work
+itself — because a pacing limit should not end a run. `max_depth` counts levels of
+delegation **including the configured agent's own**: 1 is this agent delegating and
+its delegates not, 2 allows one nested level. At the bound a delegate is built
+*without* the delegation capability rather than with one that can only refuse - a
+tool that always answers "no delegates available" is a description the model pays
+for on every turn and tries anyway. There is deliberately no 0: turning delegation
+off is disabling the binding, and a second spelling of the same switch is one that
+disagrees with the first.
+
+**And every agent in the tree is held to its own `max_depth`, not the root's.** A
+delegate gets the *lower* of what the tree has left and what its own spec allows,
+so a root configured for three levels delegating to an agent whose author chose 1
+gets one: that delegate delegates and its delegates do not, exactly as its own
+reviewers read it. A ceiling a caller could widen would not be one, and the reason
+to pin a delegate to a version is that its author's decisions hold when somebody
+else calls it.
+
+**A sync delegation can stop to ask a person, and is continued in place.** A gated
+tool inside one parks the whole run; approving it resumes that delegate from where
+it stopped rather than delegating again, which is what makes the approval apply to
+the call the reviewer actually saw. [Governance](../governance.md) has the shape of
+the stored state and why re-running would answer differently.
+
+**A background delegation cannot stop to ask a person.** A gated tool inside one
+is refused rather than parked, and the refusal tells the model to delegate that
+work with `mode="sync"` instead. The reason is not policy but lifetime: the
+approval channel closes over the request's database session, and a background
+delegation outlives the tool call that started it, so by the time it wanted to ask,
+there is nothing left to write the question with. A background delegation that
+suspends anyway — a shape the library documents as undeliverable — is recorded
+`failed` with that same message, because the alternative is a task that reports
+"still running" for as long as the process lives: its spend attributed to nothing,
+its fan-out slot never released, and the panel a surface opened never closed.
+
+**And no delegate can ask a question of its own, so `answer_subagent` is offered to no
+model.** Parking for an approval is a gated tool being reviewed, not a specialist asking
+anything. This tool replies to a question a delegate asked, and the delegation library
+injects its `ask_parent` tool only into agents it built itself — every delegate here
+arrives pre-built, published delegate and inline specialist alike, and a specialist the
+model invents has the same door closed on purpose. So the tool's only possible answer is
+"that delegation is not waiting for an answer". It stays *declared*, because a tool
+absent from the declaration cannot be gated by the approval policy or renamed by a
+binding and that half of the failure is silent; it is filtered out of the offered set,
+because the other half is a description in every turn's context describing an action
+that cannot happen, and tool descriptions are the strongest prompt in this product.
+
+Opening the path is a feature rather than a repair, and the mode decides who could
+answer: a `sync` delegation's question goes to a **person**, through the run's own
+`ask_user` channel and never through this tool, while only a *background* delegation's
+question is answered by the parent's own model — which is the harder half, since the
+delegate then blocks holding a fan-out slot while nothing obliges the parent to look
+and the turn's end cancels it. Letting a sync delegate ask the person already waiting
+is [#184](https://github.com/vstorm-co/agenticos/issues/184).
+
+**`wait_tasks` truncates, and says so.** A completed task's result is cut at
+`max_result_chars` with an explicit marker pointing at `check_task`, which always
+returns the full text. The marker is the load-bearing half: a silent cut reads as a
+short answer, and an orchestrator handed half a report re-delegates work it already
+has.
+
+**Switching delegation off is disabling the binding, not lowering a number.** A
+disabled binding is not delegation: nothing is built, so nothing reads the pins or
+the specialists it carries — and publishing is then refused for an agent that still
+names delegates, because a pin nothing will ever call is configuration that reads
+as a decision and does nothing.
+
+**Bound with no delegates at all, this capability contributes nothing** — it is
+not attached, the same way `knowledge` is not attached with no collections. Ten
+tools that can only refuse are ten tools in every turn's context.
+
+**Only the three that act ask for approval:** `send_message_to_subagent`,
+`soft_cancel_task` and `hard_cancel_task`. Steering changes what a delegate is
+doing mid-run, and either cancel destroys work that was paid for and not
+delivered. `task` is deliberately not side-effecting, which reads wrong for a
+moment: what a delegate *does* is gated by the delegate's own spec, through the
+same approval gate this run uses, so gating the delegation as well would ask
+somebody to approve it before the work that might need approving has been
+proposed. An author who does want that has one `tool_approval` override.
+
+**A delegate is not lent the parent's capabilities.** It runs on its own spec plus
+whatever `share_with_delegates` names, one id at a time — a specialist that
+silently gained the parent's credentials would be the quiet route around what the
+parent was granted. Publishing refuses a shared id the parent is not itself bound
+to, since lending what you do not hold is a line of configuration that reads as a
+decision and does nothing. In practice this exists for `sandbox`: sharing it is
+how a researcher writes `/workspace/notes.md` and a writer reads it. A delegate
+that binds `sandbox` *without* being shared the parent's gets the in-memory
+workspace, because only the run opens one.
+
+**`subagents` cannot be shared**, and it is the one id "does the parent hold it"
+could never refuse — an agent that shares anything holds it by definition. Shared,
+the parent's binding lands on a delegate that binds none, and the runtime then
+reads the *parent's* specialists, `allow_dynamic`, `max_fanout`, `max_depth` and
+share list as though the delegate's author had chosen them. Publishing refuses it,
+and the runtime drops it from the share list as well, so a spec stored before that
+rule cannot widen a delegate either. Whether a delegate may delegate at all is its
+own spec's answer, and so is how deep it may go — bounded by what the tree above it
+has left.
+
+Sharing is also the only route to an [MCP connection](../mcp.md) for an inline
+specialist, which cannot bind one at all: a connection is organization-scoped
+configuration, and reaching one through a specialist nobody published is the wrong
+door. Bind it on the parent and name it here.
+
+**`create_agent` and `delegate` are offered only under `allow_dynamic`.** A tool
+absent from a capability's declaration cannot be gated by the approval policy or
+renamed by a binding, and the dangerous half of that is silent — so all ten are
+declared, and a default configuration offers seven.
+
+What the switch buys is a specialist the model writes itself: instructions and a
+model, and nothing else. It is built through the same `build_agent` an inline
+specialist comes through, on the run's shared budget guard and its approval
+channel, so its requests are priced and counted against the cap somebody set. That
+is the entire reason this took a factory rather than a flag — left to itself the
+library compiles a run-time specialist from its own default model string, which is
+an agent outside this deployment's model catalog, outside its vault and outside its
+budget guard: an unmetered request, possibly to a provider the organization holds no
+key for.
+
+The model may name only a model the organization has a profile for, and the refusal
+names the list. It may not attach capabilities: letting a model grant its own child
+a capability is the ungranted-scope failure wearing a new hat. It gets no knowledge,
+no delegates of its own, and nothing is persisted — keeping a specialist means
+publishing an agent, which is a person's action. `MAX_DYNAMIC_SPECIALISTS` bounds how
+many one run may keep, and a kept one lasts for the reply rather than the run
+([#175](https://github.com/vstorm-co/agenticos/issues/175)).
+
+**The delegation library's own unspecialised delegate is not offered at all**, and
+there is no setting for it. It would run on a model this deployment did not
+configure — compiled from the library's own default model string, so outside the
+organization's profiles, its vault and the run's budget guard, exactly like the
+run-time specialist above before it took a factory. A catch-all is a legitimate
+thing to want; write it as an inline specialist, where you can read what it does
+and it is priced like everything else. Fixing the library's own is
+[#174](https://github.com/vstorm-co/agenticos/issues/174).
+
+What the model is told about all of this is written here rather than by the
+library: the delegates by name and description, the mode this run will actually
+use, and the fan-out ceiling it would otherwise discover by being refused. Two
+lists of the same delegates in one system prompt is context paid for twice, and
+only one of them can say what the deployment enforces.
+
+For what a delegation costs and which run row records it, see
+[Governance](../governance.md#delegation-spends-the-parents-budget). For who may
+delegate to what, see [Permissions](../permissions.md#delegation-is-not-a-privilege-boundary).
 
 ## Thinking
 
@@ -180,11 +504,21 @@ the agent is assembled:
 | `knowledge:read` | `knowledge`, `skills` |
 | `web:read` | `web_research` |
 | `code:execute` | `code_execution` |
+| `sandbox:execute` | `sandbox` |
+| `agents:delegate` | `subagents` |
 
-All three are granted by default today (`DEFAULT_GRANTED_SCOPES` in
+All five are granted by default today (`DEFAULT_GRANTED_SCOPES` in
 `app/services/agent_registry.py`). Per-organization scope management is
 [roadmap](../ROADMAP.md) work; the check is live and honest in the meantime rather
 than disabled and forgotten.
+
+`agents:delegate` is the one worth understanding, because it is *not* the gate on
+who may be delegated to — that is `agents:run`, checked on the publisher against
+each delegate's row. This scope answers a question no permission can: whether this
+**deployment** allows agents to call agents at all. Removing it from that set turns
+delegation off everywhere in one edit, which is what an operator who does not want
+nested runs or fan-out billing needs, and every spec that delegates then says so at
+publish rather than at 3am.
 
 ## Adding to this list
 

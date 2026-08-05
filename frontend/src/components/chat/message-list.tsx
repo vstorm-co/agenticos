@@ -11,6 +11,27 @@ interface MessageListProps {
   onRegenerate?: (messageId: string) => void;
 }
 
+/**
+ * The turn whose last step stays open, or -1 when no turn did any work.
+ *
+ * The most recent turn that *used a tool*, which is not the most recent turn: an agent
+ * that writes a file and then answers about it ends the conversation with prose, and
+ * anchoring on "the newest assistant message" left the file that was just written folded
+ * away. What somebody opening a conversation is looking for is the last thing the agent
+ * did, wherever in the transcript that landed.
+ */
+export function lastToolTurnIndex(messages: ChatMessage[]): number {
+  for (let index = messages.length - 1; index >= 0; index--) {
+    const message = messages[index];
+    if (message === undefined || message.role !== "assistant") continue;
+    const usedATool =
+      (message.parts ?? []).some((part) => part.type === "tool" && part.toolCall) ||
+      (message.toolCalls?.length ?? 0) > 0;
+    if (usedATool) return index;
+  }
+  return -1;
+}
+
 export function MessageList({ messages, onRegenerate }: MessageListProps) {
   // Agents are resolved here rather than stamped onto the message, so a renamed
   // agent is labelled by its current name and a new picture appears on old
@@ -42,6 +63,7 @@ export function MessageList({ messages, onRegenerate }: MessageListProps) {
     }
     return -1;
   })();
+  const openStepsAt = lastToolTurnIndex(messages);
 
   return (
     <div className="space-y-0">
@@ -51,6 +73,7 @@ export function MessageList({ messages, onRegenerate }: MessageListProps) {
           message={message}
           agent={message.agentId ? byId.get(message.agentId) : undefined}
           groupPosition={getGroupPosition(message)}
+          openLastStep={index === openStepsAt}
           onRegenerate={
             onRegenerate && index === lastAssistantIndex && !message.isStreaming
               ? () => onRegenerate(message.id)

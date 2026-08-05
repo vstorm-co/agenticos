@@ -24,9 +24,11 @@ import { createServer } from "node:http";
  *   because that binding is what spend is attributed to. Whether the key is
  *   accepted is the provider's business, and asserting on it here would be
  *   asserting on this file.
- * - **Call tools.** It answers in one turn. A stub that emitted tool calls would
- *   be a stub that decides what the agent does, and the tool paths have their
- *   own specs.
+ * - **Call tools on its own initiative.** It answers in one turn unless the
+ *   instructions it was sent ask for a delegation, which `delegation.spec.ts`
+ *   needs and no other spec asks for - see `DELEGATE`. A stub that decided by
+ *   itself which tools to call would be a stub that decides what the agent does,
+ *   and the tool paths have their own specs.
  * - **Generate text.** It echoes the token it was told to say, which is the
  *   point: the only way that token reaches the reply is if the published
  *   agent's instructions reached the model request. That seam - spec to
@@ -48,14 +50,54 @@ const ECHO = /\bPONG-[A-Za-z0-9-]+\b/;
 
 const FALLBACK = "The stub model answered.";
 
+/**
+ * The delegate a caller's instructions name, when they name one.
+ *
+ * `ECHO`'s sibling, and it exists for the same reason. Delegation is the one
+ * behaviour in this product that a model has to *start*: nothing the platform
+ * does puts a specialist to work until a model calls `task`, so a stub that only
+ * ever answers in prose leaves the whole feature unreachable from an end-to-end
+ * test. Handing the decision back to the request keeps this file from making it:
+ * the directive can only arrive through a published agent's instructions, and the
+ * tool can only be on the request if the capability was bound and a delegate
+ * resolved. `delegation.spec.ts` then asserts on the *delegate's* own answer,
+ * which nothing here could produce.
+ */
+const DELEGATE = /\bDELEGATE-TO:([a-z0-9][a-z0-9-]*)\b/;
+
+/**
+ * The delegation tool, under the id `app/agents/capabilities/subagents` declares.
+ *
+ * A binding may rename it for its own model. None does in this suite, and a spec
+ * that renamed it would have to say so here too - which is the right amount of
+ * friction for a fixture that would otherwise silently stop delegating.
+ */
+const TASK_TOOL = "task";
+
+/**
+ * What the delegation is asked to do.
+ *
+ * Deliberately carries no `ECHO` token: it becomes the delegate's prompt, and a
+ * token planted here would be answered by the *parent's* instruction reaching the
+ * delegate rather than by the delegate's own - which is precisely the seam the
+ * spec is checking.
+ */
+const DELEGATED_TASK = "Say your line.";
+
 interface ChatMessage {
   role?: string;
   content?: unknown;
 }
 
+/** As much of a tool declaration as deciding whether to call one needs. */
+interface ChatTool {
+  function?: { name?: string };
+}
+
 interface ChatRequest {
   model?: string;
   messages?: ChatMessage[];
+  tools?: ChatTool[];
   stream?: boolean;
 }
 
@@ -82,6 +124,30 @@ function replyFor(body: ChatRequest): string {
 }
 
 /**
+ * The delegate this request should be answered with a call to, or `null`.
+ *
+ * Three conditions, and each of them is a fact about the deployment rather than
+ * about this file:
+ *
+ * - the instructions name a delegate, so the published spec reached the provider;
+ * - the request offers `task`, so the capability was bound and a delegate
+ *   resolved - without this a deployment where delegation was never wired up
+ *   would answer a call to a tool it does not have, turning a missing feature
+ *   into a model error two layers away from the cause;
+ * - nothing has come back from a tool yet. The second request of a delegating
+ *   turn carries the result, and answering it with the same call again is an
+ *   infinite loop rather than a fixture. It is also what makes the *delegate's*
+ *   own request safe: it is sent with no delegation tool at all, so a delegate
+ *   never delegates however its prompt reads.
+ */
+function delegateFor(body: ChatRequest): string | null {
+  if ((body.messages ?? []).some((message) => message.role === "tool")) return null;
+  const named = DELEGATE.exec(allText(body))?.[1];
+  if (named === undefined) return null;
+  return (body.tools ?? []).some((tool) => tool.function?.name === TASK_TOOL) ? named : null;
+}
+
+/**
  * Token counts that are wrong but not absurd, and above all *stable*.
  *
  * The journey asserts the run carries a cost, which is computed from these by
@@ -97,6 +163,8 @@ function usageFor(prompt: string, answer: string): Record<string, number> {
 /** Fixed, because a chunk id that moved would be the only unstable thing here. */
 const COMPLETION_ID = "chatcmpl-e2e-stub";
 const CREATED = 1_700_000_000;
+/** One delegation per turn, so one id is enough and a fixed one reads plainly. */
+const TOOL_CALL_ID = "call-e2e-task";
 
 function completion(model: string, answer: string, usage: Record<string, number>): string {
   return JSON.stringify({
@@ -115,6 +183,57 @@ function completion(model: string, answer: string, usage: Record<string, number>
   });
 }
 
+/** The `task` arguments, as the library's own tool signature names them. */
+function taskArguments(subagent: string): string {
+  return JSON.stringify({ subagent_type: subagent, description: DELEGATED_TASK });
+}
+
+/**
+ * A turn that delegates instead of answering.
+ *
+ * `mode` is deliberately not sent. The platform replaces it on the way through
+ * with the one the agent's author configured, and a stub that named a mode would
+ * hide the turn where that replacement stopped happening.
+ */
+function delegation(model: string, subagent: string, usage: Record<string, number>): string {
+  return JSON.stringify({
+    id: COMPLETION_ID,
+    object: "chat.completion",
+    created: CREATED,
+    model,
+    choices: [
+      {
+        index: 0,
+        message: {
+          role: "assistant",
+          content: null,
+          tool_calls: [
+            {
+              id: TOOL_CALL_ID,
+              type: "function",
+              function: { name: TASK_TOOL, arguments: taskArguments(subagent) },
+            },
+          ],
+        },
+        finish_reason: "tool_calls",
+      },
+    ],
+    usage,
+  });
+}
+
+/** One `chat.completion.chunk`, as an SSE frame. */
+function chunk(model: string, choices: unknown[], extra: Record<string, unknown> = {}): string {
+  return `data: ${JSON.stringify({
+    id: COMPLETION_ID,
+    object: "chat.completion.chunk",
+    created: CREATED,
+    model,
+    choices,
+    ...extra,
+  })}\n\n`;
+}
+
 /**
  * The same answer as Server-Sent Events, which is the path the chat takes.
  *
@@ -125,20 +244,50 @@ function completion(model: string, answer: string, usage: Record<string, number>
  * because a run with no usage is a run with no cost.
  */
 function* streamChunks(model: string, answer: string, usage: Record<string, number>) {
-  const frame = (choices: unknown[], extra: Record<string, unknown> = {}) =>
-    `data: ${JSON.stringify({
-      id: COMPLETION_ID,
-      object: "chat.completion.chunk",
-      created: CREATED,
-      model,
-      choices,
-      ...extra,
-    })}\n\n`;
+  yield chunk(model, [
+    { index: 0, delta: { role: "assistant", content: "" }, finish_reason: null },
+  ]);
+  yield chunk(model, [{ index: 0, delta: { content: answer }, finish_reason: null }]);
+  yield chunk(model, [{ index: 0, delta: {}, finish_reason: "stop" }]);
+  yield chunk(model, [], { usage });
+  yield "data: [DONE]\n\n";
+}
 
-  yield frame([{ index: 0, delta: { role: "assistant", content: "" }, finish_reason: null }]);
-  yield frame([{ index: 0, delta: { content: answer }, finish_reason: null }]);
-  yield frame([{ index: 0, delta: {}, finish_reason: "stop" }]);
-  yield frame([], { usage });
+/**
+ * The delegating turn, streamed.
+ *
+ * The arguments arrive in a chunk of their own after the one that names the tool,
+ * which is how a provider sends them and therefore the shape worth exercising: an
+ * SDK that only assembled a tool call from a single frame would pass a
+ * one-chunk stub and fail against OpenAI.
+ */
+function* delegationChunks(model: string, subagent: string, usage: Record<string, number>) {
+  yield chunk(model, [
+    {
+      index: 0,
+      delta: {
+        role: "assistant",
+        tool_calls: [
+          {
+            index: 0,
+            id: TOOL_CALL_ID,
+            type: "function",
+            function: { name: TASK_TOOL, arguments: "" },
+          },
+        ],
+      },
+      finish_reason: null,
+    },
+  ]);
+  yield chunk(model, [
+    {
+      index: 0,
+      delta: { tool_calls: [{ index: 0, function: { arguments: taskArguments(subagent) } }] },
+      finish_reason: null,
+    },
+  ]);
+  yield chunk(model, [{ index: 0, delta: {}, finish_reason: "tool_calls" }]);
+  yield chunk(model, [], { usage });
   yield "data: [DONE]\n\n";
 }
 
@@ -182,7 +331,11 @@ const server = createServer((request, response) => {
     }
 
     const model = body.model ?? "gpt-4.1-mini";
-    const answer = replyFor(body);
+    const subagent = delegateFor(body);
+    // Empty on a delegating turn, which is what a provider sends beside a tool
+    // call: the parent has not said anything yet, and inventing prose for it
+    // would put words in the transcript the agent never generated.
+    const answer = subagent === null ? replyFor(body) : "";
     const usage = usageFor(allText(body), answer);
 
     if (body.stream === true) {
@@ -191,14 +344,20 @@ const server = createServer((request, response) => {
         "cache-control": "no-cache",
         connection: "keep-alive",
       });
-      for (const chunk of streamChunks(model, answer, usage)) response.write(chunk);
+      const frames =
+        subagent === null
+          ? streamChunks(model, answer, usage)
+          : delegationChunks(model, subagent, usage);
+      for (const frame of frames) response.write(frame);
       response.end();
       return;
     }
 
     response
       .writeHead(200, { "content-type": "application/json" })
-      .end(completion(model, answer, usage));
+      .end(
+        subagent === null ? completion(model, answer, usage) : delegation(model, subagent, usage),
+      );
   });
 });
 

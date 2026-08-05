@@ -1,9 +1,19 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useTranslations } from "next-intl";
 import { describe, expect, it, vi } from "vitest";
 
 import { AgentCard, accessSummary, type AgentCardActions } from "./agent-card";
 import type { Agent } from "@/types/agents";
+
+/**
+ * `accessSummary` answers with words, so it takes the translator the component holds.
+ * The suite's `next-intl` stands on the real catalog, which is what makes asserting
+ * on words here the same thing as asserting on what a reader sees.
+ */
+function useWords(subject: Agent): string {
+  return accessSummary(subject, useTranslations("agents")).label;
+}
 
 function agent(overrides: Partial<Agent>): Agent {
   return {
@@ -21,26 +31,20 @@ function agent(overrides: Partial<Agent>): Agent {
 
 describe("accessSummary", () => {
   it("an org-visible agent reads as the organization's, whatever the grant count", () => {
-    expect(accessSummary(agent({ visibility: "org", shared_user_count: 5 })).label).toBe(
-      "Organization",
-    );
+    expect(useWords(agent({ visibility: "org", shared_user_count: 5 }))).toBe("Organization");
   });
 
   it("a team-visible agent reads as the team's", () => {
-    expect(accessSummary(agent({ visibility: "team" })).label).toBe("Team");
+    expect(useWords(agent({ visibility: "team" }))).toBe("Team");
   });
 
   it("a private agent with grants says how many people were handed it", () => {
-    expect(accessSummary(agent({ visibility: "private", shared_user_count: 3 })).label).toBe(
-      "Shared with 3",
-    );
+    expect(useWords(agent({ visibility: "private", shared_user_count: 3 }))).toBe("Shared with 3");
   });
 
   it("a private agent nobody was handed reads as private, including when the listing omits the count", () => {
-    expect(accessSummary(agent({ visibility: "private", shared_user_count: 0 })).label).toBe(
-      "Private",
-    );
-    expect(accessSummary(agent({ visibility: "private" })).label).toBe("Private");
+    expect(useWords(agent({ visibility: "private", shared_user_count: 0 }))).toBe("Private");
+    expect(useWords(agent({ visibility: "private" }))).toBe("Private");
   });
 });
 

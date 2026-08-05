@@ -1,6 +1,7 @@
 """Tests for OrganizationService."""
 
 import uuid
+from datetime import UTC, datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -13,10 +14,30 @@ from app.core.exceptions import (
     BadRequestError,
     NotFoundError,
 )
+from app.db.models.organization import Organization, OrgRole
 from app.schemas.organization import OrganizationCreate, OrganizationUpdate
 from app.schemas.user import UserCreate
 from app.services.organization import OrganizationService
 from app.services.user import UserService
+
+
+def _org_row(*, name: str) -> Organization:
+    """A real ORM row, because this one goes through the response schema.
+
+    A `MagicMock` answers every attribute, including `member_count` and `role`
+    - which are not on the row at all - so the assertions below would hold
+    against a response that never carried them.
+    """
+    return Organization(
+        id=uuid.uuid4(),
+        name=name,
+        slug=name.lower(),
+        is_personal=False,
+        avatar_url=None,
+        monthly_budget_usd=None,
+        created_at=datetime(2026, 7, 31, tzinfo=UTC),
+        updated_at=None,
+    )
 
 
 class TestOrganizationService:
@@ -302,6 +323,88 @@ class TestOrganizationService:
             pytest.raises(NotFoundError),
         ):
             await service.get_for_user(uuid.uuid4(), uuid.uuid4())
+
+
+class TestOrganizationResponses:
+    """What a route answers with: the row, the caller's role, the org's size.
+
+    Two of the three come from queries rather than from the row, so a response
+    that drops them is a response that still validates.
+    """
+
+    @pytest.fixture
+    def mock_db(self):
+        return MagicMock()
+
+    @pytest.fixture
+    def service(self, mock_db):
+        return OrganizationService(mock_db)
+
+    @pytest.mark.anyio
+    async def test_a_single_organization_carries_the_callers_own_role(self, service):
+        """Not the row's role - there is none - but the membership row's.
+
+        A response naming the wrong role is a UI showing an Owner the controls
+        of a Viewer, or the reverse.
+        """
+        org = _org_row(name="Vstorm")
+        membership = MagicMock()
+        membership.role = OrgRole.ADMIN.value
+
+        with (
+            patch(
+                "app.services.organization.member_repo.get",
+                new=AsyncMock(return_value=membership),
+            ),
+            patch(
+                "app.services.organization.organization_repo.get_by_id",
+                new=AsyncMock(return_value=org),
+            ),
+            patch(
+                "app.services.organization.organization_repo.count_members",
+                new=AsyncMock(return_value=7),
+            ),
+        ):
+            read = await service.read_for_user(org.id, uuid.uuid4())
+
+        assert read.name == "Vstorm"
+        assert read.role == OrgRole.ADMIN.value
+        assert read.member_count == 7
+
+    @pytest.mark.anyio
+    async def test_reading_an_organization_the_caller_is_not_in_is_refused(self, service):
+        """`read_for_user` is the whole answer for the single-org routes, so the
+        membership check has to be inside it rather than beside it."""
+        with (
+            patch("app.services.organization.member_repo.get", new=AsyncMock(return_value=None)),
+            pytest.raises(NotFoundError),
+        ):
+            await service.read_for_user(uuid.uuid4(), uuid.uuid4())
+
+    @pytest.mark.anyio
+    async def test_the_listing_gives_each_organization_its_own_role_and_size(self, service):
+        """Both are per-row, and both come from a separate query per row."""
+        first, second = _org_row(name="Vstorm"), _org_row(name="Personal")
+        rows = [
+            {"org": first, "role": OrgRole.MEMBER.value, "member_count": 12},
+            {"org": second, "role": OrgRole.OWNER.value, "member_count": 1},
+        ]
+
+        with patch.object(OrganizationService, "list_for_user", new=AsyncMock(return_value=rows)):
+            listing = await service.list_readable_for_user(uuid.uuid4())
+
+        assert listing.total == 2
+        assert [item.name for item in listing.items] == ["Vstorm", "Personal"]
+        assert [item.role for item in listing.items] == [OrgRole.MEMBER.value, OrgRole.OWNER.value]
+        assert [item.member_count for item in listing.items] == [12, 1]
+
+    @pytest.mark.anyio
+    async def test_belonging_to_nothing_is_an_empty_listing_not_an_error(self, service):
+        with patch.object(OrganizationService, "list_for_user", new=AsyncMock(return_value=[])):
+            listing = await service.list_readable_for_user(uuid.uuid4())
+
+        assert listing.items == []
+        assert listing.total == 0
 
 
 class TestUserServiceRegistrationWithOrg:

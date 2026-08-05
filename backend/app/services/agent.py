@@ -34,6 +34,7 @@ from app.schemas.conversation import (
     ToolCallComplete,
     ToolCallCreate,
 )
+from app.services.usage_report import UsageReport
 
 logger = logging.getLogger(__name__)
 
@@ -191,6 +192,7 @@ async def persist_assistant_turn(
     thinking: str | None = None,
     agent_id: UUID | None = None,
     agent_version_id: UUID | None = None,
+    usage: UsageReport | None = None,
 ) -> str | None:
     """Persist the assistant message and any tool calls. Returns the saved message id.
 
@@ -204,6 +206,10 @@ async def persist_assistant_turn(
     an agent is rewritten between turns: attributing the whole conversation to
     the last one selected - or to the spec it has today - would rewrite who
     said what, and with which instructions.
+
+    `usage` is stored for the same reason it is streamed: the cost of an answer is
+    asked about after the fact. A turn nobody could measure passes `None`, which
+    reads back as "not recorded" rather than as free.
     """
     try:
         async with get_db_context() as db:
@@ -218,6 +224,13 @@ async def persist_assistant_turn(
                     model_name=model_name,
                     agent_id=agent_id,
                     agent_version_id=agent_version_id,
+                    # Stored, not only streamed. It used to live in the `complete`
+                    # frame alone, so it existed for as long as the tab did and a
+                    # reopened conversation showed no cost anywhere - which is
+                    # exactly when "what did that answer cost" gets asked.
+                    input_tokens=None if usage is None else usage.input_tokens,
+                    output_tokens=None if usage is None else usage.output_tokens,
+                    cost_usd=None if usage is None else usage.cost_usd,
                 ),
             )
             for tc in collected_tool_calls:

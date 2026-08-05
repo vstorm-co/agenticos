@@ -62,6 +62,55 @@ A spec binds skills by id in `skill_ids`, so an agent sees the ones it was given
 and nothing else. Enabling the capability with no skills bound is not useful —
 give the agent skills, or leave the capability off.
 
+## In a workspace, a skill is also files
+
+An agent that has both skills and a
+[workspace](reference/capabilities.md#files-shell) gets each skill written into
+it as well:
+
+```
+/skills/<name>/SKILL.md      the body, with its name and description
+/skills/<name>/<resource>    each resource, beside it
+```
+
+This is what makes a skill's script useful. A skill whose resource is
+`reconcile.py` was previously handed to the model as text it could quote and not
+run, while the same agent had `execute` one tool call away. On disk, it runs.
+
+There is no `run_skill_script`. The sandbox's own `execute` already carries the
+workspace's permission rules and the operator's ceilings; a second way to run
+things would be a second set of rules to get wrong.
+
+## An agent can propose a change; a person makes it
+
+Those files are writable, and what the agent writes is **not** applied. A skill is
+instructions every agent bound to it follows on every run — an agent that could
+edit one directly could rewrite what another agent does, inside a conversation
+nobody is reviewing, and the next reader would have no way to tell a considered
+improvement from a hallucinated one.
+
+So a write becomes a proposal, and it appears above the list on the Skills page
+for anyone holding `skills:edit`:
+
+- **Apply** rewrites the skill and bumps its version, which reaches every bound
+  agent on its next run.
+- **Discard** keeps the record. An agent proposing the same edit repeatedly is
+  telling somebody something about the skill, and a deleted row makes that
+  invisible.
+
+A decision is final: applying twice would bump a version against a body already
+stored, and discarding something applied would tell a reader it never landed. The
+proposal carries the whole body rather than a diff, so a reviewer weeks later is
+comparing two complete versions instead of applying a patch somewhere it was never
+meant to go. A directory the agent created with no `SKILL.md` in it, and one whose
+frontmatter it mangled, are both refused rather than guessed at — and a *deleted*
+resource is deliberately not a change, because a file the model never touched and
+one it meant to delete leave the same absence.
+
+Three turns of one conversation refining the same skill leave one proposal, not
+three: a reviewer asked the same question three times has been given more work
+rather than more information.
+
 ## Getting skills into an organization
 
 **Write one.** Skills → New, in the UI. This is the normal path.
@@ -118,3 +167,28 @@ compose — `skills` for the procedure, `knowledge` for the evidence.
 Skills are organization-scoped resources, governed like agents and collections:
 visibility plus per-row grants on top of the role. See
 [Permissions](permissions.md#layer-3-visibility-and-grants).
+
+**Binding a skill lends it.** Every run of the agent reads the body and the files,
+whoever ran it, so publishing an agent whose `skill_ids` name a skill requires the
+*publisher* to hold `skills:view` on that row — through `resolve_access`, so a grant
+counts and a member who was shared one skill can bind it without being promoted.
+A skill they cannot reach is refused as `Skill not found: <id>`, worded identically
+to an id that does not exist: skills are bound by UUID from the API and from a
+hand-edited draft, not only picked from the Builder's list, and a refusal that read
+differently would map the organization's private skills one guess at a time. The
+same check runs on an [inline specialist's](concepts.md#delegate-vs-inline-specialist)
+`skill_ids`, reported with the specialist's name.
+
+At run time nothing is re-checked: the frozen spec's skills are resolved inside the
+run's organization and handed to the agent. That is the rule collections and
+delegates already follow — [the reference is checked once, at
+publish](permissions.md#delegation-is-not-a-privilege-boundary) — and the
+alternative is worse in two specific ways. Every context with no subject (an API
+key, an embedded widget, a channel message) is refused by `resolve_access` by
+design, so a per-runner check would strip every skill from exactly those surfaces;
+and where there is a subject, one published version would give a member — whose role
+reaches shared skills only — thinner instructions than it gives a builder, with the
+difference visible nowhere.
+
+A skill deleted or disabled after publish is skipped with a warning rather than
+failing the run — the agent is less capable, not broken.

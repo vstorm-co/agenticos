@@ -109,6 +109,8 @@ _PATTERN_ALLOWED: dict[str, str] = {
     "secret_kind": "which shape a secret has to be, e.g. 'api_key'",
     "requires_secret": "what kind a capability needs, so the Builder can ask for one",
     "tokens_used": "an LLM usage count - 'token' means something else here",
+    "input_tokens": "the same count, split: prompt tokens billed for one turn",
+    "output_tokens": "the same, for the completion",
 }
 
 # A property whose type is one of these cannot be carrying a credential

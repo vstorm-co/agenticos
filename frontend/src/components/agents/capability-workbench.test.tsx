@@ -4,9 +4,29 @@ import userEvent from "@testing-library/user-event";
 
 import { CapabilityWorkbench } from "./capability-workbench";
 import { jsonSchemaType } from "./capability-settings";
+import { newSpecialist } from "@/lib/agent-spec";
 import type { CapabilityBindingSpec, CapabilityCatalogEntry } from "@/types/agents";
 
-vi.mock("@/hooks", () => ({ useSecrets: () => ({ secrets: [], isLoading: false, error: null }) }));
+vi.mock("@/hooks", () => ({
+  useSecrets: () => ({ secrets: [], isLoading: false, error: null }),
+  // The workspace section reads both: where sandboxes may run, and what the
+  // chosen host allows. Neither is this file's subject - `workspace-section`
+  // covers them - so both answer empty, which is a deployment that registered
+  // no connection.
+  useSandboxConnections: () => ({ connections: [], isLoading: false, error: null }),
+  useSandboxPolicy: () => ({ policy: null, isLoading: false, error: null }),
+  // Delegation's panel reads the agent listing, the caller's permissions and a
+  // delegate's history; the specialist editor below it reads three catalogs.
+  // None of them is this file's subject - `subagents-section` covers them.
+  useAgents: () => ({ agents: [], total: 0, isLoading: false }),
+  usePermissions: () => ({ can: () => true, isLoading: false }),
+  useAgentVersions: () => ({ versions: [], isLoading: false }),
+  useModelProviders: () => ({ catalog: [], profiles: [], isLoading: false }),
+  useKnowledgeBases: () => ({ kbs: [], isLoading: false }),
+  useSkills: () => ({ skills: [], total: 0, isLoading: false }),
+  useProviderModels: () => ({ models: [], source: null, isLoading: false }),
+  useSecretPurposes: () => ({ purposes: [], isLoading: false }),
+}));
 
 const CHARTS: CapabilityCatalogEntry = {
   id: "charts",
@@ -80,6 +100,8 @@ function renderWorkbench(props: Partial<Parameters<typeof CapabilityWorkbench>[0
       selected={[]}
       onToggle={vi.fn()}
       onChange={vi.fn()}
+      subagents={[]}
+      onSubagentsChange={vi.fn()}
       {...props}
     />,
   );
@@ -194,6 +216,42 @@ describe("the capability workbench", () => {
   });
 });
 
+describe("the frame the two panes sit in", () => {
+  it("is one height whichever capability is showing", () => {
+    // The page used to be as tall as whatever was selected: opening the
+    // workspace - the tallest panel by far - and then clicking a short one left
+    // the document scrolled past its own content, with hundreds of pixels of
+    // nothing below the section beneath it.
+    const { container } = render(
+      <CapabilityWorkbench
+        catalog={[CHARTS]}
+        selected={[]}
+        onToggle={vi.fn()}
+        onChange={vi.fn()}
+        subagents={[]}
+        onSubagentsChange={vi.fn()}
+      />,
+    );
+
+    expect(container.querySelector(".grid")?.className).toContain("lg:h-[36rem]");
+  });
+
+  it("scrolls each pane rather than the page", () => {
+    const { container } = render(
+      <CapabilityWorkbench
+        catalog={[CHARTS]}
+        selected={[]}
+        onToggle={vi.fn()}
+        onChange={vi.fn()}
+        subagents={[]}
+        onSubagentsChange={vi.fn()}
+      />,
+    );
+
+    expect(container.querySelectorAll('[class*="overflow-y-auto"]').length).toBe(2);
+  });
+});
+
 describe("jsonSchemaType", () => {
   it("searches the tools too, because that is what somebody is looking for", async () => {
     // Nobody knows which capability owns `create_chart`, and the search box only
@@ -276,5 +334,139 @@ describe("jsonSchemaType", () => {
 
   it("says so rather than guessing when there is nothing to read", () => {
     expect(jsonSchemaType(undefined)).toBe("unknown");
+  });
+});
+
+describe("the workspace, which is a row like the rest and a detail unlike it", () => {
+  const SANDBOX: CapabilityCatalogEntry = {
+    ...CHARTS,
+    id: "sandbox",
+    name: "Files & shell",
+    description: "Read, write and run things in a workspace that persists between turns.",
+    side_effecting: true,
+    scopes: ["sandbox:execute"],
+    tools: [
+      { id: "read_file", name: "read_file", description: "Read a file from the workspace." },
+      { id: "execute", name: "execute", description: "Run a shell command in the workspace." },
+    ],
+    contracts: [],
+    config_schema: {
+      type: "object",
+      properties: { backend: { type: "string", enum: ["state", "service"] } },
+    },
+  };
+
+  function renderSandbox(selected: CapabilityBindingSpec[] = []) {
+    return render(
+      <CapabilityWorkbench
+        catalog={[SANDBOX, CHARTS]}
+        selected={selected}
+        onToggle={vi.fn()}
+        onChange={vi.fn()}
+        subagents={[]}
+        onSubagentsChange={vi.fn()}
+      />,
+    );
+  }
+
+  it("says what the workspace gives the agent, not how many tools it has", async () => {
+    // "2 tools" is the least useful thing to say about it in a list; whether
+    // there is a shell is what somebody is scanning for. *Where* it runs is on
+    // the connection rather than the spec, so the row does not claim to know.
+    renderSandbox([binding("sandbox", { config: { backend: "service" } })]);
+
+    expect(await screen.findByText("files and a shell")).toBeInTheDocument();
+  });
+
+  it("says so when the agent has no workspace at all", async () => {
+    renderSandbox();
+
+    expect(await screen.findByText("no workspace")).toBeInTheDocument();
+  });
+
+  it.each([
+    [{ backend: "state" }, "files, no shell"],
+    [{ backend: "service" }, "files and a shell"],
+    [{}, "files, no shell"],
+  ])("names the backend in the row (%o)", async (config, expected) => {
+    renderSandbox([binding("sandbox", { config })]);
+
+    expect(await screen.findByText(expected)).toBeInTheDocument();
+  });
+
+  it("offers the backends and the scope instead of a generated form", async () => {
+    // The objection this answers: "which backend, and who shares it" is not the
+    // same kind of decision as switching on a chart tool. Enablement still is,
+    // so the switch above stays exactly where every capability has it.
+    renderSandbox([binding("sandbox", { config: { backend: "state" } })]);
+
+    expect(await screen.findByRole("button", { name: /^Container/ })).toBeVisible();
+    expect(screen.getByRole("combobox", { name: "Who shares it by default" })).toBeVisible();
+    expect(screen.getByText("Files & shell is on")).toBeVisible();
+  });
+
+  it("keeps the header switch for every other capability", async () => {
+    renderSandbox();
+
+    await userEvent.click(screen.getByRole("button", { name: /Charts/ }));
+
+    expect(screen.getByText(/Give this agent Charts/)).toBeVisible();
+  });
+});
+
+/**
+ * Delegation, which is the second capability with a panel of its own.
+ *
+ * The workbench's job here is only the routing and the row: what the panel then
+ * shows is `subagents-section`'s own test file. What matters at this level is
+ * that a capability whose configuration is partly *not* in its config blob still
+ * reaches an editor, and that the list says who the agent hands work to rather
+ * than how many tools delegation contributes.
+ */
+describe("delegation, the other capability with a panel of its own", () => {
+  const DELEGATION: CapabilityCatalogEntry = {
+    ...CHARTS,
+    id: "subagents",
+    name: "Delegation",
+    category: "orchestration",
+    description: "Hand part of a task to another agent.",
+    tools: [{ id: "task", name: "task", description: "Delegate a task." }],
+    contracts: [],
+    config_schema: null,
+  };
+
+  it("says who the agent hands work to, not how many tools delegation has", async () => {
+    renderWorkbench({
+      catalog: [DELEGATION, CHARTS],
+      selected: [
+        binding("subagents", { config: { inline: [{ ...newSpecialist(), name: "summariser" }] } }),
+      ],
+      subagents: [{ agent_id: "a1", agent_version_id: "v1" }],
+    });
+
+    expect(await screen.findByText("2 subagents")).toBeInTheDocument();
+  });
+
+  it("says so when it hands work to nobody", async () => {
+    renderWorkbench({ catalog: [DELEGATION, CHARTS] });
+
+    expect(await screen.findByText("nobody to delegate to")).toBeInTheDocument();
+  });
+
+  it("opens the delegation panel rather than the generated form", async () => {
+    renderWorkbench({ catalog: [DELEGATION, CHARTS], selected: [binding("subagents")] });
+
+    await userEvent.click(screen.getByRole("button", { name: /^Delegation/ }));
+
+    expect(screen.getByText("Delegates")).toBeVisible();
+    expect(screen.getByText("Inline specialists")).toBeVisible();
+  });
+
+  it("leaves the panel inert until the capability is switched on", async () => {
+    renderWorkbench({ catalog: [DELEGATION, CHARTS] });
+
+    await userEvent.click(screen.getByRole("button", { name: /^Delegation/ }));
+
+    expect(screen.getByRole("button", { name: "Add a specialist" })).toBeDisabled();
   });
 });

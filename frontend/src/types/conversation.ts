@@ -33,6 +33,21 @@ export interface ConversationMessage {
   created_at: string;
   model_name?: string;
   tokens_used?: number;
+  /**
+   * What this turn cost, stored per message.
+   *
+   * Split because input and output are priced an order of magnitude apart, so one
+   * total cannot say whether an answer was expensive because of a long context or a
+   * long answer. Absent on any message written before the API recorded it, and on a
+   * turn whose cost could not be read - which means "not recorded", never "free", so
+   * a client draws nothing rather than zeroes.
+   */
+  input_tokens?: number | null;
+  output_tokens?: number | null;
+  /** A string, like every other money field the API returns: `Numeric` is serialized
+   *  as one so a sum of a thousand turns cannot drift from the budget it is compared
+   *  against. */
+  cost_usd?: string | null;
   /** Which configured agent answered. Null for the general assistant. */
   agent_id?: string | null;
   tool_calls?: ConversationToolCall[];

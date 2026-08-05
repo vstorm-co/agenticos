@@ -43,6 +43,8 @@ services:
       - POSTGRES_HOST=db
       - REDIS_HOST=redis
       - PREFECT_API_URL=http://prefect-server:4200/api
+      # Empty unless the sandbox profile is up. Note what is absent from
+      # this service: the Docker socket.
     # --ws websockets-sansio: uvicorn's `auto` picks the legacy websockets impl,
     # which fails the handshake against websockets >=14. The chat WS needs it in
     # production exactly as much as it does locally.
@@ -130,6 +132,8 @@ services:
       - prefect_data:/root/.local/share/prefect/
     environment:
       - PREFECT_API_URL=http://prefect-server:4200/api
+      # Empty unless the sandbox profile is up. Note what is absent from
+      # this service: the Docker socket.
       - PREFECT_SERVER_API_HOST=0.0.0.0
     # No published port: the UI is reached through the reverse proxy or an SSH
     # tunnel, not from the internet.
@@ -160,6 +164,8 @@ services:
       - POSTGRES_HOST=db
       - REDIS_HOST=redis
       - PREFECT_API_URL=http://prefect-server:4200/api
+      # Empty unless the sandbox profile is up. Note what is absent from
+      # this service: the Docker socket.
     # Egress too: ingestion calls an embedding provider.
     networks:
       - data
@@ -177,6 +183,52 @@ services:
         limits:
           cpus: "2"
           memory: 2G
+
+  # The only service holding the Docker socket. See docker-compose.yml for the
+  # reasoning; the differences here are that it is not on by default (mounting
+  # the socket on a shared host is a deliberate act) and that the image tag is
+  # pinned rather than tracking a minor.
+  sandboxd:
+    image: ghcr.io/vstorm-co/sandboxd:0.2
+    container_name: agenticos_sandboxd_prod
+    profiles: [sandbox]
+    # The token comes from the same file every other secret in this stack comes
+    # from, rather than through compose interpolation. Interpolation reads the
+    # project root, not `backend/.env`, so a token generated where the
+    # application reads it would have been invisible here - and every other
+    # variable in this file carries a default precisely so the stack starts with
+    # no env file at all. The service exits naming the variable when it is
+    # missing, which `docker compose logs sandboxd` shows.
+    env_file:
+      - ./backend/.env
+    environment:
+      SANDBOXD_HOST: 0.0.0.0
+      SANDBOXD_PORT: "8080"
+      # Mounted at the same path on both sides, which is the only arrangement
+      # that works: this service creates the directory and then asks the daemon
+      # to bind-mount it, and the daemon resolves the path on the host. A named
+      # volume, or any path that exists only in this container, is refused with
+      # "mounts denied".
+      #
+      # The directory has to be writable by uid 10001 - `install -d -o 10001`
+      # once, on the host - and it is where a conversation's files live, so it
+      # belongs on storage somebody backs up.
+      SANDBOXD_WORKSPACE_ROOT: ${SANDBOX_WORKSPACE_ROOT:-/var/lib/agenticos/sandbox-workspaces}
+      SANDBOXD_PERSIST_CONTAINERS: "true"
+      SANDBOXD_MAX_SESSIONS_PER_TENANT: "5"
+      SANDBOXD_NETWORK_MODE: none
+      SANDBOXD_UI_ENABLED: "0"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${SANDBOX_WORKSPACE_ROOT:-/var/lib/agenticos/sandbox-workspaces}:${SANDBOX_WORKSPACE_ROOT:-/var/lib/agenticos/sandbox-workspaces}
+    group_add:
+      - "${DOCKER_GID:-0}"
+    networks:
+      # `data` only. `edge` is where the reverse proxy reaches the application,
+      # and a service whose token can start containers on this host has no
+      # business on a network anything outside can route to.
+      - data
+    restart: unless-stopped
 
 networks:
   data:

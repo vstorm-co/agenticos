@@ -344,7 +344,7 @@ describe("rating an answer", () => {
 
     await userEvent.click(up());
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Failed to submit rating"));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("failedSubmitRating"));
   });
 
   it("still says something when the refusal is not JSON", async () => {
@@ -353,7 +353,7 @@ describe("rating an answer", () => {
 
     await userEvent.click(up());
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Unknown error"));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("unknownError"));
   });
 
   it("reports a failure to remove a rating, and keeps the rating", async () => {
@@ -362,7 +362,7 @@ describe("rating an answer", () => {
 
     await userEvent.click(up());
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Failed to remove rating"));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("failedRemoveRating"));
     expect(onRatingChange).not.toHaveBeenCalled();
   });
 
@@ -385,7 +385,7 @@ describe("rating an answer", () => {
 
     await userEvent.click(up());
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Unknown error"));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("unknownError"));
   });
 
   it("accepts no second click while the first is in flight", async () => {

@@ -14,18 +14,17 @@ from pydantic_ai import (
     PartDeltaEvent,
     PartStartEvent,
     TextPartDelta,
-    ToolCallPartDelta,
 )
 from pydantic_ai.messages import (
-    BinaryContent,
     TextPart,
     ThinkingPart,
     ThinkingPartDelta,
 )
 
 from app.agents.capabilities.budget import BudgetExceeded
-from app.api.deps import get_conversation_service
+from app.agents.subagent_events import SubagentEvent
 from app.core.exceptions import AppException, AuthorizationError
+from app.db.models.chat_file import ChatFile
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.db.session import get_db_context
@@ -42,7 +41,8 @@ from app.services.agent_chat import (
     requested_environment_id,
     requested_model_profile_id,
 )
-from app.services.file_storage import get_file_storage
+from app.services.attachments import load_attached_files
+from app.services.usage_report import usage_frame
 
 logger = logging.getLogger(__name__)
 
@@ -179,7 +179,10 @@ class AgentSession:
 
         try:
             model_history = build_message_history(self.conversation_history)
-            user_input = await self._build_multimodal_input(user_message, file_ids)
+            # The files, not a prompt built from them. Where an attachment goes
+            # depends on whether the agent has a workspace, and only `prepare`
+            # knows that - so the routing happens one layer down.
+            attachments = await self._attached_files(file_ids)
 
             collected_tool_calls: list[dict[str, Any]] = []
             collected_thinking: list[str] = []
@@ -197,13 +200,15 @@ class AgentSession:
                     user=self.user,
                     organization_id=self.organization_id,
                     agent_id=agent_id,
-                    user_input=user_input,
+                    user_input=user_message,
                     message_history=model_history,
+                    attachments=attachments,
                     conversation_id=(
                         UUID(self.current_conversation_id) if self.current_conversation_id else None
                     ),
                     ask_user=self._ask_user,
                     stream=stream,
+                    subagent_events=self._subagent_event,
                     # The chat may run a published agent on another of the
                     # organization's models. Only the model changes; the run
                     # records which one, and the budget is the agent's.
@@ -228,6 +233,7 @@ class AgentSession:
                     thinking="".join(collected_thinking) or None,
                     agent_id=agent_id,
                     agent_version_id=agent_version_id,
+                    usage=turn.usage,
                 )
 
             if assistant_msg_id:
@@ -240,10 +246,45 @@ class AgentSession:
                     },
                 )
 
+            # Before `complete`, so a client that draws the panel has it while the
+            # turn is still on screen. The queue and the email carry the same rows;
+            # this is a shortcut for whoever is already looking at the tab.
+            if turn.parked:
+                await send_event(
+                    self.websocket,
+                    "tool_approval_required",
+                    {
+                        "run_id": str(turn.run_id),
+                        "action_requests": [
+                            {
+                                "id": str(parked.approval_id),
+                                "tool_call_id": parked.tool_call_id,
+                                "tool_name": parked.tool_name,
+                                "args": parked.tool_args,
+                            }
+                            for parked in turn.parked
+                        ],
+                        # Editing a parked call is not offered: the arguments were
+                        # already recorded on the row the approver is deciding
+                        # about, and letting the chat rewrite them would mean
+                        # approving something other than what was asked.
+                        "review_configs": [
+                            {"tool_name": parked.tool_name, "allow_edit": False}
+                            for parked in turn.parked
+                        ],
+                    },
+                )
+
             await send_event(
                 self.websocket,
                 "complete",
-                {"conversation_id": self.current_conversation_id},
+                {
+                    "conversation_id": self.current_conversation_id,
+                    # What the turn cost, on the frame that says it is over.
+                    # Its own event would be one the client could receive after
+                    # `complete` and draw against the next turn.
+                    "usage": usage_frame(turn.usage),
+                },
             )
         except WebSocketDisconnect:
             raise
@@ -274,36 +315,43 @@ class AgentSession:
         finally:
             self._ask_user_future = None
 
-    async def _build_multimodal_input(
-        self, user_message: str, file_ids: list[Any]
-    ) -> str | list[Any]:
-        """Fold attached images and parsed file text into the user message."""
+    async def _subagent_event(self, event: SubagentEvent) -> None:
+        """Forward one frame from inside a delegation, under the frame's own name.
+
+        The wire `type` *is* the frame's `kind` rather than a name chosen here.
+        Two spellings of one frame - the literal in the union and a string in this
+        method - is a drift nothing would catch: the client would keep switching on
+        a case the server had stopped sending, and a delegation would simply not
+        appear. `kind` stays in the payload as well, so the client narrows the
+        object it already parsed instead of re-deriving the discriminator from the
+        envelope.
+
+        `cost_usd` is sent as a JSON number. Pydantic serialises a `Decimal` as a
+        string in JSON mode, and this wire already reports a turn's cost as a
+        number (see `usage_report.usage_frame`) - a delegation's share of that cost
+        is the same quantity and must not arrive in a different shape.
+
+        Nothing is awaited on the client's behalf: `send_event` answers `False` on
+        a closed socket rather than raising, so a background delegation whose
+        frames outlive the tab does not take the run down with it.
+        """
+        frame = event.model_dump(mode="json")
+        cost = frame.get("cost_usd")
+        if cost is not None:
+            frame["cost_usd"] = float(cost)
+        await send_event(self.websocket, event.kind, frame)
+
+    async def _attached_files(self, file_ids: list[Any]) -> list[ChatFile]:
+        """The rows for the files this frame attached.
+
+        Read on their own session: the turn's own session is opened later and
+        held for the run, and this is a lookup rather than part of that unit of
+        work.
+        """
         if not file_ids:
-            return user_message
-
-        storage = get_file_storage()
-        image_parts: list[BinaryContent] = []
-        file_context_parts: list[str] = []
+            return []
         async with get_db_context() as file_db:
-            attached_files = await get_conversation_service(file_db).list_attached_files(file_ids)
-            for chat_file in attached_files:
-                try:
-                    if chat_file.file_type == "image":
-                        file_data = await storage.load(chat_file.storage_path)
-                        image_parts.append(
-                            BinaryContent(data=file_data, media_type=chat_file.mime_type)
-                        )
-                    elif chat_file.parsed_content:
-                        file_context_parts.append(
-                            f"\n---\nAttached file: {chat_file.filename}\n```\n{chat_file.parsed_content}\n```"
-                        )
-                except Exception:
-                    logger.warning("Failed to load file %s", chat_file.id, exc_info=True)
-
-        full_text = user_message + "".join(file_context_parts)
-        if image_parts:
-            return [full_text, *image_parts]
-        return full_text
+            return await load_attached_files(file_db, file_ids)
 
     async def _stream_agent_run(
         self,
@@ -327,7 +375,18 @@ class AgentSession:
                 await send_event(self.websocket, "call_tools_start", {})
                 async with node.stream(agent_run.ctx) as handle_stream:
                     await self._stream_tool_events(handle_stream, collected_tool_calls)
-            elif Agent.is_end_node(node) and agent_run.result is not None:
+            else:
+                # The end node, and the only kind left. Iterating an `AgentRun`
+                # yields a user-prompt, a model-request or a call-tools node, or
+                # `End` - `AgentRun._task_to_node` has no fourth answer, and the
+                # graph's one other node is reachable only through
+                # `agent_run.next()`, which this does not use. `End` also means
+                # the graph run holds its `EndMarker`, so `agent_run.result` is
+                # populated there. `is_end_node(node) and agent_run.result is not
+                # None` was therefore a condition that could not be false, and
+                # had it ever been it would have dropped the frame carrying the
+                # answer without saying anything. Whatever made it false now
+                # raises instead, and reaches the client as `error`.
                 await send_event(
                     self.websocket,
                     "final_result",
@@ -361,25 +420,34 @@ class AgentSession:
                         {"index": event.index, "content": event.part.content},
                     )
             elif isinstance(event, PartDeltaEvent):
-                if isinstance(event.delta, TextPartDelta):
+                delta = event.delta
+                if isinstance(delta, TextPartDelta):
                     await send_event(
                         self.websocket,
                         "text_delta",
-                        {"index": event.index, "content": event.delta.content_delta},
+                        {"index": event.index, "content": delta.content_delta},
                     )
-                elif isinstance(event.delta, ThinkingPartDelta):
-                    if event.delta.content_delta:
-                        collected_thinking.append(event.delta.content_delta)
+                elif isinstance(delta, ThinkingPartDelta):
+                    # Only when there is something to show. A reasoning delta can
+                    # carry a `signature_delta` alone - the provider's proof it
+                    # produced the reasoning - and forwarding that would put
+                    # base64 in the reasoning pane and in the stored trace.
+                    if delta.content_delta:
+                        collected_thinking.append(delta.content_delta)
                         await send_event(
                             self.websocket,
                             "thinking_delta",
-                            {"index": event.index, "content": event.delta.content_delta},
+                            {"index": event.index, "content": delta.content_delta},
                         )
-                elif isinstance(event.delta, ToolCallPartDelta):
+                else:
+                    # A tool-call delta, and the only kind left:
+                    # `ModelResponsePartDelta` is text, thinking or tool-call, so
+                    # an `isinstance` here was a third condition that could not be
+                    # false.
                     await send_event(
                         self.websocket,
                         "tool_call_delta",
-                        {"index": event.index, "args_delta": event.delta.args_delta},
+                        {"index": event.index, "args_delta": delta.args_delta},
                     )
             elif isinstance(event, FinalResultEvent):
                 await send_event(
@@ -406,14 +474,20 @@ class AgentSession:
                 pending[tool_event.part.tool_call_id] = tc
                 await send_event(self.websocket, "tool_call", tc)
             elif isinstance(tool_event, FunctionToolResultEvent):
+                # `.part`, not `.result`. Pydantic AI 2 renamed the field when
+                # `ToolResultEvent` became the shared base of the function and
+                # output events; reading the old name raised `AttributeError`
+                # inside the stream, which reached the user as
+                # "❌ Error: 'FunctionToolResultEvent' object has no attribute
+                # 'result'" on every tool call in web chat. A `RetryPromptPart`
+                # arrives here too and also carries `content` - the retry message -
+                # so a failed call is reported rather than swallowed.
+                content = str(tool_event.part.content)
                 tc = pending.get(tool_event.tool_call_id)
                 if tc is not None:
-                    tc["result"] = str(tool_event.result.content)
+                    tc["result"] = content
                 await send_event(
                     self.websocket,
                     "tool_result",
-                    {
-                        "tool_call_id": tool_event.tool_call_id,
-                        "content": str(tool_event.result.content),
-                    },
+                    {"tool_call_id": tool_event.tool_call_id, "content": content},
                 )

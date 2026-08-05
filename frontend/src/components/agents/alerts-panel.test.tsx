@@ -112,13 +112,28 @@ describe("the alerts panel", () => {
     expect(saved(onChange).approvals.user_ids).toEqual([]);
   });
 
-  it("names members by their name, falling back to the address", () => {
+  it("names members by name and address, the way the rest of the app draws a person", async () => {
+    // In a menu rather than as a pill each: an organization of forty rendered
+    // forty of them inside a settings card. And with both lines, because a bare
+    // first name is not something two colleagues called Bob are told apart by.
     mount(withChosen(["u-1"]));
 
-    expect(screen.getByRole("checkbox", { name: "Approval requests: Ada Lovelace" })).toBeChecked();
+    await userEvent.click(screen.getByRole("button", { name: /1 person/ }));
+
     expect(
-      screen.getByRole("checkbox", { name: "Approval requests: bob@acme.test" }),
-    ).not.toBeChecked();
+      screen.getByRole("option", { name: "Approval requests: Ada Lovelace (ada@acme.test)" }),
+    ).toHaveAttribute("aria-selected", "true");
+    expect(
+      screen.getByRole("option", { name: "Approval requests: bob (bob@acme.test)" }),
+    ).toHaveAttribute("aria-selected", "false");
+  });
+
+  it("lists who was chosen without opening the menu", () => {
+    // Who is on the list is what somebody scanning the page wants, and a count on
+    // a closed menu does not answer it.
+    mount(withChosen(["u-1"]));
+
+    expect(screen.getByRole("listitem")).toHaveTextContent("Ada Lovelace");
   });
 
   it("says so when an enabled alert would mail nobody", async () => {
@@ -155,18 +170,21 @@ describe("the alerts panel", () => {
   it("names a person to hear the alert", async () => {
     const { onChange } = mount(withChosen(["u-1"]));
 
+    await userEvent.click(screen.getByRole("button", { name: /1 person/ }));
     await userEvent.click(
-      screen.getByRole("checkbox", { name: "Approval requests: bob@acme.test" }),
+      screen.getByRole("option", { name: "Approval requests: bob (bob@acme.test)" }),
     );
 
     expect(saved(onChange).approvals.user_ids).toEqual(["u-1", "u-2"]);
   });
 
   it("takes a person back off the list", async () => {
+    // From the row rather than the menu: it is what somebody looking at the list
+    // has in front of them.
     const { onChange } = mount(withChosen(["u-1", "u-2"]));
 
     await userEvent.click(
-      screen.getByRole("checkbox", { name: "Approval requests: Ada Lovelace" }),
+      screen.getByRole("button", { name: "Approval requests: remove Ada Lovelace" }),
     );
 
     expect(saved(onChange).approvals.user_ids).toEqual(["u-2"]);
@@ -191,7 +209,7 @@ describe("the alerts panel", () => {
       screen.getByRole("checkbox", { name: "Approval requests: Specific people" }),
     );
     await userEvent.click(
-      screen.getByRole("checkbox", { name: "Approval requests: Ada Lovelace" }),
+      screen.getByRole("button", { name: "Approval requests: remove Ada Lovelace" }),
     );
 
     expect(onChange).not.toHaveBeenCalled();

@@ -16,6 +16,13 @@ import {
 // The socket itself is not under test: what matters is the frame the hook hands
 // it, because that frame is the whole contract with the backend. The mock also
 // keeps hold of the inbound handler so a server event can be replayed.
+// A decision on a parked call goes to the same REST endpoints the approvals queue
+// uses. It used to be a WebSocket `resume` frame the server silently discarded, so
+// asserting on the frame is exactly what let that pass.
+const { post } = vi.hoisted(() => ({ post: vi.fn() }));
+vi.mock("@/lib/api-client", () => ({ apiClient: { post } }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+
 const { sent, socket, connect, disconnect } = vi.hoisted(() => ({
   sent: vi.fn(),
   connect: vi.fn(),
@@ -357,6 +364,180 @@ describe("useChat - failures and interruptions", () => {
   });
 });
 
+describe("useChat - streaming a delegation", () => {
+  /** A `subagent_start`, replayed the way the server sends one. */
+  function startDelegation(taskId: string, subagent = "researcher", mode = "sync"): void {
+    receive("subagent_start", {
+      kind: "subagent_start",
+      task_id: taskId,
+      subagent,
+      depth: 0,
+      mode,
+      prompt: "find three papers",
+      parent_task_id: null,
+    });
+  }
+
+  it("opens a panel per delegation and fills it from its own frames", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    startDelegation("t1");
+    receive("subagent_text_delta", {
+      kind: "subagent_text_delta",
+      task_id: "t1",
+      subagent: "researcher",
+      depth: 0,
+      delta: "found three",
+    });
+
+    expect(result.current.delegations).toHaveLength(1);
+    expect(result.current.delegations[0]).toMatchObject({
+      taskId: "t1",
+      subagent: "researcher",
+      status: "running",
+      text: "found three",
+    });
+  });
+
+  it("keeps a delegation's panel alive past the turn's own complete", () => {
+    // The bug this exists to prevent. A background delegation reports *after* the
+    // parent's answer, and `complete` is what clears the streaming message - so a
+    // panel hung off that message loses the last thing a specialist said, silently,
+    // in exactly the case the delegation was started for.
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    startDelegation("t1", "researcher", "async");
+
+    receive("complete", { conversation_id: null, usage: null });
+    receive("subagent_text_delta", {
+      kind: "subagent_text_delta",
+      task_id: "t1",
+      subagent: "researcher",
+      depth: 0,
+      delta: "the last word",
+    });
+    receive("subagent_complete", {
+      kind: "subagent_complete",
+      task_id: "t1",
+      subagent: "researcher",
+      depth: 0,
+      status: "completed",
+      run_id: null,
+      cost_usd: 0.0042,
+      input_tokens: 10,
+      output_tokens: 5,
+      error: null,
+    });
+
+    expect(result.current.delegations[0]).toMatchObject({
+      status: "completed",
+      text: "the last word",
+      costUsd: 0.0042,
+    });
+  });
+
+  it("closes an unfinished delegation when the run was cancelled", () => {
+    // The cancelled path sends `stopped` (`AgentSession._run_turn`) and nothing
+    // more is coming, so a panel left running would spin forever. The frontend
+    // never read this field before.
+    const { result } = renderHook(() => useChat(), { wrapper });
+    startDelegation("t1");
+
+    receive("complete", { conversation_id: null, stopped: true });
+
+    expect(result.current.delegations[0]?.status).toBe("cancelled");
+  });
+
+  it("closes an unfinished delegation when the turn failed", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    startDelegation("t1");
+
+    receive("error", { message: "Budget exceeded" });
+
+    expect(result.current.delegations[0]?.status).toBe("cancelled");
+  });
+
+  it("closes an unfinished delegation when the person presses stop", () => {
+    // Optimistic on purpose: the server's `complete` may never arrive, because the
+    // socket can be what went away.
+    const { result } = renderHook(() => useChat(), { wrapper });
+    startDelegation("t1");
+
+    act(() => result.current.stopGeneration());
+
+    expect(result.current.delegations[0]?.status).toBe("cancelled");
+  });
+
+  it("replaces the previous turn's panels when the next message goes out", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    startDelegation("t1");
+    receive("complete", { conversation_id: null });
+
+    act(() => result.current.sendMessage("and now something else"));
+
+    expect(result.current.delegations).toEqual([]);
+  });
+
+  it("drops a frame for a delegation it has no panel for", () => {
+    // A background delegation of the previous turn reporting after the panels were
+    // replaced. A panel invented from a delta has no delegate name and no prompt.
+    const { result } = renderHook(() => useChat(), { wrapper });
+
+    receive("subagent_text_delta", {
+      kind: "subagent_text_delta",
+      task_id: "gone",
+      subagent: "researcher",
+      depth: 0,
+      delta: "nobody is listening",
+    });
+
+    expect(result.current.delegations).toEqual([]);
+  });
+
+  it("leaves the previous conversation's delegations behind when another is opened", () => {
+    // Sending a message was the only thing that cleared them, so completing a
+    // delegated turn in one conversation and then picking another from the sidebar
+    // drew that conversation's specialists, their briefs and their costs under a
+    // transcript they had nothing to do with.
+    useConversationStore.getState().setCurrentConversationId("c-a");
+    const { result } = renderHook(() => useChat(), { wrapper });
+    startDelegation("t1");
+    receive("complete", { conversation_id: null });
+    expect(result.current.delegations).toHaveLength(1);
+
+    act(() => {
+      useConversationStore.getState().setCurrentConversationId("c-b");
+    });
+
+    expect(result.current.delegations).toEqual([]);
+  });
+
+  it("keeps the panels of the turn that just learned its conversation id", () => {
+    // The first turn of a new thread is told the id by `conversation_created` while
+    // it is still streaming. That is this conversation being named, not another being
+    // opened, and clearing there would take the panels of the turn on screen.
+    const { result } = renderHook(() => useChat(), { wrapper });
+    startDelegation("t1");
+
+    receive("conversation_created", { conversation_id: "c-new" });
+
+    expect(result.current.delegations).toHaveLength(1);
+  });
+
+  it("leaves the previous tenant's delegations behind when the organization moves", () => {
+    useOrgStore.setState({ activeOrgId: "org-a" });
+    const { result, rerender } = renderHook(() => useChat(), { wrapper });
+    startDelegation("t1");
+    expect(result.current.delegations).toHaveLength(1);
+
+    act(() => {
+      useOrgStore.setState({ activeOrgId: "org-b" });
+    });
+    rerender();
+
+    expect(result.current.delegations).toEqual([]);
+  });
+});
+
 describe("useChat - the conversation a turn belongs to", () => {
   it("adopts the conversation the backend created, and puts it in the address bar", () => {
     // So a refresh mid-turn lands back on the same thread.
@@ -399,6 +580,114 @@ describe("useChat - the conversation a turn belongs to", () => {
     expect(streaming()).toMatchObject({ id: "m-real", isTemporaryId: false });
   });
 
+  it("keeps what the last turn cost, and does not clear it when a turn reports none", () => {
+    // A turn the server could not measure must not blank a number the previous
+    // one legitimately reported - the strip would flicker to nothing mid-chat.
+    const { result } = renderHook(() => useChat(), { wrapper });
+    expect(result.current.lastUsage).toBeNull();
+
+    receive("complete", {
+      usage: {
+        input_tokens: 1200,
+        output_tokens: 300,
+        cost_usd: 0.0125,
+        budget_percent: null,
+        sandbox: null,
+      },
+    });
+    expect(result.current.lastUsage).toMatchObject({ input_tokens: 1200 });
+
+    receive("complete", {});
+    expect(result.current.lastUsage).toMatchObject({ input_tokens: 1200 });
+  });
+
+  it("still finds the message after it has been given its real id", () => {
+    // `message_saved` renames the streaming message, and everything after it -
+    // the cost, an error - addresses the message through the ref. A ref left
+    // holding the temporary id addresses a message that no longer exists, so the
+    // cost was written to nothing and appeared only after a reload.
+    renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("message_saved", { message_id: "m-real" });
+
+    receive("complete", {
+      usage: {
+        input_tokens: 4055,
+        output_tokens: 24,
+        cost_usd: 0.0012,
+        budget_percent: null,
+        agent_budget_percent: null,
+        sandbox: null,
+      },
+    });
+
+    expect(streaming()).toMatchObject({ id: "m-real" });
+    expect(streaming()?.usage).toMatchObject({ input_tokens: 4055 });
+  });
+
+  it("credits the cost to the conversation it was passed, before the store catches up", () => {
+    // The page knows which thread it opened before the store does, and a cost
+    // attributed to `null` would be shown under whatever came next.
+    const { result } = renderHook(() => useChat({ conversationId: "c-passed" }), { wrapper });
+
+    receive("complete", {
+      usage: {
+        input_tokens: 5,
+        output_tokens: 5,
+        cost_usd: 0.001,
+        budget_percent: null,
+        agent_budget_percent: null,
+        sandbox: null,
+      },
+    });
+
+    expect(result.current.lastUsage).toMatchObject({ input_tokens: 5 });
+  });
+
+  it("does not report one conversation's cost under another", () => {
+    // The bare value survived a switch, so the strip showed the thread somebody had
+    // just left. Keyed on the conversation, it simply is not returned.
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("complete", {
+      usage: {
+        input_tokens: 1200,
+        output_tokens: 300,
+        cost_usd: 0.0125,
+        budget_percent: null,
+        agent_budget_percent: null,
+        sandbox: null,
+      },
+    });
+    expect(result.current.lastUsage).toMatchObject({ input_tokens: 1200 });
+
+    act(() => {
+      useConversationStore.getState().setCurrentConversationId("c-2");
+    });
+
+    expect(result.current.lastUsage).toBeNull();
+  });
+
+  it("records the cost on the answer that cost it, not only under the input", () => {
+    // The strip only ever describes the last turn, so in a long conversation
+    // there is no way to see which answer was the expensive one.
+    renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+
+    receive("complete", {
+      usage: {
+        input_tokens: 1200,
+        output_tokens: 300,
+        cost_usd: 0.0125,
+        budget_percent: null,
+        agent_budget_percent: null,
+        sandbox: null,
+      },
+    });
+
+    expect(streaming()?.usage).toMatchObject({ input_tokens: 1200, output_tokens: 300 });
+  });
+
   it("finds the message to rename when the turn has already completed", () => {
     // `complete` clears the id, and `message_saved` can arrive after it.
     renderHook(() => useChat(), { wrapper });
@@ -436,27 +725,35 @@ describe("useChat - the conversation a turn belongs to", () => {
 });
 
 describe("useChat - approvals and questions", () => {
-  it("surfaces the tools waiting on a person, and says so in the message", () => {
+  it("surfaces the tools waiting on a person, and resolves their cards", async () => {
+    // The card used to spin forever: a parked call produces no `tool_result`
+    // until somebody decides, so "running" is a state it never leaves.
     const { result } = renderHook(() => useChat(), { wrapper });
     receive("model_request_start", {});
+    receive("tool_call", { tool_name: "send_email", args: {}, tool_call_id: "tc-1" });
 
     receive("tool_approval_required", {
-      action_requests: [{ id: "ar-1", tool_name: "send_email", args: { to: "a@b.c" } }],
-      review_configs: [{ tool_name: "send_email", allow_edit: true }],
+      run_id: "r-1",
+      action_requests: [
+        { id: "ar-1", tool_call_id: "tc-1", tool_name: "send_email", args: { to: "a@b.c" } },
+      ],
+      review_configs: [{ tool_name: "send_email", allow_edit: false }],
     });
 
     expect(result.current.pendingApproval).toMatchObject({
       actionRequests: [{ id: "ar-1", tool_name: "send_email" }],
-      reviewConfigs: [{ tool_name: "send_email", allow_edit: true }],
+      runId: "r-1",
     });
-    expect(streaming()?.content).toContain("⏸️ Waiting for approval: send_email");
+    const card = streaming()?.parts?.find((part) => part.type === "tool");
+    expect(card?.toolCall?.status).toBe("awaiting_approval");
   });
 
   it("still surfaces an approval with no message open", () => {
     const { result } = renderHook(() => useChat(), { wrapper });
 
     receive("tool_approval_required", {
-      action_requests: [{ id: "ar-1", tool_name: "send_email", args: {} }],
+      run_id: "r-1",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "send_email", args: {} }],
       review_configs: [],
     });
 
@@ -464,52 +761,130 @@ describe("useChat - approvals and questions", () => {
     expect(useChatStore.getState().messages).toEqual([]);
   });
 
-  it("sends each decision, and replaces the waiting line with what was decided", () => {
+  it("records each decision on its own approval row, then resumes once", async () => {
+    // Once, after all of them: the run continues when nothing is left parked, and
+    // resuming per decision would start it while calls it has not heard about are
+    // still waiting.
+    post.mockResolvedValue({});
     const { result } = renderHook(() => useChat(), { wrapper });
     receive("model_request_start", {});
     receive("tool_approval_required", {
+      run_id: "r-9",
       action_requests: [
-        { id: "ar-1", tool_name: "send_email", args: {} },
-        { id: "ar-2", tool_name: "delete_row", args: {} },
-        { id: "ar-3", tool_name: "post_invoice", args: {} },
+        { id: "ar-1", tool_call_id: "tc-1", tool_name: "send_email", args: {} },
+        { id: "ar-2", tool_call_id: "tc-2", tool_name: "delete_row", args: {} },
       ],
       review_configs: [],
     });
 
-    act(() =>
-      result.current.sendResumeDecisions([
-        { type: "approve" },
-        { type: "reject" },
-        {
-          type: "edit",
-          editedAction: { id: "ar-3", tool_name: "post_invoice", args: { amount: 1 } },
-        },
-      ]),
-    );
-
-    expect(result.current.pendingApproval).toBeNull();
-    expect(frame(0)).toEqual({
-      type: "resume",
-      decisions: [
-        { type: "approve" },
-        { type: "reject" },
-        {
-          type: "edit",
-          edited_action: { id: "ar-3", tool_name: "post_invoice", args: { amount: 1 } },
-        },
-      ],
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "approve" }, { type: "reject" }]);
     });
-    expect(streaming()?.content).toContain("✅ Decisions: 1 approved, 1 edited, 1 rejected");
+
+    expect(post.mock.calls).toEqual([
+      ["/approvals/ar-1", { approved: true }],
+      ["/approvals/ar-2", { approved: false }],
+      ["/runs/r-9/resume"],
+    ]);
+    expect(result.current.pendingApproval).toBeNull();
   });
 
-  it("sends an edit with no edited action as a plain edit", () => {
-    // Which is what the dialog produces when somebody opens the editor and
-    // changes nothing.
+  it("shows what the resumed run answered, rather than discarding it", async () => {
+    // `resume_run` executes the agent and returns its output - over HTTP, to whoever
+    // asked, never over this conversation's socket. Throwing that away is what made an
+    // approval look like it had done nothing: the panel vanished, a toast said the run
+    // was continuing, and the transcript then sat unchanged until a page reload.
+    post.mockImplementation((url: string) =>
+      url.endsWith("/resume")
+        ? Promise.resolve({ run_id: "r-9", output: "Done - 3 rows deleted.", status: "completed" })
+        : Promise.resolve({}),
+    );
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("tool_approval_required", {
+      run_id: "r-9",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "delete_row", args: {} }],
+      review_configs: [],
+    });
+
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "approve" }]);
+    });
+
+    const answers = useChatStore
+      .getState()
+      .messages.filter((message) => message.role === "assistant");
+    expect(answers.at(-1)?.content).toBe("Done - 3 rows deleted.");
+  });
+
+  it("adds nothing when the resumed run answered with nothing", async () => {
+    // A refusal resumes into an empty output, and an empty bubble in the transcript
+    // is worse than no bubble.
+    post.mockResolvedValue({ run_id: "r-9", output: "", status: "completed" });
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("tool_approval_required", {
+      run_id: "r-9",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "delete_row", args: {} }],
+      review_configs: [],
+    });
+
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "reject" }]);
+    });
+
+    expect(useChatStore.getState().messages).toEqual([]);
+  });
+
+  it("puts the panel back when a decision could not be recorded", async () => {
+    // A decision that failed to record is a run still parked, and a panel that
+    // vanished is a person believing they unblocked it.
+    post.mockRejectedValue(new Error("403 Forbidden"));
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("tool_approval_required", {
+      run_id: "r-9",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "send_email", args: {} }],
+      review_configs: [],
+    });
+
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "approve" }]);
+    });
+
+    expect(result.current.pendingApproval).not.toBeNull();
+  });
+
+  it("decides nothing when there was nothing parked", async () => {
     const { result } = renderHook(() => useChat(), { wrapper });
 
-    act(() => result.current.sendResumeDecisions([{ type: "edit" }]));
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "approve" }]);
+    });
 
-    expect(frame(0)).toMatchObject({ decisions: [{ type: "edit" }] });
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it("ignores a decision list shorter than what is waiting", async () => {
+    // Rather than reading `undefined` as a refusal, which would reject a call
+    // nobody decided about.
+    post.mockResolvedValue({});
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("tool_approval_required", {
+      run_id: "r-9",
+      action_requests: [
+        { id: "ar-1", tool_call_id: "tc-1", tool_name: "a", args: {} },
+        { id: "ar-2", tool_call_id: "tc-2", tool_name: "b", args: {} },
+      ],
+      review_configs: [],
+    });
+
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "approve" }]);
+    });
+
+    expect(post.mock.calls).toEqual([
+      ["/approvals/ar-1", { approved: true }],
+      ["/runs/r-9/resume"],
+    ]);
   });
 
   it("surfaces the questions an agent asked, filling in what it left out", () => {

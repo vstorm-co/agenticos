@@ -5,10 +5,17 @@
 **The operating system for your company's AI agents.**
 Self-hosted, open source, and yours.
 
-[![CI](https://github.com/vstorm-co/agenticos/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/vstorm-co/agenticos/actions/workflows/ci.yml)
+[![CI](https://github.com/vstorm-co/agenticos/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/vstorm-co/agenticos/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/badge/platform%20layer-100%25-brightgreen)](docs/testing.md)
 [![Docs](https://img.shields.io/badge/docs-mkdocs-blue)](docs/index.md)
-[![Python](https://img.shields.io/badge/python-3.12%2B-blue)](backend/pyproject.toml)
 [![Licence](https://img.shields.io/badge/licence-Apache--2.0-blue)](LICENSE)
+
+[![Python](https://img.shields.io/badge/python-3.12-3776ab?logo=python&logoColor=white)](backend/pyproject.toml)
+[![FastAPI](https://img.shields.io/badge/FastAPI-Pydantic%20v2-009688?logo=fastapi&logoColor=white)](backend/pyproject.toml)
+[![Pydantic AI](https://img.shields.io/badge/runtime-Pydantic%20AI-e520a0)](https://ai.pydantic.dev)
+[![Next.js](https://img.shields.io/badge/Next.js-15-000000?logo=nextdotjs&logoColor=white)](frontend/package.json)
+[![Postgres](https://img.shields.io/badge/Postgres-pgvector-4169e1?logo=postgresql&logoColor=white)](docker-compose.yml)
+[![Conventional Commits](https://img.shields.io/badge/commits-conventional-fe5196?logo=conventionalcommits&logoColor=white)](docs/branching.md)
 
 [Documentation](docs/index.md) ·
 [Install](docs/install.md) ·
@@ -47,29 +54,43 @@ budget:
 
 ## Get to a running agent
 
-Three commands, about five minutes. Needs Docker, GNU Make, [uv](https://astral.sh/uv)
-and [bun](https://bun.sh); on Windows, WSL2.
+Four commands, about five minutes. Needs Docker, GNU Make, [uv](https://astral.sh/uv)
+and [bun](https://bun.sh); on Windows, WSL2. There is no `.env` to write first -
+every compose variable has a default, and the one secret that cannot have one
+(`SANDBOXD_TOKEN`) is generated into `backend/.env` for you.
 
 ```bash
 git clone https://github.com/vstorm-co/agenticos && cd agenticos
-make dev                                          # postgres, redis, api, worker, frontend
-make platform-bootstrap BOOTSTRAP_API_KEY=sk-...  # an org, an owner, a model, a working agent
+make dev                                          # postgres (pgvector), redis, api, prefect, sandbox
+make dev-frontend                                 # the Next.js container — a separate compose file
+make platform-bootstrap BOOTSTRAP_API_KEY=sk-...  # an org, an owner, a key, a model, a published agent
 open http://localhost:3000                        # sign in as admin@example.com / admin123
 ```
 
 Then open **Agents → Getting Started → Test** and ask it something.
 
-Leave `BOOTSTRAP_API_KEY` out and everything is still created - the agent is
-saved as a draft rather than published, because an agent with no model cannot
-answer. Add a key under **Settings → AI providers**, then publish. Both commands
-are idempotent; re-run them whenever you are not sure they worked.
+`make platform-bootstrap` is the step that matters, because an empty install is a
+chicken-and-egg problem: an agent needs a model, a model needs a key, a key needs
+an organization. It walks that chain once. Leave `BOOTSTRAP_API_KEY` out and
+everything is still created - the agent is saved as a draft rather than published,
+because an agent with no model cannot answer. Add a key under **Settings → AI
+providers**, then publish.
+
+Every command here is idempotent; re-run any of them whenever you are not sure
+they worked.
+
+| | |
+|---|---|
+| Frontend | <http://localhost:3000> |
+| API · OpenAPI | <http://localhost:8000> · `/docs` |
+| Prefect | <http://localhost:4200> |
 
 If something does not come up, `uv run agenticos cmd doctor` (from `backend/`)
-checks the database, the vault and whether there is a model an agent could
-actually run on, and says which one is missing.
-
-Full instructions, prerequisites and the host-Python workflow are in
-[Install](docs/install.md).
+checks the database, the vault, whether there is a model an agent could actually
+run on and whether every sandbox connection answers - and says which one is
+missing. [Install](docs/install.md) has the step-by-step version of all of this,
+the prerequisites table, the host-Python workflow and a table of what each
+failure means.
 
 ## Why
 
@@ -142,15 +163,23 @@ make docs-build   # build with --strict, which is what CI runs
 ## Development
 
 ```bash
-make check          # what CI runs: lint, types, backend tests, frontend tests
+make check          # every CI job except e2e — about five minutes
 make test           # backend + the 100% coverage gate on the platform layer
 make test-fast      # no coverage, for the write-run-write loop
-make test-frontend  # vitest
+make test-frontend  # vitest, no coverage — the loop, not the gate
+make test-frontend-cov  # vitest + the gate CI applies
+make lint           # ruff, ty, eslint, prettier, tsc, and the two guard scripts
 make test-e2e       # playwright, against a running stack
 make test-migrations  # apply and roll back the whole chain
-make format         # ruff
+make format         # ruff + prettier
 make help           # everything else
 ```
+
+`make check` is `lint test test-frontend-cov build-frontend docs-build audit` —
+every job in [`ci.yml`](.github/workflows/ci.yml) except `e2e`, which needs a
+seeded backend, and the image scan, which runs only on a push to `main`. The
+workflow calls those same targets rather than repeating their commands, and
+`backend/tests/test_ci_parity.py` fails if the two drift.
 
 The **platform layer** - everything AgenticOS adds on top of the generated
 template - is held at 100% coverage and CI fails below it. The exact list is
@@ -174,7 +203,8 @@ first - the layering is enforced by tests, not by convention. Then
 [Adding a feature](docs/adding_features.md).
 
 New behaviour ships with tests; a bug ships with a regression test. Run
-`make check` before opening a pull request - it is exactly what CI runs.
+`make check` before opening a pull request - it is every CI job except the two
+named above, and a test keeps that true.
 
 Three things that trip up a first change here:
 

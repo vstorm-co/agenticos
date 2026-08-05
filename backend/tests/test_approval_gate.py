@@ -301,6 +301,12 @@ class TestApprovalQueue:
             "agent_id": agent_id,
             "tool_id": "send_email",
             "tool_args": {"to": "customer@example.com"},
+            # Nobody delegated: the agent whose run this is asked directly. Pinned
+            # rather than left out of the comparison, because "null" is what tells
+            # a reviewer the run's own agent is acting - and the caller that does
+            # not pass these is exactly the caller a queue would show as anonymous.
+            "subagent_name": None,
+            "subagent_agent_id": None,
         }
 
     @pytest.mark.anyio

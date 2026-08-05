@@ -13,12 +13,30 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import Message as AiogramMessage
 
 from app.db.session import get_db_context
-from app.services.channels.base import ChannelAdapter, IncomingMessage, OutgoingMessage
+from app.services.channels.base import (
+    ChannelAdapter,
+    IncomingAttachment,
+    IncomingMessage,
+    OutgoingMessage,
+)
 from app.services.channels.router import ChannelMessageRouter
 
 logger = logging.getLogger(__name__)
 
 _telegram_router = Router()
+
+
+# Every field Telegram puts a file in, with a name and a type for the kinds that
+# arrive without one. A voice note has neither: it is `voice.ogg` by convention and
+# `audio/ogg` by format, and inventing them here is better than storing a file
+# nothing downstream can identify.
+_MEDIA_FIELDS: tuple[tuple[str, str, str], ...] = (
+    ("document", "file", "application/octet-stream"),
+    ("voice", "voice.ogg", "audio/ogg"),
+    ("audio", "audio", "audio/mpeg"),
+    ("video", "video.mp4", "video/mp4"),
+    ("video_note", "video-note.mp4", "video/mp4"),
+)
 
 
 class TelegramAdapter(ChannelAdapter):
@@ -51,6 +69,9 @@ class TelegramAdapter(ChannelAdapter):
                     reply_to_message_id=reply_to,
                 )
                 return
+            if msg.attachments:
+                await self._send_documents(bot, msg, reply_to)
+                return
             try:
                 await bot.send_message(
                     chat_id=msg.platform_chat_id,
@@ -68,6 +89,40 @@ class TelegramAdapter(ChannelAdapter):
                 )
         finally:
             await bot.session.close()
+
+    @staticmethod
+    async def _send_documents(bot: Bot, msg: OutgoingMessage, reply_to: int | None) -> None:
+        """Post the files, with the text as the first one's caption.
+
+        The caption rides on the first document rather than being sent as its own
+        message, so the answer and the file it is about arrive together. Telegram
+        caps a caption at 1024 characters, so a longer answer is sent as a message
+        first and the files follow - truncating an agent's answer to fit a caption
+        would lose the part somebody asked for.
+        """
+        from aiogram.types import BufferedInputFile
+
+        caption: str | None = msg.text if len(msg.text) <= 1024 else None
+        if caption is None:
+            try:
+                await bot.send_message(
+                    chat_id=msg.platform_chat_id, text=msg.text, reply_to_message_id=reply_to
+                )
+            except TelegramBadRequest:
+                await bot.send_message(
+                    chat_id=msg.platform_chat_id,
+                    text=msg.text,
+                    parse_mode=None,
+                    reply_to_message_id=reply_to,
+                )
+
+        for index, attachment in enumerate(msg.attachments):
+            await bot.send_document(
+                chat_id=msg.platform_chat_id,
+                document=BufferedInputFile(attachment.content, filename=attachment.filename),
+                caption=caption if index == 0 else None,
+                reply_to_message_id=reply_to,
+            )
 
     async def start_polling(self, bot_id: str, bot_token: str) -> None:
         """Start a supervised polling loop for this bot."""
@@ -168,8 +223,9 @@ class TelegramAdapter(ChannelAdapter):
         if not msg_data:
             return None
 
-        text: str | None = msg_data.get("text")
-        if not text:
+        attachments = self._attachments(msg_data)
+        text: str = msg_data.get("text") or msg_data.get("caption") or ""
+        if not text and not attachments:
             return None
 
         chat = msg_data.get("chat", {})
@@ -197,7 +253,71 @@ class TelegramAdapter(ChannelAdapter):
             platform_username=username,
             platform_display_name=display_name,
             message_id=message_id,
+            attachments=attachments,
         )
+
+    @staticmethod
+    def _attachments(msg_data: dict[str, Any]) -> list[IncomingAttachment]:
+        """The files on a Telegram message, as handles.
+
+        Telegram does not put files in one list. Each kind is its own field, and a
+        message carrying only one of them has no text at all - which is why a voice
+        note used to parse as nothing and vanish without a log line. Every kind it
+        can send is read here, and one it cannot yet do anything with is refused
+        further down *by name* rather than dropped.
+
+        A `photo` arrives as the same image in several sizes and the last is the
+        largest, which is the one worth having - the rest are thumbnails Telegram
+        generated. It also sends no MIME type for one, so a JPEG is stated rather
+        than guessed from bytes nobody has yet.
+        """
+        found: list[IncomingAttachment] = []
+
+        for field, fallback_name, fallback_mime in _MEDIA_FIELDS:
+            media = msg_data.get(field)
+            if not isinstance(media, dict) or not media.get("file_id"):
+                continue
+            found.append(
+                IncomingAttachment(
+                    filename=media.get("file_name") or fallback_name,
+                    mime_type=media.get("mime_type") or fallback_mime,
+                    size=int(media.get("file_size") or 0),
+                    handle=str(media["file_id"]),
+                )
+            )
+
+        photos = msg_data.get("photo")
+        if isinstance(photos, list) and photos:
+            largest = photos[-1]
+            found.append(
+                IncomingAttachment(
+                    filename=f"photo-{largest.get('file_unique_id', 'image')}.jpg",
+                    mime_type="image/jpeg",
+                    size=int(largest.get("file_size") or 0),
+                    handle=str(largest.get("file_id", "")),
+                )
+            )
+
+        return found
+
+    async def download_attachment(self, bot_token: str, attachment: IncomingAttachment) -> bytes:
+        """Fetch a file: `getFile` for the path, then the file API for the bytes.
+
+        Two requests because that is Telegram's design - a `file_id` is not a URL
+        and the path it resolves to expires - so resolving it at parse time would
+        hand the router a link that had gone stale by the time anybody used it.
+        """
+        bot = Bot(token=bot_token)
+        try:
+            info = await bot.get_file(attachment.handle)
+            if info.file_path is None:
+                raise ValueError(f"Telegram returned no path for {attachment.filename}")
+            buffer = await bot.download_file(info.file_path)
+            if buffer is None:
+                raise ValueError(f"Telegram returned no bytes for {attachment.filename}")
+            return buffer.read()
+        finally:
+            await bot.session.close()
 
     async def _handle_update(self, message: AiogramMessage, bot_id: str) -> None:
         """Handle an incoming aiogram Message inside the polling loop."""

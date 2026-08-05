@@ -624,6 +624,45 @@ class TestConversationServiceAddMessage:
             mock_repo.create_message.assert_called_once()
 
     @pytest.mark.anyio
+    async def test_every_field_the_schema_carries_reaches_the_row(
+        self, service: ConversationService
+    ):
+        """The two at the end were being dropped. `persist_assistant_turn` built an
+        `agent_id` and an `agent_version_id`, the model documents why they are
+        per-message, and this call did not forward them - so every assistant row in
+        the database had a null agent and a null version, and a reloaded transcript
+        could not say who said what or under which instructions. Asserted field by
+        field rather than "called once", which is what let it pass."""
+        from decimal import Decimal
+
+        from app.schemas.conversation import MessageCreate
+
+        conv_id, agent_id, version_id = uuid4(), uuid4(), uuid4()
+        data = MessageCreate(
+            role="assistant",
+            content="answered",
+            model_name="gpt-4.1",
+            agent_id=agent_id,
+            agent_version_id=version_id,
+            input_tokens=1200,
+            output_tokens=300,
+            cost_usd=Decimal("0.0125"),
+        )
+
+        with patch("app.services.conversation.conversation_repo") as mock_repo:
+            mock_repo.get_conversation_by_id = AsyncMock(return_value=MockConversation(id=conv_id))
+            mock_repo.create_message = AsyncMock(return_value=MockMessage())
+
+            await service.add_message(conv_id, data, organization_id=TEST_ORG_ID)
+
+        written = mock_repo.create_message.await_args.kwargs
+        assert written["agent_id"] == agent_id
+        assert written["agent_version_id"] == version_id
+        assert written["input_tokens"] == 1200
+        assert written["output_tokens"] == 300
+        assert written["cost_usd"] == Decimal("0.0125")
+
+    @pytest.mark.anyio
     async def test_add_message_to_archived_conversation_raises_bad_request(
         self, service: ConversationService
     ):

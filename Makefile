@@ -1,4 +1,4 @@
-.PHONY: install format lint test run clean help deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build
+.PHONY: install format lint lint-backend lint-frontend check audit build-frontend test run clean help sandbox-token deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build
 
 # === Environments ===========================================================
 # Three, one compose file each, with a matching frontend file beside it:
@@ -27,11 +27,30 @@ define _wait_for_db
 	echo "  ❌ DB not ready after 30s — check 'make dev-logs'"; exit 1
 endef
 
+# Which optional compose profiles `make dev` brings up. The sandbox service is
+# on by default so an agent can be given a container without anybody reading a
+# setup guide first — it is also the one service that mounts the Docker socket,
+# so a host that will not have that removes `sandbox` from here.
+COMPOSE_DEV_PROFILES ?= --profile sandbox
+
+# The sandbox service refuses to start without a token, deliberately: it can run
+# commands on this host, so an empty default would be a shared secret of "".
+# Generated into backend/.env once, and left alone afterwards — regenerating it
+# would orphan every workspace the service is currently holding.
+sandbox-token:
+	@if grep -q '^SANDBOXD_TOKEN=.' backend/.env 2>/dev/null; then \
+		echo "SANDBOXD_TOKEN already set in backend/.env"; \
+	else \
+		token=$$(python3 -c "import secrets; print(secrets.token_urlsafe(32))"); \
+		printf '\n# Authorises opening a sandbox session, and a session runs commands\n# on this host. Treat it like the Docker socket it sits in front of.\nSANDBOXD_TOKEN=%s\n' "$$token" >> backend/.env; \
+		echo "▶ Generated SANDBOXD_TOKEN in backend/.env"; \
+	fi
+
 # === Local dev: build → up → migrate ===
 # Idempotent — re-run anytime. Migrations are no-ops when already at head;
 # admin seeding is a separate target (`make seed`) so re-running `make dev`
 # doesn't keep retrying user creation.
-dev:
+dev: sandbox-token
 	@echo "▶ Building backend image…"
 	docker compose -f docker-compose.yml build app
 	@echo "▶ Starting services…"
@@ -52,7 +71,9 @@ dev:
 	@echo "   Admin:    http://localhost:8000/admin"
 	@echo "   Frontend: http://localhost:3000  (run 'make dev-frontend' or 'cd frontend && bun dev')"
 	@echo ""
-	@echo "First time? Run 'make seed' to create the default admin user."
+	@echo "First time? Run 'make platform-bootstrap BOOTSTRAP_API_KEY=sk-...' —"
+	@echo "an organization, an owner, a model and a published agent in one step."
+	@echo "('make seed' is the older path: an admin login and nothing else.)"
 
 # === First-time setup: seed default admin user (one-shot) ===
 # Skipped when admin@example.com already exists. Safe to run again — exits
@@ -217,20 +238,66 @@ deps-upgrade-all:
 	@echo "▶ Now run 'make check'."
 
 # === Code Quality ===
-format:
-	uv run --directory backend ruff format app tests cli
-	uv run --directory backend ruff check app tests cli --fix
+# Every static check: both halves of the repository, plus the one check that
+# reads the whole tree at once. CI splits the halves across two jobs (`lint` and
+# the first three steps of `test-frontend`) because they need different
+# toolchains; here they are one command with callable parts, so a Python-only
+# change can run `lint-backend` and skip a minute of eslint.
+#
+# The frontend half was missing entirely until #143: `make lint` ran ruff, ty and
+# the two guard scripts, while CI additionally ran eslint, prettier and tsc - so
+# `make lint` passed on a branch with a type error in a `.tsx`, and CLAUDE.md's
+# "ruff + ty + eslint + tsc" described a command that ran half of that.
+lint: lint-backend lint-frontend lint-spelling
 
-lint:
+lint-backend:
 	uv run --directory backend ruff check app tests cli
 	uv run --directory backend ruff format app tests cli --check
 	uv run --directory backend ty check
 	python3 scripts/check_backticks.py
+	python3 scripts/check_i18n.py
+
+lint-frontend:
+	cd frontend && bun run lint
+	cd frontend && bunx prettier --check "src/**/*.{ts,tsx}" "e2e/**/*.ts"
+	cd frontend && bun run type-check
+
+# Spelling, over every tracked file rather than the ones a commit happens to
+# touch. The hook alone only ever reads changed files, so a misspelling that
+# lands with its file sits there until somebody edits that file for an unrelated
+# reason - and their commit is then refused by a word they did not write. That is
+# #188: one misspelled word reached `main` with #119, and what found it was a
+# person running the hook by hand while reconciling `make check` with CI for #143
+# - not any gate. (Spelling the word here would fail this very check.)
+#
+# It runs the hook rather than codespell directly, because a second invocation
+# would mean a second version pin and a second copy of the exclude list. The rev
+# in `.pre-commit-config.yaml` and the ignore list in `.codespellrc` stay the only
+# definitions; this target just points them at the whole tree.
+#
+# `--project backend`, not `--directory backend` as the targets above use: the
+# second changes directory, and pre-commit would then look for its config and its
+# git tree inside `backend/`.
+lint-spelling:
+	uv run --project backend pre-commit run codespell --all-files
+
+# The write side of both halves. `lint-frontend` checks prettier rather than
+# applying it, so without the second line here the only way to fix a formatting
+# failure would be to let the pre-commit hook rewrite the file for you.
+format:
+	uv run --directory backend ruff format app tests cli
+	uv run --directory backend ruff check app tests cli --fix
+	cd frontend && bunx prettier --write "src/**/*.{ts,tsx}" "e2e/**/*.ts"
 
 # === Testing ===
 # `test` is the gate: it fails if platform-layer coverage drops below 100%.
+#
+# CI overrides the report because Codecov wants XML and a terminal diff is no use
+# in a log nobody reads when it is green. Same run, same gate, either way.
+COV_REPORT ?= term-missing
+
 test:
-	uv run --directory backend pytest tests/ -v --cov --cov-report=term-missing
+	uv run --directory backend pytest tests/ -v --cov --cov-report=$(COV_REPORT)
 
 # Fast loop while writing code — no coverage, no gate.
 test-fast:
@@ -256,6 +323,22 @@ test-frontend:
 test-frontend-cov:
 	cd frontend && bun run test:coverage
 
+# `next build` type-checks the route tree and fails on a server component that
+# cannot render - neither of which tsc or vitest sees, which is why CI builds on
+# every pull request and why `check` has to.
+build-frontend:
+	cd frontend && bun run build
+
+# CI's `security` job. Audits what the lockfile resolves to - which is what a
+# deployment installs - rather than whatever this machine happens to have in its
+# virtualenv. The export is fully pinned, so `--no-deps --disable-pip` skips a
+# resolution round-trip pip-audit would otherwise do in a throwaway virtualenv.
+#
+# Needs the network: the advisory database is fetched, not vendored.
+audit:
+	cd backend && uv export --frozen --no-emit-project --no-hashes -o requirements-audit.txt
+	cd backend && uv tool run pip-audit -r requirements-audit.txt --no-deps --disable-pip --progress-spinner=off
+
 # Playwright starts the frontend itself; the backend and its seed are on you.
 # Checked rather than assumed: against a backend that is not there the suite
 # fails in fifty places at once, none of which say what is actually wrong.
@@ -269,9 +352,43 @@ test-e2e:
 	fi
 	cd frontend && bun run test:e2e
 
-# What CI runs. Run this before opening a pull request.
-check: lint test test-frontend
-	@echo "All checks passed."
+# Every CI job, in the order the workflow declares them, with the exceptions
+# named below. This is the one claim in this file that has to be exactly true:
+# a command advertised as CI that runs less than CI prints "All checks passed"
+# over a branch the build will refuse, and the cost is a review cycle plus
+# however long somebody spends believing the local answer.
+#
+# The workflow calls these targets rather than repeating the commands, and
+# `backend/tests/test_ci_parity.py` fails if the two ever drift again. It has
+# drifted four times, all four found by #143:
+#
+#   - `check` ran `test-frontend`, which measures no coverage, where CI runs
+#     `test:coverage` and its 100% gate - green locally and red for every run on
+#     `feat/sandbox` after 832d647;
+#   - `lint` ran neither eslint, prettier nor tsc, all three of which gate CI;
+#   - `check` ran neither `next build`, the docs build nor the dependency audit -
+#     three whole jobs;
+#   - and in the other direction, CI never ran `scripts/check_i18n.py`, so a
+#     hardcoded string failed `make lint` and passed the build.
+#
+# Not here, deliberately:
+#
+#   - `e2e`, which needs a migrated database, a seeded organization and a running
+#     backend: `make dev && make platform-bootstrap && make test-e2e`.
+#   - the image build and Trivy scan, which CI runs only on a push to `main`.
+#   - `test-migrations`. CI cycles the chain against a throwaway database; here
+#     `alembic downgrade base` points at whatever `backend/.env` says, which on a
+#     laptop is the database with your own work in it.
+CHECK_DB_PORT ?= 5432
+
+check: lint test test-frontend-cov build-frontend docs-build audit
+	@echo ""
+	@echo "All checks passed — every CI job except e2e."
+	@if ! python3 -c 'import socket; socket.create_connection(("127.0.0.1", $(CHECK_DB_PORT)), 1).close()' 2>/dev/null; then \
+		echo ""; \
+		echo "⚠  No database on 127.0.0.1:$(CHECK_DB_PORT), so tests/integration skipped itself"; \
+		echo "   — and CI's test job has one, so it did not. 'make docker-db' closes that gap."; \
+	fi
 
 # === Documentation ===
 
@@ -478,8 +595,12 @@ help:
 	@echo "Development:"
 	@echo "  make run           Start dev server (with hot reload)"
 	@echo "  make test          Run tests"
-	@echo "  make lint          Check code quality"
-	@echo "  make format        Auto-format code"
+	@echo "  make lint          Every static check: ruff, ty, eslint, prettier, tsc, the guards, codespell"
+	@echo "  make lint-backend  Just the Python half"
+	@echo "  make lint-frontend Just the TypeScript half"
+	@echo "  make lint-spelling Just codespell, over every tracked file"
+	@echo "  make format        Auto-format code (ruff + prettier)"
+	@echo "  make check         Every CI job except e2e - before opening a pull request"
 	@echo ""
 	@echo "Database:"
 	@echo "  make db-init       Initialize database (start + migrate)"

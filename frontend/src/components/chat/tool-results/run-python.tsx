@@ -2,6 +2,7 @@
 import type { ToolCall } from "@/types";
 import { MarkdownContent } from "../markdown-content";
 import { CopyButton } from "../copy-button";
+import { useTranslations } from "next-intl";
 
 interface Parsed {
   stdout: string | null;
@@ -13,6 +14,7 @@ function parseResult(text: string): Parsed {
   if (!text || text === "(code ran successfully with no output)") {
     return { stdout: null, result: null, error: null };
   }
+  // i18n-exempt: matches the tool's own output prefix, which is not translated
   if (text.startsWith("Execution failed:")) {
     return { stdout: null, result: null, error: text };
   }
@@ -47,11 +49,12 @@ export function RunPythonResult({
   toolCall: ToolCall;
   resultText: string;
 }) {
+  const t = useTranslations("chat.tools");
   const code = typeof toolCall.args?.code === "string" ? toolCall.args.code.trim() : null;
   const isRunning = toolCall.status !== "completed" && !resultText;
 
   if (isRunning) {
-    return <p className="text-muted-foreground py-2 text-xs italic">Running…</p>;
+    return <p className="text-muted-foreground py-2 text-xs italic">{t("running")}</p>;
   }
 
   const { stdout, result, error } = parseResult(resultText);
@@ -71,7 +74,7 @@ export function RunPythonResult({
         <div className="group relative">
           <div className="border-border bg-muted overflow-hidden rounded-xl border">
             <div className="border-foreground/8 text-foreground/55 flex items-center justify-between border-b px-3 py-1.5 font-mono text-[10px] tracking-wider uppercase">
-              <span>Output</span>
+              <span>{t("output")}</span>
               <CopyButton text={outputText} className="opacity-0 group-hover:opacity-100" />
             </div>
             <pre className="text-foreground/85 max-h-80 scrollbar-thin overflow-y-auto p-3.5 font-mono text-[12.5px] leading-relaxed whitespace-pre-wrap">

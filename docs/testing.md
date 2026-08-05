@@ -2,33 +2,38 @@
 
 ## Running Tests
 
+While writing, run what covers the change — a file answers in about a second where
+the suite takes a minute and a half, and says the same thing:
+
 ```bash
 cd backend
 
-# Run all tests
-pytest
-
-# Run with coverage
-pytest --cov=app --cov-report=term-missing
-
-# Run specific test file
-pytest tests/api/test_health.py -v
-
-# Run specific test
-pytest tests/api/test_health.py::test_health_check -v
-
-# Run only unit tests
-pytest tests/unit/
-
-# Run only integration tests
-pytest tests/integration/
-
-# Run with verbose output
-pytest -v
-
-# Stop on first failure
-pytest -x
+uv run pytest tests/test_capability_registry.py -q         # one file
+uv run pytest tests/test_capability_registry.py -k drift   # one behaviour
+uv run pytest tests/api/test_workspace_routes.py -x -v     # stop at the first failure
+uv run pytest tests/integration -v --no-cov                # the ones needing a database
 ```
+
+Once, before pushing — `make check` runs all of it, in this order:
+
+```bash
+make lint               # ruff, ruff format, ty, eslint, prettier, tsc, and the two guards
+make test               # the suite plus the 100% gate on the platform layer
+make test-frontend-cov  # the frontend suite plus its own gate
+make build-frontend     # next build — the route tree, which tsc and vitest do not see
+make docs-build         # mkdocs --strict — a dead link is a failure
+make audit              # the locked dependency set against the advisory database
+```
+
+About five minutes serial, against CI's seven in parallel. The equality is
+maintained rather than asserted: the workflow calls these targets rather than
+repeating their commands, and `tests/test_ci_parity.py` fails if a gating job
+grows a step `make check` does not run. It has drifted four times — see
+[Commands](commands.md#before-a-pull-request) for what `check` leaves out and why.
+
+`make test-fast` skips coverage, which makes it the wrong last word before a push:
+the gate is most of what these commands are for. `pytest` without `uv run` picks up
+whatever interpreter is on the path rather than the pinned 3.12.
 
 ## Test Structure
 
@@ -94,21 +99,23 @@ def test_protected_endpoint(auth_client):
 
 ## Frontend Tests
 
+Run these from `frontend/`. At the repository root vitest finds no configuration,
+reports well over a hundred phantom failures and leaves a stray `node_modules/`.
+
 ```bash
 cd frontend
 
-# Run unit tests
-bun test
-
-# Run with watch mode
-bun test --watch
-
-# Run E2E tests
-bun test:e2e
-
-# Run E2E in headed mode (see browser)
-bun test:e2e --headed
+bunx vitest run src/components/chat/usage-strip.test.tsx   # one spec, ~2s
+bunx vitest run src/components/chat                        # one directory
+bun run test                                               # watch mode
+bun run test:coverage                                      # the suite plus the gate CI applies
+bun run test:e2e                                           # Playwright
+bun run test:e2e --headed                                  # ...with a browser to watch
 ```
+
+**`bun run test:run` measures no coverage**, so it cannot answer whether the
+`test-frontend` job will pass: the gate wants 100% lines, statements and functions and
+97.5% branches over `src/{app/api,lib,stores,hooks}` and most of `src/components`.
 
 Playwright starts what the suite needs: the frontend, and an OpenAI-compatible
 **stub model server** (`frontend/e2e/stub-model-server.ts`) on `127.0.0.1:4010`.
@@ -125,7 +132,7 @@ calls no tools; what it does not prove is that a real provider answers.
 
 ## Test Database
 
-Tests don't hit a real database. The `client` fixture in `tests/conftest.py` overrides
+Most tests don't hit a real database. The `client` fixture in `tests/conftest.py` overrides
 `get_db_session` with a mocked async session (`AsyncMock`) via FastAPI's
 `app.dependency_overrides`, so the suite runs fast and needs no Postgres container:
 
@@ -133,5 +140,17 @@ Tests don't hit a real database. The `client` fixture in `tests/conftest.py` ove
 - Overrides are registered before each test and cleared afterwards
 - Assert against the mock's calls, or stub `execute(...)` return values for the path under test
 
-For tests that need to exercise real SQL, instantiate your own async engine/session
-inside the test rather than relying on a shared fixture.
+Everything under `tests/integration/` is the exception, and it asks for the `db`
+fixture from `tests/integration/conftest.py` rather than building an engine of its
+own — that fixture is what puts the schema in place.
+
+**The database it uses belongs to the pytest process that asked for it**:
+`<POSTGRES_DB>_p<pid>`, created when the session starts and dropped when it ends,
+failure included. That is what makes two runs at once safe — two worktrees, or a
+worktree and a `make test`, against the one Postgres container — and it needs nothing
+passed on the command line. The name was constant until [#189](https://github.com/vstorm-co/agenticos/issues/189),
+and since the fixture rebuilds the schema before every test, two runs spent their time
+dropping each other's tables and reporting failures that belonged to neither branch.
+The suite still refuses any database whose name does not contain `test` or `ci`: it
+drops tables unconditionally, so the guard is the only thing between it and a
+development database.

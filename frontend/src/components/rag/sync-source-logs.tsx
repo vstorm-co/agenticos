@@ -6,6 +6,7 @@ import { Spinner } from "@/components/ui";
 import type { RAGSyncLog, RAGSyncLogList } from "@/lib/rag-api";
 import { apiClient } from "@/lib/api-client";
 import { cn, timeAgo } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 
 interface SyncSourceLogsProps {
   /** API path relative to /api, e.g. /kb/xxx/sync-sources/yyy/logs */
@@ -65,6 +66,7 @@ function LogRow({ log }: { log: RAGSyncLog }) {
 }
 
 export function SyncSourceLogs({ logsPath }: SyncSourceLogsProps) {
+  const t = useTranslations("rag");
   const [open, setOpen] = useState(false);
   const [logs, setLogs] = useState<RAGSyncLog[]>([]);
   const [loading, setLoading] = useState(false);
@@ -111,10 +113,10 @@ export function SyncSourceLogs({ logsPath }: SyncSourceLogsProps) {
           {loading ? (
             <div className="flex items-center gap-2 py-2">
               <Spinner className="h-3.5 w-3.5" />
-              <span className="text-foreground/45 text-xs">Loading…</span>
+              <span className="text-foreground/45 text-xs">{t("loading")}</span>
             </div>
           ) : logs.length === 0 ? (
-            <p className="text-foreground/40 py-2 text-xs">No sync runs yet.</p>
+            <p className="text-foreground/40 py-2 text-xs">{t("noSyncRunsYet")}</p>
           ) : (
             logs.map((log) => <LogRow key={log.id} log={log} />)
           )}

@@ -146,10 +146,10 @@ describe("a failed section renders an error, not its empty state (#32)", () => {
     await renderPage();
 
     await waitFor(() =>
-      expect(screen.getByText("Couldn't load the sync sources")).toBeInTheDocument(),
+      expect(screen.getByText("pages.kb.syncSourcesFailedTitle")).toBeInTheDocument(),
     );
-    expect(screen.queryByText("No sources connected")).not.toBeInTheDocument();
-    expect(screen.queryByText("No connectors configured")).not.toBeInTheDocument();
+    expect(screen.queryByText("pages.kb.noSourcesConnected")).not.toBeInTheDocument();
+    expect(screen.queryByText("pages.kb.noConnectorsConfigured")).not.toBeInTheDocument();
   });
 
   it("a 502 on the connectors renders an error, not 'no connectors configured'", async () => {
@@ -158,9 +158,9 @@ describe("a failed section renders an error, not its empty state (#32)", () => {
     await renderPage();
 
     await waitFor(() =>
-      expect(screen.getByText("Couldn't load the connectors")).toBeInTheDocument(),
+      expect(screen.getByText("pages.kb.connectorsFailedTitle")).toBeInTheDocument(),
     );
-    expect(screen.queryByText("No connectors configured")).not.toBeInTheDocument();
+    expect(screen.queryByText("pages.kb.noConnectorsConfigured")).not.toBeInTheDocument();
   });
 
   it("an actually empty answer still renders the empty state", async () => {
@@ -169,10 +169,10 @@ describe("a failed section renders an error, not its empty state (#32)", () => {
     await renderPage();
 
     await waitFor(() =>
-      expect(screen.getByText("No connectors configured")).toBeInTheDocument(),
+      expect(screen.getByText("pages.kb.noConnectorsConfigured")).toBeInTheDocument(),
     );
-    expect(screen.queryByText("Couldn't load the sync sources")).not.toBeInTheDocument();
-    expect(screen.queryByText("Couldn't load the connectors")).not.toBeInTheDocument();
+    expect(screen.queryByText("pages.kb.syncSourcesFailedTitle")).not.toBeInTheDocument();
+    expect(screen.queryByText("pages.kb.connectorsFailedTitle")).not.toBeInTheDocument();
   });
 
   it("a 502 on the first load of the documents renders the page's error", async () => {
@@ -183,7 +183,7 @@ describe("a failed section renders an error, not its empty state (#32)", () => {
     // The documents query is load-bearing: it is not caught to an empty list, so
     // its failure takes the whole page rather than reading as "no documents".
     await waitFor(() => expect(screen.getByText("Bad gateway")).toBeInTheDocument());
-    expect(screen.queryByText("No documents yet")).not.toBeInTheDocument();
+    expect(screen.queryByText("pages.kb.noDocumentsYet")).not.toBeInTheDocument();
   });
 });
 
@@ -193,16 +193,16 @@ describe("a failed refresh says so instead of ageing the page silently", () => {
 
     await renderPage();
     await waitFor(() => expect(screen.getByText("onboarding.md")).toBeInTheDocument());
-    expect(screen.queryByText("rag.refreshFailedTitle")).not.toBeInTheDocument();
+    expect(screen.queryByText("pages.kb.refreshFailedTitle")).not.toBeInTheDocument();
 
     // The refresh fails where the first load succeeded, so `kb` is already in hand.
     mockApi({ failing: "documents", documents: [DOC] });
     await userEvent.click(screen.getByRole("button", { name: /refresh/i }));
 
     await waitFor(() =>
-      expect(screen.getByText("rag.refreshFailedTitle")).toBeInTheDocument(),
+      expect(screen.getByText("pages.kb.refreshFailedTitle")).toBeInTheDocument(),
     );
-    expect(screen.getByText("rag.refreshFailedDescription")).toBeInTheDocument();
+    expect(screen.getByText("pages.kb.refreshFailedDescription")).toBeInTheDocument();
     expect(screen.getByText("Bad gateway")).toBeInTheDocument();
     // Stale, and still there: blanking the list would read as "no documents".
     expect(screen.getByText("onboarding.md")).toBeInTheDocument();

@@ -6,9 +6,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Spinner } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
 import { useAdoptSession } from "@/hooks/use-auth";
+import { postSignInDestination } from "@/lib/auth-landing";
 import type { User } from "@/types";
+import { useTranslations } from "next-intl";
 
 export default function AuthCallbackPage() {
+  const t = useTranslations("pages.root");
   const router = useRouter();
   const searchParams = useSearchParams();
   // Two sources, one derived value. What the provider sent is already in the
@@ -46,7 +49,11 @@ export default function AuthCallbackPage() {
         );
         if (cancelled) return;
         adoptSession(data.user, data.access_token);
-        router.replace("/dashboard");
+        // No deep link here yet - nothing carries a returnTo through the
+        // provider round trip. It would not need the OAuth `state` parameter:
+        // the trip starts and ends in the same tab on this origin, so
+        // sessionStorage set beside the provider link is enough.
+        router.replace(postSignInDestination());
       } catch {
         if (!cancelled) {
           setExchangeFailed(true);
@@ -62,7 +69,7 @@ export default function AuthCallbackPage() {
   return (
     <div className="flex min-h-[50vh] items-center justify-center">
       {error ? (
-        <p className="text-foreground/65 text-sm">Sign-in failed. Redirecting…</p>
+        <p className="text-foreground/65 text-sm">{t("signInFailedRedirecting")}</p>
       ) : (
         // A token exchange and a redirect. There is no layout to promise here,
         // so this is a spinner rather than a skeleton of a page nobody stays on.

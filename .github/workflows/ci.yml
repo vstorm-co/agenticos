@@ -35,19 +35,23 @@ jobs:
       - name: Install dependencies
         run: uv sync --directory backend --dev
 
-      - name: Run ruff check
-        run: uv run --directory backend ruff check app tests cli
+      # ruff check, ruff format --check, ty, and the two guard scripts - the
+      # target, not a second copy of its commands. Every step this job used to
+      # spell out was also spelled out in the Makefile, and the pair drifted:
+      # `scripts/check_i18n.py` was in `make lint` and never here, so hardcoded
+      # copy failed locally and passed the build. Calling the target is how the
+      # two stay equal rather than how they are asserted to be equal - and
+      # `backend/tests/test_ci_parity.py` catches whatever this still misses.
+      - name: Lint, format-check and type-check the backend
+        run: make lint-backend
 
-      - name: Run ruff format check
-        run: uv run --directory backend ruff format app tests cli --check
-
-      - name: Run ty
-        run: uv run --directory backend ty check
-
-      # `make lint` runs this too. When CI omits a step the Makefile has, green
-      # locally stops meaning green here, which is the whole value of `make check`.
-      - name: Check for double backticks
-        run: python3 scripts/check_backticks.py
+      # codespell over every tracked file. The pre-commit hook reads only the
+      # files a commit touches, so until #188 nothing had ever read the tree: a
+      # misspelling merged with its file, and the next person to touch that file
+      # for an unrelated reason had their commit refused by a word they did not
+      # write. This step is what keeps "the whole tree is clean" true.
+      - name: Spell-check the whole tree
+        run: make lint-spelling
 
     # The step that used to sit here ran the entire test suite - with no
     # database, in the lint job - to grep its output for `module-not-imported`.
@@ -91,6 +95,17 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+    # On the job rather than repeated under each step, which is how the `e2e` job
+    # below already does it. Four identical copies is four places to forget one.
+    env:
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: test_db
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -107,62 +122,32 @@ jobs:
       - name: Install dependencies
         run: uv sync --directory backend --dev
 
-      - name: Apply migrations against a real database
+      - name: Cycle the migration chain forwards and back
         # The only way to know a migration works. Backfills, check constraints
         # and the loud failures they raise cannot be verified by importing the
-        # module — they need a database with the previous schema in it.
-        run: uv run --directory backend alembic upgrade head
-        env:
-          POSTGRES_HOST: localhost
-          POSTGRES_PORT: 5432
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: test_db
-          REDIS_HOST: localhost
-          REDIS_PORT: 6379
-
-      - name: Verify migrations roll back
-        # A downgrade nobody runs is a downgrade that does not work. Cycling the
-        # whole chain catches a missing drop long before an operator needs it.
-        run: |
-          uv run --directory backend alembic downgrade base
-          uv run --directory backend alembic upgrade head
-        env:
-          POSTGRES_HOST: localhost
-          POSTGRES_PORT: 5432
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: test_db
-          REDIS_HOST: localhost
-          REDIS_PORT: 6379
+        # module — they need a database with the previous schema in it. And a
+        # downgrade nobody runs is a downgrade that does not work, so the chain
+        # goes to base and back rather than only forwards.
+        #
+        # `make check` does not run this, and that omission is deliberate rather
+        # than drift: `downgrade base` here empties a throwaway `test_db`, while
+        # on a laptop it points at whatever `backend/.env` says.
+        run: make test-migrations
 
       - name: Run tests with the coverage gate
-        # --cov with no argument uses the source list in pyproject.toml: the
+        # --cov with no argument uses the include list in pyproject.toml: the
         # platform layer, held at 100%. Template-inherited subsystems are
         # reported by the next step but do not gate the build.
-        run: uv run --directory backend pytest tests/ -v --cov --cov-report=xml
-        env:
-          POSTGRES_HOST: localhost
-          POSTGRES_PORT: 5432
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: test_db
-          REDIS_HOST: localhost
-          REDIS_PORT: 6379
+        #
+        # `COV_REPORT=xml` is the only difference from what `make test` does on a
+        # laptop, and it is for Codecov below rather than for the gate.
+        run: make test COV_REPORT=xml
 
       - name: Report coverage of template-inherited code
         # Informational. Holding code we did not design to the platform bar
         # would mean mock-heavy tests that buy a number rather than confidence.
         if: always()
-        run: uv run --directory backend pytest tests/ -q --cov=app --cov-report=term --cov-fail-under=0
-        env:
-          POSTGRES_HOST: localhost
-          POSTGRES_PORT: 5432
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: test_db
-          REDIS_HOST: localhost
-          REDIS_PORT: 6379
+        run: make coverage-all
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
@@ -184,29 +169,23 @@ jobs:
         run: bun install --frozen-lockfile
         working-directory: frontend
 
-      - name: Run lint
-        # `bun run lint` is `eslint . --max-warnings 0`. A warning nobody has to
-        # fix is a warning everybody learns to scroll past.
-        run: bun run lint
-        working-directory: frontend
-
-      - name: Check formatting
-        run: bunx prettier --check "src/**/*.{ts,tsx}" "e2e/**/*.ts"
-        working-directory: frontend
-
-      - name: Run type check
-        run: bun run type-check
-        working-directory: frontend
+      # eslint (`--max-warnings 0`, because a warning nobody has to fix is a
+      # warning everybody learns to scroll past), prettier and tsc. `make lint`
+      # ran none of the three until #143, so a type error in a `.tsx` passed
+      # locally and stopped the build here.
+      - name: Lint, format-check and type-check the frontend
+        run: make lint-frontend
 
       - name: Run unit and integration tests with the coverage gate
-        run: bun run test:coverage
-        working-directory: frontend
+        # `test:coverage`, not `test:run`. The gate is the whole point of this
+        # step: `test:run` measures nothing and 2909 green tests still owe 100%
+        # lines, statements and functions.
+        run: make test-frontend-cov
 
       - name: Build
         # `next build` type-checks the route tree and fails on a server
         # component that cannot render — neither of which tsc or vitest sees.
-        run: bun run build
-        working-directory: frontend
+        run: make build-frontend
 
   e2e:
     # Split out of test-frontend on purpose. E2E needs Postgres, Redis, Python,
@@ -393,19 +372,12 @@ jobs:
       # queued behind it: `--require-hashes` is a flag, not a key=value, and
       # `--locked` wants a PEP 751 `pylock.toml` rather than `uv.lock`.
       #
-      # What works: export exactly what the lockfile resolves - which is what a
-      # deployment installs - and audit that. The export is fully pinned, so
-      # `--no-deps --disable-pip` skips a resolution round-trip that pip-audit
-      # would otherwise do in a throwaway virtualenv.
-      - name: Export the locked dependency set
-        run: uv export --frozen --no-emit-project --no-hashes -o requirements-audit.txt
-        working-directory: backend
-
-      - name: Audit dependencies for known vulnerabilities
-        run: >-
-          uv tool run pip-audit -r requirements-audit.txt
-          --no-deps --disable-pip --progress-spinner=off
-        working-directory: backend
+      # What works, and what `make audit` now does: export exactly what the
+      # lockfile resolves - which is what a deployment installs - and audit that.
+      # It ran only here until #143, so a dependency advisory was something a
+      # branch learned about after pushing.
+      - name: Audit the locked dependency set for known vulnerabilities
+        run: make audit
 
   docs:
     runs-on: ubuntu-latest
@@ -432,7 +404,7 @@ jobs:
         # `--strict` turns a dead internal link or a page missing from the nav
         # into a failure. Both are things a reader finds and a lenient build
         # ships.
-        run: uv run --directory backend --group docs mkdocs build -f ../mkdocs.yml --strict
+        run: make docs-build
 
   docker:
     runs-on: ubuntu-latest

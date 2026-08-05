@@ -146,6 +146,54 @@ export const qk = {
     // other's data with rows it has no business showing.
     org: () => ["mcp-connections", "org"] as const,
   },
+  conversationWorkspace: {
+    all: () => ["conversation-workspace"] as const,
+    files: (conversationId: string) => ["conversation-workspace", conversationId] as const,
+    file: (conversationId: string, path: string) =>
+      ["conversation-workspace", conversationId, path] as const,
+    // The same file's bytes, keyed apart from its text: two different bodies, and
+    // a viewer showing a PDF must not read a cached string for it.
+    bytes: (conversationId: string, path: string) =>
+      ["conversation-workspace", "bytes", conversationId, path] as const,
+  },
+  sandboxWorkspaces: {
+    all: () => ["sandbox-workspaces"] as const,
+    list: () => ["sandbox-workspaces", "list"] as const,
+    files: (id: string) => ["sandbox-workspaces", "files", id] as const,
+    // Every file across every visible workspace, which is a different request
+    // from any one workspace's - and an expensive one, so it gets its own entry
+    // rather than sharing the listing's.
+    allFiles: () => ["sandbox-workspaces", "all-files"] as const,
+    // One file's bytes, for a download or an image. Keyed apart from `file`, which
+    // holds the same file's text - they are two different bodies.
+    bytes: (id: string, path: string) => ["sandbox-workspaces", "bytes", id, path] as const,
+    file: (id: string, path: string) => ["sandbox-workspaces", "file", id, path] as const,
+  },
+  skillChanges: {
+    all: () => ["skill-changes"] as const,
+    // Keyed by filter: the reviewer's list is the pending ones, and a page
+    // showing every decided proposal must not overwrite it in the cache.
+    list: (status: string) => ["skill-changes", "list", status] as const,
+  },
+  sandboxConnections: {
+    all: () => ["sandbox-connections"] as const,
+    list: () => ["sandbox-connections", "list"] as const,
+    // What one connection's service allows, keyed per connection: a policy is a
+    // round trip to a host that may be down, and two connections must not share
+    // a cache entry that one of them cannot fill.
+    policy: (id: string) => ["sandbox-connections", "policy", id] as const,
+    // Whether this deployment runs a service of its own. One entry: it is a fact
+    // about the deployment rather than about any connection.
+    local: () => ["sandbox-connections", "local"] as const,
+    // The library's runtime catalog. Static for the life of the deployment, so it
+    // is keyed once and never invalidated.
+    runtimes: () => ["sandbox-connections", "runtimes"] as const,
+    // Live state on a host, keyed per connection for the same reason the policy
+    // is: two hosts must not share a cache entry one of them cannot fill.
+    sessions: (id: string) => ["sandbox-connections", "sessions", id] as const,
+    events: (id: string, sessionId: string) =>
+      ["sandbox-connections", "events", id, sessionId] as const,
+  },
   mcpServers: {
     // The organization catalog. Not under `agents`: the same list backs the
     // Builder and Settings, and invalidating the agent registry must not

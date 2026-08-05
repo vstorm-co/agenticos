@@ -6,6 +6,7 @@ import { Check, ChevronsUpDown, Pencil } from "lucide-react";
 
 import { Badge, Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
 import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 
 /** One entry as the picker needs it - the shape `useProviderModels` returns. */
 export interface ModelOption {
@@ -64,6 +65,7 @@ export function ModelCombobox({
   placeholder,
   id,
 }: ModelComboboxProps) {
+  const t = useTranslations("agents");
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const listId = useId();
@@ -118,7 +120,7 @@ export function ModelCombobox({
             <Command.Input
               value={search}
               onValueChange={setSearch}
-              placeholder="Search models…"
+              placeholder={t("searchModels")}
               className="placeholder:text-muted-foreground w-full bg-transparent text-sm outline-none"
             />
           </div>
@@ -129,13 +131,13 @@ export function ModelCombobox({
                 what you typed contradicts it. */}
             {loading && (
               <p className="text-muted-foreground px-3 py-6 text-center text-sm">
-                Reading the catalog…
+                {t("readingCatalog")}
               </p>
             )}
 
             {!loading && options.length === 0 && custom === null && (
               <p className="text-muted-foreground px-3 py-6 text-center text-sm">
-                This provider publishes no list here. Type the model id as the provider names it.
+                {t("providerPublishesNoList")}
               </p>
             )}
 
@@ -149,7 +151,7 @@ export function ModelCombobox({
                 <span className="min-w-0 flex-1 truncate">
                   Use <span className="font-mono">{custom}</span>
                 </span>
-                <Badge variant="outline">not in the list</Badge>
+                <Badge variant="outline">{t("notList")}</Badge>
               </Command.Item>
             )}
 
@@ -187,9 +189,7 @@ export function ModelCombobox({
 
           {source !== null && options.length > 0 && (
             <p className="text-muted-foreground border-border border-t px-3 py-2 text-xs">
-              {source === "live"
-                ? "Listed by the provider just now."
-                : "This deployment's own shortlist - the provider could not be asked. Any id it accepts still works."}
+              {source === "live" ? t("listedByProviderJust") : t("deploymentSOwnShortlist")}
             </p>
           )}
         </Command>

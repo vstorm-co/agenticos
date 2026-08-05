@@ -1,6 +1,7 @@
 "use client";
 import type { ToolCall } from "@/types";
 import { CopyButton } from "../copy-button";
+import { useTranslations } from "next-intl";
 
 /** Pretty-print tool args. Handles three shapes:
  *  - object → JSON.stringify with indent
@@ -30,15 +31,16 @@ function isEmptyArgs(args: unknown): boolean {
 
 /** Raw view: arguments + the exact tool output, monospace, unparsed. */
 export function RawToolView({ toolCall, resultText }: { toolCall: ToolCall; resultText: string }) {
+  const t = useTranslations("chat.tools");
   return (
     <div className="space-y-3">
       {isEmptyArgs(toolCall.args) ? (
-        <p className="text-muted-foreground text-xs italic">No arguments</p>
+        <p className="text-muted-foreground text-xs italic">{t("noArguments")}</p>
       ) : (
         <div className="group relative">
           <div className="mb-1 flex items-center justify-between">
             <p className="text-foreground/55 font-mono text-[10px] tracking-wider uppercase">
-              Arguments
+              {t("arguments")}
             </p>
             <CopyButton
               text={formatArgs(toolCall.args)}
@@ -54,7 +56,7 @@ export function RawToolView({ toolCall, resultText }: { toolCall: ToolCall; resu
         <div className="group relative">
           <div className="mb-1 flex items-center justify-between">
             <p className="text-foreground/55 font-mono text-[10px] tracking-wider uppercase">
-              Result
+              {t("result")}
             </p>
             <CopyButton text={resultText} className="opacity-0 group-hover:opacity-100" />
           </div>
@@ -77,6 +79,7 @@ export function GenericToolResult({
   toolCall: ToolCall;
   resultText: string;
 }) {
+  const t = useTranslations("chat.tools");
   let prettyJson: string | null = null;
   try {
     const parsed = JSON.parse(resultText);
@@ -90,7 +93,7 @@ export function GenericToolResult({
   if (toolCall.status !== "completed" && !resultText) {
     return (
       <p className="text-muted-foreground py-2 text-xs italic">
-        {toolCall.status === "error" ? "Tool failed." : "Running…"}
+        {toolCall.status === "error" ? t("toolFailed") : t("running")}
       </p>
     );
   }
@@ -101,7 +104,7 @@ export function GenericToolResult({
         <div className="group relative">
           <div className="mb-1 flex items-center justify-between">
             <p className="text-foreground/55 font-mono text-[10px] tracking-wider uppercase">
-              Arguments
+              {t("arguments")}
             </p>
             <CopyButton
               text={formatArgs(toolCall.args)}

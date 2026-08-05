@@ -9,34 +9,40 @@ and gets a different answer.
 
 from __future__ import annotations
 
+from app.agents.capabilities import CapabilityToolInfo
 from app.agents.capabilities import get as get_capability
 from app.agents.spec import AgentSpec, CapabilityBindingSpec
 
 
 def tool_needs_approval(
-    *, tool_id: str, binding: CapabilityBindingSpec, side_effecting: bool
+    *, tool: CapabilityToolInfo, binding: CapabilityBindingSpec, side_effecting: bool
 ) -> bool:
     """Whether one tool of one binding must be approved before it runs.
 
     The most specific statement wins:
 
-    1. `tool_approval[tool_id]` - this agent's decision about this tool.
+    1. `tool_approval[tool.id]` - this agent's decision about this tool.
     2. the binding's `approval` - this agent's decision about the whole
        capability, and so the default for every tool in it.
-    3. the capability's `side_effecting` flag - what the code that wrote the
-       tool says about it, and the answer when the spec says nothing.
+    3. the tool's own `side_effecting`, for a capability whose tools are not
+       one answer - a filesystem that is read *and* written, say.
+    4. the capability's `side_effecting` flag - what the code that wrote the
+       tool says about it, and the answer when nothing above said anything.
 
     `'default'` at either of the first two levels is not an answer, it is a
-    deferral to the next one. That is what makes a spec written before per-tool
-    approval existed behave exactly as it did: no `tool_approval` and no
-    `approval` leaves `side_effecting` deciding, as it always did.
+    deferral to the next one, and so is a tool declaring no `side_effecting` of
+    its own. That is what makes a spec written before per-tool approval existed
+    behave exactly as it did: no `tool_approval` and no `approval` leaves the
+    capability's flag deciding, as it always did.
 
     Keyed on the tool's stable id rather than the name the model sees, so a
     renamed tool keeps the gate its operator put on it.
     """
-    for mode in (binding.tool_approval.get(tool_id, "default"), binding.approval):
+    for mode in (binding.tool_approval.get(tool.id, "default"), binding.approval):
         if mode != "default":
             return mode == "required"
+    if tool.side_effecting is not None:
+        return tool.side_effecting
     return side_effecting
 
 
@@ -69,7 +75,7 @@ def approval_required_tools(spec: AgentSpec) -> frozenset[str]:
             tool.name
             for tool in definition.effective_tools(binding.tool_overrides)
             if tool_needs_approval(
-                tool_id=tool.id,
+                tool=tool,
                 binding=binding,
                 side_effecting=definition.side_effecting,
             )

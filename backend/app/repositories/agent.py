@@ -5,6 +5,7 @@ role scope and on what was shared with them, so `list_visible` takes the
 predicate pieces the access layer resolved rather than re-deriving them here.
 """
 
+from collections.abc import Sequence
 from uuid import UUID
 
 from sqlalchemy import func, or_, select
@@ -12,6 +13,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.resource_grant import Visibility
+
+
+async def get_many(
+    db: AsyncSession, agent_ids: Sequence[UUID], *, organization_id: UUID
+) -> dict[UUID, Agent]:
+    """Several agents at once, by id, inside one organization.
+
+    One statement rather than a lookup per row: the callers are listings that
+    need a name beside each of a page of rows, and a query each is how a table of
+    thirty becomes thirty round trips.
+    """
+    if not agent_ids:
+        return {}
+    result = await db.execute(
+        select(Agent).where(Agent.id.in_(list(agent_ids)), Agent.organization_id == organization_id)
+    )
+    return {agent.id: agent for agent in result.scalars().all()}
 
 
 async def get(db: AsyncSession, agent_id: UUID, *, organization_id: UUID) -> Agent | None:

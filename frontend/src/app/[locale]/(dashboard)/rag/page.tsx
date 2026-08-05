@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { useTranslations } from "next-intl";
 import { ArrowUpRight, Database, Lock, Plus, Sparkles, Trash2, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -26,11 +25,12 @@ import { cn } from "@/lib/utils";
 import { ROUTES } from "@/lib/constants";
 import type { KBScope, KnowledgeBase } from "@/types";
 import { Perm } from "@/types/permissions";
+import { useTranslations } from "next-intl";
 
-const SCOPE_META: Record<KBScope, { labelKey: string; icon: LucideIcon }> = {
-  personal: { labelKey: "scope.personal", icon: Lock },
-  org: { labelKey: "scope.org", icon: Users },
-  app: { labelKey: "scope.app", icon: Sparkles },
+const SCOPE_META: Record<KBScope, { label: string; icon: LucideIcon }> = {
+  personal: { label: "Personal", icon: Lock },
+  org: { label: "Organization", icon: Users },
+  app: { label: "App-wide", icon: Sparkles },
 };
 
 type RagTab = "bases" | "search";
@@ -41,20 +41,16 @@ type RagTab = "bases" | "search";
  * border, in every state: what changes is what is inside it.
  */
 function BasesCard({ count, children }: { count: number | null; children: ReactNode }) {
-  const t = useTranslations("rag");
+  const t = useTranslations("pages.kb");
   return (
     <Card>
       <CardHeader className="flex-row items-center justify-between space-y-0 border-b px-5 py-4">
         <div className="space-y-1">
-          <CardTitle className="text-sm">{t("basesCard.title")}</CardTitle>
+          <CardTitle className="text-sm">{t("bases")}</CardTitle>
           <CardDescription className="text-xs">
             {/* `null` is "the request has not answered". Rendering "0 knowledge
                 bases" there would state something nothing has said yet. */}
-            {count === null ? (
-              <Skeleton className="h-3 w-32" />
-            ) : (
-              t("basesCard.count", { count })
-            )}
+            {count === null ? <Skeleton className="h-3 w-32" /> : t("storedCount", { count })}
           </CardDescription>
         </div>
       </CardHeader>
@@ -64,7 +60,7 @@ function BasesCard({ count, children }: { count: number | null; children: ReactN
 }
 
 export default function RAGPage() {
-  const t = useTranslations("rag");
+  const t = useTranslations("pages.kb");
   const { kbs, isLoading, listError, fetchKBs, deleteKB } = useKnowledgeBases();
   const [createOpen, setCreateOpen] = useState(false);
   // Presentation, never enforcement - the server refuses regardless. A Viewer
@@ -79,6 +75,7 @@ export default function RAGPage() {
     }
     return "bases";
   });
+  // The tab belongs in the URL, so a search is a link somebody can send.
   const setTab = (next: RagTab) => {
     setTabState(next);
     const url = new URL(window.location.href);
@@ -99,39 +96,35 @@ export default function RAGPage() {
 
   const loading = isLoading && kbs.length === 0;
 
-  const tabs: { key: RagTab; label: string }[] = [
-    { key: "bases", label: t("tabs.bases") },
-    { key: "search", label: t("tabs.search") },
-  ];
-
   return (
     <div className="space-y-6">
       <PageHeader
-        title={t("title")}
-        description={t("description")}
+        title={t("knowledgeBases")}
+        description={t("groupRelatedDocumentsInto")}
         actions={
           mayEdit ? (
             <Button size="sm" onClick={() => setCreateOpen(true)}>
               <Plus className="h-4 w-4" />
-              {t("newBase")}
+              {t("newKnowledgeBase")}
             </Button>
           ) : undefined
         }
       />
 
-      <div className="border-border flex gap-1 border-b">
-        {tabs.map((item) => (
+      <div className="border-border flex gap-6 border-b">
+        {(["bases", "search"] as const).map((id) => (
           <button
-            key={item.key}
-            onClick={() => setTab(item.key)}
+            key={id}
+            type="button"
+            onClick={() => setTab(id)}
             className={cn(
-              "-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors",
-              tab === item.key
+              "-mb-px border-b-2 px-1 pb-3 text-sm font-medium transition-colors",
+              tab === id
                 ? "border-foreground text-foreground"
                 : "text-muted-foreground hover:text-foreground border-transparent",
             )}
           >
-            {item.label}
+            {id === "bases" ? t("knowledgeBases") : t("search")}
           </button>
         ))}
       </div>
@@ -140,7 +133,7 @@ export default function RAGPage() {
         <SearchTab kbs={sorted} />
       ) : (
         <>
-          <BasesCard count={loading ? null : listError ? null : kbs.length}>
+          <BasesCard count={loading || listError ? null : kbs.length}>
             {loading ? (
               // The same tiles the populated grid draws, as skeletons - a skeleton
               // that draws a different shape is a layout jump on every load.
@@ -169,9 +162,11 @@ export default function RAGPage() {
                 <div className="bg-muted text-muted-foreground mx-auto flex h-11 w-11 items-center justify-center rounded-xl">
                   <Database className="h-5 w-5" />
                 </div>
-                <p className="text-foreground mt-4 text-sm font-medium">{t("empty.title")}</p>
+                <p className="text-foreground mt-4 text-sm font-medium">
+                  {t("noKnowledgeBasesYet")}
+                </p>
                 <p className="text-muted-foreground mx-auto mt-1 max-w-sm text-sm">
-                  {mayEdit ? t("empty.editorHint") : t("empty.viewerHint")}
+                  {mayEdit ? t("createOneGiveYour") : t("nothingHasBeenShared")}
                 </p>
                 {mayEdit && (
                   <Button
@@ -181,7 +176,7 @@ export default function RAGPage() {
                     onClick={() => setCreateOpen(true)}
                   >
                     <Plus className="h-3.5 w-3.5" />
-                    {t("empty.cta")}
+                    {t("createKnowledgeBase")}
                   </Button>
                 )}
               </div>
@@ -199,7 +194,7 @@ export default function RAGPage() {
           </BasesCard>
 
           {/* Below the collections, because it is the thing they are fed from: a
-              connector configured once and cloned into each base that needs it. */}
+          connector configured once and cloned into each base that needs it. */}
           <ReusableIntegrations targets={kbs} />
         </>
       )}
@@ -210,15 +205,11 @@ export default function RAGPage() {
 }
 
 function KBCard({ kb, onDelete }: { kb: KnowledgeBase; onDelete?: () => void }) {
-  const t = useTranslations("rag");
+  const t = useTranslations("pages.kb");
   const meta = SCOPE_META[kb.scope];
 
   return (
-    <div
-      className={cn(
-        "group border-border bg-card hover:border-foreground/30 hover:bg-accent relative flex flex-col rounded-xl border transition-colors",
-      )}
-    >
+    <div className={cn(t("groupBorderBorderBg2"))}>
       {/* Whole-card link, stacked below the interactive controls and above
           nothing else.
 
@@ -242,7 +233,7 @@ function KBCard({ kb, onDelete }: { kb: KnowledgeBase; onDelete?: () => void }) 
       <Link
         href={ROUTES.RAG_DETAIL(kb.id)}
         className="focus-visible:ring-ring absolute inset-0 z-20 rounded-[inherit] focus-visible:ring-2 focus-visible:outline-none"
-        aria-label={t("card.openAria", { name: kb.name })}
+        aria-label={`Open ${kb.name}`}
       />
 
       <div className="pointer-events-none flex h-full flex-col p-5">
@@ -254,7 +245,7 @@ function KBCard({ kb, onDelete }: { kb: KnowledgeBase; onDelete?: () => void }) 
           <div className="flex items-center gap-1.5">
             {kb.is_default && (
               <Badge variant="outline" className="border-border text-muted-foreground font-normal">
-                {t("card.default")}
+                {t("default")}
               </Badge>
             )}
             {!kb.is_default && onDelete && (
@@ -263,12 +254,16 @@ function KBCard({ kb, onDelete }: { kb: KnowledgeBase; onDelete?: () => void }) 
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  if (confirm(t("card.deleteConfirm", { name: kb.name }))) {
+                  if (
+                    confirm(
+                      `Delete "${kb.name}"? This will remove the knowledge base and all its documents.`,
+                    )
+                  ) {
                     onDelete();
                   }
                 }}
                 className="text-muted-foreground hover:bg-accent hover:text-destructive pointer-events-auto relative z-30 inline-flex h-8 w-8 items-center justify-center rounded-lg opacity-0 transition-colors group-hover:opacity-100 focus-visible:opacity-100"
-                aria-label={t("card.deleteAria")}
+                aria-label={t("deleteKnowledgeBase")}
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
@@ -292,7 +287,7 @@ function KBCard({ kb, onDelete }: { kb: KnowledgeBase; onDelete?: () => void }) 
         <div className="text-muted-foreground mt-5 flex items-center justify-between gap-2 text-xs">
           <span className="inline-flex items-center gap-1.5 truncate">
             <meta.icon className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate">{t(meta.labelKey)}</span>
+            <span className="truncate">{meta.label}</span>
           </span>
           <ArrowUpRight className="h-4 w-4 shrink-0" />
         </div>

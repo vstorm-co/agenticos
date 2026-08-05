@@ -137,7 +137,7 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{t("shareConversation")}</DialogTitle>
+          <DialogTitle>{t("shareConversationTitle")}</DialogTitle>
           <DialogDescription>{t("shareDescription")}</DialogDescription>
         </DialogHeader>
 
@@ -155,7 +155,7 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
                 }}
                 onFocus={() => setSuggestionsOpen(true)}
                 onBlur={() => setSuggestionsOpen(false)}
-                onKeyDown={(e) => e.key === "Enter" && handleShare()}
+                onKeyDown={(e) => e.key === t("enter8") && handleShare()}
               />
               {suggestionsOpen && suggestions.length > 0 && (
                 <div
@@ -194,15 +194,15 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="view">View</SelectItem>
-                <SelectItem value="edit">Edit</SelectItem>
+                <SelectItem value="view">{t("view")}</SelectItem>
+                <SelectItem value="edit">{t("edit")}</SelectItem>
               </SelectContent>
             </Select>
             <Button
               onClick={handleShare}
               disabled={isLoading || isSharing}
               size="icon"
-              aria-label="Share conversation"
+              aria-label={t("shareConversationTitle")}
             >
               {isSharing ? (
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
@@ -231,7 +231,7 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
                 variant="secondary"
                 size="icon"
                 onClick={handleCopyLink}
-                aria-label="Copy share link"
+                aria-label={t("copyShareLink")}
               >
                 <Copy className="h-4 w-4" aria-hidden />
               </Button>
@@ -239,7 +239,7 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
           </div>
           {shareLink && (
             <p className="text-muted-foreground text-xs break-all">
-              {copied ? "Copied!" : shareLink}
+              {copied ? t("copied") : shareLink}
             </p>
           )}
 
@@ -253,10 +253,10 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
                 >
                   <div className="flex items-center gap-2">
                     <span className="text-sm">
-                      {share.shared_with_email || share.shared_with || "Link"}
+                      {share.shared_with_email || share.shared_with || t("link")}
                     </span>
                     <Badge variant="secondary">{share.permission}</Badge>
-                    {share.share_token && <Badge variant="outline">Link</Badge>}
+                    {share.share_token && <Badge variant="outline">{t("link")}</Badge>}
                   </div>
                   <Button
                     variant="ghost"

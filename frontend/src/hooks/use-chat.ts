@@ -7,15 +7,26 @@ import { useChatStore, useAuthStore, useOrgStore } from "@/stores";
 import { useTenantId } from "@/hooks/use-organizations";
 import { useAgentSelectionStore } from "@/stores";
 import type {
+  ActionRequest,
   AskUserAnswer,
   AskUserQuestion,
   ChatMessageFile,
   Decision,
+  Delegation,
   PendingApproval,
+  ReviewConfig,
+  SubagentFrame,
   ToolCall,
+  TurnUsage,
   WSEvent,
 } from "@/types";
+import type { ResumedRun } from "@/types/runs";
+import { applyDelegationFrame, closeOpenDelegations } from "@/lib/delegations";
 import { WS_URL } from "@/lib/constants";
+import { toast } from "sonner";
+
+import { apiClient } from "@/lib/api-client";
+import { getErrorMessage } from "@/lib/utils";
 import { setUrlParam } from "@/lib/utils";
 import { useConversationStore } from "@/stores";
 /** A message the user typed while the agent was busy / socket offline.
@@ -48,6 +59,19 @@ export function useChat(options: UseChatOptions = {}) {
   } = useChatStore();
 
   const [isProcessing, setIsProcessing] = useState(false);
+  // What the last turn cost, and *which conversation it was*. Replaced rather than
+  // accumulated: the strip says "that turn", and a running total would be a second,
+  // disagreeing answer to a question the billing pages already own.
+  //
+  // Keyed on the conversation because it is read after switching to another one. The
+  // bare value survived the switch and the strip reported the previous thread's cost
+  // under this one's input - a stale number that looked exactly like a real one.
+  // Keyed, it simply is not returned, so the staleness is impossible rather than
+  // cleaned up afterwards.
+  const [liveUsage, setLiveUsage] = useState<{
+    conversationId: string | null;
+    usage: TurnUsage;
+  } | null>(null);
   // Held in a ref instead of state because the WS handler reads it
   // synchronously: events arriving in the same tick (e.g. model_request_start
   // + text_delta in one server flush) need to see the just-created message id
@@ -73,8 +97,25 @@ export function useChat(options: UseChatOptions = {}) {
   // read from the store at that moment, because switching agents while an answer
   // is streaming must not re-credit that answer to the newly picked agent.
   const turnAgentIdRef = useRef<string | null>(null);
+  // Which conversation this hook is about: the store's, or the one passed in before
+  // the store has caught up. Computed once because three places need the same answer
+  // - stamping a new message, recording what a turn cost, and deciding whether that
+  // cost still belongs to what is on screen - and three copies of the fallback chain
+  // is three chances for them to disagree.
+  const activeConversationId = currentConversationIdFromStore || conversationId || null;
+
   const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null);
   const [pendingQuestions, setPendingQuestions] = useState<AskUserQuestion[] | null>(null);
+  // The delegations of the turn on screen, keyed by their own `task_id` and held
+  // *outside* the assistant message on purpose.
+  //
+  // This is what fixes the teardown bug rather than working around it. `complete`
+  // clears `currentMessageIdRef`, and a background delegation reports after the
+  // parent's answer - so anything hung off the streaming message loses the last
+  // thing a specialist said, silently, in exactly the case the delegation was
+  // started to handle. Here the panels simply outlive `complete`, and each closes
+  // on its own `subagent_complete`.
+  const [delegations, setDelegations] = useState<Delegation[]>([]);
 
   const handleWebSocketMessage = useCallback(
     (event: MessageEvent) => {
@@ -89,9 +130,7 @@ export function useChat(options: UseChatOptions = {}) {
         }
 
         const newMsgId = nanoid();
-        // Use current conversationId from store to avoid closure issues
-        const effectiveConversationId =
-          currentConversationIdFromStore || conversationId || undefined;
+        const effectiveConversationId = activeConversationId ?? undefined;
         addMessage({
           id: newMsgId,
           role: "assistant",
@@ -136,6 +175,12 @@ export function useChat(options: UseChatOptions = {}) {
               id: message_id,
               isTemporaryId: false,
             }));
+            // And point the ref at it. Everything after this - `complete` writing
+            // what the turn cost, an `error` marking the message failed - addresses
+            // the message through this ref, and a ref still holding the temporary id
+            // addresses a message that no longer exists. The cost was being written
+            // to nothing, so it appeared only after a reload fetched it from the row.
+            setCurrentMessageId(message_id);
           } else {
             // Fallback: find the last assistant message with a temp ID
             // This handles cases where currentMessageId was already cleared
@@ -246,6 +291,20 @@ export function useChat(options: UseChatOptions = {}) {
           break;
         }
 
+        case "subagent_start":
+        case "subagent_text_delta":
+        case "subagent_thinking_delta":
+        case "subagent_tool_call":
+        case "subagent_tool_result":
+        case "subagent_complete": {
+          // One branch for six frames: the envelope's `type` is the frame's own
+          // `kind` (see `AgentSession._subagent_event`), so the payload narrows
+          // itself and the six cases share one reducer instead of six copies of
+          // "find the task, change one field".
+          setDelegations((current) => applyDelegationFrame(current, wsEvent.data as SubagentFrame));
+          break;
+        }
+
         case "error": {
           // Handle error
           if (currentMessageIdRef.current) {
@@ -258,32 +317,35 @@ export function useChat(options: UseChatOptions = {}) {
             updateMessage(id, (msg) => ({ ...msg, isStreaming: false }));
           }
           setIsProcessing(false);
+          // The turn is over and no `subagent_complete` is coming for whatever was
+          // still running. A panel left open past that spins forever - the state a
+          // parked tool call used to sit in.
+          setDelegations(closeOpenDelegations);
           break;
         }
 
         case "tool_approval_required": {
-          // Human-in-the-Loop: AI wants to execute tools that need approval
-          const { action_requests, review_configs } = wsEvent.data as {
-            action_requests: Array<{
-              id: string;
-              tool_name: string;
-              args: Record<string, unknown>;
-            }>;
-            review_configs: Array<{
-              tool_name: string;
-              allow_edit?: boolean;
-              timeout?: number;
-            }>;
+          // The run stopped on a gated tool call. The `approvals` queue has the
+          // same rows and the email points at them; this is the shortcut for
+          // whoever is already looking at the tab.
+          const { action_requests, review_configs, run_id } = wsEvent.data as {
+            action_requests: ActionRequest[];
+            review_configs: ReviewConfig[];
+            run_id: string;
           };
           setPendingApproval({
             actionRequests: action_requests,
             reviewConfigs: review_configs,
+            runId: run_id,
           });
-          // Show pending tools in the current message
+          // Resolve the cards rather than leaving them spinning. A parked call
+          // produces no `tool_result` until somebody decides, so "running" is a
+          // state it can sit in forever.
           if (currentMessageIdRef.current) {
             const id = currentMessageIdRef.current;
-            const toolNames = action_requests.map((ar) => ar.tool_name).join(", ");
-            appendTextDelta(id, `\n\n⏸️ Waiting for approval: ${toolNames}`);
+            for (const request of action_requests) {
+              updateToolCallPart(id, request.tool_call_id, { status: "awaiting_approval" });
+            }
           }
           break;
         }
@@ -304,6 +366,43 @@ export function useChat(options: UseChatOptions = {}) {
 
         case "complete": {
           setIsProcessing(false);
+          // `wsEvent.data`, not `event.data`: the latter is the raw JSON string
+          // this handler parsed, and reading a field off it silently yields
+          // `undefined` - which looked exactly like a turn nobody measured.
+          //
+          // Absent is left absent, rather than clearing a number the previous
+          // turn legitimately reported: the strip would flicker to nothing.
+          {
+            const { usage, stopped } = wsEvent.data as {
+              usage?: TurnUsage | null;
+              stopped?: boolean;
+            };
+            // **`complete` is not the cue to tear a delegation down.** It says the
+            // *parent* is finished, and a background delegation reports after that -
+            // so the panels are left exactly as they are and each closes on its own
+            // `subagent_complete`. The one exception is the cancelled path, which
+            // sends `stopped` (`AgentSession._run_turn`): nothing more is coming for
+            // a run that was cancelled, so whatever was open is closed here. Until
+            // now the frontend never read this field at all.
+            if (stopped) setDelegations(closeOpenDelegations);
+            if (usage) {
+              setLiveUsage({
+                // From the store rather than the render closure: a turn that created
+                // the conversation learns its id from `conversation_created` in this
+                // same handler, and the closure still holds `null`.
+                conversationId:
+                  useConversationStore.getState().currentConversationId ?? activeConversationId,
+                usage,
+              });
+              // Also on the message itself. The strip under the input only ever
+              // describes the last turn, so in a long conversation there is no
+              // way to see which answer was the expensive one - and "the one
+              // that read four documents" is exactly the question somebody
+              // watching a budget is asking.
+              if (currentMessageIdRef.current)
+                updateMessage(currentMessageIdRef.current, (msg) => ({ ...msg, usage }));
+            }
+          }
           // Clear currentMessageId after complete (message_saved should have handled ID mapping)
           setCurrentMessageId(null);
           // The turn just debited credits server-side - nudge any mounted
@@ -327,8 +426,7 @@ export function useChat(options: UseChatOptions = {}) {
       setCurrentConversationId,
       setCurrentMessageId,
       onConversationCreated,
-      currentConversationIdFromStore,
-      conversationId,
+      activeConversationId,
     ],
   );
 
@@ -397,6 +495,11 @@ export function useChat(options: UseChatOptions = {}) {
 
   const doSend = useCallback(
     (content: string, fileIds?: string[], files?: ChatMessageFile[]) => {
+      // The previous turn's panels belong to the previous turn. Cleared here rather
+      // than on `complete` so they survive it - which is the whole point - and a
+      // late frame from a background delegation of the turn before is dropped by
+      // `applyDelegationFrame` rather than opening a nameless panel.
+      setDelegations([]);
       const userMessageId = nanoid();
       addMessage({
         id: userMessageId,
@@ -475,47 +578,121 @@ export function useChat(options: UseChatOptions = {}) {
     clearQueued();
     setPendingApproval(null);
     setPendingQuestions(null);
+    // A delegation belongs to a run in one organization, and to one conversation
+    // inside it - the effect below is the other half of that sentence. Left on
+    // screen it would show the previous tenant's specialist names and prompts to
+    // the new one.
+    setDelegations([]);
   }, [tenantId, clearQueued]);
 
+  // The other half: a delegation belongs to a run in *this* conversation, and the
+  // panels are drawn under whatever transcript is on screen. Switching to another
+  // conversation clears the messages and the queue and used to leave the panels, so
+  // the previous thread's specialist names, prompts, streamed answers and costs were
+  // drawn under the new one - until the next message, which is the only other thing
+  // that clears them. Cleared here rather than on `complete`, which the panels
+  // deliberately outlive: a background delegation reports after the parent answered.
+  //
+  // Not keyed by conversation, deliberately. A turn that creates its conversation
+  // learns the id from `conversation_created` mid-stream, so the key would move under
+  // panels that are already open and `applyDelegationFrame` would drop every frame
+  // after it as naming a task it holds no panel for - a silent loss of the last thing
+  // a specialist said, which is the failure this whole design exists to avoid. The
+  // panels are live state that no reload restores, so keeping them for a conversation
+  // somebody may return to would also disagree with what that reload shows.
+  //
+  // A layout effect for the reason the one above is one: before the paint, so no
+  // frame of the previous conversation's panels is shown under this one's transcript.
+  const delegationsBelongTo = useRef(activeConversationId);
+  useLayoutEffect(() => {
+    const previous = delegationsBelongTo.current;
+    delegationsBelongTo.current = activeConversationId;
+    // `previous === null` is the turn that just created its conversation being told
+    // its id, not a different conversation being opened - clearing there would throw
+    // away the panels of the turn still streaming.
+    if (previous === activeConversationId || previous === null) return;
+    setDelegations([]);
+  }, [activeConversationId]);
+
+  /** Record one decision on the `approvals` row it belongs to. */
+  const decideApproval = useCallback(
+    (approvalId: string, approved: boolean) =>
+      apiClient.post(`/approvals/${approvalId}`, { approved }),
+    [],
+  );
+
+  /** Continue a run whose parked calls have all been decided.
+   *
+   * Answers with the resumed turn, not an acknowledgement: `resume_run` executes
+   * the agent and returns its output, so the continuation is in this response and
+   * nothing needs to be waited for. */
+  const resumeRun = useCallback(
+    (runId: string) => apiClient.post<ResumedRun>(`/runs/${runId}/resume`),
+    [],
+  );
+
   const sendResumeDecisions = useCallback(
-    (decisions: Decision[]) => {
+    async (decisions: Decision[]) => {
+      // Read from state and listed in the deps below. A ref would avoid
+      // rebuilding this callback, but it cannot be written during render - and
+      // rebuilding it is harmless: it is only ever passed down as a prop.
+      const parked = pendingApproval;
       setPendingApproval(null);
 
-      // Update message to show decisions were made
-      if (currentMessageIdRef.current) {
-        const approvedCount = decisions.filter((d) => d.type === "approve").length;
-        const editedCount = decisions.filter((d) => d.type === "edit").length;
-        const rejectedCount = decisions.filter((d) => d.type === "reject").length;
+      if (parked === null) return;
 
-        const summaryParts: string[] = [];
-        if (approvedCount > 0) summaryParts.push(`${approvedCount} approved`);
-        if (editedCount > 0) summaryParts.push(`${editedCount} edited`);
-        if (rejectedCount > 0) summaryParts.push(`${rejectedCount} rejected`);
-
-        updateMessage(currentMessageIdRef.current, (msg) => ({
-          ...msg,
-          content: msg.content.replace(
-            /\n\n⏸️ Waiting for approval:.*$/,
-            `\n\n✅ Decisions: ${summaryParts.join(", ")}`,
-          ),
-        }));
-      }
-
-      // Send resume message to WebSocket
-      sendMessage({
-        type: "resume",
-        decisions: decisions.map((d) => {
-          if (d.type === "edit" && d.editedAction) {
-            return {
-              type: "edit",
-              edited_action: d.editedAction,
-            };
+      // The same endpoints the approvals queue uses. This used to send a
+      // `resume` frame over the WebSocket, which the server silently ignores -
+      // so the panel reported "3 approved" and nothing whatsoever happened.
+      // Recording the decision on the row is also what keeps the queue, the
+      // audit entry and the email honest about what was decided.
+      try {
+        for (const [index, request] of parked.actionRequests.entries()) {
+          const decision = decisions[index];
+          if (decision === undefined) continue;
+          await decideApproval(request.id, decision.type === "approve");
+          if (currentMessageIdRef.current) {
+            updateToolCallPart(currentMessageIdRef.current, request.tool_call_id, {
+              status: decision.type === "approve" ? "running" : "error",
+              result: decision.type === "approve" ? undefined : "Refused",
+            });
           }
-          return { type: d.type };
-        }),
-      });
+        }
+        // Once, after all of them: the run continues when nothing is left
+        // parked, and resuming per decision would start it while calls it has
+        // not been told about are still waiting.
+        const resumed = await resumeRun(parked.runId);
+        // **The answer is shown, not discarded.** `resume_run` runs the agent and
+        // returns what it said, but it returns it *here* - over HTTP, to the caller
+        // - and not over the socket this conversation is streaming. So the reply
+        // used to exist and be thrown away: the panel vanished, a toast said the
+        // run was continuing, and the chat then sat unchanged forever. Reloading
+        // the page showed the finished turn, which is how this looked like an
+        // approval that did nothing.
+        // Truthiness, and it is the right test for this one: an empty answer is
+        // nothing to show, and a run that resumed into a refusal has none.
+        if (resumed.output) {
+          // A finished assistant message, which is also what makes the file panel
+          // re-read: `turns` counts those, and a resumed call is usually the one
+          // that was gated - an `execute`, a write - so the workspace beside the
+          // transcript is exactly what changed.
+          addMessage({
+            id: nanoid(),
+            role: "assistant",
+            content: resumed.output,
+            timestamp: new Date(),
+            conversationId: conversationId || undefined,
+          });
+        }
+      } catch (error) {
+        // Put it back rather than swallowing it. A decision that failed to
+        // record is a run still parked, and a panel that vanished is a person
+        // believing they unblocked it.
+        setPendingApproval(parked);
+        toast.error(getErrorMessage(error));
+      }
     },
-    [updateMessage, sendMessage],
+    [pendingApproval, updateToolCallPart, decideApproval, resumeRun, addMessage, conversationId],
   );
 
   const sendAskUserResponses = useCallback(
@@ -537,6 +714,11 @@ export function useChat(options: UseChatOptions = {}) {
     setIsProcessing(false);
     setPendingApproval(null);
     setPendingQuestions(null);
+    // Optimistic, and it has to be: the `stop` frame cancels the turn task and the
+    // server's own `complete` carries `stopped`, but nothing guarantees it arrives -
+    // the socket may be what went away. Closing here means the panels never outlive
+    // the run that fed them.
+    setDelegations(closeOpenDelegations);
   }, [sendMessage, updateMessage, setCurrentMessageId]);
 
   // Drain message queue when processing finishes AND we're back online.
@@ -554,10 +736,18 @@ export function useChat(options: UseChatOptions = {}) {
     }
   }, [isProcessing, isConnected, doSend]);
 
+  // The live turn's cost, and only while it still belongs to the conversation on
+  // screen. A value from the thread somebody just left is not a value about this one.
+  const onThisConversation =
+    liveUsage !== null && liveUsage.conversationId === activeConversationId;
+
   return {
     messages,
     isConnected,
     isProcessing,
+    lastUsage: onThisConversation ? liveUsage.usage : null,
+    /** The turn's delegations, in the order they started. See `DelegationPanels`. */
+    delegations,
     connect,
     disconnect,
     sendMessage: sendChatMessage,

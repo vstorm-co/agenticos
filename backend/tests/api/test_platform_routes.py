@@ -182,6 +182,8 @@ class Call:
     permission: Perm
     body: dict[str, Any] | None = None
     query: str = ""
+    """Appended verbatim, so it carries its own `?` - there is no route here that
+    needs one twice and no reason for this to guess."""
 
     def __str__(self) -> str:
         return f"{self.method} {self.path}"
@@ -311,6 +313,57 @@ CALLS: tuple[Call, ...] = (
             "value": {"kind": "api_key", "api_key": "not-a-real-key"},
         },
     ),
+    # Where sandboxes run. `connections:manage`, the same permission the vault
+    # carries, because whoever edits these decides which host an agent's shell
+    # runs on and the credential behind one can start containers there. Every
+    # route including the per-resource ones: a connection has no grants, so a
+    # gate here cannot refuse somebody a grant would have admitted.
+    Call("GET", "/sandbox-connections", Perm.CONNECTIONS_MANAGE),
+    Call(
+        "POST",
+        "/sandbox-connections",
+        Perm.CONNECTIONS_MANAGE,
+        body={"name": "Local Docker", "kind": "docker", "base_url": "http://sandboxd:8080"},
+    ),
+    # Asking what this deployment can already see, and testing an address before a
+    # row exists for it, are the same authority as registering one: both reach a
+    # host, and the second unseals a credential to do it.
+    Call("GET", "/sandbox-connections/local", Perm.CONNECTIONS_MANAGE),
+    # The runtime catalog contacts nothing, but it is read by the same form and
+    # names what this deployment's images are built from.
+    Call("GET", "/sandbox-connections/runtimes", Perm.CONNECTIONS_MANAGE),
+    Call("POST", "/sandbox-connections/local/credential", Perm.CONNECTIONS_MANAGE),
+    Call(
+        "POST",
+        "/sandbox-connections/probe",
+        Perm.CONNECTIONS_MANAGE,
+        body={"base_url": "http://sandboxd:8080"},
+    ),
+    Call("PATCH", "/sandbox-connections/{connection_id}", Perm.CONNECTIONS_MANAGE, body={}),
+    Call("DELETE", "/sandbox-connections/{connection_id}", Perm.CONNECTIONS_MANAGE),
+    Call("GET", "/sandbox-connections/{connection_id}/policy", Perm.CONNECTIONS_MANAGE),
+    Call("GET", "/sandbox-connections/{connection_id}/sessions", Perm.CONNECTIONS_MANAGE),
+    Call(
+        "GET",
+        "/sandbox-connections/{connection_id}/sessions/{session_id}/events",
+        Perm.CONNECTIONS_MANAGE,
+    ),
+    # `raw` is the download and the image preview. Ungated for the same reason as
+    # the rest of the workspace routes - the service scopes it, and a download must
+    # not be the way around that.
+    # The workspaces themselves carry no gate, and that is the change rather than
+    # an omission: `connections:manage` widens the listing to the organization, and
+    # a member sees the workspaces they are part of. A gate refused them outright,
+    # which made a listing of their *own* files an operator screen.
+    # `tests/test_sandbox_workspace.py::TestWorkspacesAreScopedToTheirReader` is
+    # where the narrowing and the refusals are proven.
+    # What an agent proposed changing about a skill. Reading one is reading a
+    # candidate version of the organization's own instructions, so whoever may
+    # read it is exactly whoever may accept it.
+    Call("GET", "/skill-changes", Perm.SKILLS_EDIT),
+    Call("GET", "/skill-changes/{proposal_id}", Perm.SKILLS_EDIT),
+    Call("POST", "/skill-changes/{proposal_id}/apply", Perm.SKILLS_EDIT),
+    Call("POST", "/skill-changes/{proposal_id}/discard", Perm.SKILLS_EDIT),
 )
 
 WRITE_CALLS: tuple[Call, ...] = tuple(call for call in CALLS if call.method != "GET")
@@ -429,6 +482,13 @@ _PLATFORM_PREFIXES = (
     # what notices the next /kb route that resolves neither.
     "/kb",
     "/org/integrations",
+    # Where sandboxes run, what is running on them, and the files agents kept.
+    # Every one of these is an operator surface holding a credential or another
+    # tenant's work; without the prefixes here the sweep passed over them and the
+    # claim that it proves their gates was simply untrue.
+    "/sandbox-connections",
+    "/sandbox-workspaces",
+    "/skill-changes",
 )
 
 
@@ -524,6 +584,14 @@ RESOURCE_AWARE_SERVICES = (
     # through `readable_kb`, writes through `get_for_write`, both of which end
     # at `resolve_access` for org rows. Every per-KB route depends on it.
     deps.get_knowledge_base_service,
+    # A workspace is not a shared resource with grants, but the decision is the
+    # same shape: the service scopes every read to what the caller is part of -
+    # their own user-scoped files, their own conversations, the shared workspace of
+    # an agent they have talked to - and widens to the organization only for
+    # `connections:manage`. A route gate would have refused a member outright,
+    # which is what made a listing of *their own* files an operator screen.
+    # `TestWorkspacesAreScopedToTheirReader` is where those refusals are proven.
+    deps.get_sandbox_workspace_service,
 )
 
 

@@ -1,24 +1,69 @@
 ---
 description: Testing standards, the four layers, anyio patterns, the 100% platform gate
-globs: ["backend/tests/**/*.py", "tests/**/*.py", "**/test_*.py", "**/conftest.py"]
+globs:
+  [
+    "backend/tests/**/*.py",
+    "tests/**/*.py",
+    "**/test_*.py",
+    "**/conftest.py",
+    "frontend/src/**/*.test.ts",
+    "frontend/src/**/*.test.tsx",
+  ]
 ---
 
 # Testing
 
 Deeper guidance lives in the `backend-tests` skill and `docs/testing.md`.
 
-## Running
+## Running — narrowest first
+
+**Run what covers the change, not the suite.** The suite is the check before a push;
+after an edit it answers the same question thirty times slower.
+
+| From | Command | About |
+|---|---|---|
+| `backend/` | `uv run pytest tests/test_sandbox_workspace.py -q` | 1s |
+| `backend/` | `uv run pytest tests/api/test_workspace_routes.py -k bytes -x` | 1s |
+| `backend/` | `uv run pytest tests/test_a.py tests/test_b.py -q` | as many files as the change touched |
+| `frontend/` | `bunx vitest run src/components/chat/usage-strip.test.tsx` | 2s |
+| `frontend/` | `bunx vitest run src/components/chat` | a directory |
+
+Then, once, before the push:
 
 ```bash
-make test-fast          # no coverage — the write-run-write loop
+make lint               # ruff, ruff format, ty, eslint, prettier, tsc, the two guards,
+                        # and codespell over every tracked file
 make test               # backend + the 100% gate on the platform layer
-make test-integration   # only the tests that need a real database
-make test-cov           # HTML at backend/htmlcov/index.html
-make check              # what CI runs
+make test-frontend-cov  # frontend + its gate: 100% lines/stmts/funcs, 97.5% branches
+make test-integration   # only if the change is near the database
+make check              # every CI job except e2e - lint, test, test-frontend-cov,
+                        # build-frontend, docs-build, audit. About five minutes.
 ```
 
-Single test, from `backend/`:
-`uv run pytest tests/test_capability_registry.py -k drift -v`.
+`make check` is CI, not an approximation of it: `.github/workflows/ci.yml` calls
+those targets rather than repeating their commands, and `tests/test_ci_parity.py`
+fails if a gating job grows a step `check` does not run - or if `check` grows one
+CI does not. It has drifted four times, all four found by #143.
+
+Three things `check` leaves out, on purpose: `e2e` (needs a seeded backend), the
+image scan (push to `main` only), and `make test-migrations` - CI cycles the chain
+against a throwaway database, and `alembic downgrade base` on a laptop points at
+the one with your own work in it. `check` also says at the end when
+`tests/integration/` skipped itself for want of a database, because CI's `test`
+job always has one.
+
+Traps, each of which has cost a red job here:
+
+- **`bun run test:run` measures no coverage.** The frontend gate is a separate command
+  and CI runs it (`bun run test:coverage`); 168 green files still failed the job.
+- **Frontend commands run from `frontend/`.** At the repository root vitest finds no
+  config, reports about 164 phantom failures, and leaves a stray `node_modules/`.
+- **A red `e2e` may not be yours.** `sharing.spec.ts` and `skills.spec.ts` flake
+  (#154) - check `gh run list --branch <branch>` for the same spec passing a run later
+  before changing anything.
+- **Coverage instrumentation slows tests enough to trip a 5s `testTimeout`.** A
+  heavy spec that passes under `test:run` can time out under `test:coverage`; re-run
+  before believing it.
 
 ## The four layers
 
@@ -48,12 +93,21 @@ pytestmark = pytest.mark.anyio   # module top
 - `mock_db_session` — an `AsyncMock`. Mock repositories, never the service under test.
 - `mock_redis`, `api_key_headers`.
 
-The conftest pins `POSTGRES_DB=agenticos_test` before `app.core.config` is imported.
-Leave it: the unit suite once emptied a developer's database through a populated `.env`.
+The conftest points `POSTGRES_DB` at `<base>_p<pid>` before `app.core.config` is
+imported — a test database, and one per pytest process. Leave both halves: the unit
+suite once emptied a developer's database through a populated `.env`, and a constant
+name meant two runs on one machine dropping each other's tables mid-test (#189).
 
-`tests/integration/conftest.py` skips when no database is reachable and refuses any
-database whose name contains neither `test` nor `ci` — it calls `drop_all`
-unconditionally.
+`tests/integration/conftest.py` creates that database at the start of the session and
+drops it at the end, even when the suite fails, so **two concurrent runs are safe and
+nothing has to be passed to make them so**. It still skips when no database is
+reachable (a laptop without Docker) and still refuses any database whose name contains
+neither `test` nor `ci`, or that is not a plain identifier — it calls `drop_all`
+unconditionally and drops the database itself afterwards.
+
+A run killed outright (`SIGKILL`) leaks its database; the next run with that pid drops
+it before creating its own. Anything else named `agenticos_*` on a shared Postgres was
+made by hand and is nobody's to clean up automatically.
 
 ## Naming
 

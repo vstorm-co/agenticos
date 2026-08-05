@@ -16,11 +16,13 @@ the run history keeps saying what was actually live at the time.
 
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4
 
 import pytest
 from pydantic import BaseModel
 
 from app.agents.capabilities import REGISTRY, CapabilityToolInfo, load_builtins, register
+from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
 from app.agents.spec import AgentSpec
 from app.core.exceptions import (
     AlreadyExistsError,
@@ -110,6 +112,21 @@ def _agent(ctx: AuthContext, **overrides):
     for key, value in overrides.items():
         setattr(agent, key, value)
     return agent
+
+
+def _skill(ctx: AuthContext, *, owner_user_id=None):
+    """A private skill row in the caller's organization.
+
+    Owned by the caller unless `owner_user_id` says otherwise, so role scope
+    alone reaches it - and giving it away is how a test asks for a skill the
+    publisher can see the id of and nothing more.
+    """
+    return MagicMock(
+        id=uuid.uuid4(),
+        organization_id=ctx.organization_id,
+        owner_user_id=owner_user_id or ctx.user_id,
+        visibility=Visibility.PRIVATE.value,
+    )
 
 
 def _version(agent_id, *, number: int = 1, spec: AgentSpec | None = None):
@@ -314,7 +331,13 @@ class TestCreate:
         assert written["slug"] == "support-bot"
         assert written["name"] == "Support Bot"
         assert written["description"] == "Answers customers"
-        assert written["draft_spec"] == spec.model_dump(mode="json")
+        # The submitted spec, with one substitution: a new agent opens with a
+        # starting prompt rather than an empty box. `TestWhatANewAgentOpensWith`
+        # below is where that behaviour is pinned.
+        assert written["draft_spec"] == {
+            **spec.model_dump(mode="json"),
+            "instructions": DEFAULT_INSTRUCTIONS,
+        }
         assert written["owner_user_id"] == ctx.user_id
         assert audit.call_args.kwargs["action"] == "agent.created"
 
@@ -535,6 +558,7 @@ class TestValidateSpec:
     async def test_a_spec_whose_references_all_resolve_raises_nothing(self):
         ctx = _ctx()
         collection_id = uuid.uuid4()
+        skill = _skill(ctx)
 
         with (
             patch(
@@ -549,15 +573,109 @@ class TestValidateSpec:
                 f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_id",
                 new=AsyncMock(return_value=MagicMock()),
             ),
+            patch(
+                f"{REGISTRY_PATH}.skill_repo.get_many",
+                new=AsyncMock(return_value={skill.id: skill}),
+            ),
         ):
             await AgentRegistryService(_db()).validate_spec(
                 ctx,
                 _spec(
                     capabilities=[{"id": "clock"}, {"id": "knowledge"}],
                     collection_ids=[collection_id],
+                    skill_ids=[skill.id],
                     model_profile_id=uuid.uuid4(),
                     mcp_server_ids=[uuid.uuid4()],
                 ),
+            )
+
+
+class TestSkillValidation:
+    """Binding a skill lends it, so publish checks the publisher can read it.
+
+    A bound skill's body and files are handed to every run of the agent, and
+    skills are bound by UUID - from the API, or by hand-editing a draft - not only
+    picked from a list the Builder filtered. Without this check a member whose role
+    reaches only shared skills could bind a colleague's private one and read it
+    through the agent.
+    """
+
+    @staticmethod
+    async def _problems(ctx: AuthContext, spec: AgentSpec, **repos) -> list[str]:
+        """The problems publishing this spec reports, with the model resolving."""
+        with (
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            patch(f"{REGISTRY_PATH}.skill_repo.get_many", new=AsyncMock(**repos)),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await AgentRegistryService(_db()).validate_spec(ctx, spec)
+
+        assert refused.value.details is not None
+        problems: list[str] = refused.value.details["problems"]
+        return problems
+
+    @pytest.mark.anyio
+    async def test_a_skill_this_organization_does_not_have_is_not_found(self):
+        """Including another tenant's: the repository filters by organization, so
+        an id from elsewhere arrives here as an absence."""
+        skill_id = uuid.uuid4()
+
+        problems = await self._problems(
+            _ctx(),
+            _spec(skill_ids=[skill_id], model_profile_id=uuid.uuid4()),
+            return_value={},
+        )
+
+        assert problems == [f"Skill not found: {skill_id}"]
+
+    @pytest.mark.anyio
+    async def test_a_private_skill_the_publisher_cannot_reach_is_not_found(self):
+        """The leak this check closes, reported as an absence.
+
+        A member's role reaches shared skills only, so a colleague's private one
+        is refused - and told the same thing as an id that does not exist, because
+        a refusal that read differently would map the organization's private
+        skills one guess at a time.
+        """
+        ctx = _ctx(OrgRoleName.MEMBER)
+        private = _skill(ctx, owner_user_id=uuid.uuid4())
+
+        with patch(
+            "app.services.access.resource_grant_repo.get_level", new=AsyncMock(return_value=None)
+        ):
+            problems = await self._problems(
+                ctx,
+                _spec(skill_ids=[private.id], model_profile_id=uuid.uuid4()),
+                return_value={private.id: private},
+            )
+
+        assert problems == [f"Skill not found: {private.id}"]
+
+    @pytest.mark.anyio
+    async def test_a_grant_lets_a_member_bind_a_skill_they_do_not_own(self):
+        """A grant widens what a role allows, here as everywhere else."""
+        ctx = _ctx(OrgRoleName.MEMBER)
+        shared = _skill(ctx, owner_user_id=uuid.uuid4())
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.skill_repo.get_many",
+                new=AsyncMock(return_value={shared.id: shared}),
+            ),
+            patch(
+                "app.services.access.resource_grant_repo.get_level",
+                new=AsyncMock(return_value=GrantLevel.READ),
+            ),
+        ):
+            await AgentRegistryService(_db()).validate_spec(
+                ctx, _spec(skill_ids=[shared.id], model_profile_id=uuid.uuid4())
             )
 
 
@@ -1471,3 +1589,243 @@ class TestAvatar:
 
         assert path == "/data/avatars/agents/x/logo.png"
         assert storage.get_full_path.call_args.args == ("avatars/agents/x/logo.png",)
+
+
+class TestWhatANewAgentOpensWith:
+    """A prompt, not an empty box.
+
+    An agent with no instructions still answers - as whatever the underlying model
+    is by default, which is a different product on every provider and changes when
+    the model is upgraded.
+    """
+
+    @pytest.mark.anyio
+    async def test_a_new_agent_is_given_a_starting_prompt(self):
+        created = MagicMock()
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get_by_slug", new=AsyncMock(return_value=None)),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.create", new=AsyncMock(return_value=created)
+            ) as create,
+        ):
+            await AgentRegistryService(_db()).create(_ctx(), _spec("Support"))
+
+        assert create.call_args.kwargs["draft_spec"]["instructions"] == DEFAULT_INSTRUCTIONS
+
+    @pytest.mark.anyio
+    async def test_a_prompt_somebody_wrote_is_left_alone(self):
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get_by_slug", new=AsyncMock(return_value=None)),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.create", new=AsyncMock(return_value=MagicMock())
+            ) as create,
+        ):
+            await AgentRegistryService(_db()).create(
+                _ctx(), _spec("Support", instructions="Answer only in Polish.")
+            )
+
+        assert create.call_args.kwargs["draft_spec"]["instructions"] == "Answer only in Polish."
+
+    @pytest.mark.anyio
+    async def test_a_prompt_of_only_whitespace_is_not_a_prompt(self):
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get_by_slug", new=AsyncMock(return_value=None)),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.create", new=AsyncMock(return_value=MagicMock())
+            ) as create,
+        ):
+            await AgentRegistryService(_db()).create(_ctx(), _spec("Support", instructions="   \n"))
+
+        assert create.call_args.kwargs["draft_spec"]["instructions"] == DEFAULT_INSTRUCTIONS
+
+
+class TestWorkspaceConfigurationsRefusedAtPublish:
+    """The two a spec cannot judge for itself.
+
+    Both otherwise fail inside a conversation, where the author is no longer
+    looking at a form and the message reaches a user instead of them.
+    """
+
+    @pytest.mark.anyio
+    async def test_a_container_workspace_needs_a_registered_connection(self, monkeypatch):
+        """Otherwise the first tool call fails inside somebody's conversation,
+        for a reason only an operator can fix and nobody is watching for."""
+        from app.repositories import sandbox_connection_repo
+
+        monkeypatch.setattr(sandbox_connection_repo, "get_default", AsyncMock(return_value=None))
+        spec = _spec(capabilities=[{"id": "sandbox", "config": {"backend": "service"}}])
+
+        with pytest.raises(BadRequestError) as refused:
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+        assert any(
+            "registered no sandbox connection" in problem
+            for problem in refused.value.details["problems"]
+        )
+
+    @pytest.mark.anyio
+    async def test_a_connection_from_another_organization_is_refused(self, monkeypatch):
+        """The repository is asked inside the caller's organization, so another
+        tenant's host reads as "does not exist" rather than being reachable."""
+        from app.repositories import sandbox_connection_repo
+
+        monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=None))
+        spec = _spec(
+            capabilities=[
+                {
+                    "id": "sandbox",
+                    "config": {"backend": "service", "connection_id": str(uuid4())},
+                }
+            ]
+        )
+
+        with pytest.raises(BadRequestError) as refused:
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+        assert any(
+            "does not exist in this" in problem for problem in refused.value.details["problems"]
+        )
+
+    @pytest.mark.anyio
+    async def test_a_connection_with_no_credential_is_refused(self, monkeypatch):
+        """It resolves, and every sandbox opened on it would be refused a session."""
+        from app.repositories import sandbox_connection_repo
+
+        connection = MagicMock(secret_id=None)
+        connection.name = "Big box"
+        monkeypatch.setattr(
+            sandbox_connection_repo, "get_default", AsyncMock(return_value=connection)
+        )
+        spec = _spec(capabilities=[{"id": "sandbox", "config": {"backend": "service"}}])
+
+        with pytest.raises(BadRequestError) as refused:
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+        assert any("Big box" in problem for problem in refused.value.details["problems"])
+
+    @pytest.mark.anyio
+    async def test_a_connection_on_the_state_backend_is_refused(self):
+        """The platform stores that workspace itself, so a host is not a choice it
+        has. Ignoring the field would leave an author believing they picked one."""
+        spec = _spec(
+            capabilities=[
+                {
+                    "id": "sandbox",
+                    "config": {"backend": "state", "connection_id": str(uuid4())},
+                }
+            ]
+        )
+
+        with pytest.raises(BadRequestError) as refused:
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+        assert any("does not run" in problem for problem in refused.value.details["problems"])
+
+    @pytest.mark.anyio
+    async def test_a_named_connection_with_a_credential_is_not_a_problem(self, monkeypatch):
+        """The branch the three refusals above exist to let through. Asserted on
+        the workspace's own problems rather than on publishing succeeding: this
+        spec is deliberately bare, so it has others."""
+        from app.repositories import sandbox_connection_repo
+
+        connection = MagicMock(secret_id=uuid4())
+        connection.name = "Big box"
+        monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=connection))
+        spec = _spec(
+            capabilities=[
+                {
+                    "id": "sandbox",
+                    "config": {"backend": "service", "connection_id": str(uuid4())},
+                }
+            ]
+        )
+
+        with pytest.raises(BadRequestError) as refused:
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+        assert not [
+            problem for problem in refused.value.details["problems"] if "connection" in problem
+        ]
+
+    @pytest.mark.anyio
+    async def test_a_runtime_on_a_backend_with_no_container_is_refused(self):
+        """Silently ignoring it would leave an author believing they chose one."""
+        spec = _spec(
+            capabilities=[{"id": "sandbox", "config": {"backend": "state", "runtime": "python"}}]
+        )
+
+        with pytest.raises(BadRequestError) as refused:
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+        assert any(
+            "no runtime to choose" in problem for problem in refused.value.details["problems"]
+        )
+
+    @pytest.mark.anyio
+    async def test_a_per_user_workspace_publishes_and_is_judged_at_run_time(self, monkeypatch):
+        """Publishing cannot know which surfaces an agent will be reached from,
+        and a web-only agent with a per-user workspace is a good configuration.
+        """
+        profile = MagicMock(id=uuid.uuid4())
+        spec = _spec(
+            capabilities=[{"id": "sandbox", "config": {"session_scope": "user"}}],
+            model_profile_id=profile.id,
+        )
+
+        with patch(
+            f"{REGISTRY_PATH}.credential_repo.get_profile", new=AsyncMock(return_value=profile)
+        ):
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+
+class TestASharedWorkspaceIsAnswerableAfterwards:
+    """`session_scope="agent"` ships without a permission of its own.
+
+    So the audit entry is what makes the decision answerable: a member who finds
+    a file they never created can be told when the sharing started and who chose
+    it, rather than concluding something leaked.
+    """
+
+    @staticmethod
+    async def _publish(spec):
+        service = AgentRegistryService(_db())
+        agent = MagicMock(id=uuid.uuid4(), draft_spec=spec.model_dump(mode="json"))
+
+        with (
+            patch.object(service, "get", new=AsyncMock(return_value=agent)),
+            patch.object(service, "validate_spec", new=AsyncMock()),
+            patch.object(service, "_repoint_default_environment", new=AsyncMock()),
+            patch(f"{REGISTRY_PATH}.agent_repo.next_version_number", new=AsyncMock(return_value=3)),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.create_version",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch(f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock()),
+            patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()) as audited,
+        ):
+            await service.publish(_ctx(), agent.id)
+
+        return [call.kwargs["action"] for call in audited.await_args_list]
+
+    @pytest.mark.anyio
+    async def test_sharing_between_people_is_recorded(self):
+        actions = await self._publish(
+            _spec(capabilities=[{"id": "sandbox", "config": {"session_scope": "agent"}}])
+        )
+
+        assert "agent.workspace_shared" in actions
+
+    @pytest.mark.anyio
+    async def test_a_workspace_nobody_else_can_read_is_not(self):
+        """Recording every publish as sharing would make the entry meaningless."""
+        actions = await self._publish(
+            _spec(capabilities=[{"id": "sandbox", "config": {"session_scope": "conversation"}}])
+        )
+
+        assert "agent.workspace_shared" not in actions
+
+    @pytest.mark.anyio
+    async def test_an_agent_with_no_workspace_is_not(self):
+        actions = await self._publish(_spec())
+
+        assert "agent.workspace_shared" not in actions

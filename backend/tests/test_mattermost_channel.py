@@ -15,7 +15,7 @@ import json
 import pytest
 
 from app.services.channels.base import OutgoingMessage
-from app.services.channels.mattermost import MattermostAdapter
+from app.services.channels.mattermost import MattermostAdapter, decode_webhook_body
 
 
 def _posted(**post: object) -> dict[str, object]:
@@ -116,6 +116,42 @@ class TestWebhookAuthentication:
         adapter = MattermostAdapter()
 
         assert adapter.verify_webhook_signature({}, "tok", "token=tok&text=hi") is True
+
+
+class TestWebhookBodyDecoding:
+    """One decode for both halves of receiving a webhook.
+
+    The token check and the message have to read the same body the same way;
+    when they did not, a body one of them could read and the other could not
+    authenticated and then delivered nothing.
+    """
+
+    def test_the_message_survives_a_body_the_header_described_wrongly(self):
+        """The regression: JSON arriving as `application/x-www-form-urlencoded`.
+
+        The token check has always found this - it tries JSON first - so the
+        request authenticates. Decoding the message from the declared type
+        instead made it an empty payload, a 200, and a dropped message.
+        """
+        raw = json.dumps({"token": "tok", "text": "hi", "user_name": "kacper"})
+
+        assert decode_webhook_body(raw) == {
+            "token": "tok",
+            "text": "hi",
+            "user_name": "kacper",
+        }
+
+    def test_a_form_body_decodes_to_its_first_value_per_key(self):
+        assert decode_webhook_body("token=tok&text=hi") == {"token": "tok", "text": "hi"}
+
+    def test_a_body_that_is_neither_is_empty_rather_than_an_error(self):
+        """A malformed body must not raise: the endpoint answers 200 to
+        everything, and an exception here would be a 500 Mattermost retries."""
+        assert decode_webhook_body("") == {}
+
+    def test_json_that_is_not_an_object_is_empty(self):
+        """`parse_incoming` reads keys off whatever this returns."""
+        assert decode_webhook_body("[1, 2, 3]") == {}
 
 
 class TestSending:

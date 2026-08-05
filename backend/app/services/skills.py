@@ -23,6 +23,7 @@ from app.core.permissions import AuthContext, Perm
 from app.db.models.skill import Skill, SkillResource
 from app.repositories import resource_grant_repo, skill_repo
 from app.repositories.skill import SkillSort
+from app.schemas.skill import SkillList, SkillSummary
 from app.services import skill_library
 from app.services.access import SKILL, resolve_access, visible_resource_ids
 
@@ -41,6 +42,25 @@ SUGGESTED_CATEGORIES: tuple[str, ...] = catalog.load(
 # it cannot read is not a smaller feature - it is a file the agent is told
 # about and then cannot use.
 MAX_RESOURCE_BYTES = 512 * 1024
+
+
+def _summary(skill: Skill, bundled_names: frozenset[str]) -> SkillSummary:
+    """A skill as the listing shows it.
+
+    `built_in` is a name match against the shipped library because that is
+    all installing keeps: an install copies the folder into an ordinary row,
+    and the name - unique per organization, never editable - is the one trace
+    of where it came from.
+    """
+    return SkillSummary(
+        id=skill.id,
+        name=skill.name,
+        description=skill.description,
+        category=skill.category,
+        enabled=skill.enabled,
+        file_count=len(skill.resources),
+        built_in=skill.name in bundled_names,
+    )
 
 
 def _clean_resource_path(raw: str) -> str:
@@ -147,6 +167,36 @@ class SkillService:
             limit=limit,
         )
 
+    async def list_readable(
+        self,
+        ctx: AuthContext,
+        *,
+        search: str | None = None,
+        categories: Sequence[str] | None = None,
+        sort: SkillSort = "name",
+        skip: int = 0,
+        limit: int = 50,
+    ) -> SkillList:
+        """The listing: a page of skills, and everything the page around it needs.
+
+        Three things that are not the page itself travel with it. `total` is the
+        count before paging, which a pager needs and a page cannot supply.
+        `categories` is the whole organization's rather than the page's - a
+        filter chip that vanished with the page it filtered would strand
+        whoever pressed it. `suggested_categories` is the shipped list, for an
+        organization that has not invented its own yet.
+        """
+        items, total = await self.list_skills(
+            ctx, search=search, categories=categories, sort=sort, skip=skip, limit=limit
+        )
+        bundled_names = frozenset(entry.name for entry in skill_library.library())
+        return SkillList(
+            items=[_summary(skill, bundled_names) for skill in items],
+            total=total,
+            categories=await self.list_categories(ctx),
+            suggested_categories=list(SUGGESTED_CATEGORIES),
+        )
+
     async def list_categories(self, ctx: AuthContext) -> list[str]:
         """Every distinct category in this organization, for the listing's filter."""
         return await skill_repo.list_categories(self.db, organization_id=ctx.organization_id)
@@ -154,8 +204,26 @@ class SkillService:
     async def resolve_for_agent(self, ctx: AuthContext, skill_ids: list[UUID]) -> list[Skill]:
         """The enabled skills an agent is bound to.
 
+        Scoped to the run's organization and **not** to the runner's own access,
+        which is deliberate and is the same rule delegates and collections follow:
+        the binding is checked once, against the publisher, when the agent is
+        published, and the agent then reads it for everyone who may run it. See
+        `_skill_problems` in `app/services/agent_registry.py` for the check.
+
+        Re-checking here would be wrong twice over. `resolve_access` refuses every
+        context with no subject, so an API key, an embedded widget and a channel
+        message - the surfaces this platform exists to serve - would each lose
+        every skill the agent has. And where there *is* a subject, an agent's
+        instructions would change with who asked: a member or a viewer, whose role
+        gives `SKILLS_VIEW: Scope.SHARED`, would get a thinner answer out of the
+        same published version than a builder does, with the difference visible
+        nowhere.
+
         A skill deleted or disabled after publish is skipped rather than failing
-        the run: the agent is less capable, not broken.
+        the run: the agent is less capable, not broken. Named in the log with the
+        organization, because from inside one tenant a row that was deleted and a
+        row that belongs to another tenant leave the same absence - and the second
+        is a spec somebody should look at rather than a skill somebody removed.
         """
         if not skill_ids:
             return []
@@ -164,7 +232,11 @@ class SkillService:
         for skill_id in skill_ids:
             skill = found.get(skill_id)
             if skill is None or not skill.enabled:
-                logger.warning("Agent references skill %s which is gone or disabled", skill_id)
+                logger.warning(
+                    "Agent references skill %s which is disabled, deleted, or not org %s's",
+                    skill_id,
+                    ctx.organization_id,
+                )
                 continue
             resolved.append(skill)
         return resolved

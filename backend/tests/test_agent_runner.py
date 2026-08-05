@@ -9,6 +9,7 @@ it was parked on, with the spend it had already booked.
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -18,10 +19,17 @@ from pydantic_ai.usage import RequestUsage
 from app.agents.capabilities.approval import ApprovalGranted, ApprovalRejected
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope, SpendLedger
 from app.agents.spec import AgentSpec, ObservabilitySpec
+from app.agents.subagent_runtime import DelegationSpend, DelegationStash, ParkedDelegation
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import ApprovalStatus, RunStatus, RunSurface
-from app.services.agent_runner import AgentRunnerService, month_start
+from app.services.agent_runner import (
+    AgentRunnerService,
+    ApprovalChannel,
+    ParkedApproval,
+    PausedRunState,
+    month_start,
+)
 from app.services.approvals import ApprovalService
 
 
@@ -46,6 +54,11 @@ def _prepared(ledger: SpendLedger | None = None):
     prepared.built = MagicMock()
     prepared.built.ledger = ledger or SpendLedger()
     prepared.approvals.parked = {}
+    # Real containers, not mocks: `finish` walks both to fold the delegation tree
+    # into whatever parked state the surface reported, and a `MagicMock` is not
+    # iterable. An agent that never delegated leaves them empty.
+    prepared.approvals.requested = []
+    prepared.stash = DelegationStash()
     return prepared
 
 
@@ -434,6 +447,221 @@ class TestSpendReporting:
         assert timedelta(days=7) <= looked_back < timedelta(days=7, seconds=30)
 
 
+class TestWhatAParkedCallRecords:
+    """Enough for a surface to put the decision in front of somebody.
+
+    Before this, a run parked and `/chat` could only name a queue: the client had
+    a panel for deciding inline and nothing ever gave it anything to show. The
+    detail is kept where the row is created rather than read back afterwards,
+    which would be a query per parked call to recover what this object had in hand.
+    """
+
+    @pytest.mark.anyio
+    async def test_a_parked_call_records_the_row_the_decision_goes_against(self):
+        approval = MagicMock(id=uuid.uuid4())
+        channel = ApprovalChannel(
+            approvals=MagicMock(request=AsyncMock(return_value=approval)),
+            organization_id=uuid.uuid4(),
+            agent_id=uuid.uuid4(),
+            run_id=uuid.uuid4(),
+        )
+        request = MagicMock(
+            tool_call_id="tc-1", tool_name="write_file", tool_args={"path": "/a.txt"}
+        )
+
+        await channel(request)
+
+        [parked] = channel.requested
+        assert parked.approval_id == approval.id
+        # The model's own id as well as the row's: one addresses the decision, the
+        # other addresses the card already on screen.
+        assert parked.tool_call_id == "tc-1"
+        assert parked.tool_name == "write_file"
+        assert parked.tool_args == {"path": "/a.txt"}
+
+    @pytest.mark.anyio
+    async def test_a_second_call_after_a_decision_records_nothing_new(self):
+        """A decision is consumed on use, so an approved call runs rather than
+        parking again - and nothing is put back in front of anybody."""
+        channel = ApprovalChannel(
+            approvals=MagicMock(request=AsyncMock()),
+            organization_id=uuid.uuid4(),
+            agent_id=uuid.uuid4(),
+            run_id=uuid.uuid4(),
+            decided={"tc-1": MagicMock()},
+        )
+
+        await channel(MagicMock(tool_call_id="tc-1", tool_name="write_file", tool_args={}))
+
+        assert channel.requested == []
+
+
+class TestFilesAcrossOneTurn:
+    """What arrived with the message, and what the turn produced.
+
+    Both are routed by `execute` rather than by its caller, and for the same
+    reason: where an attachment goes depends on whether the agent has a workspace,
+    and the workspace is closed before the call returns.
+    """
+
+    @pytest.mark.anyio
+    async def test_an_attachment_is_routed_against_the_workspace_the_run_opened(self):
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.outbound = []
+        prepared.outbound_refused = []
+        service.prepare = AsyncMock(return_value=prepared)
+        service._run = AsyncMock(return_value=("answered", prepared.run))
+        built = AsyncMock(return_value="a prompt with a reference")
+
+        with patch("app.services.agent_runner.AttachmentRouter") as router:
+            router.return_value.build_prompt = built
+            await service.execute(
+                MagicMock(), uuid.uuid4(), "look at this", attachments=[MagicMock()]
+            )
+
+        # The backend, not the conversation: the router writes the file where the
+        # agent can read it, and only `prepare` knows whether there is one.
+        assert router.call_args.args[0] is prepared.workspace.backend
+        assert service._run.await_args.kwargs["user_prompt"] == "a prompt with a reference"
+
+    @pytest.mark.anyio
+    async def test_a_turn_with_no_attachments_builds_no_prompt(self):
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.outbound = []
+        prepared.outbound_refused = []
+        service.prepare = AsyncMock(return_value=prepared)
+        service._run = AsyncMock(return_value=("answered", prepared.run))
+
+        with patch("app.services.agent_runner.AttachmentRouter") as router:
+            await service.execute(MagicMock(), uuid.uuid4(), "hello")
+
+        router.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_what_the_turn_produced_reaches_the_caller(self):
+        """Through a list it passes in, because the workspace is closed before this
+        returns - a run-scoped one is released outright."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        produced = MagicMock()
+        prepared.outbound = [produced]
+        prepared.outbound_refused = ["/huge.csv"]
+        service.prepare = AsyncMock(return_value=prepared)
+        service._run = AsyncMock(return_value=("answered", prepared.run))
+
+        outbound: list[Any] = []
+        refused: list[str] = []
+        await service.execute(
+            MagicMock(),
+            uuid.uuid4(),
+            "make me a report",
+            outbound=outbound,
+            outbound_refused=refused,
+        )
+
+        assert outbound == [produced]
+        assert refused == ["/huge.csv"]
+
+    @pytest.mark.anyio
+    async def test_a_caller_that_cannot_deliver_files_asks_for_none(self):
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.outbound = [MagicMock()]
+        prepared.outbound_refused = []
+        service.prepare = AsyncMock(return_value=prepared)
+        service._run = AsyncMock(return_value=("answered", prepared.run))
+
+        answer, _run = await service.execute(MagicMock(), uuid.uuid4(), "hello")
+
+        assert answer == "answered"
+
+    @pytest.mark.anyio
+    async def test_a_run_with_no_workspace_produces_nothing_to_send(self):
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.workspace = None
+        prepared.outbound = []
+        prepared.outbound_refused = []
+
+        service._collect_outbound(prepared)
+
+        assert prepared.outbound == []
+
+    @pytest.mark.anyio
+    async def test_what_the_workspace_gained_is_read_before_it_closes(self):
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.outbound = []
+        prepared.outbound_refused = []
+        prepared.workspace_at_start = {"/run.py"}
+
+        with patch("app.services.agent_runner.files_written", new_callable=AsyncMock) as written:
+            written.return_value = MagicMock(attachments=["a file"], refused=["/huge.csv"])
+            await service._collect_outbound(prepared)
+
+        assert written.await_args.args[1] == {"/run.py"}
+        assert prepared.outbound == ["a file"]
+        assert prepared.outbound_refused == ["/huge.csv"]
+
+
+class TestSkillChangesARunProposed:
+    """What an agent wrote to its skills, on the way out of the run.
+
+    Recorded rather than applied: a skill is instructions every bound agent
+    follows, so an agent editing one directly would rewrite what another agent
+    does inside a conversation nobody reviewed.
+    """
+
+    @pytest.mark.anyio
+    async def test_what_the_agent_changed_becomes_a_proposal(self):
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.ctx = MagicMock(organization_id=uuid.uuid4())
+        change = MagicMock()
+        record = AsyncMock(return_value=[MagicMock()])
+        service.proposals = MagicMock(record=record)
+
+        with (
+            patch("app.services.agent_runner.collect_changes", return_value=[change]) as collected,
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+        ):
+            await service.finish(prepared, status=RunStatus.COMPLETED)
+
+        collected.assert_called_once()
+        assert record.await_args.args[1] == [change]
+
+    @pytest.mark.anyio
+    async def test_a_recording_failure_does_not_replace_the_runs_own_outcome(self):
+        """It runs in the same `finally` that records what the run cost, so a name
+        taken since must not turn a completed run into a storage error."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.ctx = MagicMock(organization_id=uuid.uuid4())
+        service.proposals = MagicMock(record=AsyncMock(side_effect=RuntimeError("name taken")))
+
+        with (
+            patch("app.services.agent_runner.collect_changes", return_value=[MagicMock()]),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()) as finish,
+        ):
+            await service.finish(prepared, status=RunStatus.COMPLETED)
+
+        assert finish.call_args.kwargs["status"] == RunStatus.COMPLETED.value
+
+    @pytest.mark.anyio
+    async def test_a_run_with_no_workspace_proposes_nothing(self):
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.workspace = None
+        service.proposals = MagicMock(record=AsyncMock())
+
+        with patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()):
+            await service.finish(prepared, status=RunStatus.COMPLETED)
+
+        service.proposals.record.assert_not_called()
+
+
 class TestRunAccounting:
     @pytest.mark.anyio
     async def test_a_failed_run_still_records_its_cost(self):
@@ -629,7 +857,79 @@ class TestParking:
         assert recorded["paused_state"] == {
             "messages": [],
             "tool_call_ids": {"approval-1": "call-1"},
+            # A run that delegated nothing parks with an empty tree, which is what
+            # makes the older two-key payload above still resumable: every field
+            # added for delegation reads as "this run delegated nothing".
+            "delegated_approvals": {},
+            "delegations": [],
         }
+
+    @pytest.mark.anyio
+    async def test_the_delegation_tree_is_folded_in_without_the_surface_supplying_it(self):
+        """A surface reports its own position; the tree underneath is the runner's.
+
+        Both surfaces that park a run construct the state themselves, and a
+        delegation is a tool call named `task` that either answers or does not - so
+        neither can see what a delegate was in the middle of. Folding it in here is
+        the same reasoning as resolving the run's budget caps here: a thing every
+        surface has to remember is a thing the next surface will not, and this one
+        fails by answering a different question rather than by raising.
+        """
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.approvals.parked = {"approval-1": "the-delegates-call"}
+        prepared.approvals.requested = [
+            ParkedApproval(
+                approval_id=uuid.UUID(int=1),
+                tool_call_id="the-delegates-call",
+                tool_name="send_email",
+                tool_args={},
+                subagent="researcher",
+                task_id="4f2a1b8c",
+            )
+        ]
+        prepared.stash = DelegationStash(
+            parked=[
+                ParkedDelegation(
+                    tool_call_id="the-parents-task-call",
+                    task_id="4f2a1b8c",
+                    parent_task_id=None,
+                    subagent="researcher",
+                    agent_id=None,
+                    agent_version_id=None,
+                    child_run_id="a-child-run",
+                    messages=[{"kind": "request", "parts": []}],
+                    spent=DelegationSpend(
+                        cost_usd=Decimal("0.25"), input_tokens=7, output_tokens=3
+                    ),
+                )
+            ]
+        )
+
+        with patch(
+            "app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()
+        ) as finish:
+            await service.finish(
+                prepared,
+                status=RunStatus.AWAITING_APPROVAL,
+                # Exactly what a streaming surface passes: its messages and its
+                # channel's parked calls, and nothing about the delegation.
+                paused_state=PausedRunState(messages=[], tool_call_ids={"approval-1": "x"}),
+            )
+
+        stored = finish.call_args.kwargs["paused_state"]
+        assert [frame["subagent"] for frame in stored["delegations"]] == ["researcher"]
+        assert stored["delegations"][0]["tool_call_id"] == "the-parents-task-call"
+        # And what the delegation had already cost, because the turn that continues
+        # it measures against a ledger of its own - so a frame without this leaves
+        # the child's run row holding the tail of the delegation and none of the
+        # work that led up to the approval.
+        assert stored["delegations"][0]["cost_usd"] == "0.25"
+        assert stored["delegations"][0]["input_tokens"] == 7
+        # And which agent's replay each parked approval belongs to, which is what
+        # keeps a delegate's call out of the parent's continuation - Pydantic AI
+        # refuses a resume whose results name a call the replay does not contain.
+        assert stored["delegated_approvals"] == {str(uuid.UUID(int=1)): "4f2a1b8c"}
 
     @pytest.mark.anyio
     async def test_a_finished_run_stops_being_resumable(self):
@@ -1239,3 +1539,68 @@ class TestTracingSecret:
             await service.prepare(ctx, agent.id)
 
         assert resolve_secrets.call_args.args[1] == [token_secret]
+
+
+class TestTheWorkspaceReachesTheAgent:
+    """The capability cannot open its own workspace, so the runner hands it one.
+
+    Opening reads the database - a stored document, the row saying which session
+    belongs to which conversation - and capabilities are built inside
+    `build_agent`, which holds no session. So the seam is `resources`, the same
+    way collection names travel, and if it breaks the agent silently gets a
+    scratch workspace that evaporates instead of the one holding its files.
+    """
+
+    @staticmethod
+    async def _prepare(spec):
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        opened = MagicMock(id=uuid.uuid4(), exposure_id=None)
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=opened),
+            ),
+            # The workspace row is the only database access `prepare` gained;
+            # everything else about the workspace is in-process.
+            patch(
+                "app.services.sandbox_workspace.workspace_repo.get_by_key",
+                new=AsyncMock(return_value=None),
+            ),
+            patch(
+                "app.services.sandbox_workspace.workspace_repo.create",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch("app.services.agent_runner.build_agent") as build,
+        ):
+            prepared = await service.prepare(_ctx(), agent.id, conversation_id=uuid.uuid4())
+
+        return prepared, build.call_args.kwargs["resources"]
+
+    @pytest.mark.anyio
+    async def test_a_workspace_backend_is_handed_to_the_capability(self):
+        spec = AgentSpec(name="Analyst", capabilities=[{"id": "sandbox", "config": {}}])
+
+        prepared, resources = await self._prepare(spec)
+
+        assert prepared.workspace is not None
+        assert resources["workspace_backend"] is prepared.workspace.backend
+
+    @pytest.mark.anyio
+    async def test_an_agent_without_one_is_handed_nothing(self):
+        """A resource key present-but-empty would make the capability build a
+        workspace it thinks is real."""
+        prepared, resources = await self._prepare(AgentSpec(name="Plain"))
+
+        assert prepared.workspace is None
+        assert "workspace_backend" not in resources

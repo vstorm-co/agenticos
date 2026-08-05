@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { BookOpen, ChevronDown, ListFilter, Lock, Plus } from "lucide-react";
 
 import { PageHeader } from "@/components/dashboard/page-header";
+import { ProposedChanges } from "@/components/skills/proposed-changes";
 import { CreateSkillDialog } from "@/components/skills/create-skill-dialog";
 import { SkillCard } from "@/components/skills/skill-card";
 import { SkillLibraryGallery } from "@/components/skills/skill-library-gallery";
@@ -41,11 +42,7 @@ import type { SkillEdit, SkillSort } from "@/hooks/use-skills";
 import { cn } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
 import type { SkillSummary } from "@/types/providers";
-
-/** How many skills are in there, in words rather than a bare digit. */
-function skillCount(count: number): string {
-  return count === 1 ? "1 skill" : `${count} skills`;
-}
+import { useTranslations } from "next-intl";
 
 /**
  * One pressed-or-not control, used for the sort.
@@ -97,15 +94,16 @@ function SkillsCard({
   controls?: ReactNode;
   children: ReactNode;
 }) {
+  const t = useTranslations("pages.skills");
   return (
     <Card>
       <CardHeader className="flex-row items-center justify-between space-y-0 border-b px-5 py-4">
         <div className="space-y-1">
-          <CardTitle className="text-sm">Skills</CardTitle>
+          <CardTitle className="text-sm">{t("skills")}</CardTitle>
           <CardDescription className="text-xs">
             {/* Rendering "0 skills" before the request answers would state
                 something about the organization nothing has said yet. */}
-            {count === null ? <Skeleton className="h-3 w-24" /> : skillCount(count)}
+            {count === null ? <Skeleton className="h-3 w-24" /> : t("skillCount", { count })}
           </CardDescription>
         </div>
         {controls}
@@ -116,6 +114,7 @@ function SkillsCard({
 }
 
 export default function SkillsPage() {
+  const t = useTranslations("pages.skills");
   const [query, setQuery] = useState("");
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [sort, setSort] = useState<SkillSort>("name");
@@ -159,13 +158,13 @@ export default function SkillsPage() {
 
   const header = (
     <PageHeader
-      title="Skills"
-      description="A skill is know-how written once and shared by every agent that needs it - how refunds are handled, what the house style is. Edit it here and each agent bound to it is current on its next run."
+      title={t("skills2")}
+      description={t("skillKnowHowWritten")}
       actions={
         canEdit ? (
           <Button onClick={() => setCreateOpen(true)}>
             <Plus className="h-4 w-4" />
-            New skill
+            {t("newSkill")}
           </Button>
         ) : undefined
       }
@@ -181,8 +180,8 @@ export default function SkillsPage() {
         {header}
         <EmptyState
           icon={Lock}
-          title="You cannot see this organization's skills"
-          description="Ask an administrator for access to skills."
+          title={t("youCannotSeeOrganization")}
+          description={t("askAdministratorAccessSkills")}
         />
       </div>
     );
@@ -211,7 +210,7 @@ export default function SkillsPage() {
           setQuery(next);
           setPage(0);
         }}
-        placeholder="Search skills…"
+        placeholder={t("searchSkills")}
         className="sm:w-56"
       />
     ) : undefined;
@@ -219,6 +218,10 @@ export default function SkillsPage() {
   return (
     <div className="space-y-6">
       {header}
+
+      {/* Above the list, because it is a decision somebody has to make and the
+          list is a thing to browse. Absent entirely when nothing is waiting. */}
+      <ProposedChanges canEdit={canEdit} />
 
       <SkillsCard count={total} controls={controls}>
         <div className="space-y-4">
@@ -236,7 +239,7 @@ export default function SkillsPage() {
                       <Button variant="outline" size="sm">
                         <ListFilter className="h-4 w-4" />
                         {selectedCategories.length === 0
-                          ? "All categories"
+                          ? t("allCategories")
                           : selectedCategories.length === 1
                             ? categoryLabel(selectedCategories[0]!)
                             : `${selectedCategories.length} categories`}
@@ -265,7 +268,7 @@ export default function SkillsPage() {
                               setPage(0);
                             }}
                           >
-                            Clear filter
+                            {t("clearFilter")}
                           </DropdownMenuItem>
                         </>
                       )}
@@ -274,7 +277,7 @@ export default function SkillsPage() {
                 )}
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="text-muted-foreground text-xs">Sort</span>
+                <span className="text-muted-foreground text-xs">{t("sort")}</span>
                 <Chip
                   active={sort === "name"}
                   onClick={() => {
@@ -282,7 +285,7 @@ export default function SkillsPage() {
                     setPage(0);
                   }}
                 >
-                  Name
+                  {t("name")}
                 </Chip>
                 <Chip
                   active={sort === "updated"}
@@ -291,7 +294,7 @@ export default function SkillsPage() {
                     setPage(0);
                   }}
                 >
-                  Recently updated
+                  {t("recentlyUpdated")}
                 </Chip>
               </div>
             </div>
@@ -306,14 +309,14 @@ export default function SkillsPage() {
                 <BookOpen className="h-5 w-5" />
               </div>
               <p className="text-foreground mt-4 text-sm font-medium">
-                {isFiltering ? "No skill matches" : "No skills yet"}
+                {isFiltering ? t("noSkillMatches") : t("noSkillsYet")}
               </p>
               <p className="text-muted-foreground mx-auto mt-1 max-w-sm text-sm">
                 {isFiltering
-                  ? "Names, descriptions and the picked categories were checked. Clear the search or the filter to see everything."
+                  ? t("namesDescriptionsPickedCategories")
                   : canEdit
-                    ? "Write down something your team explains more than once, and every agent can read it."
-                    : "Nobody has written a skill for this organization yet."}
+                    ? t("writeDownSomethingYour")
+                    : t("nobodyHasWrittenSkill")}
               </p>
               {canEdit && !isFiltering && (
                 <Button
@@ -323,7 +326,7 @@ export default function SkillsPage() {
                   onClick={() => setCreateOpen(true)}
                 >
                   <Plus className="h-3.5 w-3.5" />
-                  New skill
+                  {t("newSkill2")}
                 </Button>
               )}
             </div>
@@ -367,10 +370,7 @@ export default function SkillsPage() {
           <DialogContent className="flex h-[92vh] flex-col sm:max-w-[92rem]">
             <DialogHeader>
               <DialogTitle className="font-mono">{selected.name}</DialogTitle>
-              <DialogDescription>
-                The name is how the model refers to this skill, and it cannot change. Everything
-                else here can.
-              </DialogDescription>
+              <DialogDescription>{t("nameHowModelRefers")}</DialogDescription>
             </DialogHeader>
             {skill === undefined ? (
               <LoadingState variant="skeleton-panel" rows={2} />
@@ -396,8 +396,8 @@ export default function SkillsPage() {
           open
           onOpenChange={() => setPendingDelete(null)}
           title={`Delete ${pendingDelete.name}?`}
-          description="Agents bound to this skill will run without it from their next run. This cannot be undone."
-          confirmLabel="Delete"
+          description={t("agentsBoundSkillWill")}
+          confirmLabel={t("delete")}
           destructive
           loading={remove.isPending}
           onConfirm={async () => {

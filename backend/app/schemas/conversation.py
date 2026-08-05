@@ -4,6 +4,7 @@ This module contains Pydantic schemas for Conversation, Message, and ToolCall en
 """
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
 
@@ -59,6 +60,15 @@ class MessageCreate(MessageBase):
 
     model_name: str | None = Field(default=None, max_length=100, description="AI model used")
     tokens_used: int | None = Field(default=None, ge=0, description="Token count")
+    input_tokens: int | None = Field(
+        default=None, ge=0, description="Prompt tokens this turn consumed"
+    )
+    output_tokens: int | None = Field(
+        default=None, ge=0, description="Completion tokens this turn produced"
+    )
+    cost_usd: Decimal | None = Field(
+        default=None, ge=0, description="What this turn cost, at the same scale as a run's"
+    )
     agent_id: UUID | None = Field(
         default=None, description="The configured agent that answered, when one did"
     )
@@ -83,6 +93,17 @@ class MessageRead(MessageBase, TimestampSchema):
     conversation_id: UUID
     model_name: str | None = None
     tokens_used: int | None = None
+    input_tokens: int | None = Field(
+        default=None,
+        description=(
+            "Prompt tokens, split from the completion because the two are priced an "
+            "order of magnitude apart. Null on a message written before this was "
+            "recorded, or on a turn whose cost could not be read - which means 'not "
+            "recorded' and not 'free'."
+        ),
+    )
+    output_tokens: int | None = None
+    cost_usd: Decimal | None = None
     agent_id: UUID | None = None
     agent_version_id: UUID | None = None
     agent_version: int | None = Field(

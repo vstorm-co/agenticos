@@ -6,7 +6,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.api.routes.v1.knowledge_bases import _read_with_counts
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
@@ -14,7 +13,7 @@ from app.db.models.resource_grant import GrantLevel, Visibility
 from app.repositories.rag_document import CollectionCounts
 from app.schemas.knowledge_base import KnowledgeBaseCreate
 from app.services.ingestion_config import deployment_defaults
-from app.services.knowledge_base import KnowledgeBaseService
+from app.services.knowledge_base import KnowledgeBaseService, _with_counts
 
 
 def _ctx(
@@ -499,10 +498,11 @@ class TestCollectionCounts:
     def test_a_collection_nothing_was_written_to_reads_as_zero(self):
         """The group query returns no row for an empty collection, not a zero row.
 
-        The route defaults that absence, so a brand-new collection has to render
-        as `0 documents` rather than as a missing key blowing up the listing.
+        The listing defaults that absence, so a brand-new collection has to
+        render as `0 documents` rather than as a missing key blowing up the
+        listing.
         """
-        read = _read_with_counts(_readable_kb("fresh_000000"), None)
+        read = _with_counts(_readable_kb("fresh_000000"), None)
 
         assert read.document_count == 0
         assert read.indexed_count == 0
@@ -515,7 +515,7 @@ class TestCollectionCounts:
         uploads died look like a collection half that size, with nothing on the
         listing to suggest otherwise.
         """
-        read = _read_with_counts(
+        read = _with_counts(
             _readable_kb("half_broken"),
             CollectionCounts(documents=12, chunks=340, indexed=8),
         )
@@ -523,3 +523,33 @@ class TestCollectionCounts:
         assert read.document_count == 12
         assert read.indexed_count == 8
         assert read.chunk_count == 340
+
+    @pytest.mark.anyio
+    async def test_the_listing_gives_each_row_its_own_counts(self, mock_db):
+        """The join is by collection name, so a count cannot land on a sibling.
+
+        Both halves are ordered lists of the same length, which is exactly the
+        shape that hides an off-by-one: the filled collection here is second.
+        """
+        empty = _readable_kb("empty_000000")
+        filled = _readable_kb("filled_111111")
+
+        with (
+            patch(
+                "app.repositories.knowledge_base_repo.get_accessible",
+                new=AsyncMock(return_value=[empty, filled]),
+            ),
+            patch(
+                "app.repositories.rag_document_repo.counts_by_collection",
+                new=AsyncMock(
+                    return_value={
+                        "filled_111111": CollectionCounts(documents=3, chunks=90, indexed=3)
+                    }
+                ),
+            ),
+        ):
+            listing = await KnowledgeBaseService(mock_db).list_readable(_ctx())
+
+        assert listing.total == 2
+        assert [item.document_count for item in listing.items] == [0, 3]
+        assert [item.chunk_count for item in listing.items] == [0, 90]

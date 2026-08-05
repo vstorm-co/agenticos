@@ -1,6 +1,6 @@
 {
   "name": "agenticos-frontend",
-  "version": "0.0.3",
+  "version": "0.0.7",
   "private": true,
   "license": "Apache-2.0",
   "scripts": {
@@ -67,7 +67,7 @@
     "zustand": "^5.0.2"
   },
   "devDependencies": {
-    "typescript": "^5.7.2",
+    "typescript": "^6.0.3",
     "@types/node": "^26.1.1",
     "@types/react": "^19.0.1",
     "@types/react-dom": "^19.0.2",

@@ -126,3 +126,35 @@ if (inBrowser && !Element.prototype.hasPointerCapture) {
 if (inBrowser && !Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = () => {};
 }
+
+/**
+ * `useTranslations` backed by the real English catalog.
+ *
+ * Not a stub returning the key. A component that reads its copy from
+ * `messages/en.json` should be testable on what it *says* - "Nothing yet." is the
+ * assertion a reader of the test understands, and `t("chat.files.empty")` is not - so
+ * the mock builds a real translator over the real catalog with `createTranslator`,
+ * ICU and all. A key missing from the catalog therefore fails the test that renders
+ * it, which is the property worth having: the guard catches copy that never made it
+ * *out* of a component, and this catches a key that never made it *in*.
+ *
+ * Global rather than per file, because otherwise moving one component onto `t()`
+ * means touching every test that renders it. A file that wants the old
+ * key-as-value behaviour still mocks `next-intl` itself, and its own mock wins.
+ */
+vi.mock("next-intl", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("next-intl")>();
+  const messages = (await import("./messages/en.json")).default;
+  return {
+    ...actual,
+    useLocale: () => "en",
+    useMessages: () => messages,
+    useFormatter: () => actual.createFormatter({ locale: "en" }),
+    useTranslations: (namespace?: string) =>
+      actual.createTranslator({
+        locale: "en",
+        messages: messages as Parameters<typeof actual.createTranslator>[0]["messages"],
+        namespace: namespace as never,
+      }),
+  };
+});

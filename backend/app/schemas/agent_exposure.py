@@ -1,6 +1,7 @@
 """Schemas for agent exposures - where an agent is available."""
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import Field
@@ -24,6 +25,7 @@ class ExposureRead(BaseSchema):
     channel_bot_id: UUID
     channel_bot_name: str
     environment_id: UUID | None = None
+    session_scope: str | None = None
     is_active: bool
     created_at: datetime | None = None
 
@@ -49,6 +51,16 @@ class ExposureCreate(BaseSchema):
             "A dev bot bound to a dev environment serves the version it pins."
         ),
     )
+    session_scope: Literal["run", "conversation", "channel", "user", "agent"] | None = Field(
+        default=None,
+        description=(
+            "How a workspace is shared *here*, overriding the agent's own default. "
+            "Null leaves the spec deciding. This is where 'on this bot, one "
+            "workspace per channel' belongs: the same agent in web chat and on "
+            "Slack is one agent in two situations - one has an account and a "
+            "conversation, the other a channel with threads in it."
+        ),
+    )
 
 
 class ExposureUpdate(BaseSchema):
@@ -59,6 +71,16 @@ class ExposureUpdate(BaseSchema):
     environment_id: UUID | None = Field(
         default=None,
         description="Rebind to another named environment; explicit null returns to the default",
+    )
+    session_scope: Literal["run", "conversation", "channel", "user", "agent"] | None = Field(
+        default=None,
+        description=(
+            "How a workspace is shared *here*, overriding the agent's own default. "
+            "Null leaves the spec deciding. This is where 'on this bot, one "
+            "workspace per channel' belongs: the same agent in web chat and on "
+            "Slack is one agent in two situations - one has an account and a "
+            "conversation, the other a channel with threads in it."
+        ),
     )
 
 

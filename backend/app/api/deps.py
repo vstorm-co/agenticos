@@ -38,6 +38,8 @@ Redis = Annotated[RedisClient, Depends(get_redis)]
 from app.services.user import UserService
 from app.services.session import SessionService
 from app.services.conversation import ConversationService
+from app.services.sandbox_connection import SandboxConnectionService
+from app.services.sandbox_workspace import SandboxWorkspaceService
 from app.services.conversation_share import ConversationShareService
 
 
@@ -61,6 +63,20 @@ def get_conversation_service(db: DBSession) -> ConversationService:
 
 
 ConversationSvc = Annotated[ConversationService, Depends(get_conversation_service)]
+
+
+def get_sandbox_workspace_service(db: DBSession) -> SandboxWorkspaceService:
+    return SandboxWorkspaceService(db)
+
+
+WorkspaceSvc = Annotated[SandboxWorkspaceService, Depends(get_sandbox_workspace_service)]
+
+
+def get_sandbox_connection_service(db: DBSession) -> SandboxConnectionService:
+    return SandboxConnectionService(db)
+
+
+SandboxConnectionSvc = Annotated[SandboxConnectionService, Depends(get_sandbox_connection_service)]
 
 
 def get_conversation_share_service(db: DBSession) -> ConversationShareService:
@@ -327,6 +343,7 @@ def get_approval_service(db: DBSession) -> ApprovalService:
 AgentRunnerSvc = Annotated[AgentRunnerService, Depends(get_agent_runner_service)]
 ApprovalSvc = Annotated[ApprovalService, Depends(get_approval_service)]
 
+from app.services.skill_proposal import SkillProposalService
 from app.services.skills import SkillService
 
 
@@ -336,6 +353,13 @@ def get_skill_service(db: DBSession) -> SkillService:
 
 
 SkillSvc = Annotated[SkillService, Depends(get_skill_service)]
+
+
+def get_skill_proposal_service(db: DBSession) -> SkillProposalService:
+    return SkillProposalService(db)
+
+
+SkillProposalSvc = Annotated[SkillProposalService, Depends(get_skill_proposal_service)]
 
 from app.core.permissions import AuthContext, Perm
 from app.services.sharing import SharingService
