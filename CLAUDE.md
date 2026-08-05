@@ -117,14 +117,15 @@ silent. `.claude/README.md` lists all thirteen and explains the layout.
 ```bash
 make dev                                          # postgres, redis, api, worker, frontend
 make platform-bootstrap BOOTSTRAP_API_KEY=sk-...  # an org, an owner, a model, an agent
-make check                                        # what CI runs — before every PR
+make check                                        # every CI job but e2e — before every PR
 ```
 
 `make help` lists the rest. Day to day:
 
 | | |
 |---|---|
-| `make lint` / `make format` | ruff + ty + eslint + tsc + the i18n guard |
+| `make lint` / `make format` | ruff + ty + eslint + prettier + tsc + the two guards |
+| `make lint-backend` / `make lint-frontend` | one half of it — CI runs them in two jobs |
 | `make test-fast` | no coverage — the write-run-write loop |
 | `make test` | backend + the 100% gate on the platform layer |
 | `make test-integration` | only the tests needing a real database |
@@ -153,7 +154,10 @@ cd backend  && uv run pytest tests/api/test_workspace_routes.py -k bytes -x
 Once before the push — not after every edit — run `make lint` and the coverage gate for
 the half you touched: `make test` or `make test-frontend-cov`. **`bun run test:run` does
 not measure coverage**, so a frontend suite where every test passes still fails the job;
-that is how `test-frontend` went red on `feat/sandbox` after a green local run. Then read
+that is how `test-frontend` went red on `feat/sandbox` after a green local run. Before
+the pull request, `make check` — every CI job except `e2e`, about five minutes, and
+`backend/tests/test_ci_parity.py` is what keeps that claim true rather than aspirational
+(#143 found four divergences at once). Then read
 the answer rather than guessing at it: `gh pr checks <n>`, and
 `gh run view --job <id> --log-failed` for whatever is red. `.claude/rules/testing.md` has
 the scoped commands and the traps; the pull request reviewer is under Git below, and it is
