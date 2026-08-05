@@ -186,8 +186,9 @@ publish](permissions.md#delegation-is-not-a-privilege-boundary) — and the
 alternative is worse in two specific ways. Every context with no subject (an API
 key, an embedded widget, a channel message) is refused by `resolve_access` by
 design, so a per-runner check would strip every skill from exactly those surfaces;
-and where there is a subject, one published version would give an Operator
-different instructions from a Builder, with the difference visible nowhere.
+and where there is a subject, one published version would give a member — whose role
+reaches shared skills only — thinner instructions than it gives a builder, with the
+difference visible nowhere.
 
 A skill deleted or disabled after publish is skipped with a warning rather than
 failing the run — the agent is less capable, not broken.

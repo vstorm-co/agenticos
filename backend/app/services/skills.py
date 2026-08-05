@@ -214,9 +214,10 @@ class SkillService:
         context with no subject, so an API key, an embedded widget and a channel
         message - the surfaces this platform exists to serve - would each lose
         every skill the agent has. And where there *is* a subject, an agent's
-        instructions would change with who asked: an Operator whose role reaches
-        only their own skills would get a different answer from the same published
-        version, with the difference visible nowhere.
+        instructions would change with who asked: a member or a viewer, whose role
+        gives `SKILLS_VIEW: Scope.SHARED`, would get a thinner answer out of the
+        same published version than a builder does, with the difference visible
+        nowhere.
 
         A skill deleted or disabled after publish is skipped rather than failing
         the run: the agent is less capable, not broken. Named in the log with the
