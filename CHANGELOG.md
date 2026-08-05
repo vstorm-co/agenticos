@@ -19,6 +19,33 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.17] - 2026-08-05
+
+### Fixed
+
+- **Two gated tool calls in one model step no longer race the request's session**
+  ([#169](https://github.com/vstorm-co/agenticos/issues/169)). A gated tool call writes an
+  approval row, and pydantic-ai runs the tool calls from one model response
+  *concurrently* — so an agent with two gated tools, answering one step with both, hit
+  `db.add` + `flush` on the request's shared `AsyncSession` from two coroutines at once,
+  and `AsyncSession` is not concurrency-safe: the damage reaches the parent run row and the
+  conversation, not just the approval. Delegation widened the window, since a sync delegate
+  keeps the parent's channel. The approval rows are now queued during the run and written
+  once when it parks — the shape delegation already took for its child run rows — so nothing
+  writes to the session mid-run. A run whose model emits two gated calls in one step parks
+  once naming both, with two rows of distinct ids and a session still usable for the
+  terminal write.
+
+  Two follow-ups the write path surfaced, both fixed here. A delegate **deleted** between
+  the park and the deferred write no longer breaks the park: the write first locks the
+  delegates still present, and a parked call whose delegate is gone is written with a null
+  `subagent_agent_id` (the `SET NULL` foreign key) rather than a reference that would fail
+  the insert and roll the parked run back — the approval survives and a person can still
+  decide it; only the delegate attribution, which no longer exists, is dropped. And the
+  lock that holds the surviving delegates takes `FOR KEY SHARE` rather than
+  `FOR NO KEY UPDATE` (`with_for_update(read=True, key_share=True)`), so it blocks a
+  concurrent delete without also blocking an ordinary agent update.
+
 ## [0.0.16] - 2026-08-05
 
 ### Fixed
@@ -820,7 +847,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.16...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.17...HEAD
+[0.0.17]: https://github.com/vstorm-co/agenticos/compare/v0.0.16...v0.0.17
 [0.0.16]: https://github.com/vstorm-co/agenticos/compare/v0.0.15...v0.0.16
 [0.0.15]: https://github.com/vstorm-co/agenticos/compare/v0.0.14...v0.0.15
 [0.0.14]: https://github.com/vstorm-co/agenticos/compare/v0.0.13...v0.0.14
