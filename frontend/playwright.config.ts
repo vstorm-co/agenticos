@@ -43,8 +43,19 @@ export default defineConfig({
      */
     timeout: 15_000,
   },
-  /* Reporter to use. See https://playwright.dev/docs/test-reporters */
-  reporter: [["list"], ["html", { outputFolder: "playwright-report" }]],
+  /*
+   * Reporter to use. See https://playwright.dev/docs/test-reporters
+   *
+   * `fixture-reporter` is last so its banner is the final thing printed. It says
+   * one thing the other two cannot: that a red run was the `setup` or `seed`
+   * project, and that no product spec ran at all — which is what three separate
+   * branches spent a diagnosis each working out by hand (#132).
+   */
+  reporter: [
+    ["list"],
+    ["html", { outputFolder: "playwright-report" }],
+    ["./e2e/fixture-reporter.ts"],
+  ],
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
