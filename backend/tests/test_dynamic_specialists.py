@@ -61,6 +61,7 @@ from app.agents.capabilities.subagents._capability import (
     BACKGROUND_LIFECYCLE_TOOLS,
     MAX_DYNAMIC_SPECIALISTS,
 )
+from app.agents.capabilities.subagents._journal import DelegationJournal
 from app.agents.deps import AgentDeps
 from app.agents.factory import build_agent
 from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
@@ -847,14 +848,17 @@ class TestAKeptSpecialistSurvivesTheParkThatCreatedIt:
         await call_tool(capability, ctx, "create_agent", create_args())
         await _ends_the_run(capability, ctx)
 
-        assert runtime.stash.registered == [
-            RegisteredSpecialist(
-                name="summariser",
-                description="Summarises a document in three bullets",
-                instructions="You summarise.",
-                model=PROFILE,
-            )
-        ]
+        # Under the `None` key: the run's own agent, delegated from nowhere.
+        assert runtime.stash.registered == {
+            None: [
+                RegisteredSpecialist(
+                    name="summariser",
+                    description="Summarises a document in three bullets",
+                    instructions="You summarise.",
+                    model=PROFILE,
+                )
+            ]
+        }
 
     async def test_without_the_carried_registrations_the_rebuild_loses_it(self):
         """The failure itself: a fresh build with nothing carried over answers `task`
@@ -885,7 +889,7 @@ class TestAKeptSpecialistSurvivesTheParkThatCreatedIt:
         capability = a_capability(first)
         await call_tool(capability, a_context(), "create_agent", create_args())
         await _ends_the_run(capability, a_context())
-        kept = list(first.stash.registered)
+        kept = first.stash.registered[None]
         assert [specialist.name for specialist in kept] == ["summariser"]
 
         ledger = SpendLedger()
@@ -893,7 +897,7 @@ class TestAKeptSpecialistSurvivesTheParkThatCreatedIt:
         resumed = a_runtime(
             dynamic=dynamic(specialist_builder(budget)),
             ledger=ledger,
-            stash=DelegationStash(to_register=kept),
+            stash=DelegationStash(to_register={None: kept}),
         )
         resumed_capability = a_capability(resumed)
         # The two assignments the runner makes after the build, in that order: the
@@ -923,7 +927,7 @@ class TestAKeptSpecialistSurvivesTheParkThatCreatedIt:
         )
         resumed = a_runtime(
             dynamic=dynamic(specialist_builder()),
-            stash=DelegationStash(to_register=[gone]),
+            stash=DelegationStash(to_register={None: [gone]}),
         )
 
         answer = await call_tool(
@@ -935,38 +939,36 @@ class TestAKeptSpecialistSurvivesTheParkThatCreatedIt:
 
         assert "Unknown subagent 'summariser'" in answer
 
-    async def test_a_nested_agents_registry_is_neither_seeded_nor_snapshotted(self):
-        """The scope of the fix: the run's own agent only.
+    async def test_a_nested_level_keys_its_snapshot_by_the_call_it_was_delegated_from(self):
+        """The nested half of the carry (agenticos#254): a delegate's kept specialists
+        are keyed by the `task` call it was delegated from, not lumped under the run's
+        own agent's `None`.
 
-        `PausedRunState` carries a flat list of the *run's own agent's* kept
-        specialists, so a nested delegate - which has its own registry and its own
-        `create_agent` - must not read that list as its own on a resume, nor write
-        its own registrations into it when the run ends. A delegate that carried one
-        of these across a park would have to hang it off its own `DelegationFrame`
-        the way its conversation is; that is not done, so a nested agent both
-        ignores what the run kept and keeps nothing of its own here.
+        That key is what lets a nested `create_agent` hang off its own
+        `DelegationFrame` and survive the park its delegate caused, where before a flat
+        run-level list dropped it. The key is read off the enclosing delegation, which
+        is the current one while a nested level's `wrap_run` runs - set here through a
+        parent journal's `delegating` block, exactly as the real tree sets it. The
+        full park -> resume -> re-delegate round trip is
+        `tests/test_subagent_nested_resume.py`.
         """
-        stash = DelegationStash(to_register=[a_registered("from-the-parent")])
+        stash = DelegationStash()
         nested = a_runtime(dynamic=dynamic(specialist_builder()), stash=stash, depth=1)
         capability = a_capability(nested)
         ctx = a_context()
-
-        # Seed skipped: the parent's kept specialist is not in this level's registry.
-        unknown = await call_tool(
-            capability, ctx, "task", {"description": "x", "subagent_type": "from-the-parent"}
+        # The enclosing delegation, whose `task` call is the key this level rides on.
+        parent = DelegationJournal(runtime=a_runtime(), mode="sync", max_fanout=3, depth=0)
+        enclosing = parent.begin(
+            delegate=None, name="editor", prompt="", tool_args={}, tool_call_id="editor-call"
         )
-        # Snapshot skipped: what this level keeps does not land on the shared list.
-        await call_tool(capability, ctx, "create_agent", create_args(name="nested-only"))
-        await _ends_the_run(capability, ctx)
 
-        assert "Unknown subagent 'from-the-parent'" in unknown
-        assert stash.registered == []
+        with parent.delegating(enclosing):
+            await call_tool(capability, ctx, "create_agent", create_args(name="nested-only"))
+            await _ends_the_run(capability, ctx)
 
-
-def a_registered(name: str) -> RegisteredSpecialist:
-    return RegisteredSpecialist(
-        name=name, description="Summarises.", instructions="You summarise.", model=PROFILE
-    )
+        assert [kept.name for kept in stash.registered["editor-call"]] == ["nested-only"]
+        # Not lumped under the run's own agent's key, which a resume reads flat.
+        assert None not in stash.registered
 
 
 async def _ends_the_run(capability: Delegation, ctx: RunContext[AgentDeps]) -> None:
