@@ -19,6 +19,27 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.11] - 2026-08-05
+
+### Fixed
+
+- **Run history can tell a delegated run from one a person started**
+  ([#181](https://github.com/vstorm-co/agenticos/issues/181)). The columns
+  (`parent_run_id`, `subagent_task_id`) had existed since delegation landed and nothing
+  read them, so a fan-out turn listed as several independent runs and a page that summed a
+  column double-counted every delegation — a parent's cost already contains its children's.
+  `AgentRunRead` now carries both, and withholds the delegation handle whenever the parent
+  is gone (a foreign key can only null its own column, so `subagent_task_id` outlives the
+  delete that nulls `parent_run_id`); `list_runs` filters `parent_run_id IS NULL` for the
+  history list, and answers the run-detail query — "what did this run delegate" — by
+  `parent_run_id`, which is the lookup the migration's index was speculative weight for
+  until it had one.
+
+  A delegated run is **badged** in the table and reachable from its chat panel, so the
+  fan-out reads as one tree rather than a list of strangers. The monthly sums keep the
+  existing `(organization_id, started_at)` index, with the null test applied to rows it
+  already found.
+
 ## [0.0.10] - 2026-08-05
 
 ### Fixed
@@ -702,7 +723,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.10...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.11...HEAD
+[0.0.11]: https://github.com/vstorm-co/agenticos/compare/v0.0.10...v0.0.11
 [0.0.10]: https://github.com/vstorm-co/agenticos/compare/v0.0.9...v0.0.10
 [0.0.9]: https://github.com/vstorm-co/agenticos/compare/v0.0.8...v0.0.9
 [0.0.8]: https://github.com/vstorm-co/agenticos/compare/v0.0.7...v0.0.8
