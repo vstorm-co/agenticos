@@ -29,6 +29,7 @@ import logging
 import re
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 from uuid import UUID, uuid4
@@ -983,6 +984,39 @@ class TestBackgroundDelegations:
         # What ends a real run, and what this test would otherwise leak: the
         # second delegation is still executing in a task nobody awaits.
         await ends_the_run(capability, ctx)
+
+    async def test_a_background_row_spans_the_delegate_not_the_settlement(self):
+        """agenticos#191: the recorded span is the delegate's own, not the poll's.
+
+        A background delegation is settled when it is next polled - here, the end
+        of the run, after the parent has answered. Recorded off `now` that gave
+        every background row a duration of zero, at the moment of settlement rather
+        than the moment the delegate ran. The delegate pauses so its span is
+        genuinely non-zero, and the assertion reads the recorded times against a
+        clock read *before* the settlement - not a sleep measured after one.
+        """
+        recorder = Recorder()
+        capability = a_capability(
+            a_runtime(a_delegate(model=one_tool_call(), pause=0.02), record=recorder),
+            {"mode": "async"},
+        )
+        ctx = a_context()
+
+        started = await delegate_to(capability, ctx)
+        assert "found it" in await call_tool(
+            capability, ctx, "wait_tasks", {"task_ids": [task_id_in(started)]}
+        )
+        # The delegate has finished by now; the run that records it has not.
+        before_settlement = datetime.now(UTC)
+        assert await ends_the_run(capability, ctx) == "the parent answered"
+
+        (outcome,) = recorder.outcomes
+        assert outcome.started_at is not None and outcome.ended_at is not None
+        # It ran for a real interval, not the instant `now` collapsed it to.
+        assert outcome.ended_at > outcome.started_at
+        # And it ran before the settlement, not at it: `now` at record time would
+        # be inside `ends_the_run`, after this clock read.
+        assert outcome.ended_at <= before_settlement
 
     async def test_what_the_parent_spends_after_it_finishes_is_not_the_delegates(self):
         """The defect agenticos#180 was filed for, with its own numbers.

@@ -23,6 +23,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
+from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Literal, Protocol
 from uuid import UUID
@@ -198,6 +199,26 @@ class DelegationOutcome:
     added together - this turn's share plus :class:`DelegationSpend`, which the park
     kept, `cost_is_partial` included. One `AgentRun` row is written, once, by the
     turn that finishes the delegation.
+
+    `started_at` and `ended_at` are the delegation's *own* span, read off the task
+    handle the library stamps when the delegate starts and when it reaches a
+    terminal status. They are not the moment the delegation was settled, which for
+    a background one is arbitrarily later - the poll that collected it - and gave
+    every background row a duration of zero placed at the wrong time
+    (agenticos#191). `started_at` is `None` when a terminal handle reached its end
+    without ever starting - a delegate cancelled or failed before it executed - and
+    the recorder falls back rather than write a null into a non-null column. (A
+    library refusal *before a handle exists* - an unknown `chat_trace_id` - writes
+    no row at all: :meth:`DelegationJournal.settle` returns before building an
+    outcome.)
+
+    A delegation that parked on an approval spans more than the turn that settled
+    it: its earliest start is carried across the park the way its cost is, on
+    :attr:`ParkedDelegation.started_at`, restored by the resume onto the continuing
+    delegation. The two are not summed the way the cost is - the honest answer is
+    the *first* segment's start and the *last* segment's end - so a delegate that
+    ran, parked for a person, and was resumed the next day records a row that
+    begins when it first began and ends when it finally did (agenticos#245).
     """
 
     subagent: str
@@ -210,6 +231,8 @@ class DelegationOutcome:
     agent_id: UUID | None = None
     agent_version_id: UUID | None = None
     error: str | None = None
+    started_at: datetime | None = None
+    ended_at: datetime | None = None
 
 
 DelegationRecorder = Callable[[DelegationOutcome], Awaitable[UUID | None]]
@@ -305,6 +328,14 @@ class ParkedDelegation:
             *how* to continue, which is best-effort, and *what it already cost*,
             which is known either way - and a delegation re-run from the start
             still spent that money once.
+        started_at: When this delegation's delegate first began, carried so the row
+            written when it finally ends begins where it first began rather than at
+            the resume. The earliest start across every segment so far, not this
+            one's: a delegation on its second park keeps the first park's start.
+            `None` when no segment ever stamped one - telemetry on the handle is
+            best-effort - and then the recorder falls back. Kept whether or not
+            `messages` was, for the reason `spent` is: when the delegate first ran
+            is a fact independent of whether its place could be held.
     """
 
     tool_call_id: str
@@ -316,6 +347,7 @@ class ParkedDelegation:
     child_run_id: str | None
     messages: list[dict[str, Any]]
     spent: DelegationSpend
+    started_at: datetime | None
 
 
 @dataclass(frozen=True)
@@ -372,6 +404,34 @@ class DelegationStash:
     start has still spent it. Folding the weaker guarantee onto the stronger fact
     would drop the pre-park cost of exactly the delegations whose place was lost.
     """
+
+    started: dict[str, datetime | None] = field(default_factory=dict)
+    """When each delegation being continued first began, on the same key.
+
+    The companion to :attr:`spent`, and separate for the same reason: it is a fact
+    about the delegation known whether or not its conversation was kept, so it
+    rides beside `resuming` rather than inside it. Read by :meth:`already_started`,
+    which the journal folds into the delegation it opens on the replay - so the row
+    written when the delegation ends begins at its earliest segment rather than at
+    the resume.
+    """
+
+    def already_started(self, tool_call_id: str | None) -> datetime | None:
+        """When the delegation this `task` call opens first began, in an earlier turn.
+
+        `None` for a delegation this run is starting rather than continuing - which
+        is every delegation on a run that was never parked - and for one made
+        without a tool call to name it. On the ordinary path the recorder then
+        takes the start off this turn's own handle, which is the whole span.
+
+        Not consumed on read, for the reason :attr:`spent` is not: the key is the
+        `task` call, so a second delegation to the same delegate later in the run
+        has a different one and begins fresh, while the library's own retry of
+        *this* delegation carries the same start.
+        """
+        if tool_call_id is None:
+            return None
+        return self.started.get(tool_call_id)
 
     def already_spent(self, tool_call_id: str | None) -> DelegationSpend:
         """What the delegation this `task` call opens has spent in earlier turns.

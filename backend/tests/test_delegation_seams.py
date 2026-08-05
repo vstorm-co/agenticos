@@ -28,6 +28,7 @@ something further out depends on being right:
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4
 
@@ -215,6 +216,33 @@ def test_a_delegation_with_no_tool_call_to_name_it_carries_nothing() -> None:
     stash = DelegationStash(spent={"the-task-call": DelegationSpend(cost_usd=Decimal("0.25"))})
 
     assert stash.already_spent(None) == DelegationSpend()
+
+
+def test_a_delegation_the_run_is_starting_has_no_earlier_start() -> None:
+    """Which is every delegation until one parks, so the recorder takes this turn's.
+
+    A `task` call the stash has never seen is a delegation being started rather than
+    continued: nothing began in an earlier turn, so `_span_start` reads the whole
+    span off this turn's own handle.
+    """
+    stash = DelegationStash(started={"another-task-call": datetime(2026, 8, 5, tzinfo=UTC)})
+
+    assert stash.already_started("this-task-call") is None
+
+
+def test_a_delegation_being_continued_answers_with_when_it_first_began() -> None:
+    """The key is the parent's `task` call, which the replay presents again."""
+    began = datetime(2026, 8, 5, 9, 0, tzinfo=UTC)
+    stash = DelegationStash(started={"the-task-call": began})
+
+    assert stash.already_started("the-task-call") == began
+
+
+def test_a_delegation_with_no_tool_call_to_name_it_carries_no_start() -> None:
+    """Nothing a resume could key it by, exactly as with what it already spent."""
+    stash = DelegationStash(started={"the-task-call": datetime(2026, 8, 5, tzinfo=UTC)})
+
+    assert stash.already_started(None) is None
 
 
 def test_one_ledger_still_says_which_delegation_spent_what() -> None:
