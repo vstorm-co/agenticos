@@ -19,6 +19,25 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.26] - 2026-08-05
+
+### Added
+
+- **The agent map is interactive, and shows delegates as their own nodes**
+  ([#126](https://github.com/vstorm-co/agenticos/issues/126)). The map — the read-only
+  picture of "what is this agent, in total?" — now draws delegation. A published delegate
+  (pinned, navigable), an inline specialist (no page of its own), and a pin the
+  organization no longer has or the caller cannot see (named as unreachable rather than
+  dropped) each render as a distinct kind of node — an agent, not a tool — grouped under a
+  Delegation heading and edged to the hub by the same measured layout the capabilities use.
+
+  And it is a control now, not a picture: every node is a focusable button, click or
+  Enter/Space lights its edge and dims the rest and opens a detail panel, Escape or a click
+  away clears it, and a published delegate's panel links through to *that* agent's page — so
+  the delegation tree is walkable one hop at a time. It stays read-only (the forms own the
+  fields) and keeps pan/zoom. Rendering the tree recursively inline is a deliberate
+  follow-up, [#276](https://github.com/vstorm-co/agenticos/issues/276).
+
 ## [0.0.25] - 2026-08-05
 
 ### Changed
@@ -991,7 +1010,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.25...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.26...HEAD
+[0.0.26]: https://github.com/vstorm-co/agenticos/compare/v0.0.25...v0.0.26
 [0.0.25]: https://github.com/vstorm-co/agenticos/compare/v0.0.24...v0.0.25
 [0.0.24]: https://github.com/vstorm-co/agenticos/compare/v0.0.23...v0.0.24
 [0.0.23]: https://github.com/vstorm-co/agenticos/compare/v0.0.22...v0.0.23
