@@ -61,13 +61,18 @@ across the delegation, which absorbed whatever the parent spent before a backgro
 one was polled and counted a delegate's delegates inside its own share
 (agenticos#180); `DelegationOutcome` has the numbers.
 
-A delegation that **parked** is more than one such window, because its turns ran
-against different ledgers in different processes. So the park keeps a running total
-and `_spent` adds this turn's delta to it; one row is written, by the turn where the
-delegation ends. Left out, the row held what the delegate spent after the last
-resume — the small half, on the ordinary shape of doing the work and then asking
-permission to act on it — and nothing anywhere disagreed, because the money was in
-the parent's row all along.
+A delegation that **parked** is more than one such share, because its turns ran
+against different ledgers in different processes and a resumed turn's is a fresh
+object. So the park keeps a running total and `_spent` adds this turn's share to it;
+one row is written, by the turn where the delegation ends. Left out, the row held
+what the delegate spent after the last resume — the small half, on the ordinary shape
+of doing the work and then asking permission to act on it — and nothing anywhere
+disagreed, because the money was in the parent's row all along.
+
+`has_unpriced_models` is carried the same way and OR'd across the segments, because
+`cost_is_partial` is per share now rather than per run: a delegate that made an
+unpriced request *before* the approval and resumed onto a priced model would
+otherwise have its row claim an exact cost for money nobody priced.
 
 **A delegate that stopped for a person keeps its place.** See below; it is the one
 decision here that is a correctness fix rather than a policy.
