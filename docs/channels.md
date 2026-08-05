@@ -18,6 +18,14 @@ Two rules hold everywhere, and both are enforced in the runner rather than per
 surface: **a run always belongs to exactly one organization**, and **a spending
 limit is checked before each model request, never after**.
 
+Every run records the surface that admitted it — `playground`, `web`, `embed`,
+`api`, `slack`, `telegram` or `mattermost` — which is what the dashboard's
+by-surface chart aggregates. Two historical wrinkles: widget runs recorded
+before the `embed` value existed are stored as `web`, and Mattermost runs from
+the same era as `api`. Neither is backfilled — rewriting history would be a
+guess — so charts over old periods fold those runs into the surface they were
+recorded under.
+
 ---
 
 ## The website widget

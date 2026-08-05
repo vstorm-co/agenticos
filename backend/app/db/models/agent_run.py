@@ -57,6 +57,7 @@ class RunSurface(enum.StrEnum):
 
     PLAYGROUND = "playground"
     WEB = "web"
+    EMBED = "embed"
     API = "api"
     SLACK = "slack"
     TELEGRAM = "telegram"
