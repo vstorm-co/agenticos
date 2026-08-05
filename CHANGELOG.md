@@ -19,6 +19,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.14] - 2026-08-05
+
+### Changed
+
+- **`alembic check` is a usable gate again**
+  ([#183](https://github.com/vstorm-co/agenticos/issues/183)). It had failed on `main`
+  for reasons unrelated to any change under test — index-naming drift from early
+  migrations that the models and the migrations disagreed about — so the one command that
+  would catch "somebody edited a model and forgot the migration" could not be run, and it
+  hid real drift behind noise a reader had to filter by hand. The drift is resolved (the
+  models and migrations now agree on the index names), and `alembic check` is wired into
+  both `make check` and CI, on both sides of `tests/test_ci_parity.py`, so it stays green
+  rather than rotting again. This is the fourth check to have existed and not run — after
+  `make check` equalling CI (#143), spelling over the tree (#188) and the CodeQL config
+  (#220) — and, like those, the value is in the check running at all.
+
 ## [0.0.13] - 2026-08-05
 
 ### Fixed
@@ -764,7 +780,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.13...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.14...HEAD
+[0.0.14]: https://github.com/vstorm-co/agenticos/compare/v0.0.13...v0.0.14
 [0.0.13]: https://github.com/vstorm-co/agenticos/compare/v0.0.12...v0.0.13
 [0.0.12]: https://github.com/vstorm-co/agenticos/compare/v0.0.11...v0.0.12
 [0.0.11]: https://github.com/vstorm-co/agenticos/compare/v0.0.10...v0.0.11
