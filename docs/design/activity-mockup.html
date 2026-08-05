@@ -1,0 +1,1610 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AgenticOS Activity (/runs) — design demo (#45)</title>
+<style>
+  :root {
+    /* Mirrored from frontend/src/app/globals.css (light theme) - the same
+       oklch values as dashboard-demo.html, so the two stage-1 artifacts and
+       the product disagree nowhere. Notably: `primary` is INK, not the
+       accent - the primary button is near-black; the blue (brand hue 259)
+       keeps the quieter jobs: selection, links, focus, charts. */
+    --bg: oklch(97.5% 0.003 250);
+    --card: oklch(100% 0 0);
+    --border: oklch(89% 0.004 250);
+    --text: oklch(15% 0 0);
+    --muted: oklch(45% 0 0);
+    --faint: oklch(62% 0.004 250);
+    --ink: oklch(21% 0.01 250);            /* --color-primary */
+    --ink-hover: oklch(30% 0.01 250);
+    --brand: oklch(48% 0.186 259);         /* --color-brand = brand-700 */
+    --brand-subtle: oklch(97% 0.011 259);  /* brand-50 */
+    --brand-line: oklch(79% 0.095 259);    /* brand-300 */
+    --chart-1: oklch(55% 0.19 259);        /* --color-chart = brand-600 */
+    --grid: oklch(93.5% 0.003 250);
+    --ok: oklch(60% 0.15 150);             /* --color-success */
+    --ok-bg: oklch(60% 0.15 150 / 0.1);
+    --warn: oklch(62% 0.136 68);           /* --color-warning */
+    --warn-bg: oklch(62% 0.136 68 / 0.1);
+    --err: oklch(57.7% 0.245 27.325);      /* --color-destructive */
+    --err-bg: oklch(57.7% 0.245 27.325 / 0.08);
+    --shadow-card: 0 1px 2px 0 oklch(0% 0 0 / 0.05), 0 1px 3px 0 oklch(0% 0 0 / 0.03);
+    --body-font: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --display: "Bricolage Grotesque", Inter, -apple-system, sans-serif;
+    --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.5 var(--body-font);
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--brand); text-decoration: none; }
+
+  /* ---- demo chrome (not part of the designed page) ---- */
+  .demo-bar {
+    background: #17171c;
+    color: #d9d9e0;
+    padding: 14px 24px 16px;
+    border-bottom: 3px solid var(--brand);
+  }
+  .demo-bar .explain { font-size: 12.5px; max-width: 1060px; color: #a5a5b1; }
+  .demo-bar .explain strong { color: #fff; font-weight: 600; }
+  .demo-bar .explain code { font-family: var(--mono); font-size: 11.5px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 22px; margin-top: 12px; align-items: flex-end; }
+  .control-group > .cg-label {
+    font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em;
+    color: #808090; margin-bottom: 5px;
+  }
+  .seg { display: inline-flex; background: #24242b; border: 1px solid #3a3a44; border-radius: 8px; padding: 2px; }
+  .seg button {
+    border: 0; background: transparent; color: #c0c0cb; font: inherit; font-size: 12.5px;
+    padding: 5px 11px; border-radius: 6px; cursor: pointer; white-space: nowrap;
+  }
+  .seg button:hover { color: #fff; }
+  .seg button[aria-pressed="true"] { background: var(--brand); color: #fff; }
+  .seg button.dim[aria-pressed="true"] { background: #4b4b57; }
+  .identity-groups { display: flex; gap: 14px; flex-wrap: wrap; }
+  .identity-group > .ig-label { font-size: 10.5px; color: #808090; margin-bottom: 5px; text-transform: uppercase; letter-spacing: .07em; }
+
+  /* ---- the designed page ---- */
+  main { max-width: 1180px; margin: 0 auto; padding: 28px 24px 64px; }
+  .page-header { margin-bottom: 22px; }
+  .page-header h1 { font: 650 22px/1.3 var(--display); letter-spacing: -0.01em; }
+  .page-header p { color: var(--muted); margin-top: 3px; }
+
+  /* Filters live on the tab that owns their column - a bar per card, not one
+     global row. Same dropdown grammar as the dashboard (#37): a date-range
+     button opening a preset + calendar popover, multi-selects with
+     checkboxes, single-selects with an explicit "any" row. */
+  .filter-bar { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; margin-bottom: 14px; }
+  .fwrap { position: relative; display: inline-block; }
+  .fbtn {
+    display: inline-flex; align-items: center; gap: 8px;
+    font: inherit; font-size: 12.5px; font-weight: 550; color: var(--text);
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 12px; cursor: pointer;
+  }
+  .fbtn:hover { border-color: var(--faint); }
+  .fbtn .chev { color: var(--faint); font-size: 10px; }
+  .fbtn .fmuted { color: var(--muted); font-weight: 450; }
+  .fbtn.on { border-color: var(--brand-line); background: var(--brand-subtle); color: var(--brand); }
+  .fbtn.on .chev, .fbtn.on .fmuted { color: var(--brand); }
+  .forg {
+    font: inherit; font-size: 12.5px; font-weight: 520; color: var(--text);
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px;
+  }
+  .fclear {
+    border: 0; background: none; font: inherit; font-size: 12px;
+    color: var(--muted); cursor: pointer; text-decoration: underline; text-underline-offset: 3px;
+  }
+  .fnote { font-size: 12px; color: var(--faint); }
+  .vstrip { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; margin: -2px 0 14px; }
+  .vstrip .vchips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .vchip {
+    display: inline-flex; align-items: baseline; gap: 7px;
+    font: inherit; font-size: 12.5px; color: var(--text);
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+    padding: 6px 11px; cursor: pointer;
+  }
+  .vchip:hover { border-color: var(--faint); }
+  .vchip[aria-pressed="true"] { border-color: var(--brand-line); background: var(--brand-subtle); }
+  .vchip[aria-pressed="true"] b, .vchip[aria-pressed="true"] .vm { color: var(--brand); }
+  .vchip .vm { color: var(--muted); font-size: 12px; }
+  .popover {
+    position: absolute; top: calc(100% + 6px); left: 0; z-index: 30;
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    box-shadow: 0 4px 6px -2px oklch(0% 0 0 / 0.05), 0 10px 15px -3px oklch(0% 0 0 / 0.08);
+    padding: 8px; display: flex;
+  }
+  .pop-presets { display: flex; flex-direction: column; gap: 1px; min-width: 138px; border-right: 1px solid var(--border); padding-right: 8px; margin-right: 12px; }
+  .pop-presets button {
+    text-align: left; border: 0; background: none; font: inherit; font-size: 13px;
+    color: var(--text); padding: 8px 11px; border-radius: 7px; cursor: pointer; white-space: nowrap;
+  }
+  .pop-presets button:hover { background: var(--bg); }
+  .pop-presets button[aria-pressed="true"] { background: var(--brand-subtle); color: var(--brand); font-weight: 600; }
+  .pop-list { display: flex; flex-direction: column; gap: 1px; min-width: 170px; padding: 2px; }
+  .pop-list button {
+    text-align: left; border: 0; background: none; font: inherit; font-size: 13px;
+    color: var(--text); padding: 8px 10px; border-radius: 7px; cursor: pointer; white-space: nowrap;
+  }
+  .pop-list button:hover { background: var(--bg); }
+  .pop-list button[aria-pressed="true"] { background: var(--brand-subtle); color: var(--brand); font-weight: 600; }
+  .cal { display: flex; gap: 20px; padding: 4px 8px 6px 0; }
+  .cal-month { width: 226px; }
+  .cal-head { position: relative; text-align: center; font-weight: 600; font-size: 13px; padding: 6px 0 8px; }
+  .cal-nav {
+    position: absolute; top: 1px; border: 0; background: none; cursor: pointer;
+    font-size: 14px; color: var(--muted); padding: 4px 8px; border-radius: 6px;
+  }
+  .cal-nav:hover:not(:disabled) { background: var(--bg); color: var(--text); }
+  .cal-nav:disabled { color: var(--border); cursor: default; }
+  .cal-nav.prev { left: 0; } .cal-nav.next { right: 0; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 32px); justify-content: center; row-gap: 2px; }
+  .cal-grid .dow { font-size: 10.5px; font-weight: 600; color: var(--faint); text-align: center; padding: 3px 0 5px; }
+  .cal-grid button.day {
+    width: 32px; height: 29px; border: 0; background: none; font: inherit; font-size: 12.5px;
+    color: var(--text); cursor: pointer; border-radius: 7px; font-variant-numeric: tabular-nums;
+  }
+  .cal-grid button.day:hover:not(:disabled) { box-shadow: inset 0 0 0 1px var(--brand-line); }
+  .cal-grid button.day:disabled { color: var(--faint); cursor: default; }
+  .cal-grid button.day.in { background: var(--brand-subtle); border-radius: 0; }
+  .cal-grid button.day.edge { background: var(--brand); color: #fff; }
+  .cal-grid button.day.start { border-radius: 7px 0 0 7px; }
+  .cal-grid button.day.end { border-radius: 0 7px 7px 0; }
+  .cal-grid button.day.start.end { border-radius: 7px; }
+  .checks { display: flex; flex-direction: column; min-width: 196px; padding: 2px; max-height: 320px; overflow-y: auto; }
+  .checks label {
+    display: flex; align-items: center; gap: 9px; font-size: 13px; color: var(--text);
+    padding: 8px 10px; border-radius: 7px; cursor: pointer;
+  }
+  .checks label:hover { background: var(--bg); }
+  .checks input { accent-color: var(--brand); width: 14px; height: 14px; }
+  .checks .sep { border-top: 1px solid var(--border); margin: 4px 2px; }
+
+  .org-divider { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0 0 18px; }
+  .org-divider .od-label { font: 680 18px/1.3 var(--display); letter-spacing: -0.015em; }
+  .org-divider .od-note { font-size: 12px; color: var(--faint); }
+
+  /* ---- tabs ---- */
+  .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+  .tabs button {
+    border: 0; border-bottom: 2px solid transparent; background: none; font: inherit;
+    font-size: 13.5px; font-weight: 550; color: var(--muted); padding: 9px 13px;
+    cursor: pointer; display: inline-flex; align-items: center; gap: 7px;
+  }
+  .tabs button:hover { color: var(--text); }
+  .tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--brand); }
+  .tabs .tcount {
+    font: 10.5px/1.5 var(--mono); background: var(--brand-subtle); color: var(--brand);
+    border: 1px solid var(--brand-line); border-radius: 5px; padding: 1px 5px;
+  }
+
+  /* ---- cards ---- */
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+    box-shadow: var(--shadow-card);
+    padding: 18px 20px 15px; margin-bottom: 14px; min-width: 0;
+  }
+  .card-head { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; margin-bottom: 12px; }
+  .card-head h3 { font-size: 15.5px; font-weight: 640; letter-spacing: -0.01em; }
+  .card-head .hd { font-size: 12.5px; color: var(--muted); margin-top: 3px; max-width: 620px; }
+  .card-foot {
+    margin-top: 12px; padding-top: 8px; border-top: 1px dashed var(--border);
+    display: flex; justify-content: space-between; gap: 8px; align-items: center; flex-wrap: wrap;
+  }
+  .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 14px; }
+  .grid > .card { grid-column: span 12; margin-bottom: 0; }
+  @media (min-width: 760px) {
+    .grid > .s4 { grid-column: span 4; } .grid > .s6 { grid-column: span 6; }
+    .grid > .s8 { grid-column: span 8; } .grid > .s12 { grid-column: span 12; }
+  }
+  /* A figure is also the door to its tab. */
+  .card.kpi { cursor: pointer; }
+  .card.kpi:hover { border-color: var(--faint); }
+
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .chip {
+    font: 10.5px/1.4 var(--mono); color: var(--muted); background: var(--bg);
+    border: 1px solid var(--border); border-radius: 5px; padding: 3px 6px;
+    max-width: 100%; overflow-wrap: anywhere;
+  }
+  .badge-new {
+    font-size: 10px; font-weight: 600; color: var(--warn); background: var(--warn-bg);
+    border: 1px solid oklch(62% 0.136 68 / 0.3); border-radius: 5px; padding: 3px 6px; white-space: nowrap;
+  }
+  .gate { font: 10.5px/1 var(--mono); color: var(--faint); }
+
+  /* Annotations off: the page as the product would ship it. */
+  main.clean .chips, main.clean .card-foot, main.clean .anno { display: none; }
+
+  .big { font-size: 28px; font-weight: 650; letter-spacing: -0.02em; }
+  .sub { color: var(--muted); font-size: 12px; }
+
+  .bar-row { display: flex; align-items: center; gap: 10px; margin: 7px 0; }
+  .bar-row .bl { width: 168px; flex: none; font-size: 13px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar-row .bl.gone { color: var(--faint); font-style: italic; }
+  .bar-row .track { flex: 1; height: 8px; background: var(--bg); border-radius: 4px; }
+  .bar-row .fill { display: block; height: 100%; border-radius: 0 4px 4px 0; background: var(--chart-1); }
+  .bar-row .bv { width: 128px; flex: none; text-align: right; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  /* One tile per agent: what it spent in the range, and where it stands
+     against its own monthly cap - two windows, visibly separate. */
+  .agent-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+  .atile { border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+  .atile .an { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .atile .av { font-size: 19px; font-weight: 650; margin: 5px 0 1px; font-variant-numeric: tabular-nums; }
+  .atile .av .sub { font-size: 12.5px; font-weight: 450; }
+  .atile .track { display: block; height: 6px; background: var(--bg); border-radius: 3px; margin: 10px 0 6px; }
+  .atile .fill { display: block; height: 100%; border-radius: 3px; }
+  .atile .cap { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  /* ---- the run table ---- */
+  .tscroll { overflow-x: auto; margin: 0 -20px; padding: 0 20px; }
+  table.runs { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.runs th {
+    text-align: left; font-weight: 500; color: var(--muted); font-size: 11.5px;
+    padding: 4px 10px 6px 0; border-bottom: 1px solid var(--border); white-space: nowrap;
+  }
+  table.runs td { padding: 8px 10px 8px 0; border-bottom: 1px solid #f1f1f3; font-variant-numeric: tabular-nums; }
+  table.runs tbody tr:last-child td { border-bottom: 0; }
+  table.runs tbody tr { cursor: pointer; }
+  table.runs tbody tr:hover { background: var(--bg); }
+  table.runs tbody tr[aria-selected="true"] { background: var(--brand-subtle); }
+  table.runs .num { text-align: right; color: var(--muted); white-space: nowrap; }
+  table.runs .mono { font-family: var(--mono); font-size: 11.5px; }
+
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 7px; flex: none; }
+  .dot.ok { background: var(--ok); } .dot.warn { background: var(--warn); }
+  .dot.err { background: var(--err); } .dot.idle { background: var(--faint); }
+  .dot.run { background: var(--chart-1); }
+
+  .pill { font-size: 11px; padding: 2px 7px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); white-space: nowrap; }
+  .pill.ok { color: var(--ok); background: var(--ok-bg); border-color: oklch(60% 0.15 150 / 0.25); }
+  .pill.warn { color: var(--warn); background: var(--warn-bg); border-color: oklch(62% 0.136 68 / 0.3); }
+  .pill.err { color: var(--err); background: var(--err-bg); border-color: oklch(57.7% 0.245 27.325 / 0.25); }
+  .pill.brand { color: var(--brand); background: var(--brand-subtle); border-color: var(--brand-line); }
+
+  /* A cost that is only a floor carries the caveat in the number, not in a
+     tooltip nobody hovers and no screen reader reads. */
+  .floor { color: var(--warn); font-weight: 600; }
+  .floor .fsr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+
+  .btn {
+    font: 12.5px/1 inherit; font-weight: 550; border-radius: 8px; padding: 7px 12px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--card); color: var(--text);
+  }
+  .btn:hover { border-color: var(--faint); }
+  /* The product's primary action is ink, not the accent (globals.css:
+     `primary` is a near-black button; blue keeps selection/links/charts). */
+  .btn.primary { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .btn.primary:hover { background: var(--ink-hover); border-color: var(--ink-hover); }
+  .btn.small { padding: 5px 9px; font-size: 12px; }
+
+  .pager { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--muted); flex-wrap: wrap; }
+  .pager .spacer { margin-left: auto; }
+  .pager b { color: var(--text); font-variant-numeric: tabular-nums; font-weight: 600; }
+
+  .state-block { padding: 26px 12px; text-align: center; }
+  .state-block .si { color: var(--faint); margin-bottom: 8px; }
+  .state-block.error .si { color: var(--err); }
+  .state-block .st { font-weight: 600; font-size: 13px; }
+  .state-block .sd { color: var(--muted); font-size: 12.5px; margin: 4px auto 0; max-width: 380px; }
+  .state-block.error { background: oklch(57.7% 0.245 27.325 / 0.03); border: 1px dashed oklch(57.7% 0.245 27.325 / 0.25); border-radius: 8px; }
+  .state-block.error .st { color: var(--err); }
+  .state-block .btn { margin-top: 12px; }
+
+  /* ---- run detail ---- */
+  .detail { margin-top: 14px; border: 1px solid var(--brand-line); border-radius: 8px; background: oklch(99.3% 0.005 259); padding: 16px 18px; }
+  .detail-head { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; margin-bottom: 12px; flex-wrap: wrap; }
+  .detail-head h4 { font-size: 14px; font-weight: 640; }
+  .facts { display: grid; gap: 10px 18px; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); margin-bottom: 14px; }
+  .fact dt { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--faint); }
+  .fact dd { margin-top: 2px; font-size: 12.5px; }
+  .steps { list-style: none; padding: 0 0 0 2px; border-left: 2px solid var(--border); margin-left: 3px; }
+  .step { position: relative; padding: 0 0 14px 14px; }
+  .step::before { content: ""; position: absolute; left: -7px; top: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--brand-line); }
+  .step:last-child { padding-bottom: 0; }
+  .step .who { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--faint); }
+  .step .say { font-size: 13px; margin-top: 2px; }
+  .step .think { font-size: 12.5px; color: var(--muted); font-style: italic; margin-top: 4px; padding-left: 9px; border-left: 2px solid var(--border); }
+  .tool { margin-top: 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); overflow: hidden; }
+  .tool-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 7px 10px; border-bottom: 1px solid var(--border); font-size: 12px; }
+  .tool-head .tn { font-family: var(--mono); font-weight: 600; font-size: 12px; }
+  .pre-label { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--faint); padding: 7px 10px 0; }
+  pre { font: 11.5px/1.5 var(--mono); padding: 4px 10px 8px; overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .notice { border: 1px solid oklch(62% 0.136 68 / 0.3); background: var(--warn-bg); border-radius: 8px; padding: 10px 12px; font-size: 12.5px; color: oklch(43% 0.1 68); }
+
+  /* ---- approvals ---- */
+  .approval { border: 1px solid var(--border); border-radius: 8px; padding: 13px 14px; margin-bottom: 10px; }
+  .approval:last-child { margin-bottom: 0; }
+  .approval-head { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-bottom: 8px; }
+  .approval-head .tn { font-family: var(--mono); font-weight: 600; font-size: 13px; }
+  .approval .meta { display: flex; gap: 6px 16px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+  .approval .meta b { color: var(--text); font-weight: 550; }
+  .approval .acts { display: flex; gap: 7px; margin-top: 11px; }
+
+  /* ---- the page a member never reaches ---- */
+  .absent { background: var(--card); border: 1px dashed var(--border); border-radius: 8px; padding: 34px 24px; text-align: center; }
+  .absent .si { color: var(--faint); margin-bottom: 10px; }
+  .absent h3 { font-size: 15px; font-weight: 640; }
+  .absent p { color: var(--muted); font-size: 13px; margin: 6px auto 0; max-width: 520px; }
+  .absent .open-q {
+    margin: 18px auto 0; max-width: 620px; text-align: left;
+    border: 1px solid oklch(62% 0.136 68 / 0.3); background: var(--warn-bg); border-radius: 8px; padding: 12px 14px;
+  }
+  .absent .open-q .oqt { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--warn); }
+  .absent .open-q p { color: oklch(43% 0.1 68); font-size: 12.5px; max-width: none; margin-top: 5px; }
+
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; font-size: 12px; color: var(--muted); }
+  footer { text-align: center; color: var(--faint); font-size: 12px; padding: 20px 0 40px; }
+</style>
+</head>
+<body>
+
+<header class="demo-bar">
+  <div class="explain">
+    <strong>Design demo for issue #45 — not product code.</strong>
+    Every number is fake. Each card names the endpoint that feeds it and the
+    <code>permission</code> that reveals it; an amber badge means the endpoint or column does not exist yet.
+    A control the caller may not use is <strong>absent</strong> — never greyed out, never a 403.
+    Filters live on the tab that owns their column — Status is a runs column, so it narrows runs,
+    not a global bar pretending to scope the queue and the spend too.
+    Visibility is computed from a mirror of <code>ROLE_PERMS</code>, so
+    <strong>member</strong> and <strong>viewer</strong> reach no version of this page at all: the sidebar entry
+    gates on <code>runs:view</code>, which neither role holds.
+  </div>
+  <div class="controls">
+    <div class="control-group">
+      <div class="cg-label">Identity</div>
+      <div class="identity-groups" id="identity-groups"></div>
+    </div>
+    <div class="control-group">
+      <div class="cg-label">Data state</div>
+      <div class="seg" id="state-seg"></div>
+    </div>
+    <div class="control-group">
+      <div class="cg-label">Endpoints &amp; gates</div>
+      <div class="seg" id="annot-seg"></div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="page-header">
+    <h1>Activity</h1>
+    <p id="page-sub"></p>
+  </div>
+  <div id="body"></div>
+</main>
+
+<footer>Stage 1 artifact for vstorm-co/agenticos#45 · fake data · zero dependencies · see activity-plan.md for the decisions</footer>
+
+<script>
+"use strict";
+
+/* ================================================================
+   Permission mirror.
+   Must track backend/app/core/permissions.py ROLE_PERMS - only the
+   permissions this page gates on. `is_app_admin` holds every
+   permission at Scope.ALL (permissions.py: AuthContext.permissions),
+   which is why the app admin row is a bypass rather than a role.
+   ================================================================ */
+const ROLE_PERMS = {
+  owner:    ["runs:view", "approvals:decide"],
+  admin:    ["runs:view", "approvals:decide"],
+  builder:  ["runs:view"],
+  operator: ["runs:view", "approvals:decide"],
+  member:   [],
+  viewer:   [],
+};
+
+const IDENTITIES = [
+  { id: "app_admin", label: "App admin", audience: "Deployment admin", role: "owner", isAppAdmin: true,
+    sub: "Any organization on the deployment, or all of them at once." },
+  { id: "owner",    label: "Owner",    audience: "Org steward", role: "owner",
+    sub: "{org} — what the agents did, what it cost, and what is waiting on a person." },
+  { id: "admin",    label: "Admin",    audience: "Org steward", role: "admin",
+    sub: "{org} — what the agents did, what it cost, and what is waiting on a person." },
+  { id: "builder",  label: "Builder",  audience: "Operations", role: "builder",
+    sub: "{org} — how the agents you build are behaving. Approvals are somebody else's job." },
+  { id: "operator", label: "Operator", audience: "Operations", role: "operator",
+    sub: "{org} — what is running, what broke, and what is waiting on you." },
+  { id: "member",   label: "Member",   audience: "Everyday user", role: "member",
+    sub: "Not reachable — this page is not in a member's sidebar." },
+  { id: "viewer",   label: "Viewer",   audience: "Everyday user", role: "viewer",
+    sub: "Not reachable — this page is not in a viewer's sidebar." },
+];
+
+const STATES = [
+  { id: "normal", label: "Normal" },
+  { id: "empty",  label: "Empty" },
+  { id: "error",  label: "Error" },
+];
+const ANNOTATIONS = [
+  { id: "on", label: "Shown" },
+  { id: "off", label: "Hidden" },
+];
+
+/* An app admin may set any organization active without a membership
+   (deps.py get_auth_context), so "all organizations" is the only thing the
+   active-org model cannot express.
+   budget mirrors organizations.monthly_budget_usd - nullable, so Initech shows
+   the unset case. */
+const ORGS = [
+  { id: "acme", name: "Acme Corp", scale: 1, budget: 6 },
+  { id: "globex", name: "Globex", scale: 0.62, budget: 2.5 },
+  { id: "initech", name: "Initech", scale: 0.31, budget: null },
+];
+const ALL_ORGS = { id: "all", name: "All organizations", scale: 1.93, budget: null };
+
+/* ---- dates ---- */
+const DAY_MS = 86400000;
+const day0 = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
+const today0 = () => day0(new Date());
+const addDays = (d, n) => day0(new Date(d.getTime() + n * DAY_MS));
+const addMonths = (d, n) => new Date(d.getFullYear(), d.getMonth() + n, 1);
+const isoDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const parseIsoDay = (s) => { const [y, m, dd] = s.split("-").map(Number); return new Date(y, m - 1, dd); };
+const fmtDay = (d) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+const fmtStamp = (d) => `${fmtDay(d)} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+
+const PRESETS = [
+  { id: "1d",  label: "Today",        range: () => [today0(), today0()] },
+  { id: "7d",  label: "Last 7 days",  range: () => [addDays(today0(), -6), today0()] },
+  { id: "30d", label: "Last 30 days", range: () => [addDays(today0(), -29), today0()] },
+  { id: "90d", label: "Last 90 days", range: () => [addDays(today0(), -89), today0()] },
+  { id: "tm",  label: "This month",   range: () => { const t = today0(); return [new Date(t.getFullYear(), t.getMonth(), 1), t]; } },
+  { id: "lm",  label: "Last month",   range: () => { const t = today0(); return [new Date(t.getFullYear(), t.getMonth() - 1, 1), new Date(t.getFullYear(), t.getMonth(), 0)]; } },
+];
+
+/* The queue and the figures describe fixed, self-labelled windows - they do
+   not follow any tab's filters. */
+const last30 = () => [addDays(today0(), -29), today0()];
+const monthToDate = () => { const t = today0(); return [new Date(t.getFullYear(), t.getMonth(), 1), t]; };
+
+/* The day `messages.run_id` starts being written. Runs older than this have a
+   conversation but no way to name their own slice of it. */
+const RUN_ID_SINCE = addDays(today0(), -6);
+
+const STATUSES = [
+  { id: "completed", label: "completed", cls: "ok" },
+  { id: "running", label: "running", cls: "run" },
+  { id: "awaiting_approval", label: "waiting for approval", cls: "warn" },
+  { id: "budget_exceeded", label: "stopped by budget", cls: "warn" },
+  { id: "failed", label: "failed", cls: "err" },
+  { id: "cancelled", label: "cancelled", cls: "idle" },
+];
+/* `embed` and `mattermost` are ahead of the recorder: an embed run is stamped
+   `web` and a mattermost mention falls through to `api`. `schedule` is absent
+   because RunSurface.SCHEDULE is defined and never assigned. */
+const SURFACES = ["playground", "web", "api", "embed", "slack", "telegram", "mattermost"];
+/* Surfaces that run without a conversation, so there is no transcript to show. */
+const NO_CONVERSATION = new Set(["api", "playground"]);
+
+/* cap mirrors AgentSpec.budget.monthly_usd - per agent, nullable. */
+const AGENTS = [
+  { id: "a1", name: "Invoice assistant", org: "acme", version: 7, cap: 1.25 },
+  { id: "a2", name: "Support triage", org: "acme", version: 3, cap: 4 },
+  { id: "a3", name: "Weekly digest", org: "acme", version: 11, cap: 1.1 },
+  { id: "a4", name: "Contract reader", org: "globex", version: 2, cap: 1.5 },
+  { id: "a5", name: "Lead qualifier", org: "globex", version: 5, cap: null },
+  { id: "a6", name: "SQL explainer", org: "initech", version: 9, cap: 0.6 },
+];
+const USERS = [
+  { id: "u1", name: "k.nowak@acme.example", org: "acme" },
+  { id: "u2", name: "a.lewandowska@acme.example", org: "acme" },
+  { id: "u3", name: "ops@globex.example", org: "globex" },
+  { id: "u4", name: "j.wisniewski@initech.example", org: "initech" },
+];
+
+/* agent_runs.exposure_id: surface says "slack", the exposure says which Slack
+   workspace. ExposureSurface is only slack | telegram | mattermost. */
+const EXPOSURES = [
+  { id: "x1", org: "acme", surface: "slack", name: "Support Slack — acme.slack.com" },
+  { id: "x2", org: "acme", surface: "slack", name: "Engineering Slack — acme-eng.slack.com" },
+  { id: "x3", org: "acme", surface: "telegram", name: "Helpdesk bot — Telegram" },
+  { id: "x4", org: "globex", surface: "slack", name: "Globex ops — globex.slack.com" },
+  { id: "x5", org: "globex", surface: "mattermost", name: "Globex Mattermost — chat.globex.example" },
+  { id: "x6", org: "initech", surface: "telegram", name: "Initech assistant — Telegram" },
+];
+/* An org only produces channel runs through the bindings it actually has. */
+const surfacesFor = (orgId) => ["playground", "web", "api", "embed",
+  ...new Set(EXPOSURES.filter((x) => x.org === orgId).map((x) => x.surface))];
+
+/* agent_runs.environment_id - which named environment resolved the version. */
+const ENVIRONMENTS = ["production", "staging"];
+
+/* The run row stores agent_runs.agent_version_id, so a version stays
+   filterable after it has been superseded. */
+const versionsOf = (a) => [a.version, a.version - 1, a.version - 2].filter((v) => v >= 1);
+const MODELS = ["claude-sonnet-4-5", "claude-opus-4-5", "claude-haiku-4-5", "gpt-oss-120b"];
+/* gpt-oss-120b has no price in the catalog, which is what makes a cost partial. */
+const UNPRICED = new Set(["gpt-oss-120b"]);
+
+const PAGE_SIZE = 25;
+
+let current = {
+  identity: IDENTITIES[1], state: "normal", annotations: "on",
+  org: ORGS[0], tab: "approvals", page: 1, openRun: null,
+  // The runs tab's own filters. null = every value.
+  period: { preset: "30d" }, status: null, surface: null, agent: "", user: "",
+  env: "", exposure: "", version: "",
+  spendPeriod: { preset: "30d" },
+  // The approval queue's own filter, order and view (the queue, or the record).
+  apUser: "", apSort: "oldest", apView: "waiting",
+};
+
+function rangeOfPeriod(period) {
+  if (period.preset) return PRESETS.find((p) => p.id === period.preset).range();
+  return [parseIsoDay(period.from), parseIsoDay(period.to)];
+}
+function labelOfPeriod(period) {
+  if (period.preset) return PRESETS.find((p) => p.id === period.preset).label;
+  const [f, t] = rangeOfPeriod(period);
+  return `${fmtDay(f)} – ${fmtDay(t)}`;
+}
+const periodRange = () => rangeOfPeriod(current.period);
+const periodLabel = () => labelOfPeriod(current.period);
+const spendRange = () => rangeOfPeriod(current.spendPeriod);
+
+function can(perm) {
+  if (current.identity.isAppAdmin) return true;
+  return (ROLE_PERMS[current.identity.role] || []).includes(perm);
+}
+const isAllOrgs = () => current.identity.isAppAdmin && current.org.id === "all";
+const orgOf = (id) => ORGS.find((o) => o.id === id);
+
+/* Deep-linkable demo state, so a review comment can point at the exact view. */
+function readHash() {
+  const p = new URLSearchParams(location.hash.slice(1));
+  const ident = IDENTITIES.find((i) => i.id === p.get("identity"));
+  if (ident) current.identity = ident;
+  if (STATES.some((s) => s.id === p.get("state"))) current.state = p.get("state");
+  if (ANNOTATIONS.some((a) => a.id === p.get("annotations"))) current.annotations = p.get("annotations");
+  const period = p.get("period") || "";
+  if (PRESETS.some((x) => x.id === period)) current.period = { preset: period };
+  else if (/^\d{4}-\d{2}-\d{2}\.\.\d{4}-\d{2}-\d{2}$/.test(period)) {
+    const [from, to] = period.split("..");
+    if (parseIsoDay(from) <= parseIsoDay(to)) current.period = { from, to };
+  }
+  const org = p.get("org") === "all" ? ALL_ORGS : ORGS.find((o) => o.id === p.get("org"));
+  if (org) current.org = org;
+  if (["approvals", "runs", "spend"].includes(p.get("tab"))) current.tab = p.get("tab");
+  const st = (p.get("status") || "").split(",").filter((s) => STATUSES.some((x) => x.id === s));
+  if (st.length) current.status = new Set(st);
+  const su = (p.get("surface") || "").split(",").filter((s) => SURFACES.includes(s));
+  if (su.length) current.surface = new Set(su);
+  if (AGENTS.some((a) => a.id === p.get("agent"))) current.agent = p.get("agent");
+  if (USERS.some((u) => u.id === p.get("user"))) current.user = p.get("user");
+  if (ENVIRONMENTS.includes(p.get("env"))) current.env = p.get("env");
+  if (EXPOSURES.some((x) => x.id === p.get("via"))) current.exposure = p.get("via");
+  if (/^\d+$/.test(p.get("ver") || "")) current.version = p.get("ver");
+  const sp = p.get("spend") || "";
+  if (PRESETS.some((x) => x.id === sp)) current.spendPeriod = { preset: sp };
+  else if (/^\d{4}-\d{2}-\d{2}\.\.\d{4}-\d{2}-\d{2}$/.test(sp)) {
+    const [from, to] = sp.split("..");
+    if (parseIsoDay(from) <= parseIsoDay(to)) current.spendPeriod = { from, to };
+  }
+  if (USERS.some((u) => u.id === p.get("apuser"))) current.apUser = p.get("apuser");
+  if (["oldest", "newest"].includes(p.get("apsort"))) current.apSort = p.get("apsort");
+  if (["waiting", "decided"].includes(p.get("apview"))) current.apView = p.get("apview");
+}
+function writeHash() {
+  const period = current.period.preset || `${current.period.from}..${current.period.to}`;
+  let h = `identity=${current.identity.id}&state=${current.state}&annotations=${current.annotations}` +
+    `&period=${period}&org=${current.org.id}&tab=${current.tab}`;
+  if (current.status) h += `&status=${[...current.status].join(",")}`;
+  if (current.surface) h += `&surface=${[...current.surface].join(",")}`;
+  if (current.agent) h += `&agent=${current.agent}`;
+  if (current.user) h += `&user=${current.user}`;
+  if (current.env) h += `&env=${current.env}`;
+  if (current.exposure) h += `&via=${current.exposure}`;
+  if (current.version) h += `&ver=${current.version}`;
+  if (current.spendPeriod.preset !== "30d") {
+    h += `&spend=${current.spendPeriod.preset || `${current.spendPeriod.from}..${current.spendPeriod.to}`}`;
+  }
+  if (current.apUser) h += `&apuser=${current.apUser}`;
+  if (current.apSort !== "oldest") h += `&apsort=${current.apSort}`;
+  if (current.apView !== "waiting") h += `&apview=${current.apView}`;
+  history.replaceState(null, "", "#" + h);
+}
+
+/* ---- deterministic fake data ---- */
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const pick = (rnd, arr) => arr[Math.floor(rnd() * arr.length) % arr.length];
+
+/* One transcript shape per tool, so a detail view always has something
+   plausible without carrying a transcript per fake run. */
+const SCRIPTS = [
+  { ask: "Wystaw fakturę dla Acme na 12 000 netto, termin 14 dni.",
+    think: "Client \"Acme\" resolves to one account. Net 12000, VAT 23%, due in 14 days.",
+    say: "Faktura wystawiona — FV/2026/08/041, brutto 14 760 PLN.",
+    tool: "send_invoice", ms: 842,
+    args: { client: "Acme sp. z o.o.", net: 12000, currency: "PLN", due_days: 14 },
+    result: "{\"invoice_no\":\"FV/2026/08/041\",\"gross\":14760.00,\"status\":\"issued\"}" },
+  { ask: "What is the oldest unassigned ticket?",
+    think: null, say: "Ticket #4192, open for 9 days, no assignee.",
+    tool: "zendesk_search", ms: 1310,
+    args: { query: "status:new assignee:none", sort: "created_at asc", limit: 1 },
+    result: "{\"id\":4192,\"subject\":\"Refund not received\",\"age_days\":9}" },
+  { ask: "Podsumuj notatki z zarządu za sierpień.",
+    think: "Retrieval first - the answer has to cite the notes, not paraphrase memory.",
+    say: "Trzy priorytety: retencja, koszt inferencji, hiring w EU.",
+    tool: "search_collection", ms: 1980,
+    args: { collection: "board-notes", query: "August priorities", top_k: 12 },
+    result: "12 chunks from 4 documents" },
+  { ask: "Read this contract and tell me the notice period.",
+    think: null, say: "Notice is 90 days, and it auto-renews unless notice is given.",
+    tool: "parse_document", ms: 4420,
+    args: { file: "msa-northwind-2026.pdf", pages: "1-14" },
+    result: "{\"clauses\":37,\"notice_days\":90,\"auto_renew\":true}" },
+];
+
+/**
+ * The runs the API would return for the current scope over a given range.
+ *
+ * Generated rather than hand-written so every date window, the organization
+ * select and the paging all actually do something.
+ */
+function genRuns([from, to]) {
+  const days = Math.round((to - from) / DAY_MS) + 1;
+  const orgIds = isAllOrgs() ? ORGS.map((o) => o.id) : [current.org.id];
+  const rnd = mulberry32(days * 7919 + orgIds.length * 104729 + from.getDate() * 31);
+  const perDay = Math.round(18 * current.org.scale);
+  const out = [];
+  for (let d = 0; d < days; d++) {
+    const stamp0 = addDays(from, d);
+    if (stamp0 > to) break;
+    const weekend = stamp0.getDay() === 0 || stamp0.getDay() === 6;
+    const n = Math.max(1, Math.round(perDay * (weekend ? 0.45 : 1) * (0.7 + rnd() * 0.6)));
+    for (let i = 0; i < n; i++) {
+      const orgId = pick(rnd, orgIds);
+      const agent = pick(rnd, AGENTS.filter((a) => a.org === orgId));
+      const orgUsers = USERS.filter((u) => u.org === orgId);
+      const surface = pick(rnd, surfacesFor(orgId));
+      const r = rnd();
+      const rv = rnd();
+      const status = r < 0.86 ? "completed" : r < 0.9 ? "failed" : r < 0.93 ? "budget_exceeded"
+        : r < 0.96 ? "awaiting_approval" : r < 0.985 ? "cancelled" : "running";
+      const model = pick(rnd, MODELS);
+      const stamp = new Date(stamp0.getTime() + Math.floor(7 * 3600e3 + rnd() * 11 * 3600e3));
+      const tin = 300 + Math.floor(rnd() * 9000);
+      const tout = 40 + Math.floor(rnd() * 1200);
+      const unpriced = UNPRICED.has(model);
+      out.push({
+        id: Math.floor(rnd() * 0xffffff).toString(16).padStart(6, "0"),
+        org: orgId, agent, surface, status, model,
+        version: Math.max(1, agent.version - (rv < 0.72 ? 0 : rv < 0.92 ? 1 : 2)),
+        env: rnd() < 0.85 ? "production" : "staging",
+        exposure: ["slack", "telegram", "mattermost"].includes(surface)
+          ? pick(rnd, EXPOSURES.filter((x) => x.org === orgId && x.surface === surface)) : null,
+        user: NO_CONVERSATION.has(surface) && rnd() < 0.6 ? null : pick(rnd, orgUsers),
+        tin, tout,
+        cost: unpriced ? 0 : (tin * 3e-6 + tout * 1.5e-5) * (model.includes("opus") ? 5 : model.includes("haiku") ? 0.3 : 1),
+        partial: unpriced,
+        started: stamp,
+        ms: status === "running" || status === "awaiting_approval" ? null : 700 + Math.floor(rnd() * 24000),
+        error: status === "failed" ? "ToolExecutionError: upstream returned 503 after 3 attempts"
+          : status === "budget_exceeded" ? `Agent monthly cap of $${(agent.cap ?? 2).toFixed(2)} reached` : null,
+        script: SCRIPTS[Math.floor(rnd() * SCRIPTS.length) % SCRIPTS.length],
+        conversation: NO_CONVERSATION.has(surface) ? null : "c-" + Math.floor(rnd() * 900 + 100),
+      });
+    }
+  }
+  out.sort((a, b) => b.started - a.started);
+  return out;
+}
+
+/* The queue is what is parked NOW - it does not follow the runs tab's date
+   filter, because "waiting on a person" is not a question about a period. */
+function genApprovals() {
+  if (current.state === "empty") return [];
+  // Nothing expires a parked call - ApprovalStatus.EXPIRED is never assigned -
+  // so age is a real dimension of this queue, not decoration.
+  return genRuns(last30()).filter((r) => r.status === "awaiting_approval").slice(0, 4).map((r, i) => ({
+    id: "ap-" + i, run: r, tool: r.script.tool, args: r.script.args,
+    waited: ["2 h", "5 h", "1 d", "3 d"][i], waitedH: [2, 5, 26, 74][i],
+  }));
+}
+
+/* The record behind the queue: what was decided, by whom, and how long it sat. */
+function genDecided() {
+  if (current.state === "empty") return [];
+  return genRuns(last30()).filter((r) => r.status === "completed" && r.user).slice(0, 5).map((r, i) => ({
+    id: "ad-" + i, run: r, tool: r.script.tool, args: r.script.args,
+    decision: i === 2 ? "rejected" : "approved",
+    decidedBy: pick(mulberry32(i + 7), USERS.filter((u) => u.org === r.org)),
+    took: ["41 min", "3 h", "6 h", "1 d", "2 h"][i], tookH: [0.7, 3, 6, 26, 2][i],
+  }));
+}
+
+function genSpend(runs) {
+  const group = (keyFn) => {
+    const m = new Map();
+    for (const r of runs) {
+      const k = keyFn(r);
+      const e = m.get(k) || { cost: 0, runs: 0, partial: false };
+      e.cost += r.cost; e.runs += 1; e.partial = e.partial || r.partial;
+      m.set(k, e);
+    }
+    return [...m.entries()].map(([k, v]) => ({ key: k, ...v })).sort((a, b) => b.cost - a.cost);
+  };
+  const provider = (m) => (m.startsWith("claude") ? "anthropic" : "openrouter");
+  return {
+    byProvider: group((r) => provider(r.model)),
+    byKey: group((r) => provider(r.model) === "anthropic" ? "Anthropic — production" : null),
+    byAgent: group((r) => r.agent.name),
+    byOrg: group((r) => orgOf(r.org).name),
+  };
+}
+
+/* Month-to-date is calendar-aligned so it reconciles against an invoice - it
+   ignores every window and filter on this page, and says so where it renders. */
+function monthToDateSpend() {
+  return genRuns(monthToDate()).reduce((a, r) => a + r.cost, 0) * 1.15;
+}
+
+/* ---- helpers ---- */
+const fmt = (n) => n.toLocaleString("en-US");
+const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+const money = (n) => "$" + n.toFixed(n && n < 1 ? 4 : 2);
+const statusOf = (id) => STATUSES.find((s) => s.id === id);
+
+/** Cost with its caveat in the number, and in text for a screen reader. */
+function costCell(r) {
+  if (!r.partial) return money(r.cost);
+  return `<span class="floor" title="A model in this run had no price, so this is a floor">≥ ${money(r.cost)}<span class="fsr"> (at least — a model in this run had no price)</span></span>`;
+}
+
+const ICON_PATHS = {
+  inbox: '<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
+  "triangle-alert": '<path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+  "circle-check": '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
+  "eye-off": '<path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.5 13.5 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><path d="m2 2 20 20"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/>',
+  calendar: '<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>',
+};
+const icon = (name, size = 16) =>
+  `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor"
+    stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
+
+function barList(items, fmtV) {
+  const max = Math.max(...items.map((i) => i.cost), 0.0001);
+  return items.map((i) => `<div class="bar-row">
+    <span class="bl ${i.key === null ? "gone" : ""}">${esc(i.label)}</span>
+    <span class="track"><span class="fill" style="width:${(i.cost / max) * 100}%"></span></span>
+    <span class="bv">${fmtV(i)}</span>
+  </div>`).join("");
+}
+
+function stateBlock(kind, what, emptyT, emptyD) {
+  if (kind === "error") {
+    return `<div class="state-block error"><div class="si">${icon("triangle-alert", 22)}</div>
+      <div class="st">${esc(what)} could not be loaded</div>
+      <div class="sd">The request answered 502. This is not an empty list — nothing has been ruled out,
+        and the other tabs are unaffected: every panel fails alone.</div>
+      <button class="btn small" data-retry="1">Retry</button></div>`;
+  }
+  return `<div class="state-block"><div class="si">${icon("inbox", 22)}</div>
+    <div class="st">${esc(emptyT)}</div><div class="sd">${esc(emptyD)}</div></div>`;
+}
+
+const anno = (paths, missing) => `<div class="chips">
+  ${paths.map((p) => `<span class="chip">${esc(p)}</span>`).join("")}
+  ${(missing || []).map((m) => `<span class="badge-new">${esc(m)}</span>`).join("")}</div>`;
+
+/* ================================================================
+   Render
+   ================================================================ */
+function renderAll() {
+  document.querySelector("main").classList.toggle("clean", current.annotations === "off");
+  document.getElementById("page-sub").textContent =
+    current.identity.sub.replace("{org}", isAllOrgs() ? "Every organization" : current.org.name);
+
+  // Neither member nor viewer holds runs:view, so the sidebar never offers this page.
+  if (!can("runs:view")) { document.getElementById("body").innerHTML = absentPage(); return; }
+
+  // A caller without approvals:decide never lands on a tab they cannot read.
+  if (current.tab === "approvals" && !can("approvals:decide")) current.tab = "runs";
+
+  // A version filter only means something under the agent it belongs to - an
+  // orphaned one would narrow the list from behind a button that is not there.
+  if (current.version) {
+    const a = AGENTS.find((x) => x.id === current.agent);
+    if (!a || !versionsOf(a).map(String).includes(current.version)) current.version = "";
+  }
+
+  const periodRuns = current.state === "empty" ? [] : genRuns(periodRange());
+  const filtered = applyFilters(periodRuns);
+  const approvals = genApprovals();
+
+  document.getElementById("body").innerHTML =
+    orgDivider() + kpis(periodRuns, approvals) + tabStrip(approvals) +
+    (current.tab === "approvals" ? approvalsTab(approvals)
+      : current.tab === "runs" ? runsTab(filtered, periodRuns.length)
+      : spendTab(current.state === "empty" ? [] : genRuns(spendRange())));
+
+  wireOrg();
+  if (current.tab === "approvals") wireApprovalsFilters();
+  if (current.tab === "runs") wireRunsFilters();
+  if (current.tab === "spend") wireSpendFilters();
+  wireTabs();
+}
+
+function absentPage() {
+  return `<div class="absent">
+    <div class="si">${icon("eye-off", 26)}</div>
+    <h3>A ${current.identity.label.toLowerCase()} never sees this page</h3>
+    <p>The sidebar entry gates on <span class="chip">runs:view</span>, and neither
+      <b>member</b> nor <b>viewer</b> holds it in <span class="chip">ROLE_PERMS</span>.
+      There is no stripped-down Activity for them — the link is absent, which is what
+      "not rendered, not disabled" means.</p>
+    <div class="open-q anno">
+      <div class="oqt">The one call this plan asks to be decided</div>
+      <p><b>A member: yes, at <span class="chip">Scope.OWN</span>. A viewer: no, ever.</b>
+        A member holds <span class="chip">agents:run</span>, so a member <em>produces</em> runs —
+        they can start one, be told to wait for an approval, and then see neither. A viewer holds
+        no <span class="chip">agents:run</span> at all, so their Activity would be built from rows
+        they can never produce: structurally empty, which is why it stays absent instead.
+        #37 already reasons this way — it gives a member their own <span class="chip">scope=own</span>
+        activity and gates those cards on <span class="chip">agents:run</span>.</p>
+      <p><b>Not a one-line catalog edit.</b> <span class="chip">require(...)</span> passes at
+        <em>any</em> scope above <span class="chip">Scope.NONE</span>, and
+        <span class="chip">resolve_access</span> reads a scope per <em>row</em> — a list request has
+        none. So adding <span class="chip">runs:view: Scope.OWN</span> and stopping there hands the
+        member the whole organization's runs, and its spend with them. The routes have to narrow the
+        query themselves: own-scoped means <span class="chip">user_id</span> is a floor, not a filter.
+        A change to the permission catalog and two routes, not to this page — out of scope for #45
+        unless it is decided here.</p>
+    </div>
+  </div>`;
+}
+
+function orgDivider() {
+  if (!current.identity.isAppAdmin) return "";
+  const opts = [...ORGS, ALL_ORGS].map((o) =>
+    `<option value="${o.id}"${o.id === current.org.id ? " selected" : ""}>${esc(o.name)}</option>`).join("");
+  return `<div class="org-divider">
+    <span class="od-label">Organization</span>
+    <select class="forg" id="f-org" aria-label="Organization">${opts}</select>
+    <span class="od-note">${isAllOrgs()
+      ? "every organization on the deployment — rows carry the organization they belong to"
+      : "everything below is this organization — only an app admin sees this control"}</span>
+    <span class="chips anno" style="margin-left:auto">
+      <span class="chip">GET /api/v1/admin/organizations</span>
+      <span class="badge-new">"All organizations" needs organization_id on /runs · /approvals · /spend</span></span>
+  </div>`;
+}
+
+/* ---- the three figures ----
+   Each names its own window and is the door to its tab - none of them follow
+   another tab's filters. */
+function kpis(periodRuns, approvals) {
+  const err = current.state === "error";
+  const empty = current.state === "empty";
+  // organizations.monthly_budget_usd is already on GET /orgs/{org_id}.
+  const mtd = err || empty ? 0 : monthToDateSpend();
+  const budget = isAllOrgs() ? null : current.org.budget;
+  const pct = budget && !err && !empty ? Math.round((mtd / budget) * 100) : null;
+  const cards = [
+    { goto: "spend", lbl: "Spend this month", v: err || empty ? "—" : money(mtd),
+      tone: pct === null ? "" : pct >= 90 ? "err" : pct >= 70 ? "warn" : "",
+      sub: pct === null ? "Calendar month, so it reconciles against an invoice."
+        : `Calendar month — ${pct}% of the ${money(budget)} monthly budget.` },
+    { goto: "runs", lbl: isAllOrgs() ? "Runs, all organizations" : "Runs", v: err ? "—" : fmt(periodRuns.length),
+      sub: `${periodLabel()} — the total from the API, not the ${PAGE_SIZE} rows on a page.` },
+  ];
+  if (can("approvals:decide")) {
+    cards.push({ goto: "approvals", lbl: "Waiting on a person", v: err ? "—" : fmt(approvals.length),
+      sub: approvals.length ? "Right now. Oldest has been waiting " + approvals[approvals.length - 1].waited + "." : "Right now. Nothing parked." });
+  }
+  const span = cards.length === 3 ? "s4" : "s6";
+  return `<div class="grid" style="margin-bottom:18px">${cards.map((c) => `<div class="card kpi ${span}"
+    data-goto="${c.goto}" title="Open the ${c.goto} tab">
+    <div class="lbl sub">${esc(c.lbl)}</div>
+    <div class="big" style="margin:2px 0 3px${c.tone ? `;color:var(--${c.tone})` : ""}">${c.v}</div>
+    <div class="sub">${esc(c.sub)}</div></div>`).join("")}</div>`;
+}
+
+function tabStrip(approvals) {
+  const t = (id, label, count) => `<button data-tab="${id}" aria-selected="${current.tab === id}">
+    ${label}${count !== null && current.state !== "error" ? ` <span class="tcount">${count}</span>` : ""}</button>`;
+  // A Builder holds runs:view but not approvals:decide, so GET /approvals would
+  // 403. The tab is absent, and so is its query.
+  return `<div class="tabs">
+    ${can("approvals:decide") ? t("approvals", "Approvals", approvals.length) : ""}
+    ${t("runs", "Runs", null)}
+    ${t("spend", "Spend", null)}
+  </div>`;
+}
+
+/* ---- Approvals ---- */
+function approvalsFilterBar(waitingCount) {
+  const user = current.apUser ? USERS.find((u) => u.id === current.apUser) : null;
+  const dirty = user || current.apSort !== "oldest";
+  return `<div class="filter-bar">
+    <button class="fbtn ${current.apView === "waiting" ? "on" : ""}" data-apview="waiting"
+      aria-pressed="${current.apView === "waiting"}">Waiting
+      <span class="fmuted">${waitingCount}</span></button>
+    <button class="fbtn ${current.apView === "decided" ? "on" : ""}" data-apview="decided"
+      aria-pressed="${current.apView === "decided"}">Decided</button>
+    <div class="fwrap" id="w-apuser">
+      <button class="fbtn ${user ? "on" : ""}" id="f-apuser-btn">Triggered by
+        <span class="fmuted">${user ? esc(user.name) : "Anyone"}</span> <span class="chev">▾</span></button>
+    </div>
+    <div class="fwrap" id="w-apsort">
+      <button class="fbtn ${current.apSort !== "oldest" ? "on" : ""}" id="f-apsort-btn">
+        <span>${current.apSort === "oldest" ? "Oldest first" : "Newest first"}</span>
+        <span class="chev">▾</span></button>
+    </div>
+    ${dirty ? `<button class="fclear" id="f-apclear">Clear filters</button>` : ""}
+    <span class="chips anno" style="margin-left:auto">
+      <span class="badge-new">user_id filter and a sort order do not exist yet on /approvals</span>
+      ${current.apView === "decided"
+        ? `<span class="badge-new">GET /approvals lists pending only — this view needs a status param; ApprovalRead already carries decided_by_user_id &amp; decided_at, but as a bare UUID</span>` : ""}</span>
+  </div>`;
+}
+
+function approvalsTab(queue) {
+  const deciding = current.apView === "waiting";
+  const head = deciding ? `<div class="card-head"><div>
+      <h3>Waiting for a decision</h3>
+      <div class="hd">The queue drains from the top — oldest first, unless you flip it. The agent,
+        the person whose run parked, and the arguments in full: approving a tool name without
+        seeing what it will do is a rubber stamp, not approval. Nothing ages out of this queue,
+        so a call waiting past a day wears the loud tone.</div>
+    </div>${anno(["GET /api/v1/approvals"], ["ApprovalRead carries no agent name and no triggering user",
+      "ApprovalStatus.EXPIRED is never assigned — the queue has no ceiling"])}</div>`
+  : `<div class="card-head"><div>
+      <h3>Already decided</h3>
+      <div class="hd">The record behind the queue: who approved what, and how long the call sat
+        first. A decision is final — a second decision on a decided approval is one of the things
+        this platform refuses — so this view has no buttons, only accountability.</div>
+    </div>${anno(["GET /api/v1/approvals"], ["ApprovalRead carries no agent name and no triggering user",
+      "ApprovalStatus.EXPIRED is never assigned — the queue has no ceiling"])}</div>`;
+  const bar = approvalsFilterBar(queue.length);
+
+  const rows = deciding ? queue : genDecided();
+  const list = rows
+    .filter((a) => !current.apUser || a.run.user?.id === current.apUser)
+    .sort((a, b) => current.apSort === "oldest" ? a.run.started - b.run.started : b.run.started - a.run.started);
+
+  const byTook = [...rows].sort((x, y) => x.tookH - y.tookH);
+  const median = !deciding && rows.length
+    ? `<div class="sub" style="margin-bottom:10px">Median time to a decision this month:
+        <b>${esc(byTook[Math.floor(byTook.length / 2)].took)}</b> — the queue up top is what is left.</div>` : "";
+
+  let body;
+  if (current.state === "error") body = stateBlock("error", "The approval queue");
+  else if (!rows.length) body = deciding
+    ? stateBlock("empty", "", "Nothing waiting",
+      "Every parked call has been decided. This panel earns its place by being empty.")
+    : stateBlock("empty", "", "Nothing decided yet",
+      "The first Approve or Reject lands here, with who decided it and how long it sat.");
+  else if (!list.length) body = stateBlock("empty", "", "No approvals match",
+    "Nothing this person's runs parked is here — widen the filter, or clear it.");
+  else body = median + list.map((a) => `<div class="approval">
+    <div class="approval-head">
+      <span class="tn">${esc(a.tool)}</span>
+      ${deciding
+        ? `<span class="pill ${a.waitedH >= 24 ? "err" : "warn"}">waiting ${esc(a.waited)}</span>`
+        : `<span class="pill ${a.decision === "approved" ? "ok" : "err"}">${a.decision}</span>`}
+      <span class="sub" style="margin-left:auto">${esc(fmtStamp(a.run.started))}</span>
+    </div>
+    <div class="meta">
+      <span>agent <b>${esc(a.run.agent.name)}</b> <span class="pill">v${a.run.version}</span></span>
+      <span>triggered by <b>${a.run.user ? esc(a.run.user.name) : "nobody — " + esc(a.run.surface)}</b></span>
+      ${deciding ? "" : `<span>decided by <b>${esc(a.decidedBy.name)}</b> after <b>${esc(a.took)}</b></span>`}
+      ${isAllOrgs() ? `<span>in <b>${esc(orgOf(a.run.org).name)}</b></span>` : ""}
+      <span>run <b class="mono">${esc(a.run.id)}</b></span>
+    </div>
+    <div class="tool">
+      <div class="pre-label">Arguments</div>
+      <pre>${esc(JSON.stringify(a.args, null, 2))}</pre>
+    </div>
+    ${deciding ? `<div class="acts">
+      <button class="btn primary small">${icon("circle-check", 13)} Approve</button>
+      <button class="btn small">Reject</button>
+    </div>` : ""}
+  </div>`).join("");
+
+  return `<div class="card">${head}${bar}${body}
+    <div class="card-foot"><span class="gate">shown because: approvals:decide</span>
+      <span class="gate">absent without it — the tab, the query and these buttons</span></div></div>`;
+}
+
+/* ---- Runs ---- */
+function runsFilterBar() {
+  const nStatus = current.status ? current.status.size : 0;
+  const nSurface = current.surface ? current.surface.size : 0;
+  const agent = current.agent ? AGENTS.find((a) => a.id === current.agent) : null;
+  const user = current.user ? USERS.find((u) => u.id === current.user) : null;
+  const exposure = current.exposure ? EXPOSURES.find((x) => x.id === current.exposure) : null;
+  const dirty = nStatus || nSurface || agent || user || exposure || current.env ||
+    current.version || current.period.preset !== "30d";
+
+  return `<div class="filter-bar">
+    <div class="fwrap" id="w-period">
+      <button class="fbtn ${current.period.preset !== "30d" ? "on" : ""}" id="f-period-btn">${icon("calendar", 14)}
+        <span>${esc(periodLabel())}</span> <span class="chev">▾</span></button>
+    </div>
+    <div class="fwrap" id="w-status">
+      <button class="fbtn ${nStatus ? "on" : ""}" id="f-status-btn">Status
+        <span class="fmuted">${nStatus ? nStatus + " of " + STATUSES.length : "Any"}</span>
+        <span class="chev">▾</span></button>
+    </div>
+    <div class="fwrap" id="w-surface">
+      <button class="fbtn ${nSurface ? "on" : ""}" id="f-surface-btn">Surface
+        <span class="fmuted">${nSurface ? nSurface + " of " + SURFACES.length : "Any"}</span>
+        <span class="chev">▾</span></button>
+    </div>
+    <div class="fwrap" id="w-exposure">
+      <button class="fbtn ${exposure ? "on" : ""}" id="f-exposure-btn">Channel
+        <span class="fmuted">${exposure ? esc(exposure.name.split(" — ")[0]) : "Any"}</span>
+        <span class="chev">▾</span></button>
+    </div>
+    <div class="fwrap" id="w-agent">
+      <button class="fbtn ${agent ? "on" : ""}" id="f-agent-btn">Agent
+        <span class="fmuted">${agent ? esc(agent.name) : "Any"}</span> <span class="chev">▾</span></button>
+    </div>
+    ${agent ? `<div class="fwrap" id="w-version">
+      <button class="fbtn ${current.version ? "on" : ""}" id="f-version-btn">Version
+        <span class="fmuted">${current.version ? "v" + current.version : "Any"}</span>
+        <span class="chev">▾</span></button>
+    </div>` : ""}
+    <div class="fwrap" id="w-user">
+      <button class="fbtn ${user ? "on" : ""}" id="f-user-btn">Triggered by
+        <span class="fmuted">${user ? esc(user.name) : "Anyone"}</span> <span class="chev">▾</span></button>
+    </div>
+    <div class="fwrap" id="w-env">
+      <button class="fbtn ${current.env ? "on" : ""}" id="f-env-btn">Environment
+        <span class="fmuted">${current.env || "Any"}</span> <span class="chev">▾</span></button>
+    </div>
+    ${dirty ? `<button class="fclear" id="f-clear">Clear filters</button>` : ""}
+  </div>`;
+}
+
+/* Fed by /stats/usage?group_by=version, which the dashboard builds - not by a
+   second aggregate on /runs. */
+function versionStrip() {
+  if (!current.agent || current.state !== "normal") return "";
+  const agent = AGENTS.find((a) => a.id === current.agent);
+  const mine = genRuns(periodRange()).filter((r) => r.agent.id === current.agent);
+  if (!mine.length) return "";
+  const chips = versionsOf(agent).map((v) => {
+    const runs = mine.filter((r) => r.version === v);
+    if (!runs.length) return "";
+    const done = runs.filter((r) => r.ms !== null);
+    const ok = done.length ? Math.round((runs.filter((r) => r.status === "completed").length / done.length) * 100) : null;
+    const p50 = done.length ? (done.map((r) => r.ms).sort((a, b) => a - b)[Math.floor(done.length / 2)] / 1000).toFixed(1) : null;
+    const cost = runs.reduce((a, r) => a + r.cost, 0) / runs.length;
+    return `<button class="vchip" data-ver="${v}" aria-pressed="${String(v) === current.version}">
+      <b>v${v}</b>${v === agent.version ? ` <span class="sub">current</span>` : ""}
+      <span class="vm">${fmt(runs.length)} runs · ${ok === null ? "—" : ok + "% ok"} ·
+        p50 ${p50 === null ? "—" : p50 + "s"} · ${money(cost)}/run</span></button>`;
+  }).join("");
+  return `<div class="vstrip">
+    <span class="sub">How its versions behaved in this period — pick one to see its runs</span>
+    <div class="vchips">${chips}</div>
+    <span class="chips anno"><span class="chip">GET /api/v1/stats/usage?group_by=version</span>
+      <span class="badge-new">#37 builds it for the dashboard — this strip is its second consumer</span></span>
+  </div>`;
+}
+
+function applyFilters(runs) {
+  return runs.filter((r) =>
+    (!current.status || current.status.has(r.status)) &&
+    (!current.surface || current.surface.has(r.surface)) &&
+    (!current.agent || r.agent.id === current.agent) &&
+    (!current.user || r.user?.id === current.user) &&
+    (!current.env || r.env === current.env) &&
+    (!current.exposure || r.exposure?.id === current.exposure) &&
+    (!current.version || String(r.version) === current.version));
+}
+
+function runsTab(rows, total) {
+  const head = `<div class="card-head"><div>
+      <h3>Run history</h3>
+      <div class="hd">Every run records the agent <em>version</em> it executed, so what happened
+        last week stays answerable after the agent has been rewritten.</div>
+    </div>${anno(["GET /api/v1/runs?skip&limit&agent_id"],
+      ["status, surface, user, date range, environment, channel and version do not exist yet as params",
+       "embed & mattermost need the recording widening #37 settled — today they are stamped web / api"])}</div>`;
+  const filters = runsFilterBar() + versionStrip();
+
+  if (current.state === "error") {
+    return `<div class="card">${head}${filters}${stateBlock("error", "Run history")}
+      <div class="card-foot"><span class="gate">shown because: runs:view</span></div></div>`;
+  }
+  if (!rows.length) {
+    const narrowed = current.status || current.surface || current.agent || current.user ||
+      current.env || current.exposure || current.version;
+    return `<div class="card">${head}${filters}${stateBlock("empty", "",
+      narrowed ? "No runs match these filters" : "No runs in this period",
+      narrowed ? "Widen the filters, or clear them — the period counts as one."
+        : "Publish an agent and give it a surface; runs land here as they happen.")}
+      <div class="card-foot"><span class="gate">shown because: runs:view</span></div></div>`;
+  }
+
+  const start = (current.page - 1) * PAGE_SIZE;
+  const page = rows.slice(start, start + PAGE_SIZE);
+  const pages = Math.ceil(rows.length / PAGE_SIZE);
+
+  return `<div class="card">${head}${filters}
+    <div class="tscroll"><table class="runs">
+      <thead><tr>
+        <th>Status</th>${isAllOrgs() ? "<th>Organization</th>" : ""}<th>Agent</th>
+        <th>Surface</th><th>Triggered by</th><th>Model</th>
+        <th class="num">Tokens</th><th class="num">Cost</th><th class="num">Took</th><th>Started</th>
+      </tr></thead>
+      <tbody>${page.map(runRow).join("")}</tbody>
+    </table></div>
+    <div class="legend">
+      <span><span class="floor">≥</span> a model in the run had no price, so the cost is a floor</span>
+      <span>Select a row for the steps it took.</span>
+    </div>
+    <div class="pager">
+      <span>Showing <b>${fmt(start + 1)}–${fmt(start + page.length)}</b> of <b>${fmt(rows.length)}</b>${
+        rows.length !== total ? ` <span class="sub">(filtered from ${fmt(total)})</span>` : ""}</span>
+      <span class="spacer"></span>
+      <button class="btn small" data-page="prev"${current.page === 1 ? " disabled" : ""}>Previous</button>
+      <span>Page <b>${current.page}</b> of <b>${fmt(pages)}</b></span>
+      <button class="btn small" data-page="next"${current.page >= pages ? " disabled" : ""}>Next</button>
+    </div>
+    ${current.openRun ? runDetail(rows.find((r) => r.id === current.openRun)) : ""}
+    <div class="card-foot"><span class="gate">shown because: runs:view</span>
+      <span class="gate">rows are the organization's, whoever ran them</span></div>
+  </div>`;
+}
+
+function runRow(r) {
+  const s = statusOf(r.status);
+  return `<tr data-run="${r.id}" aria-selected="${current.openRun === r.id}">
+    <td><span style="display:inline-flex;align-items:center"><span class="dot ${s.cls}"></span>${s.label}</span></td>
+    ${isAllOrgs() ? `<td>${esc(orgOf(r.org).name)}</td>` : ""}
+    <td>${esc(r.agent.name)} <span class="sub">v${r.version}</span></td>
+    <td class="sub">${r.surface}${r.env === "staging" ? ` <span class="pill">staging</span>` : ""}</td>
+    <td class="sub">${r.user ? esc(r.user.name.split("@")[0]) : "—"}</td>
+    <td class="mono">${r.model}</td>
+    <td class="num">${fmt(r.tin + r.tout)}</td>
+    <td class="num">${costCell(r)}</td>
+    <td class="num">${r.ms === null ? "—" : (r.ms / 1000).toFixed(1) + "s"}</td>
+    <td class="sub">${fmtStamp(r.started)}</td>
+  </tr>`;
+}
+
+/**
+ * The drill-down, from our own rows - not a link into Logfire.
+ *
+ * Three cases, each of which says which one it is: the steps we recorded, a run
+ * whose messages predate `messages.run_id`, and a surface that never had a
+ * conversation to record.
+ */
+function runDetail(r) {
+  if (!r) return "";
+  const s = statusOf(r.status);
+  const facts = [
+    ["Run", `<span class="mono">${r.id}</span>`],
+    // The version comes from the run row - agent_runs.agent_version_id - so it
+    // is there even when the transcript is not.
+    ["Agent", `${esc(r.agent.name)} <span class="sub">v${r.version}</span>`],
+    ["Triggered by", r.user ? esc(r.user.name) : `<span class="sub">nobody — ${r.surface}</span>`],
+    ["Surface", r.surface + (r.exposure ? ` <span class="sub">via ${esc(r.exposure.name)}</span>` : "")],
+    ["Environment", r.env],
+    ["Model", `<span class="mono">${r.model}</span>`],
+    ["Tokens", `${fmt(r.tin)} in / ${fmt(r.tout)} out`],
+    ["Cost", costCell(r)],
+    ["Took", r.ms === null ? "—" : (r.ms / 1000).toFixed(1) + "s"],
+  ].map(([k, v]) => `<div class="fact"><dt>${esc(k)}</dt><dd>${v}</dd></div>`).join("");
+
+  const err = r.error ? `<div class="state-block ${r.status === "failed" ? "error" : ""}"
+      style="text-align:left;padding:10px 12px;margin-bottom:12px;${r.status === "budget_exceeded"
+        ? "background:var(--warn-bg);border:1px dashed oklch(62% 0.136 68 / 0.3);border-radius:8px" : ""}">
+      <div class="st" style="${r.status === "budget_exceeded" ? "color:var(--warn)" : ""}">${
+        r.status === "budget_exceeded" ? "Stopped by budget — the platform working, not a malfunction" : "Failed"}</div>
+      <div class="sd mono" style="margin:3px 0 0;max-width:none">${esc(r.error)}</div></div>` : "";
+
+  let body, missing = [];
+  if (!r.conversation) {
+    body = `<div class="notice">The <b>${r.surface}</b> surface ran this without a conversation,
+      so there is no transcript to show. Status, cost and any error are all there is — and all
+      there ever was.</div>`;
+  } else if (r.started < RUN_ID_SINCE) {
+    body = `<div class="notice">Steps were not recorded for runs before
+      <b>${fmtDay(RUN_ID_SINCE)}</b>, when <span class="chip">messages.run_id</span> started being
+      written. The run and its cost are complete; the transcript exists but is not linked to this
+      run. <a href="#">Open conversation ${r.conversation}</a> to read the whole thread.</div>`;
+    missing = ["messages.run_id"];
+  } else {
+    const sc = r.script;
+    const toolStatus = r.status === "failed" ? "failed" : r.status === "awaiting_approval" ? "pending" : "completed";
+    body = `<ol class="steps">
+      <li class="step"><span class="who">user</span><p class="say">${esc(sc.ask)}</p></li>
+      <li class="step"><span class="who">assistant · v${r.agent.version}</span>
+        ${toolStatus === "completed" && sc.say ? `<p class="say">${esc(sc.say)}</p>` : ""}
+        ${sc.think ? `<p class="think">${esc(sc.think)}</p>` : ""}
+        <div class="tool">
+          <div class="tool-head">
+            <span class="tn">${esc(sc.tool)}</span>
+            <span class="pill ${toolStatus === "completed" ? "ok" : toolStatus === "failed" ? "err" : "warn"}">${toolStatus}</span>
+            <span class="sub">${toolStatus === "pending" ? "not run yet" : sc.ms + " ms"}</span>
+          </div>
+          <div class="pre-label">Arguments</div><pre>${esc(JSON.stringify(sc.args, null, 2))}</pre>
+          ${toolStatus === "pending" ? ""
+            : `<div class="pre-label">Result</div><pre>${esc(toolStatus === "failed"
+              ? "HTTP 503 Service Unavailable (attempt 3/3)" : sc.result)}</pre>`}
+        </div>
+        ${toolStatus === "pending" ? `<p class="sub" style="margin-top:8px">Parked — it is in the
+          Approvals tab, and nothing else in this run has happened yet.</p>` : ""}
+      </li></ol>`;
+    missing = ["messages.run_id"];
+  }
+
+  return `<div class="detail">
+    <div class="detail-head">
+      <div><h4><span class="dot ${s.cls}"></span>What this run did</h4>
+        <div class="sub" style="margin-top:3px">Assembled from
+          <span class="chip">agent_runs</span> <span class="chip">messages</span>
+          <span class="chip">tool_calls</span> — no Logfire in the path.</div></div>
+      ${anno(["GET /api/v1/conversations/{id}/messages"], missing)}
+    </div>
+    <dl class="facts">${facts}</dl>
+    ${err}${body}
+  </div>`;
+}
+
+/* ---- Spend ---- */
+function spendFilterBar(runs = []) {
+  // cost_is_partial is stored per run; /spend returns no count of them.
+  const partial = runs.filter((r) => r.partial).length;
+  return `<div class="filter-bar">
+    <div class="fwrap" id="w-spendwin">
+      <button class="fbtn ${current.spendPeriod.preset !== "30d" ? "on" : ""}" id="f-spend-period-btn">${icon("calendar", 14)}
+        <span>${esc(labelOfPeriod(current.spendPeriod))}</span> <span class="chev">▾</span></button>
+    </div>
+    <span class="fnote">Month-to-date up top ignores this range; it stays calendar-aligned.${
+      partial ? ` <b>${fmt(partial)}</b> of ${fmt(runs.length)} runs have no metered price — every total below is a floor.` : ""}</span>
+    <span class="chips anno" style="margin-left:auto">
+      <span class="badge-new">/spend takes days=1..365 — month presets and a custom range need from &amp; to</span>
+      ${partial ? `<span class="badge-new">cost_is_partial is stored per run; /spend does not return a count</span>` : ""}</span>
+  </div>`;
+}
+
+function spendTab(runs) {
+  const head = (title, hd, paths, missing) => `<div class="card-head"><div><h3>${esc(title)}</h3>
+    <div class="hd">${hd}</div></div>${anno(paths, missing)}</div>`;
+
+  if (current.state === "error") {
+    return `<div class="card">${head("Spend", "Where the money went.", ["GET /api/v1/spend?days"])}
+      ${spendFilterBar()}${stateBlock("error", "The cost breakdown")}
+      <div class="card-foot"><span class="gate">shown because: runs:view</span></div></div>`;
+  }
+  if (!runs.length) {
+    return `<div class="card">${head("Spend", "Where the money went.", ["GET /api/v1/spend?days"])}
+      ${spendFilterBar()}${stateBlock("empty", "", "Nothing spent yet", "Model cost lands here run by run.")}
+      <div class="card-foot"><span class="gate">shown because: runs:view</span></div></div>`;
+  }
+
+  const sp = genSpend(runs);
+  const fmtV = (i) => `${i.partial ? `<span class="floor">≥ ${money(i.cost)}</span>` : money(i.cost)}
+    <span class="sub"> · ${fmt(i.runs)}</span>`;
+
+  // Caps are calendar-month, so the meter reads month-to-date whatever range
+  // the tab is showing.
+  const mtdByAgent = new Map();
+  for (const r of genRuns(monthToDate())) {
+    mtdByAgent.set(r.agent.name, (mtdByAgent.get(r.agent.name) || 0) + r.cost);
+  }
+  const agentTiles = sp.byAgent.map((e) => {
+    const a = AGENTS.find((x) => x.name === e.key);
+    const p = a && a.cap !== null ? Math.round(((mtdByAgent.get(e.key) || 0) * 1.15 / a.cap) * 100) : null;
+    const tone = p === null ? null : p >= 90 ? "var(--err)" : p >= 70 ? "var(--warn)" : "var(--chart-1)";
+    return `<div class="atile">
+      <div class="an" title="${esc(e.key)}">${esc(e.key)}</div>
+      <div class="av">${e.partial
+        ? `<span class="floor" title="A model in these runs had no price, so this is a floor">≥<span class="fsr">
+            (at least — a model in these runs had no price)</span></span> ` : ""}${money(e.cost)}
+        <span class="sub">· ${fmt(e.runs)} runs</span></div>
+      ${p === null
+        ? `<div class="cap" style="margin-top:12px">No monthly cap — nothing to read this against.</div>`
+        : `<span class="track"><span class="fill" style="width:${Math.min(p, 100)}%;background:${tone}"></span></span>
+           <div class="cap"><b style="${p >= 70 ? `color:${tone};` : ""}font-weight:600">${p}%</b>
+             of its ${money(a.cap)} cap this month</div>`}
+    </div>`;
+  }).join("");
+
+  return spendFilterBar(runs) + `<div class="grid">
+    ${isAllOrgs() ? `<div class="card s12">
+      ${head("By organization", "Which tenant the deployment's money went to — the same rows, cut at the boundary only an app admin can see across.",
+        ["GET /api/v1/spend?days"], ["the all-organizations variant of /spend does not exist (§6a)"])}
+      ${barList(sp.byOrg.map((e) => ({ ...e, label: e.key })), fmtV)}
+      <div class="card-foot"><span class="gate">shown because: is_app_admin</span></div>
+    </div>` : ""}
+    <div class="card s6">
+      ${head("By provider", "What each vendor was paid — the number an invoice is checked against.",
+        ["GET /api/v1/spend?days"])}
+      ${barList(sp.byProvider.map((e) => ({ ...e, label: e.key ?? "Not recorded" })), fmtV)}
+      <div class="card-foot"><span class="gate">shown because: runs:view</span></div>
+    </div>
+    <div class="card s6">
+      ${head("By key", "Which stored credential it was spent through. A key you do not recognise here is one to rotate.",
+        ["GET /api/v1/spend?days"])}
+      ${barList(sp.byKey.map((e) => ({ ...e, label: e.key ?? "Deleted key" })), fmtV)}
+      <div class="card-foot"><span class="gate">shown because: runs:view</span></div>
+    </div>
+    <div class="card s12">
+      ${head("By agent", `The big number is what the agent spent in the range above; the meter reads
+        it against the agent's own monthly cap, which is calendar-aligned whatever the range says.
+        <span class="anno">Named, because a breakdown called "by agent" should list agents — today's
+        page lists model labels, because CostByAgent carries no name.</span>`,
+        ["GET /api/v1/spend?days"], ["CostByAgent carries agent_id but no name",
+          "and no cap — needs budget.monthly_usd from the spec, and a month-to-date figure"])}
+      <div class="agent-tiles">${agentTiles}</div>
+      <div class="card-foot"><span class="gate">shown because: runs:view</span>
+        <span class="gate">spend: ${esc(labelOfPeriod(current.spendPeriod))} — caps: this month</span></div>
+    </div>
+  </div>`;
+}
+
+/* ================================================================
+   Wiring
+   ================================================================ */
+function closePopovers() { document.querySelectorAll(".popover").forEach((p) => p.remove()); }
+document.addEventListener("click", (e) => {
+  // A click that repainted the popover bubbles here from a detached node -
+  // that is an inside click, not an outside one.
+  if (!e.target.isConnected) return;
+  if (!e.target.closest(".fwrap")) closePopovers();
+});
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closePopovers(); });
+
+function repaint({ resetPage = true } = {}) {
+  if (resetPage) { current.page = 1; current.openRun = null; }
+  writeHash(); closePopovers(); renderAll();
+}
+
+function wireTabs() {
+  document.querySelectorAll("[data-tab]").forEach((b) => b.addEventListener("click", () => {
+    current.tab = b.dataset.tab; repaint();
+  }));
+  document.querySelectorAll("[data-goto]").forEach((c) => c.addEventListener("click", () => {
+    current.tab = c.dataset.goto; repaint();
+  }));
+  document.querySelectorAll("[data-page]").forEach((b) => b.addEventListener("click", () => {
+    current.page += b.dataset.page === "next" ? 1 : -1;
+    current.openRun = null; writeHash(); renderAll();
+  }));
+  document.querySelectorAll("tr[data-run]").forEach((tr) => tr.addEventListener("click", () => {
+    current.openRun = current.openRun === tr.dataset.run ? null : tr.dataset.run;
+    writeHash(); renderAll();
+  }));
+  document.querySelectorAll("[data-retry]").forEach((b) => b.addEventListener("click", () => {
+    current.state = "normal"; repaint();
+  }));
+}
+
+function wireOrg() {
+  const org = document.getElementById("f-org");
+  if (!org) return;
+  org.addEventListener("change", () => {
+    current.org = org.value === "all" ? ALL_ORGS : ORGS.find((o) => o.id === org.value);
+    // The agent, user and channel pickers list this organization's rows only.
+    current.agent = ""; current.user = ""; current.apUser = "";
+    current.exposure = ""; current.version = "";
+    repaint();
+  });
+}
+
+function wireApprovalsFilters() {
+  document.querySelectorAll("[data-apview]").forEach((b) => b.addEventListener("click", () => {
+    current.apView = b.dataset.apview; repaint();
+  }));
+  const clear = document.getElementById("f-apclear");
+  if (clear) clear.addEventListener("click", () => {
+    current.apUser = ""; current.apSort = "oldest";
+    repaint();
+  });
+  bindSingle("f-apuser-btn", "w-apuser", "apUser", "Anyone",
+    (isAllOrgs() ? USERS : USERS.filter((u) => u.org === current.org.id)).map((u) => [u.id, u.name]));
+  bindSingle("f-apsort-btn", "w-apsort", "apSort", null,
+    [["oldest", "Oldest first"], ["newest", "Newest first"]]);
+}
+
+function wireRunsFilters() {
+  const clear = document.getElementById("f-clear");
+  if (clear) clear.addEventListener("click", () => {
+    current.status = null; current.surface = null; current.agent = ""; current.user = "";
+    current.env = ""; current.exposure = ""; current.version = "";
+    current.period = { preset: "30d" };
+    repaint();
+  });
+
+  document.getElementById("f-period-btn").addEventListener("click",
+    () => togglePeriodPopover("period", "w-period"));
+  bindMulti("f-status-btn", "w-status", "status",
+    STATUSES.map((s) => [s.id, s.label, s.cls]));
+  bindMulti("f-surface-btn", "w-surface", "surface", SURFACES.map((s) => [s, s, null]));
+  bindSingle("f-exposure-btn", "w-exposure", "exposure", "Any channel",
+    (isAllOrgs() ? EXPOSURES : EXPOSURES.filter((x) => x.org === current.org.id)).map((x) => [x.id, x.name]));
+  // Switching agents drops the version pick - a v3 filter under another agent
+  // would be a different v3.
+  bindSingle("f-agent-btn", "w-agent", "agent", "Any agent",
+    (isAllOrgs() ? AGENTS : AGENTS.filter((a) => a.org === current.org.id)).map((a) => [a.id, a.name]),
+    () => { current.version = ""; });
+  if (current.agent) {
+    const a = AGENTS.find((x) => x.id === current.agent);
+    bindSingle("f-version-btn", "w-version", "version", "Any version",
+      versionsOf(a).map((v) => [String(v), "v" + v]));
+  }
+  bindSingle("f-user-btn", "w-user", "user", "Anyone",
+    (isAllOrgs() ? USERS : USERS.filter((u) => u.org === current.org.id)).map((u) => [u.id, u.name]));
+  bindSingle("f-env-btn", "w-env", "env", "Any environment",
+    ENVIRONMENTS.map((e) => [e, e]));
+  document.querySelectorAll("[data-ver]").forEach((b) => b.addEventListener("click", () => {
+    current.version = current.version === b.dataset.ver ? "" : b.dataset.ver;
+    repaint();
+  }));
+}
+
+function wireSpendFilters() {
+  document.getElementById("f-spend-period-btn").addEventListener("click",
+    () => togglePeriodPopover("spendPeriod", "w-spendwin"));
+}
+
+/** A multi-select dropdown. No selection means every value, never none. */
+function bindMulti(btnId, wrapId, key, items) {
+  document.getElementById(btnId).addEventListener("click", () => {
+    const wrap = document.getElementById(wrapId);
+    if (wrap.querySelector(".popover")) { closePopovers(); return; }
+    closePopovers();
+    const pop = document.createElement("div");
+    pop.className = "popover";
+    const sel = current[key];
+    pop.innerHTML = `<div class="checks">
+      ${items.map(([id, label, cls]) => `<label><input type="checkbox" data-id="${id}"${
+        !sel || sel.has(id) ? " checked" : ""}>${cls ? `<span class="dot ${cls}"></span>` : ""}${esc(label)}</label>`).join("")}
+      <div class="sep"></div>
+      <label style="color:var(--brand);font-weight:600" data-all="1">Any ${key}</label></div>`;
+    wrap.appendChild(pop);
+    pop.querySelector("[data-all]").addEventListener("click", () => { current[key] = null; repaint(); });
+    pop.querySelectorAll("input").forEach((cb) => cb.addEventListener("change", () => {
+      const all = items.map(([id]) => id);
+      const set = current[key] ? new Set(current[key]) : new Set(all);
+      if (cb.checked) set.add(cb.dataset.id); else set.delete(cb.dataset.id);
+      // Filtering down to nothing is never what somebody meant.
+      if (!set.size) { cb.checked = true; return; }
+      current[key] = set.size === all.length ? null : set;
+      repaint();
+    }));
+  });
+}
+
+/** A single-select dropdown. anyLabel adds an explicit "any" row rather than
+ *  a blank one; null means the choice always has a value (a sort order).
+ *  onSet runs after a pick, for filters that depend on this one. */
+function bindSingle(btnId, wrapId, key, anyLabel, items, onSet) {
+  document.getElementById(btnId).addEventListener("click", () => {
+    const wrap = document.getElementById(wrapId);
+    if (wrap.querySelector(".popover")) { closePopovers(); return; }
+    closePopovers();
+    const pop = document.createElement("div");
+    pop.className = "popover";
+    pop.innerHTML = `<div class="pop-list">
+      ${anyLabel === null ? "" : `<button aria-pressed="${current[key] === ""}" data-id="">${esc(anyLabel)}</button>`}
+      ${items.map(([id, label]) => `<button aria-pressed="${current[key] === id}" data-id="${id}">${esc(label)}</button>`).join("")}</div>`;
+    wrap.appendChild(pop);
+    pop.querySelectorAll("button").forEach((b) =>
+      b.addEventListener("click", () => { current[key] = b.dataset.id; if (onSet) onSet(); repaint(); }));
+  });
+}
+
+/* ---- the date-range popover: presets on the left, two months on the right.
+   One component, bound to whichever period the opening tab owns. ---- */
+let calView = null;    // first day of the RIGHT-hand month
+let calPending = null; // first click of a custom range
+let calKey = null;     // "period" (runs) or "spendPeriod" (spend)
+
+function togglePeriodPopover(key, wrapId) {
+  const wrap = document.getElementById(wrapId);
+  if (wrap.querySelector(".popover")) { closePopovers(); return; }
+  closePopovers();
+  calKey = key;
+  const [, to] = rangeOfPeriod(current[key]);
+  calView = new Date(to.getFullYear(), to.getMonth(), 1);
+  calPending = null;
+  const pop = document.createElement("div");
+  pop.className = "popover";
+  wrap.appendChild(pop);
+  paintPeriod(pop);
+}
+
+function paintPeriod(pop) {
+  pop.innerHTML = `<div class="pop-presets">${PRESETS.map((p) =>
+      `<button aria-pressed="${current[calKey].preset === p.id}" data-id="${p.id}">${p.label}</button>`).join("")}</div>
+    <div class="cal">${calMonth(addMonths(calView, -1), "left")}${calMonth(calView, "right")}</div>`;
+  pop.querySelectorAll(".pop-presets button").forEach((b) =>
+    b.addEventListener("click", () => { current[calKey] = { preset: b.dataset.id }; repaint(); }));
+  pop.querySelector(".cal-nav.prev").addEventListener("click", () => { calView = addMonths(calView, -1); paintPeriod(pop); });
+  const next = pop.querySelector(".cal-nav.next");
+  if (next) next.addEventListener("click", () => { calView = addMonths(calView, 1); paintPeriod(pop); });
+  pop.querySelectorAll("button.day:not([disabled])").forEach((b) => b.addEventListener("click", () => {
+    const d = parseIsoDay(b.dataset.date);
+    if (!calPending) { calPending = d; paintPeriod(pop); return; }
+    const [from, to] = calPending <= d ? [calPending, d] : [d, calPending];
+    calPending = null;
+    current[calKey] = { from: isoDay(from), to: isoDay(to) };
+    repaint();
+  }));
+}
+
+function calMonth(first, side) {
+  const t = today0();
+  // While a start day is pending it is the whole highlight; otherwise the active range is.
+  const [selFrom, selTo] = calPending ? [calPending, calPending] : rangeOfPeriod(current[calKey]);
+  const gridStart = addDays(first, -((first.getDay() + 6) % 7)); // Monday-first
+  let days = "";
+  for (let i = 0; i < 42; i++) {
+    const d = addDays(gridStart, i);
+    const out = d.getMonth() !== first.getMonth();
+    const dead = out || d > t;
+    const isStart = !dead && +d === +selFrom;
+    const isEnd = !dead && +d === +selTo;
+    const inRange = !dead && d > selFrom && d < selTo;
+    const cls = ["day", inRange ? "in" : "", isStart || isEnd ? "edge" : "",
+      isStart ? "start" : "", isEnd ? "end" : ""].filter(Boolean).join(" ");
+    days += `<button class="${cls}" data-date="${isoDay(d)}"${dead ? " disabled" : ""}>${d.getDate()}</button>`;
+  }
+  const atNow = first.getFullYear() === t.getFullYear() && first.getMonth() === t.getMonth();
+  const nav = side === "left"
+    ? `<button class="cal-nav prev" aria-label="Previous month">‹</button>`
+    : `<button class="cal-nav next" aria-label="Next month"${atNow ? " disabled" : ""}>›</button>`;
+  const dows = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].map((x) => `<span class="dow">${x}</span>`).join("");
+  const title = first.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+  return `<div class="cal-month"><div class="cal-head">${nav}${title}</div><div class="cal-grid">${dows}${days}</div></div>`;
+}
+
+/* ---- demo controls ---- */
+function seg(el, items, getId, isActive, onPick, dim) {
+  el.innerHTML = items.map((it) => `<button class="${dim && dim(it) ? "dim" : ""}"
+    aria-pressed="${isActive(it)}" data-id="${getId(it)}">${it.label}</button>`).join("");
+  el.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
+    onPick(b.dataset.id); writeHash(); renderControls(); renderAll();
+  }));
+}
+
+function renderControls() {
+  const groupsEl = document.getElementById("identity-groups");
+  const audiences = [...new Set(IDENTITIES.map((i) => i.audience))];
+  groupsEl.innerHTML = audiences.map((a) => `<div class="identity-group"><div class="ig-label">${a}</div>
+    <div class="seg" data-audience="${a}"></div></div>`).join("");
+  audiences.forEach((a) => {
+    seg(groupsEl.querySelector(`[data-audience="${a}"]`), IDENTITIES.filter((i) => i.audience === a),
+      (i) => i.id, (i) => i.id === current.identity.id,
+      (id) => {
+        current.identity = IDENTITIES.find((i) => i.id === id);
+        if (!current.identity.isAppAdmin && current.org.id === "all") current.org = ORGS[0];
+        current.page = 1; current.openRun = null;
+      },
+      // Muted rather than brand-coloured: these two see no version of the page.
+      (i) => !(i.isAppAdmin || (ROLE_PERMS[i.role] || []).includes("runs:view")));
+  });
+  seg(document.getElementById("state-seg"), STATES, (s) => s.id, (s) => s.id === current.state, (id) => { current.state = id; });
+  seg(document.getElementById("annot-seg"), ANNOTATIONS, (a) => a.id, (a) => a.id === current.annotations, (id) => { current.annotations = id; });
+}
+
+readHash();
+renderControls();
+renderAll();
+</script>
+</body>
+</html>
