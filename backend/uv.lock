@@ -120,7 +120,7 @@ requires-dist = [
     { name = "slack-sdk", specifier = ">=3.35.0" },
     { name = "slowapi", specifier = ">=0.1.9" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.51" },
-    { name = "subagents-pydantic-ai", specifier = ">=0.2.16" },
+    { name = "subagents-pydantic-ai", specifier = ">=0.2.18" },
     { name = "tabulate", specifier = ">=0.9.0" },
     { name = "tavily-python", specifier = ">=0.7.27" },
     { name = "tqdm", specifier = ">=4.70.0" },
@@ -4937,16 +4937,16 @@ wheels = [
 
 [[package]]
 name = "subagents-pydantic-ai"
-version = "0.2.16"
+version = "0.2.18"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
     { name = "pydantic-ai-slim" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/26/4d/9eefe5dddd4cb9764e2d50b8d795c0872e777c30618e02d4258489f76ff9/subagents_pydantic_ai-0.2.16.tar.gz", hash = "sha256:11620cf319c770ebc35026e044d0db8c533c7be7bfc8aa756943eb6a7791b4fe", size = 637956, upload-time = "2026-08-02T22:09:11.21Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/26/1d/776ff26ca85ca659092a5cf47452577abefd22a794f49d5abcd04a3d9c28/subagents_pydantic_ai-0.2.18.tar.gz", hash = "sha256:5153bc2372f994d0f2b0ceec09b6b88fe08b8aa7990c3546f084b82a2157b1ac", size = 644494, upload-time = "2026-08-05T16:02:47.644Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/56/a4/350ad0b908f0eefa0bb7de1737e421c980bdb2dc15ff6a7a974d66c22c2e/subagents_pydantic_ai-0.2.16-py3-none-any.whl", hash = "sha256:d3e6ff87b1caeada799fb6db63ad9394d2f182848a2fa753c4c1b08b99abe8c0", size = 79000, upload-time = "2026-08-02T22:09:09.712Z" },
+    { url = "https://files.pythonhosted.org/packages/ed/37/98e6305c56116f297f2c82ed175c06a5ad86b2805b300733e15da24405d0/subagents_pydantic_ai-0.2.18-py3-none-any.whl", hash = "sha256:82d1933b4f8aacc63a65f098768a39170882a675afe40450ca962d34141c480a", size = 82053, upload-time = "2026-08-05T16:02:46.343Z" },
 ]
 
 [[package]]
