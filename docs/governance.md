@@ -81,8 +81,17 @@ and its reviewers read, so a caller cannot widen it.
 
 A delegation to a **published** agent gets an `agent_runs` row of its own, carrying
 `parent_run_id` and the delegation's task id. An **inline specialist** gets none: it
-has no agent to attribute one to, so its cost is the parent's and the tool call in
+has no agent to attribute one to, so its cost is the *run's* and the tool call in
 the transcript is the record.
+
+!!! warning "A delegate's own inline specialist — [#228](https://github.com/vstorm-co/agenticos/issues/228)"
+
+    The run's, not the delegating agent's, and below the top level that is a gap
+    rather than a decision. A specialist's requests are stamped to the specialist,
+    which gets no row, and the innermost stamp wins - so they are not in its
+    delegator's share either. A published delegate that uses an inline specialist
+    therefore under-reports its own month by what the specialist spent. The
+    organization's total is unaffected: the top-level row is the whole ledger.
 
 !!! important "The parent's row is the authority; a child's row is its share of it"
 
@@ -103,7 +112,8 @@ the transcript is the record.
     Splitting it with a ledger *per agent* is still the design to avoid - that is
     what stops the parent's cap binding at all. One ledger, attributed, keeps both
     properties: the parent's cap sees every request before the next one, and each
-    row says what one agent spent.
+    delegated row says what that one agent spent - with the inline-specialist gap
+    above.
 
     The parent's row remains the authority for the run. Its `cost_usd` is the whole
     ledger, delegates included, which is what the organization is billed; the child
@@ -136,7 +146,7 @@ opposite arithmetic:
 | The question | Child rows |
 |---|---|
 | **What does the organization owe?** | **excluded** - the parent's row already contains these tokens, so counting both bills the organization twice for one request |
-| **What did *this agent* cost this month?** | **included** - a delegate's rows are the only place its own spend is recorded, and each one holds that agent's own requests rather than its delegates' as well |
+| **What did *this agent* cost this month?** | **included** - a delegate's rows are the only place its own spend is recorded, and each one holds that agent's own requests rather than its delegates' as well ([#228](https://github.com/vstorm-co/agenticos/issues/228) for what it currently leaves out) |
 
 The second is what makes "the researcher cost $40 this month" answerable, and it is
 what a per-agent usage report or a budget alert on that agent fires on. The
