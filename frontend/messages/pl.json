@@ -37,8 +37,6 @@
     "knowledgeBases": "Bazy wiedzy",
     "knowledgeBasesDesc": "Dokumenty i kolekcje",
     "rag": "RAG",
-    "ragSearch": "Wyszukiwanie RAG",
-    "ragSearchDesc": "Zapytania i import",
     "team": "Zespół",
     "organizations": "Organizacje",
     "organizationsDesc": "Przestrzenie i członkowie",
@@ -363,6 +361,56 @@
     "cookies": {
       "title": "Polityka Cookies",
       "summary": "Co przechowujemy w Twojej przeglądarce, po co i jak to wyłączyć."
+    }
+  },
+  "rag": {
+    "title": "Bazy wiedzy",
+    "description": "Grupuj dokumenty w bazy, wgrywaj pliki, przeszukuj semantycznie i konfiguruj automatyczne źródła synchronizacji.",
+    "newBase": "Nowa baza wiedzy",
+    "retry": "Spróbuj ponownie",
+    "listFailedTitle": "Nie udało się wczytać baz wiedzy",
+    "listFailedDescription": "Żądanie listy baz wiedzy nie powiodło się.",
+    "refreshFailedTitle": "Nie udało się odświeżyć tej bazy wiedzy",
+    "refreshFailedDescription": "Poniżej widzisz ostatnie wczytane dane, które mogą być nieaktualne.",
+    "tabs": {
+      "bases": "Bazy wiedzy",
+      "search": "Szukaj"
+    },
+    "basesCard": {
+      "title": "Bazy",
+      "count": "{count, plural, =1 {1 baza wiedzy} few {# bazy wiedzy} other {# baz wiedzy}}"
+    },
+    "empty": {
+      "title": "Nie ma jeszcze żadnych baz wiedzy",
+      "editorHint": "Utwórz bazę, aby dać asystentowi dostęp do dokumentów z Twoich kolekcji.",
+      "viewerHint": "Nic nie zostało Ci jeszcze udostępnione.",
+      "cta": "Utwórz bazę wiedzy"
+    },
+    "scope": {
+      "personal": "Osobista",
+      "org": "Organizacja",
+      "app": "Całej aplikacji"
+    },
+    "card": {
+      "default": "Domyślna",
+      "openAria": "Otwórz {name}",
+      "deleteAria": "Usuń bazę wiedzy",
+      "deleteConfirm": "Usunąć \"{name}\"? Baza wiedzy i wszystkie jej dokumenty zostaną usunięte."
+    },
+    "search": {
+      "placeholder": "Przeszukaj swoje bazy wiedzy...",
+      "scopeLabel": "Zakres wyszukiwania",
+      "allBases": "Wszystkie bazy wiedzy",
+      "button": "Szukaj",
+      "searching": "Szukanie...",
+      "resultCount": "{count, plural, =0 {Brak wyników} =1 {1 wynik} few {# wyniki} other {# wyników}} · {ms} ms",
+      "noResults": "Brak wyników",
+      "noResultsHint": "Spróbuj innego zapytania lub innej bazy wiedzy",
+      "failedTitle": "Wyszukiwanie nie powiodło się",
+      "failedDescription": "Żądanie wyszukiwania nie zostało ukończone. O Twoich dokumentach nic nie wiadomo.",
+      "retry": "Spróbuj ponownie",
+      "noBases": "Nie ma jeszcze czego przeszukiwać - najpierw utwórz bazę wiedzy.",
+      "page": "s.{page}"
     }
   }
 }

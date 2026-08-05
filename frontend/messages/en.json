@@ -37,8 +37,6 @@
     "knowledgeBases": "Knowledge bases",
     "knowledgeBasesDesc": "Documents & collections",
     "rag": "RAG",
-    "ragSearch": "RAG search",
-    "ragSearchDesc": "Query & ingest",
     "team": "Team",
     "organizations": "Organizations",
     "organizationsDesc": "Workspaces & members",
@@ -363,6 +361,56 @@
     "cookies": {
       "title": "Cookie Policy",
       "summary": "What we store in your browser, why, and how to opt out."
+    }
+  },
+  "rag": {
+    "title": "Knowledge bases",
+    "description": "Group related documents into a base, upload files, run semantic search, and configure automated sync sources.",
+    "newBase": "New knowledge base",
+    "retry": "Try again",
+    "listFailedTitle": "Couldn't load the knowledge bases",
+    "listFailedDescription": "The knowledge base list request failed.",
+    "refreshFailedTitle": "Couldn't refresh this knowledge base",
+    "refreshFailedDescription": "What you see below is the last answer that loaded, and may be out of date.",
+    "tabs": {
+      "bases": "Knowledge bases",
+      "search": "Search"
+    },
+    "basesCard": {
+      "title": "Bases",
+      "count": "{count, plural, =1 {1 knowledge base} other {# knowledge bases}}"
+    },
+    "empty": {
+      "title": "No knowledge bases yet",
+      "editorHint": "Create one to give your assistant access to documents from your collections.",
+      "viewerHint": "Nothing has been shared with you yet.",
+      "cta": "Create knowledge base"
+    },
+    "scope": {
+      "personal": "Personal",
+      "org": "Organization",
+      "app": "App-wide"
+    },
+    "card": {
+      "default": "Default",
+      "openAria": "Open {name}",
+      "deleteAria": "Delete knowledge base",
+      "deleteConfirm": "Delete \"{name}\"? This will remove the knowledge base and all its documents."
+    },
+    "search": {
+      "placeholder": "Search across your knowledge bases...",
+      "scopeLabel": "Search scope",
+      "allBases": "All knowledge bases",
+      "button": "Search",
+      "searching": "Searching...",
+      "resultCount": "{count, plural, =0 {No results} =1 {1 result} other {# results}} · {ms} ms",
+      "noResults": "No results found",
+      "noResultsHint": "Try a different query or another knowledge base",
+      "failedTitle": "Search failed",
+      "failedDescription": "The search request did not complete. Nothing is known about your documents.",
+      "retry": "Try again",
+      "noBases": "There is nothing to search yet - create a knowledge base first.",
+      "page": "p.{page}"
     }
   }
 }

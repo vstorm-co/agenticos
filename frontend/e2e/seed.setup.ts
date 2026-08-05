@@ -70,7 +70,7 @@ setup("a skill exists", async ({ page }) => {
 setup("a knowledge base exists", async ({ page }) => {
   if (await alreadyThere(page.request, "/api/kb", "name", SEEDED_KB_NAME)) return;
 
-  await page.goto("/kb");
+  await page.goto("/rag");
   await expect(pageHeading(page, "Knowledge bases")).toBeVisible();
 
   await page.getByRole("button", { name: "New knowledge base" }).first().click();

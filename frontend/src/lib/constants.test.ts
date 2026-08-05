@@ -13,7 +13,7 @@ import { ROUTES } from "./constants";
 describe("ROUTES", () => {
   it("builds every parameterised route from its id", () => {
     expect(ROUTES.AGENT_DETAIL("a1")).toBe("/agents/a1");
-    expect(ROUTES.KB_DETAIL("kb1")).toBe("/kb/kb1");
+    expect(ROUTES.RAG_DETAIL("kb1")).toBe("/rag/kb1");
     expect(ROUTES.ORG_MEMBERS("o1")).toBe("/orgs/o1/members");
     expect(ROUTES.ORG_ROLES("o1")).toBe("/orgs/o1/roles");
     expect(ROUTES.ORG_SETTINGS("o1")).toBe("/orgs/o1/settings");
@@ -23,7 +23,7 @@ describe("ROUTES", () => {
     // Which is what makes the sidebar's active-route matching work: opening one
     // agent has to keep Agents highlighted.
     expect(ROUTES.AGENT_DETAIL("a1").startsWith(`${ROUTES.AGENTS}/`)).toBe(true);
-    expect(ROUTES.KB_DETAIL("kb1").startsWith(`${ROUTES.KB}/`)).toBe(true);
+    expect(ROUTES.RAG_DETAIL("kb1").startsWith(`${ROUTES.RAG}/`)).toBe(true);
     expect(ROUTES.ORG_MEMBERS("o1").startsWith(`${ROUTES.ORGS}/`)).toBe(true);
   });
 

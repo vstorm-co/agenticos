@@ -20,8 +20,8 @@ vi.mock("@/hooks", () => ({ useAuth: () => ({ user: { role: "member" } }) }));
  * merely plain rather than broken.
  */
 describe("MobileTabBar", () => {
-  it("marks the tab for a two-letter section", () => {
-    currentPath.mockReturnValue("/kb");
+  it("marks the tab for the knowledge section", () => {
+    currentPath.mockReturnValue("/rag");
 
     render(<MobileTabBar />);
 
@@ -37,7 +37,7 @@ describe("MobileTabBar", () => {
   });
 
   it("keeps the section marked on a detail page", () => {
-    currentPath.mockReturnValue("/kb/5eacffcc-873e-42fe-a73a-32cd19322d00");
+    currentPath.mockReturnValue("/rag/5eacffcc-873e-42fe-a73a-32cd19322d00");
 
     render(<MobileTabBar />);
 
@@ -45,7 +45,7 @@ describe("MobileTabBar", () => {
   });
 
   it("strips a real locale and nothing else", () => {
-    currentPath.mockReturnValue("/pl/kb/abc");
+    currentPath.mockReturnValue("/pl/rag/abc");
 
     render(<MobileTabBar />);
 

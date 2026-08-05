@@ -33,7 +33,11 @@ export function useKnowledgeBases() {
 
   // React Query owns the list: cached across navigations, deduped, no refetch
   // storms. Mutations patch the cache directly so the UI stays instant.
-  const { data: kbs = [], isLoading } = useQuery({
+  const {
+    data: kbs = [],
+    isLoading,
+    error: listError,
+  } = useQuery({
     queryKey: qk.kb.list(),
     queryFn: async () => (await apiClient.get<KnowledgeBaseList>("/kb")).items,
   });
@@ -109,7 +113,7 @@ export function useKnowledgeBases() {
     [writeCache, listOrgId],
   );
 
-  return { kbs, isLoading, fetchKBs, createKB, patchKB, deleteKB };
+  return { kbs, isLoading, listError, fetchKBs, createKB, patchKB, deleteKB };
 }
 
 /**
@@ -119,6 +123,26 @@ export function useKnowledgeBases() {
  */
 /** Documents fetched per page. Backend `/kb/{id}/documents` caps `limit` at 100. */
 const DOCS_PAGE_SIZE = 20;
+
+/**
+ * Which of the detail page's side queries failed on the last refresh.
+ *
+ * The KB and its documents are load-bearing - their failure is the hook's
+ * `error` and the whole page says so. These three are sections: a failed one
+ * must say "could not load", per section, because its empty state reads as a
+ * fact ("no connectors enabled") that a 502 has not established.
+ */
+export interface KBSectionFailures {
+  syncSources: boolean;
+  orgIntegrations: boolean;
+  connectors: boolean;
+}
+
+const NO_SECTION_FAILURES: KBSectionFailures = {
+  syncSources: false,
+  orgIntegrations: false,
+  connectors: false,
+};
 
 /** In-flight upload progress entry surfaced by `useKBDetail`. */
 export interface UploadProgress {
@@ -136,6 +160,7 @@ export function useKBDetail(id: string | null) {
   const [syncSources, setSyncSources] = useState<SyncSourceRead[]>([]);
   const [orgIntegrations, setOrgIntegrations] = useState<SyncSourceRead[]>([]);
   const [connectors, setConnectors] = useState<ConnectorInfo[]>([]);
+  const [sectionFailures, setSectionFailures] = useState<KBSectionFailures>(NO_SECTION_FAILURES);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingMoreDocs, setIsLoadingMoreDocs] = useState(false);
   // Per-file upload progress (0–100), keyed by a stable per-upload id. Entries
@@ -159,6 +184,7 @@ export function useKBDetail(id: string | null) {
     setSyncSources([]);
     setOrgIntegrations([]);
     setConnectors([]);
+    setSectionFailures(NO_SECTION_FAILURES);
     setError(null);
   }
 
@@ -205,25 +231,22 @@ export function useKBDetail(id: string | null) {
       const [kbData, docList, sourceList, orgIntList, connectorList] = await Promise.all([
         apiClient.get<KnowledgeBase>(`/kb/${id}`),
         apiClient.get<KBDocumentList>(`/kb/${id}/documents?skip=0&limit=${limit}`),
-        apiClient.get<SyncSourceList>(`/kb/${id}/sync-sources`).catch(() => ({
-          items: [] as SyncSourceRead[],
-          total: 0,
-        })),
-        apiClient.get<SyncSourceList>(`/kb/${id}/sync-sources/org-integrations`).catch(() => ({
-          items: [] as SyncSourceRead[],
-          total: 0,
-        })),
-        apiClient.get<ConnectorList>(`/kb/${id}/sync-sources/connectors`).catch(() => ({
-          items: [] as ConnectorInfo[],
-        })),
+        apiClient.get<SyncSourceList>(`/kb/${id}/sync-sources`).catch(() => null),
+        apiClient.get<SyncSourceList>(`/kb/${id}/sync-sources/org-integrations`).catch(() => null),
+        apiClient.get<ConnectorList>(`/kb/${id}/sync-sources/connectors`).catch(() => null),
       ]);
       if (!stillSameTenant(startedIn)) return;
       setKb(kbData);
       setDocuments(docList.items);
       setDocumentsTotal(docList.total);
-      setSyncSources(sourceList.items);
-      setOrgIntegrations(orgIntList.items);
-      setConnectors(connectorList.items);
+      setSyncSources(sourceList?.items ?? []);
+      setOrgIntegrations(orgIntList?.items ?? []);
+      setConnectors(connectorList?.items ?? []);
+      setSectionFailures({
+        syncSources: sourceList === null,
+        orgIntegrations: orgIntList === null,
+        connectors: connectorList === null,
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load knowledge base");
     } finally {
@@ -460,6 +483,7 @@ export function useKBDetail(id: string | null) {
     syncSources,
     orgIntegrations,
     connectors,
+    sectionFailures,
     isLoading,
     isLoadingMoreDocs,
     isUploading,

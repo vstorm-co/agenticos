@@ -34,7 +34,7 @@ export function MobileTabBar() {
 
   const items: TabItem[] = [
     { label: t("chat"), href: ROUTES.CHAT, icon: MessageSquare, startsWith: true },
-    { label: t("kb"), href: ROUTES.KB, icon: Database, startsWith: true },
+    { label: t("kb"), href: ROUTES.RAG, icon: Database, startsWith: true },
     {
       label: t("home"),
       href: isAppAdmin(user) ? ROUTES.DASHBOARD : ROUTES.CHAT,

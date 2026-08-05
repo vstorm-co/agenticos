@@ -136,7 +136,7 @@ died in a worker as "Unsupported file type".
 
 ### Parser Selection (RAG)
 
-Per collection, on `/kb`, and overridable per upload — not an environment
+Per collection, on `/rag`, and overridable per upload — not an environment
 variable. Stored on `knowledge_bases.ingestion_config`.
 
 | Parser | Best For |
@@ -181,15 +181,19 @@ Set `EMBEDDING_MODEL` to change the model.
 Vectors are stored in **pgvector** using the existing PostgreSQL database.
 No additional services needed.
 
-### RAG is Global
+### Who can search, who can write
 
-Collections are shared across **all users**:
+Access follows the permission catalog, not a role name:
 
-- Any authenticated user can search any collection via `POST /rag/search` or
-  through the AI agent's RAG tool.
-- Only admins can manage collections, upload documents, configure sync sources,
-  and view ingestion logs.
-- There is no per-user document isolation.
+- Searching via `POST /rag/search` takes `collections:view`, and every
+  collection named in the request is resolved through
+  `CollectionAccessService` before the first vector is read — one unreachable
+  name refuses the whole search rather than being silently dropped.
+- Uploading, deleting and configuring sync sources take `collections:edit`,
+  resolved against the row the same way.
+- Isolation is per knowledge base: an `app`-scoped base is deployment-wide, a
+  `personal` one belongs to its owner, and an `org` one follows the caller's
+  scope and any explicit grants.
 
 ### Document Tracking
 

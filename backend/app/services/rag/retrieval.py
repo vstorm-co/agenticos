@@ -4,14 +4,10 @@ import hashlib
 import logging
 import time
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
 
 from app.services.rag.config import RAGSettings
 from app.services.rag.models import SearchResult
 from app.services.rag.vectorstore import BaseVectorStore
-
-if TYPE_CHECKING:
-    from app.services.rag.reranker import RerankService
 
 logger = logging.getLogger(__name__)
 
@@ -46,12 +42,9 @@ class RetrievalService(BaseRetrievalService):
         self,
         vector_store: BaseVectorStore,
         settings: RAGSettings,
-        rerank_service: RerankService | None = None,
     ):
         self.store = vector_store
         self.settings = settings
-        self.rerank_service = rerank_service
-        self._reranker_enabled = rerank_service is not None and rerank_service.is_enabled
         self._hybrid_enabled = settings.enable_hybrid_search
 
     @staticmethod
@@ -129,20 +122,16 @@ class RetrievalService(BaseRetrievalService):
         limit: int = 5,
         min_score: float = 0.0,
         filter: str = "",
-        use_reranker: bool = False,
     ) -> list[SearchResult]:
-        should_rerank = use_reranker and self._reranker_enabled
-
-        # Fetch 3x when reranking: gives the reranker room to eliminate weak candidates
-        fetch_multiplier = 3 if should_rerank else 2
+        # Overfetch so min-score filtering and dedup still leave `limit` results.
+        fetch_multiplier = 2
 
         logger.info(
-            "[RETRIEVAL] Query: '%.50s...', collection: %s, limit: %d, filter: '%s', rerank: %s",
+            "[RETRIEVAL] Query: '%.50s...', collection: %s, limit: %d, filter: '%s'",
             query,
             collection_name,
             limit,
             filter,
-            should_rerank,
         )
 
         start_time = time.time()
@@ -174,24 +163,6 @@ class RetrievalService(BaseRetrievalService):
                 r.score,
                 r.content,
             )
-
-        if should_rerank and self.rerank_service:
-            logger.info("[RETRIEVAL] Applying reranking...")
-            rerank_start = time.time()
-            pipeline_results = await self.rerank_service.rerank(
-                query=query,
-                results=pipeline_results,
-                top_k=limit * 2,  # Get more from reranker before filtering
-            )
-
-            rerank_time = time.time() - rerank_start
-            logger.info(
-                "[RETRIEVAL] Reranking completed in %.3fs, returned %d results",
-                rerank_time,
-                len(pipeline_results),
-            )
-        elif use_reranker and not self._reranker_enabled:
-            logger.warning("[RETRIEVAL] Reranking requested but not configured - skipping")
 
         filtered_results = [res for res in pipeline_results if res.score >= min_score]
 
@@ -235,7 +206,6 @@ class RetrievalService(BaseRetrievalService):
         collection_names: list[str],
         limit: int = 5,
         min_score: float = 0.0,
-        use_reranker: bool = False,
     ) -> list[SearchResult]:
         all_results: list[SearchResult] = []
         for name in collection_names:
@@ -245,7 +215,6 @@ class RetrievalService(BaseRetrievalService):
                     collection_name=name,
                     limit=limit,
                     min_score=min_score,
-                    use_reranker=use_reranker,
                 )
                 # Tag results with collection name in metadata
                 for r in results:
@@ -272,23 +241,20 @@ class RetrievalService(BaseRetrievalService):
         collection_name: str,
         document_id: str,
         limit: int = 3,
-        use_reranker: bool = False,
     ) -> list[SearchResult]:
         """Retrieve chunks restricted to a single document."""
         # Sanitize document_id to prevent filter injection
         sanitized_id = document_id.replace('"', "").replace("\\", "")
         filter_expr = f'parent_doc_id == "{sanitized_id}"'
         logger.info(
-            "[RETRIEVAL] Retrieve by document: doc_id=%s, query='%.30s...', limit=%d, rerank=%s",
+            "[RETRIEVAL] Retrieve by document: doc_id=%s, query='%.30s...', limit=%d",
             document_id,
             query,
             limit,
-            use_reranker,
         )
         return await self.retrieve(
             query=query,
             collection_name=collection_name,
             limit=limit,
             filter=filter_expr,
-            use_reranker=use_reranker,
         )

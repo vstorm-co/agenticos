@@ -1,20 +1,14 @@
 /**
  * RAG (Retrieval Augmented Generation) API client.
+ *
+ * Search plus the per-document endpoints of a knowledge base. Everything else
+ * about a knowledge base - the list, its documents, sync sources, connectors -
+ * goes through `useKnowledgeBases` / `useKBDetail` and the `/kb` routes; the
+ * types those payloads share live here.
  */
 
 import { apiClient } from "./api-client";
 import type { KBParsedContent } from "@/types";
-
-export interface RAGCollectionList {
-  items: string[];
-}
-
-export interface RAGCollectionInfo {
-  name: string;
-  total_vectors: number;
-  dim: number;
-  indexing_status: string;
-}
 
 export interface RAGSearchRequest {
   query: string;
@@ -36,89 +30,8 @@ export interface RAGSearchResponse {
   results: RAGSearchResult[];
 }
 
-export const isRagEnabled = (): boolean => {
-  return process.env.NEXT_PUBLIC_RAG_ENABLED === "true";
-};
-
-export async function listCollections(): Promise<RAGCollectionList> {
-  return apiClient.get<RAGCollectionList>("/rag/collections");
-}
-
-export async function getCollectionInfo(collectionName: string): Promise<RAGCollectionInfo> {
-  return apiClient.get<RAGCollectionInfo>(`/rag/collections/${collectionName}/info`);
-}
-
-export async function createCollection(collectionName: string): Promise<{ message: string }> {
-  return apiClient.post<{ message: string }>(`/rag/collections/${collectionName}`);
-}
-
-export async function deleteCollection(collectionName: string): Promise<void> {
-  return apiClient.delete(`/rag/collections/${collectionName}`);
-}
-
-export async function deleteDocument(collectionName: string, documentId: string): Promise<void> {
-  return apiClient.delete(`/rag/collections/${collectionName}/documents/${documentId}`);
-}
-
 export async function searchDocuments(request: RAGSearchRequest): Promise<RAGSearchResponse> {
   return apiClient.post<RAGSearchResponse>("/rag/search", request);
-}
-
-export interface RAGDocumentItem {
-  document_id: string;
-  filename: string;
-  filesize: number;
-  filetype: string;
-  chunk_count: number;
-  additional_info?: Record<string, unknown>;
-}
-
-export interface RAGDocumentList {
-  items: RAGDocumentItem[];
-  total: number;
-}
-
-export interface RAGIngestResult {
-  id: string;
-  status: string;
-  document_id: string | null;
-  filename: string;
-  collection: string;
-  message: string;
-}
-
-export interface RAGTrackedDocument {
-  id: string;
-  collection_name: string;
-  filename: string;
-  filesize: number;
-  filetype: string;
-  status: "processing" | "done" | "error";
-  error_message: string | null;
-  vector_document_id: string | null;
-  chunk_count: number;
-  has_file: boolean;
-  created_at: string | null;
-  completed_at: string | null;
-}
-
-/**
- * Open a tracked document's original file in a new tab.
- *
- * Not an `<a href>`, which is what this replaced. A browser navigation sends
- * whatever headers the browser feels like and none that we set, so an anchor to
- * an org-scoped endpoint arrives with no `X-Organization-Id` - the backend then
- * answers from the caller's personal organization and a document belonging to
- * the organization on screen comes back 404. Fetching it and opening the blob
- * is the same trick `downloadKBDocument` uses, for the same reason.
- */
-export async function openTrackedDocument(docId: string): Promise<void> {
-  const response = await apiClient.raw(`/rag/documents/${docId}/download`);
-  const url = URL.createObjectURL(await response.blob());
-  window.open(url, "_blank", "noopener,noreferrer");
-  // Long enough for the new tab to have read it. Revoking at once closes the
-  // tab that was just opened; never revoking leaks it for the life of the page.
-  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 export async function downloadKBDocument(
@@ -155,47 +68,6 @@ export async function getParsedKBDocument(kbId: string, docId: string): Promise<
   return apiClient.get<KBParsedContent>(`/kb/${kbId}/documents/${docId}/parsed`);
 }
 
-export interface RAGTrackedDocumentList {
-  items: RAGTrackedDocument[];
-  total: number;
-}
-
-export async function listTrackedDocuments(
-  collectionName?: string,
-): Promise<RAGTrackedDocumentList> {
-  const params = collectionName ? `?collection_name=${encodeURIComponent(collectionName)}` : "";
-  return apiClient.get<RAGTrackedDocumentList>(`/rag/documents${params}`);
-}
-
-export async function deleteTrackedDocument(docId: string): Promise<void> {
-  return apiClient.delete(`/rag/documents/${docId}`);
-}
-
-export async function listDocuments(collectionName: string): Promise<RAGDocumentList> {
-  return apiClient.get<RAGDocumentList>(`/rag/collections/${collectionName}/documents`);
-}
-
-/**
- * Ingest one file into a collection.
- *
- * Through `apiClient.upload`, not a bare `fetch`. This endpoint is org-scoped,
- * and a request without `X-Organization-Id` is not tenant-less: the backend
- * falls back to the caller's personal organization. Uploading into a collection
- * whose name exists in both wrote the file to the wrong tenant and reported
- * success under the right one.
- */
-export function ingestFile(
-  collectionName: string,
-  file: File,
-  replace = false,
-): Promise<RAGIngestResult> {
-  return apiClient.upload<RAGIngestResult>(
-    `/rag/collections/${collectionName}/ingest`,
-    file,
-    replace ? { params: { replace: "true" } } : undefined,
-  );
-}
-
 export interface SyncSourceCreate {
   name: string;
   connector_type: string;
@@ -204,11 +76,6 @@ export interface SyncSourceCreate {
   config: Record<string, unknown>;
   sync_mode?: string;
   schedule_minutes?: number | null;
-}
-
-export interface SyncSourceClone {
-  collection_name: string;
-  name?: string;
 }
 
 export interface SyncSourceRead {
@@ -272,69 +139,4 @@ export interface RAGSyncLog {
 export interface RAGSyncLogList {
   items: RAGSyncLog[];
   total: number;
-}
-
-export async function listSyncLogs(collectionName?: string, limit = 20): Promise<RAGSyncLogList> {
-  const params = new URLSearchParams();
-  if (collectionName) params.set("collection_name", collectionName);
-  params.set("limit", String(limit));
-  return apiClient.get<RAGSyncLogList>(`/rag/sync/logs?${params}`);
-}
-
-/** Fetch logs for a specific sync source under a KB. */
-export async function listKBSyncSourceLogs(
-  kbId: string,
-  sourceId: string,
-  limit = 20,
-): Promise<RAGSyncLogList> {
-  return apiClient.get<RAGSyncLogList>(`/kb/${kbId}/sync-sources/${sourceId}/logs?limit=${limit}`);
-}
-
-export async function triggerSync(
-  collectionName: string,
-  mode: string,
-  path: string,
-): Promise<{ id: string; status: string; message: string }> {
-  return apiClient.post("/rag/sync/local", { collection_name: collectionName, mode, path });
-}
-
-export async function cancelSync(syncId: string): Promise<{ message: string }> {
-  return apiClient.delete(`/rag/sync/${syncId}`);
-}
-
-export async function listSyncSources(collectionName?: string): Promise<SyncSourceList> {
-  const params = collectionName ? `?collection_name=${encodeURIComponent(collectionName)}` : "";
-  return apiClient.get<SyncSourceList>(`/rag/sync/sources${params}`);
-}
-
-export async function createSyncSource(data: SyncSourceCreate): Promise<SyncSourceRead> {
-  return apiClient.post<SyncSourceRead>("/rag/sync/sources", data);
-}
-
-export async function cloneSyncSource(
-  sourceId: string,
-  data: SyncSourceClone,
-): Promise<SyncSourceRead> {
-  return apiClient.post<SyncSourceRead>(`/rag/sync/sources/${sourceId}/clone`, data);
-}
-
-export async function updateSyncSource(
-  sourceId: string,
-  data: Partial<SyncSourceCreate>,
-): Promise<SyncSourceRead> {
-  return apiClient.patch<SyncSourceRead>(`/rag/sync/sources/${sourceId}`, data);
-}
-
-export async function deleteSyncSource(sourceId: string): Promise<void> {
-  return apiClient.delete(`/rag/sync/sources/${sourceId}`);
-}
-
-export async function triggerSyncSource(
-  sourceId: string,
-): Promise<{ id: string; status: string; message: string }> {
-  return apiClient.post(`/rag/sync/sources/${sourceId}/trigger`);
-}
-
-export async function listConnectors(): Promise<ConnectorList> {
-  return apiClient.get<ConnectorList>("/rag/sync/connectors");
 }

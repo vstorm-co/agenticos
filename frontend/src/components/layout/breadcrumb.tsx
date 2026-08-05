@@ -8,7 +8,7 @@ import { ROUTES } from "@/lib/constants";
 const ROUTE_LABELS: Record<string, string> = {
   [ROUTES.DASHBOARD]: "Dashboard",
   [ROUTES.CHAT]: "Chat",
-  [ROUTES.RAG]: "Knowledge Base",
+  [ROUTES.RAG]: "Knowledge bases",
   [ROUTES.PROFILE]: "Profile",
   "/settings": "Settings",
 };

@@ -125,27 +125,6 @@ export const qk = {
     detail: (id: string) => ["kb", id] as const,
     documents: (id: string) => ["kb", id, "documents"] as const,
   },
-  rag: {
-    stats: () => ["rag", "stats"] as const,
-    // Keyed on the organization. Collection names and document titles belong to
-    // one tenant, and a cache that outlived an org switch would paint the
-    // previous tenant's names onto the new one's page for as long as the
-    // refetch took - the names being the part worth not leaking.
-    collections: (orgId: string) => ["rag", "collections", orgId] as const,
-    documents: (orgId: string, collection: string) =>
-      ["rag", "documents", orgId, collection] as const,
-    // The sync tab, under one prefix so a mutation on any of it refreshes all
-    // of it: creating a source changes the source list, triggering a sync
-    // changes the history, and the two are read side by side.
-    sync: (orgId: string) => ["rag", "sync", orgId] as const,
-    syncSources: (orgId: string) => ["rag", "sync", orgId, "sources"] as const,
-    syncLogs: (orgId: string, collection: string) =>
-      ["rag", "sync", orgId, "logs", collection] as const,
-    connectors: (orgId: string) => ["rag", "sync", orgId, "connectors"] as const,
-    // Not keyed on the organization: what the deployment's parsers accept is a
-    // property of the deployment, the same answer for every tenant.
-    supportedFormats: () => ["rag", "supported-formats"] as const,
-  },
   integrations: {
     all: () => ["integrations"] as const,
     // Keyed on the organization, not shared with `kb`: these rows belong to the

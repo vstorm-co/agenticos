@@ -65,7 +65,7 @@ export function CollectionPicker({
           This organization has no collections yet. An agent with none searches nothing.
         </p>
         <Link
-          href={ROUTES.KB}
+          href={ROUTES.RAG}
           className="mt-3 inline-flex items-center gap-1.5 text-sm underline underline-offset-4"
         >
           <Plus className="h-3.5 w-3.5" />
@@ -179,7 +179,7 @@ export function CollectionPicker({
 
       <p className="text-muted-foreground text-xs">
         The model chooses what to look for; it can never widen where it looks.{" "}
-        <Link href={ROUTES.KB} className="underline underline-offset-4">
+        <Link href={ROUTES.RAG} className="underline underline-offset-4">
           Manage collections
         </Link>
       </p>

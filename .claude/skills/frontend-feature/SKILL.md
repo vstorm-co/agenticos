@@ -12,7 +12,7 @@ request path. This is the working layout and the traps.
 
 | Path | |
 |---|---|
-| `src/app/[locale]/(dashboard)/…` | The product: `agents`, `chat`, `kb`, `skills`, `vault`, `mcp-servers`, `runs`, `orgs`, `settings`, `admin`, `rag`, `invitations`, `profile` |
+| `src/app/[locale]/(dashboard)/…` | The product: `agents`, `chat`, `rag` (knowledge bases + search; `kb` only redirects there), `skills`, `vault`, `mcp-servers`, `runs`, `orgs`, `settings`, `admin`, `invitations`, `profile` |
 | `src/app/[locale]/(auth)/…`, `auth/`, `onboarding/`, `legal/`, `shared/` | Everything else |
 | `src/app/api/…` | Route handlers that proxy to the backend (same-origin auth cookies) |
 | `src/lib/` | Typed API clients on `api-client.ts`, `server-api.ts`, `query-keys.ts` |

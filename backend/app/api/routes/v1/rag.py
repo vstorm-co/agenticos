@@ -239,7 +239,6 @@ async def search_documents(
     retrieval_service: RetrievalSvc,
     access: CollectionAccessSvc,
     ctx: Auth,
-    use_reranker: bool = Query(False, description="Whether to use reranking (if configured)"),
 ) -> Any:
     """Search for relevant document chunks. Supports multi-collection search.
 
@@ -255,7 +254,6 @@ async def search_documents(
             collection_names=collections,
             limit=request.limit,
             min_score=request.min_score,
-            use_reranker=use_reranker,
         )
     else:
         results = await retrieval_service.retrieve(
@@ -264,7 +262,6 @@ async def search_documents(
             limit=request.limit,
             min_score=request.min_score,
             filter=request.filter or "",
-            use_reranker=use_reranker,
         )
     api_results = [RAGSearchResult(**hit.model_dump()) for hit in results]
     return RAGSearchResponse(results=api_results)

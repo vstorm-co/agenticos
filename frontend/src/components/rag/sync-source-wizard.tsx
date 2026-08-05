@@ -42,6 +42,10 @@ interface SyncSourceWizardProps {
   defaultCollection?: string;
   /** Existing org integrations (without this KB's collection_name) for "pick existing" flow. */
   orgIntegrations?: SyncSourceRead[];
+  /** The connector list request failed; an empty list is not a fact yet. */
+  connectorsFailed?: boolean;
+  /** The org-integrations request failed, so the "use existing" offer is missing, not absent. */
+  orgIntegrationsFailed?: boolean;
   onSubmit: (data: SyncSourceCreate) => Promise<void> | void;
   onClone?: (sourceId: string, collectionName: string, name: string) => Promise<void> | void;
   submitting?: boolean;
@@ -85,6 +89,8 @@ export function SyncSourceWizard({
   collections,
   defaultCollection,
   orgIntegrations = [],
+  connectorsFailed = false,
+  orgIntegrationsFailed = false,
   onSubmit,
   onClone,
   submitting,
@@ -212,6 +218,15 @@ export function SyncSourceWizard({
             </div>
           )}
 
+          {orgIntegrationsFailed && step === "source" && (
+            // Unsaid, a failed org-integrations request is indistinguishable from
+            // an organization that has none: the "Use existing" toggle never appears.
+            <p className="text-destructive mt-2 text-xs">
+              Existing workspace integrations could not be loaded; you can still create a new
+              source.
+            </p>
+          )}
+
           {/* Step indicator - only for new mode */}
           {mode === "new" && (
             <ol className="mt-3 flex items-center gap-2">
@@ -265,7 +280,12 @@ export function SyncSourceWizard({
           ) : (
             <>
               {step === "source" && (
-                <ConnectorStep connectors={enabledConnectors} form={form} setForm={setForm} />
+                <ConnectorStep
+                  connectors={enabledConnectors}
+                  connectorsFailed={connectorsFailed}
+                  form={form}
+                  setForm={setForm}
+                />
               )}
               {step === "configure" && selectedConnector && (
                 <ConfigureStep connector={selectedConnector} form={form} setForm={setForm} />
@@ -422,10 +442,12 @@ function CloneStep({
 
 function ConnectorStep({
   connectors,
+  connectorsFailed,
   form,
   setForm,
 }: {
   connectors: ConnectorInfo[];
+  connectorsFailed?: boolean;
   form: SyncSourceCreate;
   setForm: React.Dispatch<React.SetStateAction<SyncSourceCreate>>;
 }) {
@@ -451,7 +473,13 @@ function ConnectorStep({
         <Label className="text-foreground/80 text-xs font-medium tracking-wider uppercase">
           Connector
         </Label>
-        {connectors.length === 0 ? (
+        {connectorsFailed ? (
+          // "No connectors enabled" is a statement about the deployment; a failed
+          // request has not made it.
+          <p className="border-destructive/30 text-destructive rounded-xl border px-4 py-3 text-sm">
+            The connector list could not be loaded. Close the dialog and try again.
+          </p>
+        ) : connectors.length === 0 ? (
           <p className="border-foreground/10 bg-foreground/[0.03] text-foreground/65 rounded-xl border px-4 py-3 text-sm">
             No connectors enabled.
           </p>
