@@ -1026,16 +1026,24 @@ export default function RAGPage() {
                           </div>
                         </div>
                         <div className="text-muted-foreground mt-2 flex flex-wrap gap-3 font-mono text-xs">
-                          <span>{log.total_files} total</span>
+                          <span>{t("syncTotal", { count: log.total_files })}</span>
                           {log.ingested > 0 && (
-                            <span className="text-foreground">{log.ingested} new</span>
+                            <span className="text-foreground">
+                              {t("syncNew", { count: log.ingested })}
+                            </span>
                           )}
                           {log.updated > 0 && (
-                            <span className="text-foreground">{log.updated} updated</span>
+                            <span className="text-foreground">
+                              {t("syncUpdated", { count: log.updated })}
+                            </span>
                           )}
-                          {log.skipped > 0 && <span>{log.skipped} skipped</span>}
+                          {log.skipped > 0 && (
+                            <span>{t("syncSkipped", { count: log.skipped })}</span>
+                          )}
                           {log.failed > 0 && (
-                            <span className="text-destructive">{log.failed} failed</span>
+                            <span className="text-destructive">
+                              {t("syncFailed", { count: log.failed })}
+                            </span>
                           )}
                         </div>
                         {log.error_message && (
