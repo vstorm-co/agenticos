@@ -5,7 +5,11 @@ credit card behind. Two mechanisms, deliberately separate:
 
 *Accounting* - :class:`SpendLedger` records what a run consumed, in tokens and
 in dollars, so the cost dashboard has something to read and a monthly total has
-something to sum.
+something to sum. One ledger per run, whatever the run built: a delegate records
+into the ledger of the run that started it, which is what makes the parent's cap
+see a delegate's spend before the parent's next request. Each entry is stamped
+with the delegation that made it (:func:`booked_to`), so "what did the run cost"
+and "what did this delegate cost" are both answerable off one set of prices.
 
 *Enforcement* - :class:`BudgetGuard` is a capability that refuses to issue a
 model request once a limit is reached. It stops the run rather than warning
@@ -30,7 +34,7 @@ import logging
 from collections.abc import Awaitable, Callable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from decimal import Decimal
 from enum import StrEnum
 from typing import Any
@@ -134,13 +138,55 @@ def price_request(
 
 @dataclass
 class SpendEntry:
-    """What one model request consumed."""
+    """What one model request consumed, and which agent in the run consumed it."""
 
     model_name: str
     input_tokens: int
     output_tokens: int
     cost_usd: Decimal
     priced: bool
+
+    delegation: str | None = None
+    """The delegation whose agent issued this request, or `None` for the run's own.
+
+    Stamped from :func:`booked_to` at the moment the entry is recorded, which is
+    the only moment the answer is available: a run has one ledger and every agent
+    in the tree records into it, so by the time anyone reads the ledger back there
+    is nothing on an entry to say who made it.
+
+    The innermost delegation, not the outermost - a delegate's own delegate sets
+    the attribution again, so a grandchild's requests are stamped with the
+    grandchild. That is what keeps a mid-tree delegate's share from containing its
+    own delegates' spend, which is the same money its delegates' rows already
+    record (agenticos#180).
+    """
+
+
+@dataclass(frozen=True)
+class SpendShare:
+    """What one agent in a run booked into the run's single ledger.
+
+    A share rather than a delta. The obvious way to describe a delegation's cost is
+    what the shared total grew by while it ran, and it is wrong twice over: a
+    background delegation is settled when it is next polled, so everything the
+    parent spent in between lands on the child, and a mid-tree delegate's window
+    contains what its own delegates spent, which their rows record again.
+
+    The defaults are the honest answer where nothing is metering - a preview, or a
+    unit test - rather than a cost nobody measured.
+    """
+
+    cost_usd: Decimal = Decimal(0)
+    input_tokens: int = 0
+    output_tokens: int = 0
+    has_unpriced_models: bool = False
+    """Whether any request in this share went unpriced - the cost is then a floor.
+
+    Named as :attr:`SpendLedger.has_unpriced_models` is, because it is the same
+    question asked of part of the ledger rather than all of it. What differs is the
+    answer: an unpriced parent makes the *run's* total a floor and says nothing
+    about a delegate that ran on a priced model.
+    """
 
 
 @dataclass
@@ -174,21 +220,93 @@ class SpendLedger:
         """Whether any request could not be priced - the total is then a floor."""
         return any(not entry.priced for entry in self.entries)
 
+    def share_of(self, delegation: str) -> SpendShare:
+        """What one delegation booked into this ledger, and nothing else.
+
+        The same numbers the run's own total is made of, filtered rather than
+        recomputed: one price per request, looked up once, so a delegation's cost
+        and the run's cost cannot disagree about what a request cost. That is the
+        property a second pricing path - `TaskHandle.usage` priced again on the way
+        past - would give up, and `BudgetGuard.for_delegate` exists because pricing
+        the same request twice through two catalogs is exactly how a run gets
+        under-reported.
+
+        Exact in every mode and at every depth, because attribution is stamped when
+        the request is recorded rather than inferred from when the delegation was
+        looked at. Zero for a delegation that made no request of its own - a
+        delegate the library refused, or one whose whole job was to delegate
+        further.
+        """
+        mine = [entry for entry in self.entries if entry.delegation == delegation]
+        return SpendShare(
+            cost_usd=sum((entry.cost_usd for entry in mine), Decimal(0)),
+            input_tokens=sum(entry.input_tokens for entry in mine),
+            output_tokens=sum(entry.output_tokens for entry in mine),
+            has_unpriced_models=any(not entry.priced for entry in mine),
+        )
+
+    def book(self, entry: SpendEntry) -> SpendEntry:
+        """Add one entry to the ledger, attributed to whatever is spending here.
+
+        The only way in, so there is exactly one place attribution is stamped. An
+        entry appended around this is an entry that belongs to the run's own agent
+        whoever made it - which is how a delegate's requests came to be counted as
+        the parent's, and how they would be again.
+
+        A copy rather than the caller's object: `record` builds a fresh entry, but a
+        caller with an entry of its own - a resumed run's opening balance - would
+        otherwise have that object mutated by being booked.
+        """
+        booked = replace(entry, delegation=_booked_to.get())
+        self.entries.append(booked)
+        return booked
+
     def record(
         self, model_name: str, usage: RequestUsage | RunUsage, provider: str | None = None
     ) -> SpendEntry:
         cost = price_request(usage, model_name, provider)
         if cost is None:
             logger.warning("No price for model %s - run cost will be under-reported", model_name)
-        entry = SpendEntry(
-            model_name=model_name,
-            input_tokens=usage.input_tokens or 0,
-            output_tokens=usage.output_tokens or 0,
-            cost_usd=cost if cost is not None else Decimal(0),
-            priced=cost is not None,
+        return self.book(
+            SpendEntry(
+                model_name=model_name,
+                input_tokens=usage.input_tokens or 0,
+                output_tokens=usage.output_tokens or 0,
+                cost_usd=cost if cost is not None else Decimal(0),
+                priced=cost is not None,
+            )
         )
-        self.entries.append(entry)
-        return entry
+
+
+_booked_to: ContextVar[str | None] = ContextVar("spend_booked_to", default=None)
+"""Which delegation the spend in this task belongs to, if it belongs to one.
+
+Read by :meth:`SpendLedger.record` rather than passed to it, for the reason
+:func:`metered_by` is a context variable too: the guard that records a request is
+built per agent, while the delegation that is running is per *task* - a fan-out of
+three runs three delegations in three asyncio tasks against one guard.
+"""
+
+
+@contextmanager
+def booked_to(delegation: str) -> Iterator[None]:
+    """Attribute what is metered inside this block to one delegation.
+
+    Opened around the tool call that starts a delegation, which is what makes it
+    reach both kinds. A `sync` delegation runs inside the block. A background one
+    is an `asyncio.Task` created inside it, and `asyncio` copies the current
+    context into every task - so the whole of that delegation, including its own
+    nested delegations and whatever their tools embed, is booked to it long after
+    the block has closed in the caller.
+
+    Nested rather than exclusive: a delegate's own delegation sets this again, so
+    the innermost one wins and each level is attributed only what it spent itself.
+    """
+    token = _booked_to.set(delegation)
+    try:
+        yield
+    finally:
+        _booked_to.reset(token)
 
 
 _active_ledger: ContextVar[SpendLedger | None] = ContextVar("active_spend_ledger", default=None)

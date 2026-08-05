@@ -1265,19 +1265,21 @@ def _spending_delegate(ledger: SpendLedger, spent: asyncio.Event) -> ResolvedSub
     """A specialist that bills the run's shared ledger and then works on forever.
 
     The billing stands in for the budget guard, which is what records a real
-    request. It happens *before* the sleep, and `spent` is what a test waits on
-    rather than a delay: the assertion is about what a cancelled run reports
-    having spent, so the money has to be on the ledger before the stop arrives.
+    request - through `book`, as the guard does, because that is where the entry is
+    stamped with the delegation that made it. It happens *before* the sleep, and
+    `spent` is what a test waits on rather than a delay: the assertion is about
+    what a cancelled run reports having spent, so the money has to be on the
+    ledger before the stop arrives.
     """
 
     async def respond(_messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
-        ledger.entries.append(_DELEGATE_REQUEST)
+        ledger.book(_DELEGATE_REQUEST)
         spent.set()
         await anyio.sleep(30)
         return ModelResponse(parts=[TextPart("too late")])
 
     async def stream(_messages: list[ModelMessage], _info: AgentInfo) -> AsyncIterator[str]:
-        ledger.entries.append(_DELEGATE_REQUEST)
+        ledger.book(_DELEGATE_REQUEST)
         spent.set()
         await anyio.sleep(30)
         yield "too late"
