@@ -47,6 +47,7 @@ from app.agents.subagent_runtime import (
 )
 from app.core.exceptions import BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName
+from app.db.models.agent import AgentStatus
 from app.db.models.agent_run import RunStatus
 from app.services.agent_registry import DELEGATION_CAPABILITY_ID
 from app.services.agent_runner import (
@@ -122,9 +123,17 @@ def _version(agent_id: uuid.UUID, spec: AgentSpec) -> MagicMock:
     return version
 
 
-def _agent_row(agent_id: uuid.UUID, *, slug: str) -> MagicMock:
-    """A delegate's `agents` row - the one place its handle lives."""
-    return MagicMock(id=agent_id, slug=slug)
+def _agent_row(
+    agent_id: uuid.UUID, *, slug: str, status: str = AgentStatus.PUBLISHED.value
+) -> MagicMock:
+    """A delegate's `agents` row - the one place its handle and its status live.
+
+    `name` is assigned rather than passed to the constructor, where `MagicMock`
+    would take it as the mock's own name and leave the attribute unset.
+    """
+    row = MagicMock(id=agent_id, slug=slug, status=status)
+    row.name = slug
+    return row
 
 
 def _slug(name: str) -> str:
@@ -497,6 +506,34 @@ class TestSharingACapabilityWithADelegate:
 
         assert prepared.built("summariser")["spec"].capabilities == []
 
+    async def test_delegation_is_not_shared_however_the_stored_spec_asks(self):
+        """Publish now refuses this id, and a spec stored before it did still runs.
+
+        Shared, the parent's delegation binding would land on a delegate that binds
+        none, and `_delegation_config` would read the *parent's* specialists,
+        fan-out, depth and `allow_dynamic` as the delegate's own answers - handing a
+        published agent a policy no reviewer of its spec could see. The delegate
+        here binds nothing, so it must be built with nothing.
+        """
+        delegate_id = uuid.uuid4()
+        pinned = _version(delegate_id, AgentSpec(name="Research Bot"))
+        spec = _delegating(
+            inline=[_specialist(name="parents-own-summariser")],
+            subagents=[SubagentRef(agent_id=delegate_id, agent_version_id=pinned.id)],
+            share=[DELEGATION_CAPABILITY_ID],
+            max_depth=2,
+            allow_dynamic=True,
+        )
+
+        prepared = await _prepare(spec, versions={pinned.id: pinned})
+
+        built = prepared.built("research-bot")
+        assert built["spec"].capabilities == []
+        # And with no binding there is no nested runtime, so the parent's own
+        # specialist is not reachable through the delegate and the delegate may not
+        # invent one of its own.
+        assert SUBAGENT_RUNTIME_RESOURCE not in built["resources"]
+
 
 class TestAPublishedDelegate:
     async def test_it_runs_the_version_it_is_pinned_to(self):
@@ -564,6 +601,30 @@ class TestAPublishedDelegate:
             await _prepare(spec, versions={})
 
         assert refused.value.details["agent_id"] == str(delegate_id)
+
+    async def test_an_archived_delegate_fails_the_run(self):
+        """Archiving is this product's one take-out-of-service action, and it has to
+        reach the caller hardest to notice.
+
+        A pin to an already archived agent is refused at publish, and a direct run
+        of one is refused by `get_runnable_spec`. Neither covers the agent archived
+        *after* a parent pinned it: that delegate kept answering indefinitely, for
+        an author who had been told it was retired.
+        """
+        delegate_id = uuid.uuid4()
+        pinned = _version(delegate_id, AgentSpec(name="Research Bot"))
+        spec = _delegating(
+            subagents=[SubagentRef(agent_id=delegate_id, agent_version_id=pinned.id)]
+        )
+        retired = _agent_row(delegate_id, slug="research-bot", status=AgentStatus.ARCHIVED.value)
+
+        with pytest.raises(BadRequestError, match="is archived") as refused:
+            await _prepare(spec, versions={pinned.id: pinned}, agents={delegate_id: retired})
+
+        assert refused.value.details == {
+            "agent_id": str(delegate_id),
+            "slug": "research-bot",
+        }
 
     async def test_a_pin_naming_another_agents_version_is_refused(self):
         """A version id is only meaningful through the agent that owns it - and

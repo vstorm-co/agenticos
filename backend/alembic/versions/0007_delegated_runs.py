@@ -11,9 +11,12 @@ monthly cap has something to meter. Two columns make that row readable.
 `parent_run_id` says which run delegated it. It is also what keeps the
 organization's monthly total honest: every run shares one spend ledger, so the
 parent's row already contains the delegation's tokens, and summing both would
-bill the organization twice for one request. `sum_cost_since` therefore counts
-only rows where this is null, while the per-agent sum counts all of them - the
-delegate's own spend is exactly what its own cap is a cap on.
+bill the organization twice for one request. `sum_cost_since`, `cost_breakdown`,
+`spend_by_provider` and `spend_by_key` therefore count only rows where this is
+null, while a per-agent question counts all of them - the delegate's own spend is
+exactly what its own cap is a cap on. It also decides who is listed as having
+taken part in a conversation: `agents_in_conversations` skips these rows, because
+a delegate answered the parent and not the conversation.
 
 `ON DELETE SET NULL` for the same arithmetic. Deleting the parent removes the
 row that contained this cost, so a delegation row that becomes top-level is one
@@ -30,10 +33,15 @@ No new `RunSurface` member. A Slack mention that delegated is still Slack, and
 one column cannot answer both "where did this come from" and "was this
 delegated".
 
-The index is for the run-detail question - "what did this run delegate" - which
-is a lookup by parent. The monthly sums are still served by the existing
-`(organization_id, started_at)` index, with the null test applied to rows it
-already found.
+The index is for the foreign key, not for a query: PostgreSQL does not index a
+referencing column on its own, and `ON DELETE SET NULL` has to find every child
+row when a parent run is deleted - unindexed, deleting one run means a sequential
+scan of `agent_runs`, which is the largest table in the schema and the one a
+retention job deletes from in bulk. Nothing selects *by* a parent id yet; the
+run-detail question - "what did this run delegate" - is the query it would also
+serve when somebody writes it. The sums and the null tests above are served by
+the existing `(organization_id, started_at)` index, which finds the window's rows
+and then discards the ones with a parent.
 """
 
 import sqlalchemy as sa

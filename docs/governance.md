@@ -97,9 +97,18 @@ opposite arithmetic:
 | **What did *this agent* cost this month?** | **included** - a delegate's rows are the only place its own spend is recorded |
 
 The second is what makes "the researcher cost $40 this month" answerable, and it is
-what a usage report or a budget alert on that agent fires on. The organization's
-monthly number also carries ingestion spend, which the per-agent number does not:
-indexing a shared knowledge base is nobody's agent's spend.
+what a per-agent usage report or a budget alert on that agent fires on. The
+organization's monthly number also carries ingestion spend, which the per-agent
+number does not: indexing a shared knowledge base is nobody's agent's spend.
+
+**Every query has to say which of the two it is answering**, and the first column
+is the default. The month-to-date figure, the per-agent breakdown behind it and the
+splits by provider and by key all exclude child rows, so the three breakdowns on
+the cost screen add up to the total printed above them - and the organization's
+usage email reports that same total rather than a sum of one of them. Only a
+question asked *about one agent* includes them. Three of these five queries shipped
+without the distinction and each reported $1.40 for $1.00 of work; if a new one is
+added, the default is the safe one.
 
 ### A pinned delegate does not move on its own
 
@@ -112,6 +121,12 @@ The Builder is where that is surfaced - it compares each pin against what the
 delegate publishes now and offers to move it - because staleness nothing surfaces is
 a bug frozen in place. A pin whose version no longer exists **fails the run** and
 names the delegate; never a quiet fall back to the current version.
+
+**Archiving a delegate stops it answering, including as somebody's delegate.** A
+pin to an already archived agent is refused at publish, and an agent archived after
+it was pinned fails its caller's run by name - otherwise taking an agent out of
+service would leave it running indefinitely in the one place nobody looks, and the
+author who retired it would never be told.
 
 ### Step limits
 
@@ -236,6 +251,11 @@ does not control.
 
 An organization that ran nothing gets no report. A weekly "0 runs, $0.00" is the
 report people filter into a folder, and then the one that mattered goes there too.
+
+The figure in that report is the organization's spend over the window - the same
+arithmetic the cap is enforced with, ingestion included and delegated runs counted
+once. A report whose total disagrees with the limit the platform enforces is worse
+than no report, because both numbers look authoritative.
 
 Sending never blocks and never raises into the caller: a run that has already
 ended must not fail again because SMTP was down.

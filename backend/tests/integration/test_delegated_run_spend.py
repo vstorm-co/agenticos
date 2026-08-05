@@ -1,12 +1,20 @@
-"""What a delegated run row does to the two monthly totals, against Postgres.
+"""What a delegated run row does to every spend total, against Postgres.
 
 A run has one spend ledger, so a delegate's tokens are already inside the parent
 run's `cost_usd`. That makes the child row a second copy of the same money - and
 the two questions asked of it want opposite answers:
 
-* the **organization's** month is the bill, so it must skip the child row;
-* the **delegate's own** month is what its cap meters, and the child rows are the
+* the **organization's** money is the bill, so it must skip the child row;
+* the **delegate's own** spend is what its cap meters, and the child rows are the
   only place that spend is recorded at all.
+
+Five queries read `agent_runs.cost_usd` and every one of them has to say which of
+those two it is answering. `sum_cost_since` did from the start; `cost_breakdown`,
+`spend_by_provider` and `spend_by_key` did not, and the consequence was two live
+wrong numbers - a dashboard whose three breakdowns each totalled more than the
+month-to-date figure printed above them, and a usage email that billed an
+organization $1.40 for $1.00 of work. That hole is why the sibling queries are
+covered here beside the one that always was.
 
 A mock cannot tell you which rows a `WHERE` actually returned, and it certainly
 cannot tell you what `ON DELETE SET NULL` does to the arithmetic afterwards.
@@ -15,16 +23,20 @@ cannot tell you what `ON DELETE SET NULL` does to the arithmetic afterwards.
 from __future__ import annotations
 
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
 
+from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.organization import Organization, OrganizationMember
+from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.user import User
 from app.repositories import agent_run_repo
+from app.services.agent_runner import AgentRunnerService
 from app.services.spend import month_start, organization_monthly_spend
 
 pytestmark = pytest.mark.anyio
@@ -67,8 +79,20 @@ async def _agent(db, org: Organization, *, slug: str) -> Agent:
     return agent
 
 
-async def _run(db, *, org: Organization, agent: Agent, cost: Decimal) -> AgentRun:
-    """A run somebody started, opened and finished the way every surface does."""
+async def _run(
+    db,
+    *,
+    org: Organization,
+    agent: Agent,
+    cost: Decimal,
+    secret: OrganizationSecret | None = None,
+) -> AgentRun:
+    """A run somebody started, opened and finished the way every surface does.
+
+    On OpenAI, because the delegate below runs on Anthropic: the provider split is
+    where double-counting is least visible - the same money appears under two
+    vendors at once, and each looks plausible on its own.
+    """
     run = await agent_run_repo.create_run(
         db,
         organization_id=org.id,
@@ -78,6 +102,8 @@ async def _run(db, *, org: Organization, agent: Agent, cost: Decimal) -> AgentRu
         conversation_id=None,
         surface="api",
         model_label="gpt-4.1",
+        provider="openai",
+        secret_id=None if secret is None else secret.id,
         started_at=datetime.now(UTC),
     )
     return await agent_run_repo.finish_run(
@@ -101,6 +127,7 @@ async def _delegated(
     parent: AgentRun,
     cost: Decimal,
     task_id: str = "4f2a1b8c",
+    secret: OrganizationSecret | None = None,
 ) -> AgentRun:
     """A delegation, written the way `finish` writes one: complete, in one insert.
 
@@ -123,7 +150,7 @@ async def _delegated(
         surface="api",
         model_label="claude-sonnet-4-5",
         provider="anthropic",
-        secret_id=None,
+        secret_id=None if secret is None else secret.id,
         status=RunStatus.COMPLETED.value,
         input_tokens=500,
         output_tokens=50,
@@ -145,6 +172,50 @@ async def _version(db, agent: Agent) -> AgentVersion:
     db.add(version)
     await db.flush()
     return version
+
+
+async def _secret(db, org: Organization, *, name: str) -> OrganizationSecret:
+    """A stored key, so `spend_by_key` has a label to group under."""
+    secret = OrganizationSecret(
+        id=uuid.uuid4(),
+        organization_id=org.id,
+        name=name,
+        kind="api_key",
+        purpose="openai",
+        sealed_secret="sealed",
+        hint="sk-...ab",
+    )
+    db.add(secret)
+    await db.flush()
+    return secret
+
+
+@dataclass(frozen=True)
+class _Delegated:
+    """One $1.00 parent run, $0.40 of which a delegate on another vendor spent."""
+
+    org: Organization
+    orchestrator: Agent
+    researcher: Agent
+    key: OrganizationSecret
+
+
+async def _one_delegated_request(db) -> _Delegated:
+    org = await _org(db)
+    orchestrator = await _agent(db, org, slug="orchestrator")
+    researcher = await _agent(db, org, slug="researcher")
+    key = await _secret(db, org, name="Shared key")
+    parent = await _run(db, org=org, agent=orchestrator, cost=Decimal("1.00"), secret=key)
+    await _delegated(
+        db,
+        org=org,
+        agent=researcher,
+        version=await _version(db, researcher),
+        parent=parent,
+        cost=Decimal("0.40"),
+        secret=key,
+    )
+    return _Delegated(org=org, orchestrator=orchestrator, researcher=researcher, key=key)
 
 
 class TestTheTwoTotals:
@@ -212,6 +283,126 @@ class TestTheTwoTotals:
         )
 
         assert await organization_monthly_spend(db, theirs.id) == Decimal("0")
+
+
+class TestTheThreeBreakdowns:
+    """`cost_breakdown`, `spend_by_provider` and `spend_by_key`, which had no null
+    test at all - so each returned $1.40 for $1.00 of work, in the same payload as
+    the $1.00 the budget enforces."""
+
+    async def test_the_per_agent_breakdown_totals_the_bill(self, db):
+        """Rendered directly beside `month_to_date_usd` on one screen. A breakdown
+        summing to more than the total above it is not a rounding difference - it is
+        the delegate's $0.40 counted twice, once inside the parent's row and once as
+        its own."""
+        fixture = await _one_delegated_request(db)
+
+        rows = await agent_run_repo.cost_breakdown(
+            db, organization_id=fixture.org.id, since=month_start()
+        )
+
+        assert sum(row[2] for row in rows) == Decimal("1.00")
+        assert [(row[0], row[2], row[3]) for row in rows] == [
+            (fixture.orchestrator.id, Decimal("1.00"), 1)
+        ]
+
+    async def test_the_per_agent_breakdown_can_be_asked_for_the_delegates_own_spend(self, db):
+        """The one question that wants the child rows: what did the researcher cost.
+        Its own runs are the only record, and this is what the per-agent usage email
+        reports."""
+        fixture = await _one_delegated_request(db)
+
+        rows = await agent_run_repo.cost_breakdown(
+            db,
+            organization_id=fixture.org.id,
+            since=month_start(),
+            include_delegations=True,
+        )
+
+        assert {row[0]: row[2] for row in rows} == {
+            fixture.orchestrator.id: Decimal("1.00"),
+            fixture.researcher.id: Decimal("0.40"),
+        }
+
+    async def test_the_provider_split_does_not_pay_two_vendors_for_one_request(self, db):
+        """The least visible of the three. The parent's row carries the parent's
+        provider *and* the delegate's tokens, so counting the child row too billed
+        OpenAI $1.00 and Anthropic $0.40 for $1.00 of work - and each figure looked
+        entirely plausible next to the other."""
+        fixture = await _one_delegated_request(db)
+
+        rows = await agent_run_repo.spend_by_provider(
+            db, organization_id=fixture.org.id, since=month_start()
+        )
+
+        assert rows == [("openai", Decimal("1.00"), 1)]
+
+    async def test_a_key_is_not_charged_for_the_same_request_twice(self, db):
+        """One key paid for both rows here, which is the ordinary case: a delegate
+        usually runs on the organization's key too."""
+        fixture = await _one_delegated_request(db)
+
+        rows = await agent_run_repo.spend_by_key(
+            db, organization_id=fixture.org.id, since=month_start()
+        )
+
+        assert rows == [(fixture.key.id, "Shared key", Decimal("1.00"), 1)]
+
+    async def test_every_breakdown_agrees_with_the_bill(self, db):
+        """The invariant the three defaults exist for, asserted as one statement.
+        Three numbers on one screen that each disagree with the total above them is
+        a dashboard nobody can act on - and the fourth of them was emailed."""
+        fixture = await _one_delegated_request(db)
+        since = month_start()
+
+        by_agent = await agent_run_repo.cost_breakdown(
+            db, organization_id=fixture.org.id, since=since
+        )
+        by_provider = await agent_run_repo.spend_by_provider(
+            db, organization_id=fixture.org.id, since=since
+        )
+        by_key = await agent_run_repo.spend_by_key(db, organization_id=fixture.org.id, since=since)
+
+        bill = await organization_monthly_spend(db, fixture.org.id)
+        assert bill == Decimal("1.00")
+        assert sum(row[2] for row in by_agent) == bill
+        assert sum(row[1] for row in by_provider) == bill
+        assert sum(row[2] for row in by_key) == bill
+
+
+class TestTheCostScreen:
+    """Every figure `GET /api/v1/runs/spend` puts on one page, read through the
+    service that answers it - because the defect was not one query being wrong, it
+    was four numbers rendered together that did not agree."""
+
+    async def test_the_four_numbers_on_one_screen_agree(self, db):
+        """`month_to_date_usd` and the three breakdowns beside it. Each of the three
+        used to total $1.40 above a month-to-date of $1.00, which is not a figure
+        anybody can act on: it makes both numbers suspect and neither checkable.
+        """
+        fixture = await _one_delegated_request(db)
+        service = AgentRunnerService(db)
+        ctx = AuthContext(user_id=None, organization_id=fixture.org.id, role=OrgRoleName.OWNER)
+
+        month_to_date = await service.monthly_spend(ctx)
+        by_agent = await service.cost_breakdown(ctx)
+        by_provider = await service.spend_by_provider(ctx)
+        by_key = await service.spend_by_key(ctx)
+
+        assert month_to_date == Decimal("1.00")
+        assert sum(row[2] for row in by_agent) == month_to_date
+        assert sum(row[1] for row in by_provider) == month_to_date
+        assert sum(row[2] for row in by_key) == month_to_date
+
+    async def test_the_delegates_own_month_is_still_its_own_spend(self, db):
+        """The same service, the other question: what a budget alert on the
+        researcher fires on, and the number its own cap is metered against."""
+        fixture = await _one_delegated_request(db)
+        ctx = AuthContext(user_id=None, organization_id=fixture.org.id, role=OrgRoleName.OWNER)
+
+        spent = await AgentRunnerService(db).monthly_spend(ctx, agent_id=fixture.researcher.id)
+
+        assert spent == Decimal("0.40")
 
 
 class TestDeletingTheParent:

@@ -11,6 +11,11 @@ produced - but *participation* is: `agent_runs` has carried `conversation_id` an
 be true of the merge is exactly what a statement test cannot show: the join lands on
 real rows, an agent recorded twice appears once, and the order is the order the
 agents appeared whichever source recorded them.
+
+The run-sourced half also has to say *which* runs count. A delegation is written
+with its parent's `conversation_id` and a terminal status, so the same query that
+recovers an old conversation's agents would list every delegate the orchestrator
+called as a participant the user never chose.
 """
 
 from __future__ import annotations
@@ -107,18 +112,25 @@ async def _run(
     *,
     at: datetime,
     status: str = "completed",
-) -> None:
-    db.add(
-        AgentRun(
-            id=uuid.uuid4(),
-            organization_id=conversation.organization_id,
-            agent_id=agent.id,
-            conversation_id=conversation.id,
-            status=status,
-            created_at=at,
-        )
+    parent: AgentRun | None = None,
+) -> AgentRun:
+    """A run in this conversation - or, given `parent`, a delegation inside one.
+
+    A delegated run carries its parent's `conversation_id`, which is exactly why
+    the filter this file pins cannot be inferred from the column being set.
+    """
+    run = AgentRun(
+        id=uuid.uuid4(),
+        organization_id=conversation.organization_id,
+        agent_id=agent.id,
+        conversation_id=conversation.id,
+        status=status,
+        created_at=at,
+        parent_run_id=None if parent is None else parent.id,
     )
+    db.add(run)
     await db.flush()
+    return run
 
 
 async def _agents_of(db, conversation: Conversation) -> list[str]:
@@ -204,6 +216,45 @@ class TestWhoAnsweredHere:
         await _run(db, conversation, agent, at=_START, status="cancelled")
 
         assert await _agents_of(db, conversation) == []
+
+    async def test_an_agent_the_orchestrator_delegated_to_is_not_a_participant(self, db) -> None:
+        """A delegate answered the parent agent, not the conversation.
+
+        Its run row carries the parent's `conversation_id` and a terminal status,
+        so without the null test on `parent_run_id` a chip would appear for an
+        agent the user never picked and cannot pick - one it has no way to
+        interpret, on a thread it did not join.
+        """
+        organization = await _org(db)
+        owner = await _user(db)
+        orchestrator = await _agent(db, organization, owner, "Orchestrator")
+        researcher = await _agent(db, organization, owner, "Researcher")
+        conversation = await _conversation(db, organization, owner)
+        parent = await _run(db, conversation, orchestrator, at=_START)
+        await _run(
+            db,
+            conversation,
+            researcher,
+            at=_START + timedelta(seconds=30),
+            parent=parent,
+        )
+
+        assert await _agents_of(db, conversation) == ["Orchestrator"]
+
+    async def test_a_delegate_that_answered_in_its_own_right_still_appears(self, db) -> None:
+        """The filter is on the row, not on the agent: an agent used as a delegate
+        somewhere is an ordinary participant in a thread it was picked for."""
+        organization = await _org(db)
+        owner = await _user(db)
+        orchestrator = await _agent(db, organization, owner, "Orchestrator")
+        researcher = await _agent(db, organization, owner, "Researcher")
+        delegated_in = await _conversation(db, organization, owner)
+        picked_in = await _conversation(db, organization, owner)
+        parent = await _run(db, delegated_in, orchestrator, at=_START)
+        await _run(db, delegated_in, researcher, at=_START, parent=parent)
+        await _run(db, picked_in, researcher, at=_START)
+
+        assert await _agents_of(db, picked_in) == ["Researcher"]
 
     async def test_another_conversations_agent_stays_out_of_this_one(self, db) -> None:
         organization = await _org(db)

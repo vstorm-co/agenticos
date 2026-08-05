@@ -19,6 +19,7 @@ column, is SQL - see `tests/integration/test_notification_recipients.py`.
 """
 
 import uuid
+from datetime import UTC, datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -94,6 +95,25 @@ def _roles(*addresses: str) -> AsyncMock:
 
 def _members(*addresses: str) -> AsyncMock:
     return AsyncMock(return_value=list(addresses))
+
+
+def _bill(amount: str) -> AsyncMock:
+    """`app.services.spend.organization_spend_since` - runs plus ingestion.
+
+    Deliberately not the sum of whatever breakdown a test also passes: the point of
+    reading it from there is that the two are different numbers.
+    """
+    return AsyncMock(return_value=Decimal(amount))
+
+
+def _window_days(since: datetime) -> int:
+    """How wide a window a call asked for, to the nearest day.
+
+    Rounded because the boundary is `datetime.now(UTC)` inside the call and cannot
+    be reproduced here; a report that covered the wrong period would be out by
+    days, not by microseconds.
+    """
+    return round((datetime.now(UTC) - since).total_seconds() / 86_400)
 
 
 class TestBudgetExceeded:
@@ -431,14 +451,17 @@ class TestUsageReport:
         assert sent.calls == []
 
     @pytest.mark.anyio
-    async def test_the_total_sums_every_row_not_just_the_biggest(self, sent):
-        """The breakdown is per agent *and* model, so one agent appears on several rows."""
+    async def test_the_run_count_sums_every_row_and_the_agents_are_counted_once(self, sent):
+        """The breakdown is per agent *and* model, so one agent that was repointed
+        mid-window appears on two rows - four runs, one agent, not two."""
+        one_agent = uuid.uuid4()
         rows = [
-            (uuid.uuid4(), "gpt-5", Decimal("2.00"), 3),
-            (uuid.uuid4(), "claude", Decimal("0.50"), 1),
+            (one_agent, "gpt-5", Decimal("2.00"), 3),
+            (one_agent, "claude", Decimal("0.50"), 1),
         ]
         with (
             patch(f"{MODULE}.agent_run_repo.cost_breakdown", new=AsyncMock(return_value=rows)),
+            patch(f"{MODULE}.organization_spend_since", new=_bill("2.50")),
             patch(f"{MODULE}.member_repo.list_emails_by_role", new=_roles("admin@acme.test")),
             patch(f"{MODULE}.organization_repo.get_by_id", new=AsyncMock(return_value=None)),
         ):
@@ -448,9 +471,35 @@ class TestUsageReport:
 
         assert reported is True
         _, _, context = sent.calls[0]
-        assert context["total"] == "2.50"
         assert context["runs"] == "4"
+        assert context["agents"] == "1"
         assert context["period"] == "month"
+
+    @pytest.mark.anyio
+    async def test_the_total_is_the_bill_and_not_the_sum_of_the_breakdown(self, sent):
+        """This email said $1.40 for $1.00 of work.
+
+        Summing the breakdown got the arithmetic wrong in both directions at once:
+        a delegated run appeared twice, because a delegate's tokens are already
+        inside its parent's `cost_usd`, and ingestion's embedding spend appeared not
+        at all. `app.services.spend` is the one place that question is answered, so
+        this figure now agrees with the budget the platform enforces.
+        """
+        rows = [(uuid.uuid4(), "gpt-5", Decimal("1.00"), 1)]
+        bill = _bill("1.12")
+        with (
+            patch(f"{MODULE}.agent_run_repo.cost_breakdown", new=AsyncMock(return_value=rows)),
+            patch(f"{MODULE}.organization_spend_since", new=bill),
+            patch(f"{MODULE}.member_repo.list_emails_by_role", new=_roles("admin@acme.test")),
+            patch(f"{MODULE}.organization_repo.get_by_id", new=AsyncMock(return_value=None)),
+        ):
+            await NotificationService(MagicMock()).usage_report(uuid.uuid4(), period="weekly")
+
+        _, _, context = sent.calls[0]
+        assert context["total"] == "1.12"
+        # And over the window the email says it covers, not the calendar month a
+        # cap is metered on - "over the past week" has to mean the past week.
+        assert _window_days(bill.await_args.args[2]) == 7
 
     @pytest.mark.anyio
     async def test_a_report_with_nobody_to_read_it_is_not_sent(self, sent):
@@ -506,6 +555,32 @@ class TestPerAgentUsageReport:
         assert context["total"] == "2.00"
         assert context["runs"] == "3"
         assert context["agents"] == agent.name
+
+    @pytest.mark.anyio
+    async def test_it_counts_the_runs_this_agent_was_delegated_into(self, sent):
+        """The mirror image of the organization's report, and the one question that
+        wants the child rows.
+
+        An agent used as somebody's delegate spends money in runs that are recorded
+        only as its own delegated rows - so a report that excluded them would tell
+        the person answerable for that agent it had cost nothing.
+        """
+        agent = _agent()
+        rows = [(agent.id, "claude", Decimal("0.40"), 1)]
+        breakdown = AsyncMock(return_value=rows)
+        with (
+            patch(f"{MODULE}.agent_run_repo.cost_breakdown", new=breakdown),
+            patch(f"{MODULE}.member_repo.list_emails_by_role", new=_roles("admin@acme.test")),
+            patch(f"{MODULE}.member_repo.list_emails_for_members", new=_members()),
+            patch(f"{MODULE}.organization_repo.get_by_id", new=AsyncMock(return_value=None)),
+        ):
+            await NotificationService(MagicMock()).agent_usage_report(
+                agent, _spec(usage=AlertSpec(enabled=True)), period="weekly"
+            )
+
+        assert breakdown.await_args.kwargs["include_delegations"] is True
+        _, _, context = sent.calls[0]
+        assert context["total"] == "0.40"
 
     @pytest.mark.anyio
     async def test_a_per_agent_report_is_scoped_to_the_agents_own_organization(self, sent):

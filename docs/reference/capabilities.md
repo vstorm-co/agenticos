@@ -272,7 +272,7 @@ the YAML export and the permission model can all see it.
 | `max_depth` | 1 | 1–3 |
 | `max_fanout` | 3 | 1–10 |
 | `max_result_chars` | 2000 | 200–20000 |
-| `share_with_delegates` | none | capability ids this agent is itself bound to |
+| `share_with_delegates` | none | capability ids this agent is itself bound to, except `subagents` |
 
 **The mode is the author's decision, not the model's.** The library's `task` tool
 takes a `mode` argument defaulting to `sync`, so "the model chose to wait" and
@@ -282,7 +282,10 @@ the way through, and `auto` is how an author deliberately hands the decision ove
 `auto` is resolved *before* the delegation starts, because whether a panel stays
 open after the parent has answered depends on the answer. A pinned delegate or a
 specialist may override the mode for itself: one slow researcher is the case worth
-running in the background.
+running in the background. The instructions **mark that delegate**, beside its
+name — a single sentence stating the configured mode was a promise the overriding
+delegate then broke, telling the model to expect an answer and handing it a task
+id.
 
 **Fan-out and nesting are ceilings, not errors.** Past `max_fanout` the next
 delegation comes back as a tool result the model can act on — wait, or do the work
@@ -346,6 +349,15 @@ decision and does nothing. In practice this exists for `sandbox`: sharing it is
 how a researcher writes `/workspace/notes.md` and a writer reads it. A delegate
 that binds `sandbox` *without* being shared the parent's gets the in-memory
 workspace, because only the run opens one.
+
+**`subagents` cannot be shared**, and it is the one id "does the parent hold it"
+could never refuse — an agent that shares anything holds it by definition. Shared,
+the parent's binding lands on a delegate that binds none, and the runtime then
+reads the *parent's* specialists, `allow_dynamic`, `max_fanout`, `max_depth` and
+share list as though the delegate's author had chosen them. Publishing refuses it,
+and the runtime drops it from the share list as well, so a spec stored before that
+rule cannot widen a delegate either. How deep delegation goes is `max_depth`, and
+whether a delegate may delegate at all is its own spec's answer.
 
 Sharing is also the only route to an [MCP connection](../mcp.md) for an inline
 specialist, which cannot bind one at all: a connection is organization-scoped

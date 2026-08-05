@@ -260,24 +260,41 @@ def delegation_binding(spec: AgentSpec) -> CapabilityBindingSpec | None:
 
 
 def _share_problems(spec: AgentSpec, config: SubagentsConfig) -> list[str]:
-    """Capabilities shared with delegates that this agent does not have.
+    """Everything wrong with what this agent shares with its delegates.
 
     A delegate runs on its own spec plus whatever the parent explicitly hands
     it, so this list is the parent lending what it holds. Naming a capability it
     is not bound to lends nothing - it is a line of configuration that reads as
-    a decision and does nothing, which is the failure mode nobody notices.
+    a decision and does nothing, which is the failure mode nobody notices. A
+    binding that is switched off is not held either: the parent does not build
+    it, so there is nothing for the delegate to receive.
 
-    A binding that is switched off is not held: the parent does not build it, so
-    there is nothing for the delegate to receive either.
+    Delegation itself is refused, and it is the one id an "is it held" check
+    could never catch: an agent that shares anything holds the delegation
+    binding by definition. Sharing it copies the parent's binding onto a
+    delegate that binds none, and every field the runtime then reads comes from
+    the *parent* - its inline specialists, its `allow_dynamic`, its `max_fanout`
+    and `max_depth`, and this share list again one level down. That is a
+    delegate answering with a policy its own author never wrote and no reviewer
+    of its spec can see. Whether a delegate may delegate is its own spec's
+    answer, bounded by the parent's `max_depth`.
     """
+    problems: list[str] = []
     held = {binding.id for binding in spec.capabilities if binding.enabled}
     unbound = sorted(set(config.share_with_delegates) - held)
-    if not unbound:
-        return []
-    return [
-        "Delegation shares capabilities this agent is not bound to: "
-        f"{', '.join(unbound)}. Bind them here first, or drop them from the list."
-    ]
+    if unbound:
+        problems.append(
+            "Delegation shares capabilities this agent is not bound to: "
+            f"{', '.join(unbound)}. Bind them here first, or drop them from the list."
+        )
+    if DELEGATION_CAPABILITY_ID in config.share_with_delegates:
+        problems.append(
+            f"Delegation cannot share '{DELEGATION_CAPABILITY_ID}' with its delegates: a "
+            "delegate would inherit this agent's specialists, its depth and fan-out "
+            "caps and this list, none of which its own author wrote. Whether a delegate "
+            "may delegate is a question its own spec answers."
+        )
+    return problems
 
 
 def _collision_problems(names: Sequence[str]) -> list[str]:
@@ -547,10 +564,12 @@ class AgentRegistryService:
         `agent_id` is which agent this spec belongs to, and it is what makes a
         delegation cycle visible: `A -> B -> A` is created by the publish that
         adds the pin, so the walk has to know that the spec in hand is A's - B's
-        stored version says nothing about a pin that does not exist yet. It is
-        optional because the draft check has no publish to hang it on; a cycle
-        that closes on this agent is then caught at publish instead, which is the
-        last point at which it can be.
+        stored version says nothing about a pin that does not exist yet. All
+        three callers pass it - both publish paths and the draft check - so every
+        one of them reports a cycle that closes on the agent in hand. Omitted, the
+        walk still finds a loop that closes anywhere *below* this agent, because
+        that one is visible in the delegates' own stored specs; only a cycle
+        through the root goes unseen. That is the whole of what the default costs.
 
         Args:
             ctx: Who is publishing. Every reference is checked against *their*

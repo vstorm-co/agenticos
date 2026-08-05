@@ -110,7 +110,7 @@ from app.agents.subagent_runtime import (
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import StorableSecret
-from app.db.models.agent import Agent
+from app.db.models.agent import Agent, AgentStatus
 from app.db.models.agent_exposure import AgentExposure
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, RunSurface
 from app.db.models.chat_file import ChatFile
@@ -1416,8 +1416,16 @@ class AgentRunnerService:
 
         Inline specialists come first only so the order is stable; the model
         addresses a delegate by name, and the name is refused if two share it.
+
+        Delegation is never shared, whatever the share list says. Publish
+        validation refuses the id (`_share_problems`), and this drops it again
+        because a spec published before that rule existed is still stored and
+        still runs: sharing it would copy this agent's binding onto a delegate
+        that binds none, and `_delegation_config` would then read the *parent's*
+        specialists, fan-out and `allow_dynamic` as if the delegate's author had
+        chosen them.
         """
-        share = set(config.share_with_delegates)
+        share = set(config.share_with_delegates) - {DELEGATION_CAPABILITY_ID}
         shared = [
             binding for binding in spec.capabilities if binding.enabled and binding.id in share
         ]
@@ -1540,11 +1548,21 @@ class AgentRunnerService:
         would make the same published agent work for one person and not another -
         so the row is read tenant-scoped rather than through the registry.
 
+        Its **status** is another matter, and is checked. Archiving is this
+        product's one take-out-of-service action: `get_runnable_spec` refuses a
+        direct run of an archived agent and `_resolve_pins` refuses a pin to one
+        at publish. An agent archived *after* a parent pinned it would otherwise
+        keep answering as that parent's delegate indefinitely - the caller hardest
+        to notice, and the one whose author has already been told the agent is
+        retired. This is a lifecycle check on the delegate, not the per-caller
+        permission re-check the paragraph above declines to do: it answers the
+        same way for everyone who runs the parent.
+
         Raises:
             BadRequestError: If the delegate or its pinned version is gone or
-                belongs to another organization, if the pin names a version of a
-                different agent, or if this delegate is already running higher up
-                the tree.
+                belongs to another organization, if the delegate has been
+                archived, if the pin names a version of a different agent, or if
+                this delegate is already running higher up the tree.
         """
         ctx = delegation.ctx
         if ref.agent_id in ancestors:
@@ -1565,6 +1583,14 @@ class AgentRunnerService:
             raise BadRequestError(
                 message="A delegate this agent is pinned to no longer exists",
                 details={"agent_id": str(ref.agent_id)},
+            )
+        if delegate.status == AgentStatus.ARCHIVED.value:
+            # Named, unlike the two refusals around it: the pin was valid when it
+            # was published and somebody has since retired the delegate, so the
+            # fix is to unarchive it or republish the parent without it.
+            raise BadRequestError(
+                message=f"A delegate this agent is pinned to, '{delegate.name}', is archived",
+                details={"agent_id": str(ref.agent_id), "slug": delegate.slug},
             )
         version = await agent_repo.get_version(
             self.db, ref.agent_version_id, organization_id=ctx.organization_id
@@ -1604,7 +1630,11 @@ class AgentRunnerService:
                     depth=depth + 1,
                     # This delegate's own setting, not its caller's. A published
                     # delegate is reviewed on its own spec, so whether it may
-                    # invent specialists is a question its author answered.
+                    # invent specialists is a question its author answered - and
+                    # `nested_config` is that answer only because delegation is
+                    # the one capability `_resolve_delegates` will not share.
+                    # Shared, the parent's binding would land on a delegate that
+                    # binds none and be read here as the delegate's own.
                     dynamic=await self._dynamic_specialists(delegation, nested_config),
                 )
             else:

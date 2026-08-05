@@ -450,6 +450,41 @@ class TestSharedCapabilities:
             "Bind them here first, or drop them from the list."
         ]
 
+    async def test_sharing_the_delegation_capability_itself_is_refused(self):
+        """The one id an 'is this agent bound to it' check could never catch.
+
+        An agent that shares anything holds the delegation binding by definition,
+        so `share_with_delegates: ["subagents"]` published cleanly - and then the
+        runtime copied the parent's binding onto a delegate that binds none. Every
+        field `_delegation_config` reads would come from the caller: the parent's
+        inline specialists, its `max_fanout`, its `max_depth`, its share list, and
+        its `allow_dynamic` - which is a delegate inventing specialists on an
+        author's behalf when that author's spec says it may not.
+        """
+        problems = await _problems(
+            _ctx(), _delegating({"share_with_delegates": [DELEGATION_CAPABILITY_ID]})
+        )
+
+        assert problems == [
+            "Delegation cannot share 'subagents' with its delegates: a delegate would "
+            "inherit this agent's specialists, its depth and fan-out caps and this "
+            "list, none of which its own author wrote. Whether a delegate may "
+            "delegate is a question its own spec answers."
+        ]
+
+    async def test_a_share_list_can_be_wrong_in_both_ways_at_once(self):
+        """Both problems, in one round trip. The Builder shows a form; fixing it one
+        error per publish is the difference between a tool people use and one they
+        avoid."""
+        problems = await _problems(
+            _ctx(),
+            _delegating({"share_with_delegates": [DELEGATION_CAPABILITY_ID, "knowledge"]}),
+        )
+
+        assert len(problems) == 2
+        assert problems[0].startswith("Delegation shares capabilities this agent is not bound to")
+        assert problems[1].startswith("Delegation cannot share 'subagents'")
+
 
 class TestDelegatePins:
     async def test_a_delegate_the_publisher_cannot_run_is_refused_as_a_missing_one(
@@ -490,7 +525,13 @@ class TestDelegatePins:
         assert problems == [f"Agent not found: {elsewhere}"]
 
     async def test_an_archived_delegate_is_refused(self, monkeypatch):
-        """An archived agent refuses to run, so a pin to one is a run that fails.
+        """Archiving takes an agent out of service, delegation included.
+
+        Not because the run would fail on its own - a delegate is loaded from its
+        pinned version and never through `get_runnable_spec`, so nothing downstream
+        looks at the row's status for us. `_resolve_delegate` checks it at run time
+        for the agent archived *after* this publish; this is the same rule at the
+        point where somebody is still looking at a form.
 
         Named rather than reported as missing: the publisher can see this agent,
         so "not found" would send them looking for something that is in front of

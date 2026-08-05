@@ -262,7 +262,10 @@ reasoning as they are generated, its *own* tool calls (which may reach a collect
 the parent cannot even see), and on close its status, its tokens and its share of the
 turn's cost. Every frame carries the delegation's task id and its depth, because a
 fan-out of three is three panels and interleaving three specialists into one
-paragraph is worse than not streaming at all. A child's text is never folded into the
+paragraph is worse than not streaming at all — and an opening frame carries the task
+id of the delegation it was made *inside*, so a specialist that delegates further
+nests under the right panel rather than under whichever one started most recently.
+A child's text is never folded into the
 parent's answer: that would put words in the parent's mouth its own model never
 generated, and the conversation is persisted with them.
 
