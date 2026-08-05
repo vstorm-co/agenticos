@@ -412,14 +412,15 @@ filter as drift.
 the library's own default of `True`. That is a fact about somebody else's default,
 stated in one place — not a setting, and never one an author could reach.
 
-The library compiles this delegate at construction from `default_model`, a model
-string of its own choosing: no profile of this organization's resolves it, no
-credential of this organization's is unsealed for it, and the run's `BudgetGuard`
-never wraps it. So a deployment holding no such key fails the build outright, and
-one with that key in its process environment runs a tenant's work on a
-deployment-wide credential — unpriced, unmetered, and against the one rule
-`model_resolver.py` states outright. A switch whose two outcomes are a crash and a
-credential leak is a trap, and a warning beside it is not a guard.
+Before subagents-pydantic-ai 0.2.18 the library compiled this delegate at
+construction from `default_model`, a model string of its own choosing: no profile
+of this organization's resolved it, no credential of this organization's was
+unsealed for it, and the run's `BudgetGuard` never wrapped it. A deployment holding
+no such key failed the build outright, and one with that key in its process
+environment ran a tenant's work on a deployment-wide credential — unpriced,
+unmetered, and against the one rule `model_resolver.py` states outright. A switch
+whose two outcomes are a crash and a credential leak is a trap, and a warning beside
+it is not a guard.
 
 There was briefly an `include_general_purpose` field on `SubagentsConfig`,
 defaulting off with that warning written next to it. It was removed rather than
@@ -430,9 +431,11 @@ round trip to learn it does nothing.
 
 An author who wants a catch-all writes an inline specialist, which runs on one of
 this organization's model profiles through `build_agent` like every other delegate,
-and whose instructions somebody can read. Making the library's own work means
-resolving it here the same way: agenticos#174, still open, and an upstream defect
-regardless of what this deployment configures.
+and whose instructions somebody can read. The library's own is fixed as of 0.2.18
+(agenticos#174): with no `default_model` and no `default_agent_factory` it now
+refuses to build the delegate rather than compiling it from a model of its own, so
+leaving the switch on would raise here, not leak. This platform still does not offer
+it, for the reason above.
 
 ## Reading the code
 

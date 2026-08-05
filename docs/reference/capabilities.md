@@ -440,13 +440,15 @@ state — a name created in one reply is unknown in the next, and `create_agent`
 description tells the model to create it again if `task` says so.
 
 **The delegation library's own unspecialised delegate is not offered at all**, and
-there is no setting for it. It would run on a model this deployment did not
-configure — compiled from the library's own default model string, so outside the
-organization's profiles, its vault and the run's budget guard, exactly like the
-run-time specialist above before it took a factory. A catch-all is a legitimate
-thing to want; write it as an inline specialist, where you can read what it does
-and it is priced like everything else. Fixing the library's own is
-[#174](https://github.com/vstorm-co/agenticos/issues/174).
+there is no setting for it. Before subagents-pydantic-ai 0.2.18 it would have run on
+a model this deployment did not configure — compiled from the library's own default
+model string, outside the organization's profiles, its vault and the run's budget
+guard, exactly like the run-time specialist above before it took a factory. A
+catch-all is a legitimate thing to want; write it as an inline specialist, where you
+can read what it does and it is priced like everything else. The library's own is
+fixed as of 0.2.18 ([#174](https://github.com/vstorm-co/agenticos/issues/174)): with
+no default model or factory it now refuses to build the delegate rather than picking
+a model.
 
 What the model is told about all of this is written here rather than by the
 library: the delegates by name and description, the mode this run will actually
