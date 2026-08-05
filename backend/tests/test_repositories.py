@@ -80,3 +80,34 @@ class TestUserRepository:
         assert removed == 3
         statement = str(mock_session.execute.call_args.args[0])
         assert "is_app_admin" in statement
+
+
+class TestAgentRepositoryLock:
+    """The lock `existing_ids_locked` takes when the approval writer resolves delegates."""
+
+    @pytest.mark.anyio
+    async def test_it_takes_for_key_share_not_for_no_key_update(self):
+        """`FOR KEY SHARE` holds against deletion while letting ordinary updates through.
+
+        `.with_for_update(key_share=True)` alone compiles to `FOR NO KEY UPDATE`
+        in SQLAlchemy's PostgreSQL dialect, which needlessly blocks a concurrent
+        agent update until the run transaction commits. `read=True, key_share=True`
+        is what emits the intended `FOR KEY SHARE` - the lock an insert referencing
+        the row takes anyway, so a concurrent delete still cannot slip in but an
+        ordinary update is not held.
+        """
+        from uuid import uuid4
+
+        from sqlalchemy.dialects import postgresql
+
+        from app.repositories import agent as agent_repo
+
+        session = MagicMock()
+        session.execute = AsyncMock(return_value=MagicMock(scalars=lambda: MagicMock(all=list)))
+
+        await agent_repo.existing_ids_locked(session, {uuid4()}, organization_id=uuid4())
+
+        statement = session.execute.call_args.args[0]
+        sql = str(statement.compile(dialect=postgresql.dialect()))
+        assert "FOR KEY SHARE" in sql
+        assert "FOR NO KEY UPDATE" not in sql

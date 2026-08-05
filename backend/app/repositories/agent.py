@@ -51,7 +51,7 @@ async def existing_ids_locked(
     result = await db.execute(
         select(Agent.id)
         .where(Agent.id.in_(list(agent_ids)), Agent.organization_id == organization_id)
-        .with_for_update(key_share=True)
+        .with_for_update(read=True, key_share=True)
     )
     return set(result.scalars().all())
 
