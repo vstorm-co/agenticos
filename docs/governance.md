@@ -183,18 +183,19 @@ work included:
 | `GET /runs?parent_run_id=<id>` | What that run delegated — the query `agent_runs_parent_run_id_idx` exists for. Takes precedence over `include_delegations` |
 | `GET /runs/<id>` | One run, delegated or not. Where a link from a transcript lands |
 
-Activity's three figures stay the organization's, including the run count — a
-per-agent count beside the organization's month would be two questions under one
-label, and the per-agent count is the one that includes delegations.
-
-On the Activity page that is `?run=<id>`: one run, the delegations under it each
-badged with the task id its `subagent_*` frames carried, and a link up to the run
-a delegation was charged to. A delegation panel in a chat links there with the
-`run_id` its terminal frame carries - which is why the frame carries one. Nesting
-delegated rows inside the top-level table is deliberately *not* done here; a table
-primitive shared by the whole product is
+The last two are `?run=<id>` on the Activity page: one run, the delegations under
+it each badged with the task id its `subagent_*` frames carried, and a link up to
+the run a delegation was charged to. A delegation panel in a chat links there with
+the `run_id` its terminal frame carries — which is why the frame carries one.
+Nesting delegated rows inside the top-level table is deliberately *not* done here;
+a table primitive shared by the whole product is
 [proposed separately](https://github.com/vstorm-co/agenticos/issues/139), and
 nesting belongs in that rather than in one bespoke run table.
+
+Activity's three figures above the tabs stay the organization's, including the run
+count, even when the table below is narrowed to one agent. A per-agent count beside
+the organization's month would be two questions under one label — and the per-agent
+count is the one that includes delegations.
 
 **An orphaned delegation is reported without its handle.** `parent_run_id` is
 `ON DELETE SET NULL`, so deleting the parent leaves a row that correctly starts
