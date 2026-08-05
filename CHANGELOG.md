@@ -19,6 +19,25 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.29] - 2026-08-06
+
+### Fixed
+
+- **An inline specialist's spend under a published delegate now reaches an agent's month**
+  ([#228](https://github.com/vstorm-co/agenticos/issues/228)). Spend attribution (0.0.7,
+  #192) stamps every `SpendEntry` with the delegation that booked it and reads a
+  delegation's cost as its share of the ledger — but an inline specialist gets no
+  `agent_runs` row, only published delegates do. So an inline `fact-checker` under a
+  published `researcher` booked its spend to its own key, which is in no run row, and the
+  innermost stamp meant it was not in the researcher's share either: on a $0.75 run the
+  researcher's row read $0.50, and $0.25 reached no agent's month. The organisation total
+  was always right (the top-level row is the whole ledger), which is why nothing failed.
+  An entry now carries a second attribution — *who spent it* (for the delegation panel's
+  own-share `cost_usd`) and *which agent row it bills to* (for the month): an inline
+  specialist bills to its nearest published ancestor, so that row is whole again while the
+  panel still shows the specialist's own share, with nothing double-counted. Holds through
+  an inline specialist nested under another inline specialist, too.
+
 ## [0.0.28] - 2026-08-06
 
 ### Fixed
@@ -1040,7 +1059,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.28...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.29...HEAD
+[0.0.29]: https://github.com/vstorm-co/agenticos/compare/v0.0.28...v0.0.29
 [0.0.28]: https://github.com/vstorm-co/agenticos/compare/v0.0.27...v0.0.28
 [0.0.27]: https://github.com/vstorm-co/agenticos/compare/v0.0.26...v0.0.27
 [0.0.26]: https://github.com/vstorm-co/agenticos/compare/v0.0.25...v0.0.26
