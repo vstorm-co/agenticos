@@ -273,6 +273,52 @@ class TestSkillManagement:
         assert list_visible.call_args.kwargs["user_id"] == ctx.user_id
 
     @pytest.mark.anyio
+    async def test_shared_with_me_for_a_wide_role_still_looks_up_grants(self):
+        """ "Shared with me" is about grants and visibility, not reach."""
+        ctx = _ctx(OrgRoleName.OWNER)
+        granted = uuid.uuid4()
+
+        with (
+            patch(
+                "app.services.skills.resource_grant_repo.list_shared_ids",
+                new=AsyncMock(return_value=[granted]),
+            ) as shared_ids,
+            patch(
+                "app.services.skills.skill_repo.list_visible",
+                new=AsyncMock(return_value=([], 0)),
+            ) as list_visible,
+        ):
+            await SkillService(_db()).list_skills(ctx, shared_with_me=True)
+
+        assert shared_ids.await_count == 1
+        assert list_visible.call_args.kwargs["see_all"] is True
+        assert list_visible.call_args.kwargs["shared_with_me"] is True
+        assert list_visible.call_args.kwargs["shared_ids"] == [granted]
+
+    @pytest.mark.anyio
+    async def test_shared_with_me_for_a_narrow_role_reuses_its_grant_lookup(self):
+        """One grants query per listing, not two."""
+        ctx = _ctx(OrgRoleName.MEMBER)
+        granted = uuid.uuid4()
+
+        with (
+            patch(
+                "app.services.access.resource_grant_repo.list_shared_ids",
+                new=AsyncMock(return_value=[granted]),
+            ) as shared_ids,
+            patch(
+                "app.services.skills.skill_repo.list_visible",
+                new=AsyncMock(return_value=([], 0)),
+            ) as list_visible,
+        ):
+            await SkillService(_db()).list_skills(ctx, shared_with_me=True)
+
+        assert shared_ids.await_count == 1
+        assert list_visible.call_args.kwargs["see_all"] is False
+        assert list_visible.call_args.kwargs["shared_with_me"] is True
+        assert list_visible.call_args.kwargs["shared_ids"] == [granted]
+
+    @pytest.mark.anyio
     async def test_the_search_is_the_databases_and_so_is_the_page(self):
         """The client never holds an organization's whole set, so it cannot filter one."""
         ctx = _ctx()

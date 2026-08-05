@@ -58,6 +58,9 @@ router = APIRouter()
 async def list_knowledge_bases(
     service: KnowledgeBaseSvc,
     ctx: Auth,
+    shared_with_me: bool = Query(
+        False, description="Only what was shared with the caller - never their own rows"
+    ),
 ) -> Any:
     """List the Knowledge Bases this caller may read in the active organization.
 
@@ -66,7 +69,7 @@ async def list_knowledge_bases(
     between collections, and a name alone does not distinguish the one with four
     hundred documents in it from the one somebody made and never filled.
     """
-    items = await service.list_accessible(ctx)
+    items = await service.list_accessible(ctx, shared_with_me=shared_with_me)
     counts = await service.counts_for(items)
     return KnowledgeBaseList(
         items=[_read_with_counts(kb, counts.get(kb.collection_name)) for kb in items],

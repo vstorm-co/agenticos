@@ -9,7 +9,12 @@ from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundErr
 from app.core.permissions import AuthContext, Perm
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.resource_grant import Visibility
-from app.repositories import knowledge_base_repo, organization_secret_repo, rag_document_repo
+from app.repositories import (
+    knowledge_base_repo,
+    organization_secret_repo,
+    rag_document_repo,
+    resource_grant_repo,
+)
 from app.repositories.rag_document import CollectionCounts
 from app.schemas.knowledge_base import KnowledgeBaseCreate, KnowledgeBaseUpdate
 from app.services.access import COLLECTION, visible_resource_ids
@@ -46,23 +51,40 @@ class KnowledgeBaseService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def list_accessible(self, ctx: AuthContext) -> list[KnowledgeBase]:
+    async def list_accessible(
+        self, ctx: AuthContext, *, shared_with_me: bool = False
+    ) -> list[KnowledgeBase]:
         """The knowledge bases this caller may read: personal + reachable org + app.
 
         Which org rows are reachable is the caller's `collections:view` scope -
         own plus org-visible for a Member, everything for a Builder - widened
         by explicit grants, exactly as :func:`collection_access.readable_kb`
-        answers per row.
+        answers per row. `shared_with_me` narrows to org rows deliberately
+        shared with the caller - org-visible or explicitly granted, and not
+        their own; personal and app-scope rows were never shared with anybody.
         """
         shared = await visible_resource_ids(
             self.db, ctx, resource_type=COLLECTION, perm=Perm.COLLECTIONS_VIEW
         )
+        grant_ids = shared or []
+        if shared_with_me and shared is None:
+            # A role that reaches everything never looks its grants up - but
+            # "shared with me" is a question about grants and visibility, not
+            # reach, and without them the answer would degenerate into "the
+            # whole organization minus mine".
+            grant_ids = await resource_grant_repo.list_shared_ids(
+                self.db,
+                organization_id=ctx.organization_id,
+                subject_user_id=ctx.subject_id,
+                resource_type=COLLECTION.key,
+            )
         return await knowledge_base_repo.get_accessible(
             self.db,
             user_id=ctx.subject_id,
             organization_id=ctx.organization_id,
             see_all_org=shared is None,
-            shared_org_ids=shared or [],
+            shared_org_ids=grant_ids,
+            shared_with_me=shared_with_me,
         )
 
     async def counts_for(self, bases: list[KnowledgeBase]) -> dict[str, CollectionCounts]:

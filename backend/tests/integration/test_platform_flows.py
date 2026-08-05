@@ -3754,3 +3754,114 @@ class TestWhoStillHearsAboutRuns:
         )
 
         assert recipients == [tenant.user.email]
+
+
+class TestSharedWithMeIsWhatWasDeliberatelyShared:
+    """The listings' shared_with_me filter: shared or org-visible, never mine.
+
+    Two properties matter and both are easy to lose. The caller's own rows
+    must not appear however visible they are, and a role that already reaches
+    the whole organization must still get the grants-and-visibility answer -
+    not "everything minus mine".
+    """
+
+    async def test_a_member_sees_the_granted_and_the_org_visible_but_not_their_own(
+        self, db, estate: TwoTenants
+    ) -> None:
+        member = await _join(db, estate.home, OrgRoleName.MEMBER)
+        await SharingService(db).share(
+            estate.home.ctx,
+            estate.home_agent,
+            resource_type=AGENT,
+            subject_user_id=member.user_id,
+            level=GrantLevel.READ,
+        )
+        org_visible = await _agent_row(
+            db,
+            organization_id=estate.home.organization.id,
+            owner_user_id=estate.home.user.id,
+            slug="orgwide",
+        )
+        org_visible.visibility = Visibility.ORG.value
+        mine = await _agent_row(
+            db,
+            organization_id=estate.home.organization.id,
+            owner_user_id=member.user_id,
+            slug="my-own",
+        )
+        mine.visibility = Visibility.ORG.value
+        await db.flush()
+
+        rows, total = await AgentRegistryService(db).list_agents(member, shared_with_me=True)
+
+        assert {row.id for row in rows} == {estate.home_agent.id, org_visible.id}
+        assert total == 2
+
+    async def test_a_wide_role_gets_grants_and_visibility_not_the_whole_org(
+        self, db, estate: TwoTenants
+    ) -> None:
+        """An owner reaches every agent; "shared with me" still means shared."""
+        member = await _join(db, estate.home, OrgRoleName.MEMBER)
+        private_granted_to_owner = await _agent_row(
+            db,
+            organization_id=estate.home.organization.id,
+            owner_user_id=member.user_id,
+            slug="theirs",
+        )
+        await SharingService(db).share(
+            member,
+            private_granted_to_owner,
+            resource_type=AGENT,
+            subject_user_id=estate.home.user.id,
+            level=GrantLevel.READ,
+        )
+
+        rows, total = await AgentRegistryService(db).list_agents(
+            estate.home.ctx, shared_with_me=True
+        )
+
+        # estate.home_agent is the owner's own private agent - not shared with
+        # them, however wide their role.
+        assert {row.id for row in rows} == {private_granted_to_owner.id}
+        assert total == 1
+
+    async def test_skills_answer_the_same_question(self, db, estate: TwoTenants) -> None:
+        member = await _join(db, estate.home, OrgRoleName.MEMBER)
+        await SharingService(db).share(
+            estate.home.ctx,
+            estate.home_skill,
+            resource_type=SKILL,
+            subject_user_id=member.user_id,
+            level=GrantLevel.READ,
+        )
+
+        items, total = await SkillService(db).list_skills(member, shared_with_me=True)
+
+        assert [skill.id for skill in items] == [estate.home_skill.id]
+        assert total == 1
+
+    async def test_collections_exclude_personal_and_app_rows(self, db) -> None:
+        """A personal base is mine by construction and an app base is the
+        deployment's - neither was shared *with* anybody."""
+        tenant = await _tenant(db, name="KbShare")
+        member = await _join(db, tenant, OrgRoleName.MEMBER)
+        org_visible = await _kb_row(db, tenant=tenant, collection_name="kb_org_visible")
+        await _kb_row(
+            db,
+            tenant=tenant,
+            collection_name="kb_personal",
+            scope=KBScope.PERSONAL,
+            owner_user_id=member.user_id,
+        )
+        await _kb_row(db, tenant=tenant, collection_name="kb_app", scope=KBScope.APP)
+        my_org_row = await _kb_row(
+            db,
+            tenant=tenant,
+            collection_name="kb_my_org_row",
+            owner_user_id=member.user_id,
+        )
+
+        bases = await KnowledgeBaseService(db).list_accessible(member, shared_with_me=True)
+
+        assert {kb.id for kb in bases} == {org_visible.id}
+        assert my_org_row.id not in {kb.id for kb in bases}

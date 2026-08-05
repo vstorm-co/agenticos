@@ -164,6 +164,15 @@ filtering needed") and an **empty list** for a context with no subject. Those ar
 opposites, so confusing them would widen a listing to the whole organization at
 exactly the moment it should be narrowed to nothing.
 
+The agents, skills and kb listings also take `?shared_with_me=true`: only rows
+deliberately shared with the caller - org-visible or explicitly granted, and
+never their own. The narrowing applies whatever the role's scope, which needs
+one care: a role that reaches everything never looks its grants up for a plain
+listing, so the filter fetches them anyway - without that, a Builder's "shared
+with me" would degenerate into "the whole organization minus mine". For kb it
+also excludes personal rows (the caller's by construction) and app-scope rows
+(the deployment's - never shared *with* anybody).
+
 ## Where the gates go
 
 !!! danger "`require(...)` belongs on collection routes, not per-resource ones"

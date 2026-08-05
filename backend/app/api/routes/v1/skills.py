@@ -67,6 +67,9 @@ async def list_skills(
     # value keeps meaning what it always did.
     category: list[str] | None = Query(None, description="Exact categories to filter to"),
     sort: SkillSort = Query("name", description="`name` A-Z, or `updated` newest change first"),
+    shared_with_me: bool = Query(
+        False, description="Only what was shared with the caller - never their own rows"
+    ),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
@@ -78,7 +81,13 @@ async def list_skills(
     pressed it.
     """
     items, total = await service.list_skills(
-        ctx, search=q, categories=category, sort=sort, skip=skip, limit=limit
+        ctx,
+        shared_with_me=shared_with_me,
+        search=q,
+        categories=category,
+        sort=sort,
+        skip=skip,
+        limit=limit,
     )
     bundled_names = frozenset(entry.name for entry in skill_library.library())
     return SkillList(

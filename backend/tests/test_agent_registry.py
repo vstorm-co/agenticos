@@ -240,6 +240,57 @@ class TestList:
         )
 
     @pytest.mark.anyio
+    async def test_shared_with_me_for_a_wide_role_still_looks_up_grants(self):
+        """ "Shared with me" is a question about grants and visibility, not reach.
+
+        A role that sees everything skips the grant lookup for a plain listing;
+        skipping it here would degenerate the answer into "the whole
+        organization minus mine".
+        """
+        ctx = _ctx(OrgRoleName.OWNER)
+        granted = uuid.uuid4()
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.resource_grant_repo.list_shared_ids",
+                new=AsyncMock(return_value=[granted]),
+            ) as shared_ids,
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.list_visible",
+                new=AsyncMock(return_value=([], 0)),
+            ) as list_visible,
+        ):
+            await AgentRegistryService(_db()).list_agents(ctx, shared_with_me=True)
+
+        assert shared_ids.await_count == 1
+        assert list_visible.call_args.kwargs["see_all"] is True
+        assert list_visible.call_args.kwargs["shared_with_me"] is True
+        assert list_visible.call_args.kwargs["shared_ids"] == [granted]
+
+    @pytest.mark.anyio
+    async def test_shared_with_me_for_a_narrow_role_reuses_its_grant_lookup(self):
+        """One grants query per listing, not two."""
+        ctx = _ctx(OrgRoleName.MEMBER)
+        granted = uuid.uuid4()
+
+        with (
+            patch(
+                "app.services.access.resource_grant_repo.list_shared_ids",
+                new=AsyncMock(return_value=[granted]),
+            ) as shared_ids,
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.list_visible",
+                new=AsyncMock(return_value=([], 0)),
+            ) as list_visible,
+        ):
+            await AgentRegistryService(_db()).list_agents(ctx, shared_with_me=True)
+
+        assert shared_ids.await_count == 1
+        assert list_visible.call_args.kwargs["see_all"] is False
+        assert list_visible.call_args.kwargs["shared_with_me"] is True
+        assert list_visible.call_args.kwargs["shared_ids"] == [granted]
+
+    @pytest.mark.anyio
     async def test_a_listed_agent_says_who_reaches_it_and_where_it_answers(self):
         """The gallery card reads 'shared with 3, on Slack' straight off the row.
 
