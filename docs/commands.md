@@ -39,7 +39,7 @@ than repeating their commands, and `backend/tests/test_ci_parity.py` fails if a
 gating job grows a step `check` does not run — or the reverse.
 
 ```bash
-make check   # lint, test, test-frontend-cov, build-frontend, docs-build, audit
+make check   # lint, test, db-check, test-frontend-cov, build-frontend, docs-build, audit
 ```
 
 About five minutes, serial, on a warm cache. What it deliberately leaves out:
@@ -64,6 +64,7 @@ first if the change is anywhere near the database.
 | `make db-init` | Start PostgreSQL + create initial migration + apply |
 | `make db-migrate` | Create new migration (prompts for message) |
 | `make db-upgrade` | Apply pending migrations |
+| `make db-check` | `alembic check` — fail if a model change has no migration. Non-destructive (it never downgrades), so unlike `test-migrations` it runs inside `make check`; needs a database at head, and skips rather than fails when none answers on 5432 |
 | `make db-downgrade` | Rollback last migration |
 | `make db-current` | Show current migration revision |
 | `make db-history` | Show full migration history |

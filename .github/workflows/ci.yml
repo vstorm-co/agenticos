@@ -134,6 +134,14 @@ jobs:
         # on a laptop it points at whatever `backend/.env` says.
         run: make test-migrations
 
+      - name: Verify the models and the migrations still agree
+        # `alembic check` fails if the models declare something no migration
+        # creates - the gate that catches "edited a model, forgot the
+        # migration". `test-migrations` above leaves the database at head, which
+        # is what this needs; it never downgrades, so it is safe to run in
+        # `make check` too, where `test-migrations` is not.
+        run: make db-check
+
       - name: Run tests with the coverage gate
         # --cov with no argument uses the include list in pyproject.toml: the
         # platform layer, held at 100%. Template-inherited subsystems are
