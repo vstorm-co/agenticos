@@ -5,8 +5,10 @@ import {
   childrenOf,
   closeOpenDelegations,
   resolveAwaitingOnResume,
+  resumeFailureStatus,
   rootsOf,
 } from "./delegations";
+import { ApiError } from "@/lib/api-error";
 import type { Delegation, SubagentFrame } from "@/types";
 
 /** A `subagent_start`, which is the only frame that can create a panel. */
@@ -472,6 +474,37 @@ describe("resolveAwaitingOnResume - closing a panel the HTTP resume left waiting
     const after = resolveAwaitingOnResume(delegations, "completed");
 
     expect(after).toBe(delegations);
+  });
+});
+
+describe("resumeFailureStatus - reading a terminal status off a failed resume", () => {
+  /** The refusal envelope a raising continuation produces (`RUN_EXECUTION_FAILED`). */
+  function resumeError(details: Record<string, unknown> | null): ApiError {
+    return new ApiError(500, "The run failed while continuing after approval", {
+      error: { code: "RUN_EXECUTION_FAILED", message: "failed", details },
+    });
+  }
+
+  it("reads the recorded status when the continuation raised", () => {
+    // The crux of agenticos#262: the resume did not return, so this status - carried
+    // in the error body - is the only per-delegation outcome the surface can get.
+    expect(resumeFailureStatus(resumeError({ run_id: "r1", status: "failed" }))).toBe("failed");
+  });
+
+  it("returns null when the run is still parked, so the decision is kept for retry", () => {
+    // A build refusal (a secret deleted since the park) leaves the run parked and
+    // carries no status: the caller must restore the approval, not close the panel.
+    expect(resumeFailureStatus(resumeError({ run_id: "r1" }))).toBeNull();
+    expect(resumeFailureStatus(resumeError(null))).toBeNull();
+  });
+
+  it("returns null for a non-terminal status, which is no outcome to close a panel to", () => {
+    expect(resumeFailureStatus(resumeError({ status: "running" }))).toBeNull();
+    expect(resumeFailureStatus(resumeError({ status: "awaiting_approval" }))).toBeNull();
+  });
+
+  it("returns null for anything that is not an ApiError", () => {
+    expect(resumeFailureStatus(new Error("network down"))).toBeNull();
   });
 });
 

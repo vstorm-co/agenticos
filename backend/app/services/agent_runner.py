@@ -110,7 +110,7 @@ from app.agents.subagent_runtime import (
     ResumedDelegation,
     SubagentRuntime,
 )
-from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.exceptions import BadRequestError, NotFoundError, RunExecutionError
 from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import StorableSecret
 from app.db.models.agent import Agent, AgentStatus
@@ -2503,14 +2503,31 @@ class AgentRunnerService:
         # never written.
         await agent_run_repo.mark_running(self.db, run=run)
 
-        return await self._run(
-            prepared,
-            # No new prompt: the conversation resumes at the tool call it stopped
-            # on, and inventing a user turn here would put words in their mouth.
-            user_prompt=None,
-            message_history=ModelMessagesTypeAdapter.validate_python(state.messages),
-            deferred_tool_results=plan.results,
-        )
+        try:
+            return await self._run(
+                prepared,
+                # No new prompt: the conversation resumes at the tool call it stopped
+                # on, and inventing a user turn here would put words in their mouth.
+                user_prompt=None,
+                message_history=ModelMessagesTypeAdapter.validate_python(state.messages),
+                deferred_tool_results=plan.results,
+            )
+        except Exception as exc:
+            # The continuation raised. `_run` has recorded the run terminal and
+            # committed before re-raising, so this re-raise carries the failure to
+            # the caller rather than swallowing it - but it also carries the
+            # recorded status, which the raising path used to throw away. The resume
+            # answer is where a web-chat surface learns a delegate's outcome (the
+            # continuation ran over HTTP, not the socket the conversation streams);
+            # without the status the surface leaves an `awaiting_approval` panel
+            # waiting on a decision already spent, and the run cannot be resumed
+            # again because it is now terminal (agenticos#262). A build refusal
+            # raised *before* `_run` leaves the run parked and is retryable, so it
+            # is deliberately outside this `try` - it must keep surfacing as itself.
+            # `CancelledError` is a `BaseException` and not caught: over HTTP it
+            # means the request itself went away, so there is nobody to hand a
+            # status to, and catching it would break the cancellation it signals.
+            raise RunExecutionError(details={"run_id": str(run.id), "status": run.status}) from exc
 
     async def _decisions(
         self, ctx: AuthContext, *, run: AgentRun, state: PausedRunState

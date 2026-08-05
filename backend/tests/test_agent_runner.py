@@ -22,7 +22,7 @@ from app.agents.capabilities.approval import ApprovalGranted, ApprovalRejected
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope, SpendLedger
 from app.agents.spec import AgentSpec, CapabilityBindingSpec, ObservabilitySpec
 from app.agents.subagent_runtime import DelegationSpend, DelegationStash, ParkedDelegation
-from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.exceptions import BadRequestError, NotFoundError, RunExecutionError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import ApprovalStatus, RunStatus, RunSurface
 from app.services.agent_runner import (
@@ -1483,6 +1483,68 @@ class TestResume:
                     await service.resume(_ctx(), run.id)
 
         assert run.status == RunStatus.AWAITING_APPROVAL.value
+
+    @pytest.mark.anyio
+    async def test_a_resume_whose_continuation_fails_records_the_status_and_conveys_it(self):
+        """The failure reaches the caller, and the recorded status travels with it.
+
+        The gap #262 fixes: when the continuation raises, `_run` records the run
+        `failed` and commits it, then re-raises - and the resume route used to let
+        that raw exception through with no status, so a web-chat surface (which
+        learns a delegate's outcome only from this HTTP answer) left an
+        `awaiting_approval` panel waiting on a decision already spent, on a run that
+        can no longer be resumed. `resume` now re-raises `RunExecutionError` carrying
+        the recorded status, while still surfacing the failure - the original
+        exception is chained, not swallowed.
+        """
+        service = AgentRunnerService(_db())
+        approval = self._approval(status=ApprovalStatus.APPROVED.value, tool_args={})
+        run = _parked_run(
+            paused_state={"messages": [], "tool_call_ids": {str(approval.id): "call-1"}}
+        )
+        built = self._built()
+        blew_up = RuntimeError("the tool the approval unblocked then failed")
+        built.agent.run = AsyncMock(side_effect=blew_up)
+
+        # The real `finish` runs; `finish_run` is the one call stubbed, and it stamps
+        # the terminal status onto the row the way the repository does - which is what
+        # makes `run.status` the recorded truth by the time `resume` reads it.
+        async def record_terminal_status(*args: Any, **kwargs: Any) -> Any:
+            run.status = kwargs["status"]
+            return run
+
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                new=AsyncMock(return_value=run),
+            ),
+            patch(
+                "app.services.agent_runner.agent_run_repo.list_approvals_for_run",
+                new=AsyncMock(return_value=[approval]),
+            ),
+            patch(
+                "app.services.agent_runner.agent_repo.get_version",
+                new=AsyncMock(return_value=self._version()),
+            ),
+            patch("app.services.agent_runner.build_agent", return_value=built),
+            patch(
+                "app.services.agent_runner.agent_run_repo.finish_run",
+                new=AsyncMock(side_effect=record_terminal_status),
+            ),
+            patch.object(service.registry, "get", new=AsyncMock(return_value=MagicMock())),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            pytest.raises(RunExecutionError) as raised,
+        ):
+            await service.resume(_ctx(), run.id)
+
+        # The run was recorded terminal, and the caller is told which status.
+        assert run.status == RunStatus.FAILED.value
+        assert raised.value.details == {"run_id": str(run.id), "status": RunStatus.FAILED.value}
+        # The failure is conveyed, not hidden: the original exception is chained.
+        assert raised.value.__cause__ is blew_up
 
 
 class TestWhoTheRunSaysItIs:
