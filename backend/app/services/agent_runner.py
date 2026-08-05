@@ -1659,6 +1659,18 @@ class AgentRunnerService:
         nested_config = _delegation_config(pinned)
         if nested_config is not None:
             if depth_remaining > 0:
+                # The more restrictive of the two ceilings, and the reason there are
+                # two: what the tree has left below this level, and what *this
+                # delegate's* author allowed. `depth_remaining - 1` alone took only
+                # the root's, so a caller with `max_depth=3` handed a delegate whose
+                # own spec says 1 enough budget for its delegates to delegate again
+                # - the delegate's reviewed ceiling exceeded by a caller it has
+                # never seen, and a ceiling a caller can widen is not a ceiling.
+                # `max_depth - 1` because that field counts the configured agent's
+                # own level, exactly as it does at the top of the tree in
+                # `_subagent_runtime`; both are at least 0, since the field is
+                # validated `ge=1`.
+                nested_remaining = min(depth_remaining - 1, nested_config.max_depth - 1)
                 delegate_resources[SUBAGENT_RUNTIME_RESOURCE] = _register_runtime(
                     delegation,
                     await self._resolve_delegates(
@@ -1666,11 +1678,11 @@ class AgentRunnerService:
                         spec=pinned,
                         config=nested_config,
                         resources=delegate_resources,
-                        depth_remaining=depth_remaining - 1,
+                        depth_remaining=nested_remaining,
                         depth=depth + 1,
                         ancestors=ancestors | {ref.agent_id},
                     ),
-                    depth_remaining=depth_remaining - 1,
+                    depth_remaining=nested_remaining,
                     depth=depth + 1,
                     # This delegate's own setting, not its caller's. A published
                     # delegate is reviewed on its own spec, so whether it may

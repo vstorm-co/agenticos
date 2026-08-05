@@ -182,15 +182,25 @@ class _Prepared:
     def runtime(self) -> SubagentRuntime:
         return self.resources[SUBAGENT_RUNTIME_RESOURCE]
 
-    def built(self, name: str) -> dict[str, Any]:
+    def built(self, *path: str) -> dict[str, Any]:
         """Build one delegate and hand back the arguments the factory got.
 
         Building is what the capability does when the model actually delegates,
         so this is the only way to see what a delegate was resolved with - and
         the point of it being lazy. The factory is put back in place for the
         call, because that call happens later than `prepare` did.
+
+        More than one name walks down the tree, building each level to reach the
+        runtime the next one is addressed through: `built("research-bot",
+        "fact-checker")` is what the grandchild was resolved with.
         """
-        entry = self.runtime.named(name)
+        runtime = self.runtime
+        for name in path[:-1]:
+            runtime = self._build(runtime, name)["resources"][SUBAGENT_RUNTIME_RESOURCE]
+        return self._build(runtime, path[-1])
+
+    def _build(self, runtime: SubagentRuntime, name: str) -> dict[str, Any]:
+        entry = runtime.named(name)
         assert entry is not None, f"no delegate named {name!r}"
         with patch(f"{RUNNER}.build_agent", new=self.build):
             entry.build()
@@ -755,6 +765,90 @@ class TestHowDeepDelegationGoes:
         # And the grandchild's version was never loaded: resolving a delegate
         # nothing can address would be a query per run for nothing.
         assert prepared.get_version.await_count == 1
+
+    @staticmethod
+    def _three_levels(*, root: int, delegate: int) -> tuple[AgentSpec, dict[uuid.UUID, MagicMock]]:
+        """A chain of four, so a delegate's own ceiling can be exceeded or not.
+
+        The middle two both delegate, and `delegate` is the *middle* agent's own
+        `max_depth` - the number its author chose and its reviewers read.
+        """
+        proofreader_id, grandchild_id, child_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+        proofreader = _version(proofreader_id, AgentSpec(name="Proof Reader"))
+        grandchild = _version(
+            grandchild_id,
+            _delegating(
+                name="Fact Checker",
+                subagents=[SubagentRef(agent_id=proofreader_id, agent_version_id=proofreader.id)],
+            ),
+        )
+        child = _version(
+            child_id,
+            _delegating(
+                name="Research Bot",
+                subagents=[SubagentRef(agent_id=grandchild_id, agent_version_id=grandchild.id)],
+                max_depth=delegate,
+            ),
+        )
+        parent = _delegating(
+            subagents=[SubagentRef(agent_id=child_id, agent_version_id=child.id)],
+            max_depth=root,
+        )
+        return parent, {
+            child.id: child,
+            grandchild.id: grandchild,
+            proofreader.id: proofreader,
+        }
+
+    async def test_a_caller_cannot_buy_a_delegate_more_nesting_than_its_own_spec(self):
+        """A delegate's `max_depth` is its own author's ceiling, not a suggestion.
+
+        The root here is configured for three levels and the delegate's published
+        spec for one, so the delegate delegates and *its* delegates do not - which is
+        what its own reviewers read. The budget used to be `depth_remaining - 1`,
+        taking only the root's remainder: the delegate's ceiling was then exceeded by
+        a caller it has never seen, and every extra level is another agent's model
+        spend on the caller's budget. The whole argument for pinning a delegate to a
+        version is that its author's decisions hold when somebody else calls it.
+        """
+        parent, versions = self._three_levels(root=3, delegate=1)
+
+        prepared = await _prepare(parent, versions=versions)
+        nested = prepared.built("research-bot")["resources"][SUBAGENT_RUNTIME_RESOURCE]
+
+        # The delegate itself delegates, at `max_depth=1`, with nothing left below.
+        assert [entry.name for entry in nested.subagents] == ["fact-checker"]
+        assert nested.depth_remaining == 0
+        # And the depth it reports is still what it is, told rather than computed
+        # from a ceiling and a remainder that now come from two specs.
+        assert nested.depth == 1
+
+        grandchild = prepared.built("research-bot", "fact-checker")
+
+        assert [binding.id for binding in grandchild["spec"].capabilities] == []
+        assert grandchild["spec"].subagents == []
+        assert SUBAGENT_RUNTIME_RESOURCE not in grandchild["resources"]
+        # Two versions, not three: the proofreader is behind a delegation the
+        # grandchild was built without, so resolving it would be a query for nothing.
+        assert prepared.get_version.await_count == 2
+
+    async def test_a_generous_delegate_still_stops_where_the_tree_does(self):
+        """The other direction, and the reason the bound is a `min` of two numbers.
+
+        A delegate configured for three levels called by a root with one left gets
+        one. Its own ceiling says how deep it may go, never how deep the run it is
+        inside may - that budget belongs to whoever started the run and is paying
+        for it.
+        """
+        parent, versions = self._three_levels(root=2, delegate=3)
+
+        prepared = await _prepare(parent, versions=versions)
+        nested = prepared.built("research-bot")["resources"][SUBAGENT_RUNTIME_RESOURCE]
+
+        assert nested.depth_remaining == 0
+        grandchild = prepared.built("research-bot", "fact-checker")
+        assert [binding.id for binding in grandchild["spec"].capabilities] == []
+        assert prepared.get_version.await_count == 2
 
     def test_delegation_cannot_be_switched_off_through_the_depth(self):
         """`max_depth=0` is refused by the model rather than accepted and ignored.

@@ -298,6 +298,14 @@ for on every turn and tries anyway. There is deliberately no 0: turning delegati
 off is disabling the binding, and a second spelling of the same switch is one that
 disagrees with the first.
 
+**And every agent in the tree is held to its own `max_depth`, not the root's.** A
+delegate gets the *lower* of what the tree has left and what its own spec allows,
+so a root configured for three levels delegating to an agent whose author chose 1
+gets one: that delegate delegates and its delegates do not, exactly as its own
+reviewers read it. A ceiling a caller could widen would not be one, and the reason
+to pin a delegate to a version is that its author's decisions hold when somebody
+else calls it.
+
 **A sync delegation can stop to ask a person, and is continued in place.** A gated
 tool inside one parks the whole run; approving it resumes that delegate from where
 it stopped rather than delegating again, which is what makes the approval apply to
@@ -356,8 +364,9 @@ the parent's binding lands on a delegate that binds none, and the runtime then
 reads the *parent's* specialists, `allow_dynamic`, `max_fanout`, `max_depth` and
 share list as though the delegate's author had chosen them. Publishing refuses it,
 and the runtime drops it from the share list as well, so a spec stored before that
-rule cannot widen a delegate either. How deep delegation goes is `max_depth`, and
-whether a delegate may delegate at all is its own spec's answer.
+rule cannot widen a delegate either. Whether a delegate may delegate at all is its
+own spec's answer, and so is how deep it may go — bounded by what the tree above it
+has left.
 
 Sharing is also the only route to an [MCP connection](../mcp.md) for an inline
 specialist, which cannot bind one at all: a connection is organization-scoped

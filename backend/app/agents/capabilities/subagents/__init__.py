@@ -112,10 +112,13 @@ class SubagentsConfig(BaseModel):
             "1 - the default - lets this agent delegate and its delegates not; 2 "
             "allows one nested level, so a delegate may hand work on once; 3 two. "
             "At the bound a delegate is built without the delegation capability "
-            "rather than with one that can only refuse. Bounded low on purpose: "
-            "each level multiplies the requests one turn can make. To turn "
-            "delegation off, disable this binding - that is the one off switch, "
-            "and it keeps the configuration."
+            "rather than with one that can only refuse. It is a ceiling in both "
+            "directions: when this agent is itself somebody's delegate, what it "
+            "gets is the lower of this and what the caller's tree has left, so a "
+            "caller can never buy this agent more nesting than its own author "
+            "allowed. Bounded low on purpose: each level multiplies the requests "
+            "one turn can make. To turn delegation off, disable this binding - "
+            "that is the one off switch, and it keeps the configuration."
         ),
     )
     max_fanout: int = Field(
