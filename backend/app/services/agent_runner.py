@@ -2484,6 +2484,50 @@ class AgentRunnerService:
 
         return output, prepared.run
 
+    async def list_runs(
+        self,
+        ctx: AuthContext,
+        *,
+        agent_id: UUID | None = None,
+        parent_run_id: UUID | None = None,
+        include_delegations: bool = False,
+        skip: int = 0,
+        limit: int = 50,
+    ) -> tuple[list[AgentRun], int]:
+        """Runs for the organization, newest first, optionally for one agent.
+
+        Scoped to the caller's organization here rather than in the route, so
+        run history is read through the same tenant boundary the rest of this
+        service enforces - there is no second place a listing could widen.
+
+        Top-level runs only by default: a delegated row and a run somebody
+        started are never summed down one column, because a parent's cost
+        already contains its children's. `parent_run_id` lists one run's own
+        delegations; `include_delegations` keeps them in an agent's own history.
+        """
+        return await agent_run_repo.list_runs(
+            self.db,
+            organization_id=ctx.organization_id,
+            agent_id=agent_id,
+            parent_run_id=parent_run_id,
+            include_delegations=include_delegations,
+            skip=skip,
+            limit=limit,
+        )
+
+    async def get_run(self, ctx: AuthContext, run_id: UUID) -> AgentRun:
+        """One run in the caller's organization.
+
+        A run belonging to another organization reads as absent, not forbidden:
+        the repository filters on `organization_id`, so a foreign id returns no
+        row and this raises the same `NotFoundError` an unknown id would - a
+        tenant cannot tell a neighbour's run from one that never existed.
+        """
+        run = await agent_run_repo.get_run(self.db, run_id, organization_id=ctx.organization_id)
+        if run is None:
+            raise NotFoundError(message="Run not found", details={"run_id": str(run_id)})
+        return run
+
     async def monthly_spend(self, ctx: AuthContext, *, agent_id: UUID | None = None) -> Decimal:
         """Spend so far this calendar month, for the org or one agent.
 

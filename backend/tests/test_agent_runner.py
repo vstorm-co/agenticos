@@ -454,6 +454,68 @@ class TestSpendReporting:
         assert timedelta(days=7) <= looked_back < timedelta(days=7, seconds=30)
 
 
+class TestReadingRunHistory:
+    """The two reads behind the run-history surface, scoped in the service so
+    the route never touches the repository - and so the tenant boundary has one
+    home rather than two."""
+
+    @pytest.mark.anyio
+    async def test_listing_runs_scopes_to_the_callers_organization(self):
+        """A listing is read for the caller's org, never for all of them, and the
+        filter and page pass straight through."""
+        ctx = _ctx()
+        agent_id = uuid.uuid4()
+        rows = ([MagicMock(), MagicMock()], 2)
+
+        with patch(
+            "app.services.agent_runner.agent_run_repo.list_runs",
+            new=AsyncMock(return_value=rows),
+        ) as listed:
+            items, total = await AgentRunnerService(_db()).list_runs(
+                ctx, agent_id=agent_id, skip=10, limit=25
+            )
+
+        assert (items, total) == rows
+        assert listed.call_args.kwargs["organization_id"] == ctx.organization_id
+        assert listed.call_args.kwargs["agent_id"] == agent_id
+        assert listed.call_args.kwargs["skip"] == 10
+        assert listed.call_args.kwargs["limit"] == 25
+
+    @pytest.mark.anyio
+    async def test_getting_a_run_reads_it_within_the_callers_organization(self):
+        """The single read carries the org id so it can only ever return a row
+        the caller's organization owns."""
+        ctx = _ctx()
+        run_id = uuid.uuid4()
+        run = MagicMock(id=run_id)
+
+        with patch(
+            "app.services.agent_runner.agent_run_repo.get_run",
+            new=AsyncMock(return_value=run),
+        ) as fetched:
+            got = await AgentRunnerService(_db()).get_run(ctx, run_id)
+
+        assert got is run
+        assert fetched.call_args.args[1] == run_id
+        assert fetched.call_args.kwargs["organization_id"] == ctx.organization_id
+
+    @pytest.mark.anyio
+    async def test_a_run_in_another_organization_is_not_found(self):
+        """The repository filters on organization, so a foreign id returns no row
+        - and a tenant cannot tell a neighbour's run from one that never was."""
+        ctx = _ctx()
+        run_id = uuid.uuid4()
+
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.get_run",
+                new=AsyncMock(return_value=None),
+            ),
+            pytest.raises(NotFoundError),
+        ):
+            await AgentRunnerService(_db()).get_run(ctx, run_id)
+
+
 class TestWhatAParkedCallRecords:
     """Enough for a surface to put the decision in front of somebody.
 
