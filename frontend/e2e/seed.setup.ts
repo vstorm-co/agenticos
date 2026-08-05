@@ -1,4 +1,11 @@
-import { test as setup, expect, type APIRequestContext, type Page } from "@playwright/test";
+import type { APIRequestContext, Page } from "@playwright/test";
+
+// `./fixtures`, not `@playwright/test` — so the seed gets the same net every
+// spec has: a step whose page took a 5xx from `/api/*` fails naming that,
+// instead of succeeding at the write and then timing out on a row the failed
+// request could not have rendered. The seed had no net at all, which is part of
+// why a failure here has never said why (#132).
+import { expect, test as setup } from "./fixtures";
 
 import {
   AUTH_STATE,
@@ -19,6 +26,7 @@ import {
   SEEDED_SKILL_NAME,
   pageHeading,
   skillCard,
+  submitDialog,
 } from "./helpers";
 
 /**
@@ -62,7 +70,11 @@ setup("a skill exists", async ({ page }) => {
   // textarea then takes its accessible name from the file it is showing.
   await dialog.getByRole("button", { name: "Source" }).click();
   await dialog.getByLabel(/SKILL\.md source/).fill(SEEDED_SKILL_CONTENT);
-  await dialog.getByRole("button", { name: "Create" }).click();
+  await submitDialog(page, {
+    dialog,
+    submit: dialog.getByRole("button", { name: "Create" }),
+    path: "/api/skills",
+  });
 
   await expect(skillCard(page, SEEDED_SKILL_NAME)).toBeVisible();
 });
@@ -76,7 +88,15 @@ setup("a knowledge base exists", async ({ page }) => {
   await page.getByRole("button", { name: "New knowledge base" }).first().click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Name").fill(SEEDED_KB_NAME);
-  await dialog.getByRole("button", { name: "Create", exact: true }).click();
+  // The fifth site of the same shape, and the only one that has not flaked yet
+  // — because `getByText` never consults the accessibility tree, so an open
+  // dialog does not hide the row from it. The refusal it cannot report is the
+  // same one, so it goes through the same helper.
+  await submitDialog(page, {
+    dialog,
+    submit: dialog.getByRole("button", { name: "Create", exact: true }),
+    path: "/api/kb",
+  });
 
   await expect(page.getByText(SEEDED_KB_NAME, { exact: true }).first()).toBeVisible();
 });
@@ -90,7 +110,11 @@ setup("a draft agent exists", async ({ page }) => {
   await page.getByRole("button", { name: "New agent" }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Name").fill(DRAFT_AGENT_NAME);
-  await dialog.getByRole("button", { name: "Create", exact: true }).click();
+  await submitDialog(page, {
+    dialog,
+    submit: dialog.getByRole("button", { name: "Create", exact: true }),
+    path: "/api/agents",
+  });
 
   // Creating navigates straight into the Builder for the new draft.
   await expect(pageHeading(page, new RegExp(DRAFT_AGENT_NAME))).toBeVisible();
@@ -133,7 +157,11 @@ async function storeSecret(
   // match has to be loose at both ends. Scoped to the textbox because the
   // reveal button beside it is named "Show API key" and matches too.
   await dialog.getByRole("textbox", { name: /API key/i }).fill(value);
-  await dialog.getByRole("button", { name: "Store secret" }).click();
+  await submitDialog(page, {
+    dialog,
+    submit: dialog.getByRole("button", { name: "Store secret" }),
+    path: "/api/secrets",
+  });
 
   await expect(page.getByRole("main").getByText(name)).toBeVisible();
 }

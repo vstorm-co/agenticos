@@ -8,6 +8,7 @@ import {
   SEEDED_SECRET_NAME,
   expectNoRenderedSecret,
   pageHeading,
+  submitDialog,
 } from "./helpers";
 
 test.use({ storageState: AUTH_STATE });
@@ -141,7 +142,11 @@ test.describe("Vault", () => {
     await add.getByRole("button", { name: /^Something else/ }).click();
     await add.getByLabel("Name").fill(name);
     await add.getByRole("textbox", { name: /API key/i }).fill("sk-e2eROTATEfirstvalueAAAA");
-    await add.getByRole("button", { name: "Store secret" }).click();
+    await submitDialog(page, {
+      dialog: add,
+      submit: add.getByRole("button", { name: "Store secret" }),
+      path: "/api/secrets",
+    });
 
     const row = () => page.getByRole("row", { name: new RegExp(name) });
     await expect(row()).toContainText("····AAAA");
@@ -154,7 +159,14 @@ test.describe("Vault", () => {
     await expect(rotate).toContainText("the old one is gone");
     await expect(rotate).toContainText("····AAAA");
     await rotate.getByRole("textbox", { name: /API key/i }).fill("sk-e2eROTATEsecondvalueBBBB");
-    await rotate.getByRole("button", { name: "Rotate" }).click();
+    // A PATCH, on the row's own path — which is why the helper matches the
+    // collection as a prefix rather than exactly.
+    await submitDialog(page, {
+      dialog: rotate,
+      submit: rotate.getByRole("button", { name: "Rotate" }),
+      path: "/api/secrets",
+      method: "PATCH",
+    });
 
     await expect(row()).toContainText("····BBBB");
     expect(await secretId(page, name), "rotation replaced the row instead of its value").toBe(

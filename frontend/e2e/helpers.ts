@@ -137,6 +137,84 @@ export function pageHeading(page: Page, name?: string | RegExp): Locator {
 }
 
 /**
+ * Submit a dialog, and do not return until the page has acted on what it wrote.
+ *
+ * This replaces `click(submit)` followed straight away by
+ * `expect(theNewRow).toBeVisible()`. That shape sat at five sites, flaked at
+ * four of them, and cost three separate diagnoses (#132) — always with the same
+ * useless message, `element(s) not found`, sixteen seconds later.
+ *
+ * The message is why it cost three. **An open Radix dialog takes the rest of the
+ * page out of the accessibility tree**: while one is on screen,
+ * `page.getByRole("main")`, `getByRole("row")` and `skillCard()` resolve to
+ * *nothing at all*, whether or not the row they are looking for exists. So the
+ * assertion that timed out could only ever have reported the absence of the
+ * page, and it named the one thing that was certainly not the cause. Proved with
+ * a probe: `main` counts 1 before the dialog opens, 0 while it is open, and 1
+ * again 87ms later — in the same sample that first sees the new row.
+ *
+ * Two things are waited on, and both are signals rather than hopes:
+ *
+ * 1. **The write's own response.** Its status and body are the diagnosis the old
+ *    shape never printed. A refused create now reads `409 … name already in
+ *    use`; a submit that never reached the network reads as a missing response
+ *    rather than as a missing row.
+ * 2. **The dialog closing.** Every dialog on these surfaces closes only once its
+ *    `mutateAsync` has resolved, and each mutation's `onSuccess` *awaits* the
+ *    invalidation before resolving — so a hidden dialog is the app's own
+ *    statement that the list behind it has already been refetched. That is
+ *    exactly the window the old assertion raced, and this closes it without a
+ *    longer timeout. A longer timeout would only make the race slower to fail.
+ *
+ * The list's own `GET` is deliberately not waited on as a third step. Two of the
+ * five callers never make one — `useKnowledgeBases` writes the new row straight
+ * into the query cache — and at the other three it cannot outlive the dialog,
+ * per (2). Waiting on a request that does not exist would hang the two.
+ */
+export async function submitDialog(
+  page: Page,
+  {
+    dialog,
+    submit,
+    path,
+    method = "POST",
+  }: {
+    /** The dialog being submitted. Its closing is the signal, so it is waited on. */
+    dialog: Locator;
+    /** The button that submits it, as a locator — each caller keeps its own match. */
+    submit: Locator;
+    /** Where the write goes, as a path prefix: `/api/secrets` also matches a PATCH to one. */
+    path: string;
+    method?: "POST" | "PATCH";
+  },
+): Promise<void> {
+  // Registered before the click, not after: a fast answer can arrive before
+  // `click()` has returned, and a listener attached afterwards would then sit
+  // waiting for a second write that nobody is going to make.
+  const answered = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname.startsWith(path) && response.request().method() === method,
+    // Matched to `expect.timeout` rather than left at Playwright's 30s. A submit
+    // that never reached the network should be reported no slower than the
+    // assertion this replaces reported nothing at all.
+    { timeout: 15_000 },
+  );
+
+  await submit.click();
+
+  const response = await answered;
+  expect(
+    response.ok(),
+    `${method} ${new URL(response.url()).pathname} answered ${response.status()}: ${await response.text()}`,
+  ).toBe(true);
+
+  await expect(
+    dialog,
+    "the write was accepted but the dialog stayed open, so the page never finished acting on it",
+  ).toBeHidden();
+}
+
+/**
  * Fail if a provider secret is reachable anywhere in the current page.
  *
  * The platform's promise is that a stored key can never be read back — not by

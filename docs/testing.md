@@ -130,6 +130,38 @@ could put that token in the reply — and returns usage, so the run is priced an
 the journey's last assertion has a cost to find. It authenticates nothing and
 calls no tools; what it does not prove is that a real provider answers.
 
+### A red `e2e` is often the fixture, not the product
+
+`setup` and `seed` are Playwright *project dependencies*, so a failure in either
+one stops the projects that depend on it from running at all. The summary then
+reads `1 failed`, `7 passed` and `17 did not run`, which on a pull request looks
+exactly like a broken feature — and is not: **no product spec ran.** Three
+branches each paid a diagnosis for that in one day
+([#132](https://github.com/vstorm-co/agenticos/issues/132)), so
+`frontend/e2e/fixture-reporter.ts` now prints a banner saying so, and under CI a
+GitHub error annotation that shows on the checks page without opening a log.
+
+### Waiting for a row is not waiting for the write
+
+A spec that creates something through a dialog **must not** click submit and then
+assert the new row is on screen. Two reasons, and the second is the expensive one:
+
+- The window between the mutation resolving and the list rendering is real, and a
+  longer `expect` timeout only makes a race slower to fail.
+- **An open Radix dialog takes the rest of the page out of the accessibility
+  tree.** While one is on screen, `getByRole("main")`, `getByRole("row")` and
+  every locator built on them resolve to *nothing*, so the assertion times out
+  with `element(s) not found` whether or not the row exists — naming the one
+  thing that cannot be the cause. A refused create looked identical to a slow
+  refetch for four separate occurrences.
+
+`submitDialog` in `frontend/e2e/helpers.ts` is the way through: it waits for the
+write's own response and asserts its status (so a refusal reads
+`409 … already exists`, in milliseconds), then waits for the dialog to close —
+which is the app's own statement that the list behind it has been refetched,
+since every one of these mutations awaits its invalidation inside `onSuccess`
+before `mutateAsync` resolves.
+
 ## Test Database
 
 Most tests don't hit a real database. The `client` fixture in `tests/conftest.py` overrides

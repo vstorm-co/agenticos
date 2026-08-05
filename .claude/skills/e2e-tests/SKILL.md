@@ -39,6 +39,39 @@ product working, and several specs exist to prove exactly that. `/api/rag/*` is 
 Always import `test` and `expect` from `./fixtures`, never from `@playwright/test`
 directly, or the spec loses the net.
 
+## Never assert a new row straight after a submit
+
+> **Creating something through a dialog goes through `submitDialog` (`e2e/helpers.ts`).**
+
+`click(submit)` followed by `expect(theNewRow).toBeVisible()` sat at five sites, flaked
+at four of them, and cost three separate diagnoses in one day (#132) — every time with
+the same message, `element(s) not found`, sixteen seconds later.
+
+That message is the trap. **An open Radix dialog takes the rest of the page out of the
+accessibility tree**: while one is on screen `getByRole("main")`, `getByRole("row")`
+and `skillCard()` resolve to *nothing at all*. So the assertion could only ever report
+the absence of the page, and a create refused with a 409 looked identical to a list that
+had not refetched. Measured: `main` counts 1, then 0 while the dialog is open, then 1
+again — in the same sample that first sees the row.
+
+`submitDialog` waits on the two things that are signals rather than hopes: the write's
+own response, whose status and body *are* the diagnosis, and then the dialog closing —
+which is the app saying the list has already been refetched, because each of these
+mutations awaits `invalidateQueries` inside `onSuccess` before `mutateAsync` resolves.
+A longer `expect` timeout is not an alternative; it makes a race slower to fail.
+
+The list's `GET` is deliberately not a third wait: `useKnowledgeBases` writes its new
+row straight into the query cache and never makes one.
+
+## A failing `[seed]` step runs no product spec at all
+
+`setup` and `seed` are project dependencies. When a step in one fails, Playwright does
+not run what depends on it, and the log reads `1 failed`, `7 passed`, `17 did not run` —
+which on a pull request looks like a product regression. `e2e/fixture-reporter.ts` prints
+a banner saying otherwise, and a GitHub error annotation under CI. **Read it before
+touching product code**, and treat a green re-run as evidence about the fixture rather
+than about the branch.
+
 ## Prove a new spec can fail
 
 Point `BACKEND_URL` at a dead port and watch it go red **before you trust it**. A spec
