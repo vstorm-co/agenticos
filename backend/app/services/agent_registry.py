@@ -291,9 +291,7 @@ class AgentRegistryService:
                 shared_user_count=shared_counts.get(agent.id, 0),
                 channels=surfaces.get(agent.id, []),
                 budget_monthly_usd=(
-                    budget_caps.get(agent.current_version_id)
-                    if agent.current_version_id
-                    else None
+                    budget_caps.get(agent.current_version_id) if agent.current_version_id else None
                 ),
                 created_at=agent.created_at,
                 updated_at=agent.updated_at,
