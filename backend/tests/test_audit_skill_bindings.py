@@ -34,6 +34,7 @@ from app.commands.audit_skill_bindings import (
     _scan,
     audit_skill_bindings,
 )
+from app.db.models.agent import AgentStatus
 from app.db.models.resource_grant import GrantLevel, Visibility
 
 
@@ -319,8 +320,10 @@ class TestFindingsFor:
 
 
 class TestExecutableVersions:
-    def _pair(self, spec: dict | None = None):
-        agent = SimpleNamespace(organization_id=uuid.uuid4(), slug=uuid.uuid4().hex[:6], name="A")
+    def _pair(self, spec: dict | None = None, *, status: str = AgentStatus.PUBLISHED.value):
+        agent = SimpleNamespace(
+            organization_id=uuid.uuid4(), slug=uuid.uuid4().hex[:6], name="A", status=status
+        )
         version = SimpleNamespace(
             id=uuid.uuid4(),
             version=1,
@@ -412,6 +415,36 @@ class TestExecutableVersions:
         ):
             found = await sweep._executable_versions(MagicMock())
         assert sorted(v.id for _, v in found) == sorted({a[1].id, b[1].id})
+
+    @pytest.mark.anyio
+    async def test_a_pin_to_an_archived_delegate_is_dropped(self):
+        """The runner refuses to delegate to an archived agent, so its pinned
+        version can no longer load through the pin - flagging it would report a
+        binding no run can reach."""
+        delegate = self._pair(status=AgentStatus.ARCHIVED.value)
+        parent = self._pair(
+            {
+                "name": "Parent",
+                "subagents": [
+                    {"agent_id": str(uuid.uuid4()), "agent_version_id": str(delegate[1].id)}
+                ],
+            }
+        )
+        with (
+            patch.object(
+                sweep.agent_repo, "list_current_versions", new=AsyncMock(return_value=[parent])
+            ),
+            patch.object(
+                sweep.agent_repo, "list_environment_versions", new=AsyncMock(return_value=[])
+            ),
+            patch.object(
+                sweep.agent_repo,
+                "get_versions_with_agents",
+                new=AsyncMock(return_value=[delegate]),
+            ),
+        ):
+            found = await sweep._executable_versions(MagicMock())
+        assert delegate[1].id not in {v.id for _, v in found}
 
 
 class TestScan:

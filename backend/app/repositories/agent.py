@@ -161,9 +161,10 @@ async def get_versions_with_agents(
 
     Unscoped and by id: the caller is the sweep resolving `SubagentRef` pins,
     which name a delegate version directly and cross no organization boundary a
-    tenant filter could express. A pinned delegate runs whatever its own agent's
-    status, so this does not filter on it - the pin, not the agent's lifecycle,
-    is what the runner loads.
+    tenant filter could express. A pure fetch that does not filter on the agent's
+    status - the agent is returned alongside precisely so the caller can apply the
+    runtime's own rule, which refuses to delegate to an archived agent
+    (`_resolve_delegate` in `agent_runner.py`).
     """
     if not version_ids:
         return []

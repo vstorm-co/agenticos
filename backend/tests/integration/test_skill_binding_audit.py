@@ -280,6 +280,39 @@ class TestTheSweepReachesVersionsOtherThanTheDefault:
         assert mine[0].version_number == 1
         assert mine[0].skill_id == private.id
 
+    async def test_a_pin_to_an_archived_delegate_is_not_reported(self, db) -> None:
+        """The runner refuses to delegate to an archived agent, so its pinned
+        version can no longer load - the sweep must not flag it."""
+        org, _ = await _org_with_owner(db)
+        author = await _user(db)
+        colleague = await _user(db)
+        await _member(db, org, author, OrgRoleName.MEMBER)
+        private = await _skill(db, org, colleague, visibility=Visibility.PRIVATE)
+
+        delegate = await _agent(db, org, name="Researcher")
+        unsafe = await _version(
+            db, delegate, org, number=1, skill_id=private.id, publisher_id=author.id
+        )
+        delegate.current_version_id = unsafe.id
+        delegate.status = AgentStatus.ARCHIVED.value
+        await db.flush()
+
+        parent = await _agent(db, org, name="Boss")
+        parent_v = await _version(
+            db,
+            parent,
+            org,
+            number=1,
+            publisher_id=author.id,
+            subagents=[{"agent_id": str(delegate.id), "agent_version_id": str(unsafe.id)}],
+        )
+        parent.current_version_id = parent_v.id
+        await db.flush()
+
+        findings = await sweep._scan(db)
+
+        assert [f for f in findings if f.agent_slug == delegate.slug] == []
+
 
 class TestTheSweepClearsAReachableBinding:
     async def test_an_org_visible_skill_is_not_reported(self, db) -> None:

@@ -48,7 +48,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.spec import AgentSpec
 from app.commands import command, error, info, success, warning
-from app.db.models.agent import Agent, AgentVersion
+from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill
 from app.db.session import get_db_context
@@ -253,6 +253,13 @@ async def _executable_versions(db: AsyncSession) -> list[tuple[Agent, AgentVersi
     environment pinned to an unsafe v1 as clean, and miss a parent still
     delegating to a delegate's unsafe pinned version. So the environments seed the
     set and the pins close it, id by id, until nothing new is reached.
+
+    A delegate whose agent has since been archived is dropped, because the runner
+    refuses to delegate to an archived agent (`_resolve_delegate` in
+    `agent_runner.py`): its pinned version can no longer load through that pin, so
+    reporting it would be flagging a binding no run can reach. The seeds cannot be
+    archived - both queries filter to published agents - so the check is only ever
+    needed on the delegates the closure reaches.
     """
     seen: dict[UUID, tuple[Agent, AgentVersion]] = {}
     frontier: list[AgentVersion] = []
@@ -270,6 +277,8 @@ async def _executable_versions(db: AsyncSession) -> list[tuple[Agent, AgentVersi
         spec = AgentSpec.model_validate(version.spec)
         pin_ids = [ref.agent_version_id for ref in spec.subagents]
         for agent, pinned in await agent_repo.get_versions_with_agents(db, pin_ids):
+            if agent.status == AgentStatus.ARCHIVED.value:
+                continue
             # A cycle (A pins B, B pins A) or two parents pinning one delegate
             # reach the same version twice; the first sighting wins and the rest
             # are skipped here, which is what makes the closure terminate.
@@ -360,7 +369,9 @@ def audit_skill_bindings() -> None:
     Example:
         agenticos cmd audit-skill-bindings
     """
-    info("Auditing every published agent's current version for out-of-reach skill bindings...")
+    info(
+        "Auditing every runnable version of every published agent for out-of-reach skill bindings..."
+    )
     exposed = asyncio.run(_run())
     if exposed:
         raise SystemExit(1)
