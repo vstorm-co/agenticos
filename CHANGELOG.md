@@ -19,6 +19,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.28] - 2026-08-06
+
+### Fixed
+
+- **A `create_agent` specialist created by a nested delegate survives an approval park**
+  ([#254](https://github.com/vstorm-co/agenticos/issues/254)). 0.0.20 (#175) carried a
+  top-level dynamic specialist across a park — its definition serialised into `paused_state`
+  and re-seeded on resume through the same factory — but only at the root. A specialist a
+  delegate *one level down* created was still lost when a nested delegation parked and
+  resumed: the nested level's registry was rebuilt empty, so `task` answered "unknown
+  subagent" for it. The specialist carry now descends the parked tree, so a kept specialist
+  at any depth is re-seeded on resume and reachable by name, metered on the run's shared
+  ledger exactly as it was the first time. `max_agents` still bounds each level, so a resume
+  cannot exceed it by rebuilding.
+
 ## [0.0.27] - 2026-08-05
 
 ### Fixed
@@ -1025,7 +1040,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.27...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.28...HEAD
+[0.0.28]: https://github.com/vstorm-co/agenticos/compare/v0.0.27...v0.0.28
 [0.0.27]: https://github.com/vstorm-co/agenticos/compare/v0.0.26...v0.0.27
 [0.0.26]: https://github.com/vstorm-co/agenticos/compare/v0.0.25...v0.0.26
 [0.0.25]: https://github.com/vstorm-co/agenticos/compare/v0.0.24...v0.0.25
