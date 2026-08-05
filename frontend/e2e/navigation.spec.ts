@@ -36,6 +36,13 @@ const DASHBOARD_PAGES: {
   proof: (page: Page) => Locator;
 }[] = [
   {
+    // The seeded agent's name inside the "Your agents" card: the card frame
+    // renders whatever happens, the name only once GET /agents answered.
+    path: "/dashboard",
+    heading: "Dashboard",
+    proof: (page) => page.getByRole("main").getByText(SEEDED_AGENT_NAME).first(),
+  },
+  {
     path: "/agents",
     heading: "Agents",
     proof: (page) => agentCard(page, SEEDED_AGENT_HANDLE),
@@ -74,20 +81,6 @@ const DASHBOARD_PAGES: {
 ];
 
 test.describe("Dashboard navigation", () => {
-  /**
-   * The dashboard is the one page in the list above with no `proof` to give:
-   * it is being rebuilt and asks the backend for nothing at all. It stays
-   * covered because it is where the sidebar and the skip link live, but what
-   * is asserted here is only that it says what it is.
-   */
-  test("/dashboard says it is under construction", async ({ page }) => {
-    await page.goto("/dashboard");
-
-    await expect(pageHeading(page, "Dashboard")).toBeVisible();
-    await expect(page.getByRole("main")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Under construction" })).toBeVisible();
-  });
-
   for (const { path, heading, proof } of DASHBOARD_PAGES) {
     test(`${path} loads, names itself and has its data`, async ({ page }) => {
       await page.goto(path);
