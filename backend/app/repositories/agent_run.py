@@ -1,5 +1,6 @@
 """Agent run and approval repositories (PostgreSQL async)."""
 
+from collections.abc import Sequence
 from datetime import datetime
 from decimal import Decimal
 from typing import Any
@@ -119,6 +120,7 @@ async def list_runs(
     *,
     organization_id: UUID,
     agent_id: UUID | None = None,
+    statuses: Sequence[str] | None = None,
     skip: int = 0,
     limit: int = 50,
 ) -> tuple[list[AgentRun], int]:
@@ -127,6 +129,9 @@ async def list_runs(
     if agent_id is not None:
         query = query.where(AgentRun.agent_id == agent_id)
         count_query = count_query.where(AgentRun.agent_id == agent_id)
+    if statuses is not None:
+        query = query.where(AgentRun.status.in_(statuses))
+        count_query = count_query.where(AgentRun.status.in_(statuses))
 
     query = query.order_by(AgentRun.started_at.desc().nullslast()).offset(skip).limit(limit)
     items = list((await db.execute(query)).scalars().all())

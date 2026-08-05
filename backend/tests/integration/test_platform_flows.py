@@ -329,12 +329,20 @@ async def _exposure_row(
     return exposure
 
 
-async def _run_row(db, *, organization_id, agent_id, cost: Decimal, started_at: datetime):
+async def _run_row(
+    db,
+    *,
+    organization_id,
+    agent_id,
+    cost: Decimal,
+    started_at: datetime,
+    status: str = RunStatus.COMPLETED.value,
+):
     run = AgentRun(
         id=uuid.uuid4(),
         organization_id=organization_id,
         agent_id=agent_id,
-        status=RunStatus.COMPLETED.value,
+        status=status,
         cost_usd=cost,
         started_at=started_at,
     )
@@ -729,6 +737,38 @@ class TestTenantIsolation:
 
         assert [run.id for run in items] == [estate.home_run.id]
         assert total == 1
+
+    async def test_a_status_list_narrows_both_the_page_and_the_total(
+        self, db, estate: TwoTenants
+    ) -> None:
+        """The count must carry the same predicate as the page - a total counted
+        without it offers a pager full of rows the filter then removes."""
+        now = datetime.now(UTC)
+        failed = await _run_row(
+            db,
+            organization_id=estate.home.organization.id,
+            agent_id=estate.home_agent.id,
+            cost=Decimal("0.100000"),
+            started_at=now,
+            status=RunStatus.FAILED.value,
+        )
+        broke = await _run_row(
+            db,
+            organization_id=estate.home.organization.id,
+            agent_id=estate.home_agent.id,
+            cost=Decimal("0.200000"),
+            started_at=now,
+            status=RunStatus.BUDGET_EXCEEDED.value,
+        )
+
+        items, total = await agent_run_repo.list_runs(
+            db,
+            organization_id=estate.home.organization.id,
+            statuses=[RunStatus.FAILED.value, RunStatus.BUDGET_EXCEEDED.value],
+        )
+
+        assert {run.id for run in items} == {failed.id, broke.id}
+        assert total == 2
 
     async def test_spend_counts_only_the_callers_own_runs(self, db, estate: TwoTenants) -> None:
         """The other tenant's run costs nine dollars; it must not appear on this bill."""

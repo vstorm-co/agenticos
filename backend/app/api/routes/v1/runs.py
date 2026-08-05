@@ -10,8 +10,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 
 from app.api.deps import AgentRunnerSvc, ApprovalSvc, Auth, DBSession, require
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import NotFoundError, ValidationError
 from app.core.permissions import Perm
+from app.db.models.agent_run import RunStatus
 from app.repositories import agent_run_repo
 from app.schemas.agent import AgentRunResult
 from app.schemas.agent_run import (
@@ -34,14 +35,40 @@ async def list_runs(
     db: DBSession,
     ctx: Auth,
     agent_id: UUID | None = Query(None),
+    status: str | None = Query(
+        None, description="Comma-separated run statuses, e.g. failed,budget_exceeded"
+    ),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
-    """Runs for the organization, newest first, optionally for one agent."""
+    """Runs for the organization, newest first, optionally for one agent.
+
+    `status` takes a list because the operator's natural question is a set of
+    outcomes - "what failed or ran out of budget" - not one status at a time.
+    """
     items, total = await agent_run_repo.list_runs(
-        db, organization_id=ctx.organization_id, agent_id=agent_id, skip=skip, limit=limit
+        db,
+        organization_id=ctx.organization_id,
+        agent_id=agent_id,
+        statuses=_parse_statuses(status),
+        skip=skip,
+        limit=limit,
     )
     return AgentRunList(items=items, total=total)
+
+
+def _parse_statuses(raw: str | None) -> list[str] | None:
+    if raw is None:
+        return None
+    values = [part.strip() for part in raw.split(",") if part.strip()]
+    known = {member.value for member in RunStatus}
+    unknown = sorted(set(values) - known)
+    if unknown:
+        raise ValidationError(
+            message="Unknown run status",
+            details={"unknown": unknown, "expected": sorted(known)},
+        )
+    return values or None
 
 
 @router.get(
