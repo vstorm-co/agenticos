@@ -472,3 +472,76 @@ class TestResolvingForARun:
             assert await OrganizationSecretService(db).resolve_for_bindings(_ctx(), []) == {}
 
         assert get_many.call_args.args[1] == []
+
+
+class TestTheKeyThatAsksAProviderForItsCatalog:
+    """`listing_key` is the vault's second reader, and the narrower one.
+
+    It exists because the model form's suggestions come from the provider, and
+    asking most providers costs a bearer token. The route used to open the vault
+    itself - a route module importing the repository, `unseal_secret` and the
+    scope - which is the layering #232 is about. What the plaintext is *for* has
+    not changed: it goes to the provider, never to the caller.
+    """
+
+    @pytest.mark.anyio
+    async def test_the_first_api_key_for_that_provider_is_used(self):
+        ctx = _ctx()
+        row = _row(ctx, ApiKeySecret(api_key="sk-openai-4242"))
+
+        with patch(
+            "app.services.organization_secret.organization_secret_repo.list_secrets",
+            new=AsyncMock(return_value=[row]),
+        ) as list_secrets:
+            key = await OrganizationSecretService(_db()).listing_key(ctx, "openai")
+
+        assert key == "sk-openai-4242"
+        assert list_secrets.await_args.kwargs["purposes"] == ["openai"]
+
+    @pytest.mark.anyio
+    async def test_it_asks_only_for_this_organizations_keys(self):
+        """The scope is the service's answer now, not a handler's argument."""
+        ctx = _ctx()
+
+        with patch(
+            "app.services.organization_secret.organization_secret_repo.list_secrets",
+            new=AsyncMock(return_value=[]),
+        ) as list_secrets:
+            await OrganizationSecretService(_db()).listing_key(ctx, "openai")
+
+        assert list_secrets.await_args.kwargs["organization_id"] == ctx.organization_id
+
+    @pytest.mark.anyio
+    async def test_a_credential_that_is_not_a_bearer_token_is_skipped(self):
+        """An AWS pair is a signing credential; no listing endpoint accepts one.
+
+        Skipped rather than mangled into a header - and skipped rather than
+        returned, so a stored pair does not hide the API key behind it.
+        """
+        ctx = _ctx()
+        pair = _row(
+            ctx,
+            AwsCredentialsSecret(
+                aws_access_key_id="AKIA4242",
+                aws_secret_access_key="s3cret",
+                region_name="us-east-1",
+            ),
+        )
+        key = _row(ctx, ApiKeySecret(api_key="sk-openai-4242"))
+
+        with patch(
+            "app.services.organization_secret.organization_secret_repo.list_secrets",
+            new=AsyncMock(return_value=[pair, key]),
+        ):
+            found = await OrganizationSecretService(_db()).listing_key(ctx, "bedrock")
+
+        assert found == "sk-openai-4242"
+
+    @pytest.mark.anyio
+    async def test_no_stored_key_is_not_an_error(self):
+        """Providers that publish a public catalog are asked without one."""
+        with patch(
+            "app.services.organization_secret.organization_secret_repo.list_secrets",
+            new=AsyncMock(return_value=[]),
+        ):
+            assert await OrganizationSecretService(_db()).listing_key(_ctx(), "openrouter") is None

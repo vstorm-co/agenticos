@@ -356,6 +356,7 @@ include = [
     "app/services/collection_access.py",
     "app/services/embedding_resolution.py",
     "app/services/approvals.py",
+    "app/services/audit.py",
     "app/services/health.py",
     "app/services/email/templates.py",
     "app/services/ingestion_config.py",
@@ -473,6 +474,10 @@ include = [
     "app/services/collection_access.py",
     "app/services/embedding_resolution.py",
     "app/services/approvals.py",
+    # The read half of the audit trail. `audit:read` is the only way to see who
+    # did what in an organization, and the scope is the whole point of the
+    # service: one wrong argument here would show another tenant's actions.
+    "app/services/audit.py",
     # The health probes are ours: the template's version reported a hardcoded
     # "unknown" for the vector store and read environment variables for a
     # provider check. A probe nobody has watched fail is not a probe, which is

@@ -79,6 +79,7 @@ PLATFORM_MODULES = (
     "app/services/agent_runner.py",
     "app/services/agent_session.py",
     "app/services/approvals.py",
+    "app/services/audit.py",
     "app/services/channels/mentions.py",
     "app/services/collection_access.py",
     "app/services/embedding_resolution.py",
