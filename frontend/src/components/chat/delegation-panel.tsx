@@ -8,7 +8,7 @@ import { toast } from "sonner";
 
 import { useAgents, useModelProviders, usePermissions } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
-import { newSpecialist } from "@/lib/agent-spec";
+import { newSpecialist, specialistNameError } from "@/lib/agent-spec";
 import { cn, getErrorMessage } from "@/lib/utils";
 import { childrenOf, rootsOf } from "@/lib/delegations";
 import { toolStep } from "@/lib/tool-steps";
@@ -253,6 +253,12 @@ function DelegationPanel({ delegation, all }: { delegation: Delegation; all: Del
  * keyed by the profile's id, so it is resolved here - and a label that no longer
  * resolves (a profile deleted since) promotes with no model, leaving the draft to
  * ask for one before it can publish rather than failing the promote.
+ *
+ * The name is the model's own - whatever it chose when it invented the specialist,
+ * which the library allows but the backend `SpecialistSpec` may reject (its pattern
+ * and length). A person cannot edit it in chat, so the control refuses up front
+ * with the reason - the same disable the Builder's `SpecialistEditor` does on a
+ * name it would fail to publish - rather than letting the promote 422 into a toast.
  */
 function PromoteDynamicSpecialist({
   name,
@@ -262,8 +268,12 @@ function PromoteDynamicSpecialist({
   definition: SpecialistDefinition;
 }) {
   const t = useTranslations("chat.delegation");
+  // The name-error copy lives with the Builder's, keyed off the same helper; a
+  // second translator reaches it without duplicating the strings into `chat`.
+  const tAgents = useTranslations("agents");
   const { profiles } = useModelProviders();
   const { promote } = useAgents();
+  const nameError = specialistNameError(name);
   const modelProfileId = profiles.find((profile) => profile.label === definition.model)?.id ?? null;
 
   const onPromote = () =>
@@ -288,13 +298,25 @@ function PromoteDynamicSpecialist({
 
   return (
     <div>
-      <Button variant="outline" size="sm" disabled={promote.isPending} onClick={onPromote}>
+      <Button
+        variant="outline"
+        size="sm"
+        // A promoted specialist keeps its name as the new agent's handle, so a name
+        // the backend would refuse cannot be promoted - the same guard the Builder
+        // puts on its own promote button.
+        disabled={promote.isPending || nameError !== null}
+        onClick={onPromote}
+      >
         <CopyPlus className="h-3.5 w-3.5" />
         {t("promoteSpecialist")}
       </Button>
-      <p className="text-muted-foreground mt-1 text-[12px] leading-relaxed">
-        {t("promoteSpecialistDetail")}
-      </p>
+      {nameError !== null ? (
+        <p className="text-destructive mt-1 text-[12px] leading-relaxed">{tAgents(nameError)}</p>
+      ) : (
+        <p className="text-muted-foreground mt-1 text-[12px] leading-relaxed">
+          {t("promoteSpecialistDetail")}
+        </p>
+      )}
     </div>
   );
 }
