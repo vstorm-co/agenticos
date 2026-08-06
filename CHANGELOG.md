@@ -19,6 +19,27 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.57] - 2026-08-06
+
+### Fixed
+
+- `make install` did not install the frontend toolchain, so a fresh checkout
+  could not run `make check` at all: eslint, prettier, tsc, vitest and next live
+  only in `frontend/node_modules`, and the first four minutes of `check` are the
+  backend half, so it said `eslint: command not found` well after you had walked
+  away (#227).
+
+### Changed
+
+- `test_ci_parity.py` now holds the setup commands to the mirror-image rule: a
+  gating job may prepare its runner however it likes, as long as `make install`
+  prepares a laptop the same way. The next toolchain CI adds has to land in
+  `install` or be exempted with a written reason.
+- `make quickstart` no longer claims to install dependencies in `docs/commands.md`.
+  It is `quickstart: dev`, and nothing in that chain reaches `install` — which
+  sent people down exactly the road this release closes.
+
+
 ## [0.0.56] - 2026-08-06
 
 ### Changed
