@@ -82,7 +82,7 @@ export function SessionsPanel({ connection }: SessionsPanelProps) {
         <div className="space-y-1">
           <CardTitle className="flex items-center gap-2 text-sm">
             <Activity className="h-4 w-4" aria-hidden />
-            Running on {connection.name}
+            {t("runningOn", { name: connection.name })}
           </CardTitle>
           <CardDescription className="text-xs">
             {listing?.tenant_limit

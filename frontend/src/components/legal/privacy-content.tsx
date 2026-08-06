@@ -7,10 +7,7 @@ export function PrivacyBodyEn() {
   const t = useTranslations("legal");
   return (
     <>
-      <p>
-        This Privacy Policy explains how {APP_NAME} (&ldquo;we&rdquo;, &ldquo;us&rdquo;) collects,
-        uses, shares, and protects information when you use the Service.
-      </p>
+      <p>{t("privacyIntro", { appName: APP_NAME })}</p>
 
       <h2>{t("n1WhatWeCollect")}</h2>
       <h3>{t("informationYouProvide")}</h3>
@@ -115,10 +112,7 @@ export function PrivacyBodyPl() {
   const t = useTranslations("legal.pl");
   return (
     <>
-      <p>
-        Niniejsza Polityka Prywatności wyjaśnia, jak {APP_NAME} (&bdquo;my&rdquo;,
-        &bdquo;nas&rdquo;) zbiera, używa, udostępnia i chroni informacje gdy korzystasz z Usługi.
-      </p>
+      <p>{t("privacyIntro", { appName: APP_NAME })}</p>
 
       <h2>{t("n1CoZbieramy")}</h2>
       <h3>{t("informacjeKtRePodajesz")}</h3>

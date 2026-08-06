@@ -64,8 +64,11 @@ export function IngestionPanel({ kb, onEdit }: IngestionPanelProps) {
         <Fact term={t("scannedPages")}>{config.ocr ? t("readAsImages") : t("notRead")}</Fact>
 
         <Fact term="Chunking">
-          {config.chunk_size.toLocaleString()} characters, {config.chunk_overlap.toLocaleString()}{" "}
-          overlapping · {labelOf(CHUNKING_STRATEGIES, config.chunking_strategy)}
+          {t("chunkingSummary", {
+            size: config.chunk_size,
+            overlap: config.chunk_overlap,
+            strategy: labelOf(CHUNKING_STRATEGIES, config.chunking_strategy),
+          })}
         </Fact>
 
         <Fact term="Images">
@@ -83,7 +86,7 @@ export function IngestionPanel({ kb, onEdit }: IngestionPanelProps) {
             <Lock className="text-muted-foreground h-3 w-3 shrink-0" aria-hidden />
             <span className="font-mono text-xs">{kb.embedding_model}</span>
             <span className="text-muted-foreground">
-              · {kb.embedding_dim.toLocaleString()} dimensions
+              {t("embeddingDimensions", { count: kb.embedding_dim })}
             </span>
           </span>
         </Fact>

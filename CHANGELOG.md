@@ -19,6 +19,492 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.57] - 2026-08-06
+
+### Fixed
+
+- `make install` did not install the frontend toolchain, so a fresh checkout
+  could not run `make check` at all: eslint, prettier, tsc, vitest and next live
+  only in `frontend/node_modules`, and the first four minutes of `check` are the
+  backend half, so it said `eslint: command not found` well after you had walked
+  away (#227).
+
+### Changed
+
+- `test_ci_parity.py` now holds the setup commands to the mirror-image rule: a
+  gating job may prepare its runner however it likes, as long as `make install`
+  prepares a laptop the same way. The next toolchain CI adds has to land in
+  `install` or be exempted with a written reason.
+- `make quickstart` no longer claims to install dependencies in `docs/commands.md`.
+  It is `quickstart: dev`, and nothing in that chain reaches `install` — which
+  sent people down exactly the road this release closes.
+
+
+## [0.0.56] - 2026-08-06
+
+### Changed
+
+- The last four route handlers that read a repository directly now go through a
+  service, which is what `.claude/rules/architecture.md` has always asked for:
+  the audit listing, a knowledge base's sync logs, an org integration's sync
+  logs, and the vault key a provider catalog is fetched with (#232).
+- `AuditService` is new. The `/audit` route held "an entry belongs to exactly one
+  organization" as a keyword argument it filled in itself, which is a scope no
+  service test can see and one the next reader of that entity would have had to
+  know to repeat.
+- Both surfaces showing a sync source's history read it through
+  `SyncSourceService.list_logs` rather than each carrying its own query and its
+  own copy of the same twelve-field mapping.
+- The provider-listing key moves out of a private helper in the route and into
+  `OrganizationSecretService`, so nothing in the HTTP layer unseals a secret.
+
+
+## [0.0.55] - 2026-08-06
+
+### Fixed
+
+- The reserved-names integration test set the vector store's resolver to `None`,
+  which stopped being valid in 0.0.43 when the resolver became required and its
+  `None` short-circuit was deleted. `_for_collection` calls it unconditionally,
+  so the test raised `TypeError: 'NoneType' object is not callable` on every run
+  with a real database. Shipped in 0.0.45 and fixed here.
+
+
+## [0.0.54] - 2026-08-06
+
+### Fixed
+
+- A knowledge base's sync history came back short. The route read every log
+  carrying that source id, applied `limit` in SQL, and only then dropped the rows
+  belonging to another collection — so the page was cut before the thinning. A
+  source repointed at another base (`SyncSourceUpdate` carries
+  `collection_name`, and earlier runs keep the name they ran against) made a
+  request for twenty runs answer with fewer, `total` described the survivors
+  rather than the source, and there was no way to page past the gap. The source
+  is resolved against the base first now (#233).
+- A source that is not this base's answers `404` rather than `200 []`. Both
+  rendered "no syncs yet", and one of them was a request that should have failed.
+
+
+## [0.0.53] - 2026-08-06
+
+### Fixed
+
+- The double-backtick guard skipped every directory called `worktrees`, which was
+  the wrong rule twice over: it silently stopped reading a `docs/worktrees/` that
+  is only a directory with a name, and it still walked a git worktree placed
+  anywhere else. It now detects a nested checkout — a `.git` file or directory —
+  and declines to descend into it, which is what the rule always meant (#225).
+- The self-exemption matched one absolute path, so every copy of the script under
+  a worktree was reported as three findings on a line nobody had edited. It
+  matches the file's name now, and `--fix` is safe on a copy for the same reason.
+
+
+## [0.0.52] - 2026-08-06
+
+### Fixed
+
+- `scripts/check_i18n.py` skipped any line containing `=>`, because a type like
+  `(() => Promise<void>) | null` reads as a text node to a regex — and an inline
+  handler is the most common thing on a JSX line, so the exemption was far wider
+  than the problem. It also matched nothing when a text node spanned two lines,
+  which the formatter does freely. The guard now masks generics rather than
+  skipping the line, and reads interpolation rules over the whole file (#314).
+- 55 strings across 30 files that those two blind spots had been hiding,
+  including two menu items sitting between translated siblings, and English
+  compiled into the two model-picker components (#332).
+
+
+## [0.0.51] - 2026-08-06
+
+### Fixed
+
+- `scripts/check_i18n.py` walked past two shapes of hardcoded copy: a sentence
+  that begins with a word before its interpolation, and a count built with a
+  lambda rather than an ICU plural. Both render in English under any locale, and
+  `make lint` reported clean over them (#249).
+
+
+## [0.0.50] - 2026-08-06
+
+### Fixed
+
+- The embedding Model select in Create knowledge base never showed its value —
+  it said "Loading models…" for as long as the dialog was open, while the list
+  below it was populated. Radix writes the new value onto a hidden native select
+  and dispatches `change` before the items have registered their options, so the
+  value read back was empty and clobbered the state. This is the one choice in
+  the dialog that cannot be revisited, since a collection's embedding width is
+  frozen at creation (#328).
+- The agent builder offered the add-model form to anyone who could open it,
+  though submitting needs `connections:manage`, and the store-a-key form inside
+  it never checked `secrets:edit`. A control the caller may not use is not
+  rendered (#329).
+- Two buttons in the same dialog were both called "Add a key" while writing
+  different secrets. By accessible name they were indistinguishable, so a screen
+  reader heard the same button twice (#331).
+
+
+## [0.0.49] - 2026-08-06
+
+### Changed
+
+- Every place a provider or a provider key is chosen now draws the same row —
+  brand mark, name, an optional masked hint. Choosing an embedding key in Create
+  knowledge base offered bare strings while the agent builder three clicks away
+  drew the mark, and the two did not look like the same product. Ten pickers
+  converge on one primitive, including two that had hand-copied the row and one
+  where two different keys rendered as the same line (#304).
+
+### Fixed
+
+- A provider mark's `<title>` was being used as its option's type-to-search key,
+  so every model in Create knowledge base answered to `openrouter…` rather than
+  to its own name.
+- The tick marking a stored key was inherited by the closed select's trigger,
+  where it reads as "selected" rather than "has a key".
+
+
+## [0.0.48] - 2026-08-06
+
+### Fixed
+
+- The **Describe images** model control in Create knowledge base was the agent
+  builder's picker rendered in its lesser branch: a bare radio list, with no
+  provider/model/key form, no way to say whether the chosen profile can
+  authenticate at all, and — on a deployment with no saved profiles — a dead end
+  offering no way out of itself (#305).
+
+### Changed
+
+- `ModelProfilePicker`'s `allowAdd` meant two things at once: show the form, and
+  offer the bin on every saved row. They are now `allowAdd` and `allowRemove`.
+  The knowledge-base dialog gets the first only, so it can create a model and a
+  key but cannot destroy an organization-wide profile that agents point at. The
+  current-model line, which is what says a profile has no key, renders in both
+  shapes.
+- The add-model form in that dialog is gated on `connections:manage`; it posts a
+  model profile, and a control the caller may not use is not rendered.
+
+
+## [0.0.47] - 2026-08-06
+
+### Fixed
+
+- The knowledge-base detail page stated the size of the page the table had
+  loaded, not the size of the collection. A collection holding fifty-seven
+  documents said "20 documents" under its own title, and pressing Load more made
+  the number climb, which reads as ingestion happening rather than the page
+  correcting itself. The document count now reads the collection's total; the
+  vector count says plainly that it counts what is loaded, until everything is
+  (#324).
+- Nine strings in the knowledge-base pages rendered in English under any locale —
+  single words below the guard's threshold, text nodes alone on a line, copy
+  behind an `&&`, and a schedule read as "every 30m". Two of them are counts and
+  are now ICU plurals (#325).
+- Drag-and-drop upload compared a translated string against the browser's
+  `DataTransfer` type. Under Polish that comparison could never match, so
+  dropping a file would have done nothing.
+
+### Changed
+
+- A Tailwind class list was being stored in `messages/en.json` and read through
+  the translator, so a translator opening `pl.json` was asked to translate CSS.
+
+
+## [0.0.46] - 2026-08-06
+
+### Changed
+
+- A knowledge base is deleted from its own page, not from the card in the list.
+  The only control used to be a hover-revealed trash icon sitting on top of a
+  whole-card link — the most destructive action on the resource, one mis-aimed
+  click away from opening it, on the surface that shows least about what is
+  about to be destroyed. It is now in the detail page's actions menu, behind
+  `collections:edit`, behind a confirmation naming the collection and its real
+  document count, and it is not offered for the default collection, which the
+  server refuses (#303).
+- The three `window.confirm` calls in the knowledge-base pages are proper
+  confirmation dialogs with translated copy. A raw `confirm()` argument is
+  hardcoded English the i18n guard cannot see.
+
+### Fixed
+
+- Both delete dialogs now disable while the request is in flight. A double-click
+  sent a second DELETE and toasted a 404 over a removal that had worked.
+
+
+## [0.0.45] - 2026-08-06
+
+### Fixed
+
+- A collection could be named after a model table. `_table("documents")` derives
+  `rag_documents`, which is the table tracking every organization's ingested
+  documents, so `GET /rag/collections/documents/info` returned every
+  organization's document count and the delete path issued a `DROP TABLE`
+  against it. Nothing refused the name, and `documents` was the *default*
+  collection name, so the collision sat on the documented first-run path. Both
+  the store and `KnowledgeBaseService.create` now refuse a name that collides
+  with a declared model table (#345).
+
+### Changed
+
+- The default collection name is now `default`, one constant shared by the four
+  `rag-*` commands and two schemas, pinned by a test that fails if it is ever
+  set to a model table's name. `RAGSettings.collection_name` was read nowhere
+  and is deleted.
+
+
+## [0.0.44] - 2026-08-06
+
+### Fixed
+
+- `PgVectorStore.list_collections()` reported a collection called `documents`
+  that does not exist. It matched every table by name prefix, and `rag_documents`
+  — the model table tracking ingested documents — matched. The listing has held
+  that phantom on every deployment since the table existed, and `rag-stats`
+  reported the row count of that tracking table as a vector count. Collection
+  membership is now decided by `is_runtime_vector_table`, the same predicate
+  alembic uses, so the two answer from one source (#339).
+- The prefix match also treated `_` as a SQL wildcard, so a table named
+  `ragXfoo` listed as a collection called `Xfoo`.
+
+
+## [0.0.43] - 2026-08-06
+
+### Fixed
+
+- Document ingestion ignored the collection's own embedding key and model. The
+  worker built its vector store with no resolver, so the collection's
+  `embedding_secret_id` — validated and stored when the collection was created —
+  was never read. On a deployment with no `OPENROUTER_API_KEY` this crashed with
+  advice to set one; where both were set it was worse than a crash, billing the
+  deployment's account while the UI said the organization's key paid. The
+  collection's recorded model was ignored the same way, so a collection could be
+  indexed by one model and searched by another (#306).
+- The three ways key resolution can silently fall back to the deployment key —
+  a missing secret row, an unseal failure, the wrong kind — now reach the flow
+  log the operator reads, and the error names the collection and which key it
+  tried.
+
+### Changed
+
+- `resolver` is now required on `PgVectorStore` rather than defaulting to `None`.
+  Five call sites passed it and one forgot; the default is what made forgetting
+  silent.
+
+
+## [0.0.42] - 2026-08-06
+
+### Fixed
+
+- `make db-check` failed on any database that had ingested a document. Alembic
+  compared the models against the live schema and saw the per-collection vector
+  tables the RAG store creates at runtime, which no migration declares, so it
+  reported drift that no migration could ever resolve (#288).
+
+### Added
+
+- `app/db/vector_tables.py` — `is_runtime_vector_table`, one predicate for
+  "is this table a runtime vector table rather than a declared model", read from
+  `Base.metadata` rather than from a name pattern.
+
+
+## [0.0.41] - 2026-08-06
+
+### Fixed
+
+- The local supervisor replaced a worker that had died but ignored one that was
+  alive and not answering — deadlocked on a lock, spinning, or blocked on a
+  socket that never replies. Such a worker has no exit code, so the supervisor
+  saw a healthy child and did nothing while the container served no requests.
+  The worker now stamps a monotonic beat from uvicorn's `callback_notify`, and a
+  worker silent across two consecutive polls is replaced (#336).
+
+### Added
+
+- `RELOAD_WEDGED_AFTER` — how long a worker may go without running its event
+  loop before it is treated as wedged. Set it to `0` under a debugger.
+
+
+## [0.0.40] - 2026-08-06
+
+### Fixed
+
+- When the kernel killed the reloader's worker in the local stack — an OOM kill
+  being the realistic way — nothing reaped it and nothing replaced it. PID 1
+  stayed alive, so the container reported `Up`, Docker's restart policy never
+  fired, and every request timed out with no log line because the process that
+  would have written it was gone. A supervisor now replaces a worker that dies,
+  the way uvicorn already does on the `--workers` path (#308).
+
+### Added
+
+- `backend/cli/reload_supervisor.py`, a dedicated entrypoint. It deliberately
+  does not import the application: routing PID 1 through `cli.commands` cost
+  464 MB against 28 MB, which is the whole application inside the one process
+  whose job is to survive an OOM kill.
+
+
+## [0.0.39] - 2026-08-06
+
+### Fixed
+
+- `prefect-runner` had never once passed a health check and never could. It runs
+  the backend image, which carried a `HEALTHCHECK` written for the API, and the
+  runner serves no HTTP. A status that is red unconditionally is not a status: a
+  dead runner looked exactly like a live one, and nothing could depend on it
+  becoming healthy. The runner now serves Prefect's own `/health` on 8080 and is
+  probed against it (#310).
+- The API's own probe passed on a 500 — it fetched the health endpoint and
+  ignored the status. It now raises for status, with a 30s start period.
+
+### Changed
+
+- The `HEALTHCHECK` moved out of `backend/Dockerfile` and into the `app` and
+  `prefect-runner` service definitions in all three compose files. An image with
+  two consumers should not assert what only one of them can satisfy.
+
+
+## [0.0.38] - 2026-08-06
+
+### Fixed
+
+- A domain exception carrying a `UUID` in its `details` was delivered as a bodiless
+  500 instead of the refusal it described. `JSONResponse` serializes with plain
+  `json.dumps`, which cannot encode a `UUID`, so the exception handler raised on
+  the way out — after it had already logged the refusal, which is why the log and
+  the response disagreed. A browser session kept across a database reset hit this
+  on every `GET /api/v1/auth/me`. All three response-building handlers now encode
+  `details` through `jsonable_encoder` (#307).
+- The capability registry echoed a rejected configuration back to the caller in a
+  400, unlike the identical call one module over.
+
+### Changed
+
+- `.claude/rules/exceptions-security.md` showed `details={"user_id": str(user_id)}`,
+  which contradicted both the code and `architecture.md`. Domain exceptions pass
+  the value; the encoder handles it. The one exception, money, says why.
+
+
+## [0.0.37] - 2026-08-06
+
+### Fixed
+
+- The `ai-review` workflow concluded `success` when it had produced no review at
+  all, and posted "the reviewer did not produce a result" — a sentence that reads
+  like a verdict on the diff. Eleven pull requests merged unreviewed before anyone
+  noticed. A run is now classified `reviewed`, `declined` or `broken`; `broken`
+  fails the job and the comment says the reviewer failed, carrying what Codex
+  printed. A cancelled run no longer reports the reviewer as dead, and a broken
+  re-run no longer deletes the previous run's inline findings (#311).
+
+The cause of the Codex failure itself is an enforced spend limit on the OpenAI
+project, recorded on #311. The `pull_request` trigger stays off until that is
+lifted.
+
+
+## [0.0.36] - 2026-08-06
+
+### Fixed
+
+- The end-to-end suite's `[seed]` project asserted the colleague's membership
+  with a single read. When it lost, Playwright skipped everything that depends
+  on the fixture and reported the whole suite red having exercised no product
+  code at all — three times in one day, on unrelated branches. The step now
+  polls the API and, when it does give up, prints what it actually saw
+  (#335).
+
+The underlying cause is filed rather than fixed: this backend answers a write
+before the transaction commits, so a 2xx says the request was handled and not
+that the write is readable (#353).
+
+
+## [0.0.35] - 2026-08-06
+
+Nothing in this release changes what the product does. It changes what CI costs,
+which had reached about 8,900 billed Actions minutes in the first six days of
+August across 369 runs at 24.1 minutes each
+([#317](https://github.com/vstorm-co/agenticos/issues/317)).
+
+### Changed
+
+- **A push to a branch now cancels that branch's run in flight.** `ci.yml` carried no
+  `concurrency` block at all, while `ai-review.yml` and `docs.yml` both did — so every
+  push started a fresh matrix and left the previous one running to completion. 75 of
+  369 runs were superseded while still in flight, about 1,800 billed minutes, and only
+  2 runs in that window were ever `cancelled`. A push to `main` is exempt, and via
+  `github.run_id` rather than `cancel-in-progress: false`: `false` means *queue*, and
+  GitHub cancels any previously **pending** run in a group when a newer one is queued,
+  so a third merge arriving would have cancelled the second and left that commit with
+  no CI at all.
+- **`test`, `test-frontend` and `e2e` are skipped when the changed paths cannot affect
+  them.** A `changes` job decides, and the decision lives in
+  `scripts/ci_changed_scope.py` rather than in a glob, so it is testable. It skips a
+  suite only when *every* changed path is provably irrelevant to it — an unrecognised
+  path runs everything — because the permissive spelling of the same idea would let a
+  new directory silently stop a suite, which is a green build with a gate missing from
+  it rather than a red one. A required status check is satisfied by `success`,
+  `skipped` **or** `neutral`, which is why this is a job-level condition and not a
+  `paths:` filter: a filtered-out workflow never posts its checks, and the ruleset
+  would wait forever. See [branches](docs/branching.md#a-required-check-may-legitimately-report-skipped).
+- **Dependencies are cached, at all seven install sites.** `setup-uv` was called five
+  times with no cache, re-resolving and re-downloading all 278 locked packages each
+  time; `setup-bun` caches the binary and not the packages; and `e2e` downloaded about
+  170 MB of Chromium on every run. All three are keyed on the lockfile that pins them.
+
+### Fixed
+
+- **Four ways the new path gate could have passed on nothing**, all found in review of
+  the change that introduced it and all the failure it was built to prevent. A
+  `changes` job that *failed* skipped every gated suite without its condition being
+  read, and since a skipped required check is a pass and `changes` is not itself a
+  required context, one API error would have turned the merge button green over a
+  branch where nothing ran — each gated job now carries `!cancelled()`. A rename was
+  half-invisible, because `pulls/{n}/files` reports only the path a file arrived at, so
+  a module moved out of `backend/` skipped the backend suite; `previous_filename` is
+  fed through as well. And the `changes` job declared `pull-requests: read` without
+  `contents: read`, which a job-level block *replaces* rather than adds to — working
+  only for as long as this repository stays public.
+
+## [0.0.34] - 2026-08-06
+
+### Changed
+
+- **The automated reviewer no longer runs on a pull request**
+  ([#311](https://github.com/vstorm-co/agenticos/issues/311)). Every `ai-review` run since
+  2026-08-05 evening died about twelve seconds into its Codex step with `codex exited with code 1` —
+  the shape of an authentication, quota or entitlement refusal at the first API call rather than a
+  model working and failing — and then concluded `success` and posted "No review: the reviewer did
+  not produce a result", a sentence that reads like a verdict on the diff. Eleven pull requests
+  merged with no automated review before anybody noticed, three of them releases. A reviewer that
+  runs and says nothing is worse than one that plainly is not running, so the `pull_request` trigger
+  is removed until the Codex failure is understood; `workflow_dispatch` stays, because the fix has
+  to be testable against a real pull request. Adding the `ai-review` label now does nothing at all.
+  `CLAUDE.md` and [code review](docs/code-review.md) say so, and the latter records that its own
+  "a failed run says so" claim is what #311 disproved — making a failed run *report* as a failure is
+  the second half of that issue and is not done.
+
+## [0.0.33] - 2026-08-06
+
+### Fixed
+
+- **The Prefect runner no longer starts every queued flow run at once.** `aserve` declares
+  `limit: Optional[int] = None` and hands that straight to `Runner(limit=...)`, where `None` means
+  *no cap* — while constructing a `Runner` without the argument falls back to Prefect's own default
+  of five. Calling `aserve(*deployments)` and saying nothing was therefore the one spelling that
+  removed the ceiling entirely. Starting the stack after three days of downtime, the runner found
+  the backlog of once-a-minute `rag-sync-check` runs and started 71 `prefect.engine` processes at
+  once — each a fresh interpreter importing the whole application, about 120 MB apiece. 6.02 GiB of
+  a 7.75 GiB host, and the kernel resolved it by OOM-killing the API container's worker.
+
+### Added
+
+- **`PREFECT_RUNNER_LIMIT`** (default `5`) — how many flow runs execute at once; the rest queue. A
+  memory ceiling rather than a throughput dial, and the moment it matters is the restart after
+  downtime rather than the steady state. Documented in
+  [configuration](docs/configuration.md#background-work-prefect).
+
 ## [0.0.32] - 2026-08-06
 
 ### Fixed

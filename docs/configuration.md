@@ -121,6 +121,37 @@ Computed properties:
 | `REDIS_PASSWORD` | (none) | Redis password (optional) |
 | `REDIS_DB` | `0` | Redis database number |
 
+## Background work (Prefect)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PREFECT_API_URL` | `http://localhost:4200/api` | The self-hosted server, or a Prefect Cloud workspace URL |
+| `PREFECT_API_KEY` | (none) | Prefect Cloud only |
+| `PREFECT_RUNNER_LIMIT` | `5` | How many flow runs execute at once; the rest queue |
+| `PREFECT_RUNNER_SERVER_HOST` | `127.0.0.1` in compose | Interface the runner serves its own health endpoint on |
+| `PREFECT_RUNNER_SERVER_PORT` | `8080` | Port for the same |
+
+`PREFECT_RUNNER_LIMIT` is a memory ceiling, not a throughput dial. Each run is a
+separate process that imports the whole application — roughly 120 MB — and the
+number that matters is not the steady state but the restart: the runner comes up,
+finds every run that was scheduled while it was down, and starts as many as the
+limit allows. Uncapped, three days of downtime was 71 processes and 6 GiB. Raise
+it if ingestion queues behind syncs on a machine with memory to spare; lower it on
+a small host.
+
+The two `PREFECT_RUNNER_SERVER_*` variables are Prefect's, and the compose files
+pin them so the runner's container has a health status that means something. The
+runner starts Prefect's runner webserver, whose `GET /health` answers 503 once it
+has missed two polls of the Prefect API — so a process that is alive but no longer
+picking up work reads `unhealthy` rather than fine. It is bound to the loopback
+because the same webserver also exposes `POST /shutdown`; the probe runs inside
+the container, and nothing outside it can reach either. Moving the port means
+moving the probe in the compose files with it.
+
+There is no `HEALTHCHECK` in `backend/Dockerfile`. The image is started as two
+different processes — the API and this runner — and a probe for one is a
+permanent false alarm on the other, so each service definition carries its own.
+
 ## AI Models — configured in the app, not here
 
 Chat models are not environment variables. Each organization stores its own
@@ -157,8 +188,8 @@ is needed.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `OPENROUTER_API_KEY` | (empty) | The embeddings credential — every collection embeds on it |
-| `EMBEDDING_MODEL` | `text-embedding-3-large` | Deployment-level on purpose: pgvector columns are created at this model's width, so changing it mid-life invalidates existing collections |
+| `OPENROUTER_API_KEY` | (empty) | The fallback embeddings credential, for collections that chose no vault key of their own — and the one a degraded choice falls back to. Not "every collection embeds on it": see [File processing](file-processing.md#embeddings-the-model-and-whose-key-pays) |
+| `EMBEDDING_MODEL` | `text-embedding-3-large` | What a **new** collection is built with. The width is recorded on the row and never changes afterwards, so changing this does not invalidate existing collections — they keep embedding with the model they were created with |
 
 ### Document Parsing — configured per collection, not here
 

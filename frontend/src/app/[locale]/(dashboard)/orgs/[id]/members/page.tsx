@@ -375,7 +375,7 @@ export default function OrgMembersPage({ params }: PageProps) {
               {t("pendingInvitations")}
             </p>
             <h2 className="text-foreground text-sm font-semibold">
-              {pendingInvitations.length} waiting on a response
+              {t("waitingOnResponse", { count: pendingInvitations.length })}
             </h2>
           </div>
           <ul className="border-border bg-card divide-border divide-y overflow-hidden rounded-xl border">
@@ -393,13 +393,17 @@ export default function OrgMembersPage({ params }: PageProps) {
                         wrong word for it and its limits are what matter. */}
                     {inv.email === null ? (
                       <>
-                        {inv.used_count ?? 0} of {inv.max_uses ?? "∞"} used
-                        {inv.email_domain && <> · @{inv.email_domain} only</>}
+                        {t("usedOfMax", { used: inv.used_count ?? 0, max: inv.max_uses ?? "∞" })}
+                        {inv.email_domain && (
+                          <> · {t("domainOnly", { domain: inv.email_domain })}</>
+                        )}
                       </>
                     ) : (
-                      <>Invited {formatDate(inv.created_at)}</>
+                      <>{t("invitedOn", { date: formatDate(inv.created_at) })}</>
                     )}
-                    {inv.expires_at && <> · expires {formatDate(inv.expires_at)}</>}
+                    {inv.expires_at && (
+                      <> · {t("expiresOn", { date: formatDate(inv.expires_at) })}</>
+                    )}
                   </p>
                 </div>
                 <Badge variant={ROLE_VARIANT[inv.role]} className="capitalize">

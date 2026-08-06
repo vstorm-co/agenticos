@@ -45,7 +45,20 @@ def test_the_icu_plural_call_that_replaces_it_is_not_read_as_a_count(tmp_path: P
 
 
 def test_a_conditional_that_renders_a_word_is_not_a_count(tmp_path: Path) -> None:
-    # `{show && <Icon />} more` is a guard, not a count: the angle brackets in the
-    # interpolation are what tell the two apart, and the rule must not confuse them.
+    # `{show && <Icon />} more` is a guard, not a count: the element in the
+    # interpolation is what tells the two apart, and the rule must not confuse them.
     found = _offences(tmp_path, "<div>{show && <Icon />} more</div>\n")
     assert not [what for _, what in found if what.startswith("count ")], found
+
+
+def test_a_count_computed_with_a_lambda_is_refused(tmp_path: Path) -> None:
+    """The rule used to refuse any angle bracket in the interpolation, `=>` included.
+
+    So a count summed with `reduce` or measured with `filter` escaped it, and the one
+    at the knowledge-base `vectors` node had to be found by hand (#246). What
+    distinguishes a count from a conditional is the *element* - `<span`, `</`, `/>` -
+    and a lambda holds none of those.
+    """
+    source = "<span>{documents.reduce((sum, d) => sum + d.chunk_count, 0)} vectors</span>\n"
+    found = _offences(tmp_path, source)
+    assert [what for _, what in found if what.startswith("count ")], found

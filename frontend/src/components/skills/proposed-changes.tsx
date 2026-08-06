@@ -56,8 +56,7 @@ export function ProposedChanges({ canEdit }: ProposedChangesProps) {
             {t("changesAgentProposed")}
           </CardTitle>
           <CardDescription className="text-xs">
-            {t("waitingCount", { count: changes.length })}. Accepting one rewrites the skill, which
-            reaches every agent bound to it on its next run.
+            {t("changesWaitingDetail", { count: changes.length })}
           </CardDescription>
         </div>
       </CardHeader>

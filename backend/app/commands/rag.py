@@ -24,7 +24,7 @@ from app.commands import command, error, info, success, warning
 from app.db.session import get_db_context
 from app.schemas.sync_source import SyncSourceCreate
 from app.services.embedding_resolution import embeddings_for_collection
-from app.services.rag.config import DocumentExtensions, RAGSettings
+from app.services.rag.config import DEFAULT_COLLECTION_NAME, DocumentExtensions, RAGSettings
 from app.services.rag.documents import DocumentProcessor
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.ingestion import IngestionService
@@ -254,8 +254,8 @@ async def ingest_path_async(
 @click.option(
     "--collection",
     "-c",
-    default="documents",
-    help="Collection name (default: documents)",
+    default=DEFAULT_COLLECTION_NAME,
+    help=f"Collection name (default: {DEFAULT_COLLECTION_NAME})",
 )
 @click.option(
     "--recursive/--no-recursive",
@@ -340,8 +340,8 @@ async def search_async(
 @click.option(
     "--collection",
     "-c",
-    default="documents",
-    help="Collection name (default: documents)",
+    default=DEFAULT_COLLECTION_NAME,
+    help=f"Collection name (default: {DEFAULT_COLLECTION_NAME})",
 )
 @click.option(
     "--top-k",
@@ -457,7 +457,7 @@ async def stats_async(settings: RAGSettings, vector_store: BaseVectorStore) -> N
 
 
 @command("rag-sync-gdrive")
-@click.option("--collection", "-c", default="documents", help="Target collection name")
+@click.option("--collection", "-c", default=DEFAULT_COLLECTION_NAME, help="Target collection name")
 @click.option("--folder-id", "-f", default="", help="Google Drive folder ID (empty = root)")
 def rag_sync_gdrive(collection: str, folder_id: str) -> None:
     """Sync documents from Google Drive into a RAG collection."""
@@ -480,7 +480,7 @@ def rag_sync_gdrive(collection: str, folder_id: str) -> None:
 
 
 @command("rag-sync-s3")
-@click.option("--collection", "-c", default="documents", help="Target collection name")
+@click.option("--collection", "-c", default=DEFAULT_COLLECTION_NAME, help="Target collection name")
 @click.option("--prefix", "-p", default="", help="S3 prefix (folder path)")
 @click.option("--bucket", "-b", default="", help="S3 bucket (empty = default from settings)")
 def rag_sync_s3(collection: str, prefix: str, bucket: str) -> None:

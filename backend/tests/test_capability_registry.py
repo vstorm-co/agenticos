@@ -404,6 +404,14 @@ class TestConfigValidation:
         assert exc.value.details is not None
         assert exc.value.details["errors"]
 
+    def test_the_rejected_value_is_not_echoed_back(self):
+        """`details` reaches the caller verbatim, so it carries the diagnosis
+        rather than a copy of what was posted (agenticos#307)."""
+        with pytest.raises(BadRequestError) as exc:
+            get("knowledge").validate_config({"default_top_k": 999})
+        assert exc.value.details is not None
+        assert all("input" not in error for error in exc.value.details["errors"])
+
     def test_capabilities_without_a_schema_accept_nothing(self):
         assert get("charts").validate_config({}) is None
 

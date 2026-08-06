@@ -69,8 +69,12 @@ USER appuser
 
 EXPOSE 8000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import httpx; httpx.get('http://localhost:8000/api/v1/health')" || exit 1
-
+# No HEALTHCHECK here, deliberately. This image has two consumers with different
+# commands: the API (`uvicorn app.main:app`) and the Prefect runner
+# (`python -m app.worker.prefect_app`). The probe that used to live here asked
+# localhost:8000 for `/api/v1/health`, which the runner serves nothing on - so the
+# runner was `unhealthy` from the second it started and stayed that way, hiding
+# the one thing a health status exists to show. An image cannot know which of the
+# two it was started as; a service definition does. Both probes are in the compose
+# files, one per service.
 CMD ["python", "-m", "cli.commands", "server", "run", "--host", "0.0.0.0", "--port", "8000"]

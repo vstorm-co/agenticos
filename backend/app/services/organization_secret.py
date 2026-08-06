@@ -1,9 +1,11 @@
 """Organization secrets - storage, rotation, and the one place they are opened.
 
 Everything above this deals in secret ids; everything below deals in ciphertext.
-There is deliberately no method that returns a plaintext to a caller who is not
-about to build an agent: :meth:`OrganizationSecretService.resolve_for_bindings`
-is the only reader, and it is called by the runner.
+There is deliberately no method that returns a plaintext to a caller who could
+keep one. Two methods unseal, and both hand what they opened straight to the thing
+that had to have it: :meth:`OrganizationSecretService.resolve_for_bindings`, called
+by the runner, and :meth:`OrganizationSecretService.listing_key`, which returns a
+bearer token for one outbound catalog request.
 """
 
 from __future__ import annotations
@@ -16,7 +18,13 @@ from app.core import secret_purposes
 from app.core.audit import record_audit
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
-from app.core.secret_kinds import SecretKind, StorableSecret, seal_secret, unseal_secret
+from app.core.secret_kinds import (
+    ApiKeySecret,
+    SecretKind,
+    StorableSecret,
+    seal_secret,
+    unseal_secret,
+)
 from app.core.secret_purposes import CUSTOM
 from app.core.vault import VaultScope
 from app.db.models.organization_secret import OrganizationSecret
@@ -284,10 +292,11 @@ class OrganizationSecretService:
     ) -> dict[UUID, StorableSecret]:
         """Unseal the secrets a run's bindings reference.
 
-        The only reader of a plaintext in the whole service. Ids that no longer
-        resolve are simply absent from the result; the capability registry turns
-        a missing *required* secret into a refusal, and it is the one place that
-        knows which bindings actually needed one.
+        One of the two readers of a plaintext in this service, and the only one
+        that hands over a whole credential. Ids that no longer resolve are simply
+        absent from the result; the capability registry turns a missing *required*
+        secret into a refusal, and it is the one place that knows which bindings
+        actually needed one.
         """
         rows = await organization_secret_repo.get_many(
             self.db, secret_ids, organization_id=ctx.organization_id
@@ -302,6 +311,41 @@ class OrganizationSecretService:
             )
             for secret_id, row in rows.items()
         }
+
+    async def listing_key(self, ctx: AuthContext, provider: str) -> str | None:
+        """A bearer token for asking one provider what models it offers.
+
+        Any of this organization's keys for that provider will do - a catalog is
+        the same whichever one asks - so the first is taken rather than making
+        somebody choose. The other secret shapes (an AWS pair, a service-account
+        JSON) are not bearer tokens and no listing endpoint accepts one, so they
+        are skipped rather than mangled into a header.
+
+        Deliberately *not* narrowed the way :meth:`list_secrets` is. Visibility
+        decides which keys a caller may see and account for, and a member who
+        cannot see the organization's OpenAI key is still shown the same model
+        list as everybody else: what leaves here is a catalog, and the plaintext
+        goes to the provider rather than to the caller. Narrowing it would make
+        the field's suggestions depend on who is looking at it.
+
+        Returns:
+            The key, or `None` when this organization stores no API key for that
+            provider - which is not an error. Providers that publish a public list
+            are asked without one.
+        """
+        secrets = await organization_secret_repo.list_secrets(
+            self.db, organization_id=ctx.organization_id, purposes=[provider]
+        )
+        for secret in secrets:
+            value = unseal_secret(
+                secret.sealed_secret,
+                kind=SecretKind(secret.kind),
+                scope=VaultScope.organization(ctx.organization_id),
+                key_version=secret.key_version,
+            )
+            if isinstance(value, ApiKeySecret):
+                return value.api_key.get_secret_value()
+        return None
 
     async def _get(
         self, ctx: AuthContext, secret_id: UUID, *, perm: Perm = Perm.SECRETS_VIEW

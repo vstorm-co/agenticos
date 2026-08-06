@@ -626,9 +626,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                 className="mt-1.5"
               />
               <p className="text-foreground/45 mt-1 text-[11px]">
-                Lowercase letters, digits and hyphens. It prefixes the server&apos;s tool names, so
-                it has to be unique among{" "}
-                {draft?.scope === "organization" ? t("organizationS") : "your"} servers.
+                {t("namePrefixesToolNames", { scope: draft?.scope ?? "personal" })}
               </p>
             </div>
             <div>
@@ -793,10 +791,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
             <DialogTitle>{t("toolsFrom", { name: toolPicker?.connection.name ?? "" })}</DialogTitle>
           </DialogHeader>
           <p className="text-foreground/55 text-xs">
-            Which tools this connection exposes. Selecting all keeps tools the server adds later
-            enabled automatically.
-            {toolPicker?.scope === "organization" &&
-              " This applies to every agent bound to this server - per-agent tool selection does not exist yet."}
+            {t("whichToolsExposed", { scope: toolPicker?.scope ?? "personal" })}
           </p>
           <ul className="border-foreground/10 divide-foreground/8 divide-y rounded-xl border">
             {toolPicker?.tools.map((tool) => (
@@ -965,8 +960,10 @@ function ConnectionMenu({
         {state === "needs-authorization" && (
           <DropdownMenuItem onSelect={onOAuth}>{t("finishSign")}</DropdownMenuItem>
         )}
-        <DropdownMenuItem onSelect={() => onTools(connection)}>Check connection</DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => onEdit(connection)}>Settings</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => onTools(connection)}>
+          {t("checkConnection")}
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => onEdit(connection)}>{t("settings")}</DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
           className="text-destructive focus:text-destructive"
