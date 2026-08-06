@@ -194,8 +194,18 @@ class TestTheGoogleDriveConnector:
     @pytest.mark.parametrize(
         "folder_id",
         # The last two are what `dict[str, object]` lets a JSON body carry into
-        # a field the form calls a string.
-        ["x' in parents or name contains 'salary", "1AbC dEf", "", "a" * 257, "../1AbC", 1234, {}],
+        # a field the form calls a string. Both are truthy, so they reach the
+        # allowlist rather than stopping at the required-field check that `""`
+        # is here to pin.
+        [
+            "x' in parents or name contains 'salary",
+            "1AbC dEf",
+            "",
+            "a" * 257,
+            "../1AbC",
+            1234,
+            {"id": "1AbC"},
+        ],
     )
     async def test_a_source_with_a_hostile_folder_id_is_refused_at_creation(
         self, folder_id: object
