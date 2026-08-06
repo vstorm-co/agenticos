@@ -157,7 +157,12 @@ function AgentOption({
   // replaces gave every agent its own bordered card inside an already bordered popover,
   // which is four nested boxes to say "pick one of these".
   return (
-    <div className={cn(t("groupFlexItemsCenter"), selected ? "bg-accent" : "hover:bg-accent/60")}>
+    <div
+      className={cn(
+        "group flex items-center rounded-lg pr-1 transition-colors",
+        selected ? "bg-accent" : "hover:bg-accent/60",
+      )}
+    >
       <button
         type="button"
         role="radio"

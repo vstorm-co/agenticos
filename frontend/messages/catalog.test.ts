@@ -1,0 +1,131 @@
+import { describe, expect, it } from "vitest";
+
+import en from "./en.json";
+import pl from "./pl.json";
+
+/**
+ * That the catalog holds copy, and only copy.
+ *
+ * A translator opening `pl.json` translates whatever is in `en.json`, and until
+ * this test existed 142 of those values were not sentences: 18 Tailwind class
+ * lists read back through `cn(t("flexItemsStartGap"))`, and 124 fragments of
+ * JavaScript source that nothing read at all - `"; case \"stats\": return"`,
+ * `"(null); const [error, setError] = useState"`. Both arrived the same way: the
+ * migration that moved copy into the catalog answered a false positive from
+ * `scripts/check_i18n.py` by minting a key instead of marking the line
+ * `i18n-exempt`.
+ *
+ * The guard cannot see either. Its offence sweep skips any line holding
+ * `className`, and a class list reaching `cn()` through `t()` has none; its
+ * `missing_keys` sweep only asks whether a key a component reads exists, which
+ * it did. So the check has to run over the catalog rather than over the source,
+ * and it is cheap: a value is copy, or it is one of two shapes nobody reads.
+ */
+
+/** Utilities that stand alone: `flex`, `border`, `group`. */
+const BARE = new Set(
+  (
+    "group peer flex grid hidden block inline absolute relative fixed sticky contents isolate " +
+    "truncate italic underline uppercase lowercase capitalize antialiased visible invisible " +
+    "collapse static border rounded shadow ring outline transition filter grow shrink table"
+  ).split(" "),
+);
+
+/** What a utility's first segment can be: `items-start`, `text-[10px]`, `sm:inline`. */
+const PREFIX = new Set(
+  (
+    "items justify self content place gap space p px py pt pb pl pr m mx my mt mb ml mr " +
+    "w h min max size text bg border rounded shadow overflow font leading tracking " +
+    "transition ring outline opacity z top left right bottom inset shrink grow basis order " +
+    "whitespace cursor select pointer backdrop animate duration ease delay translate scale " +
+    "rotate skew origin object aspect columns col row divide list align table resize scroll " +
+    "touch will filter blur brightness contrast grayscale invert saturate sepia from via to " +
+    "fill stroke caret accent appearance sr line indent break hyphens float clear flex grid " +
+    "inline place backface mix isolation snap sm md lg xl"
+  ).split(" "),
+);
+
+const VARIANT = /^(?:[a-z0-9-]+|\[[^\]]+\]|data-\[[^\]]+\]):/;
+
+function isUtility(token: string): boolean {
+  let rest = token.replace(/^!/, "");
+  while (VARIANT.test(rest)) rest = rest.slice(rest.indexOf(":") + 1);
+  rest = rest.replace(/^-/, "");
+  if (BARE.has(rest)) return true;
+  const dash = rest.indexOf("-");
+  return dash > 0 && PREFIX.has(rest.slice(0, dash));
+}
+
+/** Two or more tokens, every one of them a Tailwind utility. */
+function isClassList(value: string): boolean {
+  const tokens = value.split(/\s+/);
+  return tokens.length > 1 && tokens.every(isUtility);
+}
+
+/**
+ * Punctuation and keywords a sentence never holds, in any language this ships in.
+ *
+ * ICU is what makes the list this careful: `{count, plural, =1 {…} other {#…}}`
+ * puts braces, `=` and `#` inside perfectly good copy, so none of those can be a
+ * signal. Square brackets and a backslash can - and a backtick cannot, because
+ * `mcp.authTokenHint` quotes a header name in one.
+ */
+const SOURCE = new RegExp(
+  [
+    "=>|===|!==|\\?\\?|\\?\\.|&&|\\|\\|",
+    "\\buse(?:State|Effect|Memo|Ref|Callback)\\b",
+    "\\bconst\\s+[[{\\w]|\\blet\\s+[[{\\w]+\\s*=|\\breturn\\s*[(;]",
+    '\\breturn\\s+(?:null|true|false)\\b|\\bclassName\\b|\\bcase\\s+"|\\btypeof\\b',
+    "[[\\]\\\\^~]",
+    "\\bnull\\b|\\bundefined\\b|\\.(?:map|filter|join|push)\\(|\\.length\\b",
+    "\\bset[A-Z]\\w*\\(",
+  ].join("|"),
+);
+
+function entries(catalog: unknown, prefix = ""): [string, string][] {
+  if (typeof catalog === "string") return [[prefix.replace(/\.$/, ""), catalog]];
+  return Object.entries(catalog as Record<string, unknown>).flatMap(([key, value]) =>
+    entries(value, `${prefix}${key}.`),
+  );
+}
+
+describe.each([
+  ["en.json", en],
+  ["pl.json", pl],
+])("%s", (_name, catalog) => {
+  const all = entries(catalog);
+
+  it("holds no Tailwind class list", () => {
+    const offenders = all.filter(([, value]) => isClassList(value)).map(([key]) => key);
+
+    // Translating one hands `cn()` an opaque string it cannot tell from a class
+    // name, and the component loses its border, its padding and its layout.
+    expect(offenders).toEqual([]);
+  });
+
+  it("holds no fragment of source", () => {
+    const offenders = all.filter(([, value]) => SOURCE.test(value)).map(([key]) => key);
+
+    expect(offenders).toEqual([]);
+  });
+});
+
+describe("the rules themselves", () => {
+  it("reads a class list and a source fragment as what they are", () => {
+    expect(isClassList("flex items-start gap-3 rounded-xl border p-4 transition-colors")).toBe(
+      true,
+    );
+    expect(isClassList("group absolute top-0 left-0 z-20 h-full w-1.5 cursor-col-resize")).toBe(
+      true,
+    );
+    expect(SOURCE.test('; case "stats": return')).toBe(true);
+    expect(SOURCE.test("(null); const [error, setError] = useState")).toBe(true);
+  });
+
+  it("reads copy as copy, ICU and markdown included", () => {
+    expect(isClassList("Showing 1 of 57 documents")).toBe(false);
+    expect(SOURCE.test("{count, plural, =1 {1 chunk} other {# chunks}}")).toBe(false);
+    expect(SOURCE.test("A static credential, sent as `Authorization: Bearer`.")).toBe(false);
+    expect(SOURCE.test("Files will be added to <strong>{name}</strong>")).toBe(false);
+  });
+});

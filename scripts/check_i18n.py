@@ -40,6 +40,15 @@ What it deliberately does not look at:
 False positives get an inline `{/* i18n-exempt: why */}` or a trailing
 `// i18n-exempt: why`. The comment is required to carry a reason, because "this
 one is fine" is the sentence that turns a gate into a rubber stamp.
+
+**A false positive takes an exemption. It never takes a key.** Answering one by
+moving the offending text into `messages/en.json` silences the guard and hands a
+translator something nobody reads: the migration that first ran this script did
+exactly that 142 times, filing 18 Tailwind class lists and 124 fragments of
+JavaScript source under keys with names like `caseStatsReturn` (#348).
+`frontend/messages/catalog.test.ts` now refuses both shapes, because neither the
+offence sweep nor `missing_keys` can see them - a class list reaching `cn()`
+through `t()` carries no `className`, and a key that exists is a key that exists.
 """
 
 from __future__ import annotations
