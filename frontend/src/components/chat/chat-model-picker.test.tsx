@@ -156,7 +156,7 @@ describe("the chat's two-step model picker", () => {
 
     await pickProvider("OpenAI");
 
-    expect(screen.getByRole("button", { name: /Add a key/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add a key: OpenAI" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Open the Vault/ })).toBeInTheDocument();
   });
 
@@ -166,7 +166,7 @@ describe("the chat's two-step model picker", () => {
 
     await pickProvider("OpenAI");
 
-    expect(screen.queryByRole("button", { name: /Add a key/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add a key: OpenAI" })).toBeNull();
   });
 
   it("will not apply a bare OpenRouter id, same rule as the Builder", async () => {
