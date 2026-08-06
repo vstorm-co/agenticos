@@ -18,13 +18,14 @@ from __future__ import annotations
 
 import uuid
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from httpx import AsyncClient
 
 from app.api import deps
 from app.core.config import settings
+from app.core.exceptions import BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.resource_grant import Visibility
@@ -110,7 +111,7 @@ def _error(response: Any) -> dict[str, Any]:
 
 
 class TestCreatingACollectionOnTheRagRoute:
-    @pytest.mark.parametrize("name", ["foo-bar", "all", "documents", _TOO_LONG])
+    @pytest.mark.parametrize("name", ["foo-bar", "all", "documents", "Handbook", _TOO_LONG])
     async def test_a_name_the_store_cannot_use_is_a_400(
         self, client: AsyncClient, store: MagicMock, claimed_by_nobody: None, name: str
     ) -> None:
@@ -137,6 +138,40 @@ class TestCreatingACollectionOnTheRagRoute:
         store.create_collection.assert_not_called()
 
 
+class TestDroppingACollection:
+    async def test_a_name_the_store_refuses_does_not_delete_the_row_around_it(
+        self, client: AsyncClient, store: MagicMock, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The drop is best-effort against the database, not against a refusal.
+
+        `contextlib.suppress(Exception)` covered both, so a stored name the store
+        will not touch meant: skip the drop, delete the knowledge base and every
+        document record anyway, answer 204 - and leave the vector table behind
+        with nobody able to name it. Narrowed to `SQLAlchemyError`, which is the
+        "no table yet" case it was written for.
+
+        The row is reachable because it predates the rule; that is the only way
+        to have one, since creating it is refused.
+        """
+        held = _held_by(_ORGANIZATION, "Handbook")
+
+        async def rows(_db: object, collection_name: str) -> list[KnowledgeBase]:
+            del collection_name
+            return [held]
+
+        monkeypatch.setattr(knowledge_base_repo, "list_by_collection_name", rows)
+        store.delete_collection.side_effect = BadRequestError(
+            message="refused", details={"collection": "Handbook"}
+        )
+        deleted = AsyncMock()
+        monkeypatch.setattr(knowledge_base_repo, "delete", deleted)
+
+        response = await client.delete(f"{settings.API_V1_STR}/rag/collections/Handbook")
+
+        assert response.status_code == 400
+        deleted.assert_not_awaited()
+
+
 class TestCreatingAKnowledgeBase:
     @staticmethod
     def _payload(collection_name: str) -> dict[str, Any]:
@@ -159,7 +194,7 @@ class TestCreatingAKnowledgeBase:
         assert response.status_code == 409
         assert _error(response)["code"] == "ALREADY_EXISTS"
 
-    @pytest.mark.parametrize("name", ["foo-bar", "all", "documents", _TOO_LONG])
+    @pytest.mark.parametrize("name", ["foo-bar", "all", "documents", "Handbook", _TOO_LONG])
     async def test_a_name_that_could_not_be_an_identifier_is_a_400(
         self, client: AsyncClient, claimed_by_nobody: None, name: str
     ) -> None:
