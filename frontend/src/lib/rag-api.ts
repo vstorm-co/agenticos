@@ -48,6 +48,22 @@ export async function getCollectionInfo(collectionName: string): Promise<RAGColl
   return apiClient.get<RAGCollectionInfo>(`/rag/collections/${collectionName}/info`);
 }
 
+/**
+ * The longest collection name the server will accept.
+ *
+ * `MAX_COLLECTION_NAME_LENGTH` in `app/db/vector_tables.py`, derived there from
+ * what Postgres keeps of an identifier once the store's `rag_` prefix and
+ * `_embedding_idx` suffix are on it: 63 - 4 - 14. Postgres truncates rather
+ * than refusing, so two names agreeing to that point are one table and one
+ * index.
+ *
+ * Here only as a `maxLength` on the input, which is why this is the single rule
+ * of the four that is mirrored: the server is the authority and answers with
+ * its own sentence for every one of them, but a limit a person can type past
+ * without noticing is worth stopping at the keyboard.
+ */
+export const MAX_COLLECTION_NAME_LENGTH = 45;
+
 export async function createCollection(collectionName: string): Promise<{ message: string }> {
   return apiClient.post<{ message: string }>(`/rag/collections/${collectionName}`);
 }

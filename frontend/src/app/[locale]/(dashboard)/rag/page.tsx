@@ -58,6 +58,7 @@ import {
   deleteSyncSource,
   triggerSyncSource,
   listConnectors,
+  MAX_COLLECTION_NAME_LENGTH,
   type RAGCollectionInfo,
   type RAGTrackedDocument,
   type RAGSearchResult,
@@ -110,12 +111,15 @@ const TONE_MARK: Record<
 function SyncStatusLine({ when, status }: { when: string; status: string | null }) {
   const t = useTranslations("pages.rag");
   const tStatus = useTranslations("ragStatus");
-  const { words, tone } = ragStatus(status ?? "");
+  // A source that has run but recorded no status is `unknown` like any other
+  // value this build cannot name, and says the empty string it really holds.
+  const token = status ?? "";
+  const { words, tone } = ragStatus(token);
   return (
     <p className={cn("text-xs", tone === "failure" && "text-destructive")}>
       {t("lastSyncStatus", {
         when: timeAgo(when),
-        status: words === null ? (status ?? "") : tStatus(words),
+        status: words === null ? token : tStatus(words),
       })}
     </p>
   );
@@ -178,6 +182,8 @@ export default function RAGPage() {
   } | null>(null);
   const [newName, setNewName] = useState("");
   const [showCreate, setShowCreate] = useState(false);
+  /** Why the server refused the last create, shown under the input it was about. */
+  const [createError, setCreateError] = useState<string | null>(null);
   const [tab, setTabState] = useState<"documents" | "search" | "sync">(() => {
     if (typeof window !== "undefined") {
       const t = new URLSearchParams(window.location.search).get("tab");
@@ -339,12 +345,18 @@ export default function RAGPage() {
   }, [docs, refetchCollections]);
 
   const handleCreate = async () => {
+    // Whitespace and case only, deliberately. The server owns the rules a name
+    // has to meet and refuses rather than reinterprets - completing this
+    // client-side would be a second copy of them, and a rewriting one at that,
+    // storing a name nobody typed. What it must not do is hide the refusal,
+    // which is the rest of this function.
     const name = newName.trim().toLowerCase().replace(/\s+/g, "_");
     if (!name) return;
     const startedIn = orgId;
+    setCreateError(null);
     try {
       await createCollection(name);
-      toast.success(`"${name}" created`);
+      toast.success(t("collectionCreated", { name }));
       setNewName("");
       setShowCreate(false);
       // The collection was created in the organization the request started in;
@@ -353,15 +365,26 @@ export default function RAGPage() {
       if (!stillCurrent(startedIn)) return;
       await refetchCollections();
       if (stillCurrent(startedIn)) setChosen(name);
-    } catch {
-      toast.error(t("failedCreateCollection"));
+    } catch (err) {
+      // Beside the input rather than in a toast, and the server's own sentence
+      // rather than one string for every cause. The backend distinguishes a
+      // malformed name from a reserved one from one 45 characters too long
+      // from one another organization already holds, and each names the value
+      // that broke - all five used to arrive as "Failed to create collection"
+      // on the only screen in the product that creates a collection by name.
+      //
+      // The sentence rather than a key chosen from `error.code`: the four
+      // refusals share `BAD_REQUEST` and differ only in what they say, so
+      // mapping the code would collapse them back into the one string this is
+      // fixing.
+      setCreateError(getErrorMessage(err, t("failedCreateCollection")));
     }
   };
 
   const handleDelete = async (name: string) => {
     try {
       await deleteCollection(name);
-      toast.success(`"${name}" deleted`);
+      toast.success(t("collectionDeleted", { name }));
       queryClient.setQueryData<CollectionWithInfo[]>(qk.rag.collections(orgId), (prev = []) =>
         prev.filter((c) => c.name !== name),
       );
@@ -370,8 +393,11 @@ export default function RAGPage() {
         queryClient.removeQueries({ queryKey: qk.rag.documents(orgId, name) });
         setSearchResults([]);
       }
-    } catch {
-      toast.error(t("failedDelete"));
+    } catch (err) {
+      // Same shape as the create above, and for the same reason: a drop can be
+      // refused by the vector store for a name it will not touch, which is a
+      // different thing from the collection not being there.
+      toast.error(getErrorMessage(err, t("failedDelete")));
     }
   };
 
@@ -645,28 +671,45 @@ export default function RAGPage() {
         </div>
 
         {showCreate && (
-          <div className="border-border mt-3 flex gap-2 border-t pt-3">
-            <Input
-              placeholder={t("collectionName")}
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={(e) => e.key === t("enter4") && handleCreate()}
-              className="h-9 max-w-xs rounded-xl"
-            />
-            <Button size="sm" className="h-9 rounded-xl" onClick={handleCreate}>
-              {t("create")}
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-9 rounded-xl"
-              onClick={() => {
-                setShowCreate(false);
-                setNewName("");
-              }}
-            >
-              {t("cancel")}
-            </Button>
+          <div className="border-border mt-3 border-t pt-3">
+            <div className="flex gap-2">
+              <Input
+                placeholder={t("collectionName")}
+                value={newName}
+                // The server is the authority on every rule a name has to meet;
+                // this is the one worth stopping at the keyboard, because a
+                // name over the limit is refused for a reason - two names
+                // agreeing up to the truncation point become one table.
+                maxLength={MAX_COLLECTION_NAME_LENGTH}
+                onChange={(e) => {
+                  setNewName(e.target.value);
+                  setCreateError(null);
+                }}
+                onKeyDown={(e) => e.key === t("enter4") && handleCreate()}
+                aria-invalid={createError !== null}
+                className="h-9 max-w-xs rounded-xl"
+              />
+              <Button size="sm" className="h-9 rounded-xl" onClick={handleCreate}>
+                {t("create")}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-9 rounded-xl"
+                onClick={() => {
+                  setShowCreate(false);
+                  setNewName("");
+                  setCreateError(null);
+                }}
+              >
+                {t("cancel")}
+              </Button>
+            </div>
+            {createError && (
+              <p role="alert" className="text-destructive mt-2 text-xs">
+                {createError}
+              </p>
+            )}
           </div>
         )}
 

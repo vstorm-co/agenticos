@@ -2094,6 +2094,8 @@
       "cancel2": "Cancel",
       "cancel3": "Cancel",
       "collection": "Collection",
+      "collectionCreated": "“{name}” created",
+      "collectionDeleted": "“{name}” deleted",
       "collectionName": "collection_name",
       "couldNotOpenOriginal": "Could not open the original",
       "couldnTLoadDocuments": "Couldn't load the documents",
