@@ -124,19 +124,21 @@ export default function AdminUsersPage() {
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0">
-              <p className="text-foreground flex items-center gap-1.5 truncate text-sm font-medium">
-                {u.full_name || u.email.split("@")[0]}
+              <div className="flex items-center gap-1.5">
+                <p className="text-foreground truncate text-sm font-medium">
+                  {u.full_name || u.email.split("@")[0]}
+                </p>
                 {/* The deployment superadmin, which is the only authority a user
                     row carries. There is no `users.role` since `0066` -
                     authority inside an organization is a membership row plus
                     the permission catalog, and neither is on this screen. */}
                 {u.is_app_admin && (
-                  <Badge variant="outline" className="gap-0.5 font-normal">
+                  <Badge variant="outline" className="shrink-0 gap-0.5 font-normal">
                     <Shield className="h-2.5 w-2.5" />
                     {t("app")}
                   </Badge>
                 )}
-              </p>
+              </div>
               <p className="text-muted-foreground truncate text-xs">{u.email}</p>
             </div>
           </div>
