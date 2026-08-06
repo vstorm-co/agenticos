@@ -95,7 +95,7 @@ const DOCUMENT: KBDocument = {
  * The page's five parallel reads. Three of them sit behind their own permission
  * and are allowed to answer empty, which is what a Viewer actually gets.
  */
-function serve({ documentsTotal = 57, sources = [] as unknown[] } = {}) {
+function serve({ documentsTotal = 57, sources = [] as unknown[], isDefault = false } = {}) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
     if (path.includes("/documents")) return { items: [DOCUMENT], total: documentsTotal };
     if (path.endsWith("/connectors")) return { items: [] };
@@ -103,7 +103,7 @@ function serve({ documentsTotal = 57, sources = [] as unknown[] } = {}) {
     if (path.includes("/sync-sources")) return { items: [], total: 0 };
     // Whatever the dashboard chrome asks for on the way past.
     if (!path.startsWith("/kb/kb-1")) return { items: [], total: 0 };
-    return COLLECTION;
+    return { ...COLLECTION, is_default: isDefault };
   });
 }
 
@@ -144,13 +144,28 @@ describe("deleting a collection from its own page", () => {
   });
 
   it("offers a Viewer without a grant no way to delete it at all", async () => {
-    // Not rendered, rather than rendered and then refused by the server: the
-    // menu that holds it is the caller's only route to the action.
+    // Not rendered, rather than rendered and then refused by the server. The
+    // menu that holds it is the only route to the action, so its absence is the
+    // whole assertion - querying for the item inside a menu nobody opened would
+    // pass for a caller who does hold the permission too.
     held = [Perm.collectionsView];
     await mount();
 
     expect(screen.queryByRole("button", { name: "More actions" })).toBeNull();
-    expect(screen.queryByRole("menuitem", { name: "Delete knowledge base" })).toBeNull();
+    // The other two write controls are gone with it, which is what says the
+    // page read the permission rather than losing the menu to a render error.
+    expect(screen.queryByRole("button", { name: "Upload" })).toBeNull();
+  });
+
+  it("offers no delete for the default collection, which the server refuses", async () => {
+    // `KnowledgeBaseService.delete` answers 400 for it, so the menu holding the
+    // only item would open onto an action that cannot work. Upload stays: the
+    // caller may still write to it.
+    serve({ isDefault: true });
+    await mount();
+
+    expect(screen.queryByRole("button", { name: "More actions" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Upload" })).toBeVisible();
   });
 
   it("names the collection and everything in it before destroying either", async () => {

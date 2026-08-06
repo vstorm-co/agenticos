@@ -95,21 +95,11 @@ export function useKnowledgeBases() {
     [writeCache, listOrgId],
   );
 
-  const deleteKB = useCallback(
-    async (id: string) => {
-      const startedIn = listOrgId;
-      try {
-        await apiClient.delete(`/kb/${id}`);
-        writeCache((prev) => prev.filter((k) => k.id !== id), startedIn);
-        toast.success("Knowledge base deleted");
-      } catch {
-        toast.error("Failed to delete knowledge base");
-      }
-    },
-    [writeCache, listOrgId],
-  );
-
-  return { kbs, isLoading, fetchKBs, createKB, patchKB, deleteKB };
+  // There is deliberately no delete here. A collection is deleted from its own
+  // page, where the document count is on screen - `useKBDetail.deleteCollection`
+  // - and a second path that swallowed the refusal and patched this cache
+  // optimistically was two answers to one question.
+  return { kbs, isLoading, fetchKBs, createKB, patchKB };
 }
 
 /**

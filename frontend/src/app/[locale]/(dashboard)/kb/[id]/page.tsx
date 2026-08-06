@@ -125,9 +125,15 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
    * sweep can reach.
    */
   const [deletingCollection, setDeletingCollection] = useState(false);
-  const [collectionDeleteInFlight, setCollectionDeleteInFlight] = useState(false);
   const [removingDocument, setRemovingDocument] = useState<KBDocument | null>(null);
   const [disconnectingSource, setDisconnectingSource] = useState<SyncSourceRead | null>(null);
+  /**
+   * Whether a granted one is still in the air. One flag for all three, because
+   * only one of these dialogs can be open at a time - and without it the confirm
+   * button stays live through the request, so a second click sends a second
+   * DELETE and the 404 it earns is toasted over a removal that worked.
+   */
+  const [confirmBusy, setConfirmBusy] = useState(false);
   /**
    * How the next files added here are to be read, where that is not how the
    * collection reads them.
@@ -369,23 +375,35 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
                 {/* Behind a menu, not beside Refresh: destroying the collection
                     and everything in it is not a same-weight sibling of
                     re-reading it. It lives here rather than on the card in the
-                    list because this is the page that says what is inside. */}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" aria-label={t("moreActions")}>
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem
-                      className="text-destructive focus:text-destructive"
-                      onSelect={() => setDeletingCollection(true)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      {t("deleteKnowledgeBase")}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                    list because this is the page that says what is inside.
+
+                    Not drawn at all for the default collection, which
+                    `KnowledgeBaseService.delete` refuses outright - offering it
+                    would be offering an action that can only answer 400. The
+                    card in the list hid it for the same reason. */}
+                {!kb.is_default && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-8 px-0"
+                        aria-label={t("moreActions")}
+                      >
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onSelect={() => setDeletingCollection(true)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        {t("deleteKnowledgeBase")}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
               </>
             )}
           </>
@@ -572,17 +590,22 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
         description={t("deleteCollectionWarning", { count: documentsTotal })}
         confirmLabel={t("delete")}
         destructive
-        loading={collectionDeleteInFlight}
+        loading={confirmBusy}
         onConfirm={async () => {
-          setCollectionDeleteInFlight(true);
+          setConfirmBusy(true);
           try {
             await deleteCollection();
           } catch {
             // The hook has already said why. The collection is still there, so
             // this page is still the right one to be on.
-            setCollectionDeleteInFlight(false);
+            setConfirmBusy(false);
             return;
           }
+          // Closed before the navigation rather than left to the unmount: a
+          // client route change is not instant, and a modal frozen on its busy
+          // label with Cancel disabled is the last thing this page would say.
+          setConfirmBusy(false);
+          setDeletingCollection(false);
           router.push(ROUTES.KB);
         }}
       />
@@ -595,8 +618,11 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
           description={t("removeDocumentWarning")}
           confirmLabel={t("remove")}
           destructive
+          loading={confirmBusy}
           onConfirm={async () => {
+            setConfirmBusy(true);
             await deleteDocument(removingDocument.id);
+            setConfirmBusy(false);
             setRemovingDocument(null);
           }}
         />
@@ -610,8 +636,11 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
           description={t("disconnectSourceWarning")}
           confirmLabel={t("disconnect")}
           destructive
+          loading={confirmBusy}
           onConfirm={async () => {
+            setConfirmBusy(true);
             await deleteSyncSource(disconnectingSource.id);
+            setConfirmBusy(false);
             setDisconnectingSource(null);
           }}
         />

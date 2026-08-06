@@ -220,22 +220,6 @@ describe("the list of knowledge bases", () => {
     expect(toast.error).toHaveBeenCalledWith("Failed to update knowledge base");
   });
 
-  it("deletes a collection, and reports a refusal", async () => {
-    const { result } = renderHook(() => useKnowledgeBases(), { wrapper });
-
-    await act(async () => {
-      await result.current.deleteKB("kb-1");
-    });
-    expect(apiClient.delete).toHaveBeenCalledWith("/kb/kb-1");
-    expect(toast.success).toHaveBeenCalledWith("Knowledge base deleted");
-
-    vi.mocked(apiClient.delete).mockRejectedValue(new Error("nope"));
-    await act(async () => {
-      await result.current.deleteKB("kb-1");
-    });
-    expect(toast.error).toHaveBeenCalledWith("Failed to delete knowledge base");
-  });
-
   it("puts the renamed collection back in the list, not just a toast", async () => {
     // The toast says it worked; the cache is what the page renders. These were
     // asserted separately from each other until the list was seeded, at which
@@ -258,25 +242,6 @@ describe("the list of knowledge bases", () => {
     await waitFor(() =>
       expect(result.current.kbs.map((kb) => kb.name)).toEqual(["Handbook v2", "Contracts"]),
     );
-  });
-
-  it("takes the deleted collection out of the list", async () => {
-    vi.mocked(apiClient.get).mockResolvedValue({
-      items: [
-        { id: "kb-1", name: "Handbook" },
-        { id: "kb-2", name: "Contracts" },
-      ],
-      total: 2,
-    });
-    vi.mocked(apiClient.delete).mockResolvedValue(undefined);
-    const { result } = renderHook(() => useKnowledgeBases(), { wrapper });
-    await waitFor(() => expect(result.current.kbs).toHaveLength(2));
-
-    await act(async () => {
-      await result.current.deleteKB("kb-1");
-    });
-
-    await waitFor(() => expect(result.current.kbs.map((kb) => kb.id)).toEqual(["kb-2"]));
   });
 
   it("refetches on demand", async () => {
