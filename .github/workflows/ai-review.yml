@@ -475,11 +475,10 @@ jobs:
           elif codex != "success":
               status = write(
                   "broken",
-                  f"**The reviewer failed** - the Codex step ended `{codex}`. Nothing "
-                  "in this pull request was reviewed, so this comment says nothing "
-                  "about the diff. What Codex printed is below; the usual causes are "
-                  "an expired or rate-limited OpenAI key, a project spend limit, and "
-                  "a model slug the installed CLI does not carry.",
+                  f"**The reviewer failed** - the Codex step ended `{codex}`. What it "
+                  "printed is below; the usual causes are an expired or rate-limited "
+                  "OpenAI key, a project spend limit, and a model slug the installed "
+                  "CLI does not carry.",
               )
           elif not out.exists():
               status = write(
@@ -606,13 +605,18 @@ jobs:
             // timestamps and colour codes stripped, consecutive repeats
             // collapsed (Codex prints its reconnect attempts one per line), the
             // last few of them, and a cap because a comment is not a log viewer.
+            //
+            // Deliberately not `##[error]` lines: in this job all of them are
+            // the runner's, including the annotation the last step of `review`
+            // writes, and quoting our own "the reviewer produced no review"
+            // back at the reader under "what the reviewer printed" is noise.
             const complaints = [];
             for (const raw of text.split('\n')) {
               const line = raw
                 .replace(/^\S+Z /, '')
                 .replace(/\x1b\[[0-9;]*m/g, '')
                 .trimEnd();
-              if (!/^(ERROR|Error|error)\b|^##\[error\]/.test(line)) continue;
+              if (!/^(ERROR|Error|error)\b/.test(line)) continue;
               if (line !== complaints[complaints.length - 1]) complaints.push(line);
             }
             if (!complaints.length) {

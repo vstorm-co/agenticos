@@ -135,7 +135,7 @@ def test_a_failed_codex_step_is_broken_and_says_nothing_was_reviewed(tmp_path: P
     status, summary = run_normalize(tmp_path, CODEX_OUTCOME="failure")
     assert status == "broken"
     assert "The reviewer failed" in summary
-    assert "Nothing in this pull request was reviewed" in summary
+    assert "the Codex step ended `failure`" in summary
 
 
 def test_a_codex_failure_outranks_the_file_it_left_behind(tmp_path: Path) -> None:
@@ -233,6 +233,17 @@ def test_publish_is_gated_on_the_reviewers_verdict_rather_than_its_job_result() 
     condition = workflow()["jobs"]["publish"]["if"]
     assert "needs.review.outputs.status" in condition
     assert "needs.review.result" not in condition
+
+
+def test_a_broken_run_says_the_comment_is_not_about_the_diff() -> None:
+    """The sentence #311 was missing, and it is said in exactly one place.
+
+    Each `broken` path writes its own explanation of what went wrong; the claim
+    that none of it is a verdict on the code is uniform, so `publish` adds it
+    once rather than every branch of the normalizer repeating it.
+    """
+    script = str(step("publish", PUBLISH_STEP)["with"]["script"])
+    assert "Nothing here was reviewed" in script
 
 
 def test_every_status_the_normalizer_writes_has_a_heading_in_the_comment(tmp_path: Path) -> None:
