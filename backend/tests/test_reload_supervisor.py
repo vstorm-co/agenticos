@@ -80,11 +80,23 @@ def test_a_worker_that_exited_on_its_own_is_not_replaced(supervisor: RecordingRe
     assert supervisor.replacements == 0
 
 
-def test_a_running_worker_is_left_alone(supervisor: RecordingReload) -> None:
-    supervisor.process = FakeWorker(None)
+def test_a_running_worker_is_left_alone(
+    supervisor: RecordingReload, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The expensive way to get this wrong is to restart a worker that is fine.
+
+    `exitcode` answers `None` while the process runs, and a supervisor that
+    treated that as death would replace the server on every poll - every five
+    seconds, for ever. Worth a test even though it asserts that nothing
+    happened.
+    """
+    worker = FakeWorker(None)
+    supervisor.process = worker
 
     assert supervisor.should_restart() is None
     assert supervisor.replacements == 0
+    assert supervisor.process is worker
+    assert caplog.records == []
 
 
 def test_an_ordinary_exit_is_reported_once_rather_than_every_poll(
@@ -100,6 +112,18 @@ def test_an_ordinary_exit_is_reported_once_rather_than_every_poll(
     ) == 1
 
 
+def test_a_second_worker_dying_is_reported_again(
+    supervisor: RecordingReload, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Reporting once is per worker, not once for the life of the reloader."""
+    supervisor.process = FakeWorker(1, pid=1)
+    supervisor.should_restart()
+    supervisor.process = FakeWorker(1, pid=2)
+    supervisor.should_restart()
+
+    assert len(caplog.records) == 2
+
+
 def test_a_file_change_still_reloads(
     supervisor: RecordingReload, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -109,6 +133,41 @@ def test_a_file_change_still_reloads(
     supervisor.process = FakeWorker(None)
 
     assert supervisor.should_restart() == changed
+    assert supervisor.replacements == 0
+
+
+def test_a_change_the_reload_filter_rejects_does_not_skip_supervision(
+    supervisor: RecordingReload, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`[]` is not a change, and reading it as one would strand a dead worker.
+
+    `WatchFilesReload.should_restart` filters after watchfiles yields, so a
+    write to a non-Python file inside a watched directory answers `[]` rather
+    than `None`. The local stack mounts `media_data` under the watched `/app`,
+    so ingestion alone produces these - and a supervisor that took each one for
+    a reload would postpone noticing a dead worker for as long as they kept
+    arriving.
+    """
+    monkeypatch.setattr(ChangeReload, "should_restart", lambda self: [])
+    supervisor.process = FakeWorker(-9)
+
+    assert supervisor.should_restart() is None
+    assert supervisor.replacements == 1
+
+
+def test_a_worker_dying_during_shutdown_is_not_replaced(
+    supervisor: RecordingReload,
+) -> None:
+    """A replacement started while the reloader is leaving is an orphan.
+
+    Uvicorn re-raises a signal it handled gracefully, so a worker that shut
+    down cleanly on SIGTERM reports `-15` and is otherwise indistinguishable
+    from one the kernel killed. `should_exit` is what tells them apart.
+    """
+    supervisor.should_exit.set()
+    supervisor.process = FakeWorker(-15)
+
+    assert supervisor.should_restart() is None
     assert supervisor.replacements == 0
 
 
@@ -123,19 +182,19 @@ def test_the_development_server_keeps_the_sansio_websocket_implementation(
     )
     monkeypatch.setattr(SupervisedReload, "run", lambda self: None)
 
-    run_reload_server(host="0.0.0.0", port=8000)
+    run_reload_server(host="127.0.0.1", port=9999)
 
     assert captured[0].ws == "websockets-sansio"
     assert captured[0].should_reload
+    assert (captured[0].host, captured[0].port) == ("127.0.0.1", 9999)
 
 
 def test_the_entrypoint_does_not_drag_the_application_into_the_reloader() -> None:
     """The reloader serves no request, so it should hold no application.
 
-    Importing `cli.commands` peaks at 464 MB in `agenticos_backend:dev` against
-    28 MB for uvicorn alone, and this process exists to survive an
-    out-of-memory kill. A convenience import of anything under `app.` in
-    `cli/reload_supervisor.py` would quietly undo that.
+    `cli/reload_supervisor.py` explains what going through `cli.commands`
+    instead would cost. A convenience import of anything under `app.` would
+    quietly undo it.
     """
     probe = "import cli.reload_supervisor, sys; print(any(m == 'app' or m.startswith('app.') for m in sys.modules))"
     loaded = subprocess.run(

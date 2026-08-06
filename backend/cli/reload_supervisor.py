@@ -17,22 +17,27 @@ polls, reaps and replaces a dead worker twice a second. This module gives the
 reload path the same treatment, with one distinction the workers path does not
 need:
 
-- **Killed by a signal** (`exitcode < 0`, so `-9` for the OOM killer). The code
-  is fine and nobody is coming to edit it. Reap and start a replacement.
+- **Died from a signal** (`exitcode < 0`). `-9` is the OOM killer; `-15` is a
+  `kill` from outside, and a *graceful* shutdown lands here too, because
+  `Server.capture_signals` re-raises the signal it just handled cleanly. The
+  distinction does not matter: the process is gone, nothing is listening, and no
+  edit is coming. Reap and start a replacement.
 - **Exited on its own** (`exitcode >= 0`). The application raised on import or
   called `sys.exit`; respawning would loop on the same traceback forever. Reap,
   say so once, and wait for the file change that fixes it - which is the whole
   reason `--reload` exists.
 
-Either way the process is reaped, so the zombies are gone in both cases.
+Either way the process is reaped, so the zombies are gone in both cases. Neither
+happens once `should_exit` is set: a replacement started while the reloader is
+shutting down is a process nothing will ever stop.
 
 **This module is its own entrypoint** - `python -m cli.reload_supervisor` - and
-imports nothing but uvicorn on purpose. Reaching it through `cli.commands`
-instead would pull `app.main` into the reloader, and the reloader never serves a
-request: measured in `agenticos_backend:dev`, importing `cli.commands` peaks at
-464 MB against 28 MB for uvicorn alone. Handing the process that exists to
-survive an out-of-memory kill another 436 MB to be killed for would be an odd
-way to fix this.
+imports nothing beyond uvicorn and click on purpose. Reaching it through
+`cli.commands` instead would pull `app.main` into the reloader, and the reloader
+never serves a request: measured in `agenticos_backend:dev`, importing
+`cli.commands` peaks at 464 MB against 28 MB for uvicorn alone. Handing the
+process that exists to survive an out-of-memory kill another 436 MB to be killed
+for would be an odd way to fix this.
 """
 
 import logging
@@ -50,8 +55,9 @@ from uvicorn.supervisors import ChangeReload
 
 # uvicorn's `auto` picks the legacy websockets implementation, which fails the
 # handshake against websockets >=14 with an HTTP 500. The dashboard chat is a
-# WebSocket, so `auto` means no chat at all. Every compose file passes this for
-# the same reason; the development server reads it from here.
+# WebSocket, so `auto` means no chat at all. The other two compose files pass
+# `--ws websockets-sansio` on their own command lines for the same reason;
+# `docker-compose.yml` and `agenticos server run` read it from here instead.
 WS_PROTOCOL: Final = "websockets-sansio"
 
 APP: Final = "app.main:app"
@@ -60,7 +66,7 @@ logger = logging.getLogger("uvicorn.error")
 
 
 class SupervisedReload(ChangeReload):
-    """A `--reload` reloader that also notices a worker the kernel killed.
+    """A `--reload` reloader that also notices a worker that died.
 
     `ChangeReload` polls for changes with a timeout rather than blocking
     forever, so overriding `should_restart` is enough to get a periodic tick:
@@ -82,27 +88,35 @@ class SupervisedReload(ChangeReload):
         self._reported_pid: int | None = None
 
     def should_restart(self) -> list[Path] | None:
+        # `if changes`, not `is not None`: a change to a file the reload filter
+        # rejects yields `[]`, which `BaseReload.run` treats as no change at
+        # all. Reading it as one would skip supervision for that tick - and the
+        # local stack mounts `media_data` inside the watched directory, so
+        # ingestion writing a file is enough to produce a steady drip of them.
         changes = super().should_restart()
-        if changes is not None:
+        if changes:
             return changes
-        self._replace_a_killed_worker()
+        self._replace_a_dead_worker()
         return None
 
-    def _replace_a_killed_worker(self) -> None:
-        """Reap a worker that is gone, and replace it if it was killed.
+    def _replace_a_dead_worker(self) -> None:
+        """Reap a worker that is gone, and replace it if a signal took it.
 
         Reading `exitcode` is what clears the zombie: the property calls
         `Popen.poll()`, which is a `waitpid` with `WNOHANG`. It answers `None`
         while the worker is running.
         """
         exitcode = self.process.exitcode
-        if exitcode is None:
+        if exitcode is None or self.should_exit.is_set():
+            # Nothing to do, or the reloader is on its way out and a fresh
+            # worker would outlive the supervisor meant to stop it. This is the
+            # same guard `Multiprocess.keep_subprocess_alive` opens with.
             return
 
         pid = self.process.pid
         if exitcode < 0:
             logger.error(
-                "Server process [%s] was killed by signal %s. Starting a replacement.",
+                "Server process [%s] died from signal %s. Starting a replacement.",
                 pid,
                 -exitcode,
             )
