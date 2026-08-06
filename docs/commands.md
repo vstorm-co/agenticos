@@ -398,6 +398,12 @@ uv run agenticos cmd rag-source-sync <source-id>
 uv run agenticos cmd rag-source-sync --all
 ```
 
+`rag-source-sync` **waits for the syncs it starts**, up to an hour, and says so
+while it does. The sync itself runs in a background task, and the command's
+process ends when its coroutine returns — so a command that only triggered and
+exited was cancelling the work it had just reported as started. Over the API
+that task belongs to a long-lived worker and nothing has to wait for it.
+
 ## Adding Custom Commands
 
 Commands are auto-discovered from `app/commands/`. Create a new file:

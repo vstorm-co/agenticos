@@ -125,13 +125,14 @@ code on the exit stack FastAPI unwinds between the path operation returning and
 
 1. the route returns, and `response_model` serializes what it returned;
 2. the transaction commits — or, if anything raised, rolls back;
-3. the response is written to the socket;
-4. the session is closed.
+3. background work the request deferred is started (below);
+4. the response is written to the socket;
+5. the session is closed.
 
 That ordering is the whole contract, and it is what lets a client act on its own
 answer: **a 2xx means the write is readable, not merely accepted.** FastAPI's
 default for a dependency with `yield` is `scope="request"`, which puts steps 2
-and 3 the other way round — and did here until [#353][353], where an acceptance
+and 4 the other way round — and did here until [#353][353], where an acceptance
 answered 204 while the membership row it created stayed invisible to the very
 next request for 21.7ms, and an invitation token was spent 34ms before the
 transaction that minted it committed.
@@ -140,7 +141,9 @@ Three consequences worth knowing before writing a route:
 
 - **A commit that fails is a 500, not a log line.** The response has not been
   written yet, so a deferred constraint or a lost connection reaches the client
-  as an error rather than being discovered behind an already-sent 2xx.
+  as an error rather than being discovered behind an already-sent 2xx. Step 3
+  does not run either: work waiting on a transaction that did not happen is
+  dropped, with a warning naming it.
 - **Anything that swallows a database error must reset the session.** A statement
   that raised leaves its transaction aborted, and the commit in step 2 raises
   too. The health probes (`app/services/health.py`) are the case in the codebase:
@@ -155,10 +158,53 @@ Three consequences worth knowing before writing a route:
 
 Work that outlives the request does not use this session at all. WebSocket
 handlers and CLI commands open `get_db_context()`, and worker tasks
-`get_worker_db_context()`; both commit on a clean exit of their own `async with`,
-which has nothing to do with a response.
+`get_worker_db_context()`; all three go through the same `_managed_session`, so
+they commit on a clean exit of their own `async with` and start their deferred
+work in the same place — which has nothing to do with a response.
+
+### Dispatching background work from a request
+
+**Work that will read a row this request wrote is handed over with
+`spawn_after_commit`, never `spawn`** (both in `app/core/background.py`):
+
+```python
+from app.core.background import spawn_after_commit
+
+spawn_after_commit(self.db, ingest_document_flow(rag_document_id=str(doc.id)), name=...)
+```
+
+`spawn` creates the task immediately, and the loop starts it at the next
+suspension point — which is step 1 or 2 above, before the commit. The flow opens
+a session of its own, correctly, so under `READ COMMITTED` it cannot see a row
+this request has not committed: it looks for the document it was given the id
+of, finds nothing, and stops. That is [#417][417], and its visible shape is an
+upload answered `{"status": "processing"}` that stays that way forever.
+
+`spawn_after_commit` queues the coroutine on the session instead. Nothing starts
+it until step 3, two statements after `commit()` returns, so a flow dispatched
+this way reads a row the database has already agreed to. Three call sites use
+it: the document upload, the local sync, and a manually triggered source sync.
+The ordering is proved against a real database in
+`tests/integration/test_flow_starts_after_commit.py`.
+
+Two things follow from where the queue lives:
+
+- **It belongs to the session, not to the request.** A service dispatching a
+  flow does not need to know whether it was called from a route, a WebSocket
+  handler, the CLI or a worker — which is why this is not FastAPI's
+  `BackgroundTasks`, whose guarantee is about the response and which those other
+  three callers do not have.
+- **A rolled-back transaction dispatches nothing.** Step 3 is skipped and the
+  queued coroutines are closed, because running work whose row was thrown away
+  only moves the failure somewhere less explicable.
+
+`spawn` remains right for work that owns everything it needs — the notification
+emails in `app/services/notifications.py` carry their own context and touch no
+row. Neither is a job queue: anything that must survive a restart is a Prefect
+deployment.
 
 [353]: https://github.com/vstorm-co/agenticos/issues/353
+[417]: https://github.com/vstorm-co/agenticos/issues/417
 
 ## Agent runs: a capability never fetches
 

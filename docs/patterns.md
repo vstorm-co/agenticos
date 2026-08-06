@@ -137,6 +137,29 @@ class UserResponse(UserBase):
     model_config = ConfigDict(from_attributes=True)
 ```
 
+## Handing work to the background
+
+Two primitives, in `app/core/background.py`, and the choice between them is
+about what the work reads rather than how long it takes:
+
+```python
+from app.core.background import spawn, spawn_after_commit
+
+# Owns everything it needs - a rendered email, an id it will not look up.
+spawn(deliver(key, to, context), name=f"email:{key}:{to}")
+
+# Reads a row this unit of work wrote. Starts when the session commits.
+spawn_after_commit(self.db, ingest_document_flow(rag_document_id=str(doc.id)), name=...)
+```
+
+Both hold a strong reference to the task and log whatever it raises, which a
+bare `asyncio.create_task` does neither of. `spawn_after_commit` additionally
+queues the coroutine on the session, so nothing starts until the transaction the
+work depends on has landed — a flow that reads its own row by id would otherwise
+run against a database that does not have it yet
+([#417](https://github.com/vstorm-co/agenticos/issues/417)). Neither survives a
+restart; work that must belongs in a Prefect deployment.
+
 ## Connector Pattern (RAG Sync)
 
 Remote document sources (Google Drive, S3, etc.) use a pluggable connector

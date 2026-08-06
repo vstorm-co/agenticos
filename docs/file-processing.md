@@ -167,6 +167,17 @@ different pipeline handles parsing, chunking, and embedding.
 6. Track       RAGDocument record created in SQL (status tracking)
 ```
 
+Over the API the order is the other way round: the `RAGDocument` row is written
+first and steps 2–5 run in a background task against a session of their own,
+which is why an upload answers `{"status": "processing"}` rather than waiting.
+That task is started **after the request's transaction commits** — it is handed
+over with `spawn_after_commit`, not `spawn`, and started by the session itself
+once the row is durable. Dispatched any earlier it would look for the document
+by id, find nothing, and stop, leaving the upload it had already acknowledged in
+`processing` forever ([#417](https://github.com/vstorm-co/agenticos/issues/417)).
+The same applies to a sync: the `SyncLog` row exists before its flow does. See
+[Dispatching background work from a request](architecture.md#dispatching-background-work-from-a-request).
+
 ### Supported Formats
 
 `.txt`, `.md` and `.docx` are read by the built-in Python parsers whatever the
