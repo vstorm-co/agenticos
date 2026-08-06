@@ -19,6 +19,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.36] - 2026-08-06
+
+### Fixed
+
+- The end-to-end suite's `[seed]` project asserted the colleague's membership
+  with a single read. When it lost, Playwright skipped everything that depends
+  on the fixture and reported the whole suite red having exercised no product
+  code at all — three times in one day, on unrelated branches. The step now
+  polls the API and, when it does give up, prints what it actually saw
+  (#335).
+
+The underlying cause is filed rather than fixed: this backend answers a write
+before the transaction commits, so a 2xx says the request was handled and not
+that the write is readable (#353).
+
+
 ## [0.0.35] - 2026-08-06
 
 Nothing in this release changes what the product does. It changes what CI costs,
