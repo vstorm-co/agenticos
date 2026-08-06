@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatModelPicker } from "./chat-model-picker";
 import type { ProviderModel } from "@/hooks/use-model-providers";
+import { Perm } from "@/types/permissions";
+import type { Permission } from "@/types/permissions";
 import type { SecretPurpose } from "@/types/secrets";
 import type { ModelProfile } from "@/types/providers";
 
@@ -11,11 +13,21 @@ const listedProfiles = vi.fn<() => ModelProfile[]>(() => []);
 const listedSecrets = vi.fn<() => { id: string; purpose: string }[]>(() => []);
 const listedModels = vi.fn<() => ProviderModel[]>(() => []);
 const mutateAsync = vi.fn();
+/**
+ * What the caller may do. Everything below describes the form, which is offered
+ * only to somebody holding `connections:manage` - the permission on the profile
+ * this picker creates. `chat-model-picker.integration.test.tsx` covers the gate
+ * itself, against the real hook.
+ */
+const held: { permissions: Permission[] } = { permissions: [] };
 
 vi.mock("@/hooks", () => ({
   useModelProviders: () => ({
     profiles: listedProfiles(),
     createProfile: { mutateAsync, isPending: false },
+  }),
+  usePermissions: () => ({
+    can: (permission: Permission) => held.permissions.includes(permission),
   }),
   useProviderModels: () => ({ models: listedModels(), source: "curated", isLoading: false }),
   useSecretPurposes: () => ({ purposes: PURPOSES, isLoading: false }),
@@ -62,6 +74,7 @@ beforeEach(() => {
   listedProfiles.mockReturnValue([]);
   listedSecrets.mockReturnValue([]);
   listedModels.mockReturnValue([]);
+  held.permissions = [Perm.connectionsManage];
 });
 
 describe("the chat's two-step model picker", () => {

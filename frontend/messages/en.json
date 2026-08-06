@@ -664,14 +664,14 @@
       "modelDependent": "model-dependent",
       "off": "Off",
       "resetToServerDefault": "Reset to server default",
-      "runConversationDifferentModel": "Run this conversation on a different model. Everything else about the agent stays as it is.",
       "savedForChat": "Saved for this chat",
       "savesOnSend": "Saves on send",
       "settings": "Settings",
       "settingsPersistCurrentChat": "Settings persist for the current chat session. Some controls are no-ops on models that don't support them.",
       "temperature": "Temperature",
       "temperatureDefault": "default",
-      "thinkingEffort": "Thinking effort"
+      "thinkingEffort": "Thinking effort",
+      "whichModelRunsHere": "Which model this conversation runs on. Everything else about the agent stays as it is."
     },
     "conversationArchived": "This conversation is archived",
     "conversationShared": "Conversation shared",
@@ -799,6 +799,7 @@
     "modelPicker": {
       "chooseProvider": "Choose a provider",
       "model": "Model",
+      "needsConnectionsManage": "Choosing another model needs a permission you do not hold. This conversation runs on the agent's own model, and somebody who can manage this organization's connections can change that.",
       "noProviderKey": "No {provider} key in the vault yet. Add one below.",
       "provider": "Provider",
       "runModel": "Run on this model"
