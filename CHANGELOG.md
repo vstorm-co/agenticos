@@ -19,6 +19,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.54] - 2026-08-06
+
+### Fixed
+
+- A knowledge base's sync history came back short. The route read every log
+  carrying that source id, applied `limit` in SQL, and only then dropped the rows
+  belonging to another collection — so the page was cut before the thinning. A
+  source repointed at another base (`SyncSourceUpdate` carries
+  `collection_name`, and earlier runs keep the name they ran against) made a
+  request for twenty runs answer with fewer, `total` described the survivors
+  rather than the source, and there was no way to page past the gap. The source
+  is resolved against the base first now (#233).
+- A source that is not this base's answers `404` rather than `200 []`. Both
+  rendered "no syncs yet", and one of them was a request that should have failed.
+
+
 ## [0.0.53] - 2026-08-06
 
 ### Fixed
