@@ -71,6 +71,7 @@ PLATFORM_MODULES = (
     "app/core/secret_kinds.py",
     "app/core/vault.py",
     "app/core/background.py",
+    "app/db/vector_tables.py",
     "app/services/access.py",
     "app/services/agent_chat.py",
     "app/services/agent_environment.py",

@@ -67,6 +67,10 @@ export default function GlobalError({
                 color: "#71717a",
               }}
             >
+              {/* This boundary renders its own html above the locale layout, so there is no
+                  provider to read a message from. The rest of the page is English for the
+                  same reason, which is #141 rather than something this line can fix. */}
+              {/* i18n-exempt: no translator exists above the locale layout */}
               Error ID: {error.digest}
             </p>
           )}

@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "0.0.30"
+version = "0.0.52"
 description = "OS for your agents."
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
@@ -335,6 +335,9 @@ include = [
     "app/core/secret_kinds.py",
     "app/core/vault.py",
     "app/core/background.py",
+    # Which tables alembic owns and which the vector store makes at runtime. It is
+    # two statements, and one of them decides whether `db-check` reports real drift.
+    "app/db/vector_tables.py",
     "app/services/access.py",
     "app/services/agent_chat.py",
     "app/services/agent_environment.py",
@@ -451,6 +454,9 @@ include = [
     "app/core/secret_kinds.py",
     "app/core/vault.py",
     "app/core/background.py",
+    # Which tables alembic owns and which the vector store makes at runtime. It is
+    # two statements, and one of them decides whether `db-check` reports real drift.
+    "app/db/vector_tables.py",
     "app/services/access.py",
     "app/services/agent_chat.py",
     "app/services/agent_environment.py",

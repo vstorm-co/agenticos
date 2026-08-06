@@ -363,7 +363,7 @@ function PendingFilePane({ file, onRemove }: { file: File; onRemove: () => void 
   const footer = (
     <>
       <p className="text-muted-foreground min-w-0 flex-1 truncate text-xs">
-        {formatSize(file.size)} · uploads when the skill is created
+        {t("sizeUploadsWhenCreated", { size: formatSize(file.size) })}
       </p>
       <Button variant="ghost" size="sm" onClick={onRemove}>
         {t("remove")}

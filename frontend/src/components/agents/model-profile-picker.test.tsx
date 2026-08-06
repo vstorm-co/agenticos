@@ -146,17 +146,44 @@ describe("ModelProfilePicker", () => {
   });
 
   it("deletes a saved model only where models are managed", async () => {
-    mount({ allowAdd: true });
+    mount({ allowAdd: true, allowRemove: true });
 
     await userEvent.click(screen.getByRole("button", { name: "Remove openai default" }));
 
     expect(deleteProfile.mutate).toHaveBeenCalledWith("p1");
   });
 
-  it("offers the chat no way to delete a model every agent may be pointed at", () => {
+  it("offers a panel that only chooses no way to delete a model every agent may use", () => {
     mount();
 
     expect(screen.queryByRole("button", { name: /^Remove/ })).toBeNull();
+  });
+
+  it("lets a panel create a model without letting it destroy one", async () => {
+    // The reason the two are separate flags. The knowledge-base dialog has to be
+    // able to define the model that reads its images and store the key for it,
+    // or a fresh deployment cannot finish the form at all; deleting an
+    // organization-wide profile that agents are pointed at is a bigger claim
+    // than a collection form makes.
+    const onChange = vi.fn();
+    mount({ allowAdd: true, onChange });
+
+    expect(screen.queryByRole("button", { name: /^Remove/ })).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+
+    expect(onChange).toHaveBeenCalledWith("p-new");
+  });
+
+  it("states which model is in use even where the panel only chooses", () => {
+    // The line moved out of the add-capable branch: whether the chosen profile
+    // has a key is what decides whether anything runs, and in a list of a dozen
+    // saved models the chosen one's badge is a badge among twelve.
+    mount({ value: "p1" });
+
+    const current = screen.getByRole("group", { name: "Current model" });
+    expect(within(current).getByText("openai default")).toBeInTheDocument();
+    expect(within(current).getByText("no key")).toBeInTheDocument();
   });
 
   it("accepts nothing from somebody who cannot edit the spec", async () => {

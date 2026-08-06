@@ -65,6 +65,20 @@ describe("the tracing card", () => {
     });
   });
 
+  it("draws each token the way every other key picker draws one", async () => {
+    // Logfire has no brand mark compiled in, so what the row carries is the
+    // monogram - the same square, in the same place, as the logo an OpenAI key
+    // gets three panels away. The masked tail is what tells two apart, since an
+    // organization names both after the client.
+    state.secrets = [secret(), secret({ id: "s-two", name: "Client Logfire", hint: "9999" })];
+    mount();
+
+    await userEvent.click(screen.getByLabelText("Write token"));
+
+    expect(screen.getByRole("option", { name: /····3123/ }).textContent).toMatch(/^lClient/);
+    expect(screen.getByRole("option", { name: /····9999/ })).toBeInTheDocument();
+  });
+
   it("lets a token be added here when the vault has none", () => {
     // Rather than an empty picker and a sentence pointing somewhere else: the
     // answer to "no tokens stored yet" is a form, and a picker with nothing in it
@@ -72,7 +86,9 @@ describe("the tracing card", () => {
     state.secrets = [];
     mount();
 
-    expect(screen.getByRole("button", { name: /Add a key/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Add a key: Logfire write token" }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Open the Vault/ })).toBeInTheDocument();
   });
 
@@ -85,7 +101,7 @@ describe("the tracing card", () => {
     state.create.mutate = vi.fn((_input, options) => options?.onSuccess?.({ id: "s-new" }));
     const { onChange } = mount();
 
-    await userEvent.click(screen.getByRole("button", { name: /Add a key/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Add a key: Logfire write token" }));
     await userEvent.type(screen.getByLabelText("Key"), "pylf_v1_x");
     await userEvent.click(screen.getByRole("button", { name: "Save key" }));
 

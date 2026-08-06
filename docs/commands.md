@@ -64,7 +64,7 @@ first if the change is anywhere near the database.
 | `make db-init` | Start PostgreSQL + create initial migration + apply |
 | `make db-migrate` | Create new migration (prompts for message) |
 | `make db-upgrade` | Apply pending migrations |
-| `make db-check` | `alembic check` — fail if a model change has no migration. Non-destructive (it never downgrades), so unlike `test-migrations` it runs inside `make check`; needs a database at head, and skips rather than fails when none answers on 5432 |
+| `make db-check` | `alembic check` — fail if a model change has no migration. Non-destructive (it never downgrades), so unlike `test-migrations` it runs inside `make check`; needs a database at head, and skips rather than fails when none answers on 5432. The vector store's per-collection `rag_<collection>` tables are excluded from the comparison, since nothing models or migrates them — `rag_documents`, which is a model table, is not |
 | `make db-downgrade` | Rollback last migration |
 | `make db-current` | Show current migration revision |
 | `make db-history` | Show full migration history |
@@ -140,6 +140,36 @@ uv run agenticos server run --reload     # With hot reload
 uv run agenticos server run --port 9000  # Custom port
 uv run agenticos server routes           # Show all registered routes
 ```
+
+`--reload` runs uvicorn's reloader under a supervisor of our own
+(`backend/cli/reload_supervisor.py`), because uvicorn's is a file watcher and
+nothing more: when the kernel kills the worker — an out-of-memory kill is the
+realistic way — it neither reaps it nor replaces it, so the reloader carries on
+watching while no port is listening. Under the supervisor a worker killed by a
+signal is replaced within about five seconds, and one that exited on its own
+still waits for the edit that fixes it, which is what `--reload` is for.
+
+It also replaces a worker that is **wedged** — alive, but with an event loop
+that has stopped turning, which has no exit code and so looks healthy to every
+other recovery path. The worker reports its loop through uvicorn's
+`callback_notify` hook once a second, and a worker silent for fifteen seconds
+across two consecutive polls is killed and replaced — about twenty-five seconds
+from deadlock to serving again. Two polls rather than one because `docker pause`
+and a laptop waking from sleep stop the supervisor as well as the worker, and the
+first poll afterwards reads a stale beat that says nothing.
+That is liveness and not readiness on purpose: the beat is a timer callback, not
+a request, so a slow database cannot make a healthy server look wedged.
+
+| | |
+|---|---|
+| `RELOAD_WEDGED_AFTER` | Seconds of silence before a worker is replaced. Default `15`; `0` or below switches the check off |
+
+Switch it off while debugging. A breakpoint blocks the event loop and no probe
+can tell that from a deadlock, so a worker sitting on one is replaced under you.
+
+`server run` also selects the `websockets-sansio` implementation in both modes.
+uvicorn's `auto` picks the legacy one, which fails the handshake against
+websockets >=14 with an HTTP 500 — and the dashboard chat is a WebSocket.
 
 
 ### Database Commands
@@ -266,8 +296,13 @@ All RAG commands are custom commands invoked via `cmd`:
 
 #### Document Ingestion
 
+The default collection is `default`. A name whose vector table the models already
+declare — `documents`, which prefixed is the ingestion tracking table — is refused
+with a 400 rather than aliased onto it; see
+[File processing](file-processing.md#vector-storage).
+
 ```bash
-# Ingest a single file
+# Ingest a single file into the default collection
 uv run agenticos cmd rag-ingest ./docs/guide.pdf
 
 # Ingest a directory

@@ -20,6 +20,7 @@ import {
   Switch,
 } from "@/components/ui";
 import { InlineSecret } from "@/components/vault/inline-secret";
+import { ProviderRow } from "@/components/vault/provider-row";
 import { useLocalSandboxService, useSecrets } from "@/hooks";
 import { getErrorMessage } from "@/lib/utils";
 import type {
@@ -227,8 +228,17 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
               </SelectTrigger>
               <SelectContent>
                 {usable.map((secret) => (
-                  <SelectItem key={secret.id} value={secret.id}>
-                    {secret.name} <span className="font-mono">····{secret.hint}</span>
+                  <SelectItem key={secret.id} value={secret.id} textValue={secret.name}>
+                    {/* Every API key in the vault is offered here, whatever it
+                        is for, so its purpose is the only thing that says which
+                        service a row's token belongs to. Most of them have no
+                        brand mark - `sandboxd` and `daytona` included - and the
+                        monogram is what keeps those from being a blank gap. */}
+                    <ProviderRow
+                      provider={secret.purpose ?? "custom"}
+                      name={secret.name}
+                      hint={secret.hint}
+                    />
                   </SelectItem>
                 ))}
               </SelectContent>

@@ -133,6 +133,12 @@ class Settings(BaseSettings):
 
     PREFECT_API_URL: str = "http://localhost:4200/api"
     PREFECT_API_KEY: str | None = None
+    # How many flow runs the runner may execute at once. Each one is a separate
+    # Python process that imports the whole application, so the ceiling is memory
+    # rather than CPU: five of them is about 600 MB. It matters most after
+    # downtime, when the runner picks up a backlog of scheduled runs and would
+    # otherwise start all of them - see app/worker/prefect_app.py.
+    PREFECT_RUNNER_LIMIT: int = 5
 
     # The embeddings credential. Every collection in the deployment is embedded
     # on this key (via OpenRouter); model *profiles* in the vault cover chat

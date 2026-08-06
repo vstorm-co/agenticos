@@ -20,6 +20,7 @@ import {
   Textarea,
 } from "@/components/ui";
 import { InlineSecret } from "@/components/vault/inline-secret";
+import { ProviderRow } from "@/components/vault/provider-row";
 import { useSecrets } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import { cn, getErrorMessage } from "@/lib/utils";
@@ -452,8 +453,15 @@ function SecretField({ binding, requirement, onChange, disabled }: SecretFieldPr
         </SelectTrigger>
         <SelectContent>
           {usable.map((secret) => (
-            <SelectItem key={secret.id} value={secret.id}>
-              {secret.name} <span className="font-mono">····{secret.hint}</span>
+            <SelectItem key={secret.id} value={secret.id} textValue={secret.name}>
+              {/* What the key is for is what `fitsPurpose` filtered on, and it
+                  is also its mark - including the `custom` a key stored before
+                  purposes existed reads as. */}
+              <ProviderRow
+                provider={secret.purpose ?? "custom"}
+                name={secret.name}
+                hint={secret.hint}
+              />
             </SelectItem>
           ))}
         </SelectContent>
@@ -463,9 +471,7 @@ function SecretField({ binding, requirement, onChange, disabled }: SecretFieldPr
 
       {state === "unreadable" && (
         <p className="text-destructive text-xs">
-          The vault could not be read, so nothing can be chosen here - which says nothing about what
-          your organization has stored. Listing secrets needs the permission that manages
-          connections. {getErrorMessage(listError)}
+          {t("vaultUnreadableDetail", { error: getErrorMessage(listError) })}
         </p>
       )}
 

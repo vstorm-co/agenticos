@@ -826,6 +826,38 @@ class TestADynamicDelegationIsAccountedForLikeAnyOther:
         assert started.specialist.instructions == args["instructions"]
         assert started.specialist.model == PROFILE
 
+    async def test_a_delegate_announces_its_own_definition_not_a_same_named_siblings(self):
+        """agenticos#292: two `delegate` calls in one turn may share a name with
+        different instructions, and pydantic-ai may run them concurrently. Keying the
+        definition by name let the second overwrite the first before the first opened
+        its panel, so its `SubagentStarted` frame stamped the wrong specialist - and
+        the chat's promote-to-draft control (agenticos#177) then carried someone else's
+        instructions. Each delegation must announce the specialist from its *own* call.
+
+        The name-keyed store is seeded with a same-named specialist first, standing in
+        for the concurrent sibling that has already won it - the deterministic form of
+        the race, so no scheduling is relied on. The delegation the model actually made
+        must ignore it and announce its own; keyed by name, the frame carried the
+        planted one instead."""
+        sink = Sink()
+        ledger = SpendLedger()
+        budget = _RunBudget(guard=BudgetGuard(ledger=ledger, provider="openai"))
+        runtime = a_runtime(dynamic=dynamic(specialist_builder(budget)), ledger=ledger)
+        capability = a_capability(runtime)
+        # What a concurrent same-named `delegate` left in the shared store before this
+        # one opened its panel - the second writer used to win it outright.
+        capability.journal.record_dynamic_definition(
+            name="summariser", description="theirs", instructions="A different one.", model=PROFILE
+        )
+
+        await call_tool(
+            capability, a_context(sink), "delegate", delegate_args(instructions="Only this one.")
+        )
+
+        (started,) = [frame for frame in sink.frames if frame.kind == "subagent_start"]
+        assert started.specialist is not None
+        assert started.specialist.instructions == "Only this one."
+
     async def test_a_specialist_kept_for_the_run_is_addressed_through_task(self):
         """`create_agent` registers it and `task` reaches it,
         which is what puts it back under the mode, the ceiling and the recording

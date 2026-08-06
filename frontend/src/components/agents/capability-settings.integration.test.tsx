@@ -187,7 +187,7 @@ describe("CapabilitySettings secret picker", () => {
 
     expect(await screen.findByText("No api_key secret in the vault")).toBeInTheDocument();
     expect(picker()).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Add a key" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add a key: Weather" })).toBeInTheDocument();
   });
 
   it("binds the secret that was chosen, by id", async () => {
@@ -220,7 +220,7 @@ describe("CapabilitySettings secret picker", () => {
     });
 
     expect(await screen.findByRole("link", { name: "Store one in the vault" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Add a key" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add a key: Weather" })).toBeNull();
   });
 
   it("stores a new key in place and selects it, without leaving the page", async () => {
@@ -236,7 +236,7 @@ describe("CapabilitySettings secret picker", () => {
       hint: "cdef",
     });
 
-    await userEvent.click(await screen.findByRole("button", { name: "Add a key" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Add a key: Weather" }));
     await userEvent.type(screen.getByLabelText("Key"), "wx-secret-abcdef");
     await userEvent.click(screen.getByRole("button", { name: "Save key" }));
 
@@ -274,7 +274,7 @@ describe("CapabilitySettings secret picker", () => {
     });
 
     await waitFor(() => expect(screen.queryByLabelText("Secret")).toBeNull());
-    expect(screen.queryByRole("button", { name: "Add a key" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add a key: Weather" })).toBeNull();
   });
 
   it("does not claim the vault is empty when the vault could not be read", async () => {
@@ -408,6 +408,27 @@ describe("SecretField · narrowing by what a key is for", () => {
     });
 
     await waitFor(() => expect(screen.getByLabelText("Secret")).toHaveTextContent("OpenAI"));
+  });
+
+  it("draws each key's mark and masked tail, so eleven api_key rows are eleven rows", async () => {
+    // The reason narrowing was added at all: a real vault holds a dozen keys of
+    // this kind. The purpose that filters the list is also what draws the row.
+    serve([
+      { ...API_KEY_SECRET, id: "sec-openai", name: "Prod", purpose: "openai" },
+      // No purpose at all - stored before purposes existed. It is still offered,
+      // and a monogram is what keeps it from being a blank gap.
+      { ...API_KEY_SECRET, id: "sec-old", name: "Search key" },
+    ]);
+    mount(binding());
+
+    await userEvent.click(await screen.findByLabelText("Secret"));
+
+    const marked = screen.getByRole("option", { name: /Prod/ });
+    expect(marked.querySelector("svg > title")?.textContent).toBe("OpenAI");
+    expect(marked).toHaveTextContent("····P7KD");
+    expect(
+      screen.getByRole("option", { name: /Search key/ }).querySelector("svg > title"),
+    ).toBeNull();
   });
 
   it("offers every key of the right kind when nothing names a service", async () => {
