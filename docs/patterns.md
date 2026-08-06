@@ -161,8 +161,9 @@ class SharePointConnector(BaseSyncConnector):
         # Return metadata for available files
         ...
 
-    async def download_file(self, file: RemoteFile, dest_dir: Path) -> Path:
-        # Download file to dest_dir, return local Path
+    async def _fetch(self, file: RemoteFile, dest_path: Path, config: dict) -> None:
+        # Write the bytes to dest_path. The base class chose it and confirmed
+        # it is inside the sync directory - never build a path from file.name.
         ...
 
 # Register so the sync service can discover it

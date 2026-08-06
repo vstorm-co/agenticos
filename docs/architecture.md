@@ -102,7 +102,8 @@ type rather than as data access.
 
 ### RAG Connectors (`rag/connectors/`)
 - Pluggable sync adapters that implement `BaseSyncConnector`
-- Each connector provides `list_files()` and `download_file()`
+- Each connector provides `list_files()` and `_fetch()`; `download_file()` is
+  the base class's, and is what decides where a remote name may be written
 - Registered in `CONNECTOR_REGISTRY` for discovery at runtime
 
 ## Agent runs: a capability never fetches
@@ -349,5 +350,8 @@ Each ingested document gets:
 ### Sync Connectors
 
 Remote document sources use pluggable connectors in `rag/connectors/`. Each
-connector implements `BaseSyncConnector` with `list_files()` and `download_file()`
-methods. See `docs/patterns.md` for how to add a new connector.
+connector implements `BaseSyncConnector` with `list_files()` and `_fetch()`.
+`download_file()` stays the base class's: it resolves the remote name against
+the sync directory and confirms containment before handing an implementation a
+path, so a connector cannot decide where a file lands. See `docs/patterns.md`
+for how to add a new connector.
