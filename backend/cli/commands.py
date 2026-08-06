@@ -12,11 +12,11 @@ from tabulate import tabulate
 from app import __version__
 from app.commands import register_commands
 from app.main import app
-from cli.reload_supervisor import APP, WS_PROTOCOL, run_reload_server
 from app.core.exceptions import AlreadyExistsError
 from app.db.session import async_session_maker
 from app.schemas.user import UserCreate
 from app.services.user import UserService
+from cli.reload_supervisor import APP, WS_PROTOCOL, run_reload_server
 
 
 @click.group()
@@ -34,7 +34,7 @@ def server_cli():
 @click.option("--host", default="0.0.0.0", help="Host to bind to")
 @click.option("--port", default=8000, type=int, help="Port to bind to")
 @click.option("--reload", is_flag=True, help="Enable auto-reload")
-def server_run(host: str, port: int, reload: bool):
+def server_run(host: str, port: int, reload: bool) -> None:
     """Run the server.
 
     `--reload` runs under `SupervisedReload` rather than uvicorn's own reloader,

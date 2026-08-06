@@ -177,10 +177,10 @@ make run                                        # uvicorn --reload, supervised
     uvicorn's reloader alone. Uvicorn's watches files and nothing else, so a
     worker the kernel kills — an out-of-memory kill being the realistic way — is
     neither reaped nor replaced: the reloader keeps watching while no port is
-    listening, and inside a container that means PID 1 is still alive, `docker
-    ps` still says `Up`, and the restart policy has nothing to act on. A worker
-    killed by a signal is now replaced within about five seconds. One that
-    exited on its own still waits for the edit that fixes it.
+    listening, and inside a container that means PID 1 is still alive,
+    `docker ps` still says `Up`, and the restart policy has nothing to act on.
+    A worker killed by a signal is now replaced within about five seconds. One
+    that exited on its own still waits for the edit that fixes it.
 
     This is the reload path only. `make dev-server` runs a single unsupervised
     uvicorn, so a kill takes PID 1 with it and `restart: unless-stopped`
