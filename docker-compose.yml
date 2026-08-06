@@ -53,6 +53,14 @@ services:
     # nothing is listening. `cli/reload_supervisor.py` is the same reloader with
     # a worker the kernel killed replaced within about five seconds.
     #
+    # It also replaces a worker that is alive but whose event loop has stopped
+    # turning - deadlocked, spinning, or stopped - which has no exit code and so
+    # looks healthy to everything else here. The worker beats from its own event
+    # loop and the supervisor replaces it after fifteen silent seconds. Set
+    # `RELOAD_WEDGED_AFTER` in `backend/.env` to change that, or to `0` to switch
+    # it off, which is what a breakpoint needs: a stopped event loop is exactly
+    # what the check is looking for.
+    #
     # It, and not `cli.commands server run --reload`, because that entrypoint
     # imports `app.main` and would put the whole application - 464 MB against
     # 28 MB - inside a reloader that never serves a request.
