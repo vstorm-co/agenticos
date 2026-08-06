@@ -193,10 +193,12 @@ class TestTheGoogleDriveConnector:
 
     @pytest.mark.parametrize(
         "folder_id",
-        ["x' in parents or name contains 'salary", "1AbC dEf", "", "a" * 257, "../1AbC"],
+        # The last two are what `dict[str, object]` lets a JSON body carry into
+        # a field the form calls a string.
+        ["x' in parents or name contains 'salary", "1AbC dEf", "", "a" * 257, "../1AbC", 1234, {}],
     )
     async def test_a_source_with_a_hostile_folder_id_is_refused_at_creation(
-        self, folder_id: str
+        self, folder_id: object
     ) -> None:
         valid, error = await GoogleDriveConnector().validate_config(
             {"service_account_json": "{}", "folder_id": folder_id}
@@ -310,11 +312,12 @@ class TestTheDriveIdentifierItself:
 
     @pytest.mark.parametrize(
         "folder_id",
-        # The last entry is U+0410, a Cyrillic homoglyph of `A` - ruff flags the
-        # confusable, which is exactly why it belongs in this list.
-        ["", "a" * 257, "1AbC'", "1AbC\\", "1AbC dEf", "1AbC\n", "1AbC/dEf", "1АbC"],  # noqa: RUF001
+        # The homoglyph is U+0410, Cyrillic capital A - ruff flags the
+        # confusable, which is exactly why it belongs in this list. `None` and
+        # the number are what a JSON body can put in a `dict[str, object]`.
+        ["", "a" * 257, "1AbC'", "1AbC\\", "1AbC dEf", "1AbC\n", "1AbC/dEf", "1АbC", None, 1],  # noqa: RUF001
     )
-    def test_anything_else_is_refused(self, folder_id: str) -> None:
+    def test_anything_else_is_refused(self, folder_id: object) -> None:
         """A homoglyph is refused without the allowlist having to know it is one."""
         with pytest.raises(BadRequestError):
             checked_drive_folder_id(folder_id)

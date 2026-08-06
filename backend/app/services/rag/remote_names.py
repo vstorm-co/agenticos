@@ -22,7 +22,7 @@ from app.core.exceptions import BadRequestError
 _DRIVE_ID = re.compile(r"[A-Za-z0-9_-]{1,256}")
 
 
-def checked_drive_folder_id(folder_id: str) -> str:
+def checked_drive_folder_id(folder_id: object) -> str:
     """Answer `folder_id` if Google could have issued it, and refuse it otherwise.
 
     The Drive query language wraps a parent id in single quotes, so an id
@@ -32,10 +32,15 @@ def checked_drive_folder_id(folder_id: str) -> str:
     identifier needs nothing the allowlist withholds, and an escape leaves every
     future sink to remember what this one remembered.
 
+    Takes an `object` because a source's config is `dict[str, object]` and JSON
+    carries numbers and nested structures - the field arrives as whatever was
+    posted, and a value that is not a string is refused here rather than
+    stringified into one somewhere on the way.
+
     Raises:
         BadRequestError: the value is not a Drive identifier.
     """
-    if not _DRIVE_ID.fullmatch(folder_id):
+    if not isinstance(folder_id, str) or not _DRIVE_ID.fullmatch(folder_id):
         raise BadRequestError(
             message="A Google Drive folder ID may contain only letters, digits, '-' and '_'.",
             details={"field": "folder_id"},

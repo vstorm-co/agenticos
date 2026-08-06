@@ -115,7 +115,7 @@ class GoogleDriveConnector(BaseSyncConnector):
         if not is_valid:
             return False, error
         try:
-            checked_drive_folder_id(str(config["folder_id"]))
+            checked_drive_folder_id(config["folder_id"])
         except BadRequestError as exc:
             return False, exc.message
         return True, None
