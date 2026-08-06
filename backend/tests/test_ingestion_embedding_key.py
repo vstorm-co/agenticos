@@ -22,6 +22,8 @@ was passed.
 from __future__ import annotations
 
 import uuid
+from collections.abc import AsyncIterator
+from contextlib import ExitStack, asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -111,21 +113,35 @@ class _CapturedOpenAI:
         return MagicMock(embeddings=MagicMock(create=create))
 
 
-async def _embed_through_the_flows_store(*, secret_id: uuid.UUID | None, vault_row, deployment_key):
-    """Embed one query through the flow's store, capturing the client.
+@asynccontextmanager
+async def _the_flows_embedder(
+    *,
+    secret_id: uuid.UUID | None,
+    vault_row: object,
+    deployment_key: str,
+    unseals_to_something_else: bool = False,
+) -> AsyncIterator[tuple[EmbeddingService, int, _CapturedOpenAI]]:
+    """The embedder the flow's store hands out for `handbook`, and the SDK it uses.
 
-    Patches the two repositories the resolver reads and the SDK it ends up
-    calling; everything between is the production path.
+    Patched at two edges only - the repositories the resolver reads and the
+    OpenAI client it ends up constructing. Everything between is the production
+    path, which is the point: the bug was one argument missing in the middle
+    of it. Stays open for the caller's assertions because the SDK stub has to
+    still be in place when the embedding is actually requested.
     """
     openai = _CapturedOpenAI()
-    with (
-        patch(f"{_RESOLUTION}.get_db_context") as db_ctx,
-        patch(f"{_RESOLUTION}.knowledge_base_repo") as bases,
-        patch(f"{_RESOLUTION}.organization_secret_repo") as secrets,
-        patch(f"{_RESOLUTION}.settings") as resolution_env,
-        patch(f"{_EMBEDDINGS}.app_settings") as embedding_env,
-        patch(f"{_EMBEDDINGS}.OpenAI", openai),
-    ):
+    with ExitStack() as patches:
+        db_ctx = patches.enter_context(patch(f"{_RESOLUTION}.get_db_context"))
+        bases = patches.enter_context(patch(f"{_RESOLUTION}.knowledge_base_repo"))
+        secrets = patches.enter_context(patch(f"{_RESOLUTION}.organization_secret_repo"))
+        resolution_env = patches.enter_context(patch(f"{_RESOLUTION}.settings"))
+        embedding_env = patches.enter_context(patch(f"{_EMBEDDINGS}.app_settings"))
+        patches.enter_context(patch(f"{_EMBEDDINGS}.OpenAI", openai))
+        if unseals_to_something_else:
+            patches.enter_context(
+                patch(f"{_RESOLUTION}.unseal_secret", return_value=MagicMock(spec=[]))
+            )
+
         db_ctx.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
         db_ctx.return_value.__aexit__ = AsyncMock(return_value=False)
         bases.get_by_collection_name = AsyncMock(return_value=_knowledge_base(secret_id=secret_id))
@@ -134,9 +150,7 @@ async def _embed_through_the_flows_store(*, secret_id: uuid.UUID | None, vault_r
         embedding_env.OPENROUTER_API_KEY = deployment_key
 
         embedder, dim = await (await _store())._for_collection("handbook")
-        vector = embedder.embed_query("what is the refund policy")
-
-    return openai, dim, vector
+        yield embedder, dim, openai
 
 
 class TestTheCollectionsKeyPays:
@@ -148,11 +162,12 @@ class TestTheCollectionsKeyPays:
         wired here, this raised `ConfigurationError` telling the operator to
         set the variable.
         """
-        openai, dim, vector = await _embed_through_the_flows_store(
+        async with _the_flows_embedder(
             secret_id=uuid.uuid4(),
             vault_row=_vault_row("sk-org-own-key"),
             deployment_key="",
-        )
+        ) as (embedder, dim, openai):
+            vector = embedder.embed_query("what is the refund policy")
 
         assert openai.api_keys == ["sk-org-own-key"]
         assert openai.embedded == [["what is the refund policy"]]
@@ -162,21 +177,21 @@ class TestTheCollectionsKeyPays:
         """The quiet half. With both keys set nothing failed - the deployment's
         account simply paid for work the product attributed to the
         organization's key."""
-        openai, _, _ = await _embed_through_the_flows_store(
+        async with _the_flows_embedder(
             secret_id=uuid.uuid4(),
             vault_row=_vault_row("sk-org-own-key"),
             deployment_key="sk-deployment",
-        )
+        ) as (embedder, _, openai):
+            embedder.embed_query("anything")
 
         assert openai.api_keys == ["sk-org-own-key"]
 
     async def test_a_collection_that_chose_no_key_still_embeds_on_the_deployments(self):
         """The fallback is deliberate, and wiring the resolver must not end it."""
-        openai, _, _ = await _embed_through_the_flows_store(
-            secret_id=None,
-            vault_row=None,
-            deployment_key="sk-deployment",
-        )
+        async with _the_flows_embedder(
+            secret_id=None, vault_row=None, deployment_key="sk-deployment"
+        ) as (embedder, _, openai):
+            embedder.embed_query("anything")
 
         assert openai.api_keys == ["sk-deployment"]
 
@@ -234,36 +249,38 @@ class TestWhenTheChosenKeyCannotBeUsed:
         """The repository scopes every read by `organization_id`, so a secret
         id belonging to another tenant simply is not found - the same answer as
         a deleted one, and never that tenant's key."""
-        openai, _, _ = await _embed_through_the_flows_store(
-            secret_id=uuid.uuid4(),
-            vault_row=None,
-            deployment_key="sk-deployment",
-        )
+        async with _the_flows_embedder(
+            secret_id=uuid.uuid4(), vault_row=None, deployment_key="sk-deployment"
+        ) as (embedder, _, openai):
+            embedder.embed_query("anything")
 
         assert openai.api_keys == ["sk-deployment"]
 
+    async def test_a_deleted_key_on_a_deployment_with_none_says_which_key_is_gone(self):
+        """The reported error, on the collection that most deserves a better one.
+
+        It used to read "Set OPENROUTER_API_KEY in the backend environment and
+        restart" - true of the deployment, useless to the person who had
+        already chosen a key that has since been removed from the vault.
+        """
+        async with _the_flows_embedder(
+            secret_id=uuid.uuid4(), vault_row=None, deployment_key=""
+        ) as (embedder, _, openai):
+            with pytest.raises(ConfigurationError) as refusal:
+                embedder.embed_query("anything")
+
+        assert "'handbook'" in refusal.value.message
+        assert "no longer in this organization's vault" in refusal.value.message
+        assert openai.api_keys == []
+
     async def test_an_unsealable_key_says_so_instead_of_naming_a_variable(self):
-        openai = _CapturedOpenAI()
         broken = MagicMock(
             sealed_secret="not-a-ciphertext", kind=SecretKind.API_KEY.value, key_version=1
         )
 
-        with (
-            patch(f"{_RESOLUTION}.get_db_context") as db_ctx,
-            patch(f"{_RESOLUTION}.knowledge_base_repo") as bases,
-            patch(f"{_RESOLUTION}.organization_secret_repo") as secrets,
-            patch(f"{_RESOLUTION}.settings") as resolution_env,
-            patch(f"{_EMBEDDINGS}.OpenAI", openai),
-        ):
-            db_ctx.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
-            db_ctx.return_value.__aexit__ = AsyncMock(return_value=False)
-            bases.get_by_collection_name = AsyncMock(
-                return_value=_knowledge_base(secret_id=uuid.uuid4())
-            )
-            secrets.get = AsyncMock(return_value=broken)
-            resolution_env.OPENROUTER_API_KEY = ""
-
-            embedder, _ = await (await _store())._for_collection("handbook")
+        async with _the_flows_embedder(
+            secret_id=uuid.uuid4(), vault_row=broken, deployment_key=""
+        ) as (embedder, _, openai):
             with pytest.raises(ConfigurationError) as refusal:
                 embedder.embed_query("anything")
 
@@ -273,25 +290,12 @@ class TestWhenTheChosenKeyCannotBeUsed:
         assert openai.api_keys == []
 
     async def test_a_secret_of_the_wrong_kind_says_which_collection_chose_it(self):
-        openai = _CapturedOpenAI()
-
-        with (
-            patch(f"{_RESOLUTION}.get_db_context") as db_ctx,
-            patch(f"{_RESOLUTION}.knowledge_base_repo") as bases,
-            patch(f"{_RESOLUTION}.organization_secret_repo") as secrets,
-            patch(f"{_RESOLUTION}.settings") as resolution_env,
-            patch(f"{_RESOLUTION}.unseal_secret", return_value=MagicMock(spec=[])),
-            patch(f"{_EMBEDDINGS}.OpenAI", openai),
-        ):
-            db_ctx.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
-            db_ctx.return_value.__aexit__ = AsyncMock(return_value=False)
-            bases.get_by_collection_name = AsyncMock(
-                return_value=_knowledge_base(secret_id=uuid.uuid4())
-            )
-            secrets.get = AsyncMock(return_value=_vault_row("sk-org"))
-            resolution_env.OPENROUTER_API_KEY = ""
-
-            embedder, _ = await (await _store())._for_collection("handbook")
+        async with _the_flows_embedder(
+            secret_id=uuid.uuid4(),
+            vault_row=_vault_row("sk-org"),
+            deployment_key="",
+            unseals_to_something_else=True,
+        ) as (embedder, _, _openai):
             with pytest.raises(ConfigurationError) as refusal:
                 embedder.embed_query("anything")
 
