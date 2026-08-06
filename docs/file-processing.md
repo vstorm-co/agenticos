@@ -253,6 +253,23 @@ declares it. Matching the prefix alone had it reporting `rag_documents` as a
 collection called `documents` — one nobody created, whose "vector count" was the
 number of ingested documents, and which any caller could then ask to search.
 
+**A collection may not be named after a table the models own**, which is that
+predicate read a third way — asked of a name before its table exists. Creating one
+is refused with a 400, both at the API and in the store itself, because
+`rag-drop <name>` reaches the store with no route in between. The name that made
+this necessary is `documents`: prefixed, it *is* the tracking table, so dropping
+such a collection aimed `DROP TABLE IF EXISTS` at every organization's ingestion
+history. The refusal is derived rather than listed, so a `rag_`-prefixed model
+table added later is covered, and a collection called `documents_archive` — which a
+literal exclusion would have taken with it — is not affected.
+
+`documents` was also the **default** collection, so the CLI quickstart used to aim
+at the tracking table; the default is now `default`. A knowledge base created with
+the old name before this landed still exists and is still deletable, but nothing
+can be ingested into it — delete it and create one under another name. Nothing is
+lost in doing so: an ingest into that collection has never succeeded, because
+building the vector index on a table with no `embedding` column fails.
+
 ### RAG is Global
 
 Collections are shared across **all users**:
