@@ -19,6 +19,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.42] - 2026-08-06
+
+### Fixed
+
+- `make db-check` failed on any database that had ingested a document. Alembic
+  compared the models against the live schema and saw the per-collection vector
+  tables the RAG store creates at runtime, which no migration declares, so it
+  reported drift that no migration could ever resolve (#288).
+
+### Added
+
+- `app/db/vector_tables.py` — `is_runtime_vector_table`, one predicate for
+  "is this table a runtime vector table rather than a declared model", read from
+  `Base.metadata` rather than from a name pattern.
+
+
 ## [0.0.41] - 2026-08-06
 
 ### Fixed
