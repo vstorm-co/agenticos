@@ -193,9 +193,17 @@ pre-write list even though the row is committed and both server layers return it
 ([#230](https://github.com/vstorm-co/agenticos/issues/230), about one run in
 eight). So:
 
-- **A fixture step asks the API.** Every step of `seed.setup.ts` asserts through
-  `/api/…`, because its job is that the fixture exists — and a fixture step that
-  fails takes every product spec with it.
+- **A fixture step asks the API, and keeps asking.** Every step of
+  `seed.setup.ts` asserts through `/api/…`, because its job is that the fixture
+  exists — and a fixture step that fails takes every product spec with it. After
+  a write it asks by polling (`nowThere`), never with a single read: a 2xx from
+  this backend means the request was answered, not that the write is readable,
+  because the commit runs in a dependency FastAPI unwinds after the response has
+  gone out ([#353](https://github.com/vstorm-co/agenticos/issues/353)). The
+  `alreadyThere` guard each step opens with stays a single read, since it runs
+  before the write. The one *post-write* check that read once cost 87 skipped
+  specs three times in a day
+  ([#335](https://github.com/vstorm-co/agenticos/issues/335)).
 - **A product spec that is about the rendering says so**, and reloads first if it
   needs a list it can trust. `vault.spec.ts` has three `page.reload()` calls
   marked `#230`; when that issue closes, they come out.
