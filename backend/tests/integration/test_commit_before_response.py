@@ -20,7 +20,7 @@ real route takes - which is the thing being checked - through the same
 `BaseHTTPMiddleware` the real app puts in front of them.
 """
 
-from collections.abc import AsyncGenerator, Awaitable, Callable
+from collections.abc import AsyncGenerator
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -94,26 +94,27 @@ async def _committed(engine: AsyncEngine, row_id: UUID) -> bool:
         return found.scalar_one_or_none() is not None
 
 
-async def _post(
-    app: FastAPI, path: str, row_id: UUID, at_response_start: Callable[[], Awaitable[None]]
-) -> int:
-    """Drive the app over ASGI, calling back the instant the answer goes out.
+async def _post(path: str, row_id: UUID, engine: AsyncEngine) -> tuple[int, bool]:
+    """Drive the app over ASGI, reading the row the instant the answer goes out.
+
+    Answers the response's status and whether the row was visible to `engine` at
+    the moment `http.response.start` was handed to the transport.
 
     `httpx`'s `ASGITransport` would do the driving, but it hands back a finished
-    response - by which time the ordering being asserted has already happened
-    one way or the other. The callback runs inside `send`, so it observes the
-    request suspended at exactly the point the client is being answered.
+    response - by which time the ordering being asserted has already happened one
+    way or the other. The read below happens inside `send`, with the request
+    suspended at exactly the point the client is being answered.
     """
-    status_code: int | None = None
+    app = _app()
+    answered: tuple[int, bool] | None = None
 
     async def receive() -> dict[str, Any]:
         return {"type": "http.request", "body": b"", "more_body": False}
 
     async def send(message: dict[str, Any]) -> None:
-        nonlocal status_code
+        nonlocal answered
         if message["type"] == "http.response.start":
-            status_code = message["status"]
-            await at_response_start()
+            answered = (message["status"], await _committed(engine, row_id))
 
     await app(
         {
@@ -134,8 +135,8 @@ async def _post(
         receive,
         send,
     )
-    assert status_code is not None, "the app never started a response"
-    return status_code
+    assert answered is not None, "the app never started a response"
+    return answered
 
 
 async def test_a_write_is_readable_by_the_time_its_answer_goes_out(
@@ -143,14 +144,11 @@ async def test_a_write_is_readable_by_the_time_its_answer_goes_out(
 ) -> None:
     """The whole of #353, in one assertion."""
     row_id = uuid4()
-    visible: list[bool] = []
 
-    status_code = await _post(
-        _app(), "/write", row_id, lambda: _record(visible, probe_table, row_id)
-    )
+    status_code, visible = await _post("/write", row_id, probe_table)
 
     assert status_code == status.HTTP_204_NO_CONTENT
-    assert visible == [True], (
+    assert visible, (
         "the client was answered 204 while the row was still uncommitted, so a "
         "client acting on that 204 can be answered from a database the write has "
         "not reached (#353)"
@@ -165,18 +163,16 @@ async def test_a_failed_write_is_rolled_back_by_the_time_its_refusal_goes_out(
     A refusal a caller can act on is worth as much as an acknowledgement it can
     act on. If the rollback landed after the 404, a caller retrying on that 404
     could collide with a row that was about to disappear.
+
+    This half passed before #353 too - an exception unwinds both of FastAPI's
+    exit stacks before its handler builds a response - and is here because
+    nothing said so, and because `scope="function"` is exactly the sort of change
+    that could have quietly moved it.
     """
     row_id = uuid4()
-    visible: list[bool] = []
 
-    status_code = await _post(
-        _app(), "/write-then-fail", row_id, lambda: _record(visible, probe_table, row_id)
-    )
+    status_code, visible = await _post("/write-then-fail", row_id, probe_table)
 
     assert status_code == status.HTTP_404_NOT_FOUND
-    assert visible == [False]
+    assert not visible
     assert not await _committed(probe_table, row_id), "the rolled-back row arrived later"
-
-
-async def _record(into: list[bool], engine: AsyncEngine, row_id: UUID) -> None:
-    into.append(await _committed(engine, row_id))
