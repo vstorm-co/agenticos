@@ -159,7 +159,7 @@ a request, so a slow database cannot make a healthy server look wedged.
 
 | | |
 |---|---|
-| `RELOAD_WEDGED_AFTER` | Seconds of silence before a worker is replaced. Default `15`; `0` switches the check off |
+| `RELOAD_WEDGED_AFTER` | Seconds of silence before a worker is replaced. Default `15`; `0` or below switches the check off |
 
 Switch it off while debugging. A breakpoint blocks the event loop and no probe
 can tell that from a deadlock, so a worker sitting on one is replaced under you.

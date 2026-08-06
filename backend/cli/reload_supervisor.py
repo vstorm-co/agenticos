@@ -66,7 +66,14 @@ Three properties of that choice are the reason for it:
   handler at all and leaves the signal pending. Either way the join never
   returns and the supervisor hangs with it. `SIGKILL` cannot be caught, which is
   what `Multiprocess.keep_subprocess_alive` relies on for a worker it has judged
-  hung.
+  hung. `shutdown` needs the same escalation for the same reason, or Ctrl+C on a
+  wedged worker blocks until Docker's grace period runs out.
+- **A frozen host is not a wedged worker.** `docker pause`, a frozen cgroup and
+  a Docker Desktop VM resuming after the host slept all advance the monotonic
+  clock while *nothing* runs, worker and supervisor alike. So the supervisor
+  measures the gap in its own polling too, and a poll that is itself late by
+  more than the threshold forgives the worker a window rather than killing it
+  for the host's nap.
 
 **What this does not cover**, deliberately:
 
@@ -80,6 +87,11 @@ Three properties of that choice are the reason for it:
 - **A debugger.** A breakpoint blocks the event loop and is indistinguishable
   from a deadlock by construction, so 15 seconds on one wedges the worker and it
   is replaced. `RELOAD_WEDGED_AFTER=0` turns the whole check off.
+- **A worker in uninterruptible sleep.** `SIGKILL` is not delivered to a process
+  in `D` state - a dead network mount is the way in - so the join after it hangs
+  as `SIGTERM` would have. A bounded join would only move the hang into
+  `BaseReload.restart`, which joins again with no timeout, so it is recorded
+  here rather than half-fixed.
 
 **This module is its own entrypoint** - `python -m cli.reload_supervisor` - and
 imports nothing beyond uvicorn and click on purpose. Reaching it through
@@ -94,10 +106,11 @@ import logging
 import os
 import time
 from collections.abc import Callable
-from multiprocessing import Value
+from ctypes import c_double
+from multiprocessing import RawValue
 from pathlib import Path
 from socket import socket
-from typing import TYPE_CHECKING, Final
+from typing import Final
 
 import click
 from uvicorn import Config, Server
@@ -105,11 +118,6 @@ from uvicorn import Config, Server
 # The reload supervisor uvicorn's own `main.run` uses: `WatchFilesReload`, or
 # `StatReload` where watchfiles is missing. `uvicorn[standard]` ships watchfiles.
 from uvicorn.supervisors import ChangeReload
-
-if TYPE_CHECKING:
-    # Generic to the type checker and a plain class at runtime, so every
-    # annotation of it has to be quoted.
-    from multiprocessing.sharedctypes import Synchronized
 
 # uvicorn's `auto` picks the legacy websockets implementation, which fails the
 # handshake against websockets >=14 with an HTTP 500. The dashboard chat is a
@@ -136,9 +144,9 @@ BEAT_INTERVAL: Final = 1
 # nothing acts on.
 WEDGED_AFTER: Final = 15.0
 
-# Seconds without a beat before a worker is replaced, `0` to switch the check
-# off - which is what somebody sitting on a breakpoint wants, a stopped event
-# loop being indistinguishable from a deadlock.
+# Seconds without a beat before a worker is replaced, `0` or below to switch the
+# check off - which is what somebody sitting on a breakpoint wants, a stopped
+# event loop being indistinguishable from a deadlock.
 WEDGED_AFTER_ENV_VAR: Final = "RELOAD_WEDGED_AFTER"
 
 # The value of the shared cell before the worker's first beat. A worker is
@@ -156,9 +164,20 @@ class EventLoopHeartbeat:
     into the spawned process along with the shared cell it writes to - allowed
     because the pickling happens while the child is being spawned, which is the
     one time `multiprocessing` permits a shared value to cross.
+
+    `RawValue` and not `Value`, on two counts. `Value`'s lock is a `SemLock` from
+    the *default* context, which on Linux is `fork` - and uvicorn spawns, so
+    handing the worker one raises `A SemLock created in a fork context is being
+    shared with a process in a spawn context` and the container restart-loops
+    before it serves a request. That is not a macOS symptom, where the default
+    context is already `spawn`, so it appears first in CI or in Docker. And a
+    lock here would be a hazard even where it pickles: a worker killed while
+    holding it - which is exactly what this module does to a wedged one - leaves
+    it held for good, and the supervisor's next read of the cell hangs forever.
+    One aligned 8-byte double, one writer, one reader, no lock to lose.
     """
 
-    def __init__(self, beat: "Synchronized[float]") -> None:
+    def __init__(self, beat: c_double) -> None:
         self._beat = beat
 
     async def __call__(self) -> None:
@@ -182,7 +201,7 @@ class SupervisedReload(ChangeReload):
         target: Callable[[list[socket] | None], None],
         sockets: list[socket],
         *,
-        beat: "Synchronized[float]",
+        beat: c_double,
         wedged_after: float = WEDGED_AFTER,
     ) -> None:
         super().__init__(config, target, sockets)
@@ -191,6 +210,9 @@ class SupervisedReload(ChangeReload):
         self._reported_pid: int | None = None
         self._beat = beat
         self._wedged_after = wedged_after
+        # When the previous poll ran, so a gap in the *supervisor's* own clock
+        # can be told from a gap in the worker's.
+        self._polled_at = time.monotonic()
 
     def should_restart(self) -> list[Path] | None:
         # `if changes`, not `is not None`: a change to a file the reload filter
@@ -202,7 +224,8 @@ class SupervisedReload(ChangeReload):
         if changes:
             return changes
         self._replace_a_dead_worker()
-        self._replace_a_wedged_worker()
+        if not self._everything_was_frozen():
+            self._replace_a_wedged_worker()
         return None
 
     def restart(self) -> None:
@@ -212,9 +235,55 @@ class SupervisedReload(ChangeReload):
         here, and every one of them starts a worker that has not beaten yet.
         Leaving the old worker's beat in the cell would have the new one judged
         on it and killed on the next poll.
+
+        The cell is cleared *after* the replacement, not before. `Server.on_tick`
+        awaits `callback_notify` before it checks `should_exit`, so a worker that
+        has just been sent `SIGTERM` gets one more tick and beats one last time
+        on roughly one restart in ten. Clearing first would hand that beat to the
+        replacement, which is then judged on it while it is still importing the
+        application.
         """
-        self._beat.value = NOT_YET_BEATEN
         super().restart()
+        self._beat.value = NOT_YET_BEATEN
+
+    def shutdown(self) -> None:
+        """Stop the worker, killing it outright if it is wedged.
+
+        `BaseReload.shutdown` sends `SIGTERM` and joins without a timeout, which
+        for a wedged worker is the hang this class exists to avoid: Ctrl+C or
+        `docker compose stop` would block until the ten-second grace period ran
+        out and Docker killed the container. A worker that is merely running
+        still gets `SIGTERM` and still drains its connections.
+        """
+        silent_for = self._silent_for()
+        if silent_for is not None:
+            logger.error(
+                "Server process [%s] has not run its event loop for %.0fs. Killing it rather than waiting.",
+                self.process.pid,
+                silent_for,
+            )
+            self.process.kill()
+        super().shutdown()
+
+    def _everything_was_frozen(self) -> bool:
+        """Was the *supervisor* stopped too since the last poll, rather than only the worker?
+
+        `docker pause`, a frozen cgroup and a Docker Desktop VM resuming after
+        the host slept all advance the monotonic clock while nothing runs. The
+        worker's silence then says nothing about the worker, so the beat is
+        stamped as though it had just arrived and the worker gets a full window
+        to prove itself - which a healthy one does within a second, and a wedged
+        one fails on the next poll.
+        """
+        if self._wedged_after <= 0:
+            return False
+        now = time.monotonic()
+        since_the_last_poll = now - self._polled_at
+        self._polled_at = now
+        if since_the_last_poll <= self._wedged_after:
+            return False
+        self._beat.value = now
+        return True
 
     def _replace_a_dead_worker(self) -> None:
         """Reap a worker that is gone, and replace it if a signal took it.
@@ -250,29 +319,37 @@ class SupervisedReload(ChangeReload):
                 exitcode,
             )
 
-    def _replace_a_wedged_worker(self) -> None:
-        """Replace a worker that is running but whose event loop has stopped turning.
+    def _silent_for(self) -> float | None:
+        """How long the worker's event loop has been silent, if that is a verdict.
 
-        Judged only on a worker that is still running and has beaten at least
-        once: a worker that has exited is `_replace_a_dead_worker`'s decision,
-        and one that exited on its own is deliberately waiting for a file change
-        rather than for a supervisor to respawn it onto the same traceback.
+        `None` means there is nothing to judge, which covers four cases and not
+        only the obvious one: the check is switched off; the worker is not
+        running, so a worker that exited on its own stays waiting for the file
+        change that fixes it rather than being respawned onto the same
+        traceback; the worker has not beaten yet, so a slow boot is not a wedge;
+        or it beat recently enough.
         """
-        if self._wedged_after <= 0 or self.should_exit.is_set():
-            # Switched off, or the reloader is on its way out and a replacement
-            # would outlive the supervisor meant to stop it - the same guard
-            # `_replace_a_dead_worker` opens with, for the same reason.
-            return
-
-        if self.process.exitcode is not None:
-            return
+        if self._wedged_after <= 0 or self.process.exitcode is not None:
+            return None
 
         beat = self._beat.value
         if beat == NOT_YET_BEATEN:
-            return
+            return None
 
         silent_for = time.monotonic() - beat
-        if silent_for < self._wedged_after:
+        return silent_for if silent_for >= self._wedged_after else None
+
+    def _replace_a_wedged_worker(self) -> None:
+        """Replace a worker that is running but whose event loop has stopped turning."""
+        if self.should_exit.is_set():
+            # The reloader is on its way out and a replacement would outlive the
+            # supervisor meant to stop it - the same guard
+            # `_replace_a_dead_worker` opens with, for the same reason. Stopping
+            # a worker that is wedged is `shutdown`'s job, not this one's.
+            return
+
+        silent_for = self._silent_for()
+        if silent_for is None:
             return
 
         logger.error(
@@ -308,7 +385,7 @@ def run_reload_server(*, host: str, port: int) -> None:
     port that never stopped being bound, and hand the worker the heartbeat it
     reports its event loop through.
     """
-    beat: Synchronized[float] = Value("d", NOT_YET_BEATEN)
+    beat = RawValue("d", NOT_YET_BEATEN)
     config = Config(
         APP,
         host=host,

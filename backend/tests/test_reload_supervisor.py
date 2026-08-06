@@ -11,6 +11,7 @@ actually runs the supervisor.
 
 import asyncio
 import contextlib
+import ctypes
 import logging
 import os
 import signal
@@ -18,16 +19,15 @@ import subprocess
 import sys
 import threading
 import time
-from multiprocessing import Value
+from multiprocessing import RawValue
 from multiprocessing.context import SpawnProcess
-from multiprocessing.sharedctypes import Synchronized
 from pathlib import Path
 from types import FrameType
 from typing import Any, Final
 
 import pytest
 import yaml
-from uvicorn import Config
+from uvicorn import Config, Server
 from uvicorn._subprocess import get_subprocess
 from uvicorn.supervisors import ChangeReload
 from uvicorn.supervisors.basereload import BaseReload
@@ -116,7 +116,7 @@ class RecordingReload(SupervisedReload):
     `SupervisedReload.restart` itself, and the beat it clears, still run.
     """
 
-    def __init__(self, config: Config, beat: "Synchronized[float]", wedged_after: float) -> None:
+    def __init__(self, config: Config, beat: ctypes.c_double, wedged_after: float) -> None:
         super().__init__(
             config,
             target=lambda sockets: None,
@@ -133,14 +133,36 @@ def _record_the_replacement(self: RecordingReload) -> None:
 
 
 @pytest.fixture
-def beat() -> "Synchronized[float]":
+def beat() -> ctypes.c_double:
     """The cell the worker stamps its event loop into, as `run_reload_server` makes it."""
-    return Value("d", NOT_YET_BEATEN)
+    return RawValue("d", NOT_YET_BEATEN)
+
+
+@pytest.fixture
+def wiring(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    """Everything `run_reload_server` hands the supervisor, without starting anything.
+
+    Captured as one dict rather than asserted piecemeal because the interesting
+    property is a relationship between two of the arguments: the cell the
+    supervisor reads has to be the cell the worker's heartbeat writes.
+    """
+    captured: dict[str, Any] = {}
+
+    def capture(self: SupervisedReload, config: Config, **kwargs: Any) -> None:
+        captured["config"] = config
+        captured.update(kwargs)
+
+    monkeypatch.setattr(Config, "bind_socket", lambda self: None)
+    monkeypatch.setattr(SupervisedReload, "__init__", capture)
+    monkeypatch.setattr(SupervisedReload, "run", lambda self: None)
+
+    run_reload_server(host="127.0.0.1", port=9999)
+    return captured
 
 
 @pytest.fixture
 def supervisor(
-    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, beat: "Synchronized[float]"
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, beat: ctypes.c_double
 ) -> RecordingReload:
     """A supervisor whose file watcher reports no changes, with its log captured.
 
@@ -266,21 +288,14 @@ def test_a_worker_dying_during_shutdown_is_not_replaced(
 
 
 def test_the_development_server_keeps_the_sansio_websocket_implementation(
-    monkeypatch: pytest.MonkeyPatch,
+    wiring: dict[str, Any],
 ) -> None:
     """uvicorn's `auto` fails the chat handshake against websockets >=14."""
-    captured: list[Config] = []
-    monkeypatch.setattr(Config, "bind_socket", lambda self: None)
-    monkeypatch.setattr(
-        SupervisedReload, "__init__", lambda self, config, **kw: captured.append(config)
-    )
-    monkeypatch.setattr(SupervisedReload, "run", lambda self: None)
+    config: Config = wiring["config"]
 
-    run_reload_server(host="127.0.0.1", port=9999)
-
-    assert captured[0].ws == "websockets-sansio"
-    assert captured[0].should_reload
-    assert (captured[0].host, captured[0].port) == ("127.0.0.1", 9999)
+    assert config.ws == "websockets-sansio"
+    assert config.should_reload
+    assert (config.host, config.port) == ("127.0.0.1", 9999)
 
 
 def test_the_entrypoint_does_not_drag_the_application_into_the_reloader() -> None:
@@ -325,7 +340,7 @@ def test_the_local_stack_runs_the_supervisor_and_not_uvicorns_own_reloader() -> 
 
 
 def test_a_worker_whose_event_loop_stopped_turning_is_replaced(
-    supervisor: RecordingReload, beat: "Synchronized[float]"
+    supervisor: RecordingReload, beat: ctypes.c_double
 ) -> None:
     """The whole of #336: this worker is alive, so nothing else would ever act on it."""
     beat.value = time.monotonic() - A_SHORT_WEDGE - 1
@@ -338,7 +353,7 @@ def test_a_worker_whose_event_loop_stopped_turning_is_replaced(
 
 
 def test_a_worker_still_beating_is_left_alone(
-    supervisor: RecordingReload, beat: "Synchronized[float]"
+    supervisor: RecordingReload, beat: ctypes.c_double
 ) -> None:
     """A slow server is not a wedged one, and replacing it drops requests it was serving."""
     beat.value = time.monotonic()
@@ -362,7 +377,7 @@ def test_a_worker_that_has_not_beaten_yet_is_left_alone(supervisor: RecordingRel
 
 
 def test_a_worker_that_exited_on_its_own_is_not_killed_for_its_stale_beat(
-    supervisor: RecordingReload, beat: "Synchronized[float]"
+    supervisor: RecordingReload, beat: ctypes.c_double
 ) -> None:
     """Its beat stops when it exits, and respawning it loops on the same traceback.
 
@@ -377,7 +392,7 @@ def test_a_worker_that_exited_on_its_own_is_not_killed_for_its_stale_beat(
 
 
 def test_a_replacement_is_not_judged_on_the_beat_of_the_worker_it_replaced(
-    supervisor: RecordingReload, beat: "Synchronized[float]"
+    supervisor: RecordingReload, beat: ctypes.c_double
 ) -> None:
     """Otherwise the first replacement inherits a stale cell and is killed on the next poll."""
     beat.value = time.monotonic() - A_SHORT_WEDGE - 1
@@ -391,7 +406,7 @@ def test_a_replacement_is_not_judged_on_the_beat_of_the_worker_it_replaced(
 
 
 def test_a_worker_wedging_during_shutdown_is_not_replaced(
-    supervisor: RecordingReload, beat: "Synchronized[float]"
+    supervisor: RecordingReload, beat: ctypes.c_double
 ) -> None:
     """A worker stops beating as it shuts down, and its replacement would be an orphan."""
     supervisor.should_exit.set()
@@ -402,8 +417,100 @@ def test_a_worker_wedging_during_shutdown_is_not_replaced(
     assert supervisor.replacements == 0
 
 
+def test_a_last_gasp_beat_from_a_dying_worker_does_not_reach_its_replacement(
+    supervisor: RecordingReload, beat: ctypes.c_double, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`Server.on_tick` beats before it reads `should_exit`.
+
+    So a worker that has just been sent `SIGTERM` gets one more tick and beats
+    one last time, on roughly one restart in ten. Clearing the cell before the
+    replacement rather than after would hand that beat to a process still
+    importing the application, and kill it fifteen seconds into a cold boot.
+    """
+
+    def _beat_on_the_way_out(self: RecordingReload) -> None:
+        beat.value = time.monotonic()
+        _record_the_replacement(self)
+
+    monkeypatch.setattr(BaseReload, "restart", _beat_on_the_way_out)
+    supervisor.process = FakeWorker(-9)
+
+    supervisor.should_restart()
+
+    assert supervisor.replacements == 1
+    assert beat.value == NOT_YET_BEATEN
+
+
+def test_shutting_down_kills_a_wedged_worker_rather_than_waiting_for_it(
+    supervisor: RecordingReload, beat: ctypes.c_double, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`_replace_a_wedged_worker` steps aside during shutdown, so `shutdown` has to act.
+
+    `BaseReload.shutdown` sends `SIGTERM` and joins without a timeout, and a
+    wedged worker never acts on `SIGTERM` - so Ctrl+C would block until Docker
+    killed the container ten seconds later.
+    """
+    stopped: list[bool] = []
+    monkeypatch.setattr(BaseReload, "shutdown", lambda self: stopped.append(True))
+    wedged = FakeWorker(None)
+    supervisor.process = wedged
+    beat.value = time.monotonic() - A_SHORT_WEDGE - 1
+
+    supervisor.shutdown()
+
+    assert wedged.killed
+    assert stopped == [True]
+
+
+def test_shutting_down_leaves_a_healthy_worker_to_drain(
+    supervisor: RecordingReload, beat: ctypes.c_double, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`SIGTERM` is how in-flight requests finish; escalating always would drop them."""
+    monkeypatch.setattr(BaseReload, "shutdown", lambda self: None)
+    healthy = FakeWorker(None)
+    supervisor.process = healthy
+    beat.value = time.monotonic()
+
+    supervisor.shutdown()
+
+    assert not healthy.killed
+
+
+def test_a_worker_is_not_judged_on_a_poll_the_supervisor_itself_slept_through(
+    supervisor: RecordingReload, beat: ctypes.c_double
+) -> None:
+    """`docker pause`, a frozen cgroup, a Docker Desktop VM after the host slept.
+
+    Monotonic time advances for the supervisor as well, so the worker's silence
+    says nothing about the worker. It gets a full window to prove itself, and a
+    healthy one takes about a second over it.
+    """
+    supervisor.process = FakeWorker(None)
+    supervisor._polled_at = time.monotonic() - A_SHORT_WEDGE - 1
+    beat.value = time.monotonic() - A_SHORT_WEDGE - 1
+
+    assert supervisor.should_restart() is None
+    assert supervisor.replacements == 0
+    assert beat.value == pytest.approx(time.monotonic(), abs=1)
+
+
+def test_a_worker_still_wedged_after_the_host_wakes_is_replaced(
+    supervisor: RecordingReload, beat: ctypes.c_double
+) -> None:
+    """Forgiving the frozen window is a reprieve, not an exemption."""
+    supervisor.process = FakeWorker(None)
+    supervisor._polled_at = time.monotonic() - A_SHORT_WEDGE - 1
+    beat.value = time.monotonic() - A_SHORT_WEDGE - 1
+    supervisor.should_restart()
+
+    beat.value = time.monotonic() - A_SHORT_WEDGE - 1
+
+    assert supervisor.should_restart() is None
+    assert supervisor.replacements == 1
+
+
 def test_the_wedge_check_can_be_switched_off(
-    monkeypatch: pytest.MonkeyPatch, beat: "Synchronized[float]"
+    monkeypatch: pytest.MonkeyPatch, beat: ctypes.c_double
 ) -> None:
     """A breakpoint blocks the event loop, and no probe can tell that from a deadlock."""
     monkeypatch.setattr(ChangeReload, "should_restart", lambda self: None)
@@ -417,32 +524,69 @@ def test_the_wedge_check_can_be_switched_off(
 
 
 async def test_the_heartbeat_stamps_the_cell_the_supervisor_reads(
-    beat: "Synchronized[float]",
+    beat: ctypes.c_double,
 ) -> None:
     await EventLoopHeartbeat(beat)()
 
     assert beat.value == pytest.approx(time.monotonic(), abs=1)
 
 
+async def test_uvicorn_awaits_the_heartbeat_on_its_own_tick(beat: ctypes.c_double) -> None:
+    """The hook belongs to uvicorn, so its contract is worth asserting rather than assuming.
+
+    `on_tick` is the body of `main_loop`. If it stopped awaiting
+    `callback_notify` - a rename, a change to what `timeout_notify` means - the
+    cell would never fill, every worker would read as wedged, and every test
+    that fills the cell by hand would still pass.
+    """
+
+    async def nothing(scope: Any, receive: Any, send: Any) -> None:
+        """An application the config can load without importing the platform."""
+
+    config = Config(nothing, callback_notify=EventLoopHeartbeat(beat), timeout_notify=BEAT_INTERVAL)
+    config.load()
+
+    await Server(config).on_tick(counter=0)
+
+    assert beat.value == pytest.approx(time.monotonic(), abs=1)
+
+
 def test_the_worker_reports_its_event_loop_through_uvicorns_notify_hook(
-    monkeypatch: pytest.MonkeyPatch,
+    wiring: dict[str, Any],
 ) -> None:
     """`callback_notify` is awaited by `Server.on_tick`, which is the loop itself.
 
     A thread answering a pipe - what `Multiprocess` asks - keeps answering while
     the loop is blocked, which is the failure this is for.
     """
-    captured: list[Config] = []
-    monkeypatch.setattr(Config, "bind_socket", lambda self: None)
-    monkeypatch.setattr(
-        SupervisedReload, "__init__", lambda self, config, **kw: captured.append(config)
-    )
-    monkeypatch.setattr(SupervisedReload, "run", lambda self: None)
+    config: Config = wiring["config"]
 
-    run_reload_server(host="0.0.0.0", port=8000)
+    assert isinstance(config.callback_notify, EventLoopHeartbeat)
+    assert config.timeout_notify == BEAT_INTERVAL
 
-    assert isinstance(captured[0].callback_notify, EventLoopHeartbeat)
-    assert captured[0].timeout_notify == BEAT_INTERVAL
+
+def test_the_worker_and_the_supervisor_share_one_cell(wiring: dict[str, Any]) -> None:
+    """Two cells would pass every other test and kill a healthy worker every 15 seconds."""
+    heartbeat: EventLoopHeartbeat = wiring["config"].callback_notify
+
+    assert heartbeat._beat is wiring["beat"]
+
+
+def test_the_beat_cell_carries_no_lock(wiring: dict[str, Any]) -> None:
+    """`multiprocessing.Value` here refuses to start the container, and could hang it.
+
+    Its lock is a `SemLock` from the default context, which on Linux is `fork`
+    while uvicorn spawns - so the worker never starts and the container
+    restart-loops with `A SemLock created in a fork context is being shared with
+    a process in a spawn context`. That is invisible on macOS, where the default
+    context is already `spawn`, which is why it is asserted here rather than
+    left to the spawning test below.
+
+    The lock would be a hazard even where it pickles: this module `SIGKILL`s a
+    wedged worker, and one killed while holding the lock leaves it held, so the
+    supervisor's next read of the cell would block for ever.
+    """
+    assert isinstance(wiring["beat"], ctypes.c_double)
 
 
 def test_the_threshold_comes_from_the_environment(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -451,6 +595,14 @@ def test_the_threshold_comes_from_the_environment(monkeypatch: pytest.MonkeyPatc
 
     monkeypatch.setenv(WEDGED_AFTER_ENV_VAR, "0")
     assert wedged_after_from_environment() == 0
+
+
+def test_a_threshold_that_is_not_a_number_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Falling back to 15 seconds on a typo is how somebody debugs the supervisor instead."""
+    monkeypatch.setenv(WEDGED_AFTER_ENV_VAR, "off")
+
+    with pytest.raises(ValueError, match="off"):
+        wedged_after_from_environment()
 
 
 def test_a_worker_stopped_mid_flight_is_killed_and_replaced() -> None:
@@ -464,7 +616,7 @@ def test_a_worker_stopped_mid_flight_is_killed_and_replaced() -> None:
     would hang this test rather than fail it, which is why the replacement runs
     on a thread the test refuses to wait on indefinitely.
     """
-    beat: Synchronized[float] = Value("d", NOT_YET_BEATEN)
+    beat: ctypes.c_double = RawValue("d", NOT_YET_BEATEN)
     config = Config(APP, reload=True, ws=WS_PROTOCOL)
     worker = BeatingWorker(EventLoopHeartbeat(beat))
     supervisor = SupervisedReload(
@@ -509,7 +661,7 @@ def _reap(process: SpawnProcess) -> None:
     process.join()
 
 
-def _wait_until_beating(beat: "Synchronized[float]", timeout: float = A_PATIENT_WAIT) -> None:
+def _wait_until_beating(beat: ctypes.c_double, timeout: float = A_PATIENT_WAIT) -> None:
     """Block until the worker has reported its event loop at least once."""
     deadline = time.monotonic() + timeout
     while beat.value == NOT_YET_BEATEN:
