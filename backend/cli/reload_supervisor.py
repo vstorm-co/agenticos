@@ -328,6 +328,13 @@ class SupervisedReload(ChangeReload):
         The escalation is not a timeout that hides a hang: it says which of the
         two it killed, so a worker that never ran its event loop is still
         reported as one rather than as a slow shutdown.
+
+        What delegating also carried was `BaseReload.shutdown`'s Windows branch,
+        which sets `should_exit` instead of terminating. It is not reproduced:
+        this module is PID 1 of a Linux container and the entrypoint of
+        `agenticos server run --reload`, and a branch nothing here can exercise
+        is a branch that rots. On Windows the worker is terminated rather than
+        asked, which is what `Multiprocess` does there anyway.
         """
         silent_for = self._silent_for()
         if silent_for is not None:
