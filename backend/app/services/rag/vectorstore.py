@@ -3,7 +3,13 @@ import re
 from abc import ABC, abstractmethod
 from typing import Any
 
-from app.db.vector_tables import VECTOR_TABLE_PREFIX
+# Registers every model table on `Base.metadata`, which `list_collections` judges a
+# `rag_` table against. Another import already reaches the models today; this one
+# says the listing depends on it, rather than leaving that to a chain belonging to
+# a different concern.
+import app.db.models  # noqa: F401
+from app.db.base import Base
+from app.db.vector_tables import VECTOR_TABLE_PREFIX, is_runtime_vector_table
 from app.schemas.rag import RAGDocumentItem, RAGDocumentList
 from app.services.rag.models import (
     CollectionInfo,
@@ -478,6 +484,19 @@ class PgVectorStore(BaseVectorStore):
         return sorted(chunks, key=lambda chunk: (chunk.page_num, chunk.chunk_num))
 
     async def list_collections(self) -> list[str]:
+        """Every collection this store holds, and nothing that only looks like one.
+
+        Carrying the prefix is not enough to be a collection: `rag_documents`
+        is a model table, so the prefix alone reported a collection called
+        `documents` on every deployment since that table existed, and a caller
+        that believed it would read chunks out of a schema with none of the
+        columns it expects (#339).
+
+        The question is the same one `alembic/env.py` asks from the other side,
+        so it is the same predicate rather than a second one - a `rag_` table
+        the models have never heard of. `app/db/vector_tables.py` says why both
+        halves are load-bearing.
+        """
         async with self.async_session() as session:
             result = await session.execute(
                 text(
@@ -488,4 +507,8 @@ class PgVectorStore(BaseVectorStore):
             )
             # removeprefix strips the leading occurrence only, unlike str.replace,
             # which would also hit the prefix inside a collection's own name.
-            return [row[0].removeprefix(VECTOR_TABLE_PREFIX) for row in result.fetchall()]
+            return [
+                row[0].removeprefix(VECTOR_TABLE_PREFIX)
+                for row in result.fetchall()
+                if is_runtime_vector_table(row[0], metadata=Base.metadata)
+            ]
