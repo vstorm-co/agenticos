@@ -86,7 +86,9 @@ describe("the tracing card", () => {
     state.secrets = [];
     mount();
 
-    expect(screen.getByRole("button", { name: /Add a key/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Add a key: Logfire write token" }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Open the Vault/ })).toBeInTheDocument();
   });
 
@@ -99,7 +101,7 @@ describe("the tracing card", () => {
     state.create.mutate = vi.fn((_input, options) => options?.onSuccess?.({ id: "s-new" }));
     const { onChange } = mount();
 
-    await userEvent.click(screen.getByRole("button", { name: /Add a key/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Add a key: Logfire write token" }));
     await userEvent.type(screen.getByLabelText("Key"), "pylf_v1_x");
     await userEvent.click(screen.getByRole("button", { name: "Save key" }));
 

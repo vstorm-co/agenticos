@@ -16,8 +16,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
-import { useModelProviders, useProviderModels, useSecretPurposes, useSecrets } from "@/hooks";
+import {
+  useModelProviders,
+  usePermissions,
+  useProviderModels,
+  useSecretPurposes,
+  useSecrets,
+} from "@/hooks";
 import { getErrorMessage } from "@/lib/utils";
+import { Perm } from "@/types/permissions";
 import type { ModelProfile } from "@/types/providers";
 import { useTranslations } from "next-intl";
 
@@ -100,6 +107,13 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
   const { createProfile, catalog } = useModelProviders();
   const { purposes } = useSecretPurposes();
   const { secrets } = useSecrets();
+  const { can } = usePermissions();
+  // Storing a key is `secrets:edit`, which is a different permission from the
+  // `connections:manage` that lets this form exist at all: somebody may define a
+  // model profile for the organization and still not be allowed to write the
+  // credential it runs on. Offering the form to them is a 403 dressed as a
+  // control.
+  const canStoreKey = can(Perm.secretsEdit);
 
   const [providerId, setProviderId] = useState("");
   const [model, setModel] = useState("");
@@ -276,22 +290,29 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
 
           {keys.length === 0 && (
             <div className="space-y-2">
+              {/* The sentence stays either way: a panel that simply drops the
+                  form leaves somebody staring at a submit they cannot enable
+                  with nothing saying why. What changes is what it points at -
+                  a field here, or the person who may fill one in. */}
               <p className="text-muted-foreground text-xs">
-                No {provider.label} key in the vault yet. Add one here and it is stored for every
-                agent in this organization.
+                {canStoreKey
+                  ? t("noProviderKeyAddOneHere", { provider: provider.label })
+                  : t("noProviderKeyAskSomebody", { provider: provider.label })}
               </p>
-              <InlineSecret
-                kind="api_key"
-                purpose={provider.id}
-                suggestedName={provider.label}
-                helpUrl={provider.help_url ?? undefined}
-                onCreated={setSecretId}
-                // Passed on rather than left to the submit button. This writes
-                // an organization-wide secret, and a caller that disabled the
-                // form - a dialog mid-save, a panel somebody may only read -
-                // did not mean "except the vault".
-                disabled={disabled}
-              />
+              {canStoreKey && (
+                <InlineSecret
+                  kind="api_key"
+                  purpose={provider.id}
+                  suggestedName={provider.label}
+                  helpUrl={provider.help_url ?? undefined}
+                  onCreated={setSecretId}
+                  // Passed on rather than left to the submit button. This writes
+                  // an organization-wide secret, and a caller that disabled the
+                  // form - a dialog mid-save, a panel somebody may only read -
+                  // did not mean "except the vault".
+                  disabled={disabled}
+                />
+              )}
             </div>
           )}
         </div>
