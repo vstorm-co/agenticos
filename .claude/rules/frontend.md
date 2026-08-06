@@ -49,7 +49,11 @@ There is no `(marketing)` route group.
   either side, and whichever way round the guard reads it: `Owned by {email}`,
   `{n} runs`, and `Rotate {name}` / `chunk {n}` / `· expires {date}` are all refused.
   A lambda inside the interpolation does not make it something else, so a count summed
-  with `reduce` is refused too.
+  with `reduce` is refused too. Neither does an inline handler on the same line, nor
+  the formatter breaking the node over two lines: the guard reads the file joined back
+  together, so `{used} of {max} used` is caught with neither `>` nor `<` on its line.
+  A *plain* node broken across lines is still missed - that is #141, and it is 70 more
+  nodes.
 - **English is the source language, and `pl.json` holds only what is translated.**
   `src/i18n.ts` merges `en.json` underneath every locale, so a missing translation
   renders English instead of the key. A module-level table of labels cannot call a

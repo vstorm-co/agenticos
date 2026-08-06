@@ -20,13 +20,22 @@ What it looks for, in `frontend/src/**/*.tsx`:
 * a text node holding an interpolation as well as words - `Owned by {email}`,
   `{n} runs`, `Rotate {name}` - and the plural somebody rolled by hand beside it,
   `{n} file{n === 1 ? "" : "s"}`, which is a sentence only English can build that way.
+  These four rules read the file as one string rather than a line at a time, because
+  the formatter breaks a text node across lines whenever it is long enough and every
+  rule here anchors on a `>` and a `<` (#314).
 
 What it deliberately does not look at:
 
 * tests, which assert the copy and must name it;
 * `src/app/[locale]/(dashboard)/dev/**`, a playground for looking at components
   that is not part of the product;
-* anything a person never reads - `className`, `href`, `data-*`, `id`, `type`.
+* anything a person never reads - `className`, `href`, `data-*`, `id`, `type`;
+* a *plain* text node broken across lines - `<p>` newline `Nothing yet.` newline
+  `</p>`. `JSX_TEXT` still reads one line at a time. Joining it the way the
+  interpolation rules now are reports 70 more nodes across 42 files, 54 of them real
+  copy and the rest the `) : cond ? (` a ternary leaves between two elements, which
+  wants a discriminator of its own. That is #141, a copy migration of its own size
+  rather than part of closing #314.
 
 False positives get an inline `{/* i18n-exempt: why */}` or a trailing
 `// i18n-exempt: why`. The comment is required to carry a reason, because "this
@@ -38,6 +47,7 @@ from __future__ import annotations
 import json
 import re
 import sys
+from bisect import bisect_right
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -62,7 +72,7 @@ READABLE_ATTRS = (
     "subtitle",
 )
 ATTR = re.compile(rf'\b({"|".join(READABLE_ATTRS)})="([^"]*)"')
-JSX_TEXT = re.compile(r">\s*([^<>{}\n][^<>{}\n]*?)\s*<")
+JSX_TEXT = re.compile(r"(?<!=)>\s*([^<>{}\n][^<>{}\n]*?)\s*<")
 TOASTS = re.compile(r'\btoast\.(?:success|error|info|warning|message)\(\s*"([^"]+)"')
 # Copy hiding in an expression rather than in a text node - `{busy ? "Saving…" :
 # "Save"}`, a ternary in a prop, a sentence pushed into an array. Two words is the
@@ -75,22 +85,26 @@ NOT_A_SENTENCE = re.compile(
 )
 # Copy in a text node that also holds an interpolation - `Owned by {email}`,
 # `Showing {n} of {m} rows`. `JSX_TEXT` excludes braces by construction, so the first
-# sweep read straight past this whole class and left it in English.
-MIXED = re.compile(r">([^<>\n]*\{[^{}\n]*\}[^<>\n]*)<")
+# sweep read straight past this whole class and left it in English. The interpolation
+# may nest - `t("x", { count: n })` is one - so the body is bounded by the angle
+# brackets alone and taken apart by `interpolations` rather than by a second regex.
+MIXED = re.compile(r"(?<!=)>([^<>]*\{[^<>]*\}[^<>]*)<")
 # A count built the English way: an interpolation and then the noun it counts, `{n}
 # runs`, `{count} documents`. English is the only language where a trailing `s` makes
 # the plural - Polish declines the noun, so `1 runs` never becomes `1 run` and the word
 # cannot agree with the number at all. The fix is the count inside an ICU `plural`
 # message, which a hand-built text node can never become. `MIXED` reads straight past
-# this: one trailing word is below its two-word threshold.
-COUNT = re.compile(r">\s*\{([^{}\n]+)\}\s+([A-Za-z]{2,})\s*<")
+# this: one trailing word is below its two-word threshold. Leading punctuation is
+# stepped over the way `LEAD` steps over it, so `· @{domain} only` is read as the count
+# shape it is rather than exempted by the separator in front of it.
+COUNT = re.compile(r"(?<!=)>[^A-Za-z<>{}]*\{([^{}]+)\}\s+([A-Za-z]{2,})\s*<")
 # The mirror image, and the one both of those miss: a single word *before* the
 # interpolation. `Rotate {secret.name}`, `chunk {chunk.chunk}`, `Invited {date}` are
 # one message with a named parameter each, and each rendered its English word verbatim
 # under `pl` while the guard read past it - `MIXED` wants two words and `COUNT` only
 # reads the word that follows. Leading punctuation is stepped over rather than counted:
 # a separator dot in front of the word is how the same string reads inside a row of them.
-LEAD = re.compile(r">[^A-Za-z<>{}\n]*([A-Za-z]{2,})\s+\{([^{}\n]+)\}")
+LEAD = re.compile(r"(?<!=)>[^A-Za-z<>{}]*([A-Za-z]{2,})\s+\{([^{}]+)\}")
 # What tells a count from a conditional that renders an element - the element. These
 # rules used to refuse an angle bracket anywhere in the interpolation, which kept
 # `{cond && <span/>} more` out but also every count computed with a lambda: the `>` of
@@ -115,6 +129,23 @@ TWO_WORDS = re.compile(r"[A-Za-z]{2,}\s+[A-Za-z]{2,}")
 MACHINE_READ = re.compile(r"[/?&=<>#]|\b(?:px|rem|deg|vh|vw|attachment)\b")
 EXEMPT = re.compile(r"i18n-exempt:\s*\S")
 WORDS = re.compile(r"[A-Za-z]{2,}")
+# What sits in front of the `<` of a TypeScript type argument list, which is the other
+# `>` that looks like the end of a JSX tag. A generic is always welded to the identifier
+# it parameterises - `useState<`, `Promise<`, `React.forwardRef<` - where a JSX tag opens
+# after whitespace, `(`, `{` or `>`, and never after a name. (`</` is a closing tag and
+# not a generic, which is what keeps `{n} vectors</span>` readable.)
+GENERIC = re.compile(r"[A-Za-z0-9_$\]]")
+# An HTML entity is punctuation somebody spelled out. Removed before a body is judged
+# to be prose, so `&ldquo;` does not read as a semicolon.
+ENTITY = re.compile(r"&(?:[a-zA-Z]+|#\d+);")
+# Reading the file as one string means a `>` and a `<` on different lines can be the
+# two ends of something that is not a text node at all - a `return (` between two JSX
+# blocks, an object of icons, a switch arm. Copy is words and punctuation; these are
+# the characters that say the body is code.
+NOT_PROSE = re.compile(r"[;=\[\]`|\\^~]")
+# An interpolation that carries neither a letter nor a digit is markup: `{" "}` is the
+# space the formatter could not leave in the source, not a value somebody reads.
+VALUE = re.compile(r"[A-Za-z0-9]")
 # A word-bearing string that is still not copy: an icon name, a CSS-ish token, a
 # path, a MIME type, a locale tag. Matched whole, so "Save changes" never hits it.
 NOT_COPY = re.compile(
@@ -142,61 +173,178 @@ def is_plural_pair(first: str, second: str) -> bool:
     return bool(first) and bool(second) and (second == f"{first}s" or first == f"{second}s")
 
 
-def offences(path: Path) -> list[tuple[int, str]]:
-    found: list[tuple[int, str]] = []
-    lines = path.read_text().splitlines()
+def readable(lines: list[str]) -> list[str]:
+    """The lines with everything a rule must not read blanked out, lengths kept.
+
+    Comments explain the copy and often quote it - "answers \\"Wrote 1 lines to …\\""
+    is a sentence about a string, not one - and an `i18n-exempt: why` takes its line
+    and the one below it out, which is where the comment lands after formatting.
+
+    Blanked rather than dropped so that every offset still points at the character it
+    points at in the file. `node_offences` joins these back into one string and maps a
+    match to the line it started on, which only works while the lengths agree.
+    """
+    blanked: list[str] = []
     in_comment = False
     for number, line in enumerate(lines, 1):
-        stripped = line.strip()
-        # Comments explain the copy and often quote it - "answers \"Wrote 1 lines to
-        # …\"" is a sentence about a string, not one. Tracked across lines because
-        # the quoted example is usually in the middle of a block comment.
         was_in_comment = in_comment
         if "/*" in line and "*/" not in line[line.index("/*") :]:
             in_comment = True
         elif "*/" in line:
             in_comment = False
-        if was_in_comment or stripped.startswith(("//", "*", "/*")) or EXEMPT.search(line):
+        exempt = EXEMPT.search(line) or (number >= 2 and EXEMPT.search(lines[number - 2]))
+        if was_in_comment or line.strip().startswith(("//", "*", "/*")) or exempt:
+            blanked.append(" " * len(line))
             continue
         # Only the code half of a line that also carries a comment: `<p>Done</p> // why`
         # is copy, and the sentence in the comment is not.
         for opener in ("//", "/*"):
             if opener in line:
-                line = line[: line.index(opener)]
-        # TypeScript, not JSX: `onTest: (() => Promise<void>) | null` looks like a text
-        # node to a regex, and a generic parameter is not something anybody reads.
-        #
-        # Only `JSX_TEXT` is held back by it. The rules below that need an interpolation
-        # beside a word are safe on these lines, because a type annotation carries no
-        # `{expr}` next to a noun - and they have to be, since a lambda in the
-        # interpolation is how a count gets computed. Skipping the whole line was what
-        # let a `reduce`-built count through.
-        typescript = "=>" in line or "Promise<" in line
-        # An exemption on the line above covers the line below it, which is where a
-        # `{/* i18n-exempt: … */}` comment ends up after formatting.
-        if number >= 2 and EXEMPT.search(lines[number - 2]):
+                cut = line.index(opener)
+                line = line[:cut] + " " * (len(line) - cut)
+        blanked.append(line)
+    return blanked
+
+
+def mask_generics(text: str) -> str:
+    """Blank every `Identifier<…>`, length kept.
+
+    A type argument list is the only other thing in a `.tsx` file that closes with a
+    `>`, and it is what made `onTest: (() => Promise<void>) | null` read as the text
+    node `Promise`. That one shape is why the whole sweep used to skip any line
+    holding `=>` - an inline handler, the most common thing on a JSX line - and hid
+    `<DropdownMenuItem onSelect={() => onEdit(c)}>Settings</DropdownMenuItem>` (#314).
+
+    Removing the type instead of the line is what makes ungating it safe: it took the
+    eleven false positives ungating alone reported down to none.
+    """
+    chars = list(text)
+    index = 1
+    while index < len(chars) - 1:
+        opens_a_type = (
+            chars[index] == "<" and GENERIC.match(chars[index - 1]) and chars[index + 1] != "/"
+        )
+        if not opens_a_type:
+            index += 1
             continue
+        depth, scan = 0, index
+        while scan < len(chars):
+            # `useState<() => void>` closes at its own `>`, not at the lambda's.
+            if chars[scan] == "<":
+                depth += 1
+            elif chars[scan] == ">" and chars[scan - 1] != "=":
+                depth -= 1
+                if depth == 0:
+                    break
+            scan += 1
+        if scan == len(chars):
+            index += 1
+            continue
+        for blank in range(index, scan + 1):
+            if chars[blank] != "\n":
+                chars[blank] = " "
+        index = scan + 1
+    return "".join(chars)
+
+
+def interpolations(body: str) -> tuple[str, list[str]]:
+    """A text node's words, and the expressions interpolated into them.
+
+    Brace-counting rather than `\\{[^{}]*\\}` because an interpolation nests -
+    `t("rotateNamed", { name })` is one - and because a node that ends inside one,
+    `{a} of {b} used {cond &&` cut short by the element that follows it, is still a
+    node whose words are `of` and `used`.
+    """
+    words: list[str] = []
+    found: list[str] = []
+    depth = 0
+    current: list[str] = []
+    for char in body:
+        if char == "{":
+            depth += 1
+            if depth == 1:
+                current = []
+                continue
+        elif char == "}" and depth:
+            depth -= 1
+            if not depth:
+                found.append("".join(current))
+                words.append(" ")
+                continue
+        if depth:
+            current.append(char)
+        else:
+            words.append(char)
+    if depth:
+        found.append("".join(current))
+    return "".join(words), found
+
+
+def is_prose(body: str) -> bool:
+    """Whether what is left between the interpolations reads as copy rather than code."""
+    return not NOT_PROSE.search(ENTITY.sub(" ", body))
+
+
+def holds_a_value(expression: str) -> bool:
+    """Whether an interpolation renders something, rather than being markup or a guard."""
+    return bool(VALUE.search(expression)) and not JSX_ELEMENT.search(expression)
+
+
+def node_offences(probe: str) -> list[tuple[int, str]]:
+    """The rules that read a text node whole, over the file joined back together.
+
+    A text node is whatever sits between a `>` and the next `<`, and the formatter
+    breaks one across lines the moment it is long enough - which is why
+    `{inv.used_count} of {inv.max_uses} used` passed a guard reading one line at a
+    time: neither bracket is on its line. Joining is only safe once the `>` of a type
+    argument list is gone, hence `mask_generics`.
+    """
+    starts: list[int] = []
+    offset = 0
+    for line in probe.split("\n"):
+        starts.append(offset)
+        offset += len(line) + 1
+
+    def at(match: re.Match[str]) -> int:
+        return bisect_right(starts, match.start())
+
+    def said(match: re.Match[str], group: int = 0) -> str:
+        return " ".join(match.group(group).split())
+
+    found: list[tuple[int, str]] = []
+    for match in MIXED.finditer(probe):
+        words, expressions = interpolations(match.group(1))
+        if not any(holds_a_value(one) for one in expressions):
+            continue
+        if len(WORDS.findall(words)) >= 2 and is_prose(words):
+            found.append((at(match), f"text {said(match, 1)!r}"))
+    for match in COUNT.finditer(probe):
+        if is_copy(match.group(2)) and holds_a_value(match.group(1)):
+            found.append((at(match), f"count {said(match)!r}"))
+    for match in LEAD.finditer(probe):
+        # `&&` and `||` in the interpolation make it a guard rather than a value,
+        # and the word in front of one belongs to whatever renders around it.
+        guard = re.search(r"&&|\|\|", match.group(2))
+        if is_copy(match.group(1)) and holds_a_value(match.group(2)) and not guard:
+            found.append((at(match), f"text {said(match)!r}"))
+    return found
+
+
+def offences(path: Path) -> list[tuple[int, str]]:
+    found: list[tuple[int, str]] = []
+    source = readable(path.read_text().splitlines())
+    probe = mask_generics("\n".join(source))
+    masked = probe.split("\n")
+    for number, line in enumerate(source, 1):
+        stripped = line.strip()
         for match in ATTR.finditer(line):
             if is_copy(match.group(2)):
                 found.append((number, f'{match.group(1)}="{match.group(2)}"'))
-        for match in () if typescript else JSX_TEXT.finditer(line):
+        for match in JSX_TEXT.finditer(masked[number - 1]):
             # `percent >= 80 && "text-amber-600"` reads as a text node to a regex.
             # An operator between the angle brackets means it is an expression.
             if is_copy(match.group(1)) and not re.search(r"&&|\|\||=>", match.group(1)):
                 found.append((number, f"text {match.group(1)!r}"))
-        for match in MIXED.finditer(line):
-            rest = re.sub(r"\{[^{}]*\}", " ", match.group(1))
-            if len(WORDS.findall(rest)) >= 2 and not re.search(r"&&|\|\||=>", rest):
-                found.append((number, f"text {' '.join(match.group(1).split())!r}"))
-        for match in COUNT.finditer(line):
-            if is_copy(match.group(2)) and not JSX_ELEMENT.search(match.group(1)):
-                found.append((number, f"count {' '.join(match.group(0).strip().split())!r}"))
-        for match in LEAD.finditer(line):
-            # `&&` and `||` in the interpolation make it a guard rather than a value,
-            # and the word in front of one belongs to whatever renders around it.
-            guard = JSX_ELEMENT.search(match.group(2)) or re.search(r"&&|\|\|", match.group(2))
-            if is_copy(match.group(1)) and not guard:
-                found.append((number, f"text {' '.join(match.group(0).strip().split())!r}"))
         for match in () if "className" in line else TEMPLATE.finditer(line):
             body = re.sub(r"\$\{[^{}]*\}", "\x00", match.group(1))
             if TWO_WORDS.search(body) and not MACHINE_READ.search(body):
@@ -217,7 +365,8 @@ def offences(path: Path) -> list[tuple[int, str]]:
                 value = match.group(1)
                 if is_copy(value) and not NOT_A_SENTENCE.match(value):
                     found.append((number, f"string {value!r}"))
-    return found
+    found += node_offences(probe)
+    return sorted(found)
 
 
 def missing_keys(path: Path, catalog: dict) -> list[tuple[int, str]]:
