@@ -56,16 +56,35 @@ import type { IngestionOverride, KBDocument, KBScope } from "@/types";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
 
-const SCOPE_META: Record<KBScope, { label: string; icon: LucideIcon }> = {
-  personal: { label: "Personal", icon: Lock },
-  org: { label: "Organization", icon: Users },
-  app: { label: "App-wide", icon: Sparkles },
+/**
+ * How each scope is drawn: an icon, and the key to the word for it.
+ *
+ * A key rather than the word, because a table at module scope has no
+ * translator to call - the component reads `t(labelKey)` at the point of use.
+ * Spelled out here, these were three one-word strings, which is under
+ * `check_i18n.py`'s two-word threshold and so rendered in English under `pl`.
+ */
+const SCOPE_META: Record<KBScope, { labelKey: string; icon: LucideIcon }> = {
+  personal: { labelKey: "scopePersonal", icon: Lock },
+  org: { labelKey: "scopeOrg", icon: Users },
+  app: { labelKey: "scopeApp", icon: Sparkles },
 };
 
 // Sync sources have no server-side pagination (the backend returns every source
 // for the KB's collection). They're typically few, so collapse past this count
 // behind a client-side "show all" toggle.
 const SYNC_SOURCES_VISIBLE = 10;
+
+/**
+ * The `DataTransfer` type a dragged file carries, spelled as the DOM spells it.
+ *
+ * A machine value, not copy - and it was in `messages/en.json` as `files2` and
+ * `files3`, where a translator opening `pl.json` would have been asked to
+ * translate it. "Pliki" is never in `dataTransfer.types`, so the whole
+ * drag-and-drop path would have gone quiet under `pl` with nothing on screen
+ * explaining it.
+ */
+const DRAGGED_FILES = "Files";
 
 interface KBDetailPageProps {
   params: Promise<{ id: string }>;
@@ -145,6 +164,13 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
    */
   const [uploadOverride, setUploadOverride] = useState<IngestionOverride>({});
   const overrideCount = overrideSize(uploadOverride);
+  /**
+   * Chunks across the documents this page has actually fetched.
+   *
+   * Not the collection's total, and it cannot be: no response this page makes
+   * carries one. The strip below says which of the two it is showing.
+   */
+  const loadedVectors = documents.reduce((sum, doc) => sum + doc.chunk_count, 0);
 
   const handleDownload = async (doc: KBDocument) => {
     if (downloadingId) return;
@@ -202,7 +228,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
           <span className="text-muted-foreground text-xs">
             {doc.filetype || "-"}
             {doc.filesize !== null && ` · ${formatBytes(doc.filesize)}`}
-            {doc.chunk_count > 0 && ` · ${doc.chunk_count} chunks`}
+            {doc.chunk_count > 0 && ` · ${t("chunkCount", { count: doc.chunk_count })}`}
           </span>
         ),
       },
@@ -292,7 +318,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
     <div
       className="relative pb-8"
       onDragEnter={(e) => {
-        if (e.dataTransfer.types.includes(t("files2"))) {
+        if (e.dataTransfer.types.includes(DRAGGED_FILES)) {
           dragCounterRef.current += 1;
           setIsDragging(true);
         }
@@ -302,7 +328,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
         if (dragCounterRef.current === 0) setIsDragging(false);
       }}
       onDragOver={(e) => {
-        if (e.dataTransfer.types.includes(t("files3"))) e.preventDefault();
+        if (e.dataTransfer.types.includes(DRAGGED_FILES)) e.preventDefault();
       }}
       onDrop={(e) => {
         e.preventDefault();
@@ -320,8 +346,10 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
             <div className="text-center">
               <p className="text-foreground text-lg font-semibold">{t("dropUpload")}</p>
               <p className="text-muted-foreground mt-1 text-sm">
-                Files will be added to{" "}
-                <span className="text-foreground font-medium">{kb.name}</span>
+                {t.rich("filesWillBeAddedTo", {
+                  name: kb.name,
+                  strong: (chunks) => <span className="text-foreground font-medium">{chunks}</span>,
+                })}
               </p>
             </div>
           </div>
@@ -410,17 +438,32 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
         }
       />
 
+      {/* What the collection holds, not what the table has fetched.
+
+          `documents` is one page of twenty, so this strip used to say "20
+          documents" over a collection of fifty-seven and then climb every time
+          Load more was pressed - which reads as ingestion happening rather than
+          as the page correcting itself. `documentsTotal` is the documents
+          query's own total; `kb.document_count` is not an alternative, because
+          the single-row `GET /kb/{id}` leaves all three counts at zero.
+
+          The vector count has no such total in any response this page makes, so
+          it says which it is. Once every document is loaded the sum *is* the
+          collection's, and it says so plainly; until then it names its own
+          scope rather than passing a partial sum off as the whole. */}
       <div className="text-muted-foreground mb-6 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
         <span className="inline-flex items-center gap-1.5">
           <scopeMeta.icon className="h-3.5 w-3.5" />
-          {scopeMeta.label}
-          {kb.is_default && " · Default"}
+          {t(scopeMeta.labelKey)}
+          {kb.is_default && ` · ${t("default")}`}
         </span>
         <span>·</span>
-        <span>{t("documentCount", { count: documents.length })}</span>
+        <span>{t("documentCount", { count: documentsTotal })}</span>
         <span>·</span>
         <span>
-          {t("vectorCount", { count: documents.reduce((sum, d) => sum + d.chunk_count, 0) })}
+          {hasMoreDocuments
+            ? t("vectorCountLoaded", { count: loadedVectors })
+            : t("vectorCount", { count: loadedVectors })}
         </span>
       </div>
 
@@ -511,7 +554,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
               </Button>
             )}
             <p className="text-muted-foreground text-center text-xs">
-              Showing {documents.length} of {documentsTotal} · drag files anywhere to add
+              {t("showingOfTotal", { loaded: documents.length, total: documentsTotal })}
             </p>
           </div>
         )}
@@ -780,7 +823,7 @@ function SyncSourceRow({
             {source.schedule_minutes && source.schedule_minutes > 0 && (
               <>
                 <span>·</span>
-                <span>every {source.schedule_minutes}m</span>
+                <span>{t("everyMinutes", { minutes: source.schedule_minutes })}</span>
               </>
             )}
           </div>
@@ -861,11 +904,16 @@ function Provenance({ doc }: { doc: KBDocument }) {
 }
 
 function StatusBadge({ status, message }: { status: string; message: string | null }) {
+  const t = useTranslations("pages.kb");
+  // Four one-word labels, which is under `check_i18n.py`'s two-word threshold -
+  // so they sat here in English and rendered that way under every locale. The
+  // fall-through keeps the server's own word for a status this build does not
+  // know: a value nothing has translated, rather than copy somebody wrote.
   const config = {
-    completed: { Icon: CheckCircle2, label: "Ready", spin: false },
-    processing: { Icon: Loader2, label: "Processing", spin: true },
-    pending: { Icon: Clock, label: "Pending", spin: false },
-    failed: { Icon: AlertCircle, label: "Failed", spin: false },
+    completed: { Icon: CheckCircle2, label: t("statusReady"), spin: false },
+    processing: { Icon: Loader2, label: t("statusProcessing"), spin: true },
+    pending: { Icon: Clock, label: t("statusPending"), spin: false },
+    failed: { Icon: AlertCircle, label: t("statusFailed"), spin: false },
   } as const;
   const c = (config as Record<string, (typeof config)[keyof typeof config]>)[status] ?? {
     Icon: Clock,
