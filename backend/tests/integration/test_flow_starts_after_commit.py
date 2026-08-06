@@ -8,11 +8,12 @@ the flow opens a session of its own, so under `READ COMMITTED` it cannot see
 the row at all. What follows is an upload answered `{"status": "processing"}`
 that stays that way forever.
 
-The ordering is observed rather than sampled. Both tests below drive the same
+The ordering is observed rather than sampled. The first two tests drive the same
 one-route application over ASGI, differing only in *which* handoff the route
 uses, and the flow's first act is to ask a second connection whether the row is
 visible to anyone but the request. Under `READ COMMITTED` that answer is a fact
-about the ordering, not a bet on timing.
+about the ordering, not a bet on timing. The third is the failure path: a
+request that raises dispatches nothing at all.
 
 What makes it deterministic in both directions is the wait in the route: after
 handing the work over, the route pauses for a moment for the flow to take its
