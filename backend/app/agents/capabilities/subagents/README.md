@@ -54,18 +54,25 @@ pacing limit should not end a run.
 
 **Every delegation is recorded.** A delegate spends against the *parent's* ledger
 by construction, which is what makes the parent's budget see a delegation before
-the next request. So the only honest description of what one delegation cost is
-what the shared total grew by while it ran. That is exact for a sync delegation,
-which holds the run loop, and overlapping for concurrent ones — stated in
-`DelegationOutcome` rather than hidden.
+the next request. One ledger, and every entry in it stamped with the delegation
+that booked it — so what one delegation cost is the sum of its own entries, exact
+in both modes and at every depth. It used to be the *growth* of the shared total
+across the delegation, which absorbed whatever the parent spent before a background
+one was polled and counted a delegate's delegates inside its own share
+(agenticos#180); `DelegationOutcome` has the numbers.
 
-A delegation that **parked** is more than one such window, because its turns ran
-against different ledgers in different processes. So the park keeps a running total
-and `_spent` adds this turn's delta to it; one row is written, by the turn where the
-delegation ends. Left out, the row held what the delegate spent after the last
-resume — the small half, on the ordinary shape of doing the work and then asking
-permission to act on it — and nothing anywhere disagreed, because the money was in
-the parent's row all along.
+A delegation that **parked** is more than one such share, because its turns ran
+against different ledgers in different processes and a resumed turn's is a fresh
+object. So the park keeps a running total and `_spent` adds this turn's share to it;
+one row is written, by the turn where the delegation ends. Left out, the row held
+what the delegate spent after the last resume — the small half, on the ordinary shape
+of doing the work and then asking permission to act on it — and nothing anywhere
+disagreed, because the money was in the parent's row all along.
+
+`has_unpriced_models` is carried the same way and OR'd across the segments, because
+`cost_is_partial` is per share now rather than per run: a delegate that made an
+unpriced request *before* the approval and resumed onto a priced model would
+otherwise have its row claim an exact cost for money nobody priced.
 
 **A delegate that stopped for a person keeps its place.** See below; it is the one
 decision here that is a correctness fix rather than a policy.
@@ -137,6 +144,15 @@ So a parked run is a tree, and three pieces carry it:
   Pydantic AI refuses a resume whose results name a call the replayed response does
   not contain, so one flat set for the whole tree fails the continuation.
 
+The same tree carries a fourth thing when a level binds `allow_dynamic`: the
+specialists it kept with `create_agent`. They ride on that level's own
+`DelegationFrame`, keyed by the `task` call it was delegated from — the run's own
+agent's on the flat `PausedRunState.dynamic_specialists` — so a nested `create_agent`
+survives the park its own delegate caused, not only the run's own agent's
+(agenticos#254). `record_created_specialists` snapshots each level's registry under
+that key when its `wrap_run` ends, and `build_delegation` re-seeds each level's fresh
+registry from the same key on resume.
+
 Everything in the stash is plain data, and that is a constraint rather than a
 preference: it outlives the tool call it was made in and is written to a JSONB
 column, while `request_approval` closes over a service holding the request's
@@ -196,24 +212,47 @@ without it, and answers "No active knowledge bases selected" to every search —
 specialist that publishes cleanly, looks correctly configured, and cannot read the
 one thing it exists to read.
 
-**A background delegation gets no approval channel.** `request_approval` closes
-over `ApprovalService`, which holds the request's `AsyncSession` — shared by the
-whole run and not concurrency-safe — and a background delegation outlives the tool
-call that started it. Asking is therefore a database write from a task the parent
-is still sharing its session with, for a decision that cannot be delivered anyway:
-the tool call returned a task id long ago, so there is no caller left to hand a
-parked call back to. The channel is handed down as `None`, which is the case the
-gate is already written for — it refuses the call, tells the model a person could
-not be asked, and the delegation goes on to answer or to say it could not. A sync
-delegation keeps the channel, because there a parked call genuinely does park the
-parent run; that is the supported shape, and `mode="sync"` is what the library's
-own message tells a model to re-delegate with.
+**A background delegation gets no approval channel.** A background delegation
+outlives the tool call that started it, and a parked call it produced could not be
+delivered anyway: the tool call returned a task id long ago, so there is no caller
+left to hand the parked call back to. The channel is handed down as `None`, which
+is the case the gate is already written for — it refuses the call, tells the model
+a person could not be asked, and the delegation goes on to answer or to say it
+could not. A sync delegation keeps the channel, because there a parked call
+genuinely does park the parent run; that is the supported shape, and `mode="sync"`
+is what the library's own message tells a model to re-delegate with. (The channel
+itself no longer holds a session — a parked call is described and the row written
+from the run's terminal write, agenticos#169 — so this is about where the decision
+can be delivered, not about a write racing the shared session.)
 
-**Let a delegate ask the parent a question.** The library's `ask_parent` tool is
-injected only into agents it built itself, and every delegate here arrives
-pre-built. A specialist works autonomously and says so if it could not; a
-specialist that needs a person reaches one through its own capabilities, on the
-parent's channels, which `AgentDeps.clone_for_subagent` passes down.
+**A delegate asks the parent a question only when its author allows it.** Off by
+default: a specialist works autonomously and says so if it could not. An author who
+wants the other behaviour sets `allow_questions`, and `_config_for` then grants
+`can_ask_questions` to each configured delegate whose mode is sync — a sync question
+is answered by `ctx.deps.ask_user`, the person already holding the parent's tool
+call, which `AgentDeps.clone_for_subagent` passes down. It is granted only for a
+sync delegation: a background one has handed back a task id with nobody left to
+answer, and `auto` may become one. A specialist a model *invents* never asks,
+whatever the author set — `_autonomously` holds the two dynamic entry points to
+autonomy, because a question wearing instructions a model wrote a moment ago is not
+the author's to put to a person. Reaching a pre-built delegate at all took an
+upstream change: the library injected `ask_parent` only into agents it built itself
+until subagents-pydantic-ai#76, which honours `can_ask_questions` for a
+caller-supplied agent too — every delegate here is one.
+
+So **`answer_subagent` is declared and offered to nobody** — `UNREACHABLE_TOOLS`,
+applied as a filter in `get_toolset`. It answers a question a *background* delegate
+parked on, and no delegate here parks on one: a sync question goes to a person
+through `ask_user` and never this tool, and an async delegate is not granted
+`can_ask_questions` at all. The library adds the tool to its toolset
+unconditionally, so the offered set is the only place the decision can be made.
+Declared still, because a tool absent from `tools=` can be neither gated by the
+approval policy nor renamed by a binding, and that half is silent; filtered, because
+the other half is a description in every turn's context inviting a call whose only
+answer is "that delegation is not waiting for an answer". agenticos#184 opened the
+sync half — a person answering — and left this tool unreachable; the background half,
+where the parent's own model answers while nothing obliges it to look, is what would
+empty the set.
 
 ## Background delegation, and what it costs
 
@@ -227,6 +266,16 @@ several, `list_active_tasks` for what is still going,
 them is scoped to the run that started the task — a task id is short and appears
 in tool output, so an unscoped lookup would let one run read and kill another's
 work.
+
+These six are **offered only when a background delegation is reachable**, the same
+`get_toolset` filter that withholds `answer_subagent` — `BACKGROUND_LIFECYCLE_TOOLS`
+and `_can_delegate_in_background`. Each takes or reports on a task id, and a `sync`
+delegation returns the answer and a `chat_trace_id` and nothing else, so a
+`sync`-only agent is handed none of them and `task` alone. Reachable means the
+configured mode is `async` or `auto`, a pinned delegate prefers either, or the agent
+may invent specialists — `sync` being the default is what makes withholding them the
+common case rather than a corner. The predicate errs toward offering: removing a
+tool an agent needs mid-turn is worse than offering one it will not use.
 
 Three things about it are not obvious.
 
@@ -339,14 +388,21 @@ delegate does is gated by the delegate's own reviewed spec; there is no reviewed
 spec here, so the specialist itself is the thing worth a person's eye. An author
 who wants an agent to run unattended clears it with `tool_approval`.
 
-**Nothing is persisted, and a kept one lasts less long than "the run".** The
+**Nothing is persisted across turns, but a kept one survives a park.** The
 registry `create_agent` writes into belongs to the *built agent*, and a run that
-parks on an approval is built again when it is continued — so a specialist
-created before the park is unknown after it, while the transcript still carries
-the library's "created successfully". `create_agent`'s description says so and
-`task` answers "unknown subagent", which makes it recoverable rather than
-surprising; making the tool mean what its name says is agenticos#175. Keeping one
-properly means publishing an agent, which is a person's action.
+parks on an approval is built again when it is continued — so without help a
+specialist created before the park would be unknown after it, while the transcript
+still carried the library's "created successfully". The capability snapshots each
+level's registrations when the run ends and the runner carries them in
+`PausedRunState`, so a resume re-registers each one into that level's fresh registry
+through the same build path — at the run's own agent (agenticos#175) and inside a
+nested delegate (agenticos#254) alike. The carry is keyed by the `task` call each
+level was delegated from, which is how a nested delegate's ride on its own
+`DelegationFrame` the way its conversation does, rather than on the flat run-level
+list. What still does *not* survive is a conversation *turn*: each turn is its own
+build with no paused state, so a name created in one reply is unknown in the next,
+and `create_agent`'s description tells the model to create it again if `task` says
+so. Keeping one properly means publishing an agent, which is a person's action.
 
 `MAX_DYNAMIC_SPECIALISTS` bounds how many one run may **keep**, which is the
 registry's ceiling and nothing else: a `delegate` call registers nothing, so
@@ -359,11 +415,19 @@ one-shot delegation under the same mode, fan-out ceiling and recording as a
 table rather than a comparison against one name — a delegation this module does
 not see is one that escapes every decision it makes.
 
-With both wired there is nothing left for the drift check to be told about:
-`UNWIRED_TOOLS` in `tests/test_capability_registry.py` is gone, and before it a
-`CapabilityDef.drift_config` field that named a configuration nothing read. What
-stands in their place is a resource fixture wide enough — one resolved delegate
-*and* a `DynamicSpecialists` — that no capability has an excuse.
+Wiring both removed `UNWIRED_TOOLS` from `tests/test_capability_registry.py`, and
+before it a `CapabilityDef.drift_config` field that named a configuration nothing
+read. What stands in their place is a resource fixture wide enough — one resolved
+delegate *and* a `DynamicSpecialists` — that no capability has an excuse for not
+building.
+
+An exception table is back, and it is a narrower claim than either of those:
+`DECLARED_AND_NOT_OFFERED` names `answer_subagent`, subtracted from the expectation
+rather than exempting the capability, so everything else about `subagents` is still
+compared in both directions. That "nothing left to be told about" only held while a
+declared tool was declared and *unwired*; a declared tool that is declared and
+deliberately *unoffered* is a state the check has to know about, or it reads the
+filter as drift.
 
 ## The general-purpose delegate is not offered
 
@@ -371,14 +435,15 @@ stands in their place is a resource fixture wide enough — one resolved delegat
 the library's own default of `True`. That is a fact about somebody else's default,
 stated in one place — not a setting, and never one an author could reach.
 
-The library compiles this delegate at construction from `default_model`, a model
-string of its own choosing: no profile of this organization's resolves it, no
-credential of this organization's is unsealed for it, and the run's `BudgetGuard`
-never wraps it. So a deployment holding no such key fails the build outright, and
-one with that key in its process environment runs a tenant's work on a
-deployment-wide credential — unpriced, unmetered, and against the one rule
-`model_resolver.py` states outright. A switch whose two outcomes are a crash and a
-credential leak is a trap, and a warning beside it is not a guard.
+Before subagents-pydantic-ai 0.2.18 the library compiled this delegate at
+construction from `default_model`, a model string of its own choosing: no profile
+of this organization's resolved it, no credential of this organization's was
+unsealed for it, and the run's `BudgetGuard` never wrapped it. A deployment holding
+no such key failed the build outright, and one with that key in its process
+environment ran a tenant's work on a deployment-wide credential — unpriced,
+unmetered, and against the one rule `model_resolver.py` states outright. A switch
+whose two outcomes are a crash and a credential leak is a trap, and a warning beside
+it is not a guard.
 
 There was briefly an `include_general_purpose` field on `SubagentsConfig`,
 defaulting off with that warning written next to it. It was removed rather than
@@ -389,9 +454,11 @@ round trip to learn it does nothing.
 
 An author who wants a catch-all writes an inline specialist, which runs on one of
 this organization's model profiles through `build_agent` like every other delegate,
-and whose instructions somebody can read. Making the library's own work means
-resolving it here the same way: agenticos#174, still open, and an upstream defect
-regardless of what this deployment configures.
+and whose instructions somebody can read. The library's own is fixed as of 0.2.18
+(agenticos#174): with no `default_model` and no `default_agent_factory` it now
+refuses to build the delegate rather than compiling it from a model of its own, so
+leaving the switch on would raise here, not leak. This platform still does not offer
+it, for the reason above.
 
 ## Reading the code
 

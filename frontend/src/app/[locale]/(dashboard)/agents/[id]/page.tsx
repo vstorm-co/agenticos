@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
-import { AgentMap, MAP_ICONS, type MapNode } from "@/components/agents/agent-map";
+import { AgentMap, MAP_ICONS, type MapDelegate, type MapNode } from "@/components/agents/agent-map";
 import { AgentStatusBadge } from "@/components/agents/status-badge";
 import { AlertsPanel } from "@/components/agents/alerts-panel";
 import { CapabilityWorkbench } from "@/components/agents/capability-workbench";
@@ -82,7 +82,15 @@ import {
   useRuns,
   useSkills,
 } from "@/hooks";
-import { SANDBOX_ID, SKILLS_ID, THINKING_ID, withCapability, withSkills } from "@/lib/agent-spec";
+import {
+  readSubagentsConfig,
+  SANDBOX_ID,
+  SKILLS_ID,
+  SUBAGENTS_ID,
+  THINKING_ID,
+  withCapability,
+  withSkills,
+} from "@/lib/agent-spec";
 import { ROUTES } from "@/lib/constants";
 import { useAgentSelectionStore, useConversationStore } from "@/stores";
 import { cn } from "@/lib/utils";
@@ -100,7 +108,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const router = useRouter();
   const { agent, isLoading, saveDraft, validate, publish, rollback, setAvatar } = useAgent(id);
   const { environments, promote } = useAgentEnvironments(id);
-  const { clone, archive, unarchive, remove } = useAgents();
+  const { agents, clone, archive, unarchive, remove } = useAgents();
   const { capabilities } = useCapabilityCatalog();
   const { profiles } = useModelProviders();
   // The Builder holds the set rather than paging it: the gallery has to know
@@ -268,6 +276,41 @@ export default function AgentBuilderPage({ params }: PageProps) {
       },
     ];
   }, [spec, exposures, collections, profiles, capabilities, mcpConnections, skills, t]);
+
+  // Subagents as their own kind of node - another agent this one reaches for,
+  // not a tool. A pinned delegate carries a link to its own page, so the map
+  // walks the delegation tree one hop at a time; an inline specialist has no
+  // page and no link. A delegate the organization no longer has, or that this
+  // caller cannot see, is named as unreachable rather than dropped - the same
+  // silence that hides what publishing will refuse.
+  const delegateNodes = useMemo<MapDelegate[]>(() => {
+    if (!spec) return [];
+    const inline = readSubagentsConfig(
+      spec.capabilities.find((binding) => binding.id === SUBAGENTS_ID),
+    ).inline;
+    // The index is part of the key because a draft can carry a duplicate before
+    // publishing refuses it - two pins of one agent, or two specialists sharing
+    // a name - and two nodes under one key would collide in the ref map the
+    // edges are measured from, dropping one silently. `delegate-list` keys the
+    // same way, for the same reason.
+    const delegates: MapDelegate[] = (spec.subagents ?? []).map((ref, index) => {
+      const agent = agents.find((entry) => entry.id === ref.agent_id);
+      return {
+        key: `delegate:${ref.agent_id}:${index}`,
+        name: agent?.name ?? t("delegateUnreachable"),
+        kind: "delegate",
+        mode: ref.preferred_mode ?? null,
+        href: agent ? ROUTES.AGENT_DETAIL(ref.agent_id) : undefined,
+      };
+    });
+    const specialists: MapDelegate[] = inline.map((specialist, index) => ({
+      key: `specialist:${index}`,
+      name: specialist.name || t("unnamedSpecialist"),
+      kind: "specialist",
+      mode: specialist.preferred_mode ?? null,
+    }));
+    return [...delegates, ...specialists];
+  }, [spec, agents, t]);
 
   // Two capabilities are configured elsewhere and so are kept off this list,
   // because a second control for one field is a control that disagrees with the
@@ -492,7 +535,12 @@ export default function AgentBuilderPage({ params }: PageProps) {
             <DialogDescription>{t("draftAsStandsWhat")}</DialogDescription>
           </DialogHeader>
           {spec && (
-            <AgentMap agentName={spec.name} instructions={spec.instructions} nodes={mapNodes} />
+            <AgentMap
+              agentName={spec.name}
+              instructions={spec.instructions}
+              nodes={mapNodes}
+              delegates={delegateNodes}
+            />
           )}
         </DialogContent>
       </Dialog>
@@ -644,6 +692,9 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 // is handed that slice as well as the binding.
                 subagents={spec.subagents ?? []}
                 onSubagentsChange={(subagents) => update({ subagents })}
+                // So promoting a specialist that runs on the parent's model can
+                // resolve one for the standalone agent it becomes.
+                modelProfileId={spec.model_profile_id ?? null}
                 disabled={!canEdit}
               />
             </CardContent>

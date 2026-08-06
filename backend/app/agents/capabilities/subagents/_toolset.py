@@ -18,8 +18,10 @@ act on, not as an exception that ends the run.
 
 *Every delegation is recorded.* The library reports a delegation's result to the
 model and its status on a task handle; neither is a run row, and neither says
-what it cost. What the run's shared ledger grew by while the delegation ran is
-that number, and this is the only place both ends of that window exist.
+what it cost. This is where the delegation is opened and closed, so this is where
+its requests are named as its own: `journal.delegating` marks the run's shared
+ledger for the length of the call, and the entries booked under that mark are the
+delegation's cost whenever it is settled afterwards.
 
 *A delegate that stopped for a person keeps its place.* The suspension arrives
 here as a `CallDeferred` or an `ApprovalRequired` propagating out of the wrapped
@@ -36,9 +38,16 @@ here rather than in the library's own validation because the library validates
 what it was configured with and none of these three is expressible that way. See
 :meth:`DelegatingToolset._refuse_dynamic`.
 
-*A specialist never asks the parent a question.* Which is a decision about the
-arguments rather than about the call, so it is applied to them on the way past:
-see :func:`_autonomously`.
+*A specialist a model invents never asks the parent a question.* Which is a
+decision about the arguments rather than about the call, so it is applied to them
+on the way past: see :func:`_autonomously`. It closes only the two dynamic entry
+points, because they are the ones a model reaches with the licence at the library's
+`True` default. A *configured* delegate - pinned or inline - asks only when its
+author set `allow_questions` and its mode is sync, decided once when its config is
+built: see :func:`~app.agents.capabilities.subagents._capability._config_for`. A
+sync question is answered by the parent's own `ask_user` channel, never through the
+tool that :data:`~app.agents.capabilities.subagents._capability.UNREACHABLE_TOOLS`
+withholds - that one answers a *background* question, which no delegate here asks.
 
 Three entry points therefore reach a delegation - `task`, `delegate`, and `task`
 addressing something `create_agent` registered - and all three come through here.
@@ -261,10 +270,13 @@ def _autonomously(tool_args: dict[str, Any]) -> dict[str, Any]:
 
     The library injects an `ask_parent` toolset into every agent it built itself,
     which a dynamic specialist is - and `can_ask_questions` is a *model-supplied*
-    argument defaulting to `True`, so the model decides. This platform has already
-    decided, for every delegate: a specialist works autonomously and says so if it
-    could not, and one that needs a person reaches one through its own
-    capabilities, on the parent's channels.
+    argument defaulting to `True`, so the model decides. This platform decides
+    instead, and for a specialist a model invents the decision is fixed: it works
+    autonomously and says so if it could not. Whether a *configured* delegate may
+    ask is the author's `allow_questions`, applied in `_config_for`; a model
+    inventing a specialist a moment ago is not the person that decision belongs to,
+    so the two dynamic entry points are held to autonomy here whatever the author
+    set.
 
     Left at the model's discretion the tool would not merely be useless, it would
     work: `ask_parent` falls back to `ctx.deps.ask_user`, which

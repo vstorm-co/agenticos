@@ -11,6 +11,7 @@ parked run that never continues. It drives a real agent through park and resume.
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from dataclasses import dataclass
 from typing import Any
@@ -217,10 +218,7 @@ class TestGate:
 class TestApprovalChannel:
     @pytest.mark.anyio
     async def test_a_first_ask_parks_the_call_and_remembers_which_one(self):
-        approval = MagicMock(id=uuid.uuid4())
-        approvals = MagicMock(request=AsyncMock(return_value=approval))
         channel = ApprovalChannel(
-            approvals=approvals,
             organization_id=uuid.uuid4(),
             agent_id=uuid.uuid4(),
             run_id=uuid.uuid4(),
@@ -236,17 +234,19 @@ class TestApprovalChannel:
         )
 
         assert isinstance(decision, ApprovalPending)
-        # The approver reads the tool and its arguments, not the capability id.
-        assert approvals.request.call_args.kwargs["tool_id"] == "send_email"
-        assert approvals.request.call_args.kwargs["tool_args"] == {"to": "a@example.com"}
-        assert channel.parked == {str(approval.id): "call-1"}
+        # Parking writes no row - the id is allocated here and the row follows at the
+        # run's terminal write. What the channel remembers is enough to write it:
+        # the approver reads the tool and its arguments, not the capability id.
+        [parked] = channel.requested
+        assert parked.tool_name == "send_email"
+        assert parked.tool_args == {"to": "a@example.com"}
+        # The allocated id maps to the model's call, both here and in `requested`.
+        assert channel.parked == {str(parked.approval_id): "call-1"}
 
     @pytest.mark.anyio
     async def test_a_decision_authorises_one_call_only(self):
         """One "yes" must not authorise a loop of the same side effect."""
-        approvals = MagicMock(request=AsyncMock(return_value=MagicMock(id=uuid.uuid4())))
         channel = ApprovalChannel(
-            approvals=approvals,
             organization_id=uuid.uuid4(),
             agent_id=uuid.uuid4(),
             run_id=uuid.uuid4(),
@@ -264,7 +264,41 @@ class TestApprovalChannel:
 
         assert isinstance(first, ApprovalGranted)
         assert isinstance(second, ApprovalPending)
-        approvals.request.assert_awaited_once()
+        # The decision was consumed by the first call, so only the second parked.
+        assert len(channel.requested) == 1
+
+    @pytest.mark.anyio
+    async def test_two_calls_in_one_step_park_concurrently_without_a_session(self):
+        """The property behind agenticos#169: parking touches no shared session.
+
+        Pydantic AI runs the tool calls from one model response concurrently, so two
+        gated calls reach the channel at once. When each wrote its own approval row
+        on the request's shared `AsyncSession`, the two flushes corrupted it. The
+        channel now holds no session at all and `__call__` never awaits - so this
+        drives both calls concurrently and asserts each parked with an id of its own,
+        which is exactly what a write on a shared session could not have guaranteed.
+        """
+        channel = ApprovalChannel(
+            organization_id=uuid.uuid4(),
+            agent_id=uuid.uuid4(),
+            run_id=uuid.uuid4(),
+        )
+        calls = [
+            ApprovalRequest(
+                capability_id="email",
+                tool_name="send_email",
+                tool_call_id=f"call-{n}",
+                tool_args={"to": f"{n}@example.com"},
+            )
+            for n in (1, 2)
+        ]
+
+        decisions = await asyncio.gather(*(channel(call) for call in calls))
+
+        assert all(isinstance(decision, ApprovalPending) for decision in decisions)
+        # Two rows-to-be, each with its own id, and the parked map names both calls.
+        assert len({parked.approval_id for parked in channel.requested}) == 2
+        assert set(channel.parked.values()) == {"call-1", "call-2"}
 
 
 class TestApprovalQueue:
@@ -278,8 +312,9 @@ class TestApprovalQueue:
         to travel as explicit ids - and the arguments especially: approving
         "send_email" without seeing the recipient is a rubber stamp.
         """
+        approval_id = uuid.uuid4()
         organization_id, run_id, agent_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
-        approval = MagicMock(id=uuid.uuid4())
+        approval = MagicMock(id=approval_id)
         db = MagicMock(flush=AsyncMock(), refresh=AsyncMock())
 
         with patch(
@@ -287,6 +322,7 @@ class TestApprovalQueue:
             new=AsyncMock(return_value=approval),
         ) as parked:
             requested = await ApprovalService(db).request(
+                approval_id=approval_id,
                 organization_id=organization_id,
                 run_id=run_id,
                 agent_id=agent_id,
@@ -296,6 +332,9 @@ class TestApprovalQueue:
 
         assert requested is approval
         assert parked.call_args.kwargs == {
+            # The id is allocated when the call is parked, not by the database, so
+            # the row matches the `paused_state` that already names it.
+            "approval_id": approval_id,
             "organization_id": organization_id,
             "run_id": run_id,
             "agent_id": agent_id,
@@ -421,7 +460,6 @@ class TestParkAndResume:
 
     def _channel(self, run_id: uuid.UUID, **kwargs: Any) -> ApprovalChannel:
         return ApprovalChannel(
-            approvals=MagicMock(request=AsyncMock(return_value=MagicMock(id=uuid.uuid4()))),
             organization_id=uuid.uuid4(),
             agent_id=uuid.uuid4(),
             run_id=run_id,

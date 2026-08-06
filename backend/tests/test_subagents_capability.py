@@ -8,8 +8,9 @@ run has ended. None of those look like errors, so each one is pinned here.
 
 The background path adds three more of the same kind, and each has its own class:
 a delegation nobody collects (`TestBackgroundDelegations`), a lifecycle tool whose
-description promises something it does not do (`TestTaskLifecycle`), and a
-delegate that stops for a person nobody can ask
+description promises something it does not do (`TestTaskLifecycle` - and
+`TestAttaching`, for the one whose promise cannot be kept at all and which is
+therefore not offered), and a delegate that stops for a person nobody can ask
 (`TestApprovalInsideADelegation`). Cancellation is deliberately *not* here: the
 cancel that matters arrives from outside the run, so it is asserted through the
 surface that sends it, in
@@ -28,6 +29,7 @@ import logging
 import re
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 from uuid import UUID, uuid4
@@ -73,14 +75,19 @@ from app.agents.capabilities.approval import (
 )
 from app.agents.capabilities.budget import SpendEntry, SpendLedger
 from app.agents.capabilities.subagents import Delegation, SubagentsConfig
-from app.agents.capabilities.subagents._capability import _LazyAgent
+from app.agents.capabilities.subagents._capability import (
+    BACKGROUND_LIFECYCLE_TOOLS,
+    UNREACHABLE_TOOLS,
+    _config_for,
+    _LazyAgent,
+)
 from app.agents.capabilities.subagents._events import UNNAMED_TOOL, FrameLabels, frame_for
 from app.agents.capabilities.subagents._journal import DelegationJournal
 from app.agents.capabilities.subagents._toolset import DelegatingToolset
 from app.agents.deps import AgentDeps
 from app.agents.factory import DEFAULT_MAX_STEPS
-from app.agents.spec import AgentSpec, CapabilityBindingSpec
-from app.agents.subagent_events import SubagentEvent
+from app.agents.spec import AgentSpec, CapabilityBindingSpec, DelegationMode
+from app.agents.subagent_events import SubagentEvent, SubagentFinished
 from app.agents.subagent_runtime import (
     SUBAGENT_RUNTIME_RESOURCE,
     DelegationOutcome,
@@ -95,9 +102,19 @@ ENTRY = SpendEntry(
 )
 """What one delegate request costs in these tests.
 
-A fixed entry appended by the delegate's own model rather than a real price
-lookup: the number under test is the *delta* the journal measures, and a delta of
-an unpriced model is zero however correct the measurement is.
+A fixed entry booked by the delegate's own model rather than a real price lookup:
+the number under test is the *share* the journal attributes, and a share of an
+unpriced model is zero however correct the attribution is.
+"""
+
+PARENT_REQUEST = SpendEntry(
+    model_name="test", input_tokens=200, output_tokens=100, cost_usd=Decimal("0.05"), priced=True
+)
+"""One request the parent makes on its own account, while or after a delegate runs.
+
+Deliberately not the same number as `ENTRY`, and ten of them are twice the whole
+delegation: an assertion about whose spend is whose has to fail when the two are
+confused, and equal numbers make that indistinguishable from arithmetic.
 """
 
 
@@ -105,8 +122,11 @@ def answering(text: str = "found it", *, ledger: SpendLedger | None = None) -> F
     """A model that answers once, spending into the run's ledger if there is one.
 
     Standing in for the budget guard, which is what records a real request. The
-    delegate spends into the *parent's* ledger by construction - that is the whole
-    reason a delegation's cost can be measured as a delta at all.
+    delegate spends into the *parent's* ledger by construction - one ledger per
+    run - and `book` is how the guard puts an entry into it, so it is how this
+    spends too: booking is where the entry is stamped with the delegation that
+    made it, and an entry appended around that is an entry attributed to the run's
+    own agent.
 
     Both halves are supplied because a delegation on a surface that narrates it is
     *streamed*: the library resolves an event handler, which puts the delegate's
@@ -116,15 +136,88 @@ def answering(text: str = "found it", *, ledger: SpendLedger | None = None) -> F
 
     def respond(_messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
         if ledger is not None:
-            ledger.entries.append(ENTRY)
+            ledger.book(ENTRY)
         return ModelResponse(parts=[TextPart(text)])
 
     async def stream(_messages: list[ModelMessage], _info: AgentInfo) -> AsyncIterator[str]:
         if ledger is not None:
-            ledger.entries.append(ENTRY)
+            ledger.book(ENTRY)
         yield text
 
     return FunctionModel(respond, stream_function=stream)
+
+
+def handing_on(to: str, *, ledger: SpendLedger) -> FunctionModel:
+    """A model that delegates once and then answers with what came back.
+
+    Two requests, both booked to whichever delegation is running when they are made
+    - which is the whole point when this model is a *delegate's*: its own two
+    requests are its own, and the third request the run makes is its delegate's.
+
+    No `stream_function`, unlike `answering`: nothing here narrates, so no sink is
+    handed down the tree, so the library resolves no event handler and drives every
+    delegation through `run`. A streamed half would be a branch no test reaches.
+    """
+
+    def respond(messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
+        ledger.book(ENTRY)
+        returned = _tool_results(messages)
+        if returned:
+            return ModelResponse(parts=[TextPart(" ".join(returned))])
+        return ModelResponse(
+            parts=[ToolCallPart("task", {"description": "check the claim", "subagent_type": to})]
+        )
+
+    return FunctionModel(respond)
+
+
+def streaming_handing_on(to: str, *, ledger: SpendLedger) -> FunctionModel:
+    """A `handing_on` that also narrates, for a tree observed through a surface.
+
+    Same two requests booked to whichever delegation is running - a delegate's own
+    two, then its own delegate's third - but with a `stream_function`, because a run
+    with a sink is driven through `iter` and a `FunctionModel` with no stream raises
+    there. Needed where the assertion is on the *panel* a surface shows, which only
+    exists when the delegation is streamed.
+    """
+    args = {"description": "check the claim", "subagent_type": to}
+
+    def respond(messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
+        ledger.book(ENTRY)
+        returned = _tool_results(messages)
+        if returned:
+            return ModelResponse(parts=[TextPart(" ".join(returned))])
+        return ModelResponse(parts=[ToolCallPart("task", args)])
+
+    async def stream(
+        messages: list[ModelMessage], _info: AgentInfo
+    ) -> AsyncIterator[str | DeltaToolCalls]:
+        ledger.book(ENTRY)
+        returned = _tool_results(messages)
+        if returned:
+            yield " ".join(returned)
+        else:
+            yield {0: DeltaToolCall(name="task", json_args=json.dumps(args))}
+
+    return FunctionModel(respond, stream_function=stream)
+
+
+def asking(question: str, *, prefix: str = "answer: ") -> FunctionModel:
+    """A delegate that asks the parent one question, then answers with what came back.
+
+    Two requests, like `handing_on`: an `ask_parent` call first, then - once the
+    person's answer is a tool result - the final text built from it. No
+    `stream_function`, so nothing narrates and the library drives the delegate
+    through `run`; a streamed half would be a branch these ask tests never reach.
+    """
+
+    def respond(messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
+        returned = _tool_results(messages)
+        if returned:
+            return ModelResponse(parts=[TextPart(f"{prefix}{' '.join(returned)}")])
+        return ModelResponse(parts=[ToolCallPart("ask_parent", {"question": question})])
+
+    return FunctionModel(respond)
 
 
 def looping() -> FunctionModel:
@@ -454,11 +547,30 @@ class Approvals:
         return ApprovalPending()
 
 
+class Asker:
+    """Stands in for the person waiting on the parent, reached through `ask_user`.
+
+    The one-question shape `subagents_pydantic_ai`'s `ask_parent` calls
+    `ctx.deps.ask_user` with - a question and options in, one answer string out.
+    Records the questions so a test can assert the delegate reached a person rather
+    than guessing.
+    """
+
+    def __init__(self, answer: str = "euros") -> None:
+        self.answer = answer
+        self.asked: list[str] = []
+
+    async def __call__(self, question: str, _options: list[str]) -> str:
+        self.asked.append(question)
+        return self.answer
+
+
 def a_context(
     sink: Sink | None = None,
     approvals: Approvals | None = None,
     *,
     run: str = "run-1",
+    asker: Asker | None = None,
 ) -> RunContext[AgentDeps]:
     """A parent run, with an organization, a run id and collections of its own.
 
@@ -481,6 +593,7 @@ def a_context(
             kb_collection_names=["kb_only_the_parent_may_read"],
             subagent_events=sink,
             request_approval=approvals,
+            ask_user=asker,
         ),
         model=TestModel(),
         usage=RunUsage(),
@@ -578,6 +691,46 @@ class TestAttaching:
         assert isinstance(capability, Delegation)
         assert capability.journal.max_fanout == SubagentsConfig().max_fanout
 
+    async def test_a_delegating_agent_is_offered_no_way_to_answer_a_question(self):
+        """The exact set a delegating agent's model reads, and why one is missing.
+
+        `answer_subagent` answers a question a *background* delegate parked on, and
+        no delegate here parks on one: a sync delegate that may ask (agenticos#184)
+        is answered by a person through `ask_user`, never this tool, and an async
+        delegate is not granted `can_ask_questions` at all. So the tool could only
+        ever answer "that delegation is not waiting for an answer" - from a
+        description in every turn's context, which is the strongest prompt surface in
+        this product.
+
+        It stays *declared*, which is the second assertion. A tool absent from
+        `tools=` can be neither gated by the approval policy nor renamed by a
+        binding, and that half of the same failure is silent. `UNREACHABLE_TOOLS`
+        says what making it reachable would take, and why agenticos#184 was only
+        half of that.
+
+        `async`, so that this stays a statement about `answer_subagent` alone: it is
+        the one tool withheld under *every* configuration, whereas the six
+        background-lifecycle tools are withheld only from a `sync`-only agent - see
+        `TestOfferedSet`. At the widest set, `answer_subagent` is the only thing
+        missing.
+        """
+        capability = a_capability(a_runtime(a_delegate()), {"mode": "async"})
+        toolset = capability.get_toolset()
+        assert toolset is not None
+
+        offered = frozenset(await toolset.get_tools(a_context()))
+
+        assert offered == {
+            "task",
+            "check_task",
+            "wait_tasks",
+            "list_active_tasks",
+            "send_message_to_subagent",
+            "soft_cancel_task",
+            "hard_cancel_task",
+        }
+        assert get("subagents").tool_ids >= UNREACHABLE_TOOLS
+
     async def test_allow_dynamic_in_the_config_alone_offers_no_extra_tool(self):
         """The setting has one reader, and it is not this capability.
 
@@ -587,14 +740,22 @@ class TestAttaching:
         `SubagentRuntime.dynamic` - and a config saying yes with no resolved
         builder behind it offers nothing, rather than two tools whose factory does
         not exist. `tests/test_dynamic_specialists.py` has the other direction.
+
+        `async`, so this stays a statement about `create_agent` and `delegate`
+        being absent when nothing resolved them - not about the background-lifecycle
+        set, which a `sync` agent would also be missing (`TestOfferedSet`).
         """
-        capability = a_capability(a_runtime(a_delegate()), {"allow_dynamic": True})
+        capability = a_capability(a_runtime(a_delegate()), {"allow_dynamic": True, "mode": "async"})
         toolset = capability.get_toolset()
         assert toolset is not None
 
         offered = frozenset(await toolset.get_tools(a_context()))
 
-        assert offered == get("subagents").tool_ids - {"create_agent", "delegate"}
+        assert offered == get("subagents").tool_ids - {
+            "create_agent",
+            "delegate",
+            *UNREACHABLE_TOOLS,
+        }
 
     async def test_the_model_reads_exactly_what_the_catalog_declares(self):
         """The other half of declaring the tools: the text has to be the same text.
@@ -622,10 +783,152 @@ class TestAttaching:
         assert capability.get_toolset() is capability.get_toolset()
 
 
-class TestRecording:
-    """What a delegation cost, measured as the run ledger's growth across it."""
+class TestOfferedSet:
+    """The six task-lifecycle tools, offered only when a background delegation is.
 
-    async def test_a_delegation_records_what_the_ledger_grew_by(self):
+    Every one of `check_task`, `wait_tasks`, `list_active_tasks`,
+    `send_message_to_subagent`, `soft_cancel_task` and `hard_cancel_task` takes or
+    reports on a task id, and a `sync` delegation hands the model none: the library
+    returns the answer and a `chat_trace_id` and nothing else. `sync` is the default
+    mode, so an agent that can make no background delegation is the common case, not
+    a corner - and six tool descriptions in every turn's context is the strongest
+    prompt surface in the product spent describing actions that cannot happen.
+
+    The predicate errs toward offering, because removing a tool an agent needs
+    mid-turn is worse than offering one it will not use: `async`, `auto`, a delegate
+    that prefers either, or permission to invent specialists each keep all six.
+    """
+
+    @staticmethod
+    async def _offered(capability: Delegation) -> frozenset[str]:
+        toolset = capability.get_toolset()
+        assert toolset is not None
+        return frozenset(await toolset.get_tools(a_context()))
+
+    async def test_a_sync_only_agent_is_offered_task_and_nothing_else(self):
+        """The whole of the fix: a `sync` agent with one delegate that overrides
+        nothing still delegates, it just manages no tasks. So `task`, and none of
+        the six - and none of `answer_subagent`, `create_agent` or `delegate`
+        either, which is what leaves `task` alone."""
+        offered = await self._offered(a_capability(a_runtime(a_delegate()), {"mode": "sync"}))
+
+        assert offered == {"task"}
+        assert not (offered & BACKGROUND_LIFECYCLE_TOOLS)
+
+    async def test_async_mode_offers_every_lifecycle_tool(self):
+        offered = await self._offered(a_capability(a_runtime(a_delegate()), {"mode": "async"}))
+
+        assert offered >= BACKGROUND_LIFECYCLE_TOOLS
+
+    async def test_auto_mode_offers_every_lifecycle_tool(self):
+        """`auto` is resolved per delegation from what the model says about the
+        task, so a delegation can go either way and the tools to collect a
+        background one have to be there."""
+        offered = await self._offered(a_capability(a_runtime(a_delegate()), {"mode": "auto"}))
+
+        assert offered >= BACKGROUND_LIFECYCLE_TOOLS
+
+    async def test_one_delegate_preferring_async_restores_them_for_a_sync_agent(self):
+        """`_mode_for` resolves `delegate.preferred_mode or self.mode`, so a single
+        delegate overriding a `sync` agent is enough to make a task id reachable -
+        and the tools that take one have to come back with it."""
+        capability = a_capability(
+            a_runtime(a_delegate(preferred_mode="async"), a_second_delegate()), {"mode": "sync"}
+        )
+
+        assert await self._offered(capability) >= BACKGROUND_LIFECYCLE_TOOLS
+
+    async def test_one_delegate_preferring_auto_restores_them_for_a_sync_agent(self):
+        capability = a_capability(
+            a_runtime(a_delegate(preferred_mode="auto"), a_second_delegate()), {"mode": "sync"}
+        )
+
+        assert await self._offered(capability) >= BACKGROUND_LIFECYCLE_TOOLS
+
+    async def test_a_delegate_pinned_sync_does_not_restore_them(self):
+        """A delegate that pins the mode the agent already has changes nothing: it
+        cannot background, so the predicate must not read its override as one that
+        could."""
+        capability = a_capability(a_runtime(a_delegate(preferred_mode="sync")), {"mode": "sync"})
+
+        assert not (await self._offered(capability) & BACKGROUND_LIFECYCLE_TOOLS)
+
+
+class TestAskingTheParent:
+    """A sync delegate may ask the person waiting on the parent, when its author allows.
+
+    Off by default, gated on the mode, and never open to a specialist a model
+    invented - the three things agenticos#184 turns on, without turning on more.
+    `TestADynamicSpecialist` in `test_dynamic_specialists.py` holds the last of those.
+    """
+
+    async def test_a_sync_delegate_reaches_the_person_and_finishes_on_the_answer(self):
+        """The whole feature, end to end and through the real library.
+
+        The delegate asks, a person answers through the run's `ask_user` channel,
+        and the delegation finishes using the answer - which the library injects
+        `ask_parent` for a caller-supplied delegate to do only since
+        subagents-pydantic-ai#76.
+        """
+        asker = Asker("euros")
+        capability = a_capability(
+            a_runtime(a_delegate(model=asking("which currency should I use?"))),
+            {"allow_questions": True},
+        )
+
+        answer = await delegate_to(capability, a_context(asker=asker))
+
+        assert asker.asked == ["which currency should I use?"]
+        assert "euros" in answer
+
+    def test_the_author_flag_and_the_mode_together_gate_asking(self):
+        """`can_ask_questions` is granted only for a sync delegation whose author
+        set `allow_questions` - the one combination with a person there to answer.
+
+        A background delegation has handed back a task id with nobody waiting, and
+        `auto` may become one, so neither is granted it however the flag is set. A
+        delegate's own `preferred_mode` decides which it is, in both directions.
+        """
+
+        def may_ask(*, allow: bool, mode: DelegationMode, preferred: DelegationMode | None = None):
+            journal = DelegationJournal(
+                runtime=a_runtime(), mode=mode, allow_questions=allow, max_fanout=3, depth=0
+            )
+            return _config_for(a_delegate(preferred_mode=preferred), journal).get(
+                "can_ask_questions"
+            )
+
+        assert may_ask(allow=True, mode="sync") is True
+        assert may_ask(allow=False, mode="sync") is False
+        assert may_ask(allow=True, mode="async") is False
+        assert may_ask(allow=True, mode="auto") is False
+        assert may_ask(allow=True, mode="async", preferred="sync") is True
+        assert may_ask(allow=True, mode="sync", preferred="async") is False
+
+    async def test_answer_subagent_stays_unoffered_even_when_questions_are_allowed(self):
+        """The sync half never routes through `answer_subagent`: a person answers it.
+
+        So opening questions must not start offering the tool - only the background
+        half, which no delegate here reaches, ever would. See `UNREACHABLE_TOOLS`.
+        """
+        capability = a_capability(a_runtime(a_delegate()), {"allow_questions": True})
+        toolset = capability.get_toolset()
+        assert toolset is not None
+
+        assert "answer_subagent" not in await toolset.get_tools(a_context())
+
+
+class TestRecording:
+    """What a delegation cost: its own share of the run's one shared ledger.
+
+    Its own, and the emphasis is the whole of agenticos#180. The number used to be
+    the ledger's *growth* across the delegation, which is the delegation's only
+    while nothing else in the run spends inside the window - and a background
+    delegation breaks that by definition. `TestBackgroundDelegations` and
+    `TestADelegateThatDelegates` hold the two halves.
+    """
+
+    async def test_a_delegation_records_what_its_own_requests_cost(self):
         ledger = SpendLedger()
         recorder = Recorder(run_id=uuid4())
         agent_id, version_id = uuid4(), uuid4()
@@ -651,13 +954,24 @@ class TestRecording:
         assert (outcome.agent_id, outcome.agent_version_id) == (agent_id, version_id)
         assert outcome.error is None
 
-    async def test_only_this_delegation_s_share_of_the_ledger_is_attributed(self):
-        """The delta, not the total: the parent has already spent before it delegates."""
+    async def test_what_the_parent_spent_before_delegating_is_not_the_delegates(self):
+        """The share, not the total: the parent has already spent before it delegates.
+
+        A published delegate, so the number under test is the row it writes: the
+        billed share reads the same as the delegate's own here, because it has no
+        inline specialist below it (agenticos#228).
+        """
         ledger = SpendLedger()
-        ledger.entries.append(ENTRY)
+        ledger.book(ENTRY)
         recorder = Recorder()
         capability = a_capability(
-            a_runtime(a_delegate(model=answering(ledger=ledger)), ledger=ledger, record=recorder)
+            a_runtime(
+                a_delegate(
+                    model=answering(ledger=ledger), agent_id=uuid4(), agent_version_id=uuid4()
+                ),
+                ledger=ledger,
+                record=recorder,
+            )
         )
 
         await delegate_to(capability, a_context())
@@ -880,7 +1194,13 @@ class TestBackgroundDelegations:
         ledger = SpendLedger()
         recorder = Recorder()
         capability = a_capability(
-            a_runtime(a_delegate(model=answering(ledger=ledger)), ledger=ledger, record=recorder),
+            a_runtime(
+                a_delegate(
+                    model=answering(ledger=ledger), agent_id=uuid4(), agent_version_id=uuid4()
+                ),
+                ledger=ledger,
+                record=recorder,
+            ),
             {"mode": "async"},
         )
         ctx = a_context()
@@ -901,6 +1221,84 @@ class TestBackgroundDelegations:
         # What ends a real run, and what this test would otherwise leak: the
         # second delegation is still executing in a task nobody awaits.
         await ends_the_run(capability, ctx)
+
+    async def test_a_background_row_spans_the_delegate_not_the_settlement(self):
+        """agenticos#191: the recorded span is the delegate's own, not the poll's.
+
+        A background delegation is settled when it is next polled - here, the end
+        of the run, after the parent has answered. Recorded off `now` that gave
+        every background row a duration of zero, at the moment of settlement rather
+        than the moment the delegate ran. The delegate pauses so its span is
+        genuinely non-zero, and the assertion reads the recorded times against a
+        clock read *before* the settlement - not a sleep measured after one.
+        """
+        recorder = Recorder()
+        capability = a_capability(
+            a_runtime(a_delegate(model=one_tool_call(), pause=0.02), record=recorder),
+            {"mode": "async"},
+        )
+        ctx = a_context()
+
+        started = await delegate_to(capability, ctx)
+        assert "found it" in await call_tool(
+            capability, ctx, "wait_tasks", {"task_ids": [task_id_in(started)]}
+        )
+        # The delegate has finished by now; the run that records it has not.
+        before_settlement = datetime.now(UTC)
+        assert await ends_the_run(capability, ctx) == "the parent answered"
+
+        (outcome,) = recorder.outcomes
+        assert outcome.started_at is not None and outcome.ended_at is not None
+        # It ran for a real interval, not the instant `now` collapsed it to.
+        assert outcome.ended_at > outcome.started_at
+        # And it ran before the settlement, not at it: `now` at record time would
+        # be inside `ends_the_run`, after this clock read.
+        assert outcome.ended_at <= before_settlement
+
+    async def test_what_the_parent_spends_after_it_finishes_is_not_the_delegates(self):
+        """The defect agenticos#180 was filed for, with its own numbers.
+
+        A background delegation is settled when it is next *polled* - the following
+        `task` call, or `wrap_run`'s `finally` - which is arbitrarily later than the
+        delegate finished. Measured as the growth of the shared total across that
+        window, this delegation's $0.25 was reported as $0.75: the parent's ten
+        requests, worth $0.50, landed on a delegate that had already answered. The
+        error grows with however long the parent runs afterwards, and the number is
+        what `agent_runs.cost_usd`, `SubagentFinished.cost_usd` and the delegation
+        panel all carry.
+        """
+        ledger = SpendLedger()
+        recorder = Recorder()
+        capability = a_capability(
+            a_runtime(
+                a_delegate(
+                    model=answering(ledger=ledger), agent_id=uuid4(), agent_version_id=uuid4()
+                ),
+                ledger=ledger,
+                record=recorder,
+            ),
+            {"mode": "async"},
+        )
+        ctx = a_context()
+
+        started = await delegate_to(capability, ctx)
+        assert "found it" in await call_tool(
+            capability, ctx, "wait_tasks", {"task_ids": [task_id_in(started)]}
+        )
+        # The parent carries on and answers, which is what puts the settlement at
+        # the end of the run rather than anywhere near the delegate.
+        for _ in range(10):
+            ledger.book(PARENT_REQUEST)
+
+        assert await ends_the_run(capability, ctx) == "the parent answered"
+
+        (outcome,) = recorder.outcomes
+        assert outcome.status == "completed"
+        assert outcome.cost_usd == ENTRY.cost_usd
+        assert (outcome.input_tokens, outcome.output_tokens) == (7, 3)
+        # The parent's row is still the authority for the whole run, and it holds
+        # every dollar: the share divides that total, it does not shrink it.
+        assert ledger.total_usd == ENTRY.cost_usd + PARENT_REQUEST.cost_usd * 10
 
     async def test_one_that_is_still_running_keeps_its_slot(self):
         """The sweep before each delegation must not close the books early.
@@ -1050,6 +1448,151 @@ class TestBackgroundDelegations:
         assert logged.task_ids == ["a1b2c3"]  # ty: ignore[unresolved-attribute] - from `extra`
 
         outlived.cancel()
+
+
+class TestADelegateThatDelegates:
+    """Three levels, and each one's spend recorded once.
+
+    The second half of agenticos#180, and the quieter one. A mid-tree delegate's
+    row and its own delegate's row both land in `monthly_spend(agent_id=...)`,
+    which passes `include_delegations=True` - so a share that contained what the
+    level below spent made "the researcher cost $X this month" the same money
+    counted twice, on a number nobody can check against anything.
+    """
+
+    @staticmethod
+    def _tree(ledger: SpendLedger, recorder: Recorder) -> tuple[Delegation, UUID, UUID]:
+        """A parent, a researcher that delegates, and a fact-checker that answers.
+
+        Assembled the way the runner assembles one: a runtime *per level*, each
+        carrying the same ledger and the same recorder, and the delegation
+        capability of one level bound to the agent of the level above it. `depth`
+        is stamped by the runner rather than derived, which is why the inner
+        runtime carries its own.
+        """
+        checker = ResolvedSubagent(
+            name="fact-checker",
+            description="Checks one claim.",
+            build=delegate_agent(answering("checked", ledger=ledger)),
+            agent_id=uuid4(),
+            agent_version_id=uuid4(),
+        )
+        inner = a_capability(
+            a_runtime(checker, ledger=ledger, record=recorder, depth_remaining=0, depth=1)
+        )
+        researcher = ResolvedSubagent(
+            name="researcher",
+            description="Researches a topic and cites its sources.",
+            build=lambda: PydanticAgent(
+                handing_on("fact-checker", ledger=ledger),
+                output_type=[str, DeferredToolRequests],
+                capabilities=[inner],
+            ),
+            agent_id=uuid4(),
+            agent_version_id=uuid4(),
+        )
+        outer = a_capability(a_runtime(researcher, ledger=ledger, record=recorder))
+        return outer, researcher.agent_id, checker.agent_id
+
+    async def test_each_level_is_recorded_with_only_its_own_spend(self):
+        """The grandchild's cost appears in exactly one row: the grandchild's.
+
+        Three requests are made: two by the researcher - the one that delegates and
+        the one that answers - and one by the fact-checker. Measured as a delta the
+        researcher's window contained all three, so $0.75 was recorded against the
+        researcher and $0.25 against the fact-checker: $1.00 of child rows for a run
+        that cost $0.75.
+        """
+        ledger = SpendLedger()
+        recorder = Recorder()
+        capability, researcher, checker = self._tree(ledger, recorder)
+
+        assert "checked" in await delegate_to(capability, a_context())
+
+        by_agent = {outcome.agent_id: outcome for outcome in recorder.outcomes}
+        assert by_agent[checker].cost_usd == ENTRY.cost_usd
+        assert by_agent[researcher].cost_usd == ENTRY.cost_usd * 2
+        # The whole run, once. The child rows divide the parent's total rather than
+        # overlapping it, which is what `sum_cost_since(include_delegations=True)`
+        # relies on to answer one agent's month.
+        assert ledger.total_usd == ENTRY.cost_usd * 3
+        assert sum(outcome.cost_usd for outcome in recorder.outcomes) == ledger.total_usd
+
+    @staticmethod
+    def _tree_with_inline_specialist(
+        ledger: SpendLedger, recorder: Recorder
+    ) -> tuple[Delegation, UUID]:
+        """A published researcher that delegates to an *inline* fact-checker.
+
+        The one shape agenticos#228 was filed for: the fact-checker has no
+        `agent_id`, so it gets no run row of its own, and before the fix its spend
+        was stamped to itself - a key nothing per-agent reads - and so was in no
+        row at all. The researcher is published and streams (`streaming_handing_on`)
+        so the panel a surface shows can be asserted beside the row a month sums.
+        """
+        checker = ResolvedSubagent(
+            name="fact-checker",
+            description="Checks one claim.",
+            build=delegate_agent(answering("checked", ledger=ledger)),
+        )
+        inner = a_capability(
+            a_runtime(checker, ledger=ledger, record=recorder, depth_remaining=0, depth=1)
+        )
+        researcher_id, researcher_version = uuid4(), uuid4()
+        researcher = ResolvedSubagent(
+            name="researcher",
+            description="Researches a topic and cites its sources.",
+            build=lambda: PydanticAgent(
+                streaming_handing_on("fact-checker", ledger=ledger),
+                output_type=[str, DeferredToolRequests],
+                capabilities=[inner],
+            ),
+            agent_id=researcher_id,
+            agent_version_id=researcher_version,
+        )
+        outer = a_capability(a_runtime(researcher, ledger=ledger, record=recorder))
+        return outer, researcher_id
+
+    async def test_a_published_delegates_row_takes_in_its_inline_specialists_spend(self):
+        """The row is whole again and the panel is untouched - the shape of agenticos#228.
+
+        Three requests at $0.25: two the researcher's, one the inline fact-checker's.
+        Before the fix the researcher's row read $0.50 and the fact-checker's $0.25
+        went to no month at all. Now the researcher's row is the full $0.75 while its
+        fact-checker's *panel* still shows only its own $0.25 - what did this
+        specialist cost, and what does this agent owe, kept apart.
+        """
+        ledger = SpendLedger()
+        recorder = Recorder()
+        sink = Sink()
+        capability, researcher_id = self._tree_with_inline_specialist(ledger, recorder)
+
+        assert "checked" in await delegate_to(capability, a_context(sink))
+
+        outcomes = {outcome.subagent: outcome for outcome in recorder.outcomes}
+        # The row: the published researcher's month is its own two requests plus the
+        # one its inline specialist made - the whole run, not two-thirds of it.
+        assert outcomes["researcher"].cost_usd == ENTRY.cost_usd * 3
+        assert outcomes["researcher"].agent_id == researcher_id
+        # The inline specialist bills nothing to a row of its own: it has none, and
+        # its spend is already inside the researcher's. The runner drops this outcome
+        # for want of an `agent_id`; the number it would carry is zero regardless.
+        assert outcomes["fact-checker"].cost_usd == Decimal(0)
+        assert outcomes["fact-checker"].agent_id is None
+
+        # The panel: each still shows only what its own requests cost, so a surface
+        # nests the fact-checker's $0.25 inside the researcher's own $0.50.
+        finished = {
+            frame.subagent: frame for frame in sink.frames if isinstance(frame, SubagentFinished)
+        }
+        assert finished["researcher"].cost_usd == ENTRY.cost_usd * 2
+        assert finished["fact-checker"].cost_usd == ENTRY.cost_usd
+
+        # The organization's bill is the whole ledger, once, and no dollar is under a
+        # delegated row twice: the only row with a month here is the researcher's.
+        assert ledger.total_usd == ENTRY.cost_usd * 3
+        billed = sum(o.cost_usd for o in recorder.outcomes if o.agent_id is not None)
+        assert billed == ledger.total_usd
 
 
 class TestTaskLifecycle:
@@ -1260,31 +1803,6 @@ class TestTaskLifecycle:
         assert {outcome.task_id for outcome in recorder.outcomes} == set(task_ids)
         assert capability.journal.in_flight() == 0
 
-    async def test_answering_a_delegate_finds_nothing_to_answer(self):
-        """`answer_subagent` is declared, offered, and inert here - deliberately.
-
-        A task only reaches `WAITING_FOR_ANSWER` through the library's `ask_parent`,
-        and nothing in this deployment injects that tool. Both halves are closed: a
-        configured subagent - which every pinned delegate and every inline
-        specialist is, since all of them arrive as `SubAgentConfig["agent"]` - is
-        compiled with `inject_ask_parent=False`, and the two registry paths that
-        would get it are handed `can_ask_questions: False` by `_autonomously`. So no
-        specialist can ask a question and this tool can never have one to answer. It
-        stays declared because a tool absent from `tools=` cannot be gated or
-        renamed, and because the shape is what would change if a delegate ever could
-        ask. What it must not do is invent an answer.
-        """
-        capability = a_capability(a_runtime(a_delegate(model=blocking())), {"mode": "async"})
-        ctx = a_context()
-        task_id = task_id_in(await delegate_to(capability, ctx))
-
-        answer = await call_tool(
-            capability, ctx, "answer_subagent", {"task_id": task_id, "answer": "in EUR"}
-        )
-
-        assert "is not waiting for an answer" in answer
-        await ends_the_run(capability, ctx)
-
     @pytest.mark.parametrize("tool", ["soft_cancel_task", "hard_cancel_task"])
     async def test_cancelling_a_delegation_that_already_finished_explains_itself(self, tool: str):
         """ "Not found" would invite the model to conclude the work was lost, when
@@ -1455,6 +1973,54 @@ class TestApprovalInsideADelegation:
             TaskStatus.DEFERRED
         ]
 
+    async def test_a_parked_sync_delegate_closes_its_panel_and_frees_its_slot(self):
+        """The two symptoms the missing frame left behind, on the same delegation.
+
+        A sync delegate that stops for a person leaves the parent parked in the
+        approval queue for as long as the approver takes. Refusing to record the
+        outcome (the test above) refused to *narrate* it too, so two things broke
+        that recording never should have (agenticos#173):
+
+        *The panel never closed.* A surface that opened one on `subagent_start`
+        read "the researcher is working" for the whole wait and forever if nobody
+        decided. A `subagent_awaiting_approval` closes it with a state that means
+        "waiting for a person" - the frame this asserts, naming the same delegation
+        the opening one did so it is one panel and not two.
+
+        *The slot never came back.* `close` filed the delegation into `_background`,
+        where `settle_background` never settles a `DEFERRED` sync task, so
+        `in_flight` stayed at 1 after the run had ended - the number the fan-out
+        ceiling reads.
+
+        Neither is an outcome: nothing is recorded here or when the run ends, and
+        the awaiting frame is sent once rather than again by the end-of-run sweep.
+        """
+        recorder = Recorder()
+        sink = Sink()
+
+        def defer(_ctx: RunContext[AgentDeps]) -> str:
+            raise ApprovalRequired
+
+        capability = a_capability(
+            a_runtime(a_delegate(model=one_tool_call(), on_call=defer), record=recorder)
+        )
+        ctx = a_context(sink)
+
+        with pytest.raises(ApprovalRequired):
+            await delegate_to(capability, ctx)
+
+        assert sink.kinds[0] == "subagent_start"
+        assert sink.kinds[-1] == "subagent_awaiting_approval"
+        assert sink.frames[-1].task_id == sink.frames[0].task_id
+        assert recorder.outcomes == [], "a parked delegation is not an outcome"
+        assert capability.journal.in_flight() == 0
+
+        await ends_the_run(capability, ctx)
+
+        assert recorder.outcomes == [], "and still not one when the run ends"
+        assert capability.journal.in_flight() == 0
+        assert sink.kinds.count("subagent_awaiting_approval") == 1
+
 
 class TestKeepingASuspendedDelegatesPlace:
     """What is stashed when a delegate stops for a person, and what is not.
@@ -1569,6 +2135,9 @@ class TestNarration:
         assert len({frame.task_id for frame in sink.frames}) == 1
         assert {frame.depth for frame in sink.frames} == {0}
         assert sink.frames[-1].run_id == recorder.run_id
+        # A configured delegate is already keepable, so its opening frame carries no
+        # definition to promote - `specialist` is the signal for a dynamic one alone.
+        assert sink.frames[0].specialist is None
 
     async def test_a_nested_delegation_names_the_delegation_it_was_made_inside(self):
         """Depth says which level; only this says which panel.
@@ -1809,8 +2378,12 @@ class TestOtherTools:
 
     async def test_they_pass_through_untouched(self):
         """Nothing here decides anything about them, and the accounting must not
-        move either: a call that starts no delegation cannot open or close one."""
-        capability = a_capability(a_runtime(a_delegate()))
+        move either: a call that starts no delegation cannot open or close one.
+
+        `async`, because these six are offered at all only when a background
+        delegation is reachable - a `sync`-only agent is handed none of them,
+        which is `TestOfferedSet`."""
+        capability = a_capability(a_runtime(a_delegate()), {"mode": "async"})
 
         answer = await call_tool(capability, a_context(), "list_active_tasks", {})
 

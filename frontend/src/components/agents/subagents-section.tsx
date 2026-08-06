@@ -36,6 +36,8 @@ interface SubagentsSectionProps {
   catalog: CapabilityCatalogEntry[];
   /** The parent's own bindings - what `share_with_delegates` may choose from. */
   parentCapabilities: CapabilityBindingSpec[];
+  /** The parent's model profile, the fallback when a promoted specialist has none. */
+  parentModelProfileId: string | null;
   /** `spec.subagents` - top level, never in the config blob. */
   subagents: SubagentRef[];
   onChange: (binding: CapabilityBindingSpec) => void;
@@ -63,6 +65,7 @@ export function SubagentsSection({
   binding,
   catalog,
   parentCapabilities,
+  parentModelProfileId,
   subagents,
   onChange,
   onSubagentsChange,
@@ -118,6 +121,7 @@ export function SubagentsSection({
         onChange={(inline) => setConfig({ inline })}
         catalog={catalog}
         clashes={clashes}
+        parentModelProfileId={parentModelProfileId}
         disabled={disabled}
       />
 

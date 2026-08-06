@@ -150,6 +150,43 @@ class TestAgentBinding:
             assert await SkillService(_db()).resolve_for_agent(ctx, [disabled.id]) == []
 
     @pytest.mark.anyio
+    async def test_a_run_reads_a_skill_the_runner_could_not_reach_themselves(self):
+        """Binding is lending, and the gate is publish - deliberately not the run.
+
+        A member's role reaches shared skills only, so this one is a skill they
+        could not open in the UI. The agent still reads it, exactly as it still
+        searches a collection nobody shared with the person asking: the publisher
+        was checked when the version was frozen
+        (`AgentRegistryService._skill_problems`), and re-checking per runner would
+        make one published version answer differently for two colleagues.
+        """
+        ctx = _ctx(OrgRoleName.MEMBER)
+        private = _skill(ctx=ctx, owner_user_id=uuid.uuid4())
+
+        with patch(
+            f"{SKILLS_PATH}.skill_repo.get_many",
+            new=AsyncMock(return_value={private.id: private}),
+        ):
+            assert await SkillService(_db()).resolve_for_agent(ctx, [private.id]) == [private]
+
+    @pytest.mark.anyio
+    async def test_a_run_with_no_subject_still_reads_the_agents_skills(self):
+        """The concrete reason a per-runner check here would be wrong.
+
+        An API key, an embedded widget and a channel message all run on a context
+        with no subject, and `resolve_access` refuses every one of those by
+        design - so a runner-scoped check would strip every skill from exactly the
+        surfaces a published agent exists to be reached through.
+        """
+        ctx = AuthContext.anonymous(uuid.uuid4())
+        skill = _skill(ctx=ctx)
+
+        with patch(
+            f"{SKILLS_PATH}.skill_repo.get_many", new=AsyncMock(return_value={skill.id: skill})
+        ):
+            assert await SkillService(_db()).resolve_for_agent(ctx, [skill.id]) == [skill]
+
+    @pytest.mark.anyio
     async def test_binding_order_is_preserved(self):
         """The order skills appear in is the order the model sees them listed."""
         ctx = _ctx()

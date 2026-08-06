@@ -22,6 +22,12 @@ to be made rather than skipped.
 (Found the hard way, on the first pull request to run under that ruleset: the
 reviewer left one comment and the merge button went grey.)
 
+It is also not the only bot that opens a thread. CodeQL runs on every pull
+request too, and its quality half posts one review thread per finding — under the
+same ruleset, with the same consequence, and with no configuration surface to
+tune it. [CodeQL, and the findings that block a merge](#codeql-and-the-findings-that-block-a-merge)
+is the second half of this page.
+
 ## When it runs
 
 | Trigger | Who | Note |
@@ -214,3 +220,129 @@ instructions. Three clauses in it earn their place and should survive an edit:
 
 The local equivalent, for the same checks before pushing, is the `/review`
 command in `.claude/commands/review.md`.
+
+## CodeQL, and the findings that block a merge
+
+Two CodeQL analyses run on every pull request and neither has a workflow file in
+this repository. Both come from **default setup**: GitHub generates the workflow
+and runs it on a `dynamic` event, so `.github/workflows/` is not where to look for
+them — the Actions tab is. Both land there as `CodeQL`; the quality one's runs are
+the ones titled `Code Quality: …`.
+
+| Analysis | Languages | Where a finding lands | What a false positive costs |
+|---|---|---|---|
+| Code scanning | `actions`, `javascript-typescript`, `python` | The Security tab, and an annotation on the diff | Dismiss it once, with a reason. Three are dismissed today, all `py/clear-text-logging-sensitive-data` in `mcp_tasks.py` |
+| Code Quality | `javascript-typescript`, `python` | A **review thread** from `github-code-quality[bot]` | The merge is blocked until somebody resolves the thread |
+
+The second row is the expensive one, for exactly the reason the reviewer's inline
+findings are: the ruleset requires every review thread resolved, so a finding
+nobody agrees with still has to be handled by hand. #196 paid eight threads for
+one alert, all of them the same false positive.
+
+### There is no filter to reach for (checked 2026-08-05)
+
+Three mechanisms suggest themselves. None of them works on the analysis that
+posts the threads.
+
+**A repository configuration file is not read.** Default setup passes its
+configuration to `codeql-action/init` inline and never passes `config-file`, so
+`.github/codeql/codeql-config.yml` has no reader. The generated workflow says so
+in a comment:
+
+```yaml
+queries: "" # No query customization supported
+```
+
+Checked rather than inferred, on a throwaway branch carrying that file with a
+`py/ineffectual-statement` exclusion in it: a freshly added bare `await task` drew
+the thread anyway, and the run printed the configuration CodeQL actually
+received — GitHub's own incremental filter, and nothing of ours.
+
+```yaml
+disable-default-queries: true
+queries:
+  - uses: code-quality
+query-filters:
+  - exclude:
+      tags: exclude-from-incremental
+```
+
+**Owning the workflow is not the way round it.** Running the quality suite
+ourselves needs `codeql-action`'s `analysis-kinds` input, which its own CHANGELOG
+introduces as part of an internal experiment: "Do not use this in production as it
+is subject to change at any time."
+
+**Inline suppression comments do not survive.** CodeQL's `AlertSuppression.ql`
+understands `# codeql[py/ineffectual-statement]` on the line before an alert and a
+trailing `# lgtm[…]`, and the SARIF it produces carries the suppression. The
+review-thread path ignores it: both forms were flagged anyway on the same branch.
+ruff reads the first as commented-out code (`ERA001`), so it would need a `# noqa`
+to sit in a file at all — a suppression that needs suppressing.
+
+GitHub's own answer, on the public-preview discussion (@carogalvin, 2 April 2026):
+"Disabling rules and excluding paths is on our roadmap, but unfortunately won't be
+available by GA (June) - more likely later in 2026."
+
+That leaves two levers: turn Code Quality off for a whole language, or adjudicate
+the finding. Turning it off buys a quiet merge and gives up the hundred and one
+Python quality queries the suite runs, which is the wrong trade for a repository
+whose argument is that its value is in what it refuses. #220 holds the exclusion
+to apply on the day there is somewhere to apply it.
+
+### Three findings already adjudicated
+
+These have been read. The query is wrong about this codebase, and the reason does
+not change per occurrence — so **resolve the thread and point at this section.**
+Do not rewrite the code to satisfy the query, and do not write a fresh
+justification each time.
+
+| Finding | The shape | Why it is wrong here |
+|---|---|---|
+| `py/ineffectual-statement` | a bare `await <task>` statement | `Await` is not modelled as side-effecting. Awaiting a task suspends until it finishes and re-raises whatever it raised, which is the entire point of the line |
+| `py/ineffectual-statement` | `...` as the body of a `Protocol` method | PEP 544's canonical body. `pass` has no more effect and reads worse |
+| `py/mixed-returns` | a loop whose fall-through is `pytest.fail(...)` | `pytest.fail` is `NoReturn`, so the implicit return the query is describing cannot happen |
+
+The first is not a test-file quirk. Fifteen statements under `backend/` are that
+shape, and the five in production code — `agent_session.py` and the Slack, Telegram
+and Mattermost adapters — are all the documented cancellation idiom, where the
+`await` is what makes the cancellation deterministic rather than hopeful:
+
+```python
+task.cancel()
+with contextlib.suppress(asyncio.CancelledError):
+    await task
+```
+
+The ten in tests are that, plus the other honest use of a bare `await`: running a
+task to completion so the assertion after it is about a finished task, or letting
+`pytest.raises` catch what it raised.
+
+`py/mixed-returns` stays on, and would not be excluded even if it could be: a
+function that returns a value on one path and `None` by falling off the end is a
+real defect, and this is one site rather than a pattern.
+
+### What the query is right about, ruff already refuses
+
+Nobody has to defend the cancellation idiom to keep the coverage
+`py/ineffectual-statement` exists for. ruff's `B018` and `B015` are the same check
+without the blind spot, and both run in pre-commit and in `make lint-backend`:
+
+```python
+obj.__class__    # B018  Found useless expression
+len              # B018  Found useless expression
+1 == 2           # B015  Pointless comparison
+
+await task       # not flagged, correctly
+```
+
+Until #229 that came with a gap worth knowing, because it was what the exclusion in
+#220 would have cost: ruff was pointed at `app tests cli`, so `backend/alembic/`
+(9 files) and the repository's `scripts/` (3) sat outside it, and for this class of
+mistake CodeQL was their only reader. #229 closed it — `make lint-backend` and the
+pre-commit hook now run `ruff check . ../scripts` from `backend/`, so every tracked
+Python file is read, and B018/B015 cover the whole tree rather than three quarters
+of it.
+
+So the honest description of that exclusion is not "we stopped looking at
+ineffectual statements" — it is "we stopped looking at them twice, once with a
+checker that understands `await` and once with a checker that does not."

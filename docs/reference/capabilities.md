@@ -38,6 +38,11 @@ neither leaves anything for a person to approve, so neither declares a tool. A
 capability with genuinely no tools says so with `tools=()` rather than omitting
 the argument; see [Add a capability](../howto/add-capability.md).
 
+**This column is what a capability declares, which is not always what a model is
+offered.** Delegation is the one place the two differ: `create_agent` and `delegate`
+appear only under `allow_dynamic`, and `answer_subagent` appears to nobody at all —
+both explained under [Delegation](#delegation) below.
+
 ## Knowledge search
 
 `search_documents` — *Search the organization's documents for passages relevant to
@@ -250,11 +255,12 @@ pair it with `code_execution` or `knowledge` for that. No configuration.
 ## Delegation
 
 `task` — *hand a self-contained piece of work to one of this agent's specialists.*
-`check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent` — *following one
-that is running.*
+`check_task`, `wait_tasks`, `list_active_tasks` — *following one that is running.*
 `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task` — *steering or
-stopping one.*
+stopping one.* These six are offered only when a background delegation is reachable
+— a `sync`-only agent is handed none of them.
 `create_agent`, `delegate` — *a specialist the model writes for itself, when the author allows it.*
+`answer_subagent` — *declared, and offered to no model.*
 
 One agent handing part of a job to another, each on its own model with its own
 knowledge and its own step limit, addressed by name. There are two shapes of
@@ -268,6 +274,7 @@ the YAML export and the permission model can all see it.
 |---|---|---|
 | `inline` | none | specialists defined inside this agent |
 | `mode` | `sync` | `sync`, `async`, `auto` |
+| `allow_questions` | `false` | a sync delegate may ask the parent's person |
 | `allow_dynamic` | `false` | |
 | `max_depth` | 1 | 1–3 |
 | `max_fanout` | 3 | 1–10 |
@@ -286,6 +293,15 @@ running in the background. The instructions **mark that delegate**, beside its
 name — a single sentence stating the configured mode was a promise the overriding
 delegate then broke, telling the model to expect an answer and handing it a task
 id.
+
+**A `sync`-only agent is offered none of the six task-lifecycle tools.** Each of
+`check_task`, `wait_tasks`, `list_active_tasks`, `send_message_to_subagent` and the
+two cancels takes or reports on a task id, and a `sync` delegation returns the
+answer and nothing else — there is no id to pass. So they are offered only when a
+background delegation is reachable: `async` or `auto` mode, a delegate that prefers
+either, or permission to invent specialists. `sync` is the default, so this is the
+common configuration, and six tool descriptions withheld is six the model no longer
+pays for on every turn. `task` stays — a `sync` agent still delegates.
 
 **Fan-out and nesting are ceilings, not errors.** Past `max_fanout` the next
 delegation comes back as a tool result the model can act on — wait, or do the work
@@ -322,6 +338,35 @@ suspends anyway — a shape the library documents as undeliverable — is record
 `failed` with that same message, because the alternative is a task that reports
 "still running" for as long as the process lives: its spend attributed to nothing,
 its fan-out slot never released, and the panel a surface opened never closed.
+
+**A sync delegate may ask the parent's person, when `allow_questions` is set.** Off
+by default: a specialist works autonomously and says so if it could not. Set on, a
+delegate whose mode is sync is given the library's `ask_parent` tool, and a question
+it asks is answered by the run's own `ask_user` channel — the person already holding
+the parent's tool call — never by the model. It is the author's decision because the
+question wears a name the author published; a specialist the model *invents* never
+asks, whatever this says, because instructions a model wrote a moment ago are not the
+author's to put to a person. Only sync: a background delegation has handed back a
+task id with nobody left to answer, and `auto` may become one. Reaching a pre-built
+delegate needed an upstream change —
+[subagents-pydantic-ai#76](https://github.com/vstorm-co/subagents-pydantic-ai/pull/76)
+honours `can_ask_questions` for a caller-supplied agent, which every delegate here
+is — landing the sync half of
+[#184](https://github.com/vstorm-co/agenticos/issues/184).
+
+**`answer_subagent` is offered to no model.** It answers a question a *background*
+delegate parked on, and no delegate here parks on one: a sync question goes to a
+person through `ask_user` and never this tool, and an async delegate is not given
+`ask_parent` at all. So the tool's only possible answer is "that delegation is not
+waiting for an answer". It stays *declared*, because a tool absent from the
+declaration cannot be gated by the approval policy or renamed by a binding and that
+half of the failure is silent; it is filtered out of the offered set, because the
+other half is a description in every turn's context describing an action that cannot
+happen, and tool descriptions are the strongest prompt in this product. The tool
+becomes reachable only when the background half of
+[#184](https://github.com/vstorm-co/agenticos/issues/184) is answered — where the
+parent's own model answers while nothing obliges it to look, the delegate blocking
+on a fan-out slot the turn's end cancels.
 
 **`wait_tasks` truncates, and says so.** A completed task's result is cut at
 `max_result_chars` with an explicit marker pointing at `check_task`, which always
@@ -376,34 +421,58 @@ door. Bind it on the parent and name it here.
 **`create_agent` and `delegate` are offered only under `allow_dynamic`.** A tool
 absent from a capability's declaration cannot be gated by the approval policy or
 renamed by a binding, and the dangerous half of that is silent — so all ten are
-declared, and a default configuration offers eight.
+declared, and a default configuration offers seven.
 
 What the switch buys is a specialist the model writes itself: instructions and a
 model, and nothing else. It is built through the same `build_agent` an inline
 specialist comes through, on the run's shared budget guard and its approval
 channel, so its requests are priced and counted against the cap somebody set. That
-is the entire reason this took a factory rather than a flag — left to itself the
-library compiles a run-time specialist from its own default model string, which is
-an agent outside this deployment's model catalog, outside its vault and outside its
-budget guard: an unmetered request, possibly to a provider the organization holds no
-key for.
+is the entire reason this took a factory rather than a flag: a specialist the
+library built for itself would sit outside this deployment's model catalog, its
+vault and its budget guard — an unmetered request, possibly to a provider the
+organization holds no key for. The factory is what routes it back through this
+platform instead. (Before `subagents-pydantic-ai` 0.2.18 the library also carried a
+default model string a modelless specialist was compiled from; 0.2.18 removed that
+fallback, so a specialist naming no model is now refused rather than built — this
+platform refuses it earlier still, in `DelegatingToolset._refuse_dynamic`.)
 
 The model may name only a model the organization has a profile for, and the refusal
 names the list. It may not attach capabilities: letting a model grant its own child
 a capability is the ungranted-scope failure wearing a new hat. It gets no knowledge,
-no delegates of its own, and nothing is persisted — keeping a specialist means
-publishing an agent, which is a person's action. `MAX_DYNAMIC_SPECIALISTS` bounds how
-many one run may keep, and a kept one lasts for the reply rather than the run
-([#175](https://github.com/vstorm-co/agenticos/issues/175)).
+no delegates of its own, and nothing is persisted across runs — keeping a specialist
+means publishing an agent, which is a person's action. `MAX_DYNAMIC_SPECIALISTS`
+bounds how many one run may keep.
+
+That a specialist is not persisted is a design, and it has an exit rather than a
+dead end: a person can **promote** one to a draft agent. Its definition rides the
+opening `SubagentStarted` frame — the one place it is legible after the model wrote
+it and before the turn ends — so the chat delegation panel can offer to keep it
+while the run is still on screen, and the Builder offers the same on an inline
+specialist. Promotion creates a draft owned by whoever promoted it, gated on
+`agents:edit`, and stops there: it does not publish, does not pin the new agent as a
+delegate, and does not remove the specialist it came from. See
+[Concepts](../concepts.md#delegate-vs-inline-specialist) for why the persistence rule
+is the reason the exit exists rather than a limitation it works around.
+
+A kept one lasts the whole run it was invented in, an approval park included: the
+registration lives in a registry the delegation library builds per *built* agent,
+and a run that parks is built again when it is continued, so it was lost across the
+park until the registrations were carried in `PausedRunState` and re-registered on
+the replay ([#175](https://github.com/vstorm-co/agenticos/issues/175)). It does not
+survive into the *next conversation turn*, which is a fresh build with no paused
+state — a name created in one reply is unknown in the next, and `create_agent`'s
+description tells the model to create it again if `task` says so.
 
 **The delegation library's own unspecialised delegate is not offered at all**, and
-there is no setting for it. It would run on a model this deployment did not
-configure — compiled from the library's own default model string, so outside the
-organization's profiles, its vault and the run's budget guard, exactly like the
-run-time specialist above before it took a factory. A catch-all is a legitimate
-thing to want; write it as an inline specialist, where you can read what it does
-and it is priced like everything else. Fixing the library's own is
-[#174](https://github.com/vstorm-co/agenticos/issues/174).
+there is no setting for it. Before subagents-pydantic-ai 0.2.18 it would have run on
+a model this deployment did not configure — compiled from the library's own default
+model string, outside the organization's profiles, its vault and the run's budget
+guard, exactly like the run-time specialist above before it took a factory. A
+catch-all is a legitimate thing to want; write it as an inline specialist, where you
+can read what it does and it is priced like everything else. The library's own is
+fixed as of 0.2.18 ([#174](https://github.com/vstorm-co/agenticos/issues/174)): with
+no default model or factory it now refuses to build the delegate rather than picking
+a model.
 
 What the model is told about all of this is written here rather than by the
 library: the delegates by name and description, the mode this run will actually

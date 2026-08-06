@@ -561,7 +561,14 @@ class SpecialistSpec(BaseModel):
             "like an agent."
         ),
     )
-    skill_ids: list[UUID] = Field(default_factory=list)
+    skill_ids: list[UUID] = Field(
+        default_factory=list,
+        description=(
+            "Skills it may read. Checked at publish against the publisher's own "
+            "access, exactly as `collection_ids` is - a skill is know-how somebody "
+            "wrote, and a private one bound here would be read by every run."
+        ),
+    )
     max_steps: int | None = Field(
         default=None,
         ge=1,
@@ -694,7 +701,15 @@ class AgentSpec(BaseModel):
         default_factory=list,
         description="Knowledge collections this agent may search",
     )
-    skill_ids: list[UUID] = Field(default_factory=list)
+    skill_ids: list[UUID] = Field(
+        default_factory=list,
+        description=(
+            "Skills this agent may read. Checked at publish against the "
+            "publisher's own access: binding a skill hands its body and its files "
+            "to every run of the agent, so it can only lend what the publisher "
+            "could read themselves."
+        ),
+    )
     mcp_server_ids: list[UUID] = Field(
         default_factory=list,
         description=(

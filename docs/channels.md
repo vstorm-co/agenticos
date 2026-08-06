@@ -269,6 +269,16 @@ A child's text is never folded into the
 parent's answer: that would put words in the parent's mouth its own model never
 generated, and the conversation is persisted with them.
 
+A delegate can stop for a person too — a gated tool inside a specialist parks the
+whole turn in the approval queue. The panel then closes into a *waiting for a
+person* state rather than spinning on "working" for as long as the approver takes,
+and the delegation keeps the task id it parked under so its identity survives the
+resume rather than a second panel appearing beside the first. The resume itself
+runs over HTTP (`POST /runs/{id}/resume`), which carries no delegation frames, so
+the waiting panel is moved to the resumed run's own outcome — completed, failed or
+cancelled — from that answer; a resume that parks again on a fresh decision leaves
+it waiting.
+
 The assistant's answer is **not** in a bubble; only the person's message is. An answer
 is prose with headings, code and tables in it, and a rounded fill around that fights
 every one of them.

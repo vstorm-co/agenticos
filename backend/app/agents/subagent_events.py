@@ -55,6 +55,37 @@ class _SubagentFrame(BaseModel):
     )
 
 
+class SpecialistDefinition(BaseModel):
+    """The whole of a specialist a model invented mid-run, carried so it can be kept.
+
+    A dynamic specialist is the one kind of specialist nothing persists: a delegate
+    is published and an inline specialist lives in its parent's spec, but one a model
+    writes at run time lives no longer than the run, because keeping it means
+    publishing an agent and that is a person's action (see `DynamicSpecialists`). The
+    cost of that rule with no exit is a person retyping instructions out of a chat
+    log, which produces an agent whose provenance nobody can see. So the opening
+    frame of a *dynamic* delegation carries its definition, and a surface can offer to
+    promote it to a draft agent while the run is still on screen.
+
+    It is everything such a specialist has and no more: the model writes instructions
+    and names a model, and one gets no capabilities, knowledge or delegates of its
+    own. Its counterpart at rest is
+    :class:`~app.agents.subagent_runtime.RegisteredSpecialist`, the same fields a park
+    carries in `paused_state`; this is the streamed copy, and the only place the
+    definition is legible after the tool call that wrote it and before the turn ends.
+    Absent on every configured delegate and inline specialist - the field being set on
+    :class:`SubagentStarted` *is* the signal "this one is not persisted anywhere".
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    description: str = Field(description="What the parent's model read before delegating here")
+    instructions: str = Field(description="The specialist's system prompt, as the model wrote it")
+    model: str = Field(
+        description="The label of the model profile the specialist named, to resolve on promotion"
+    )
+
+
 class SubagentStarted(_SubagentFrame):
     """A delegation began.
 
@@ -70,6 +101,10 @@ class SubagentStarted(_SubagentFrame):
     up" - which is wrong whenever two delegations at that depth are running,
     which is the ordinary fan-out case: a researcher's own helper was drawn
     inside the writer's panel, and the researcher showed no children.
+
+    It carries `specialist` only for a delegation to a specialist the model invented
+    at run time - the one kind nothing else can keep. See
+    :class:`SpecialistDefinition`.
     """
 
     kind: Literal["subagent_start"] = "subagent_start"
@@ -82,6 +117,15 @@ class SubagentStarted(_SubagentFrame):
             "for one the run's own agent started - which is every delegation at "
             "depth 0. Read where the delegation opens, because that is the only "
             "moment both it and the enclosing one exist."
+        ),
+    )
+    specialist: SpecialistDefinition | None = Field(
+        default=None,
+        description=(
+            "The definition of a specialist the model invented at run time, set only "
+            "for a dynamic delegation and `None` for every configured delegate and "
+            "inline specialist. Present so a surface can offer to keep an otherwise "
+            "unpersisted specialist while the run is still on screen."
         ),
     )
 
@@ -122,6 +166,30 @@ class SubagentToolResult(_SubagentFrame):
     ok: bool = Field(description="False when the tool raised, so a surface can mark it")
 
 
+class SubagentAwaitingApproval(_SubagentFrame):
+    """A sync delegation stopped for a person, and the answer is still coming.
+
+    Not an outcome, and deliberately not a `SubagentFinished`: the delegate
+    suspended on a tool that needs approval, the signal parked the whole parent
+    run, and the continuation records the real outcome when the person decides
+    (see `DelegationJournal.settle` and `_terminal_status`). Reporting it as
+    `failed` would send a reader looking for a defect instead of for the approval
+    queue, and `completed` would claim work that has not happened.
+
+    So it carries no cost and no run id - there is nothing to record yet - and its
+    only job is to close the panel a surface opened, replacing "the researcher is
+    working" with "waiting for a person" for however long the approver takes.
+    Without it the panel spins forever, which is the bug this frame exists to fix
+    (agenticos#173).
+
+    Only a *sync* delegation reaches this: a background one has no caller left to
+    park, so a tool of its that defers is a `SubagentFinished(status="failed")`
+    instead - see `_terminal_status`.
+    """
+
+    kind: Literal["subagent_awaiting_approval"] = "subagent_awaiting_approval"
+
+
 class SubagentFinished(_SubagentFrame):
     """A delegation ended, however it ended.
 
@@ -153,6 +221,7 @@ SubagentEvent = Annotated[
     | SubagentThinkingDelta
     | SubagentToolCall
     | SubagentToolResult
+    | SubagentAwaitingApproval
     | SubagentFinished,
     Field(discriminator="kind"),
 ]

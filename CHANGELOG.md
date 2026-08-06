@@ -19,6 +19,614 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.30] - 2026-08-06
+
+### Added
+
+- **Promote a specialist to a draft agent — the honest way to keep one**
+  ([#177](https://github.com/vstorm-co/agenticos/issues/177)). A dynamic specialist is
+  never persisted (keeping one means publishing an agent, a person's action), and an inline
+  specialist lives only in its parent's spec — so the only way to keep either was to copy
+  its instructions out of a chat log, producing an agent whose provenance nobody can see.
+  A **Promote to a draft agent** action now sits on an inline specialist in the Builder's
+  delegation section and on a dynamic specialist in the chat delegation panel while the run
+  that created it is still on screen. It creates an ordinary **draft** from the specialist's
+  instructions, model profile, capabilities, collections and skills, through the same
+  `SpecialistSpec.to_agent_spec()` conversion — and stops there: it does not publish, does
+  not pin the new agent as a delegate of its parent, and does not remove the inline
+  specialist, each of which stays a decision the author makes next with the usual validation
+  in front of it. The draft is owned by **the person who promoted it** and subject to the
+  usual `AGENTS_EDIT` check — a specialist created inside someone else's run does not become
+  their agent. A promoted dynamic specialist publishes without further editing and answers,
+  when run, what it answered inside the run it came from.
+
+## [0.0.29] - 2026-08-06
+
+### Fixed
+
+- **An inline specialist's spend under a published delegate now reaches an agent's month**
+  ([#228](https://github.com/vstorm-co/agenticos/issues/228)). Spend attribution (0.0.7,
+  #192) stamps every `SpendEntry` with the delegation that booked it and reads a
+  delegation's cost as its share of the ledger — but an inline specialist gets no
+  `agent_runs` row, only published delegates do. So an inline `fact-checker` under a
+  published `researcher` booked its spend to its own key, which is in no run row, and the
+  innermost stamp meant it was not in the researcher's share either: on a $0.75 run the
+  researcher's row read $0.50, and $0.25 reached no agent's month. The organisation total
+  was always right (the top-level row is the whole ledger), which is why nothing failed.
+  An entry now carries a second attribution — *who spent it* (for the delegation panel's
+  own-share `cost_usd`) and *which agent row it bills to* (for the month): an inline
+  specialist bills to its nearest published ancestor, so that row is whole again while the
+  panel still shows the specialist's own share, with nothing double-counted. Holds through
+  an inline specialist nested under another inline specialist, too.
+
+## [0.0.28] - 2026-08-06
+
+### Fixed
+
+- **A `create_agent` specialist created by a nested delegate survives an approval park**
+  ([#254](https://github.com/vstorm-co/agenticos/issues/254)). 0.0.20 (#175) carried a
+  top-level dynamic specialist across a park — its definition serialised into `paused_state`
+  and re-seeded on resume through the same factory — but only at the root. A specialist a
+  delegate *one level down* created was still lost when a nested delegation parked and
+  resumed: the nested level's registry was rebuilt empty, so `task` answered "unknown
+  subagent" for it. The specialist carry now descends the parked tree, so a kept specialist
+  at any depth is re-seeded on resume and reachable by name, metered on the run's shared
+  ledger exactly as it was the first time. `max_agents` still bounds each level, so a resume
+  cannot exceed it by rebuilding.
+
+## [0.0.27] - 2026-08-05
+
+### Fixed
+
+- **A delegation panel closes when an approved resume's continuation raises**
+  ([#262](https://github.com/vstorm-co/agenticos/issues/262)). The panel reconciliation
+  from 0.0.16 (#173/#250) closed an awaiting panel from the resumed run's status — but only
+  when the resume *returned* one. If the continuation raised, `AgentRunnerService._run`
+  recorded the run `failed`/`cancelled` and re-raised, so `POST /runs/{id}/resume` returned
+  no result, the frontend skipped reconciliation, restored the already-decided approval, and
+  left the panel on `awaiting_approval` forever — with a retry then refused because the run
+  was already terminal. The resume route now conveys the recorded terminal status even on
+  the raising path, without swallowing the failure the caller still sees, so the panel
+  reaches `failed`/`cancelled` and the spent approval is not restored.
+
+## [0.0.26] - 2026-08-05
+
+### Added
+
+- **The agent map is interactive, and shows delegates as their own nodes**
+  ([#126](https://github.com/vstorm-co/agenticos/issues/126)). The map — the read-only
+  picture of "what is this agent, in total?" — now draws delegation. A published delegate
+  (pinned, navigable), an inline specialist (no page of its own), and a pin the
+  organization no longer has or the caller cannot see (named as unreachable rather than
+  dropped) each render as a distinct kind of node — an agent, not a tool — grouped under a
+  Delegation heading and edged to the hub by the same measured layout the capabilities use.
+
+  And it is a control now, not a picture: every node is a focusable button, click or
+  Enter/Space lights its edge and dims the rest and opens a detail panel, Escape or a click
+  away clears it, and a published delegate's panel links through to *that* agent's page — so
+  the delegation tree is walkable one hop at a time. It stays read-only (the forms own the
+  fields) and keeps pan/zoom. Rendering the tree recursively inline is a deliberate
+  follow-up, [#276](https://github.com/vstorm-co/agenticos/issues/276).
+
+## [0.0.25] - 2026-08-05
+
+### Changed
+
+- **`ruff` now lints `alembic/` and the guard scripts, and the dead ignore is live again**
+  ([#229](https://github.com/vstorm-co/agenticos/issues/229)). `ruff` was only ever invoked
+  on `backend/app` and `backend/tests`, so `backend/alembic/` and the repository-root
+  `scripts/` (the three guards — `check_backticks.py`, `check_i18n.py`, `docs_drift.py` —
+  that gate every PR) were never linted, and the `per-file-ignores` entry for `alembic/**`
+  silenced rules on files ruff never read. `make lint-backend` and both pre-commit ruff
+  hooks now run `ruff check . ../scripts` from `backend/`, so all three trees are linted and
+  the config stays one definition across make, pre-commit and CI (`test_ci_parity.py` still
+  holds). No genuine code defects surfaced: `alembic/` was already clean, and the 21
+  findings in `scripts/` are legitimate patterns relaxed with a documented reason (`T201`,
+  since printing is the guards' purpose; `S603`/`S607`, the same literal-argv `git`
+  invocation already accepted for the migration test). The `alembic/**` ignore is kept and
+  now genuinely live, covering autogenerated migrations' downgrade stubs and raw
+  `op.execute` SQL. A model edited without a migration — `x == 2` under `alembic/versions/`
+  — is now refused where the old command passed it silently.
+
+## [0.0.24] - 2026-08-05
+
+### Fixed
+
+- **A parked run whose spec no longer builds stays resumable**
+  ([#176](https://github.com/vstorm-co/agenticos/issues/176)). `resume` flipped the run to
+  `RUNNING` before fetching and building its spec, and `claim_parked_run` only claims a run
+  in `AWAITING_APPROVAL` — so if the build then failed (a secret a binding named was
+  deleted, a model profile removed, a capability dropped in a deploy, an MCP connection
+  unshared), the row was stranded in `RUNNING` and could never be resumed again, with a
+  person's approval recorded against work that would not continue and nothing reporting it.
+  The spec is built first now, and the run is marked `RUNNING` only once the build has
+  succeeded; a build that raises leaves the run `AWAITING_APPROVAL`, so the same approval
+  can be resumed once whatever the spec named is restored.
+
+## [0.0.23] - 2026-08-05
+
+### Fixed
+
+- **The E2E suite runs beside another checkout's dev server**
+  ([#223](https://github.com/vstorm-co/agenticos/issues/223)). `playwright.config.ts`
+  hardcoded ports 3000 and 4010, so the suite could not start when a `make dev` or a second
+  checkout already held them. The frontend port now derives from `E2E_PORT` (default 3000)
+  and the stub model server's from `E2E_STUB_MODEL_PORT` (default 4010), driving `baseURL`,
+  both `webServer` URLs, each server's `PORT`, and — the part that has to agree — the stub
+  URL the specs write into the model profile the backend dials, so server, specs and backend
+  all read one value. Same shape as #189: the value is *derived* from the environment, not
+  `setdefault`, so CI is exercised on the new path rather than silently left on the old one.
+  The loopback binding is kept, so the host-uvicorn path works and the containerised-backend
+  constraint is not falsely implied.
+
+## [0.0.22] - 2026-08-05
+
+### Added
+
+- **A sync delegate can ask the person already waiting on its parent**
+  ([#184](https://github.com/vstorm-co/agenticos/issues/184)). An author can turn on
+  questions for a delegation, so a **sync** specialist can ask "which currency?" of the
+  person waiting on the parent run instead of burying an assumption in its answer —
+  answered through the run's own `ask_user` channel, the same one the parent uses. It is
+  off by default and gated tightly, because the reasons this was once declined are real:
+  a **background** delegation has handed back a task id with nobody waiting, so it is never
+  granted the ability (nor is an `auto` delegation, which may become one); a specialist a
+  model invented at run time is never granted it either; and a surface with no `ask_user`
+  (the API, a channel, a schedule) refuses rather than hangs. The library injects
+  `ask_parent` for a caller-supplied delegate only since `subagents-pydantic-ai` 0.2.17,
+  which is why this rides on the 0.2.18 floor adopted in 0.0.21.
+
+  Concurrency came with it: two delegate questions in one turn would race the single
+  `ask_user` channel, so the channel is serialised — the same class of fix as the approval
+  writes in 0.0.17, and for the same reason.
+
+## [0.0.21] - 2026-08-05
+
+### Changed
+
+- **Adopt `subagents-pydantic-ai` 0.2.18, which fixes the general-purpose delegate at the
+  source** ([#174](https://github.com/vstorm-co/agenticos/issues/174)). The delegation
+  library used to default its `default_model` to a hardcoded string, so a consumer with no
+  usable default — which AgenticOS is, on purpose: there is no deployment-wide model — got a
+  general-purpose delegate that either failed or, worse, ran one tenant's work on whatever
+  provider key happened to sit in the process environment. AgenticOS had already removed the
+  switch from its own surface (0.0.7) and refuses a modelless dynamic specialist in
+  `DelegatingToolset._refuse_dynamic`; 0.2.18 removes the fallback upstream too, so the
+  library now refuses a modelless dynamic call of its own accord rather than compiling an
+  unmetered one. The pin moves to `>=0.2.18` and the local comments and the capability
+  reference are corrected to describe the removed fallback in the past tense. `#174` closes
+  now that AgenticOS is on the fixed version.
+
+## [0.0.20] - 2026-08-05
+
+### Fixed
+
+- **A `create_agent` specialist survives the approval park that interrupts it**
+  ([#175](https://github.com/vstorm-co/agenticos/issues/175)). A specialist the model
+  writes at run time is documented as lasting for the reply, but it did not survive a
+  *second* approval park: the library's dynamic-agent registry belongs to the built agent,
+  and a resume rebuilds the agent fresh, so `task` answered "unknown subagent" for a
+  specialist the model was told it could keep. The specialist's definition — a name,
+  instructions, a model — is now carried in the run's `paused_state` alongside the spend,
+  timings and approval rows already kept there, and a resumed turn re-seeds the registry
+  through the same factory, so the specialist arrives with the run's shared budget guard
+  and approval channel exactly as it did the first time. `max_agents` still bounds how many
+  one run may keep, so a resume cannot exceed it by rebuilding. This survives within one
+  run; a dynamic specialist is still never persisted across runs — keeping one past its run
+  means promoting it to a published agent, which is a person's action.
+
+## [0.0.19] - 2026-08-05
+
+### Added
+
+- **An offline audit of the skill bindings a published version can no longer reach**
+  ([#186](https://github.com/vstorm-co/agenticos/issues/186)). Publish-time validation
+  (0.0.8, #179) stops a *new* version binding a skill its publisher cannot see, but a
+  version published before that check keeps loading whatever its spec named — so a
+  published agent may be reading another member's private skill right now, and nothing
+  reported it. `agenticos cmd audit-skill-bindings` sweeps every **runnable** published
+  version — not just each agent's current pointer, but versions a non-terminal run will
+  resume on, reached through the delegation pin-closure — and names the agent, the version,
+  the skill and the publisher for each binding that publisher could not reach today.
+
+  Two edges it gets right, because an audit that cries wolf is one an operator learns to
+  ignore: the pin-closure honours `max_depth`, so a binding only an unreachable grandchild
+  holds is not flagged; and a disabled skill, or a delegate whose agent has been archived,
+  is dropped rather than reported, since neither can actually load. A version whose
+  publisher has since been **deleted** is a third answer, not "reachable" or not — the
+  report says so, because `published_by_user_id` is `SET NULL` and an operator needs to
+  know the difference. It **reports**, never unbinds: taking a skill off a published
+  version would change what a published agent does without anyone deciding, which is the
+  opposite of what publishing means here.
+
+## [0.0.18] - 2026-08-05
+
+### Fixed
+
+- **A run count is an ICU plural, and the guard that missed it now catches the shape**
+  ([#199](https://github.com/vstorm-co/agenticos/issues/199)). A run count was built as
+  `"{n} runs"` — a plural only English forms that way — and `scripts/check_i18n.py`, the
+  gate whose whole job is to refuse exactly that, passed over it. Both halves are fixed:
+  the count is now `{count, plural, =1 {1 run} other {# runs}}` with the component passing
+  `count`, and the guard is closed so the next English-only plural is refused rather than
+  merged. A guard verified only by a green suite is a guard nobody has tested, so the
+  change writes the offending shape into a fixture and confirms the script rejects it.
+
+## [0.0.17] - 2026-08-05
+
+### Fixed
+
+- **Two gated tool calls in one model step no longer race the request's session**
+  ([#169](https://github.com/vstorm-co/agenticos/issues/169)). A gated tool call writes an
+  approval row, and pydantic-ai runs the tool calls from one model response
+  *concurrently* — so an agent with two gated tools, answering one step with both, hit
+  `db.add` + `flush` on the request's shared `AsyncSession` from two coroutines at once,
+  and `AsyncSession` is not concurrency-safe: the damage reaches the parent run row and the
+  conversation, not just the approval. Delegation widened the window, since a sync delegate
+  keeps the parent's channel. The approval rows are now queued during the run and written
+  once when it parks — the shape delegation already took for its child run rows — so nothing
+  writes to the session mid-run. A run whose model emits two gated calls in one step parks
+  once naming both, with two rows of distinct ids and a session still usable for the
+  terminal write.
+
+  Two follow-ups the write path surfaced, both fixed here. A delegate **deleted** between
+  the park and the deferred write no longer breaks the park: the write first locks the
+  delegates still present, and a parked call whose delegate is gone is written with a null
+  `subagent_agent_id` (the `SET NULL` foreign key) rather than a reference that would fail
+  the insert and roll the parked run back — the approval survives and a person can still
+  decide it; only the delegate attribution, which no longer exists, is dropped. And the
+  lock that holds the surviving delegates takes `FOR KEY SHARE` rather than
+  `FOR NO KEY UPDATE` (`with_for_update(read=True, key_share=True)`), so it blocks a
+  concurrent delete without also blocking an ordinary agent update.
+
+## [0.0.16] - 2026-08-05
+
+### Fixed
+
+- **A delegation panel reaches a terminal state when its delegate parked on an approval**
+  ([#173](https://github.com/vstorm-co/agenticos/issues/173)). When a sync delegation
+  parked for a human approval in web chat, its panel showed the delegate as still working
+  and stayed there — because `POST /runs/{id}/resume` runs over HTTP with no
+  `subagent_events` sink, so no `subagent_complete` frame ever reached the WebSocket
+  reducer, and the panel sat on `awaiting_approval` forever after the approval was granted.
+  Web-chat resume doesn't stream, so the panel is now reconciled from the HTTP answer: the
+  resumed run's own status is applied to every panel still awaiting — `completed`,
+  `failed`/`budget_exceeded`→failed, `cancelled` — while a resume that parks *again* is
+  left waiting, preserving the continuation case. Streamed text is kept; cost and tokens
+  stay null rather than invented, since the frame that carries them never arrived. This
+  covers a resume that **returns** a status; a resume whose continuation itself raises
+  returns no result and still leaves the panel waiting, tracked as
+  [#262](https://github.com/vstorm-co/agenticos/issues/262).
+
+## [0.0.15] - 2026-08-05
+
+### Fixed
+
+- **A sync-only delegating agent is no longer offered the background-task tools**
+  ([#185](https://github.com/vstorm-co/agenticos/issues/185)). An agent configured
+  `mode: "sync"` can never have a background delegation, yet its model was still offered
+  the six tools that only make sense for one — `check_task`, `wait_tasks`,
+  `list_active_tasks`, `send_message_to_subagent`, and both cancels. Six tool descriptions
+  in every turn's context for actions that cannot happen, and tool descriptions are the
+  strongest prompt surface in this product. This is the same defect class as
+  [#182](https://github.com/vstorm-co/agenticos/issues/182) (0.0.8) and extends its
+  mechanism: the offered set is now computed per run. The six tools are withheld only from
+  an agent that can never reach a background delegation — mode `sync`, no delegate whose
+  `preferred_mode` is `async` or `auto`, and dynamic specialists off; anything that could
+  still produce a background delegation (an `auto` agent, or an `auto`-override on a
+  delegate, or an enabled dynamic-specialist path) keeps all of them, since the model
+  decides per delegation there. A dedicated test pins the exact tool set each of those
+  configurations is offered; the capability drift table is unchanged and does not itself
+  catch this, since its widest fixture is background-capable by construction.
+
+## [0.0.14] - 2026-08-05
+
+### Changed
+
+- **`alembic check` is a usable gate again**
+  ([#183](https://github.com/vstorm-co/agenticos/issues/183)). It had failed on `main`
+  for reasons unrelated to any change under test — index-naming drift from early
+  migrations that the models and the migrations disagreed about — so the one command that
+  would catch "somebody edited a model and forgot the migration" could not be run, and it
+  hid real drift behind noise a reader had to filter by hand. The drift is resolved (the
+  models and migrations now agree on the index names), and `alembic check` is wired into
+  both `make check` and CI, on both sides of `tests/test_ci_parity.py`, so it stays green
+  rather than rotting again. This is the fourth check to have existed and not run — after
+  `make check` equalling CI (#143), spelling over the tree (#188) and the CodeQL config
+  (#220) — and, like those, the value is in the check running at all.
+
+## [0.0.13] - 2026-08-05
+
+### Fixed
+
+- **`bootstrap` ensures the model profile it names, rather than adopting any it finds**
+  ([#172](https://github.com/vstorm-co/agenticos/issues/172)). On a database that had
+  been used before, `make platform-bootstrap` adopted whatever model profile already
+  existed instead of ensuring the one it was told to create — so the agent it published
+  ran on a profile nobody asked for, and several E2E specs that assume the named profile
+  failed on any database not freshly created. It now ensures the profile it names,
+  creating it when absent and matching by name when present, so a second bootstrap is
+  idempotent rather than dependent on what the database happened to hold.
+
+## [0.0.12] - 2026-08-05
+
+### Fixed
+
+- **A delegated run's recorded time span survives an approval park**
+  ([#191](https://github.com/vstorm-co/agenticos/issues/191)). A delegated `agent_runs`
+  row reads its span from the library's `TaskHandle`, which is correct for a single-turn
+  delegation — but one that parks on an approval and resumes runs in two processes, and
+  the resume rebuilds a fresh handle stamped at the *resume*, so the row began when the
+  person answered and dropped the entire pre-park segment. The earliest start is now
+  carried across the park the way spend is (0.0.8, #180): `ParkedDelegation` holds it,
+  `paused_state` serialises it, and the resumed turn folds it back in — the span is the
+  first segment's start and the last segment's end, and unlike cost the segments are not
+  summed. A pre-task refusal, which finds no handle, still writes no row at all.
+
+### Changed
+
+- **Run-history routes read through the service, not the repository**
+  ([#197](https://github.com/vstorm-co/agenticos/issues/197)). A route reaching
+  `agent_run_repo` directly is one of this codebase's named hard boundaries, and it was
+  crossed here — which is not merely stylistic: a route that reaches the repository
+  bypasses wherever the service puts the tenant scope, so the next filter added to the
+  service is one a hand-written route keeps its own answer to. `list_runs` now scopes to
+  the caller's organization inside `AgentRunnerService`, the one tenant boundary the rest
+  of run history already reads through, and the delegated-run parameters added in 0.0.11
+  (`parent_run_id`, `include_delegations`) thread through it rather than sitting in the
+  route.
+
+## [0.0.11] - 2026-08-05
+
+### Fixed
+
+- **Run history can tell a delegated run from one a person started**
+  ([#181](https://github.com/vstorm-co/agenticos/issues/181)). The columns
+  (`parent_run_id`, `subagent_task_id`) had existed since delegation landed and nothing
+  read them, so a fan-out turn listed as several independent runs and a page that summed a
+  column double-counted every delegation — a parent's cost already contains its children's.
+  `AgentRunRead` now carries both, and withholds the delegation handle whenever the parent
+  is gone (a foreign key can only null its own column, so `subagent_task_id` outlives the
+  delete that nulls `parent_run_id`); `list_runs` filters `parent_run_id IS NULL` for the
+  history list, and answers the run-detail query — "what did this run delegate" — by
+  `parent_run_id`, which is the lookup the migration's index was speculative weight for
+  until it had one.
+
+  A delegated run is **badged** in the table and reachable from its chat panel, so the
+  fan-out reads as one tree rather than a list of strangers. The monthly sums keep the
+  existing `(organization_id, started_at)` index, with the null test applied to rows it
+  already found.
+
+## [0.0.10] - 2026-08-05
+
+### Fixed
+
+- **The E2E seed no longer depends on a product bug to pass**
+  ([#132](https://github.com/vstorm-co/agenticos/issues/132)). Five sites created a row
+  through a dialog and then asserted it was on screen, with no wait on the write that put
+  it there; four flaked, and three branches paid a diagnosis for it in one day. Two causes,
+  both now removed from the test's path. An open Radix dialog takes the rest of the page
+  out of the accessibility tree, so `getByRole` resolved to nothing while the dialog was up
+  and the assertion reported `element(s) not found` for a refusal it never looked at — a
+  shared `submitDialog` waits on the write's own network response instead, and through the
+  client's transparent 401 retry so it matches the request that settled rather than the one
+  that was retried. And a **fixture** step now asserts through the API, never on the row
+  appearing, because the refetch after a write is sometimes answered the pre-write list —
+  which is a real product bug ([#230](https://github.com/vstorm-co/agenticos/issues/230)),
+  left open, not a broken fixture.
+
+  A failing `[setup]` or `[seed]` step is a Playwright *project dependency*, so its failure
+  skips every product spec — the log reads "1 failed, 7 passed, 17 did not run" and looks
+  like a product regression. `e2e/fixture-reporter.ts` now prints a banner saying exactly
+  that, so the next reader does not spend the diagnosis a fourth time.
+
+## [0.0.9] - 2026-08-05
+
+### Fixed
+
+- **Five WebSocket frames the frontend declared but no backend surface sends**
+  ([#195](https://github.com/vstorm-co/agenticos/issues/195)). `use-chat.ts` and
+  `WSEventType` named `llm_started`, `llm_completed`, `todo_event`, `context_usage` and
+  `context_compacted` — two with live `case` arms and a test asserting a dead branch
+  behaves. That is [#144](https://github.com/vstorm-co/agenticos/issues/144) in the
+  opposite direction: #144 was the frontend matching tool names the backend had stopped
+  sending; this is frames it never started. With `app/services/agent_session.py` now fully
+  covered and in the gate (0.0.8, #165), the set of frames a surface actually emits is
+  knowable exactly — none of the five is among them, on the dashboard socket, the channel
+  surface or the embed. The union members, the `case` arms, the payload interfaces and the
+  test for the dead branch are gone, along with two per-event interfaces whose field names
+  disagreed with the wire (`TextDeltaEvent.data.delta` for the wire's `content`,
+  `ToolResultEvent.tool_name`/`result` for `tool_call_id`/`content`).
+
+## [0.0.8] - 2026-08-05
+
+Everything that landed after delegation and before the next feature: the branches that
+were stacked behind it, plus two more the same work surfaced. Nearly all of it is a defect
+delegation created or uncovered, and several are about a check that reported green while
+the thing it checked went unchecked.
+
+No schema change, `SPEC_VERSION` unchanged at **7**.
+
+### Fixed
+
+- **A delegation's recorded cost is its own, not the run around it**
+  ([#180](https://github.com/vstorm-co/agenticos/issues/180)). Cost was measured as the
+  growth of the run's shared ledger between the delegation starting and being settled — and
+  a **background** delegation is settled when it is next *polled*, which is arbitrarily
+  later than it finished. So a delegate that spent $0.01 while the parent went on to spend
+  $0.50 was recorded at **$0.51**, on its own run row, in its monthly total and in the
+  delegation panel.
+
+  Every `SpendEntry` now carries the delegation that booked it, and a delegation's cost is
+  its share of the ledger rather than a window over it. That also fixes the second half:
+  a mid-tree delegate no longer counts what its own delegates spent.
+
+  `has_unpriced_models` travels with the share and survives an approval park, so a row
+  cannot claim a precise cost for a delegation that had an unpriced request before the
+  approval.
+
+- **A cancelled run is recorded cancelled, and the row survives**
+  ([#171](https://github.com/vstorm-co/agenticos/issues/171)). `_run` caught
+  `BudgetExceeded` and `Exception` but not `CancelledError`, which derives from
+  `BaseException` — so a cancel passed straight through with the status left at its initial
+  `FAILED`, and because a propagating `BaseException` skips the session's auto-commit, even
+  that write rolled back and the row stayed `RUNNING` forever. It now records
+  `CANCELLED`, commits explicitly, and keeps the tokens already spent — the streaming
+  surface had this right and said so in a comment the non-streaming path did not follow.
+  Delegation reaches this path too, so a cancelled delegation now keeps its cost rather
+  than losing it.
+
+- **`skill_ids` is validated at publish, at both levels**
+  ([#179](https://github.com/vstorm-co/agenticos/issues/179)). It was the one reference a
+  spec could make that publish never checked — and skills carry grants that nothing
+  enforced, so a publisher whose role gives `SKILLS_VIEW: Scope.SHARED` could bind another
+  member's **private** skill by UUID and every runner of that agent then read its body.
+  Refused now, with the same deliberately indistinguishable "not found" wording the
+  collection check uses, so ids stay unprobeable. Versions published *before* the check are
+  a separate problem, tracked as [#186](https://github.com/vstorm-co/agenticos/issues/186).
+
+- **A delegation tool nothing could reach is no longer offered**
+  ([#182](https://github.com/vstorm-co/agenticos/issues/182)). `answer_subagent` exists so a
+  parent can answer a question its delegate asked, and no delegate here can ask one — the
+  library injects `ask_parent` for neither a configured delegate nor an autonomous
+  specialist. So it was a tool description in every delegating agent's context, on every
+  turn, for an action that cannot happen; tool descriptions are the strongest prompt surface
+  in this product.
+
+  It stays **declared** — a tool absent from a capability's `tools=` can be neither gated nor
+  renamed, and that half of the failure is silent — and the drift test now subtracts an
+  explicit table rather than skipping the capability. Seven tools are offered, nine under
+  `allow_dynamic`, ten declared.
+
+### Changed
+
+- **The chat wire format is behind the coverage gate at 100%**
+  ([#165](https://github.com/vstorm-co/agenticos/issues/165)). `app/services/agent_session.py`
+  decides every frame the dashboard WebSocket sends and every frame it accepts, and it was
+  in **neither** the coverage nor the `ty` include list — 63% covered, with `process_message`
+  and both terminal `complete` frames untested. Every surface reads this format, so a frame
+  renamed here is a frontend branch that silently stops matching, which is
+  [#144](https://github.com/vstorm-co/agenticos/issues/144) exactly.
+
+  Now 100% of 194 statements and 72 branches, in both lists, with 56 tests that assert the
+  frame that reached the socket rather than that a method was called. The author
+  mutation-tested it — 19 mutations, every frame name renamed, both terminal flags flipped,
+  the disconnect re-raise swallowed — and all 19 were caught, because 100% coverage is a
+  claim about lines executed and not about tests that would notice.
+
+  Two dead branches came out with it, one of which would have silently dropped the frame
+  carrying a run's answer had it ever been reachable.
+
+- **CodeQL's false positives no longer block a merge by hand**
+  ([#220](https://github.com/vstorm-co/agenticos/issues/220)). `github-code-quality` posts
+  each alert as a review thread, and the ruleset requires every thread resolved — so one
+  idiomatic pattern (`py/ineffectual-statement` on a bare `await <task>`, which suspends and
+  re-raises and is the whole point of the statement) cost eight hand-written replies on a
+  single pull request, with no `.github/codeql/` config in the repository to tune it. There
+  is one now, suppressing only what is demonstrably wrong for this codebase's idioms and
+  leaving everything else reporting — the inverse of #188 and #203, which were checks looking
+  at too little. `docs/code-review.md` now documents the CodeQL half: how alerts arrive, that
+  they gate through the ruleset, and where the config lives.
+
+## [0.0.7] - 2026-08-05
+
+**Delegation.** An agent can hand work to named specialists instead of carrying every
+intermediate result in one context — and three checks that existed and did not run were
+made to run, which is how two of the defects below were found.
+
+`SPEC_VERSION` is unchanged at **7**: every field delegation adds is optional with a
+default, so a spec stored before it reads unchanged. Two migrations,
+`0007_delegated_runs` and `0008_approval_delegate`, both additive and both reversible.
+
+### Added
+
+- **Delegation** ([#40](https://github.com/vstorm-co/agenticos/issues/40)). Two kinds, and
+  the difference is deliberately visible rather than smoothed over:
+
+  - a **delegate** is a published agent **pinned to a version** — permission-checked at
+    publish, with its own capabilities, model and collections. A pin whose version is gone
+    fails the run and names the delegate; never a quiet fall back to the current version,
+    because the point of pinning is that nothing changes without somebody deciding.
+  - an **inline specialist** carries its own bindings but is **not versioned**: nothing can
+    reference it, and editing the parent changes it.
+
+  What makes something an agent here is versioning, a permission check at publish, its own
+  capabilities, and being metered and capped. A specialist has three of the four, and the
+  one it lacks is the version — which is the whole design, and why there is one spec type,
+  one validator and one builder used recursively rather than a second agent format.
+
+  A delegation streams into its own collapsible panel per task, so a fan-out is legible
+  rather than a quiet gap in the transcript; a gated tool inside a delegate parks the run
+  and **resumes in place** rather than re-running the delegation; `sync`, `async` and `auto`
+  modes with the task-lifecycle tools; and a model may invent a specialist at run time
+  behind `allow_dynamic`, built through the same `build_agent` everything else goes through
+  so its requests are priced and counted.
+
+  Cost is the part worth reading twice. One run has **one spend ledger**, and every delegate
+  records into it — which is what makes the parent's cap see a delegation's spend before its
+  next model request, at precisely the moment delegation multiplies what a turn can cost. So
+  the caps that bind inside a delegation are the parent's. A delegation to a published agent
+  also gets an `agent_runs` row of its own carrying `parent_run_id`, and the two monthly
+  questions want opposite arithmetic: what the organization owes excludes child rows, what
+  *one agent* cost includes them.
+
+### Fixed
+
+- **A delegate's own knowledge collections never reached the running delegate**
+  ([#166](https://github.com/vstorm-co/agenticos/issues/166)). The delegation library runs a
+  child on `clone_for_subagent` of the *parent's* deps, so the deps our factory built for it
+  — collections and all — were discarded before its first request. A delegate configured
+  with a collection resolved it, never saw it, and answered "No active knowledge bases
+  selected" to every search while looking correctly configured.
+
+- **Three spend aggregates double-counted a delegated run**
+  ([#170](https://github.com/vstorm-co/agenticos/issues/170)), and one of them was emailed
+  as the organization's bill. On a $1.00 run of which $0.40 was a delegate, the bill read
+  $1.00 and three breakdowns read $1.40 — with the delegate's $0.40 appearing under two
+  vendors at once.
+
+- **The liveness probe reported version `1.0.0` from every deployment**, however many
+  releases it was behind. `GET /api/v1/health/live` read
+  `getattr(settings, "VERSION", "1.0.0")` against a setting that has never existed, so the
+  fallback was the only answer it ever gave — and the `getattr` is what made it silent
+  rather than an `AttributeError` on the first request. It now reports `app.__version__`,
+  the same source OpenAPI and the CLI already read.
+
+  Found by the automated reviewer on this release's own pull request, which is the right
+  place for it: the one claim a release makes is that the version is the same everywhere.
+  The test that should have caught it is named `test_liveness_probe_reports_the_build` and
+  asserted the status and the environment — everything except the build.
+
+- **Every integration run gets a database of its own**
+  ([#189](https://github.com/vstorm-co/agenticos/issues/189)). `tests/integration/conftest.py`
+  called `drop_all` against a fixed database name, so two suites at once dropped each
+  other's tables — two runs of the same commit produced *different* failure sets, which is
+  the signature of a race rather than a bug. Four people lost time to it in one day. The
+  name now carries the pytest process id, created and dropped by the fixture; both safety
+  rails are kept and one added.
+
+### Changed
+
+- **`make check` now runs every job CI runs**
+  ([#143](https://github.com/vstorm-co/agenticos/issues/143)). It was documented as "what CI
+  runs" and ran about half: `bun run build`, `pip-audit` and `mkdocs --strict` had no local
+  equivalent at all, and eslint, prettier and `tsc` sat outside `make lint`, so it passed on
+  a branch with a type error in a `.tsx`. One divergence ran the other way and is the
+  sharper one — the i18n check was local-only, so a pull request could merge an
+  untranslated string in a product whose frontend rules lean on that script.
+
+  Fixed structurally rather than by copying commands: the workflow calls the Makefile's
+  targets, and `backend/tests/test_ci_parity.py` asserts both directions, so a job added to
+  one and not the other fails the suite.
+
+- **Spelling is checked over the tree, not over the files a commit happens to touch**
+  ([#188](https://github.com/vstorm-co/agenticos/issues/188)). One misspelling was sitting
+  on `main`, waiting for whoever next opened that file for an unrelated reason. Exactly one
+  existed once the scope was right, verified two ways — the per-file scope had not
+  accumulated a backlog, it was hiding one word and would have gone on hiding the next.
+  `.codespellrc` now records that omitting the `en-GB_to_en-US` dictionary is deliberate:
+  this repository writes "behaviour" on purpose.
+
 ## [0.0.6] - 2026-08-04
 
 Dependencies only. No behaviour change, no schema change, `SPEC_VERSION` unchanged
@@ -472,7 +1080,31 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.6...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.30...HEAD
+[0.0.30]: https://github.com/vstorm-co/agenticos/compare/v0.0.29...v0.0.30
+[0.0.29]: https://github.com/vstorm-co/agenticos/compare/v0.0.28...v0.0.29
+[0.0.28]: https://github.com/vstorm-co/agenticos/compare/v0.0.27...v0.0.28
+[0.0.27]: https://github.com/vstorm-co/agenticos/compare/v0.0.26...v0.0.27
+[0.0.26]: https://github.com/vstorm-co/agenticos/compare/v0.0.25...v0.0.26
+[0.0.25]: https://github.com/vstorm-co/agenticos/compare/v0.0.24...v0.0.25
+[0.0.24]: https://github.com/vstorm-co/agenticos/compare/v0.0.23...v0.0.24
+[0.0.23]: https://github.com/vstorm-co/agenticos/compare/v0.0.22...v0.0.23
+[0.0.22]: https://github.com/vstorm-co/agenticos/compare/v0.0.21...v0.0.22
+[0.0.21]: https://github.com/vstorm-co/agenticos/compare/v0.0.20...v0.0.21
+[0.0.20]: https://github.com/vstorm-co/agenticos/compare/v0.0.19...v0.0.20
+[0.0.19]: https://github.com/vstorm-co/agenticos/compare/v0.0.18...v0.0.19
+[0.0.18]: https://github.com/vstorm-co/agenticos/compare/v0.0.17...v0.0.18
+[0.0.17]: https://github.com/vstorm-co/agenticos/compare/v0.0.16...v0.0.17
+[0.0.16]: https://github.com/vstorm-co/agenticos/compare/v0.0.15...v0.0.16
+[0.0.15]: https://github.com/vstorm-co/agenticos/compare/v0.0.14...v0.0.15
+[0.0.14]: https://github.com/vstorm-co/agenticos/compare/v0.0.13...v0.0.14
+[0.0.13]: https://github.com/vstorm-co/agenticos/compare/v0.0.12...v0.0.13
+[0.0.12]: https://github.com/vstorm-co/agenticos/compare/v0.0.11...v0.0.12
+[0.0.11]: https://github.com/vstorm-co/agenticos/compare/v0.0.10...v0.0.11
+[0.0.10]: https://github.com/vstorm-co/agenticos/compare/v0.0.9...v0.0.10
+[0.0.9]: https://github.com/vstorm-co/agenticos/compare/v0.0.8...v0.0.9
+[0.0.8]: https://github.com/vstorm-co/agenticos/compare/v0.0.7...v0.0.8
+[0.0.7]: https://github.com/vstorm-co/agenticos/compare/v0.0.6...v0.0.7
 [0.0.6]: https://github.com/vstorm-co/agenticos/compare/v0.0.5...v0.0.6
 [0.0.5]: https://github.com/vstorm-co/agenticos/compare/v0.0.4...v0.0.5
 [0.0.4]: https://github.com/vstorm-co/agenticos/compare/v0.0.3...v0.0.4

@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { applyDelegationFrame, childrenOf, closeOpenDelegations, rootsOf } from "./delegations";
-import type { Delegation, SubagentFrame } from "@/types";
+import {
+  applyDelegationFrame,
+  childrenOf,
+  closeOpenDelegations,
+  resolveAwaitingOnResume,
+  resumeFailureStatus,
+  rootsOf,
+} from "./delegations";
+import { ApiError } from "@/lib/api-error";
+import type { Delegation, SpecialistDefinition, SubagentFrame } from "@/types";
 
 /** A `subagent_start`, which is the only frame that can create a panel. */
 function start(
@@ -12,6 +20,7 @@ function start(
     mode?: "sync" | "async";
     prompt?: string;
     parent?: string | null;
+    specialist?: SpecialistDefinition | null;
   } = {},
 ): SubagentFrame {
   return {
@@ -22,6 +31,7 @@ function start(
     mode: options.mode ?? "sync",
     prompt: options.prompt ?? "find three papers",
     parent_task_id: options.parent ?? null,
+    specialist: options.specialist ?? null,
   };
 }
 
@@ -70,6 +80,25 @@ describe("applyDelegationFrame - keeping concurrent specialists apart", () => {
       "writer",
       "critic",
     ]);
+  });
+
+  it("keeps a dynamic specialist's definition on its panel, and null for anything else", () => {
+    // The definition is sent once, on the opening frame, and it is the only copy
+    // a surface gets - so the panel has to keep it for the promote action to read.
+    const invented: SpecialistDefinition = {
+      description: "Pulls line items out of an invoice",
+      instructions: "Read the invoice and return its line items.",
+      model: "GPT-4.1 (prod)",
+    };
+    const delegations = fold([
+      start("t1", { subagent: "invoice-parser", specialist: invented }),
+      start("t2", { subagent: "researcher" }),
+    ]);
+
+    expect(named(delegations, "t1").specialist).toEqual(invented);
+    // A configured delegate carries none - the field is the signal for the one
+    // kind nothing else keeps.
+    expect(named(delegations, "t2").specialist).toBeNull();
   });
 
   it("routes each delta to the delegation that produced it", () => {
@@ -337,6 +366,166 @@ describe("applyDelegationFrame - what a finished delegation reports", () => {
     const after = applyDelegationFrame(before, finished("t9"));
 
     expect(after).toBe(before);
+  });
+});
+
+/** The frame a sync delegate emits when it stops for a person. */
+function awaiting(taskId: string): SubagentFrame {
+  return { kind: "subagent_awaiting_approval", task_id: taskId, subagent: "researcher", depth: 0 };
+}
+
+describe("applyDelegationFrame - a delegate that stopped for a person", () => {
+  it("closes the panel with a waiting state rather than leaving it working", () => {
+    // The bug this frame exists to fix: without it the panel reads "working" for
+    // the length of the wait, and forever if nobody decides.
+    const delegations = fold([start("t1"), awaiting("t1")]);
+
+    expect(named(delegations, "t1").status).toBe("awaiting_approval");
+  });
+
+  it("records nothing about cost - the continuation does when the person decides", () => {
+    const delegations = fold([start("t1"), awaiting("t1")]);
+
+    expect(named(delegations, "t1")).toMatchObject({ costUsd: null, runId: null });
+  });
+
+  it("reopens the same panel on resume rather than a second appearing beside it", () => {
+    // The continuation streams under the id it parked under, so a start frame for a
+    // panel already waiting is a reopen: back to running, keeping what it had said.
+    const delegations = fold([
+      start("t1"),
+      awaiting("t1"),
+      start("t1", { subagent: "researcher" }),
+    ]);
+
+    expect(delegations).toHaveLength(1);
+    expect(named(delegations, "t1").status).toBe("running");
+  });
+
+  it("keeps what a reopened delegation had already said", () => {
+    // The panel was live before it parked; a reopen must not discard its work.
+    const delegations = fold([
+      start("t1"),
+      {
+        kind: "subagent_text_delta",
+        task_id: "t1",
+        subagent: "researcher",
+        depth: 0,
+        delta: "so far",
+      },
+      awaiting("t1"),
+      start("t1"),
+    ]);
+
+    expect(named(delegations, "t1").text).toBe("so far");
+  });
+});
+
+describe("resolveAwaitingOnResume - closing a panel the HTTP resume left waiting", () => {
+  it("moves a panel waiting for approval to the resumed run's outcome", () => {
+    // The crux of agenticos#173: the resume runs over HTTP with no delegation
+    // frames, so a panel parked at `awaiting_approval` never gets its
+    // `subagent_complete` and would read "waiting" forever after the approval.
+    const parked = fold([start("t1"), awaiting("t1")]);
+    expect(named(parked, "t1").status).toBe("awaiting_approval");
+
+    const after = resolveAwaitingOnResume(parked, "completed");
+
+    expect(named(after, "t1").status).toBe("completed");
+  });
+
+  it("carries a failed resume onto the panel rather than claiming it finished", () => {
+    const after = resolveAwaitingOnResume(fold([start("t1"), awaiting("t1")]), "failed");
+
+    expect(named(after, "t1").status).toBe("failed");
+  });
+
+  it("reads a budget-exceeded resume as a delegate that stopped without finishing", () => {
+    const after = resolveAwaitingOnResume(fold([start("t1"), awaiting("t1")]), "budget_exceeded");
+
+    expect(named(after, "t1").status).toBe("failed");
+  });
+
+  it("leaves a panel waiting when the resume parks again on a fresh decision", () => {
+    // Not terminal: the delegate is waiting on a new approval, and closing the
+    // panel would claim an outcome that has not happened.
+    const parked = fold([start("t1"), awaiting("t1")]);
+
+    const after = resolveAwaitingOnResume(parked, "awaiting_approval");
+
+    expect(after).toBe(parked);
+    expect(named(after, "t1").status).toBe("awaiting_approval");
+  });
+
+  it("keeps what a resumed panel had already streamed before it parked", () => {
+    const parked = fold([
+      start("t1"),
+      {
+        kind: "subagent_text_delta",
+        task_id: "t1",
+        subagent: "researcher",
+        depth: 0,
+        delta: "so far",
+      },
+      awaiting("t1"),
+    ]);
+
+    const after = resolveAwaitingOnResume(parked, "completed");
+
+    expect(named(after, "t1").text).toBe("so far");
+  });
+
+  it("touches only panels that were waiting, leaving a finished sibling alone", () => {
+    const delegations = fold([
+      start("t1", { subagent: "researcher" }),
+      finished("t1", { status: "completed", cost_usd: 0.5 }),
+      start("t2", { subagent: "writer" }),
+      awaiting("t2"),
+    ]);
+
+    const after = resolveAwaitingOnResume(delegations, "completed");
+
+    expect(named(after, "t1")).toMatchObject({ status: "completed", costUsd: 0.5 });
+    expect(named(after, "t2").status).toBe("completed");
+  });
+
+  it("does nothing, and no render, when no panel is waiting", () => {
+    const delegations = fold([start("t1"), finished("t1", { status: "completed" })]);
+
+    const after = resolveAwaitingOnResume(delegations, "completed");
+
+    expect(after).toBe(delegations);
+  });
+});
+
+describe("resumeFailureStatus - reading a terminal status off a failed resume", () => {
+  /** The refusal envelope a raising continuation produces (`RUN_EXECUTION_FAILED`). */
+  function resumeError(details: Record<string, unknown> | null): ApiError {
+    return new ApiError(500, "The run failed while continuing after approval", {
+      error: { code: "RUN_EXECUTION_FAILED", message: "failed", details },
+    });
+  }
+
+  it("reads the recorded status when the continuation raised", () => {
+    // The crux of agenticos#262: the resume did not return, so this status - carried
+    // in the error body - is the only per-delegation outcome the surface can get.
+    expect(resumeFailureStatus(resumeError({ run_id: "r1", status: "failed" }))).toBe("failed");
+  });
+
+  it("returns null when the run is still parked, so the decision is kept for retry", () => {
+    // A build refusal (a secret deleted since the park) leaves the run parked and
+    // carries no status: the caller must restore the approval, not close the panel.
+    expect(resumeFailureStatus(resumeError({ run_id: "r1" }))).toBeNull();
+    expect(resumeFailureStatus(resumeError(null))).toBeNull();
+  });
+
+  it("returns null for a non-terminal status, which is no outcome to close a panel to", () => {
+    expect(resumeFailureStatus(resumeError({ status: "running" }))).toBeNull();
+    expect(resumeFailureStatus(resumeError({ status: "awaiting_approval" }))).toBeNull();
+  });
+
+  it("returns null for anything that is not an ApiError", () => {
+    expect(resumeFailureStatus(new Error("network down"))).toBeNull();
   });
 });
 

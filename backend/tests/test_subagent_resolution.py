@@ -53,7 +53,6 @@ from app.services.agent_registry import DELEGATION_CAPABILITY_ID
 from app.services.agent_runner import (
     AgentRunnerService,
     RecordedDelegation,
-    _RunBudget,
     month_start,
 )
 
@@ -70,6 +69,9 @@ def _db() -> MagicMock:
     db = MagicMock()
     db.flush = AsyncMock()
     db.refresh = AsyncMock()
+    # `_run` commits its own terminal write; a cancellation never reaches the
+    # session context that would otherwise do it.
+    db.commit = AsyncMock()
     # How the organization row - and with it the org-wide cap - comes back.
     db.get = AsyncMock(return_value=MagicMock(monthly_budget_usd=None))
     return db
@@ -1115,14 +1117,12 @@ async def _record(
     outcome: DelegationOutcome,
     *,
     attribution: dict[uuid.UUID, Any] | None = None,
-    unpriced: bool = False,
 ) -> _Recorded:
     """Report one delegation to a recorder, and see what it left behind."""
     run = _parent_run()
     queued: list[Any] = []
     record = AgentRunnerService(_db())._delegation_recorder(
         run=run,
-        budget=_RunBudget(guard=MagicMock(ledger=MagicMock(has_unpriced_models=unpriced))),
         attribution=attribution or {},
         queued=queued,
     )
@@ -1203,16 +1203,91 @@ class TestRecordingADelegation:
 
         assert result.only.status is RunStatus.CANCELLED
 
-    async def test_an_unpriced_model_makes_the_delegations_share_a_floor(self):
-        """The number is a delta of the run's ledger, so if any model in the run
-        had no price this share is a floor too. Measured when the delegation is
-        reported, not when the row is written."""
+    async def test_an_unpriced_request_of_its_own_makes_a_delegations_share_a_floor(self):
+        """The flag travels with the share, so it describes the delegate's requests.
+
+        Read off the outcome rather than off the run's ledger, which is what it used
+        to be: a *parent* on a model `genai-prices` does not know made every child
+        row in the run partial, while a delegate that genuinely went unpriced inside
+        an otherwise priced run was marked nothing at all once the parent's requests
+        were all priced.
+        """
+        version_id = uuid.uuid4()
+        outcome = _outcome(agent_id=uuid.uuid4(), agent_version_id=version_id, cost_is_partial=True)
+
+        result = await _record(outcome, attribution={version_id: _model()})
+
+        assert result.only.cost_is_partial is True
+
+    async def test_a_delegation_whose_own_requests_were_priced_is_not_a_floor(self):
+        """The other half: the run's other agents cannot mark this share partial."""
         version_id = uuid.uuid4()
         outcome = _outcome(agent_id=uuid.uuid4(), agent_version_id=version_id)
 
-        result = await _record(outcome, attribution={version_id: _model()}, unpriced=True)
+        result = await _record(outcome, attribution={version_id: _model()})
 
-        assert result.only.cost_is_partial is True
+        assert result.only.cost_is_partial is False
+
+    async def test_a_delegations_row_spans_its_own_start_and_end(self):
+        """agenticos#191: the span is the delegate's, not the settlement's.
+
+        Both ends used to be `now` at the moment the delegation was reported,
+        which for a background one is the poll that collected it - so its row read
+        as a zero-duration run at the wrong time. Off the handle instead, the row
+        carries the interval the delegate actually ran for.
+        """
+        version_id = uuid.uuid4()
+        started = datetime(2026, 8, 5, 9, 0, tzinfo=UTC)
+        ended = datetime(2026, 8, 5, 9, 0, 40, tzinfo=UTC)
+        outcome = _outcome(
+            agent_id=uuid.uuid4(),
+            agent_version_id=version_id,
+            started_at=started,
+            ended_at=ended,
+        )
+
+        result = await _record(outcome, attribution={version_id: _model()})
+
+        assert result.only.started_at == started
+        assert result.only.ended_at == ended
+
+    async def test_an_outcome_carrying_no_times_falls_back_to_a_zero_span(self):
+        """agenticos#191: a handle with no times must not write a null.
+
+        A terminal handle that carried neither a start nor an end - all the outcome
+        has to offer - leaves both columns, which are non-null, to fall back to
+        `now`: a zero-duration run recorded where it was reported, rather than a
+        `NULL` the insert rejects. (The refusal that creates no handle at all writes
+        no row; that path never reaches the recorder - see
+        `tests/test_subagents_capability.py::TestBackgroundDelegations`.)
+        """
+        version_id = uuid.uuid4()
+        outcome = _outcome(agent_id=uuid.uuid4(), agent_version_id=version_id)
+
+        result = await _record(outcome, attribution={version_id: _model()})
+
+        assert result.only.started_at is not None
+        assert result.only.ended_at == result.only.started_at
+
+    async def test_a_handle_with_an_end_but_no_start_reads_as_an_instant(self):
+        """A task that reached a terminal status without executing - cancelled or
+        failed before it began - has an end stamped and no start. The row takes the
+        end for both, so its span is an instant at the right time rather than one
+        that ends before it began."""
+        version_id = uuid.uuid4()
+        ended = datetime(2026, 8, 5, 9, 0, 40, tzinfo=UTC)
+        outcome = _outcome(
+            agent_id=uuid.uuid4(),
+            agent_version_id=version_id,
+            status="cancelled",
+            started_at=None,
+            ended_at=ended,
+        )
+
+        result = await _record(outcome, attribution={version_id: _model()})
+
+        assert result.only.started_at == ended
+        assert result.only.ended_at == ended
 
     async def test_an_inline_specialist_records_nothing(self):
         """It has no agent to attribute a row to: it is not versioned, nothing
@@ -1265,7 +1340,6 @@ class TestTwoDelegationsInOneStep:
         queued: list[Any] = []
         record = AgentRunnerService(_db())._delegation_recorder(
             run=_parent_run(),
-            budget=_RunBudget(guard=MagicMock(ledger=MagicMock(has_unpriced_models=False))),
             attribution={version_id: _model()},
             queued=queued,
         )

@@ -25,7 +25,7 @@ export default defineConfig({
         "src/lib/**",
         "src/stores/**",
         "src/hooks/**",
-        "src/components/agents/**/*.tsx",
+        "src/components/agents/**/*.{ts,tsx}",
         "src/components/orgs/**/*.tsx",
         "src/components/runs/**/*.tsx",
         "src/components/sandboxes/**/*.tsx",

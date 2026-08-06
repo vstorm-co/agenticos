@@ -57,7 +57,11 @@ from app.agents.capabilities.budget import (
     SpendLimit,
 )
 from app.agents.capabilities.subagents import Delegation
-from app.agents.capabilities.subagents._capability import MAX_DYNAMIC_SPECIALISTS
+from app.agents.capabilities.subagents._capability import (
+    BACKGROUND_LIFECYCLE_TOOLS,
+    MAX_DYNAMIC_SPECIALISTS,
+)
+from app.agents.capabilities.subagents._journal import DelegationJournal
 from app.agents.deps import AgentDeps
 from app.agents.factory import build_agent
 from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
@@ -66,8 +70,10 @@ from app.agents.subagent_events import SubagentEvent
 from app.agents.subagent_runtime import (
     SUBAGENT_RUNTIME_RESOURCE,
     DelegationOutcome,
+    DelegationStash,
     DynamicSpecialistBuilder,
     DynamicSpecialists,
+    RegisteredSpecialist,
     ResolvedSubagent,
     SubagentRuntime,
 )
@@ -232,8 +238,17 @@ def a_runtime(
     dynamic: DynamicSpecialists | None = None,
     ledger: SpendLedger | None = None,
     record: Recorder | None = None,
+    stash: DelegationStash | None = None,
+    depth: int = 0,
 ) -> SubagentRuntime:
-    return SubagentRuntime(subagents=delegates, record=record, dynamic=dynamic, ledger=ledger)
+    runtime = SubagentRuntime(
+        subagents=delegates, record=record, dynamic=dynamic, ledger=ledger, depth=depth
+    )
+    if stash is not None:
+        # A resume hands over a stash carrying what an earlier turn kept; a fresh
+        # run gets the default empty one.
+        runtime.stash = stash
+    return runtime
 
 
 def dynamic(
@@ -552,6 +567,32 @@ class TestASpecialistCannotWidenWhatItWasGranted:
 
         assert seen == [[], []]
 
+    async def test_a_specialist_the_model_invents_cannot_ask_even_when_questions_are_allowed(self):
+        """`allow_questions` opens the door for a delegate an author reviewed, and
+        never for one a model wrote a moment ago.
+
+        The author's flag reaches only the configured delegates, through
+        `_config_for`; `_autonomously` forces `can_ask_questions` off on both dynamic
+        entry points regardless, so a specialist the model invents is handed no
+        `ask_parent` tool even with questions turned on for the agent. This is the
+        refusal half of agenticos#184 - the sync feature does not leak to the shape
+        of delegate whose instructions nobody read.
+        """
+        seen: list[list[str]] = []
+        runtime = a_runtime(
+            dynamic=dynamic(specialist_builder(runs_on=specialist_model(tools_seen=seen)))
+        )
+        capability = a_capability(runtime, {"allow_questions": True})
+        ctx = a_context()
+
+        await call_tool(capability, ctx, "delegate", delegate_args(name="one-shot"))
+        await call_tool(capability, ctx, "create_agent", create_args(name="kept"))
+        await call_tool(
+            capability, ctx, "task", {"description": "summarise it", "subagent_type": "kept"}
+        )
+
+        assert seen == [[], []]
+
     async def test_a_specialist_cannot_take_a_published_delegates_handle(self):
         """Two delegates answering to one name leave the model no way to say which.
 
@@ -611,13 +652,19 @@ class TestHowManyOneRunMayInvent:
 class TestWhenTheEntryPointsAreOfferedAtAll:
     async def test_an_agent_whose_author_said_nothing_is_offered_neither(self):
         """Every tool in a list is context the model pays for on every turn, and a
-        tool that can only refuse is the worst of them."""
-        assert await offered(a_capability(a_runtime(a_delegate()))) == {
+        tool that can only refuse is the worst of them.
+
+        `async`, so this stays a statement about `create_agent` and `delegate`: the
+        background-lifecycle six are offered only when a background delegation is
+        reachable, so a `sync` agent with no dynamic runtime would be missing those
+        too - `TestOfferedSet` in `test_subagents_capability.py` is where that is
+        asserted.
+        """
+        assert await offered(a_capability(a_runtime(a_delegate()), {"mode": "async"})) == {
             "task",
             "check_task",
             "wait_tasks",
             "list_active_tasks",
-            "answer_subagent",
             "send_message_to_subagent",
             "soft_cancel_task",
             "hard_cancel_task",
@@ -627,6 +674,18 @@ class TestWhenTheEntryPointsAreOfferedAtAll:
         capability = a_capability(a_runtime(a_delegate(), dynamic=dynamic()))
 
         assert {"create_agent", "delegate", "task"} <= await offered(capability)
+
+    async def test_a_dynamic_sync_agent_keeps_the_background_lifecycle_tools(self):
+        """The `dynamic is not None` branch of `_can_delegate_in_background`.
+
+        A `sync` agent that may invent specialists resolves its delegations per
+        `create_agent` or `delegate` call rather than from a set that exists now, so
+        the predicate withholds nothing there rather than reasoning about work that
+        has not been asked for yet - the safe side of a narrowing whose wrong
+        direction removes a tool an agent needs mid-turn."""
+        capability = a_capability(a_runtime(a_delegate(), dynamic=dynamic()), {"mode": "sync"})
+
+        assert await offered(capability) >= BACKGROUND_LIFECYCLE_TOOLS
 
     async def test_an_agent_with_no_delegates_but_dynamic_still_gets_the_capability(self):
         """`allow_dynamic` on its own is a complete configuration: an orchestrator
@@ -695,7 +754,14 @@ class TestADynamicDelegationIsAccountedForLikeAnyOther:
     async def test_it_is_recorded_with_no_agent_of_its_own(self):
         """An invented specialist has no agent row to attribute a run to, exactly
         as an inline specialist has none: its cost is the parent's, and the tool
-        call in the transcript is the record."""
+        call in the transcript is the record.
+
+        So the money it spends is real and on the run's ledger, but the row it would
+        write bills nothing to itself - it has no row, and directly under the run's
+        own agent its spend bills to the top-level row, which is the whole ledger
+        anyway (agenticos#228). The runner drops this outcome for want of an
+        `agent_id`; what it carries is the billed share, which is zero here.
+        """
         ledger = SpendLedger()
         recorder = Recorder()
         budget = _RunBudget(guard=BudgetGuard(ledger=ledger, provider="openai"))
@@ -708,7 +774,10 @@ class TestADynamicDelegationIsAccountedForLikeAnyOther:
         (outcome,) = recorder.outcomes
         assert (outcome.subagent, outcome.status) == ("summariser", "completed")
         assert (outcome.agent_id, outcome.agent_version_id) == (None, None)
-        assert outcome.cost_usd > 0
+        # The specialist did spend - it is the parent's ledger that holds it - and it
+        # bills to no row of its own.
+        assert ledger.total_usd > 0
+        assert outcome.cost_usd == Decimal(0)
 
     async def test_the_authors_mode_is_forced_on_it_too(self):
         """`delegate` takes a `mode` argument whose default is `sync`, so the
@@ -738,6 +807,25 @@ class TestADynamicDelegationIsAccountedForLikeAnyOther:
         assert {frame.subagent for frame in sink.frames} == {"summariser"}
         assert "subagent_start" in [frame.kind for frame in sink.frames]
 
+    async def test_its_definition_rides_the_opening_frame_so_a_surface_can_keep_it(self):
+        """A dynamic specialist is persisted nowhere, so its one legible copy is the
+        frame that announces the delegation to it. Everything the model wrote and the
+        model it named, carried so a surface can offer to promote it to a draft agent
+        while the run is still on screen - the only window there is."""
+        sink = Sink()
+        ledger = SpendLedger()
+        budget = _RunBudget(guard=BudgetGuard(ledger=ledger, provider="openai"))
+        runtime = a_runtime(dynamic=dynamic(specialist_builder(budget)), ledger=ledger)
+        args = delegate_args()
+
+        await call_tool(a_capability(runtime), a_context(sink), "delegate", args)
+
+        (started,) = [frame for frame in sink.frames if frame.kind == "subagent_start"]
+        assert started.specialist is not None
+        assert started.specialist.description == args["description"]
+        assert started.specialist.instructions == args["instructions"]
+        assert started.specialist.model == PROFILE
+
     async def test_a_specialist_kept_for_the_run_is_addressed_through_task(self):
         """`create_agent` registers it and `task` reaches it,
         which is what puts it back under the mode, the ceiling and the recording
@@ -760,6 +848,193 @@ class TestADynamicDelegationIsAccountedForLikeAnyOther:
         assert "the specialist answered" in answer
         assert [outcome.subagent for outcome in recorder.outcomes] == ["summariser"]
         assert ledger.entries != []
+
+
+class TestAKeptSpecialistSurvivesTheParkThatCreatedIt:
+    """agenticos#175: a `create_agent` specialist kept before an approval park must
+    be reachable after it.
+
+    The library holds each registration in a registry it builds per *built* agent,
+    and a resume is a fresh build - so a specialist kept before the park was gone
+    after it while the replayed transcript still said it had been created, and
+    `task` answered "unknown subagent". The fix snapshots the registrations when the
+    run ends, the runner carries them in `PausedRunState`, and the resume rebuilds
+    each one into a fresh registry.
+
+    Two runtimes stand in for the park and its resume, one `build_delegation` each -
+    which is exactly what a park and a resume are, two builds of the same run. The
+    first keeps a specialist and snapshots it as the run ends; the second is handed
+    what the first kept, the way the runner hands it back through the stash.
+    """
+
+    async def test_the_run_snapshots_what_create_agent_kept(self):
+        """The capture half: when the run ends, the kept specialist is on the stash,
+        in the four fields a resume needs to build it again."""
+        runtime = a_runtime(dynamic=dynamic(specialist_builder()))
+        capability = a_capability(runtime)
+        ctx = a_context()
+
+        await call_tool(capability, ctx, "create_agent", create_args())
+        await _ends_the_run(capability, ctx)
+
+        # Under the `None` key: the run's own agent, delegated from nowhere.
+        assert runtime.stash.registered == {
+            None: [
+                RegisteredSpecialist(
+                    name="summariser",
+                    description="Summarises a document in three bullets",
+                    instructions="You summarise.",
+                    model=PROFILE,
+                )
+            ]
+        }
+
+    async def test_without_the_carried_registrations_the_rebuild_loses_it(self):
+        """The failure itself: a fresh build with nothing carried over answers `task`
+        with "unknown subagent", which is what every resume did before the fix."""
+        resumed = a_runtime(dynamic=dynamic(specialist_builder()))
+
+        answer = await call_tool(
+            a_capability(resumed),
+            a_context(),
+            "task",
+            {"description": "summarise it", "subagent_type": "summariser"},
+        )
+
+        assert "Unknown subagent 'summariser'" in answer
+
+    async def test_task_reaches_a_resumed_specialist_and_still_meters_it(self):
+        """The whole of the fix: the specialist the first turn kept is reachable in
+        the second, and its spend still lands on the run's shared ledger.
+
+        The metering is the half the naive fix breaks. A resume re-registers before
+        the run's budget guard exists - it is a product of `build_agent`, assigned
+        after this build - so a specialist built eagerly at re-registration would be
+        handed no guard and meter nothing. The guard is set here *after* the
+        capability is built, as the runner sets it, and the ledger entry is what
+        proves the rebuilt specialist waited for it.
+        """
+        first = a_runtime(dynamic=dynamic(specialist_builder()))
+        capability = a_capability(first)
+        await call_tool(capability, a_context(), "create_agent", create_args())
+        await _ends_the_run(capability, a_context())
+        kept = first.stash.registered[None]
+        assert [specialist.name for specialist in kept] == ["summariser"]
+
+        ledger = SpendLedger()
+        budget = _RunBudget()
+        resumed = a_runtime(
+            dynamic=dynamic(specialist_builder(budget)),
+            ledger=ledger,
+            stash=DelegationStash(to_register={None: kept}),
+        )
+        resumed_capability = a_capability(resumed)
+        # The two assignments the runner makes after the build, in that order: the
+        # guard is a product of the build, and a lazily rebuilt specialist reads it
+        # only when `task` runs it below.
+        budget.guard = BudgetGuard(ledger=ledger, provider="openai")
+
+        answer = await call_tool(
+            resumed_capability,
+            a_context(),
+            "task",
+            {"description": "summarise it", "subagent_type": "summariser"},
+        )
+
+        assert "the specialist answered" in answer
+        assert [entry.input_tokens for entry in ledger.entries] == [SPECIALIST_TOKENS]
+
+    async def test_a_delegation_to_a_resumed_specialist_still_carries_its_definition(self):
+        """The promote offer must survive the park too. A `task` after the resume is a
+        fresh delegation streaming a fresh `SubagentStarted`, and it is re-registered
+        through `_seeded_registry` rather than the factory - so without recording the
+        definition there, the panel that opens after an approval would hide the offer
+        on the very specialist it exists to rescue, while it is visibly working."""
+        kept = [
+            RegisteredSpecialist(
+                name="summariser",
+                description="Summarises a document in three bullets",
+                instructions="You summarise.",
+                model=PROFILE,
+            )
+        ]
+        ledger = SpendLedger()
+        budget = _RunBudget()
+        resumed = a_runtime(
+            dynamic=dynamic(specialist_builder(budget)),
+            ledger=ledger,
+            stash=DelegationStash(to_register={None: kept}),
+        )
+        capability = a_capability(resumed)
+        budget.guard = BudgetGuard(ledger=ledger, provider="openai")
+        sink = Sink()
+
+        await call_tool(
+            capability,
+            a_context(sink),
+            "task",
+            {"description": "summarise it", "subagent_type": "summariser"},
+        )
+
+        (started,) = [frame for frame in sink.frames if frame.kind == "subagent_start"]
+        assert started.specialist is not None
+        assert started.specialist.instructions == "You summarise."
+        assert started.specialist.model == PROFILE
+
+    async def test_a_specialist_whose_model_is_gone_is_skipped_not_raised(self):
+        """A profile can be deleted between the park and the resume. That one
+        specialist reads as unknown again - the model can recreate it - rather than
+        failing the whole continuation, and any others carried over still resume."""
+        gone = RegisteredSpecialist(
+            name="summariser",
+            description="Summarises a document in three bullets",
+            instructions="You summarise.",
+            model="A model the organization no longer holds",
+        )
+        resumed = a_runtime(
+            dynamic=dynamic(specialist_builder()),
+            stash=DelegationStash(to_register={None: [gone]}),
+        )
+
+        answer = await call_tool(
+            a_capability(resumed),
+            a_context(),
+            "task",
+            {"description": "summarise it", "subagent_type": "summariser"},
+        )
+
+        assert "Unknown subagent 'summariser'" in answer
+
+    async def test_a_nested_level_keys_its_snapshot_by_the_call_it_was_delegated_from(self):
+        """The nested half of the carry (agenticos#254): a delegate's kept specialists
+        are keyed by the `task` call it was delegated from, not lumped under the run's
+        own agent's `None`.
+
+        That key is what lets a nested `create_agent` hang off its own
+        `DelegationFrame` and survive the park its delegate caused, where before a flat
+        run-level list dropped it. The key is read off the enclosing delegation, which
+        is the current one while a nested level's `wrap_run` runs - set here through a
+        parent journal's `delegating` block, exactly as the real tree sets it. The
+        full park -> resume -> re-delegate round trip is
+        `tests/test_subagent_nested_resume.py`.
+        """
+        stash = DelegationStash()
+        nested = a_runtime(dynamic=dynamic(specialist_builder()), stash=stash, depth=1)
+        capability = a_capability(nested)
+        ctx = a_context()
+        # The enclosing delegation, whose `task` call is the key this level rides on.
+        parent = DelegationJournal(runtime=a_runtime(), mode="sync", max_fanout=3, depth=0)
+        enclosing = parent.begin(
+            delegate=None, name="editor", prompt="", tool_args={}, tool_call_id="editor-call"
+        )
+
+        with parent.delegating(enclosing):
+            await call_tool(capability, ctx, "create_agent", create_args(name="nested-only"))
+            await _ends_the_run(capability, ctx)
+
+        assert [kept.name for kept in stash.registered["editor-call"]] == ["nested-only"]
+        # Not lumped under the run's own agent's key, which a resume reads flat.
+        assert None not in stash.registered
 
 
 async def _ends_the_run(capability: Delegation, ctx: RunContext[AgentDeps]) -> None:

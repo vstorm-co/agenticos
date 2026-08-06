@@ -23,7 +23,7 @@ from pydantic import BaseModel
 
 from app.agents.capabilities import REGISTRY, CapabilityToolInfo, load_builtins, register
 from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
-from app.agents.spec import AgentSpec
+from app.agents.spec import AgentSpec, CapabilityBindingSpec, SpecialistSpec
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
@@ -112,6 +112,21 @@ def _agent(ctx: AuthContext, **overrides):
     for key, value in overrides.items():
         setattr(agent, key, value)
     return agent
+
+
+def _skill(ctx: AuthContext, *, owner_user_id=None):
+    """A private skill row in the caller's organization.
+
+    Owned by the caller unless `owner_user_id` says otherwise, so role scope
+    alone reaches it - and giving it away is how a test asks for a skill the
+    publisher can see the id of and nothing more.
+    """
+    return MagicMock(
+        id=uuid.uuid4(),
+        organization_id=ctx.organization_id,
+        owner_user_id=owner_user_id or ctx.user_id,
+        visibility=Visibility.PRIVATE.value,
+    )
 
 
 def _version(agent_id, *, number: int = 1, spec: AgentSpec | None = None):
@@ -355,6 +370,111 @@ class TestCreate:
         assert create.await_count == 0
 
 
+class TestPromoteSpecialist:
+    """The one exit a specialist has that keeps its provenance visible.
+
+    Promoting turns a specialist - inline or one a model invented mid-run - into an
+    ordinary draft agent owned by whoever promoted it, and stops there: no publish,
+    no pin, no touching what it came from. Each of those is the author's next
+    decision, with the normal validation in front of it.
+    """
+
+    @pytest.mark.anyio
+    async def test_a_promoted_specialist_becomes_a_draft_the_promoter_owns(self):
+        ctx = _ctx()
+        specialist = SpecialistSpec(
+            name="invoice-parser",
+            description="Pulls line items out of an invoice",
+            instructions="You read invoices and return their line items as JSON.",
+            model_profile_id=uuid4(),
+        )
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get_by_slug", new=AsyncMock(return_value=None)),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.create", new=AsyncMock(return_value=_agent(ctx))
+            ) as create,
+            patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()) as audit,
+        ):
+            await AgentRegistryService(_db()).promote_specialist(
+                ctx, specialist, fallback_model_profile_id=None
+            )
+
+        written = create.call_args.kwargs
+        assert written["slug"] == "invoice-parser"
+        assert written["name"] == "invoice-parser"
+        # The specialist's own instructions and model reach the draft verbatim - a
+        # draft that publishes and runs the same is the whole point.
+        assert written["draft_spec"]["instructions"] == specialist.instructions
+        assert written["draft_spec"]["model_profile_id"] == str(specialist.model_profile_id)
+        # Owned by the promoter, because `create` is - a specialist created inside
+        # someone else's run does not become their agent without this.
+        assert written["owner_user_id"] == ctx.user_id
+        assert {call.kwargs["action"] for call in audit.await_args_list} == {
+            "agent.created",
+            "agent.promoted_from_specialist",
+        }
+
+    @pytest.mark.anyio
+    async def test_a_specialist_on_the_parents_model_takes_the_parents_profile(self):
+        """`model_profile_id=None` on a specialist means "the parent's model", and a
+        standalone agent has no parent - so the fallback is resolved into the draft,
+        which is what lets it publish without first being given a model by hand."""
+        ctx = _ctx()
+        parent_profile = uuid4()
+        specialist = SpecialistSpec(
+            name="summariser",
+            description="Summarises in three bullets",
+            instructions="Summarise the input in exactly three bullets.",
+            model_profile_id=None,
+        )
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get_by_slug", new=AsyncMock(return_value=None)),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.create", new=AsyncMock(return_value=_agent(ctx))
+            ) as create,
+            patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()),
+        ):
+            await AgentRegistryService(_db()).promote_specialist(
+                ctx, specialist, fallback_model_profile_id=parent_profile
+            )
+
+        assert create.call_args.kwargs["draft_spec"]["model_profile_id"] == str(parent_profile)
+
+    @pytest.mark.anyio
+    async def test_promoting_does_not_pin_the_new_agent_as_a_delegate(self):
+        """`to_agent_spec` drops what a specialist cannot carry, and the draft is a
+        plain agent: no delegates pinned to it, no delegates of its own. Promoting is
+        a copy, not a wiring-up - pinning it back to a parent is a separate decision.
+        """
+        ctx = _ctx()
+        specialist = SpecialistSpec(
+            name="researcher",
+            description="Finds and cites sources",
+            instructions="Research the topic and cite your sources.",
+            model_profile_id=uuid4(),
+            capabilities=[CapabilityBindingSpec(id="web_search")],
+        )
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get_by_slug", new=AsyncMock(return_value=None)),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.create", new=AsyncMock(return_value=_agent(ctx))
+            ) as create,
+            patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()),
+        ):
+            await AgentRegistryService(_db()).promote_specialist(
+                ctx, specialist, fallback_model_profile_id=None
+            )
+
+        draft = create.call_args.kwargs["draft_spec"]
+        assert draft["subagents"] == []
+        # The specialist's own capabilities do come across - a researcher that
+        # cannot search is not the researcher that ran.
+        assert [binding["id"] for binding in draft["capabilities"]] == ["web_search"]
+
+
 class TestSaveDraft:
     @pytest.mark.anyio
     async def test_a_spec_that_could_never_publish_is_still_saved(self, ungranted_capability):
@@ -543,6 +663,7 @@ class TestValidateSpec:
     async def test_a_spec_whose_references_all_resolve_raises_nothing(self):
         ctx = _ctx()
         collection_id = uuid.uuid4()
+        skill = _skill(ctx)
 
         with (
             patch(
@@ -557,15 +678,109 @@ class TestValidateSpec:
                 f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_id",
                 new=AsyncMock(return_value=MagicMock()),
             ),
+            patch(
+                f"{REGISTRY_PATH}.skill_repo.get_many",
+                new=AsyncMock(return_value={skill.id: skill}),
+            ),
         ):
             await AgentRegistryService(_db()).validate_spec(
                 ctx,
                 _spec(
                     capabilities=[{"id": "clock"}, {"id": "knowledge"}],
                     collection_ids=[collection_id],
+                    skill_ids=[skill.id],
                     model_profile_id=uuid.uuid4(),
                     mcp_server_ids=[uuid.uuid4()],
                 ),
+            )
+
+
+class TestSkillValidation:
+    """Binding a skill lends it, so publish checks the publisher can read it.
+
+    A bound skill's body and files are handed to every run of the agent, and
+    skills are bound by UUID - from the API, or by hand-editing a draft - not only
+    picked from a list the Builder filtered. Without this check a member whose role
+    reaches only shared skills could bind a colleague's private one and read it
+    through the agent.
+    """
+
+    @staticmethod
+    async def _problems(ctx: AuthContext, spec: AgentSpec, **repos) -> list[str]:
+        """The problems publishing this spec reports, with the model resolving."""
+        with (
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            patch(f"{REGISTRY_PATH}.skill_repo.get_many", new=AsyncMock(**repos)),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await AgentRegistryService(_db()).validate_spec(ctx, spec)
+
+        assert refused.value.details is not None
+        problems: list[str] = refused.value.details["problems"]
+        return problems
+
+    @pytest.mark.anyio
+    async def test_a_skill_this_organization_does_not_have_is_not_found(self):
+        """Including another tenant's: the repository filters by organization, so
+        an id from elsewhere arrives here as an absence."""
+        skill_id = uuid.uuid4()
+
+        problems = await self._problems(
+            _ctx(),
+            _spec(skill_ids=[skill_id], model_profile_id=uuid.uuid4()),
+            return_value={},
+        )
+
+        assert problems == [f"Skill not found: {skill_id}"]
+
+    @pytest.mark.anyio
+    async def test_a_private_skill_the_publisher_cannot_reach_is_not_found(self):
+        """The leak this check closes, reported as an absence.
+
+        A member's role reaches shared skills only, so a colleague's private one
+        is refused - and told the same thing as an id that does not exist, because
+        a refusal that read differently would map the organization's private
+        skills one guess at a time.
+        """
+        ctx = _ctx(OrgRoleName.MEMBER)
+        private = _skill(ctx, owner_user_id=uuid.uuid4())
+
+        with patch(
+            "app.services.access.resource_grant_repo.get_level", new=AsyncMock(return_value=None)
+        ):
+            problems = await self._problems(
+                ctx,
+                _spec(skill_ids=[private.id], model_profile_id=uuid.uuid4()),
+                return_value={private.id: private},
+            )
+
+        assert problems == [f"Skill not found: {private.id}"]
+
+    @pytest.mark.anyio
+    async def test_a_grant_lets_a_member_bind_a_skill_they_do_not_own(self):
+        """A grant widens what a role allows, here as everywhere else."""
+        ctx = _ctx(OrgRoleName.MEMBER)
+        shared = _skill(ctx, owner_user_id=uuid.uuid4())
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.skill_repo.get_many",
+                new=AsyncMock(return_value={shared.id: shared}),
+            ),
+            patch(
+                "app.services.access.resource_grant_repo.get_level",
+                new=AsyncMock(return_value=GrantLevel.READ),
+            ),
+        ):
+            await AgentRegistryService(_db()).validate_spec(
+                ctx, _spec(skill_ids=[shared.id], model_profile_id=uuid.uuid4())
             )
 
 

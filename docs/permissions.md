@@ -208,10 +208,11 @@ Lending a delegate is lending what you hold, exactly as binding a collection is.
     valid-looking UUID.
 
 An inline specialist gets the same checks the parent's own bindings get - capability
-scopes, secret ownership, collection access, and its model profile if it names one -
-each reported with the specialist's name so a Builder form can point at the right
-input. A specialist is the tempting place to smuggle in a collection nobody shared,
-precisely because nobody thinks of it as an agent.
+scopes, secret ownership, collection access, [skill access](skills.md#access), and
+its model profile if it names one - each reported with the specialist's name so a
+Builder form can point at the right input. A specialist is the tempting place to
+smuggle in a collection nobody shared, precisely because nobody thinks of it as an
+agent.
 
 The deployment-wide switch is separate, and it is a capability scope rather than a
 permission: `agents:delegate`. It answers "may agents call agents in this

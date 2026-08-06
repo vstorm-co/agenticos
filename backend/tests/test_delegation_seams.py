@@ -17,19 +17,32 @@ something further out depends on being right:
 - a delegate's guard shares the run's ledger and limits while pricing its own
   provider, which is what keeps a delegation's cost inside the cap somebody set
   without pricing an Anthropic child against OpenAI's catalog;
+- one shared ledger still answers "what did *this* delegate spend", because every
+  entry is stamped with the delegation that booked it. That is the seam a
+  delegation's recorded cost is read off, and it is what makes one set of prices
+  serve both the run's total and each delegate's share;
 - the stash answers what a delegation has already spent, keyed by the `task` call
-  that opens it, because a turn cannot see the ledger the previous turn measured
-  against.
+  that opens it, because the ledger a resumed turn reads its share off is a fresh
+  object holding nothing from before the park.
 """
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4
 
 import pytest
 
-from app.agents.capabilities.budget import BudgetGuard, BudgetScope, SpendLedger, SpendLimit
+from app.agents.capabilities.budget import (
+    BudgetGuard,
+    BudgetScope,
+    SpendEntry,
+    SpendLedger,
+    SpendLimit,
+    SpendShare,
+    booked_to,
+)
 from app.agents.spec import AgentSpec, CapabilityBindingSpec, SpecialistSpec, SubagentRef
 from app.agents.subagent_runtime import DelegationSpend, DelegationStash
 
@@ -163,8 +176,18 @@ def test_a_delegates_guard_shares_the_run_and_prices_its_own_provider() -> None:
     assert delegate.run_state is parent.run_state
 
 
+def _priced(cost: str, tokens: int = 10) -> SpendEntry:
+    return SpendEntry(
+        model_name="gpt-4.1",
+        input_tokens=tokens,
+        output_tokens=tokens,
+        cost_usd=Decimal(cost),
+        priced=True,
+    )
+
+
 def test_a_delegation_the_run_is_starting_has_spent_nothing_yet() -> None:
-    """Which is every delegation until one parks, so the ordinary path stays a delta.
+    """Which is every delegation until one parks, so the ordinary path is the share alone.
 
     A `task` call the stash has never seen is a delegation being started rather than
     continued. Answering anything but zero here would add a previous delegation's
@@ -193,3 +216,184 @@ def test_a_delegation_with_no_tool_call_to_name_it_carries_nothing() -> None:
     stash = DelegationStash(spent={"the-task-call": DelegationSpend(cost_usd=Decimal("0.25"))})
 
     assert stash.already_spent(None) == DelegationSpend()
+
+
+def test_a_delegation_the_run_is_starting_has_no_earlier_start() -> None:
+    """Which is every delegation until one parks, so the recorder takes this turn's.
+
+    A `task` call the stash has never seen is a delegation being started rather than
+    continued: nothing began in an earlier turn, so `_span_start` reads the whole
+    span off this turn's own handle.
+    """
+    stash = DelegationStash(started={"another-task-call": datetime(2026, 8, 5, tzinfo=UTC)})
+
+    assert stash.already_started("this-task-call") is None
+
+
+def test_a_delegation_being_continued_answers_with_when_it_first_began() -> None:
+    """The key is the parent's `task` call, which the replay presents again."""
+    began = datetime(2026, 8, 5, 9, 0, tzinfo=UTC)
+    stash = DelegationStash(started={"the-task-call": began})
+
+    assert stash.already_started("the-task-call") == began
+
+
+def test_a_delegation_with_no_tool_call_to_name_it_carries_no_start() -> None:
+    """Nothing a resume could key it by, exactly as with what it already spent."""
+    stash = DelegationStash(started={"the-task-call": datetime(2026, 8, 5, tzinfo=UTC)})
+
+    assert stash.already_started(None) is None
+
+
+def test_one_ledger_still_says_which_delegation_spent_what() -> None:
+    """The seam a delegation's recorded cost is read off.
+
+    Not a ledger per agent - that is the design that stops the parent's cap from
+    binding at all - but one ledger whose entries know who booked them. Everything
+    the parent spends before, during and after a delegation stays the parent's,
+    which is what makes the answer independent of *when* the delegation is settled.
+    """
+    ledger = SpendLedger()
+
+    ledger.book(_priced("0.20"))
+    with booked_to("delegation-a", has_own_row=True):
+        ledger.book(_priced("0.01"))
+    ledger.book(_priced("0.30"))
+
+    assert ledger.share_of("delegation-a").cost_usd == Decimal("0.01")
+    assert ledger.total_usd == Decimal("0.51")
+
+
+def test_a_nested_delegation_takes_the_spend_from_the_one_it_is_inside() -> None:
+    """The innermost delegation wins, which is what stops a level double-counting.
+
+    A mid-tree delegate's row and its own delegate's row both land in
+    `monthly_spend(agent_id=...)`, so a share containing what the level below spent
+    is the same money recorded twice under one agent's month.
+    """
+    ledger = SpendLedger()
+
+    with booked_to("child", has_own_row=True):
+        ledger.book(_priced("0.02"))
+        with booked_to("grandchild", has_own_row=True):
+            ledger.book(_priced("0.04"))
+        ledger.book(_priced("0.02"))
+
+    assert ledger.share_of("child").cost_usd == Decimal("0.04")
+    assert ledger.share_of("grandchild").cost_usd == Decimal("0.04")
+    # The whole, once: the shares partition the ledger rather than overlapping it.
+    assert ledger.total_usd == Decimal("0.08")
+
+
+def test_an_inline_specialist_bills_its_spend_to_its_published_ancestor() -> None:
+    """The panel keeps the specialist's own share; the row gets the ancestor's whole.
+
+    A published delegate (`has_own_row=True`) delegates to an inline specialist
+    (`has_own_row=False`). The specialist's request is stamped to the specialist for
+    its panel and to the delegate for its month, so `share_of` and `billed_share_of`
+    answer the two questions that used to be one - and the money no longer falls
+    between them (agenticos#228).
+    """
+    ledger = SpendLedger()
+
+    with booked_to("researcher", has_own_row=True):
+        ledger.book(_priced("0.50"))
+        with booked_to("fact-checker", has_own_row=False):
+            ledger.book(_priced("0.25"))
+
+    # The panel: each shows only its own requests, exactly as before.
+    assert ledger.share_of("researcher").cost_usd == Decimal("0.50")
+    assert ledger.share_of("fact-checker").cost_usd == Decimal("0.25")
+    # The row: the delegate's month is its own plus the specialist it used, and the
+    # specialist bills nothing to a row of its own - it has none.
+    assert ledger.billed_share_of("researcher").cost_usd == Decimal("0.75")
+    assert ledger.billed_share_of("fact-checker").cost_usd == Decimal("0")
+    # Nothing counted twice: the whole ledger is the researcher's billed share here.
+    assert ledger.total_usd == Decimal("0.75")
+
+
+def test_inline_specialists_nest_to_the_nearest_published_ancestor() -> None:
+    """Two levels of inline still bill to the one published delegate above them.
+
+    `billed_to` advances only across a delegation with its own row, so an inline
+    specialist under an inline specialist under a published delegate leaves both of
+    them pointing at the delegate - which is the only agent with a month to land in.
+    """
+    ledger = SpendLedger()
+
+    with booked_to("researcher", has_own_row=True):
+        ledger.book(_priced("0.10"))
+        with booked_to("summariser", has_own_row=False):
+            ledger.book(_priced("0.20"))
+            with booked_to("fact-checker", has_own_row=False):
+                ledger.book(_priced("0.30"))
+
+    assert ledger.billed_share_of("researcher").cost_usd == Decimal("0.60")
+    assert ledger.billed_share_of("summariser").cost_usd == Decimal("0")
+    assert ledger.billed_share_of("fact-checker").cost_usd == Decimal("0")
+
+
+def test_an_inline_specialist_under_the_runs_own_agent_bills_to_no_delegated_row() -> None:
+    """Its spend is in the top-level row, which is the whole ledger, so it needs none.
+
+    `has_own_row=False` with nothing published above it leaves `billed_to` at its
+    default - the run's own agent - which no delegated row is ever keyed by. The
+    money is not lost: the top-level run row is the whole ledger regardless.
+    """
+    ledger = SpendLedger()
+
+    with booked_to("fact-checker", has_own_row=False):
+        ledger.book(_priced("0.25"))
+
+    assert ledger.share_of("fact-checker").cost_usd == Decimal("0.25")
+    assert [entry.billed_to for entry in ledger.entries] == [None]
+    assert ledger.total_usd == Decimal("0.25")
+
+
+def test_a_share_carries_the_tokens_and_whether_it_was_priced() -> None:
+    """`cost_is_partial` on a child row is about the child's own requests.
+
+    A parent on a model `genai-prices` does not know makes the *parent's* total a
+    floor; it says nothing about a delegate that ran on a priced one, and marking
+    every child row in the run partial is how a priceable delegation was reported
+    as incomplete.
+    """
+    ledger = SpendLedger()
+
+    ledger.book(SpendEntry("mystery-1", 5, 5, Decimal(0), priced=False))
+    with booked_to("delegation-a", has_own_row=True):
+        ledger.book(_priced("0.01", tokens=7))
+
+    with booked_to("delegation-b", has_own_row=True):
+        ledger.book(SpendEntry("mystery-2", 5, 5, Decimal(0), priced=False))
+
+    priced = ledger.share_of("delegation-a")
+    assert (priced.input_tokens, priced.output_tokens) == (7, 7)
+    assert priced.has_unpriced_models is False
+    # The other direction: a delegate on a model nothing can price reports a floor
+    # of its own, however well priced the rest of the run was.
+    assert ledger.share_of("delegation-b").has_unpriced_models is True
+    assert ledger.has_unpriced_models is True
+
+
+def test_a_delegation_that_made_no_request_of_its_own_has_no_share() -> None:
+    """A delegate the library refused, or one whose whole job was to delegate on."""
+    ledger = SpendLedger()
+    ledger.book(_priced("0.20"))
+
+    assert ledger.share_of("delegation-a") == SpendShare()
+
+
+def test_spend_outside_a_delegation_belongs_to_the_run_itself() -> None:
+    """The attribution is reset on the way out, not left set.
+
+    A leaked value would book the parent's next request to a delegate that had
+    already answered - the same defect as the delta, arriving by another route.
+    """
+    ledger = SpendLedger()
+
+    with booked_to("delegation-a", has_own_row=True):
+        ledger.book(_priced("0.01"))
+    ledger.book(_priced("0.30"))
+
+    assert [entry.delegation for entry in ledger.entries] == ["delegation-a", None]

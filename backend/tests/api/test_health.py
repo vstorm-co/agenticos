@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock
 import pytest
 from httpx import AsyncClient
 
+from app import __version__
 from app.core.config import settings
 
 
@@ -86,6 +87,11 @@ async def test_liveness_probe_reports_the_build(client: AsyncClient):
     data = response.json()
     assert data["status"] == "alive"
     assert data["details"]["environment"] == settings.ENVIRONMENT
+    # The name of this test claims it reports the build, and for a long time it
+    # asserted everything except that - so the probe answered 1.0.0 from a
+    # `getattr` against a setting that does not exist, through six releases.
+    assert data["details"]["version"] == __version__
+    assert data["details"]["version"] != "1.0.0"
 
 
 @pytest.mark.anyio

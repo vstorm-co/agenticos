@@ -352,9 +352,11 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
           {kb.is_default && " · Default"}
         </span>
         <span>·</span>
-        <span>{documents.length} documents</span>
+        <span>{t("documentCount", { count: documents.length })}</span>
         <span>·</span>
-        <span>{documents.reduce((sum, d) => sum + d.chunk_count, 0).toLocaleString()} vectors</span>
+        <span>
+          {t("vectorCount", { count: documents.reduce((sum, d) => sum + d.chunk_count, 0) })}
+        </span>
       </div>
 
       {/*

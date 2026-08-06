@@ -21,6 +21,8 @@ function run(overrides: Partial<AgentRun> = {}): AgentRun {
     error: null,
     started_at: "2026-07-30T10:00:00Z",
     ended_at: "2026-07-30T10:00:05Z",
+    parent_run_id: null,
+    subagent_task_id: null,
     ...overrides,
   };
 }

@@ -50,9 +50,17 @@ from app.repositories import (
     organization_secret_repo,
     resource_grant_repo,
     sandbox_connection_repo,
+    skill_repo,
 )
 from app.schemas.agent import AgentRead, AgentVersionRead
-from app.services.access import AGENT, COLLECTION, SECRET, resolve_access, visible_resource_ids
+from app.services.access import (
+    AGENT,
+    COLLECTION,
+    SECRET,
+    SKILL,
+    resolve_access,
+    visible_resource_ids,
+)
 from app.services.file_storage import IMAGE_MIME_TYPES, MAX_AVATAR_SIZE, get_file_storage
 from app.services.sandbox_workspace import sandbox_config
 
@@ -517,6 +525,48 @@ class AgentRegistryService:
         )
         return clone
 
+    async def promote_specialist(
+        self,
+        ctx: AuthContext,
+        specialist: SpecialistSpec,
+        *,
+        fallback_model_profile_id: UUID | None,
+    ) -> Agent:
+        """Turn a specialist into a draft agent, owned by whoever promoted it.
+
+        The only honest way to keep a specialist. A delegate is published and an
+        inline specialist lives in its parent, but a dynamic one - written by a model
+        mid-run - is persisted nowhere, deliberately, because keeping a specialist
+        means publishing an agent and that is a person's action. Without this the
+        workaround is retyping instructions out of a chat log, which produces an
+        agent whose provenance nobody can see; this is the exit that keeps
+        "nothing is persisted" a design rather than an obstacle.
+
+        It creates a draft and stops there - `SpecialistSpec.to_agent_spec` reaching
+        a `create` rather than the `build_agent` a delegation uses. It does not
+        publish, does not pin the new agent as a delegate of any parent, and does not
+        touch the specialist it came from: each of those is a separate decision the
+        author makes next, with the normal validation in front of it.
+
+        Creating needs the role that may create, so the route gates on
+        `AGENTS_EDIT` exactly as `create` does - a specialist a model invented inside
+        someone else's run does not become the promoter's agent for free, and does
+        not become anyone's without that permission. The draft is owned by
+        `ctx.user_id`, because `create` is.
+        """
+        spec = specialist.to_agent_spec(fallback_model_profile_id=fallback_model_profile_id)
+        agent = await self.create(ctx, spec)
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="agent.promoted_from_specialist",
+            target_type="agent",
+            target_id=str(agent.id),
+            details={"slug": agent.slug, "specialist": specialist.name},
+        )
+        return agent
+
     async def _free_copy_name(self, ctx: AuthContext, base: str) -> str:
         """A "(copy)" name whose handle nobody has taken yet.
 
@@ -598,6 +648,7 @@ class AgentRegistryService:
             problems.extend(await self._model_profile_problems(ctx, spec.model_profile_id))
 
         problems.extend(await self._collection_problems(ctx, spec.collection_ids))
+        problems.extend(await self._skill_problems(ctx, spec.skill_ids))
 
         for connection_id in spec.mcp_server_ids:
             connection = await mcp_connection_repo.get_org_scoped_by_id(
@@ -692,6 +743,41 @@ class AgentRegistryService:
             )
             if not reachable:
                 problems.append(f"Collection not found: {collection_id}")
+        return problems
+
+    async def _skill_problems(self, ctx: AuthContext, skill_ids: Sequence[UUID]) -> list[str]:
+        """Skills the publisher cannot lend out.
+
+        The same rule as a collection, for the same reason: a bound skill is read
+        by every run of the agent, so binding one shares it - its body, and the
+        resource files beside it. A skill is written know-how, and a private one
+        is private deliberately, so the publisher has to be able to reach it
+        themselves. `SKILLS_VIEW` through :func:`resolve_access`, which means an
+        explicit grant counts and a member who was shared one skill can bind it
+        without being promoted.
+
+        "Not found" covers a missing id, another organization's id, and a row this
+        publisher may not read, deliberately indistinguishably: skills are bound
+        by UUID from the API and from a hand-edited draft, not only picked from a
+        list, so a refusal that read differently would map the organization's
+        private skills one guess at a time.
+
+        One query for the whole list rather than one per id, because a run resolves
+        them the same way and publish holds a transaction open.
+        """
+        if not skill_ids:
+            return []
+        found = await skill_repo.get_many(
+            self.db, list(skill_ids), organization_id=ctx.organization_id
+        )
+        problems: list[str] = []
+        for skill_id in skill_ids:
+            skill = found.get(skill_id)
+            reachable = skill is not None and await resolve_access(
+                self.db, ctx, skill, Perm.SKILLS_VIEW, resource_type=SKILL
+            )
+            if not reachable:
+                problems.append(f"Skill not found: {skill_id}")
         return problems
 
     async def _secret_problems(
@@ -827,9 +913,9 @@ class AgentRegistryService:
         an agent, and a second validator for it would be a second set of rules to
         keep in step - which is how a specialist becomes the quiet route to a
         capability the organization never granted, a key the publisher cannot
-        read, or a collection nobody shared with them. It is the tempting place
-        to smuggle exactly those in, precisely because nobody thinks of it as an
-        agent.
+        read, or a collection or a skill nobody shared with them. It is the
+        tempting place to smuggle exactly those in, precisely because nobody
+        thinks of it as an agent.
 
         Every problem carries the specialist's name. A Builder form has one input
         per specialist and cannot point at the right one otherwise.
@@ -838,6 +924,7 @@ class AgentRegistryService:
         for binding in specialist.capabilities:
             problems.extend(await self._binding_problems(ctx, binding))
         problems.extend(await self._collection_problems(ctx, specialist.collection_ids))
+        problems.extend(await self._skill_problems(ctx, specialist.skill_ids))
         # A specialist naming no profile runs on the parent's, which publish has
         # already checked - so only a profile it *did* name is a reference that
         # can be broken, or borrowed from another organization.

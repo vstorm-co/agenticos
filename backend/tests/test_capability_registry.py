@@ -175,14 +175,42 @@ class TestToolDeclarations:
     }
     """Everything every registered capability needs in order to build.
 
-    There is deliberately no table of exceptions beside this. There was one -
-    `UNWIRED_TOOLS`, naming `create_agent` and `delegate` as declared and not
-    implemented, which they were for two phases - and before that a
-    `CapabilityDef.drift_config` field naming a configuration nothing read. Both
-    were ways of saying "this capability is partly outside the check". Wiring the
-    last two tools removed the need for either, so what stands in their place is
-    resources wide enough that no capability has an excuse.
+    Wide rather than minimal on purpose. There used to be a
+    `CapabilityDef.drift_config` field naming a configuration nothing read, and
+    then an `UNWIRED_TOOLS` table naming `create_agent` and `delegate` as declared
+    and not implemented - both ways of saying "this capability is partly outside
+    the check", and both removed by wiring the tools. What stands in their place is
+    resources wide enough that no capability has an excuse for not building.
     """
+
+    DECLARED_AND_NOT_OFFERED: dict[str, frozenset[str]] = {
+        "subagents": frozenset({"answer_subagent"}),
+    }
+    """Tools a capability declares and deliberately offers no model.
+
+    The one legitimate reason to declare a tool that never reaches a model: the
+    library owning it adds it unconditionally, nothing in this deployment can put
+    it in a state where it does anything, and dropping it from `tools=` would take
+    it out of reach of the approval policy and of a binding's rename. `subagents`
+    declares `answer_subagent` for exactly that reason -
+    `app.agents.capabilities.subagents._capability.UNREACHABLE_TOOLS` has the whole
+    of it, including why agenticos#184 would not empty this table on its own.
+
+    Spelt out here rather than imported from the capability, and subtracted rather
+    than skipped. An imported set would make the check below a tautology, and
+    skipping the capability would put it back outside the drift test the way
+    `drift_config` and `UNWIRED_TOOLS` did - an undeclared tool could then appear
+    beside the exempt one and nothing would notice. Everything else about the
+    capability is still compared in both directions, and
+    `test_the_exemption_table_names_tools_that_are_still_declared` is what stops
+    an entry outliving its reason.
+    """
+
+    def _expected(self, definition_id: str) -> frozenset[str]:
+        """The tool ids this capability's model should be offered, exemptions applied."""
+        return get(definition_id).tool_ids - self.DECLARED_AND_NOT_OFFERED.get(
+            definition_id, frozenset()
+        )
 
     def _built(self, definition_id: str) -> Any:
         return get(definition_id).builder(
@@ -230,6 +258,23 @@ class TestToolDeclarations:
             return frozenset()
         return frozenset(await toolset.get_tools(_run_context()))
 
+    def test_the_exemption_table_names_tools_that_are_still_declared(self):
+        """An exemption that outlived its tool would quietly widen the check.
+
+        Both halves matter. An id no longer declared - renamed, or removed with the
+        capability it belonged to - subtracts nothing and reads as if it did, so the
+        next tool that *is* wrongly unoffered looks exempt. And a capability listed
+        with an empty set is an entry that says "partly outside the check" while
+        exempting nothing at all.
+
+        The other direction needs no test: a tool that becomes genuinely offered
+        while still named here fails the comparison below, because the offered set
+        then holds something the expectation subtracted.
+        """
+        for capability_id, exempt in self.DECLARED_AND_NOT_OFFERED.items():
+            assert exempt, capability_id
+            assert exempt <= get(capability_id).tool_ids, capability_id
+
     @pytest.mark.anyio
     async def test_every_builtin_declares_the_tools_it_actually_offers(self):
         """Declaration feeds the Builder; the toolset is the truth.
@@ -243,7 +288,7 @@ class TestToolDeclarations:
             built = self._built(definition.id)
             assert built is not None, definition.id
 
-            assert await self._offered(built) == get(definition.id).tool_ids, definition.id
+            assert await self._offered(built) == self._expected(definition.id), definition.id
 
     @pytest.mark.anyio
     async def test_renaming_every_tool_cannot_hide_an_undeclared_one(self):
@@ -255,6 +300,12 @@ class TestToolDeclarations:
         exists for. Instead the expectation moves with the rename: every declared
         tool must arrive under its new name, and a tool nobody declared has no new
         name to arrive under, so it still shows up as a difference.
+
+        A tool in `DECLARED_AND_NOT_OFFERED` must not arrive under either name. It
+        is renamed here like every other - a binding may name a tool the model is
+        not shown, and publishing accepts it - so this is also the check that the
+        rename cannot smuggle it back in: the filter keys on the stable id, inside
+        the wrapper that renames.
         """
         for definition in all_capabilities():
             overrides = {
@@ -268,7 +319,11 @@ class TestToolDeclarations:
             assert built, definition.id
             offered = await self._offered(built[0])
 
-            expected = frozenset(tool.name for tool in definition.effective_tools(overrides))
+            expected = frozenset(
+                tool.name
+                for tool in definition.effective_tools(overrides)
+                if tool.id in self._expected(definition.id)
+            )
             assert offered == expected, definition.id
 
 
