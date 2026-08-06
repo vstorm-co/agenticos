@@ -19,6 +19,26 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.49] - 2026-08-06
+
+### Changed
+
+- Every place a provider or a provider key is chosen now draws the same row —
+  brand mark, name, an optional masked hint. Choosing an embedding key in Create
+  knowledge base offered bare strings while the agent builder three clicks away
+  drew the mark, and the two did not look like the same product. Ten pickers
+  converge on one primitive, including two that had hand-copied the row and one
+  where two different keys rendered as the same line (#304).
+
+### Fixed
+
+- A provider mark's `<title>` was being used as its option's type-to-search key,
+  so every model in Create knowledge base answered to `openrouter…` rather than
+  to its own name.
+- The tick marking a stored key was inherited by the closed select's trigger,
+  where it reads as "selected" rather than "has a key".
+
+
 ## [0.0.48] - 2026-08-06
 
 ### Fixed
