@@ -649,6 +649,7 @@ def rag_source_sync(source_id: str | None, sync_all: bool) -> None:
         return
 
     async def _sync() -> None:
+        triggered = 0
         async with get_db_context() as db:
             svc = SyncSourceService(db)
 
@@ -661,6 +662,7 @@ def rag_source_sync(source_id: str | None, sync_all: bool) -> None:
                 for s in sources:
                     try:
                         log = await svc.trigger_sync(str(s.id))
+                        triggered += 1
                         success(f"  {s.name}: sync started (log_id={log.id})")
                     except Exception as e:
                         error(f"  {s.name}: failed - {e}")
@@ -668,16 +670,19 @@ def rag_source_sync(source_id: str | None, sync_all: bool) -> None:
                 try:
                     assert source_id is not None
                     log = await svc.trigger_sync(source_id)
+                    triggered += 1
                     success(f"Sync triggered (log_id={log.id})")
                 except Exception as e:
                     error(f"Failed to trigger sync: {e}")
 
-        # The sync itself runs in a task started when the session above
-        # committed, and `asyncio.run` cancels whatever is still pending when
-        # this coroutine returns - so without the wait the command reports a
-        # sync it then kills. It reported one before this too: the task was
-        # created earlier but died at exactly the same moment.
-        info("Waiting for the sync to finish...")
+        if not triggered:
+            return
+        # The syncs run in tasks started when the session above committed, and
+        # `asyncio.run` cancels whatever is still pending when this coroutine
+        # returns - so without the wait the command reports syncs it then kills.
+        # It reported them before this too: the tasks were created earlier but
+        # died at exactly the same moment.
+        info(f"Waiting for {triggered} sync(s) to finish...")
         await drain(timeout=_SYNC_TIMEOUT_SECONDS)
 
     asyncio.run(_sync())
