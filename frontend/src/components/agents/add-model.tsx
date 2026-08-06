@@ -265,8 +265,7 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
           {keys.length === 0 && (
             <div className="space-y-2">
               <p className="text-muted-foreground text-xs">
-                No {provider.label} key in the vault yet. Add one here and it is stored for every
-                agent in this organization.
+                {t("noProviderKeyInVault", { provider: provider.label })}
               </p>
               <InlineSecret
                 kind="api_key"

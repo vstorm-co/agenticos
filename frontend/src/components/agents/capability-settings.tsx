@@ -463,9 +463,7 @@ function SecretField({ binding, requirement, onChange, disabled }: SecretFieldPr
 
       {state === "unreadable" && (
         <p className="text-destructive text-xs">
-          The vault could not be read, so nothing can be chosen here - which says nothing about what
-          your organization has stored. Listing secrets needs the permission that manages
-          connections. {getErrorMessage(listError)}
+          {t("vaultUnreadableDetail", { error: getErrorMessage(listError) })}
         </p>
       )}
 

@@ -446,7 +446,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
               </Button>
             )}
             <p className="text-muted-foreground text-center text-xs">
-              Showing {documents.length} of {documentsTotal} · drag files anywhere to add
+              {t("showingOfTotal", { shown: documents.length, total: documentsTotal })}
             </p>
           </div>
         )}

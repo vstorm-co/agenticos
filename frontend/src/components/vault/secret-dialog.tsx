@@ -289,8 +289,8 @@ export function AddSecretDialog({
                 </SelectContent>
               </Select>
               <p className="text-muted-foreground text-xs">
-                {visibility === "org" ? t("sharedAccountAnyoneHere") : t("yoursAloneYouCan")} Either
-                way, an agent that uses this key runs with it for everyone who can run that agent.
+                {visibility === "org" ? t("sharedAccountAnyoneHere") : t("yoursAloneYouCan")}{" "}
+                {t("eitherWayAgentRunsWithIt")}
               </p>
             </div>
           </div>
@@ -444,7 +444,8 @@ export function RotateSecretDialog({
         {secret && info && (
           <div className="max-h-[60vh] space-y-4 overflow-y-auto px-1">
             <p className="text-muted-foreground text-xs">
-              {info.name} · currently ends <span className="font-mono">····{secret.hint}</span>
+              {t("nameCurrentlyEnds", { name: info.name })}{" "}
+              <span className="font-mono">····{secret.hint}</span>
             </p>
             <SecretFields
               info={info}

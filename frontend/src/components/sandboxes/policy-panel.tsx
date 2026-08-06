@@ -62,9 +62,7 @@ export function PolicyPanel({ connection, onOpenChange }: PolicyPanelProps) {
         {error !== null && (
           <div className="text-destructive flex items-start gap-2 text-sm">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-            <p>
-              {error} Until it answers, every agent on this connection fails on its first tool call.
-            </p>
+            <p>{t("errorUntilItAnswers", { error })}</p>
           </div>
         )}
 
