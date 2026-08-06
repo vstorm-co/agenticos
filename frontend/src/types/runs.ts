@@ -53,9 +53,27 @@ export interface ToolApproval {
   run_id: string;
   /** Whose *run* this is - the agent the queue is scoped by, never who is acting. */
   agent_id: string;
+  /**
+   * Whose run this is, as something readable.
+   *
+   * Optional because a decision returns the approval itself rather than the queue's
+   * projection of it, and that response carries no joined names.
+   */
+  agent_name?: string | null;
   tool_id: string;
   /** Shown in full: approving a tool name without its arguments is a rubber stamp. */
   tool_args: Record<string, unknown>;
+  /**
+   * Who started the run this call belongs to.
+   *
+   * Not on the approval itself - an approval belongs to a run and a run belongs to a
+   * person. Null for a run nobody started as themselves: an embedded widget's visitor
+   * is anonymous.
+   */
+  triggered_by_user_id?: string | null;
+  triggered_by_email?: string | null;
+  /** Who decided, for the record view. A bare UUID is not an accountability trail. */
+  decided_by_email?: string | null;
   /**
    * Which delegate is asking, when the call came from inside a delegation.
    *
@@ -73,7 +91,7 @@ export interface ToolApproval {
    * be shown as one.
    */
   subagent_agent_id: string | null;
-  status: "pending" | "approved" | "rejected" | "expired";
+  status: "pending" | "approved" | "rejected";
   decided_by_user_id: string | null;
   decided_at: string | null;
   note: string | null;

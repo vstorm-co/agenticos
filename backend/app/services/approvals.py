@@ -25,6 +25,7 @@ from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
 from app.db.models.agent_run import ApprovalStatus, ToolApproval
 from app.repositories import agent_run_repo
+from app.repositories.agent_run import ApprovalFilters, ApprovalRow
 
 logger = logging.getLogger(__name__)
 
@@ -88,12 +89,33 @@ class ApprovalService:
         )
         return approval
 
-    async def list_pending(
-        self, ctx: AuthContext, *, skip: int = 0, limit: int = 50
-    ) -> tuple[list[ToolApproval], int]:
-        """The approval queue for this organization, oldest first."""
-        return await agent_run_repo.list_pending_approvals(
-            self.db, organization_id=ctx.organization_id, skip=skip, limit=limit
+    async def list_approvals(
+        self,
+        ctx: AuthContext,
+        *,
+        filters: ApprovalFilters | None = None,
+        oldest_first: bool = True,
+        skip: int = 0,
+        limit: int = 50,
+    ) -> tuple[list[ApprovalRow], int]:
+        """The approval queue for this organization, or its record of decisions.
+
+        Scoped to the caller's organization here rather than in the route, so a
+        filter can only ever shrink what comes back and never reach outside the
+        tenant.
+
+        Pending only unless the caller asks otherwise: the queue is what a person
+        acts on, and the decided list is the same rows read as an accountability
+        trail - which is why it comes back with the decider's name and no way to
+        decide again.
+        """
+        return await agent_run_repo.list_approvals(
+            self.db,
+            organization_id=ctx.organization_id,
+            filters=filters,
+            oldest_first=oldest_first,
+            skip=skip,
+            limit=limit,
         )
 
     async def decide(

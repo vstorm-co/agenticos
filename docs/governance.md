@@ -209,7 +209,27 @@ a table primitive shared by the whole product is
 [proposed separately](https://github.com/vstorm-co/agenticos/issues/139), and
 nesting belongs in that rather than in one bespoke run table.
 
-### Narrowing it
+### Narrowing the approvals queue
+
+`GET /approvals` serves two views of the same rows. Pending only by default, which
+is the queue somebody acts on; `?status=approved&status=rejected` is the record of
+what was decided, and it carries the decider's name and note because a bare UUID is
+not an accountability trail. There are deliberately no controls on a decided row.
+
+| Parameter | |
+|---|---|
+| `status` | Repeats. Absent means pending — the queue |
+| `triggered_by_user_id` | Whose runs parked the call. Read off `agent_runs`: an approval belongs to a run and a run belongs to a person |
+| `created_from`, `created_to` | When the call was parked, inclusive both ends |
+| `oldest_first` | Defaults to true, and the default is load-bearing — see above: nothing ages a call out, so newest-first would bury the row that most needs seeing |
+
+Each row names three things that live in other tables — the agent, the person whose
+run parked the call, and the person who decided. The agent and the run are inner
+joins because both foreign keys cascade, so an approval cannot outlive either; the
+two people are outer joins, because a decision has to survive its decider's account
+being deleted and a widget's visitor is anonymous to begin with.
+
+### Narrowing run history
 
 | Parameter | |
 |---|---|
@@ -324,6 +344,14 @@ Four properties worth knowing:
   the approval queue, so a refusal there refuses the *attempt*: the decision
   stands and resuming works again once the spec does.
 - **A decided approval cannot be decided twice.** The second decision is refused.
+- **Nothing expires a parked call, and the queue says so rather than pretending.**
+  There are three states — `pending`, `approved`, `rejected` — and there was a fourth,
+  `expired`, which nothing ever assigned: a schema promising a ceiling the product did
+  not have. It is gone. Expiry is a designed feature rather than a missing line, because
+  what should happen to the parked *run* when its approval lapses — fail it, cancel it,
+  ask again — is a decision nobody has made, and inventing one to retire an enum value
+  would be the worse mistake. So the queue surfaces the **age** of the oldest wait
+  instead, and a call waiting past a day is drawn as the problem it is.
 - **`required` works on any capability**, not only side-effecting ones. "This only
   reads, but in my organization somebody approves it anyway" is a real decision
   and is expressible.

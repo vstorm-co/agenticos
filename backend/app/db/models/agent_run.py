@@ -218,10 +218,25 @@ class AgentRun(Base, TimestampMixin):
 
 
 class ApprovalStatus(enum.StrEnum):
+    """Where a parked tool call ended up. Three states, and no fourth.
+
+    There was an `EXPIRED`, defined and permitted by the CHECK constraint, and
+    nothing ever assigned it. So the model promised a ceiling on the queue that
+    did not exist: a call nobody decides stays `pending` indefinitely and its run
+    stays parked, with nothing escalating or settling either.
+
+    Removed rather than implemented, because expiry is a designed feature and not
+    a missing line. What should happen to a parked run whose approval lapses -
+    fail it, cancel it, re-ask - is a product decision nobody has made, and
+    inventing one to retire an enum value would be the worse of the two
+    mistakes. The Activity page therefore surfaces the *age* of the oldest wait
+    instead, and a call waiting past a day wears the loud tone. If expiry is
+    wanted later it arrives with its settlement semantics and a new value.
+    """
+
     PENDING = "pending"
     APPROVED = "approved"
     REJECTED = "rejected"
-    EXPIRED = "expired"
 
 
 class ToolApproval(Base, TimestampMixin):
@@ -296,7 +311,7 @@ class ToolApproval(Base, TimestampMixin):
 
     __table_args__ = (
         CheckConstraint(
-            "status IN ('pending', 'approved', 'rejected', 'expired')",
+            "status IN ('pending', 'approved', 'rejected')",
             name="ck_tool_approval_status",
         ),
         # The approvals queue: one organization's pending decisions. The single

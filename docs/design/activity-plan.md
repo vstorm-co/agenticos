@@ -358,11 +358,13 @@ the two pages read as one product:
 - **Approvals** — a **Triggered by** filter and a sort (oldest ↔ newest). Oldest first
   stays the default, because the queue drains from the top. `GET /approvals` today has
   only `skip`/`limit` and a fixed oldest-first order — the filter and the sort are
-  priced in §7. Age is a real dimension of this queue, not decoration:
-  `ApprovalStatus.EXPIRED` is defined and never assigned (**#178**), so
-  nothing ages out and the oldest row can be from months ago. The queue does not
-  pretend otherwise — a call waiting past a day wears the loud tone, and the figure up
-  top names the oldest wait.
+  priced in §7. Age is a real dimension of this queue, not decoration: **nothing ages
+  out**, so the oldest row can be from months ago. `ApprovalStatus.EXPIRED` was defined
+  and never assigned, promising a ceiling that did not exist; **#178** is now closed by
+  removing it, because expiry is a designed feature — what happens to a parked run whose
+  approval lapses is a product decision nobody has made — and a schema that promises one
+  is worse than a queue that admits it has none. So the queue admits it: a call waiting
+  past a day wears the loud tone, and the figure up top names the oldest wait.
 - **Approvals has two views: the queue, and the record.** A **Waiting ↔ Decided**
   toggle. Decided rows show the decision, who made it, and how long the call sat
   first, plus a median time-to-decision line — the operator's inbox becomes the

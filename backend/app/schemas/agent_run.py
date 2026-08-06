@@ -89,8 +89,36 @@ class ApprovalRead(BaseSchema):
     id: UUID
     run_id: UUID
     agent_id: UUID
+    agent_name: str | None = Field(
+        default=None,
+        description=(
+            "Whose run this is, as something readable. A UUID names nothing to an "
+            "approver, and a queue of tool ids with no agent beside them is one "
+            "people approve blind. Absent on the row a decision returns, which "
+            "carries the approval itself rather than the queue's projection of it"
+        ),
+    )
     tool_id: str
     tool_args: dict[str, Any]
+    triggered_by_user_id: UUID | None = Field(
+        default=None,
+        description=(
+            "Who started the run this call belongs to. Not on the approval itself: "
+            "an approval belongs to a run and a run belongs to a person. Null for "
+            "a run nobody started as themselves - an embedded widget's visitor is "
+            "anonymous - and for one whose user has since been deleted"
+        ),
+    )
+    triggered_by_email: str | None = Field(
+        default=None, description="That person, for a queue somebody has to read"
+    )
+    decided_by_email: str | None = Field(
+        default=None,
+        description=(
+            "Who decided, for the record view. The decided list is an "
+            "accountability trail and a bare UUID is not one"
+        ),
+    )
     subagent_name: str | None = Field(
         default=None,
         description=(

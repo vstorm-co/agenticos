@@ -358,17 +358,14 @@ class TestApprovalQueue:
         db = MagicMock(flush=AsyncMock(), refresh=AsyncMock())
 
         with patch(
-            "app.services.approvals.agent_run_repo.list_pending_approvals",
+            "app.services.approvals.agent_run_repo.list_approvals",
             new=AsyncMock(return_value=([waiting], 1)),
         ) as queue:
-            pending, total = await ApprovalService(db).list_pending(ctx, skip=10, limit=5)
+            pending, total = await ApprovalService(db).list_approvals(ctx, skip=10, limit=5)
 
         assert (pending, total) == ([waiting], 1)
-        assert queue.call_args.kwargs == {
-            "organization_id": ctx.organization_id,
-            "skip": 10,
-            "limit": 5,
-        }
+        assert queue.call_args.kwargs["organization_id"] == ctx.organization_id
+        assert (queue.call_args.kwargs["skip"], queue.call_args.kwargs["limit"]) == (10, 5)
 
 
 def _model_spec() -> ModelRequestSpec:

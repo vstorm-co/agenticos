@@ -12,8 +12,8 @@ from fastapi import APIRouter, Depends, Query
 
 from app.api.deps import AgentRunnerSvc, ApprovalSvc, Auth, require
 from app.core.permissions import Perm
-from app.db.models.agent_run import RunStatus, RunSurface
-from app.repositories.agent_run import RunFilters, RunOrder, RunRating
+from app.db.models.agent_run import ApprovalStatus, RunStatus, RunSurface
+from app.repositories.agent_run import ApprovalFilters, RunFilters, RunOrder, RunRating
 from app.schemas.agent import AgentRunResult
 from app.schemas.agent_run import (
     AgentRunList,
@@ -155,11 +155,40 @@ async def resume_run(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
 async def list_approvals(
     service: ApprovalSvc,
     ctx: Auth,
+    status: Annotated[list[ApprovalStatus] | None, Query()] = None,
+    triggered_by_user_id: UUID | None = Query(
+        None, description="Only calls parked by runs this person started"
+    ),
+    created_from: datetime | None = Query(None, description="Parked at or after this instant"),
+    created_to: datetime | None = Query(None, description="Parked at or before this instant"),
+    oldest_first: bool = Query(True, description="The queue drains from the top"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
-    """Tool calls waiting on a human, oldest first."""
-    items, total = await service.list_pending(ctx, skip=skip, limit=limit)
+    """Tool calls waiting on a human, oldest first - or the record of decisions.
+
+    `status` defaults to pending, which is the queue. Asking for `approved` and
+    `rejected` gives the same rows read as an accountability trail: each carries
+    the decider and the note, and there is deliberately no way to decide one
+    again - a second decision on a decided approval is one of the things this
+    platform refuses.
+
+    Oldest first by default, and the default is load-bearing. Nothing expires a
+    parked call, so the oldest row can be from months ago; a newest-first queue
+    would bury exactly the row somebody needs to see.
+    """
+    items, total = await service.list_approvals(
+        ctx,
+        filters=ApprovalFilters(
+            statuses=None if not status else [value.value for value in status],
+            triggered_by_user_id=triggered_by_user_id,
+            created_from=created_from,
+            created_to=created_to,
+        ),
+        oldest_first=oldest_first,
+        skip=skip,
+        limit=limit,
+    )
     return ApprovalList(items=items, total=total)
 
 

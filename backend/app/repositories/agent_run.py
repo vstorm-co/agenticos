@@ -10,11 +10,14 @@ from uuid import UUID
 
 from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
+from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, ToolApproval
 from app.db.models.conversation import Message
 from app.db.models.message_rating import MessageRating
 from app.db.models.organization_secret import OrganizationSecret
+from app.db.models.user import User
 
 
 async def create_run(
@@ -622,24 +625,159 @@ async def get_approval(
     return result.scalar_one_or_none()
 
 
-async def list_pending_approvals(
-    db: AsyncSession, *, organization_id: UUID, skip: int = 0, limit: int = 50
-) -> tuple[list[ToolApproval], int]:
-    query = (
-        select(ToolApproval)
-        .where(
-            ToolApproval.organization_id == organization_id,
-            ToolApproval.status == ApprovalStatus.PENDING.value,
+@dataclass(frozen=True)
+class ApprovalRow:
+    """One row of the approvals queue, with the three names resolved.
+
+    A projection rather than the ORM row, because every field a person actually
+    reads on this queue lives in another table: the agent's name in `agents`, who
+    triggered the run in `agent_runs`, and who decided in `users`. The alternative
+    - relationships on `tool_approvals` plus eager loads - would put lazy-load
+    machinery on a table written inside a run for the benefit of one list query.
+
+    The field names match `ApprovalRead` so the schema validates straight from
+    this; the duplication is the price of not making the model carry a view's
+    shape.
+
+    Attributes:
+        agent_name: Whose run this is. `agent_id` names nothing to a reader, and a
+            queue of tool ids with no agent is one people approve blind. Not
+            optional: both `agent_id` and `run_id` are `ON DELETE CASCADE`, so an
+            approval cannot outlive either, and an outer join here would be a
+            branch the database makes unreachable.
+        triggered_by_user_id: Who started the run. Null for a run nobody started
+            as themselves - a widget's visitor is anonymous - and for a run whose
+            user has since been deleted, since that column is `SET NULL`.
+        triggered_by_email: That person, as something readable.
+        decided_by_email: Who decided, for the record view. Null while the call is
+            pending, and after a decider's account is deleted - the decision
+            outlives the account, which is the point of an audit trail.
+    """
+
+    id: UUID
+    run_id: UUID
+    agent_id: UUID
+    agent_name: str
+    tool_id: str
+    tool_args: dict[str, Any]
+    subagent_name: str | None
+    subagent_agent_id: UUID | None
+    status: str
+    triggered_by_user_id: UUID | None
+    triggered_by_email: str | None
+    decided_by_user_id: UUID | None
+    decided_by_email: str | None
+    decided_at: datetime | None
+    note: str | None
+    created_at: datetime | None
+
+
+@dataclass(frozen=True)
+class ApprovalFilters:
+    """How the approvals queue is narrowed.
+
+    Attributes:
+        statuses: Which decisions to show. The default - pending only - is the
+            queue; anything else is the record of what was decided, which is a
+            different view of the same rows and deliberately has no buttons.
+        triggered_by_user_id: Whose runs. Read off `agent_runs`, not off the
+            approval, because an approval belongs to a run and a run belongs to a
+            person.
+        created_from: Inclusive lower bound on when the call was parked.
+        created_to: Inclusive upper bound.
+    """
+
+    statuses: Sequence[str] | None = None
+    triggered_by_user_id: UUID | None = None
+    created_from: datetime | None = None
+    created_to: datetime | None = None
+
+
+async def list_approvals(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    filters: ApprovalFilters | None = None,
+    oldest_first: bool = True,
+    skip: int = 0,
+    limit: int = 50,
+) -> tuple[list[ApprovalRow], int]:
+    """The approvals queue, or the record of what was decided.
+
+    Oldest first by default, because the queue drains from the top and age is a
+    real dimension of it: nothing expires a parked call, so the oldest row can be
+    from months ago and pretending otherwise would hide the queue's own problem.
+
+    Both the page and the count are narrowed by the same filters. They are two
+    queries, and a filter reaching one and not the other gives a total that
+    describes different rows from the page under it.
+    """
+    narrowing = filters or ApprovalFilters()
+    triggered_by = aliased(User)
+    decided_by = aliased(User)
+    clauses: list[ColumnElement[bool]] = [ToolApproval.organization_id == organization_id]
+    clauses.append(
+        ToolApproval.status.in_(list(narrowing.statuses))
+        if narrowing.statuses
+        else ToolApproval.status == ApprovalStatus.PENDING.value
+    )
+    if narrowing.triggered_by_user_id is not None:
+        clauses.append(AgentRun.user_id == narrowing.triggered_by_user_id)
+    if narrowing.created_from is not None:
+        clauses.append(ToolApproval.created_at >= narrowing.created_from)
+    if narrowing.created_to is not None:
+        clauses.append(ToolApproval.created_at <= narrowing.created_to)
+
+    ordering = ToolApproval.created_at.asc() if oldest_first else ToolApproval.created_at.desc()
+    rows = await db.execute(
+        select(
+            ToolApproval,
+            Agent.name,
+            AgentRun.user_id,
+            triggered_by.email,
+            decided_by.email,
         )
-        .order_by(ToolApproval.created_at.asc())
+        # Inner for the agent and the run, outer for the two people. Both those
+        # foreign keys are `ON DELETE CASCADE`, so an approval cannot outlive
+        # either row and an outer join would be defending against a state the
+        # database does not allow. The user columns are `SET NULL` and null while
+        # a call is still pending, so a decision has to survive its decider's
+        # account being deleted - that is what an audit trail is for.
+        .join(Agent, Agent.id == ToolApproval.agent_id)
+        .join(AgentRun, AgentRun.id == ToolApproval.run_id)
+        .outerjoin(triggered_by, triggered_by.id == AgentRun.user_id)
+        .outerjoin(decided_by, decided_by.id == ToolApproval.decided_by_user_id)
+        .where(*clauses)
+        .order_by(ordering)
         .offset(skip)
         .limit(limit)
     )
-    count_query = select(func.count(ToolApproval.id)).where(
-        ToolApproval.organization_id == organization_id,
-        ToolApproval.status == ApprovalStatus.PENDING.value,
+    items = [
+        ApprovalRow(
+            id=approval.id,
+            run_id=approval.run_id,
+            agent_id=approval.agent_id,
+            agent_name=agent_name,
+            tool_id=approval.tool_id,
+            tool_args=approval.tool_args,
+            subagent_name=approval.subagent_name,
+            subagent_agent_id=approval.subagent_agent_id,
+            status=approval.status,
+            triggered_by_user_id=run_user_id,
+            triggered_by_email=triggered_email,
+            decided_by_user_id=approval.decided_by_user_id,
+            decided_by_email=decided_email,
+            decided_at=approval.decided_at,
+            note=approval.note,
+            created_at=approval.created_at,
+        )
+        for approval, agent_name, run_user_id, triggered_email, decided_email in rows.all()
+    ]
+    count_query = (
+        select(func.count(ToolApproval.id))
+        .join(AgentRun, AgentRun.id == ToolApproval.run_id)
+        .where(*clauses)
     )
-    items = list((await db.execute(query)).scalars().all())
     total = (await db.execute(count_query)).scalar() or 0
     return items, total
 
