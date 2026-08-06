@@ -17,9 +17,9 @@ What it looks for, in `frontend/src/**/*.tsx`:
   screen and read like plumbing;
 * a sentence built by concatenation - `` `Access to ${name}` `` - which is where
   copy hides best, being neither a text node nor an attribute nor a plain string;
-* a text node holding an interpolation as well as words - `Owned by {email}` - and
-  the plural somebody rolled by hand beside it, `{n} file{n === 1 ? "" : "s"}`, which
-  is a sentence only English can build that way.
+* a text node holding an interpolation as well as words - `Owned by {email}`,
+  `{n} runs`, `Rotate {name}` - and the plural somebody rolled by hand beside it,
+  `{n} file{n === 1 ? "" : "s"}`, which is a sentence only English can build that way.
 
 What it deliberately does not look at:
 
@@ -82,9 +82,21 @@ MIXED = re.compile(r">([^<>\n]*\{[^{}\n]*\}[^<>\n]*)<")
 # the plural - Polish declines the noun, so `1 runs` never becomes `1 run` and the word
 # cannot agree with the number at all. The fix is the count inside an ICU `plural`
 # message, which a hand-built text node can never become. `MIXED` reads straight past
-# this: one trailing word is below its two-word threshold. The interpolation holds no
-# angle bracket, so `{cond && <span/>} more` - a conditional, not a count - never matches.
-COUNT = re.compile(r">\s*\{[^{}<>\n]+\}\s+([A-Za-z]{2,})\s*<")
+# this: one trailing word is below its two-word threshold.
+COUNT = re.compile(r">\s*\{([^{}\n]+)\}\s+([A-Za-z]{2,})\s*<")
+# The mirror image, and the one both of those miss: a single word *before* the
+# interpolation. `Rotate {secret.name}`, `chunk {chunk.chunk}`, `Invited {date}` are
+# one message with a named parameter each, and each rendered its English word verbatim
+# under `pl` while the guard read past it - `MIXED` wants two words and `COUNT` only
+# reads the word that follows. Leading punctuation is stepped over rather than counted:
+# a separator dot in front of the word is how the same string reads inside a row of them.
+LEAD = re.compile(r">[^A-Za-z<>{}\n]*([A-Za-z]{2,})\s+\{([^{}\n]+)\}")
+# What tells a count from a conditional that renders an element - the element. These
+# rules used to refuse an angle bracket anywhere in the interpolation, which kept
+# `{cond && <span/>} more` out but also every count computed with a lambda: the `>` of
+# `=>` broke the match, so `{docs.reduce((sum, d) => sum + d.chunk_count, 0)} vectors`
+# passed the guard and had to be found by hand (#246).
+JSX_ELEMENT = re.compile(r"</|/>|<[A-Za-z]")
 # A plural somebody rolled by hand: `{n} chunk{n === 1 ? "" : "s"}`. English is the
 # only language where this works, which is the point of `plural` in an ICU message.
 PLURAL = re.compile(r'\?\s*"([A-Za-z]*)"\s*:\s*"([A-Za-z]*)"')
@@ -153,6 +165,12 @@ def offences(path: Path) -> list[tuple[int, str]]:
                 line = line[: line.index(opener)]
         # TypeScript, not JSX: `onTest: (() => Promise<void>) | null` looks like a text
         # node to a regex, and a generic parameter is not something anybody reads.
+        #
+        # Only `JSX_TEXT` is held back by it. The rules below that need an interpolation
+        # beside a word are safe on these lines, because a type annotation carries no
+        # `{expr}` next to a noun - and they have to be, since a lambda in the
+        # interpolation is how a count gets computed. Skipping the whole line was what
+        # let a `reduce`-built count through.
         typescript = "=>" in line or "Promise<" in line
         # An exemption on the line above covers the line below it, which is where a
         # `{/* i18n-exempt: … */}` comment ends up after formatting.
@@ -166,13 +184,19 @@ def offences(path: Path) -> list[tuple[int, str]]:
             # An operator between the angle brackets means it is an expression.
             if is_copy(match.group(1)) and not re.search(r"&&|\|\||=>", match.group(1)):
                 found.append((number, f"text {match.group(1)!r}"))
-        for match in () if typescript else MIXED.finditer(line):
+        for match in MIXED.finditer(line):
             rest = re.sub(r"\{[^{}]*\}", " ", match.group(1))
             if len(WORDS.findall(rest)) >= 2 and not re.search(r"&&|\|\||=>", rest):
                 found.append((number, f"text {' '.join(match.group(1).split())!r}"))
-        for match in () if typescript else COUNT.finditer(line):
-            if is_copy(match.group(1)):
+        for match in COUNT.finditer(line):
+            if is_copy(match.group(2)) and not JSX_ELEMENT.search(match.group(1)):
                 found.append((number, f"count {' '.join(match.group(0).strip().split())!r}"))
+        for match in LEAD.finditer(line):
+            # `&&` and `||` in the interpolation make it a guard rather than a value,
+            # and the word in front of one belongs to whatever renders around it.
+            guard = JSX_ELEMENT.search(match.group(2)) or re.search(r"&&|\|\|", match.group(2))
+            if is_copy(match.group(1)) and not guard:
+                found.append((number, f"text {' '.join(match.group(0).strip().split())!r}"))
         for match in () if "className" in line else TEMPLATE.finditer(line):
             body = re.sub(r"\$\{[^{}]*\}", "\x00", match.group(1))
             if TWO_WORDS.search(body) and not MACHINE_READ.search(body):

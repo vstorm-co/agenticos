@@ -191,7 +191,7 @@ function IntegrationRow({
         </AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove {source.name}?</AlertDialogTitle>
+            <AlertDialogTitle>{t("removeNamed", { name: source.name })}</AlertDialogTitle>
             <AlertDialogDescription>{t("knowledgeBasesAlreadyUsing")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
