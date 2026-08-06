@@ -5,7 +5,7 @@ import { Check, KeyRound, Plus } from "lucide-react";
 
 import { ModelCombobox } from "@/components/agents/model-combobox";
 import { InlineSecret } from "@/components/vault/inline-secret";
-import { ProviderIcon } from "@/components/vault/provider-icon";
+import { ProviderRow } from "@/components/vault/provider-row";
 import {
   Button,
   Input,
@@ -189,12 +189,19 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
               {providers.map((entry) => {
                 const keyed = secrets.some((secret) => secret.purpose === entry.id);
                 return (
-                  <SelectItem key={entry.id} value={entry.id}>
-                    <span className="flex w-full items-center gap-2">
-                      <ProviderIcon provider={entry.id} />
-                      <span>{entry.label}</span>
-                      {keyed && <Check className="text-muted-foreground ml-auto h-3.5 w-3.5" />}
-                    </span>
+                  <SelectItem
+                    key={entry.id}
+                    value={entry.id}
+                    // Outside the row on purpose: the trigger mirrors an item's
+                    // text, and a tick there would read as "selected" rather
+                    // than "this provider already has a key".
+                    trailing={
+                      keyed && (
+                        <Check className="text-muted-foreground ml-auto h-3.5 w-3.5 shrink-0" />
+                      )
+                    }
+                  >
+                    <ProviderRow provider={entry.id} name={entry.label} />
                   </SelectItem>
                 );
               })}
@@ -253,8 +260,9 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
                 <SelectContent>
                   {keys.map((secret) => (
                     <SelectItem key={secret.id} value={secret.id}>
-                      {secret.name}
-                      <span className="text-muted-foreground font-mono"> ····{secret.hint}</span>
+                      {/* The provider is the filter this list was built with, so
+                          it is also every row's mark - no `purpose` lookup. */}
+                      <ProviderRow provider={provider.id} name={secret.name} hint={secret.hint} />
                     </SelectItem>
                   ))}
                 </SelectContent>

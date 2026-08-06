@@ -20,6 +20,7 @@ import {
   Switch,
 } from "@/components/ui";
 import { InlineSecret } from "@/components/vault/inline-secret";
+import { ProviderRow } from "@/components/vault/provider-row";
 import { useLocalSandboxService, useSecrets } from "@/hooks";
 import { getErrorMessage } from "@/lib/utils";
 import type {
@@ -228,7 +229,15 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
               <SelectContent>
                 {usable.map((secret) => (
                   <SelectItem key={secret.id} value={secret.id}>
-                    {secret.name} <span className="font-mono">····{secret.hint}</span>
+                    {/* Any API key in the vault can be offered here, so the mark
+                        comes from what each one is for - a Daytona key looks
+                        like a Daytona key, and `custom` falls back to a
+                        monogram. */}
+                    <ProviderRow
+                      provider={secret.purpose ?? "custom"}
+                      name={secret.name}
+                      hint={secret.hint}
+                    />
                   </SelectItem>
                 ))}
               </SelectContent>
