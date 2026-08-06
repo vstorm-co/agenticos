@@ -256,7 +256,9 @@ export function UserDetailDrawer({
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Delete {subject.email}?</AlertDialogTitle>
+                <AlertDialogTitle>
+                  {t("deleteUserNamed", { email: subject.email })}
+                </AlertDialogTitle>
                 <AlertDialogDescription>{t("permanentlyRemovesUserTheir")}</AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
