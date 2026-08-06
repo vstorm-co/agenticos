@@ -12,7 +12,7 @@ Run these from the project root directory.
 | Command | Description |
 |---------|-------------|
 | `make quickstart` | Start Docker, run migrations, create admin user. Does **not** install dependencies — `make install` first |
-| `make install` | The whole toolchain: backend dependencies with uv, `frontend/node_modules` with bun, and the pre-commit hooks. Both halves, because `make check` runs both — eslint, prettier, tsc, vitest and next live only in `node_modules`, which is per-checkout and not shared between worktrees |
+| `make install` | The whole setup path: `backend/.env` from the example if there is none, backend dependencies with uv, `frontend/node_modules` with bun, and the pre-commit hooks. All of it, because `make check` needs all of it — `db-check` reads the env file, and eslint, prettier, tsc, vitest and next live only in `node_modules`. Both are per-checkout, so this is owed on every clone; an existing `.env` is never overwritten |
 
 ### Development
 

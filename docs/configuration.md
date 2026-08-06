@@ -15,16 +15,22 @@ print(settings.DEBUG)
 
 ## Getting Started
 
+`make install` creates `backend/.env` from `backend/.env.example` when there is
+none, and never touches it again — so on a fresh checkout there is nothing to
+copy, and on an existing one nothing to lose.
+
+Before anything reaches a network anybody else is on, set the values the example
+ships as placeholders:
+
 ```bash
-cd backend
-
-# Copy the example file (may already exist if generated with --generate-env)
-cp .env.example .env
-
-# Generate a secure secret key
-openssl rand -hex 32
-# Paste the output as SECRET_KEY in .env
+openssl rand -hex 32   # SECRET_KEY — signs every access token
+openssl rand -hex 32   # VAULT_MASTER_KEY — unwraps every credential stored at rest
 ```
+
+`SECRET_KEY` ships as a published string, and an empty `VAULT_MASTER_KEY` falls
+back to it so a fresh checkout runs at all. Both are fine on a laptop and are the
+whole security of a deployment anywhere else — and setting `VAULT_MASTER_KEY`
+explicitly is also what lets stored secrets survive a `SECRET_KEY` rotation.
 
 ## Project Settings
 
