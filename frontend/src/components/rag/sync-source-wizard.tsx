@@ -468,7 +468,7 @@ function ConnectorStep({
                   type="button"
                   onClick={() => setForm((f) => ({ ...f, connector_type: conn.type, config: {} }))}
                   className={cn(
-                    "flex items-center gap-3 rounded-xl border p-3.5 text-left transition-colors",
+                    t("flexItemsCenterGap2"),
                     isSelected
                       ? "border-brand bg-brand/[0.06]"
                       : "border-foreground/10 bg-card hover:border-foreground/30",
@@ -476,7 +476,7 @@ function ConnectorStep({
                 >
                   <span
                     className={cn(
-                      "flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
+                      t("flexH9W2"),
                       isSelected
                         ? "bg-brand text-brand-foreground"
                         : "bg-foreground/8 text-foreground",

@@ -2449,6 +2449,8 @@
     "fieldTypeTextarea": ") : field.type === \"textarea\" ? (",
     "flexH6W": "flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-colors",
     "flexH9W": "flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
+    "flexH9W2": "flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
+    "flexItemsCenterGap2": "flex items-center gap-3 rounded-xl border p-3.5 text-left transition-colors",
     "flexWFullItems": "flex w-full items-center gap-3 rounded-xl border p-3.5 text-left transition-colors",
     "hiddenFontMonoText": "hidden font-mono text-[10px] tracking-wider uppercase sm:inline",
     "integration": "Integration",
