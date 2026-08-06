@@ -25,6 +25,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.agents.capabilities.budget import SpendEntry, SpendLedger
+from app.agents.spec import AgentSpec
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.organization import Organization, OrganizationMember
@@ -109,9 +110,10 @@ def _delegation(agent: Agent, version: AgentVersion, *, task_id: str) -> Recorde
 def _prepared(run: AgentRun, agent: Agent, delegations: list[RecordedDelegation]) -> PreparedRun:
     """A run ready to finish, with the ledger the parent's row is written from.
 
-    `spec`, `built` and `approvals` are what the *run loop* used and this test
-    does not run one: nothing on the path from `finish` to the two writes reads
-    them apart from the ledger.
+    `built` and `approvals` are what the *run loop* used and this test does not
+    run one: nothing on the path from `finish` to the two writes reads them apart
+    from the ledger. `spec` is real, because `finish` does read it - it resolves
+    where the run's trace went from the observability block.
     """
     ledger = SpendLedger(
         entries=[
@@ -127,7 +129,7 @@ def _prepared(run: AgentRun, agent: Agent, delegations: list[RecordedDelegation]
     return PreparedRun(
         run=run,
         agent=agent,
-        spec=MagicMock(),
+        spec=AgentSpec(name="Parent"),
         # An empty channel: this run parked no approvals, so `finish` has none to
         # write. A bare `MagicMock` would make `_write_approvals` try to iterate a
         # mock and fail before the delegation write under test ran.

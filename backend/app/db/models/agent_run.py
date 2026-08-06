@@ -185,8 +185,13 @@ class AgentRun(Base, TimestampMixin):
     cost_is_partial: Mapped[bool] = mapped_column(nullable=False, default=False)
 
     # The trace lives in Logfire; we keep the id so the UI can deep-link into it
-    # instead of duplicating spans into our database.
+    # instead of duplicating spans into our database. Null where nothing was
+    # exported - a deployment with no token, or a path no span covers.
     logfire_trace_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Which project it went to, recorded rather than re-derived: an agent
+    # repointed at a client's Logfire next month must not relabel the traces
+    # of every run before it. A trace id without this is not a link.
+    logfire_project: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
     # Everything the run needs to pick up where it stopped: the message history
     # as of the parked tool call, and which call each approval belongs to. Set

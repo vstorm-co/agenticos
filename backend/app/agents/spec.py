@@ -43,7 +43,7 @@ from app.agents.capabilities import CapabilityBinding, ToolOverride
 
 logger = logging.getLogger(__name__)
 
-SPEC_VERSION = 7
+SPEC_VERSION = 8
 
 ApprovalMode = Literal["default", "required", "never"]
 
@@ -320,6 +320,13 @@ class ObservabilitySpec(BaseModel):
     The token is a reference, never a value - like every other credential a spec
     names. A spec is exported as YAML into somebody's repository, and a write
     token in a checked-in file is a token that has to be rotated.
+
+    `project` is the other half of that redirection and is *not* a credential: a
+    write token carries no project name, so without it the platform holds a trace
+    id it cannot build a URL for. It travels with the token rather than beside
+    it - see :func:`~app.agents.observability.trace_location` - because a token
+    pointing at one project and a slug at another links into a project the trace
+    never reached, which is worse than no link.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -337,6 +344,14 @@ class ObservabilitySpec(BaseModel):
         default=None,
         max_length=64,
         description="Logfire environment - production, staging, a client's name",
+    )
+    project: str | None = Field(
+        default=None,
+        max_length=128,
+        description=(
+            "The Logfire project the token writes to - 'organization/project' or "
+            "just the project slug. Only used to build a link to a run's trace"
+        ),
     )
 
 

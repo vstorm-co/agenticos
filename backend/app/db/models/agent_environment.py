@@ -75,6 +75,10 @@ class AgentEnvironment(Base, TimestampMixin):
         nullable=True,
     )
     service_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    # The project that token writes to. Held beside the token rather than
+    # inherited from the spec, because a token pointing at one project and a
+    # slug at another builds a link into a project the trace never reached.
+    logfire_project: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),

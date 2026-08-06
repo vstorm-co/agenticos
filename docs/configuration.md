@@ -177,6 +177,31 @@ see RAG below.
 | `LOGFIRE_TOKEN` | (none) | Pydantic Logfire token. Get one at https://logfire.pydantic.dev |
 | `LOGFIRE_SERVICE_NAME` | `agenticos` | Service name in Logfire dashboard |
 | `LOGFIRE_ENVIRONMENT` | `development` | Environment tag |
+| `LOGFIRE_ORGANIZATION` | (none) | The Logfire organization slug, for linking to a run's trace |
+| `LOGFIRE_PROJECT` | (none) | The project slug in it |
+
+### Linking to a run's trace
+
+A run records the trace it produced — `logfire_trace_id` on the run row, and
+alongside it the **project** the trace went to. Both are needed to open it: a
+Logfire URL names a project, and `LOGFIRE_TOKEN` is a *write* token that carries
+no project name. Hence the two extra settings.
+
+**The project follows the token, never the deployment.** An agent whose spec or
+environment redirects its traces exports them to that token's project, so it takes
+its project slug from the same place — `ObservabilitySpec.project`, or the
+environment's own. Falling back to `LOGFIRE_PROJECT` there would build a link into
+a project those traces never reached, which is worse than the no-link a missing
+slug gives.
+
+Four outcomes, all of them somebody's deployment:
+
+| Token | Slug | Recorded |
+|---|---|---|
+| deployment | configured | trace id + project — a link |
+| deployment | unset | trace id only. Real, findable by anyone with Logfire access; no link |
+| agent or environment | on the same level | trace id + that project |
+| none at all | — | neither. Spans still exist locally, but nothing is exported, so an id here would name a trace that is nowhere |
 
 ## Web Search
 

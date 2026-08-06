@@ -65,6 +65,7 @@ async def finish_run(
     ended_at: datetime,
     error: str | None = None,
     logfire_trace_id: str | None = None,
+    logfire_project: str | None = None,
     paused_state: dict[str, Any] | None = None,
 ) -> AgentRun:
     run.status = status
@@ -77,8 +78,12 @@ async def finish_run(
     # Written on every finish, not only when parking: a run that ended must not
     # keep the state it was parked with, or it can be resumed a second time.
     run.paused_state = paused_state
+    # Guarded, not assigned: a resume finishes the same row a second time, and
+    # a turn that traced nowhere must not erase the id the first one recorded.
     if logfire_trace_id is not None:
         run.logfire_trace_id = logfire_trace_id
+    if logfire_project is not None:
+        run.logfire_project = logfire_project
     db.add(run)
     await db.flush()
     await db.refresh(run)

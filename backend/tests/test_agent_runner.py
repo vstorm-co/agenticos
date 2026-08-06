@@ -14,6 +14,7 @@ from decimal import Decimal
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import logfire
 import pytest
 from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai.usage import RequestUsage
@@ -22,6 +23,7 @@ from app.agents.capabilities.approval import ApprovalGranted, ApprovalRejected
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope, SpendLedger
 from app.agents.spec import AgentSpec, CapabilityBindingSpec, ObservabilitySpec
 from app.agents.subagent_runtime import DelegationSpend, DelegationStash, ParkedDelegation
+from app.core.config import settings
 from app.core.exceptions import BadRequestError, NotFoundError, RunExecutionError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import ApprovalStatus, RunStatus, RunSurface
@@ -729,6 +731,78 @@ class TestSkillChangesARunProposed:
             await service.finish(prepared, status=RunStatus.COMPLETED)
 
         service.proposals.record.assert_not_called()
+
+
+class TestRecordingWhereTheTraceWent:
+    """`logfire_trace_id` was documented as a deep link and had never once been
+    written. It is taken in `finish` rather than passed by each surface, for the
+    reason the spend meter is opened there: a surface that has to remember is a
+    surface that will not, and this failure is silent."""
+
+    @staticmethod
+    async def _finished(spec: AgentSpec, status: RunStatus = RunStatus.COMPLETED, **kwargs):
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.spec = spec
+
+        with (
+            logfire.span("a run"),
+            patch.object(settings, "LOGFIRE_TOKEN", "pylf_v1_eu_secret"),
+            patch.object(settings, "LOGFIRE_PROJECT", "vstorm/agenticos"),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()) as finish,
+        ):
+            await service.finish(prepared, status=status, **kwargs)
+
+        return finish.call_args.kwargs
+
+    @pytest.mark.anyio
+    async def test_a_completed_run_records_its_trace_and_its_project(self):
+        recorded = await self._finished(AgentSpec(name="Support"))
+
+        assert len(recorded["logfire_trace_id"]) == 32
+        assert recorded["logfire_project"] == "vstorm/agenticos"
+
+    @pytest.mark.anyio
+    async def test_a_failed_run_records_its_trace_too(self):
+        """The one somebody actually wants the trace for. `finish` runs from every
+        surface's `finally`, which is what makes this reachable at all."""
+        recorded = await self._finished(
+            AgentSpec(name="Support"), status=RunStatus.FAILED, error="provider down"
+        )
+
+        assert recorded["status"] == RunStatus.FAILED.value
+        assert len(recorded["logfire_trace_id"]) == 32
+        assert recorded["logfire_project"] == "vstorm/agenticos"
+
+    @pytest.mark.anyio
+    async def test_a_redirected_agent_records_its_own_project(self):
+        """Not the deployment's, which its traces never reached."""
+        recorded = await self._finished(
+            AgentSpec(
+                name="Support",
+                observability=ObservabilitySpec(
+                    token_secret_id=uuid.uuid4(), project="client-org/client-traces"
+                ),
+            )
+        )
+
+        assert recorded["logfire_project"] == "client-org/client-traces"
+
+    @pytest.mark.anyio
+    async def test_a_deployment_with_no_logfire_records_neither(self):
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.spec = AgentSpec(name="Support")
+
+        with (
+            logfire.span("a run"),
+            patch.object(settings, "LOGFIRE_TOKEN", None),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()) as finish,
+        ):
+            await service.finish(prepared, status=RunStatus.COMPLETED)
+
+        recorded = finish.call_args.kwargs
+        assert (recorded["logfire_trace_id"], recorded["logfire_project"]) == (None, None)
 
 
 class TestRunAccounting:
@@ -1746,7 +1820,11 @@ class TestEnvironmentObservability:
                 token_secret_id=uuid.uuid4(), service_name="from-spec", environment="free-text"
             ),
         )
-        environment = MagicMock(logfire_token_secret_id=env_secret, service_name="from-env")
+        environment = MagicMock(
+            logfire_token_secret_id=env_secret,
+            service_name="from-env",
+            logfire_project="client-org/client-traces",
+        )
         environment.name = "client-prod"
         service = AgentRunnerService(_db())
 
@@ -1770,7 +1848,9 @@ class TestEnvironmentObservability:
             name="Support",
             observability=ObservabilitySpec(token_secret_id=spec_secret, environment="free-text"),
         )
-        environment = MagicMock(logfire_token_secret_id=None, service_name=None)
+        environment = MagicMock(
+            logfire_token_secret_id=None, service_name=None, logfire_project=None
+        )
         environment.name = "dev"
         service = AgentRunnerService(_db())
 
@@ -1788,10 +1868,94 @@ class TestEnvironmentObservability:
         assert merged.observability.environment == "dev"
 
     @pytest.mark.anyio
+    async def test_a_redirecting_environment_brings_its_own_project(self):
+        """The project belongs to the token. Pairing the environment's token with
+        the spec's slug links into a project those traces never reached."""
+        spec = AgentSpec(
+            name="Support",
+            observability=ObservabilitySpec(
+                token_secret_id=uuid.uuid4(), project="operator-org/operator-traces"
+            ),
+        )
+        environment = MagicMock(
+            logfire_token_secret_id=uuid.uuid4(),
+            service_name=None,
+            logfire_project="client-org/client-traces",
+        )
+        environment.name = "client-prod"
+        service = AgentRunnerService(_db())
+
+        with patch(
+            "app.services.agent_runner.agent_environment_repo.get",
+            new=AsyncMock(return_value=environment),
+        ):
+            merged = await service._with_environment_observability(
+                _ctx(), spec, environment_id=uuid.uuid4()
+            )
+
+        assert merged.observability is not None
+        assert merged.observability.project == "client-org/client-traces"
+
+    @pytest.mark.anyio
+    async def test_an_environment_that_redirects_without_a_project_links_nowhere(self):
+        """Rather than borrowing the spec's. No link beats a wrong one."""
+        spec = AgentSpec(
+            name="Support",
+            observability=ObservabilitySpec(
+                token_secret_id=uuid.uuid4(), project="operator-org/operator-traces"
+            ),
+        )
+        environment = MagicMock(
+            logfire_token_secret_id=uuid.uuid4(), service_name=None, logfire_project=None
+        )
+        environment.name = "client-prod"
+        service = AgentRunnerService(_db())
+
+        with patch(
+            "app.services.agent_runner.agent_environment_repo.get",
+            new=AsyncMock(return_value=environment),
+        ):
+            merged = await service._with_environment_observability(
+                _ctx(), spec, environment_id=uuid.uuid4()
+            )
+
+        assert merged.observability is not None
+        assert merged.observability.project is None
+
+    @pytest.mark.anyio
+    async def test_an_environment_that_only_tags_keeps_the_specs_project(self):
+        """It did not redirect, so the spec's token is still what exports - and
+        the spec's project is where those traces are."""
+        spec = AgentSpec(
+            name="Support",
+            observability=ObservabilitySpec(
+                token_secret_id=uuid.uuid4(), project="operator-org/operator-traces"
+            ),
+        )
+        environment = MagicMock(
+            logfire_token_secret_id=None, service_name=None, logfire_project=None
+        )
+        environment.name = "dev"
+        service = AgentRunnerService(_db())
+
+        with patch(
+            "app.services.agent_runner.agent_environment_repo.get",
+            new=AsyncMock(return_value=environment),
+        ):
+            merged = await service._with_environment_observability(
+                _ctx(), spec, environment_id=uuid.uuid4()
+            )
+
+        assert merged.observability is not None
+        assert merged.observability.project == "operator-org/operator-traces"
+
+    @pytest.mark.anyio
     async def test_no_token_from_either_source_stays_untraced(self):
         """A tag into nowhere is not observability - the spec is left alone."""
         spec = AgentSpec(name="Support")
-        environment = MagicMock(logfire_token_secret_id=None, service_name=None)
+        environment = MagicMock(
+            logfire_token_secret_id=None, service_name=None, logfire_project=None
+        )
         environment.name = "dev"
         service = AgentRunnerService(_db())
 

@@ -31,6 +31,11 @@ class EnvironmentCreate(BaseSchema):
         ),
     )
     service_name: str | None = Field(default=None, max_length=128)
+    logfire_project: str | None = Field(
+        default=None,
+        max_length=128,
+        description="The Logfire project that token writes to, for linking to a run's trace",
+    )
 
 
 class EnvironmentUpdate(BaseSchema):
@@ -44,6 +49,7 @@ class EnvironmentUpdate(BaseSchema):
     version_id: UUID | None = None
     logfire_token_secret_id: UUID | None = None
     service_name: str | None = Field(default=None, max_length=128)
+    logfire_project: str | None = Field(default=None, max_length=128)
 
 
 class EnvironmentRead(BaseSchema):
@@ -55,6 +61,7 @@ class EnvironmentRead(BaseSchema):
     is_default: bool
     logfire_token_secret_id: UUID | None = None
     service_name: str | None = None
+    logfire_project: str | None = None
     created_at: datetime
 
 

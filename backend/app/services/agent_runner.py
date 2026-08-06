@@ -88,6 +88,7 @@ from app.agents.capabilities.subagents import SubagentsConfig, acting_delegate
 from app.agents.deps import AgentDeps
 from app.agents.factory import BuiltAgent, build_agent
 from app.agents.model_resolver import ModelRequestSpec
+from app.agents.observability import trace_location
 from app.agents.spec import (
     AgentSpec,
     CapabilityBindingSpec,
@@ -2258,7 +2259,6 @@ class AgentRunnerService:
         *,
         status: RunStatus,
         error: str | None = None,
-        logfire_trace_id: str | None = None,
         paused_state: PausedRunState | None = None,
         budget_scope: BudgetScope | None = None,
     ) -> AgentRun:
@@ -2280,6 +2280,9 @@ class AgentRunnerService:
         re-derived here, because the alternative is matching a prefix on the
         error message - and it decides who gets mailed: an agent's cap is its
         author's to raise, the organization's is not.
+
+        Where the run's trace went is recorded here too, and taken rather than
+        given: see :func:`~app.agents.observability.trace_location`.
         """
         # Both before the workspace closes, because a run-scoped one is released
         # by `close` and its files are gone afterwards.
@@ -2300,6 +2303,12 @@ class AgentRunnerService:
 
         parked = None if paused_state is None else self._parked_tree(prepared, paused_state)
         ledger = prepared.built.ledger
+        # Resolved here rather than passed in, for the reason the meter is opened
+        # here: a surface that has to remember is a surface that will not, and the
+        # failure - a run with no trace to open - is silent. `finish` runs in every
+        # surface's `finally`, so this reaches the failed run too, which is exactly
+        # the one somebody wants the trace for.
+        traced = trace_location(prepared.spec)
         finished = await agent_run_repo.finish_run(
             self.db,
             run=prepared.run,
@@ -2310,7 +2319,8 @@ class AgentRunnerService:
             cost_is_partial=ledger.has_unpriced_models,
             ended_at=datetime.now(UTC),
             error=error,
-            logfire_trace_id=logfire_trace_id,
+            logfire_trace_id=traced.trace_id,
+            logfire_project=traced.project,
             paused_state=None if parked is None else parked.model_dump(mode="json"),
         )
         # After the parent's row and on every path out of the run, for the reason
@@ -2691,6 +2701,12 @@ class AgentRunnerService:
         environment's *name*, never configured separately, so the tag and the
         environment cannot disagree. A run with no token from either source
         stays untraced rather than tagged into nowhere.
+
+        **The project does not fall through, because it belongs to the token.**
+        Whichever level supplied the token supplies the project with it: an
+        environment's token paired with the spec's project slug would build a
+        link into a project that environment's traces never reached, which is
+        worse than the no link a missing slug gives.
         """
         if environment_id is None:
             return spec
@@ -2700,6 +2716,7 @@ class AgentRunnerService:
         if environment is None:
             return spec
         base = spec.observability
+        redirected = environment.logfire_token_secret_id is not None
         token_secret_id = environment.logfire_token_secret_id or (
             base.token_secret_id if base else None
         )
@@ -2709,6 +2726,7 @@ class AgentRunnerService:
             token_secret_id=token_secret_id,
             service_name=environment.service_name or (base.service_name if base else None),
             environment=environment.name,
+            project=environment.logfire_project if redirected else (base.project if base else None),
         )
         return spec.model_copy(update={"observability": merged})
 

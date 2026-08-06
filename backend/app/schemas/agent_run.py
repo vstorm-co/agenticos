@@ -27,7 +27,19 @@ class AgentRunRead(BaseSchema):
         description="True when a model in this run had no price - the cost is a floor"
     )
     logfire_trace_id: str | None = Field(
-        default=None, description="Deep-link into the full trace; spans are not duplicated here"
+        default=None,
+        description=(
+            "This run's trace in Logfire; spans are not duplicated here. Null "
+            "where nothing was exported - a deployment with no Logfire token"
+        ),
+    )
+    logfire_project: str | None = Field(
+        default=None,
+        description=(
+            "The Logfire project the trace went to, for building a link to it. "
+            "Null where none is configured: the trace id is still real, and a "
+            "client holding that project's token can find it"
+        ),
     )
     error: str | None = None
     started_at: datetime | None = None

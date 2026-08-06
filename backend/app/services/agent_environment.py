@@ -64,6 +64,7 @@ class AgentEnvironmentService:
                 is_default=environment.is_default,
                 logfire_token_secret_id=environment.logfire_token_secret_id,
                 service_name=environment.service_name,
+                logfire_project=environment.logfire_project,
                 created_at=environment.created_at,
             )
             for environment in environments
@@ -107,6 +108,7 @@ class AgentEnvironmentService:
             created_by_user_id=ctx.user_id,
             logfire_token_secret_id=data.logfire_token_secret_id,
             service_name=data.service_name,
+            logfire_project=data.logfire_project,
         )
         await record_audit(
             self.db,

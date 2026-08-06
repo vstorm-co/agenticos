@@ -43,6 +43,11 @@ class Settings(BaseSettings):
     LOGFIRE_TOKEN: str | None = None
     LOGFIRE_SERVICE_NAME: str = "agenticos"
     LOGFIRE_ENVIRONMENT: str = "development"
+    # A write token carries no project name, so a run's trace id cannot be turned
+    # into a URL without these. Unset means runs still record their trace id and
+    # nothing links to it.
+    LOGFIRE_ORGANIZATION: str | None = None
+    LOGFIRE_PROJECT: str | None = None
 
     POSTGRES_HOST: str = "localhost"
     POSTGRES_PORT: int = 5432

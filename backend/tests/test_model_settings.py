@@ -202,7 +202,7 @@ class TestSpecsPublishedBeforeThisExisted:
         assert AgentSpec.from_yaml(spec.to_yaml()) == spec
 
     def test_the_version_records_that_the_shape_changed(self):
-        assert AgentSpec(name="x").spec_version == SPEC_VERSION == 7
+        assert AgentSpec(name="x").spec_version == SPEC_VERSION == 8
 
     def test_a_spec_that_is_not_a_mapping_is_left_to_pydantic(self):
         """The migration must not swallow a malformed document."""

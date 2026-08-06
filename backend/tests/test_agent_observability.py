@@ -83,4 +83,30 @@ class TestSpec:
         from pydantic import ValidationError
 
         with pytest.raises(ValidationError):
-            ObservabilitySpec(project="acme")  # ty: ignore[unknown-argument]
+            ObservabilitySpec(dashboard="acme")  # ty: ignore[unknown-argument]
+
+    def test_a_spec_written_before_the_project_field_still_loads(self):
+        """Every stored spec was. An optional field with a default is what makes
+        that free - and `extra="forbid"` is what makes forgetting it a 500 on the
+        next run of an agent nobody touched."""
+        spec = AgentSpec.model_validate(
+            {
+                "spec_version": 7,
+                "name": "Support",
+                "observability": {"token_secret_id": str(uuid.uuid4()), "environment": "prod"},
+            }
+        )
+
+        assert spec.observability is not None
+        assert spec.observability.project is None
+
+    def test_the_project_survives_a_yaml_round_trip(self):
+        """A spec is exported into a client's repository and read back from it."""
+        spec = AgentSpec(
+            name="Support",
+            observability=ObservabilitySpec(
+                token_secret_id=uuid.uuid4(), project="client-org/client-traces"
+            ),
+        )
+
+        assert AgentSpec.from_yaml(spec.to_yaml()) == spec

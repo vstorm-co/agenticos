@@ -79,6 +79,7 @@ async def create(
     created_by_user_id: UUID | None = None,
     logfire_token_secret_id: UUID | None = None,
     service_name: str | None = None,
+    logfire_project: str | None = None,
 ) -> AgentEnvironment:
     environment = AgentEnvironment(
         organization_id=organization_id,
@@ -89,6 +90,7 @@ async def create(
         created_by_user_id=created_by_user_id,
         logfire_token_secret_id=logfire_token_secret_id,
         service_name=service_name,
+        logfire_project=logfire_project,
     )
     db.add(environment)
     await db.flush()

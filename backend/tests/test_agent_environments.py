@@ -56,6 +56,7 @@ def _environment(*, agent_id: uuid.UUID, name: str = "dev", is_default: bool = F
         is_default=is_default,
         logfire_token_secret_id=None,
         service_name=None,
+        logfire_project=None,
     )
 
 
