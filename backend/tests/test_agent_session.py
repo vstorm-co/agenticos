@@ -96,7 +96,7 @@ from app.agents.subagent_runtime import (
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.db.models.agent_run import RunStatus
 from app.services.agent import PersistedPrompt
-from app.services.agent_chat import ChatTurn
+from app.services.agent_chat import ChatTurn, OpenedRun
 from app.services.agent_runner import ParkedApproval
 from app.services.agent_session import AgentSession
 from app.services.usage_report import UsageReport
@@ -860,15 +860,23 @@ class TestStreamingAModelResponse:
     """
 
     @staticmethod
-    async def _stream(session: AgentSession, *events: Any) -> list[str]:
-        """Drive the translation over `events`, returning the collected thinking."""
+    async def _stream(
+        session: AgentSession, *events: Any, output: list[str] | None = None
+    ) -> list[str]:
+        """Drive the translation over `events`, returning the collected thinking.
+
+        `output` is passed by the tests about the half-written answer; the rest do
+        not read it, so they let it be discarded.
+        """
 
         async def _events() -> AsyncIterator[Any]:
             for event in events:
                 yield event
 
         thinking: list[str] = []
-        await session._stream_request_events(_events(), thinking)
+        await session._stream_request_events(
+            _events(), thinking, output if output is not None else []
+        )
         return thinking
 
     async def test_a_part_that_starts_with_text_already_in_it_forwards_that_text(self):
@@ -1046,6 +1054,110 @@ def count_open(team: str) -> int:
     return 2
 
 
+class TestATurnThatDidNotFinishStillKeepsWhatItSaid:
+    """The half-written answer, on the paths that never return a `ChatTurn`.
+
+    A run that failed, hit its budget, was stopped or lost its socket produces no
+    `ChatTurn`, so the write on the success path is skipped - and everything the
+    model had already streamed used to be discarded. The run stayed in history
+    pointing at a transcript holding the question and nothing else, which is the
+    run somebody opens.
+
+    Driven over a real `Agent.iter`, because the text has to travel the same route
+    the client's `text_delta` frames do: what is written down is what its reader
+    saw, and a stub bypassing the translation would prove neither half.
+    """
+
+    @staticmethod
+    def _interrupted(failure: BaseException, *, run: OpenedRun) -> AsyncMock:
+        """A `run` that opens its row, streams two chunks, and then fails."""
+
+        async def interrupted(**kwargs: Any) -> ChatTurn:
+            kwargs["on_run_open"](run)
+            async with _answering_agent().iter("how many are open?") as agent_run:
+                await kwargs["stream"](agent_run)
+            raise failure
+
+        return AsyncMock(side_effect=interrupted)
+
+    @staticmethod
+    def _opened() -> OpenedRun:
+        return OpenedRun(run_id=uuid4(), model_label="gpt-4.1", agent_version_id=uuid4())
+
+    @pytest.mark.parametrize(
+        "failure",
+        [
+            RuntimeError("the provider went away"),
+            BudgetExceeded(limit_usd=1, spent_usd=2, scope=BudgetScope.AGENT),
+            BadRequestError(message="that agent is archived"),
+        ],
+        ids=["a crash", "a budget stop", "a refusal"],
+    )
+    async def test_the_words_the_reader_saw_are_the_words_that_are_stored(self, failure):
+        session = _session()
+        run = self._opened()
+
+        with _chat(self._interrupted(failure, run=run)) as chat:
+            await session.process_message(_message())
+
+        written = chat.answer.await_args
+        assert written.args[1] == "Two are open."
+        assert written.kwargs["run_id"] == run.run_id
+        assert written.kwargs["agent_version_id"] == run.agent_version_id
+        # The model comes off the opened run, not off a `ChatTurn` that was never
+        # produced - a transcript naming no model cannot answer "which one said
+        # this" for the turn most likely to be asked about.
+        assert written.args[2] == "gpt-4.1"
+
+    async def test_no_cost_is_invented_for_a_turn_that_never_reported_one(self):
+        """The accounting is on the run row, written by `finish`. A figure guessed
+        from a partial stream would disagree with it, and the run row is the one a
+        budget is enforced against."""
+        session = _session()
+
+        with _chat(self._interrupted(RuntimeError("boom"), run=self._opened())) as chat:
+            await session.process_message(_message())
+
+        assert chat.answer.await_args.kwargs.get("usage") is None
+
+    async def test_a_turn_refused_before_its_run_existed_writes_nothing(self):
+        """An unpublished agent, or a membership revoked mid-session. There is no
+        run to file a turn under and nothing was produced, and a blank assistant
+        message would read as the agent having answered with silence."""
+        session = _session()
+        refused = AsyncMock(side_effect=BadRequestError(message="that agent is not published"))
+
+        with _chat(refused) as chat:
+            await session.process_message(_message())
+
+        chat.answer.assert_not_awaited()
+        assert _frame_types(session) == ["user_prompt", "error"]
+
+    async def test_a_turn_whose_conversation_was_never_persisted_writes_no_partial(self):
+        """`persist_user_turn` logs and swallows a write failure, so a turn can run
+        with no thread to write into. There is nowhere to put the partial answer,
+        and the run row is still the record that the work happened."""
+        session = _session()
+
+        with _chat(
+            self._interrupted(RuntimeError("boom"), run=self._opened()), conversation=None
+        ) as chat:
+            await session.process_message(_message())
+
+        chat.answer.assert_not_awaited()
+
+    async def test_a_turn_that_finished_is_written_once_and_not_twice(self):
+        """The `finally` cannot read `turn` to decide - that is the whole reason it
+        exists - so it reads whether the write happened. A second row here would
+        duplicate every answer in the product."""
+        session = _session()
+
+        with _chat(AsyncMock(return_value=_finished_turn())) as chat:
+            await session.process_message(_message())
+
+        chat.answer.assert_awaited_once()
+
+
 class TestDrivingTheRun:
     """The node dispatch, over a real `Agent.iter`.
 
@@ -1056,10 +1168,14 @@ class TestDrivingTheRun:
     async def test_a_turn_that_calls_a_tool_and_then_answers(self):
         session = _session()
         tool_calls: list[dict[str, Any]] = []
+        output: list[str] = []
 
         async with _answering_agent(tools=[count_open]).iter("how many are open?") as agent_run:
-            await session._stream_agent_run(agent_run, "how many are open?", tool_calls, [])
+            await session._stream_agent_run(agent_run, "how many are open?", tool_calls, [], output)
 
+        # The same words that went out as `text_delta`, kept so a turn that never
+        # finishes can still be written down as what its reader saw.
+        assert "".join(output) == "Two are open."
         types = _frame_types(session)
         assert types[0] == "user_prompt_processed"
         assert types.count("model_request_start") == 2
@@ -1083,7 +1199,7 @@ class TestDrivingTheRun:
         prompt = ["have a look at this", BinaryContent(data=b"\x89PNG", media_type="image/png")]
 
         async with _answering_agent().iter(prompt) as agent_run:
-            await session._stream_agent_run(agent_run, "have a look at this", [], [])
+            await session._stream_agent_run(agent_run, "have a look at this", [], [], [])
 
         assert _sent_events(session)[0] == (
             "user_prompt_processed",

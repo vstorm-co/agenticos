@@ -217,6 +217,7 @@ async def _run(
     agent_id: uuid.UUID | None = None,
     conversation_id: uuid.UUID | None = None,
     prompt_message_id: uuid.UUID | None = None,
+    on_run_open: Any = None,
     ask_user: Any = None,
     stream: Any = _nothing,
     user_input: Any = "what is the refund window",
@@ -231,6 +232,7 @@ async def _run(
         message_history=[],
         conversation_id=conversation_id,
         prompt_message_id=prompt_message_id,
+        on_run_open=on_run_open,
         attachments=attachments,
         ask_user=ask_user or AsyncMock(return_value=[]),
         stream=stream,
@@ -488,6 +490,42 @@ class TestLinkingThePromptToTheRun:
             await _run(_db(), conversation_id=conversation_id, prompt_message_id=message_id)
 
         conversations.link_message_to_run.assert_not_awaited()
+
+
+class TestTellingTheSurfaceItsRunIsOpen:
+    """`on_run_open`, for the surface that has to persist what it streamed.
+
+    Everything a streaming surface needs to attribute an answer arrives on
+    `ChatTurn` - and a run that failed, hit its budget or was cancelled returns
+    none, because this method raises instead. So the row is handed over the
+    moment `prepare` opens it, before anything can go wrong.
+    """
+
+    async def test_the_row_is_handed_over_before_the_run_executes(self):
+        prepared = _prepared()
+        prepared.run.agent_version_id = uuid.uuid4()
+        seen: list[Any] = []
+
+        with _runner(prepared):
+            await _run(
+                _db(),
+                on_run_open=seen.append,
+                stream=AsyncMock(side_effect=lambda _run: seen.append("streamed")),
+            )
+
+        # Order is the point: handed over first, so a failure in the stream still
+        # leaves the surface able to file what it had.
+        assert [type(item).__name__ for item in seen] == ["OpenedRun", "str"]
+        assert seen[0].run_id == prepared.run.id
+        assert seen[0].model_label == "gpt-4.1"
+        assert seen[0].agent_version_id == prepared.run.agent_version_id
+
+    async def test_a_surface_that_does_not_persist_is_told_nothing(self):
+        """The Playground and the API do not write transcripts of their own."""
+        with _runner(_prepared()):
+            turn = await _run(_db())
+
+        assert turn.output == "the refund window is 30 days"
 
 
 class TestPausingMidRun:

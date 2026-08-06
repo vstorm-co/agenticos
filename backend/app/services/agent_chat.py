@@ -172,6 +172,27 @@ def display_output(output: str | DeferredToolRequests) -> str:
 
 
 @dataclass(frozen=True)
+class OpenedRun:
+    """The run row, handed to the surface the moment it exists.
+
+    A streaming surface persists the answer itself, and until this existed it
+    could only do so for a turn that *finished*: everything it needs arrives on
+    `ChatTurn`, and a run that failed, was stopped by a budget or was cancelled
+    mid-stream never returns one. So the text the model had already streamed was
+    thrown away, and the run row in history pointed at a transcript holding the
+    question and nothing else - on exactly the runs somebody opens.
+
+    Three fields rather than the run row itself: a surface has no business
+    reaching into a `PreparedRun`, and these are what attributing a partial
+    answer takes.
+    """
+
+    run_id: UUID
+    model_label: str
+    agent_version_id: UUID | None
+
+
+@dataclass(frozen=True)
 class ChatTurn:
     """What one published-agent turn produced, for the surface to persist."""
 
@@ -238,6 +259,7 @@ class ChatAgentRunner:
         prompt_message_id: UUID | None = None,
         ask_user: AskUserCallback,
         stream: ChatStream,
+        on_run_open: Callable[[OpenedRun], None] | None = None,
         subagent_events: SubagentEventSink | None = None,
         model_profile_id: UUID | None = None,
         environment_id: UUID | None = None,
@@ -267,6 +289,12 @@ class ChatAgentRunner:
             ask_user: How the agent puts a question to the person who is sitting
                 there. Only a live surface can offer this.
             stream: Iterates the run and forwards its events to the client.
+            on_run_open: Told the run row as soon as `prepare` has opened one,
+                so a surface can persist what it streamed even when this method
+                raises. Everything it would otherwise use arrives on `ChatTurn`,
+                and a run that failed, hit its budget or was cancelled produces
+                none - which is how a failed chat run came to keep the question
+                and lose the half-written answer.
             subagent_events: Where a delegation's frames go, for a surface that
                 can draw one. Defaults to `None`, and the default is load-bearing
                 rather than convenient: attaching a handler makes the library open
@@ -314,6 +342,14 @@ class ChatAgentRunner:
                 message_id=prompt_message_id,
                 run_id=prepared.run.id,
                 conversation_id=conversation_id,
+            )
+        if on_run_open is not None:
+            on_run_open(
+                OpenedRun(
+                    run_id=prepared.run.id,
+                    model_label=prepared.built.model_label,
+                    agent_version_id=prepared.run.agent_version_id,
+                )
             )
 
         if attachments:

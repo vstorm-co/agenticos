@@ -223,16 +223,21 @@ status, its tokens, and the budget enforced against it. It also gets its
 it was made with and what came back. That matters because a run's drill-down is
 read from those rows — what nothing wrote, no page can show.
 
-The transcript is written by the runner, not by the surface. It used to be the
-surface's job, and four of them did not do it: the widget, a mention, the API and
-every resumed run recorded nothing at all, so an organization was billed for an
-answer with no row saying what was asked. A thing every surface has to remember
-is a thing the next surface will not.
+For everything except web chat the transcript is written by the runner, not by the
+surface. It used to be the surface's job, and four of them did not do it: the
+widget, a mention, the API and every resumed run recorded nothing at all, so an
+organization was billed for an answer with no row saying what was asked. A thing
+every surface has to remember is a thing the next surface will not.
+
+Web chat still writes its own, because it has events to attach and a socket to
+answer on — and it writes on both endings. **A turn that does not finish is
+recorded as far as it got**, from the same text the client was streamed, so what
+is stored is what its reader actually saw.
 
 | Surface | What reaches `messages` and `tool_calls` |
 |---|---|
 | Web chat, run finished | Everything — prompt, reasoning, tool arguments and results, model and version |
-| Web chat, run failed | The prompt only. The exception skips the assistant write |
+| Web chat, run interrupted | The same, as far as it got. A run that failed, hit its budget, was stopped or lost its socket keeps the words already streamed, attributed to the version that produced them, with no cost figure invented for it — the run row is where the accounting lives |
 | A channel bot's default agent | Everything except the reasoning, which only a streamed run exposes |
 | `@mention` on a channel | The same, with the handle stripped from the recorded prompt |
 | Embedded widget | The same. The visitor is anonymous; the run and the turns belong to the widget's owner |
