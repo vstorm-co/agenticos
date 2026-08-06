@@ -149,6 +149,21 @@ watching while no port is listening. Under the supervisor a worker killed by a
 signal is replaced within about five seconds, and one that exited on its own
 still waits for the edit that fixes it, which is what `--reload` is for.
 
+It also replaces a worker that is **wedged** — alive, but with an event loop
+that has stopped turning, which has no exit code and so looks healthy to every
+other recovery path. The worker reports its loop through uvicorn's
+`callback_notify` hook once a second, and a worker silent for fifteen seconds is
+killed and replaced, so about twenty seconds from deadlock to serving again.
+That is liveness and not readiness on purpose: the beat is a timer callback, not
+a request, so a slow database cannot make a healthy server look wedged.
+
+| | |
+|---|---|
+| `RELOAD_WEDGED_AFTER` | Seconds of silence before a worker is replaced. Default `15`; `0` switches the check off |
+
+Switch it off while debugging. A breakpoint blocks the event loop and no probe
+can tell that from a deadlock, so a worker sitting on one is replaced under you.
+
 `server run` also selects the `websockets-sansio` implementation in both modes.
 uvicorn's `auto` picks the legacy one, which fails the handshake against
 websockets >=14 with an HTTP 500 — and the dashboard chat is a WebSocket.
