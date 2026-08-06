@@ -19,6 +19,31 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.47] - 2026-08-06
+
+### Fixed
+
+- The knowledge-base detail page stated the size of the page the table had
+  loaded, not the size of the collection. A collection holding fifty-seven
+  documents said "20 documents" under its own title, and pressing Load more made
+  the number climb, which reads as ingestion happening rather than the page
+  correcting itself. The document count now reads the collection's total; the
+  vector count says plainly that it counts what is loaded, until everything is
+  (#324).
+- Nine strings in the knowledge-base pages rendered in English under any locale —
+  single words below the guard's threshold, text nodes alone on a line, copy
+  behind an `&&`, and a schedule read as "every 30m". Two of them are counts and
+  are now ICU plurals (#325).
+- Drag-and-drop upload compared a translated string against the browser's
+  `DataTransfer` type. Under Polish that comparison could never match, so
+  dropping a file would have done nothing.
+
+### Changed
+
+- A Tailwind class list was being stored in `messages/en.json` and read through
+  the translator, so a translator opening `pl.json` was asked to translate CSS.
+
+
 ## [0.0.46] - 2026-08-06
 
 ### Changed
