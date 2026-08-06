@@ -48,7 +48,7 @@ About five minutes, serial, on a warm cache. What it deliberately leaves out:
 |---|---|
 | `e2e` | Needs a migrated database, a seeded organization and a running backend: `make dev && make platform-bootstrap && make test-e2e` |
 | The image build and Trivy scan | CI runs those only on a push to `main` |
-| `make test-migrations` | CI cycles the chain against a throwaway `test_db`. On a laptop `alembic downgrade base` points at whatever `backend/.env` says, which is usually the database with your own work in it |
+| `make test-migrations` | CI cycles the chain against a throwaway `test_db`. On a laptop `alembic downgrade base` points at whatever `backend/.env` says, which is usually the database with your own work in it — `uv run pytest tests/test_migrations.py` asks the same question against a database of its own, and `make test` already runs it |
 
 One gap no command can close: CI's `test` job has a Postgres beside it, so
 `tests/integration/` runs there, and locally it skips itself when nothing answers

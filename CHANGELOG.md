@@ -19,6 +19,25 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.59] - 2026-08-06
+
+### Fixed
+
+- `tests/test_migrations.py` ran for the first time. It needed a database called
+  `agenticos_migrations_test`, a missing one became a module-level skip, and
+  nothing in the repository ever created it — so the only assertions that
+  `downgrade()` works at all reported "4 skipped" into a green build on every CI
+  run this project has ever had (#234). The module creates that database before
+  its first test and drops it after its last, with the process id in the name so
+  two runs on one machine cannot drop each other's mid-upgrade (#346).
+- A remaining skip now means one thing only: no Postgres answered. Under `CI` it
+  is not a skip at all but a failure, because a declared service container that
+  did not come up is not a laptop without Docker.
+- The probe says *why* the server did not answer. A Postgres that is up and
+  refusing — a wrong password, a database in recovery — used to be reported as a
+  container that never started.
+
+
 ## [0.0.58] - 2026-08-06
 
 ### Fixed
