@@ -36,17 +36,28 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
     Uses OpenAI's embedding models to generate text embeddings.
     """
 
-    def __init__(self, model: str, api_key: str = "", base_url: str | None = None) -> None:
+    def __init__(
+        self,
+        model: str,
+        api_key: str = "",
+        base_url: str | None = None,
+        key_origin: str | None = None,
+    ) -> None:
         """Initialize the OpenAI embedding provider.
 
         Args:
             model: The OpenAI embedding model name (e.g., 'text-embedding-3-small').
             api_key: API key for `base_url`. Absent, embedding is unavailable.
             base_url: Override base URL (e.g. OpenRouter-compatible endpoint).
+            key_origin: Where `api_key` came from, said in words, for the
+                refusal below. A per-collection caller passes what
+                `ResolvedEmbeddings.describe` built; the deployment-wide
+                provider has nothing to add and passes nothing.
         """
         self.model = model
         self._api_key = api_key
         self._base_url = base_url
+        self._key_origin = key_origin
         self._client: OpenAI | None = None
 
     @property
@@ -64,16 +75,29 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
         OpenRouter, so an OpenAI key would have been accepted at construction
         and rejected on the first request - and silently sending one vendor's
         credential to another is not a fallback worth keeping.
+
+        The refusal names `key_origin` when it has one. Advising "set
+        OPENROUTER_API_KEY" to somebody who picked an organization key in the
+        UI is advice for a deployment they are not running; which key was
+        tried, and why that one, is the part that tells them what to do.
         """
         if self._client is None:
             if not self._api_key:
+                origin = f" for {self._key_origin}" if self._key_origin else ""
+                details: dict[str, str] = {
+                    "setting": "OPENROUTER_API_KEY",
+                    "model": self.model,
+                }
+                if self._key_origin is not None:
+                    details["key_origin"] = self._key_origin
                 raise ConfigurationError(
                     message=(
-                        "No embedding credential is configured, so documents cannot be "
-                        "indexed or searched. Set OPENROUTER_API_KEY in the backend "
-                        "environment and restart."
+                        f"No embedding credential is configured{origin}, so documents "
+                        "cannot be indexed or searched. Set OPENROUTER_API_KEY in the "
+                        "backend environment and restart, or give the collection a "
+                        "usable key from its organization's vault."
                     ),
-                    details={"setting": "OPENROUTER_API_KEY", "model": self.model},
+                    details=details,
                 )
             self._client = OpenAI(api_key=self._api_key, base_url=self._base_url)
         return self._client
@@ -108,6 +132,7 @@ class EmbeddingService:
         settings: RAGSettings,
         api_key: str | None = None,
         expected_dim: int | None = None,
+        key_origin: str | None = None,
     ) -> None:
         """One model, one credential, one expected width.
 
@@ -115,7 +140,8 @@ class EmbeddingService:
         passes the organization's own (see `embedding_resolution`).
         `expected_dim` defaults to the config's derived width; a collection
         passes the width its table was actually created at, which a later
-        catalog change must not overrule.
+        catalog change must not overrule. `key_origin` says in words where
+        `api_key` came from, so a refusal for an empty one is actionable.
         """
         config = settings.embeddings_config
         self.expected_dim = expected_dim if expected_dim is not None else config.dim
@@ -123,6 +149,7 @@ class EmbeddingService:
             model=config.model,
             api_key=api_key if api_key is not None else app_settings.OPENROUTER_API_KEY,
             base_url="https://openrouter.ai/api/v1",
+            key_origin=key_origin,
         )
 
     def embed_query(self, query: str) -> list[float]:

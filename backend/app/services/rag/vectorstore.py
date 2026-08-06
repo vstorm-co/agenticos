@@ -198,16 +198,20 @@ class PgVectorStore(BaseVectorStore):
         self,
         settings: RAGSettings,
         embedding_service: EmbeddingService,
-        resolver: "EmbeddingResolver | None" = None,
+        resolver: "EmbeddingResolver",
     ):
         self.settings = settings
         self.embedder = embedding_service
         self.dim = settings.embeddings_config.dim
-        # Which model - and whose key - one collection embeds with. None keeps
-        # the deployment defaults for everything, which is the pre-resolver
-        # behaviour and still what a collection outside the KB table gets.
+        # Which model - and whose key - one collection embeds with. Required,
+        # and deliberately not defaulted: it used to default to None, and the
+        # one construction that forgot it - the worker that ingests every
+        # uploaded document - silently ignored every collection's chosen key
+        # and model for as long as nobody read the bill (#306). A collection
+        # outside the KB table still gets the deployment defaults, but that is
+        # now the resolver answering None rather than nobody asking.
         self._resolver = resolver
-        self._services: dict[tuple[str, str], EmbeddingService] = {}
+        self._services: dict[tuple[str, str, str], EmbeddingService] = {}
         self.engine = create_async_engine(app_settings.DATABASE_URL, echo=False)
         self.async_session = sessionmaker(self.engine, class_=AsyncSession, expire_on_commit=False)
 
@@ -222,23 +226,28 @@ class PgVectorStore(BaseVectorStore):
     async def _for_collection(self, name: str) -> tuple[EmbeddingService, int]:
         """The embedder and vector width this one collection uses.
 
-        Cached per (model, key): an `EmbeddingService` holds an HTTP client,
-        and rebuilding one per chunk would open a connection pool per page of a
-        PDF. The recorded width wins over the catalog's - the table was created
-        at that number.
+        Cached per (collection, model, key): an `EmbeddingService` holds an
+        HTTP client, and rebuilding one per chunk would open a connection pool
+        per page of a PDF. The collection is in the key because the service
+        carries a `key_origin` naming it - two collections on the same key
+        would otherwise share a client whose refusal names whichever of them
+        embedded first. The recorded width wins over the catalog's: the table
+        was created at that number.
         """
-        if self._resolver is None:
-            return self.embedder, self.dim
         resolved = await self._resolver(name)
         if resolved is None:
             return self.embedder, self.dim
-        cache_key = (resolved.model, resolved.api_key)
+        cache_key = (name, resolved.model, resolved.api_key)
         service = self._services.get(cache_key)
         if service is None:
             service = EmbeddingService(
                 settings=RAGSettings(embeddings_config=EmbeddingsConfig(model=resolved.model)),
                 api_key=resolved.api_key,
                 expected_dim=resolved.dim,
+                # So a resolution that ended on an empty key says which key it
+                # tried, for which collection, instead of advising an operator
+                # to set a variable they may already have set.
+                key_origin=resolved.describe(name),
             )
             self._services[cache_key] = service
         return service, resolved.dim

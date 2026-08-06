@@ -10,7 +10,8 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
-from prefect import flow
+from prefect import flow, get_run_logger
+from prefect.exceptions import MissingContextError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.budget import BudgetExceeded, SpendLedger, metered_by
@@ -18,6 +19,10 @@ from app.core.config import settings
 from app.db.session import get_worker_db_context
 from app.repositories import ingestion_spend_repo, knowledge_base_repo
 from app.repositories import sync_source as sync_source_repo
+from app.services.embedding_resolution import (
+    ResolvedEmbeddings,
+    embeddings_for_collection,
+)
 from app.services.ingestion_config import (
     IngestionConfig,
     IngestionConfigService,
@@ -35,6 +40,41 @@ from app.services.sync_source import SyncSourceService
 logger = logging.getLogger(__name__)
 
 
+def _say_in_flow_log(message: str) -> None:
+    """Put one line where the operator of a failing ingestion is looking.
+
+    Prefect ships a run's log to the UI through the logger `get_run_logger`
+    hands out; a `logging` call from a library module goes to the worker's
+    stdout and no further. Outside a run there is no such logger, and this is
+    still a plain module function - a direct CLI ingest, or a test - so the
+    module logger is the fallback rather than a crash on a log line.
+    """
+    try:
+        get_run_logger().warning(message)
+    except MissingContextError:
+        logger.warning(message)
+
+
+async def _resolve_embeddings_in_flow(collection_name: str) -> ResolvedEmbeddings | None:
+    """`embeddings_for_collection`, with a degraded credential said out loud.
+
+    The resolver falls back to the deployment key on three paths - the chosen
+    secret deleted, unsealable, or not an API key - each a `logger.warning` in
+    `app.services.embedding_resolution` that reaches nothing an operator reads.
+    So a collection that *had* been given a vault key either failed with advice
+    about a deployment variable, or succeeded while billing the deployment's
+    account, and in both cases nothing said which of the three had happened.
+
+    A collection that simply chose no key is not reported: that is the
+    documented normal path, and a line per document about it would bury the
+    three that matter.
+    """
+    resolved = await embeddings_for_collection(collection_name)
+    if resolved is not None and resolved.key_source.is_degraded:
+        _say_in_flow_log(f"Embedding {resolved.describe(collection_name)}.")
+    return resolved
+
+
 async def _ingestion_service_for(
     db: AsyncSession,
     *,
@@ -43,14 +83,35 @@ async def _ingestion_service_for(
 ) -> IngestionService:
     """An ingester that reads documents the way the collection asked to be read.
 
-    The vector store and the embedder are still built from deployment settings:
-    the embedding model is fixed per deployment and recorded per collection, and
-    the check that the two still agree happens before an upload is accepted.
-    What varies here is the parser, the chunker and the image model.
+    Both halves come off the collection. The parser, the chunker and the image
+    model come from its `IngestionConfig`; the embedding model, its recorded
+    vector width and the vault key that pays for it come from the resolver,
+    which the store consults per collection.
+
+    That resolver used to be omitted here, and only here - the deployment's
+    model and `OPENROUTER_API_KEY` were used for every collection, whatever it
+    had chosen. On a deployment with no key set that was a crash advising the
+    operator to set one; with both set it was worse, because the embeddings
+    were billed to the deployment while the product said the organization's
+    key paid (#306).
+
+    An earlier version of this docstring said the model was fixed per
+    deployment and that "the check that the two still agree happens before an
+    upload is accepted". No such check exists, and none should: since
+    per-collection resolution landed, a collection keeps embedding with the
+    model it was built with whatever the deployment default became, which is
+    the point of recording it. What *is* checked before an upload is accepted
+    is `IngestionConfigService.check_embedding_model` - that this build knows a
+    width for the collection's model at all, because vectors it cannot produce
+    would fail in a worker with nothing on screen.
     """
     rag_settings = settings.rag
     embed_service = EmbeddingService(settings=rag_settings)
-    vector_store = VectorStore(settings=rag_settings, embedding_service=embed_service)
+    vector_store = VectorStore(
+        settings=rag_settings,
+        embedding_service=embed_service,
+        resolver=_resolve_embeddings_in_flow,
+    )
     processor = await IngestionConfigService(db).build_processor(organization_id, config)
     return IngestionService(processor=processor, vector_store=vector_store)
 
