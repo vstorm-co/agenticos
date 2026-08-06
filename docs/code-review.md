@@ -1,5 +1,19 @@
 # Automated pull request review
 
+!!! warning "The reviewer is switched off on pull requests — [#311](https://github.com/vstorm-co/agenticos/issues/311)"
+
+    Since 2026-08-05 evening every run died about twelve seconds into
+    `Review the diff` (`codex exited with code 1`), concluded `success`, and
+    posted "the reviewer did not produce a result" — so eleven pull requests
+    merged with no review and nothing said the reviewer was broken rather than
+    quiet. The `pull_request` trigger has been removed until that is understood;
+    `workflow_dispatch` still works, for testing the fix. Everything below
+    describes the workflow as it will behave when the trigger is restored, and
+    [When it runs](#when-it-runs) says what is live today.
+
+    Until then the review before a merge is a human one, plus the local
+    `/review` command in `.claude/commands/review.md`.
+
 A GitHub Action reviews pull requests against **this repository's own standard**.
 It is not a linter with a language model attached: the prompt in
 `.github/codex/review-prompt.md` tells the reviewer to read `CLAUDE.md` and
@@ -32,9 +46,16 @@ is the second half of this page.
 
 | Trigger | Who | Note |
 |---|---|---|
-| A pull request is opened, reopened or marked ready | automatic | Drafts are skipped |
-| The `ai-review` label is added | anyone with write access | On demand |
-| `workflow_dispatch` with a pull request number | write access | Manual, for testing |
+| `workflow_dispatch` with a pull request number | write access | Manual, for testing. **The only live trigger today** |
+| A pull request is opened, reopened or marked ready | automatic | Drafts are skipped. Removed by [#311](https://github.com/vstorm-co/agenticos/issues/311) |
+| The `ai-review` label is added | anyone with write access | On demand. Removed by [#311](https://github.com/vstorm-co/agenticos/issues/311) |
+
+The last two rows are what the workflow does when the `pull_request` trigger is
+in it. Restoring them is putting two lines back at the top of
+`.github/workflows/ai-review.yml` — the label gate, the draft gate and the fork
+refusal were left in place, so nothing else has to be rebuilt. Adding the label
+today does nothing at all, which is the point: it is visibly not running rather
+than running and reporting nothing.
 
 Deliberately **not** on `synchronize`. Two developers, a dozen pushes per pull
 request: a review on every one of them is a review nobody reads. Ask for a
@@ -134,6 +155,12 @@ itself in the summary comment.
   that lands between the two jobs.
 - **A failed run.** If the reviewer produces nothing, the summary comment says
   so and links the run. Silence would read as "no findings".
+
+    Not enough, as [#311](https://github.com/vstorm-co/agenticos/issues/311)
+    found: that comment reads like a verdict on the diff, the `review` job still
+    concludes `success`, and eleven pull requests merged before anybody noticed
+    the reviewer had stopped working. Distinguishing "the reviewer failed" from
+    "the reviewer found nothing" is the second half of #311 and is not done yet.
 
 Re-runs replace rather than pile up: the summary comment is upserted on an HTML
 marker, and the previous run's inline comments are deleted first.

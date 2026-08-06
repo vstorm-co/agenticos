@@ -392,30 +392,27 @@ Reverts 0f94fa4        with the reason it was reverted in the body
 `Closes` only when the change genuinely finishes it. A PR body opens with what
 changed and why, then how it was verified — and says plainly what is still red.
 
-### Ask the reviewer when you are done, not while you are working
+### Review your own diff — the automated reviewer is off (#311)
 
-The `ai-review` label runs Codex over the whole diff: minutes of wall clock and
-real money every time. It answers "is this branch finished", so **ask it when
-you believe the branch is finished** — never once per commit, and never as the
-loop for working through its own findings one at a time.
+**`ai-review` no longer runs on a pull request, and the label does nothing.**
+Every run since 2026-08-05 evening failed inside Codex, concluded `success`, and
+posted a sentence that read like a verdict on the diff — eleven pull requests
+merged that way. Until #311 is fixed, the only review before a merge is a human
+one, so the sweep that used to follow the reviewer's findings is now the whole
+job rather than the second half of it: read the surrounding files, sweep the
+siblings of anything you changed, review your own diff as a maintainer would.
+Subagents are good at this — give one the diff and a category to hunt in. The
+local `/review` command in `.claude/commands/review.md` checks the same standard.
 
-The cycle:
-
-1. The pull request opens and the reviewer runs on its own.
-2. Fix what it found, and keep going — read the surrounding files, sweep the
-   siblings of anything you changed, review your own diff as a maintainer would.
-   Subagents are good at this: give one the diff and a category to hunt in.
-3. When you are confident nothing is left, label it again.
-4. If it finds something, back to 2.
-
-Round-tripping until it comes back clean is right. Round-tripping *through* it,
-one finding per run, is not: the work between the labels is where most of the
-defects are actually found, and a reviewer that answers the same diff seven
-times has been asked the same question seven times.
-
-If the reviewer is wrong — and it is, sometimes; it does not always know what a
-file's surrounding code already does — say so in the commit body or the pull
-request, with the reason, rather than churning the code to silence it.
+When it comes back, it answers "is this branch finished", so **ask it when you
+believe the branch is finished**: label, fix everything it found plus whatever
+reviewing your own work turned up, label again, until it comes back clean. Never
+once per commit and never one finding per run — the work between the labels is
+where most of the defects are actually found, and a reviewer that answers the
+same diff seven times has been asked the same question seven times. If it is
+wrong — and it is, sometimes; it does not always know what a file's surrounding
+code already does — say so in the commit body or the pull request, with the
+reason, rather than churning the code to silence it.
 
 `github-code-quality[bot]` opens threads on the same ruleset and cannot be
 filtered. Three of its findings are **already adjudicated** in
