@@ -546,13 +546,16 @@ async def _sync_source_row(db, *, tenant: Tenant, collection_name: str) -> SyncS
     return source
 
 
-async def _sync_log_row(db, *, collection_name: str) -> SyncLog:
+async def _sync_log_row(
+    db, *, collection_name: str, sync_source_id: uuid.UUID | None = None
+) -> SyncLog:
     log = SyncLog(
         id=uuid.uuid4(),
         source="gdrive",
         collection_name=collection_name,
         mode="full",
         status="running",
+        sync_source_id=sync_source_id,
     )
     db.add(log)
     await db.flush()
@@ -1198,6 +1201,73 @@ class TestWritingToAKnowledgeBaseTakesMoreThanReading:
 
         resolved = await service.get_for_write(rag_estate.home_collection.id, ctx=viewer)
         assert resolved.id == rag_estate.home_collection.id
+
+
+class TestReadingOneSyncSourcesHistory:
+    """The log listing resolves the source first, rather than thinning its rows.
+
+    It used to read every log carrying that source id, apply `limit` in SQL, and
+    then drop the rows whose `collection_name` was not this base's. Nothing leaked
+    - but a source can be repointed at another base, since `SyncSourceUpdate`
+    carries `collection_name`, and its earlier runs keep the name they ran
+    against. So the thinning happened after the page had been cut, and there was
+    no way to page past the gap (#233).
+    """
+
+    async def test_a_source_from_another_base_is_missing_rather_than_empty(
+        self, db, kb_api: KbClient, rag_estate: RagEstate
+    ) -> None:
+        """`200 []` says "this source has never run" for a source that is not ours.
+
+        Both are a page rendering "no syncs yet", and one of them is a request that
+        should have failed. Every other per-resource read on this surface reports a
+        row it may not have as missing.
+        """
+        elsewhere = await _sync_source_row(
+            db, tenant=rag_estate.home, collection_name=rag_estate.home_private.collection_name
+        )
+        await _sync_log_row(
+            db,
+            collection_name=rag_estate.home_private.collection_name,
+            sync_source_id=elsewhere.id,
+        )
+
+        response = await kb_api(rag_estate.home).get(
+            f"{settings.API_V1_STR}/kb/{rag_estate.home_collection.id}"
+            f"/sync-sources/{elsewhere.id}/logs",
+        )
+
+        assert response.status_code == 404
+
+    async def test_a_full_page_of_one_sources_history_comes_back_full(
+        self, db, kb_api: KbClient, rag_estate: RagEstate
+    ) -> None:
+        """`limit` and `total` have to describe the same set of rows.
+
+        This source ran twice against this base and once, before it was moved,
+        against another. Asking for three runs used to answer with two and call it
+        the whole history.
+        """
+        for collection_name in (
+            rag_estate.home_collection.collection_name,
+            rag_estate.home_private.collection_name,
+            rag_estate.home_collection.collection_name,
+        ):
+            await _sync_log_row(
+                db,
+                collection_name=collection_name,
+                sync_source_id=rag_estate.home_source.id,
+            )
+
+        response = await kb_api(rag_estate.home).get(
+            f"{settings.API_V1_STR}/kb/{rag_estate.home_collection.id}"
+            f"/sync-sources/{rag_estate.home_source.id}/logs?limit=3",
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert len(body["items"]) == 3
+        assert body["total"] == 3
 
 
 # -- how a collection reads its documents -------------------------------------

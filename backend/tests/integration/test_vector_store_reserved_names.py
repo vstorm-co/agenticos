@@ -30,8 +30,20 @@ _A_TRACKED_DOCUMENT = text(
 )
 
 
+async def _no_collection_of_its_own(name: str) -> None:
+    """A resolver that answers "nothing recorded for this one".
+
+    Not `None` in place of the resolver: `resolver` is a required argument since
+    #306, and `_for_collection` calls it unconditionally rather than checking it
+    first - that check was what made forgetting to pass one silent. A stub that
+    answers `None` is the state this helper was always describing, and it is what
+    sends the store to its deployment defaults.
+    """
+    return None
+
+
 def _store_on(engine: AsyncEngine) -> PgVectorStore:
-    """A store over this engine, with no resolver and a narrow vector width.
+    """A store over this engine, with no recorded embeddings and a narrow width.
 
     `__new__` rather than the constructor: that one builds an engine of its own
     from the deployment settings, which is the database this test is deliberately
@@ -40,7 +52,7 @@ def _store_on(engine: AsyncEngine) -> PgVectorStore:
     """
     store = PgVectorStore.__new__(PgVectorStore)
     store.async_session = async_sessionmaker(engine, expire_on_commit=False)
-    store._resolver = None
+    store._resolver = _no_collection_of_its_own
     store.embedder = None
     store.dim = 8
     return store

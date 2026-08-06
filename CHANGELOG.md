@@ -19,6 +19,47 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.55] - 2026-08-06
+
+### Fixed
+
+- The reserved-names integration test set the vector store's resolver to `None`,
+  which stopped being valid in 0.0.43 when the resolver became required and its
+  `None` short-circuit was deleted. `_for_collection` calls it unconditionally,
+  so the test raised `TypeError: 'NoneType' object is not callable` on every run
+  with a real database. Shipped in 0.0.45 and fixed here.
+
+
+## [0.0.54] - 2026-08-06
+
+### Fixed
+
+- A knowledge base's sync history came back short. The route read every log
+  carrying that source id, applied `limit` in SQL, and only then dropped the rows
+  belonging to another collection — so the page was cut before the thinning. A
+  source repointed at another base (`SyncSourceUpdate` carries
+  `collection_name`, and earlier runs keep the name they ran against) made a
+  request for twenty runs answer with fewer, `total` described the survivors
+  rather than the source, and there was no way to page past the gap. The source
+  is resolved against the base first now (#233).
+- A source that is not this base's answers `404` rather than `200 []`. Both
+  rendered "no syncs yet", and one of them was a request that should have failed.
+
+
+## [0.0.53] - 2026-08-06
+
+### Fixed
+
+- The double-backtick guard skipped every directory called `worktrees`, which was
+  the wrong rule twice over: it silently stopped reading a `docs/worktrees/` that
+  is only a directory with a name, and it still walked a git worktree placed
+  anywhere else. It now detects a nested checkout — a `.git` file or directory —
+  and declines to descend into it, which is what the rule always meant (#225).
+- The self-exemption matched one absolute path, so every copy of the script under
+  a worktree was reported as three findings on a line nobody had edited. It
+  matches the file's name now, and `--fix` is safe on a copy for the same reason.
+
+
 ## [0.0.52] - 2026-08-06
 
 ### Fixed
