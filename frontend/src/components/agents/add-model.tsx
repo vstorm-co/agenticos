@@ -274,6 +274,11 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
                 suggestedName={provider.label}
                 helpUrl={provider.help_url ?? undefined}
                 onCreated={setSecretId}
+                // Passed on rather than left to the submit button. This writes
+                // an organization-wide secret, and a caller that disabled the
+                // form - a dialog mid-save, a panel somebody may only read -
+                // did not mean "except the vault".
+                disabled={disabled}
               />
             </div>
           )}

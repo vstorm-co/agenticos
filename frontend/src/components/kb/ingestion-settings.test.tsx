@@ -45,7 +45,15 @@ function show(value: Partial<IngestionConfig> = {}) {
 describe("IngestionSettings", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    // Everything this form reads is a list, except the caller's own permissions
+    // - which the model field asks for, because whether it may offer to create
+    // a model profile is `connections:manage`. A list-shaped answer there is not
+    // "no permissions", it is a `TypeError` in `usePermissions`.
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+      path === "/me/permissions"
+        ? { organization_id: "org-1", role: "member", is_app_admin: false, permissions: [] }
+        : { items: [], total: 0 },
+    );
   });
 
   it("names every control it renders", () => {

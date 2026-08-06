@@ -7,6 +7,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { IngestionSettings } from "./ingestion-settings";
 import { apiClient } from "@/lib/api-client";
 import { DEFAULT_INGESTION_CONFIG } from "@/lib/ingestion-config";
+import { Perm } from "@/types/permissions";
+import type { Permission } from "@/types/permissions";
 import type { ModelProfile, ProviderInfo } from "@/types/providers";
 import type { Secret, SecretPurpose } from "@/types/secrets";
 
@@ -66,11 +68,22 @@ function profile(overrides: Partial<ModelProfile> = {}): ModelProfile {
   };
 }
 
-const state = { profiles: [] as ModelProfile[], secrets: [] as Secret[] };
+const state = {
+  profiles: [] as ModelProfile[],
+  secrets: [] as Secret[],
+  permissions: [] as Permission[],
+};
 
-/** The vault and the provider catalog, as everything under this control reads them. */
+/** The vault, the provider catalog and the caller, as this control reads them. */
 function serve() {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+    if (path === "/me/permissions")
+      return {
+        organization_id: "org-1",
+        role: "member",
+        is_app_admin: false,
+        permissions: state.permissions.map((permission) => ({ permission, scope: "all" })),
+      };
     if (path === "/providers/model-profiles")
       return { items: state.profiles, total: state.profiles.length };
     if (path === "/providers/catalog") return { items: [OPENAI], total: 1 };
@@ -91,7 +104,7 @@ function wrapper({ children }: { children: ReactNode }) {
 }
 
 /** The form with image description switched on, which is what renders the picker. */
-function show(modelProfileId: string | null = null) {
+function show(modelProfileId: string | null = null, disabled = false) {
   render(
     <IngestionSettings
       idPrefix="test"
@@ -104,6 +117,7 @@ function show(modelProfileId: string | null = null) {
         },
       }}
       onChange={vi.fn()}
+      disabled={disabled}
     />,
     { wrapper },
   );
@@ -113,6 +127,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   state.profiles = [profile()];
   state.secrets = [];
+  state.permissions = [Perm.collectionsEdit, Perm.connectionsManage];
   serve();
 });
 
@@ -147,6 +162,19 @@ describe("the model that describes the images", () => {
     expect(screen.getByRole("button", { name: "Add a key" })).toBeInTheDocument();
   });
 
+  it("stores no key while the dialog that holds it is frozen", async () => {
+    // The form disables its submit on `disabled` and used to stop there, which
+    // was harmless while this panel was a list of radios. It is not now: the
+    // key field writes an organization-wide vault secret, and a dialog mid-save
+    // did not mean "except the vault".
+    show(null, true);
+
+    await userEvent.click(await screen.findByLabelText("Provider"));
+    await userEvent.click(screen.getByRole("option", { name: /OpenAI/ }));
+
+    expect(screen.getByRole("button", { name: "Add a key" })).toBeDisabled();
+  });
+
   it("says the chosen model has no key, which is what decides whether ingestion runs", async () => {
     show("p1");
 
@@ -161,6 +189,19 @@ describe("the model that describes the images", () => {
 
     const current = await screen.findByRole("group", { name: "Current model" });
     expect(within(current).queryByText("no key")).toBeNull();
+  });
+
+  it("offers no form to somebody who may edit the collection but not add a model", async () => {
+    // `POST /providers/model-profiles` is `connections:manage`, which a
+    // collection editor need not hold. Rendering the form for them would be a
+    // 403 dressed as a control; the list of what already exists is the honest
+    // answer, and it is what this panel showed everybody before.
+    state.permissions = [Perm.collectionsEdit];
+    show();
+
+    await waitFor(() => expect(screen.getByRole("radio", { name: "vision" })).toBeInTheDocument());
+    expect(screen.queryByLabelText("Provider")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add model" })).toBeNull();
   });
 
   it("cannot delete a model every agent in the organization may be pointed at", async () => {

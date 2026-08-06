@@ -17,7 +17,7 @@ import {
   Textarea,
 } from "@/components/ui";
 import { InlineSecret } from "@/components/vault/inline-secret";
-import { useModelProviders, useSecrets } from "@/hooks";
+import { useModelProviders, usePermissions, useSecrets } from "@/hooks";
 import {
   CHUNKING_STRATEGIES,
   DEFAULT_IMAGE_PROMPT,
@@ -37,6 +37,7 @@ import type {
   PdfParser,
   ThinkingEffort,
 } from "@/types";
+import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
 
 export interface IngestionSettingsProps {
@@ -542,6 +543,7 @@ function ImageModelField({
 }) {
   const t = useTranslations("kb");
   const { profiles } = useModelProviders();
+  const { can } = usePermissions();
 
   return (
     <div className="space-y-2">
@@ -553,9 +555,14 @@ function ImageModelField({
             created is a fine place to define the model that will read its
             images and to store the key that pays for it. It is not a place to
             delete a model every agent in the organization may be pointed at,
-            which is why `allowRemove` is not passed with it. */}
+            which is why `allowRemove` is not passed with it.
+
+            And only for somebody who may create one: a model profile is
+            `connections:manage`, which a collection editor need not hold. The
+            form would otherwise be a 403 dressed as a control - the list of
+            what already exists is what is left, and it is the honest answer. */}
         <ModelProfilePicker
-          allowAdd
+          allowAdd={can(Perm.connectionsManage)}
           profiles={profiles}
           value={value}
           onChange={onChange}
