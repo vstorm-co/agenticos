@@ -17,6 +17,7 @@ import {
   Textarea,
 } from "@/components/ui";
 import { InlineSecret } from "@/components/vault/inline-secret";
+import { ProviderRow } from "@/components/vault/provider-row";
 import { useModelProviders, useSecrets } from "@/hooks";
 import {
   CHUNKING_STRATEGIES,
@@ -74,6 +75,9 @@ export interface IngestionSettingsProps {
 /** Sentinel for "the deployment's key" - a Select item may not be empty. */
 const DEPLOYMENT_KEY = "__deployment__";
 
+/** What a key here is for, which is also the id its mark is drawn from. */
+const LLAMAPARSE = "llamaparse";
+
 export function IngestionSettings({
   value,
   onChange,
@@ -83,7 +87,7 @@ export function IngestionSettings({
 }: IngestionSettingsProps) {
   const t = useTranslations("kb");
   const { secrets } = useSecrets();
-  const llamaparseKeys = secrets.filter((secret) => secret.purpose === "llamaparse");
+  const llamaparseKeys = secrets.filter((secret) => secret.purpose === LLAMAPARSE);
   const id = (suffix: string) => `${idPrefix}-${suffix}`;
   const set = <K extends keyof IngestionConfig>(key: K, next: IngestionConfig[K]) =>
     onChange({ ...value, [key]: next });
@@ -177,10 +181,16 @@ export function IngestionSettings({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={DEPLOYMENT_KEY}>{t("deploymentKey2")}</SelectItem>
+                  <SelectItem value={DEPLOYMENT_KEY} textValue={t("deploymentKey2")}>
+                    <ProviderRow provider={LLAMAPARSE} name={t("deploymentKey2")} />
+                  </SelectItem>
                   {llamaparseKeys.map((secret) => (
-                    <SelectItem key={secret.id} value={secret.id}>
-                      {secret.name}
+                    <SelectItem key={secret.id} value={secret.id} textValue={secret.name}>
+                      {/* Every key in this list is a LlamaParse key - that is
+                          the filter - so the mark is the constant. The masked
+                          tail is what tells two of them apart, and without it
+                          two keys both called "LlamaParse" were one row twice. */}
+                      <ProviderRow provider={LLAMAPARSE} name={secret.name} hint={secret.hint} />
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -191,7 +201,7 @@ export function IngestionSettings({
                   picker had. */}
               <InlineSecret
                 kind="api_key"
-                purpose="llamaparse"
+                purpose={LLAMAPARSE}
                 suggestedName="LlamaParse"
                 helpUrl="https://cloud.llamaindex.ai/api-key"
                 disabled={disabled}
