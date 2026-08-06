@@ -10,6 +10,10 @@ or to your Prefect Cloud workspace URL + PREFECT_API_KEY for Cloud mode.
 At most PREFECT_RUNNER_LIMIT runs execute at once; the rest queue.  Each run is a
 separate process that imports the whole application, so an uncapped runner meeting
 a backlog is an out-of-memory kill rather than a slow afternoon.
+
+The runner also serves its own health endpoint, on 127.0.0.1:8080 inside its
+container, so that a container orchestrator can tell a runner that is polling from
+one that has stopped.  See `main` for why it is not optional.
 """
 
 import asyncio
@@ -87,7 +91,19 @@ async def main() -> None:
     # this runner ended up with no ceiling at all: after three days of downtime it
     # picked up the backlog of `rag-sync-check` runs and started 71 processes at
     # once, 6 GiB on a 7.75 GiB host, and the kernel OOM-killed the API container.
-    await aserve(*deployments, limit=settings.PREFECT_RUNNER_LIMIT)
+    #
+    # `webserver` is what makes this container's health status mean something.
+    # It starts Prefect's runner webserver on a daemon thread, serving `/health`
+    # on PREFECT_RUNNER_SERVER_HOST:PREFECT_RUNNER_SERVER_PORT - the compose files
+    # pin those to 127.0.0.1:8080, reachable by a probe inside the container and by
+    # nothing else, which matters because the same server also exposes `/shutdown`.
+    # The endpoint answers 503 once `last_polled` is older than
+    # PREFECT_RUNNER_SERVER_MISSED_POLLS_TOLERANCE * PREFECT_RUNNER_POLL_FREQUENCY
+    # (20s by default), so a process that is alive but no longer polling reads as
+    # unhealthy rather than as fine. Before this, the runner inherited the API's
+    # HTTP probe from the shared image and was unhealthy from the second it
+    # started, which is a status nobody can act on.
+    await aserve(*deployments, limit=settings.PREFECT_RUNNER_LIMIT, webserver=True)
 
 
 if __name__ == "__main__":

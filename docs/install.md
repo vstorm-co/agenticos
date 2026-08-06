@@ -122,6 +122,24 @@ part is missing rather than that something failed.
 | A port is already taken (3000, 5432, 6379, 8000, 4200) | Something else is on it. `make dev-down`, stop the other process, start again |
 | Anything stranger | `make docker-clean` wipes containers, networks **and volumes** - all local data - then `make dev` from scratch |
 
+### The health column is worth reading
+
+Every service in every compose file carries its own healthcheck, so
+`docker compose ps` is a first diagnosis rather than decoration:
+
+| Service | `healthy` means |
+|---|---|
+| `app` | `GET /api/v1/health` answered 200 — uvicorn is serving |
+| `prefect-runner` | it polled the Prefect API within the last 20 seconds |
+| `db` · `redis` · `prefect-server` | `pg_isready` · `PING` · `GET /api/health` |
+
+The runner's probe is Prefect's own runner webserver, bound to `127.0.0.1:8080`
+inside the container and reachable from nowhere else. A runner whose process is
+alive but no longer polling turns `unhealthy` in about 45 seconds; it used to be
+`unhealthy` from the second it started, because it inherited the API's HTTP probe
+from the image the two services share. `backend/Dockerfile` now carries no
+`HEALTHCHECK` at all — see [Configuration](configuration.md#background-work-prefect).
+
 ## The database must be pgvector
 
 Not stock Postgres. The retrieval store issues

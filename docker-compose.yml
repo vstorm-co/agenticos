@@ -57,6 +57,20 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    # This probe used to be a HEALTHCHECK in backend/Dockerfile, which the Prefect
+    # runner inherited along with the image and could never answer. It lives with
+    # the service that serves it now; see prefect-runner for the other half.
+    # Two things are not carried over verbatim. `raise_for_status`: `httpx.get` on
+    # its own returns a response object whatever the status, so the old probe
+    # passed on a 500 as happily as on a 200. And `start_period`, which was 5s -
+    # shorter than this application takes to import on any machine measured, so
+    # every start went through a spell of `unhealthy` before settling.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/api/v1/health').raise_for_status()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     restart: unless-stopped
 
   db:
@@ -138,6 +152,13 @@ services:
       - DEBUG=true
       - POSTGRES_HOST=db
       - PREFECT_API_URL=http://prefect-server:4200/api
+      # The runner's own health endpoint, started by app/worker/prefect_app.py.
+      # 127.0.0.1 rather than 0.0.0.0 because the same webserver also serves
+      # `/shutdown`, and the only caller that should reach it is the probe below,
+      # inside this container. Pinned here rather than left to Prefect's defaults
+      # so a value in backend/.env cannot move the port out from under the probe.
+      - PREFECT_RUNNER_SERVER_HOST=127.0.0.1
+      - PREFECT_RUNNER_SERVER_PORT=8080
     networks:
       - backend
     depends_on:
@@ -145,6 +166,17 @@ services:
         condition: service_healthy
       db:
         condition: service_healthy
+    # Answers 503 once the runner has missed two polls, so a process that is alive
+    # but no longer polling reads as unhealthy - which is the failure this status
+    # exists to show. The long start_period covers importing the whole application
+    # and registering the deployments: until the first poll `/health` has no
+    # `last_polled` to compare against and errors.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://127.0.0.1:8080/health').raise_for_status()"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
     restart: unless-stopped
 
   # The only service that holds the Docker socket, and the reason an agent can
