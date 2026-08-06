@@ -109,9 +109,12 @@ BEAT_INTERVAL = 1.0
 CHECKS_BEFORE_WEDGED = 2
 
 # What a worker exits with when it cannot signal itself - see
-# `_stop_this_process`. `128 + SIGKILL`, which is what a shell reports for a
-# process the kernel killed, so `docker inspect` reads the same either way.
-WEDGED_EXIT_STATUS = 128 + int(signal.SIGKILL)
+# `_stop_this_process`. `128 + SIGKILL`, which is what a shell and
+# `docker inspect` report for a process the kernel killed, so the two routes out
+# of a wedge read the same from outside. Written out rather than computed from
+# `signal.SIGKILL`, which does not exist on Windows: this module is imported by
+# `app.main` on every platform, and only the branch that signals is POSIX-only.
+WEDGED_EXIT_STATUS = 137
 
 
 def _stop_this_process() -> None:

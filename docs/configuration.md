@@ -484,9 +484,11 @@ timed out. The container goes `unhealthy`, and a status is not a mechanism.
 
 So the worker judges its own event loop. A timer callback stamps the loop once a
 second; a thread reads the stamp, and if the loop has not turned for
-`EVENT_LOOP_WEDGED_AFTER` across two consecutive checks it sends the process
-`SIGKILL`. That turns "wedged", which nothing handled, into "died from a
-signal", which every stack already handles:
+`EVENT_LOOP_WEDGED_AFTER` across two consecutive checks it ends the process —
+`SIGKILL`, or `os._exit(137)` where the worker is PID 1, because the kernel
+delivers no signal to a namespace's init that init has no handler for. Either
+way `docker inspect` reports `137`, and "wedged", which nothing handled, becomes
+"gone", which every stack already handles:
 
 | Stack | What replaces the worker |
 |---|---|

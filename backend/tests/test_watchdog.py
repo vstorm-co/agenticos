@@ -263,7 +263,11 @@ def test_a_worker_that_is_pid_1_exits_rather_than_signalling_itself(
 
     watchdog_module._stop_this_process()
 
-    assert exited == [WEDGED_EXIT_STATUS]
+    # 137, not "whatever the constant says": it is what `docker inspect` shows
+    # for a process the kernel killed, and the two routes out of a wedge have to
+    # read the same from outside the container.
+    assert exited == [128 + int(signal.SIGKILL)]
+    assert WEDGED_EXIT_STATUS == 137
 
 
 def test_the_default_interval_is_far_below_any_useful_threshold() -> None:
