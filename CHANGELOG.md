@@ -19,6 +19,30 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.43] - 2026-08-06
+
+### Fixed
+
+- Document ingestion ignored the collection's own embedding key and model. The
+  worker built its vector store with no resolver, so the collection's
+  `embedding_secret_id` — validated and stored when the collection was created —
+  was never read. On a deployment with no `OPENROUTER_API_KEY` this crashed with
+  advice to set one; where both were set it was worse than a crash, billing the
+  deployment's account while the UI said the organization's key paid. The
+  collection's recorded model was ignored the same way, so a collection could be
+  indexed by one model and searched by another (#306).
+- The three ways key resolution can silently fall back to the deployment key —
+  a missing secret row, an unseal failure, the wrong kind — now reach the flow
+  log the operator reads, and the error names the collection and which key it
+  tried.
+
+### Changed
+
+- `resolver` is now required on `PgVectorStore` rather than defaulting to `None`.
+  Five call sites passed it and one forgot; the default is what made forgetting
+  silent.
+
+
 ## [0.0.42] - 2026-08-06
 
 ### Fixed
