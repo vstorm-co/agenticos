@@ -19,6 +19,19 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.31] - 2026-08-06
+
+### Changed
+
+- **The chat "Promote to a draft agent" control now pre-validates the model-chosen name**
+  ([#293](https://github.com/vstorm-co/agenticos/issues/293)). A dynamic specialist's name is
+  whatever the model chose, and the delegation library allows names the backend `SpecialistSpec`
+  rejects — its pattern (`^[a-zA-Z0-9_-]+$`) and its 64-character limit. The chat control passed
+  that name straight to the promote request, so an over-long or oddly-punctuated one failed with a
+  raw 422 surfaced as an error toast — for a name nobody can edit in chat. The control now disables
+  and shows the reason when the name would be refused, the same guard the Builder's specialist
+  editor already puts on its own promote button.
+
 ## [0.0.30] - 2026-08-06
 
 ### Added
@@ -1080,7 +1093,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.30...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.31...HEAD
+[0.0.31]: https://github.com/vstorm-co/agenticos/compare/v0.0.30...v0.0.31
 [0.0.30]: https://github.com/vstorm-co/agenticos/compare/v0.0.29...v0.0.30
 [0.0.29]: https://github.com/vstorm-co/agenticos/compare/v0.0.28...v0.0.29
 [0.0.28]: https://github.com/vstorm-co/agenticos/compare/v0.0.27...v0.0.28

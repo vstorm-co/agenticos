@@ -205,6 +205,27 @@ describe("promoting a specialist the model invented", () => {
     expect(screen.queryByRole("button", { name: "Promote to a draft agent" })).toBeNull();
   });
 
+  it("refuses to promote a model-chosen name the backend would reject, and says why", async () => {
+    // The model names a dynamic specialist itself; the library allows names the
+    // backend `SpecialistSpec` rejects (pattern, length), and a person cannot edit
+    // it in chat. So the control disables with the reason - matching the Builder's
+    // own promote button - rather than letting the promote fail into a 422 toast.
+    render(
+      <DelegationPanels
+        delegations={[finished({ subagent: "research topics", specialist: invented, runId: null })]}
+      />,
+      { wrapper: wrapperGranting("agents:edit") },
+    );
+    (await screen.findByRole("button", { name: /research topics/ })).click();
+
+    expect(await screen.findByRole("button", { name: "Promote to a draft agent" })).toBeDisabled();
+    expect(
+      screen.getByText(
+        "Letters, digits, underscores and dashes only. The model emits this verbatim.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("offers nothing to keep for a delegate that is already keepable", async () => {
     // No definition on the frame - a configured delegate or an inline specialist,
     // both of which are kept already. Nothing to promote even with the permission.
