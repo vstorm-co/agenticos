@@ -19,6 +19,53 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.35] - 2026-08-06
+
+Nothing in this release changes what the product does. It changes what CI costs,
+which had reached about 8,900 billed Actions minutes in the first six days of
+August across 369 runs at 24.1 minutes each
+([#317](https://github.com/vstorm-co/agenticos/issues/317)).
+
+### Changed
+
+- **A push to a branch now cancels that branch's run in flight.** `ci.yml` carried no
+  `concurrency` block at all, while `ai-review.yml` and `docs.yml` both did — so every
+  push started a fresh matrix and left the previous one running to completion. 75 of
+  369 runs were superseded while still in flight, about 1,800 billed minutes, and only
+  2 runs in that window were ever `cancelled`. A push to `main` is exempt, and via
+  `github.run_id` rather than `cancel-in-progress: false`: `false` means *queue*, and
+  GitHub cancels any previously **pending** run in a group when a newer one is queued,
+  so a third merge arriving would have cancelled the second and left that commit with
+  no CI at all.
+- **`test`, `test-frontend` and `e2e` are skipped when the changed paths cannot affect
+  them.** A `changes` job decides, and the decision lives in
+  `scripts/ci_changed_scope.py` rather than in a glob, so it is testable. It skips a
+  suite only when *every* changed path is provably irrelevant to it — an unrecognised
+  path runs everything — because the permissive spelling of the same idea would let a
+  new directory silently stop a suite, which is a green build with a gate missing from
+  it rather than a red one. A required status check is satisfied by `success`,
+  `skipped` **or** `neutral`, which is why this is a job-level condition and not a
+  `paths:` filter: a filtered-out workflow never posts its checks, and the ruleset
+  would wait forever. See [branches](docs/branching.md#a-required-check-may-legitimately-report-skipped).
+- **Dependencies are cached, at all seven install sites.** `setup-uv` was called five
+  times with no cache, re-resolving and re-downloading all 278 locked packages each
+  time; `setup-bun` caches the binary and not the packages; and `e2e` downloaded about
+  170 MB of Chromium on every run. All three are keyed on the lockfile that pins them.
+
+### Fixed
+
+- **Four ways the new path gate could have passed on nothing**, all found in review of
+  the change that introduced it and all the failure it was built to prevent. A
+  `changes` job that *failed* skipped every gated suite without its condition being
+  read, and since a skipped required check is a pass and `changes` is not itself a
+  required context, one API error would have turned the merge button green over a
+  branch where nothing ran — each gated job now carries `!cancelled()`. A rename was
+  half-invisible, because `pulls/{n}/files` reports only the path a file arrived at, so
+  a module moved out of `backend/` skipped the backend suite; `previous_filename` is
+  fed through as well. And the `changes` job declared `pull-requests: read` without
+  `contents: read`, which a job-level block *replaces* rather than adds to — working
+  only for as long as this repository stays public.
+
 ## [0.0.34] - 2026-08-06
 
 ### Changed
