@@ -6,6 +6,10 @@ Run with:
 The process registers scheduled deployments with the Prefect server and polls for
 work.  Set PREFECT_API_URL to http://prefect-server:4200/api (self-hosted Docker)
 or to your Prefect Cloud workspace URL + PREFECT_API_KEY for Cloud mode.
+
+At most PREFECT_RUNNER_LIMIT runs execute at once; the rest queue.  Each run is a
+separate process that imports the whole application, so an uncapped runner meeting
+a backlog is an out-of-memory kill rather than a slow afternoon.
 """
 
 import asyncio
@@ -15,6 +19,7 @@ from datetime import timedelta
 from prefect import aserve
 from prefect.client.schemas.schedules import IntervalSchedule
 
+from app.core.config import settings
 from app.worker.tasks.mcp_tasks import mcp_connection_sweep_flow
 from app.worker.tasks.rag_tasks import (
     check_scheduled_syncs_flow,
@@ -70,8 +75,19 @@ async def main() -> None:
             schedules=[IntervalSchedule(interval=timedelta(days=30))],
         )
     )
-    logger.info("Starting Prefect runner with %d deployments", len(deployments))
-    await aserve(*deployments)
+    logger.info(
+        "Starting Prefect runner with %d deployments, at most %d run(s) at once",
+        len(deployments),
+        settings.PREFECT_RUNNER_LIMIT,
+    )
+    # `limit` is not optional in practice. `aserve` declares it `Optional[int] = None`
+    # and hands that straight to `Runner(limit=...)`, where `None` means *no cap* -
+    # whereas constructing a `Runner` without the argument would fall back to
+    # Prefect's own default of five. So calling `aserve` and saying nothing is how
+    # this runner ended up with no ceiling at all: after three days of downtime it
+    # picked up the backlog of `rag-sync-check` runs and started 71 processes at
+    # once, 6 GiB on a 7.75 GiB host, and the kernel OOM-killed the API container.
+    await aserve(*deployments, limit=settings.PREFECT_RUNNER_LIMIT)
 
 
 if __name__ == "__main__":
