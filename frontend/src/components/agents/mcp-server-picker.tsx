@@ -152,7 +152,7 @@ export function McpServerPicker({
         matched={list.matched}
         total={list.total}
         onPage={list.setPage}
-        noun="servers"
+        counted={t("serverCount", { count: list.total })}
       />
 
       <OrphanedIds ids={orphaned} />

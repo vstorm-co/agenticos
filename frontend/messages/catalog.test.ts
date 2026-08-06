@@ -7,8 +7,8 @@ import pl from "./pl.json";
  * That the catalog holds copy, and only copy.
  *
  * A translator opening `pl.json` translates whatever is in `en.json`, and until
- * this test existed 142 of those values were not sentences: 18 Tailwind class
- * lists read back through `cn(t("flexItemsStartGap"))`, and 124 fragments of
+ * this test existed 166 of those values were not sentences: 18 Tailwind class
+ * lists read back through `cn(t("flexItemsStartGap"))`, and 148 fragments of
  * JavaScript source that nothing read at all - `"; case \"stats\": return"`,
  * `"(null); const [error, setError] = useState"`. Both arrived the same way: the
  * migration that moved copy into the catalog answered a false positive from
@@ -69,6 +69,13 @@ function isClassList(value: string): boolean {
  * puts braces, `=` and `#` inside perfectly good copy, so none of those can be a
  * signal. Square brackets and a backslash can - and a backtick cannot, because
  * `mcp.authTokenHint` quotes a header name in one.
+ *
+ * The shape rules on the last line are for the fragments with no keyword in them
+ * at all. A ternary between two JSX branches leaves `") : isUser ? ("`, and a
+ * line the extractor cut mid-statement leaves `"; return"` and
+ * `"; onChange: (value: Record"`: nothing a keyword catches, but no sentence
+ * begins with a closing bracket, ends with an opening one, or ends on `return`.
+ * Twenty-four values only these reach.
  */
 const SOURCE = new RegExp(
   [
@@ -79,8 +86,14 @@ const SOURCE = new RegExp(
     "[[\\]\\\\^~]",
     "\\bnull\\b|\\bundefined\\b|\\.(?:map|filter|join|push)\\(|\\.length\\b",
     "\\bset[A-Z]\\w*\\(",
+    // `Custom (minutes):` is a label, so `):` at the end of a value is not a
+    // signal - `) :` with something after it is.
+    "^[;)\\]}]|[({]\\s*$|\\breturn\\s*$|\\)\\s*:\\s*\\S|\\bif\\s*\\(|:\\s*[A-Z]\\w*\\.",
   ].join("|"),
 );
+
+/** A `{noun}` parameter, with or without an ICU format after it. */
+const NOUN = /\{\s*noun\s*[},]/;
 
 function entries(catalog: unknown, prefix = ""): [string, string][] {
   if (typeof catalog === "string") return [[prefix.replace(/\.$/, ""), catalog]];
@@ -108,6 +121,18 @@ describe.each([
 
     expect(offenders).toEqual([]);
   });
+
+  it("interpolates no noun", () => {
+    const offenders = all.filter(([, value]) => NOUN.test(value)).map(([key]) => key);
+
+    // A noun the sentence around it has to agree with cannot be a parameter.
+    // `{matched} of {total} {noun}` and `Who reaches this {noun}` read as
+    // translated and rendered `3 of 40 skills` and `ten agent` under `pl`,
+    // because only English leaves a noun undeclined beside a number or after a
+    // demonstrative. The noun belongs inside an ICU `plural` or `select`, where
+    // each locale writes the form it needs (#362).
+    expect(offenders).toEqual([]);
+  });
 });
 
 describe("the rules themselves", () => {
@@ -120,6 +145,9 @@ describe("the rules themselves", () => {
     );
     expect(SOURCE.test('; case "stats": return')).toBe(true);
     expect(SOURCE.test("(null); const [error, setError] = useState")).toBe(true);
+    expect(SOURCE.test(") : isUser ? (")).toBe(true);
+    expect(SOURCE.test("; return")).toBe(true);
+    expect(SOURCE.test("; onChange: (value: Record")).toBe(true);
   });
 
   it("reads copy as copy, ICU and markdown included", () => {
@@ -127,5 +155,9 @@ describe("the rules themselves", () => {
     expect(SOURCE.test("{count, plural, =1 {1 chunk} other {# chunks}}")).toBe(false);
     expect(SOURCE.test("A static credential, sent as `Authorization: Bearer`.")).toBe(false);
     expect(SOURCE.test("Files will be added to <strong>{name}</strong>")).toBe(false);
+    expect(SOURCE.test("Custom (minutes):")).toBe(false);
+    expect(SOURCE.test(". Pick one it does, or the agent fails on its first tool call.")).toBe(
+      false,
+    );
   });
 });

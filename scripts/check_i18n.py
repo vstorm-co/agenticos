@@ -66,6 +66,14 @@ CATALOG = ROOT / "frontend" / "messages" / "en.json"
 SKIPPED_DIRS = ("/dev/",)
 SKIPPED_NAMES = (".test.tsx", ".test.ts", ".spec.ts", ".stories.tsx", ".generated.ts")
 
+# Props a component renders for a person to read. A fixed list, which is the
+# whole weakness of the rule: copy passed through a name that is not here is
+# copy this script cannot see, and it stays invisible until somebody notices it
+# in English under `pl`. `noun` and `term` were added after exactly that (#362) -
+# `<Pager noun="skills">` at six call sites and `<Fact term="Chunking">` at four,
+# all of them rendered verbatim in every locale. Add the name when a component
+# starts taking copy through a new one; the alternative is #395's parser, which
+# would read the prop's *value* rather than trusting its name.
 READABLE_ATTRS = (
     "placeholder",
     "aria-label",
@@ -79,6 +87,8 @@ READABLE_ATTRS = (
     "submitLabel",
     "heading",
     "subtitle",
+    "noun",
+    "term",
 )
 ATTR = re.compile(rf'\b({"|".join(READABLE_ATTRS)})="([^"]*)"')
 JSX_TEXT = re.compile(r"(?<!=)>\s*([^<>{}\n][^<>{}\n]*?)\s*<")

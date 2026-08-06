@@ -166,7 +166,7 @@ export function CollectionPicker({
         matched={list.matched}
         total={list.total}
         onPage={list.setPage}
-        noun="collections"
+        counted={t("collectionCount", { count: list.total })}
       />
 
       {orphaned.length > 0 && (

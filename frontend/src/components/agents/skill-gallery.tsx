@@ -124,7 +124,7 @@ export function SkillGallery({
         matched={list.matched}
         total={list.total}
         onPage={list.setPage}
-        noun="skills"
+        counted={t("skillCount", { count: list.total })}
       />
 
       {orphaned.length > 0 && (
