@@ -343,6 +343,11 @@ because a class name is a symbol: it says the credential was refused or the
 upstream timed out without naming the host that said so. **The advice** is what
 the reader can actually do.
 
+One failure is reported by up to three handlers — the stage that raised, the
+check that a returned failure is not `done`, and the flow's backstop — and the
+**first** one to record it keeps the row, because it is the innermost and the
+most specific. A retry clears the message, so the next attempt records its own.
+
 A refusal this platform raised itself is passed through whole instead, because
 its message is written here and is the most useful thing to show: *"No embedding
 credential is configured for this collection"*, *"Organization monthly budget
