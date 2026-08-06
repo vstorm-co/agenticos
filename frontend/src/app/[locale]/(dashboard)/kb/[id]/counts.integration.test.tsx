@@ -33,13 +33,8 @@ vi.mock("@/lib/api-client", async () => {
 });
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn(), back: vi.fn() }),
-  usePathname: () => "/kb/kb-1",
-  useSearchParams: () => new URLSearchParams(),
-  useParams: () => ({ id: "kb-1" }),
-}));
-
+// `next/navigation` is mocked in `vitest.setup.ts`; nothing here asserts on a
+// navigation, so there is no reason to shadow it.
 vi.mock("@/hooks/use-permissions", () => ({
   usePermissions: () => ({ can: (permission: string) => permission === Perm.collectionsView }),
 }));
@@ -86,9 +81,18 @@ function document_(index: number, chunks: number): KBDocument {
   };
 }
 
-/** A page of twenty, three chunks each - the backend's `DOCS_PAGE_SIZE`. */
-const FIRST_PAGE = Array.from({ length: 20 }, (_, i) => document_(i, 3));
-const SECOND_PAGE = Array.from({ length: 20 }, (_, i) => document_(20 + i, 3));
+/**
+ * Three documents to a page, four chunks each.
+ *
+ * Deliberately not the twenty `DOCS_PAGE_SIZE` really asks for
+ * (`src/hooks/use-knowledge-bases.ts` - it is the frontend's constant, and the
+ * route itself caps `limit` at 100). What the assertions need is a page
+ * *shorter than the total*, and forty table rows to mount twice was 39% of the
+ * 5s `testTimeout` for one test - which is how a spec starts flaking under
+ * coverage instrumentation.
+ */
+const FIRST_PAGE = Array.from({ length: 3 }, (_, i) => document_(i, 4));
+const SECOND_PAGE = Array.from({ length: 3 }, (_, i) => document_(3 + i, 4));
 
 /**
  * The page's five parallel reads, with the documents endpoint paging for real.
@@ -136,7 +140,7 @@ describe("the counts under a collection's title", () => {
     await mount();
 
     expect(screen.getByText("57 documents")).toBeVisible();
-    expect(screen.queryByText("20 documents")).toBeNull();
+    expect(screen.queryByText("3 documents")).toBeNull();
   });
 
   it("does not climb when a second page is loaded", async () => {
@@ -146,26 +150,26 @@ describe("the counts under a collection's title", () => {
 
     // The second page really arrived - without this the assertion below would
     // pass against a button that did nothing.
-    expect(await screen.findByText("handbook-39.pdf")).toBeVisible();
+    expect(await screen.findByText("handbook-5.pdf")).toBeVisible();
     expect(screen.getByText("57 documents")).toBeVisible();
-    expect(screen.queryByText("40 documents")).toBeNull();
+    expect(screen.queryByText("6 documents")).toBeNull();
   });
 
   it("says a partial vector sum is only of what is loaded", async () => {
-    // Twenty documents of three chunks, out of fifty-seven documents. Sixty is
-    // the honest number for the twenty; it is not the collection's, and the
-    // page has nothing that would let it claim otherwise.
+    // Three documents of four chunks, out of fifty-seven documents. Twelve is
+    // the honest number for the three; it is not the collection's, and the page
+    // has nothing that would let it claim otherwise.
     await mount();
 
-    expect(screen.getByText("60 vectors in the documents loaded")).toBeVisible();
+    expect(screen.getByText("12 vectors in the documents loaded")).toBeVisible();
   });
 
   it("states the vector sum plainly once every document is loaded", async () => {
     // Nothing left to page in, so the sum over the table *is* the collection's.
-    serve({ total: 20 });
+    serve({ total: 3 });
     await mount();
 
-    expect(screen.getByText("60 vectors")).toBeVisible();
+    expect(screen.getByText("12 vectors")).toBeVisible();
     expect(screen.queryByRole("button", { name: "Load more" })).toBeNull();
   });
 });
