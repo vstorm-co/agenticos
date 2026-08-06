@@ -717,5 +717,9 @@ the denominator of the first.
 - a run on a surface that records nothing renders the third case of §2, naming the
   surface — asserted by a test, because "empty" and "not recorded" are the same pixels
   and this page exists to stop that
-- `bun run type-check && bun run lint && bun run test:run` clean
+- `make lint-frontend && make test-frontend-cov` clean. **Not `bun run test:run`**,
+  which this line used to say: it measures no coverage, and the job CI runs is
+  `bun run test:coverage` against 100% lines/statements/functions and 97.5% branches.
+  A suite where all three thousand tests pass still fails that job, which is how
+  `test-frontend` went red on another branch after a green local run
 - `make check` clean
