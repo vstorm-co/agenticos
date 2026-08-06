@@ -19,6 +19,27 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.38] - 2026-08-06
+
+### Fixed
+
+- A domain exception carrying a `UUID` in its `details` was delivered as a bodiless
+  500 instead of the refusal it described. `JSONResponse` serializes with plain
+  `json.dumps`, which cannot encode a `UUID`, so the exception handler raised on
+  the way out — after it had already logged the refusal, which is why the log and
+  the response disagreed. A browser session kept across a database reset hit this
+  on every `GET /api/v1/auth/me`. All three response-building handlers now encode
+  `details` through `jsonable_encoder` (#307).
+- The capability registry echoed a rejected configuration back to the caller in a
+  400, unlike the identical call one module over.
+
+### Changed
+
+- `.claude/rules/exceptions-security.md` showed `details={"user_id": str(user_id)}`,
+  which contradicted both the code and `architecture.md`. Domain exceptions pass
+  the value; the encoder handles it. The one exception, money, says why.
+
+
 ## [0.0.37] - 2026-08-06
 
 ### Fixed
