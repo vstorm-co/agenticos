@@ -32,7 +32,7 @@ from app.services.rag.failures import IngestionStage, failure_summary
 from app.services.rag.ingestion import IngestionService
 from app.services.rag.models import IngestionStatus
 from app.worker.background.rag import ingest_document_in_background
-from app.worker.tasks.rag_tasks import _run_ingestion
+from app.worker.tasks.rag_tasks import _run_ingestion, _update_status
 
 pytestmark = pytest.mark.anyio
 
@@ -214,7 +214,7 @@ class TestWhatTheWorkerWritesToTheRow:
     async def _db():
         yield MagicMock()
 
-    async def test_the_flow_records_a_summary_when_indexing_raises(self):
+    async def test_the_flow_records_a_summary_when_the_pipeline_raises(self):
         """`_run_ingestion` is where an upload's failure becomes a row.
 
         `ingest_file` returns its failures rather than raising them, so this
@@ -223,7 +223,7 @@ class TestWhatTheWorkerWritesToTheRow:
         """
         documents = MagicMock()
         documents.return_value.get_document = AsyncMock(
-            return_value=MagicMock(organization_id=None, ingestion_config={})
+            return_value=MagicMock(organization_id=None, ingestion_config={}, status="processing")
         )
         documents.return_value.fail_ingestion = AsyncMock()
         pipeline = MagicMock()
@@ -243,7 +243,28 @@ class TestWhatTheWorkerWritesToTheRow:
 
         stored = documents.return_value.fail_ingestion.await_args.kwargs["error_message"]
         _assert_leaks_nothing(stored)
-        assert stored.startswith("The document could not be indexed (AuthenticationError)")
+        assert stored.startswith("The document could not be ingested (AuthenticationError)")
+
+    async def test_the_first_handler_to_report_a_failure_is_the_one_that_is_kept(self):
+        """Three handlers report one collapse, and they run innermost first.
+
+        The innermost knows the stage - "could not be indexed, check the
+        collection's embedding credential"; the flow's backstop only knows the
+        ingest failed. While every level wrote the same `str(exc)` the order did
+        not matter; now the outermost write would replace the useful sentence
+        with the vague one.
+        """
+        documents = MagicMock()
+        documents.return_value.get_document = AsyncMock(return_value=MagicMock(status="error"))
+        documents.return_value.fail_ingestion = AsyncMock()
+
+        with (
+            patch("app.worker.tasks.rag_tasks.get_worker_db_context", self._db),
+            patch("app.services.rag_document.RAGDocumentService", documents),
+        ):
+            await _update_status(str(uuid.uuid4()), "error", error_message="the vague one")
+
+        documents.return_value.fail_ingestion.assert_not_awaited()
 
     async def test_the_in_process_fallback_records_a_summary_too(
         self, caplog: pytest.LogCaptureFixture

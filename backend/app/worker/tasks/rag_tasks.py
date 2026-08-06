@@ -289,11 +289,15 @@ async def _run_ingestion(
                 source_path=source_path,
             )
     except Exception as exc:
-        logger.exception("Indexing failed for %s", source_path)
+        # `ingest_file` reports a failed parse or a failed index by returning
+        # one, so what reaches here escaped the metering window instead - the
+        # budget, or the pipeline itself. Which stage it was is not knowable
+        # from here, and the stage below says so.
+        logger.exception("Ingestion failed for %s", source_path)
         await _update_status(
             rag_document_id,
             "error",
-            error_message=failure_summary(exc, stage=IngestionStage.INDEX),
+            error_message=failure_summary(exc, stage=IngestionStage.INGEST),
         )
         raise
     finally:
@@ -457,12 +461,24 @@ async def _run_sync(
 async def _update_status(
     rag_document_id: str, status: str, error_message: str | None = None
 ) -> None:
+    """Put a status on the document row, and let the first failure keep it.
+
+    One collapse is reported by up to three handlers here: the stage that
+    raised, the check that a *returned* failure is not `done`, and the flow's
+    own backstop - and they run innermost first. The innermost is the specific
+    one ("could not be indexed, check the collection's embedding credential");
+    the outermost only knows the ingest failed. Overwriting therefore replaces
+    the useful sentence with the vague one, which mattered from the moment the
+    column stopped holding the same `str(exc)` at every level (#423).
+    """
     from app.services.rag_document import RAGDocumentService
 
     try:
         async with get_worker_db_context() as db:
             doc_svc = RAGDocumentService(db)
             if status == "error":
+                if (await doc_svc.get_document(rag_document_id)).status == "error":
+                    return
                 await doc_svc.fail_ingestion(
                     rag_document_id, error_message=error_message or "Unknown error"
                 )
