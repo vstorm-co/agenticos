@@ -301,15 +301,21 @@ Documents -> Parse -> Chunk -> Embed -> Vector Store
 User Query -> Embed -> Search -> Rerank? -> Results -> Agent Prompt
 ```
 
-### Key Principle: RAG is Global
+### Key Principle: the collection is the unit of access
 
-**Collections are shared across ALL users.** There is no per-user document
-isolation. This means:
+**Collections are not global.** Each one is owned by a `knowledge_bases` row, and
+that row is the only half of the pair that knows an organization — so every `/rag`
+and `/kb` route resolves the name through `app/services/collection_access.py` before
+touching a vector, a document or a sync source. Reading takes `collections:view`
+reaching that row and writing takes `collections:edit`, either of which an explicit
+grant widens on one collection without promoting anybody.
 
-- Any authenticated user can **search** any collection.
-- Only **admins** can create/delete collections, upload documents, configure sync
-  sources, and view sync logs.
-- The knowledge base serves as an organization-wide shared resource.
+Within a collection there is no per-document isolation: reaching one reaches every
+document in it.
+
+[Who may reach a collection](file-processing.md#who-may-reach-a-collection) is the
+whole rule, scope by scope and operation by operation. This page does not keep a
+second copy of it.
 
 ### Components
 
@@ -327,7 +333,8 @@ isolation. This means:
 Documents can be ingested via:
 
 1. **CLI** -- `uv run agenticos cmd rag-ingest <path>`
-2. **API** -- `POST /api/v1/rag/collections/{name}/ingest` (admin only, file upload)
+2. **API** -- `POST /api/v1/rag/collections/{name}/ingest` (file upload, gated on
+   `collections:edit` reaching that collection)
 3. **Sync Sources** -- Configured connectors (Google Drive, S3) that pull documents
    on a schedule or on-demand.
 
