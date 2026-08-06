@@ -701,6 +701,7 @@
       "tokens": "{input, number} input · {output, number} output tokens",
       "working": "working…"
     },
+    "decidingNeedsPermission": "Approving or refusing this needs a permission you do not hold. The run waits until somebody who can decide approvals does.",
     "delete": "Delete",
     "deleteConversation": "Delete conversation",
     "deleteUppercase": "DELETE",
@@ -905,6 +906,7 @@
       "failed": "Failed",
       "running": "Running"
     },
+    "submitDecisions": "Submit {count, plural, =1 {1 call} other {# calls}}",
     "thankYouFeedback": "Thanks for your feedback!",
     "thinking": "Thinking...",
     "title": "Chat",
