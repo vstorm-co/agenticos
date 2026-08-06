@@ -48,6 +48,18 @@ services:
     # --ws websockets-sansio: uvicorn's `auto` picks the legacy websockets impl,
     # which fails the handshake against websockets >=14. The chat WS needs it in
     # production exactly as much as it does locally.
+    #
+    # --workers puts uvicorn's own `Multiprocess` supervisor at PID 1, and it is
+    # deliberately left there (#358): it pings each worker and replaces one that
+    # does not answer within `timeout_worker_healthcheck`, which covers a worker
+    # that died, hung or was stopped. What it cannot cover is a worker whose
+    # event loop is blocked, because the ping is answered by a thread
+    # (`Process.always_pong`) that keeps answering regardless - so the one
+    # stack with cover had cover against the least likely failure. The worker
+    # now judges its own loop (`app/core/watchdog.py`) and kills itself, which
+    # this supervisor already replaces twice a second. Subclassing it instead
+    # would have meant owning four upstream call sites in the one process whose
+    # job is to survive whatever killed the worker.
     command: >-
       uvicorn app.main:app --host 0.0.0.0 --port 8000
       --workers 4 --ws websockets-sansio

@@ -119,6 +119,7 @@ part is missing rather than that something failed.
 | Ingestion 500s with `extension "vector" is not available` | Stock Postgres instead of `pgvector/pgvector:pg16`. See below |
 | `uv run` reports Python 3.13 or 3.14 | `backend/.venv` resolved past the pin. Delete it and re-run `uv sync` |
 | The frontend loads but every request fails | Step 3 without step 2, or the API is still applying migrations. `make dev-logs` |
+| `agenticos_backend` is `Up` and `unhealthy`, and every request hangs | A wedged event loop. The worker kills itself after 15s and something replaces it, in all three stacks - so if it is still hanging a minute later, `EVENT_LOOP_WEDGED_AFTER` is set to `0` somewhere, which is what a debugger needs and what nothing else should |
 | `agenticos_sandboxd` exits immediately | No `SANDBOXD_TOKEN` in `backend/.env`. `make sandbox-token`, then `make dev` |
 | Files says `This host's files could not be read` and names `workspace_root` | A sandbox service started before it had one. Recreate it - `docker compose -f docker-compose.yml --profile sandbox up -d sandboxd` - and `docker rm` the leftover `sandboxd-*` containers: a persisted container is reattached with the mounts it was created with, so an old session keeps writing where nothing can read it |
 | A port is already taken (3000, 5432, 6379, 8000, 4200) | Something else is on it. `make dev-down`, stop the other process, start again |
@@ -212,6 +213,13 @@ as an alias for `make dev-server`, which is what it used to be.
 Both deployed environments want a reverse proxy in front of them;
 `nginx/nginx.conf` is the template and resolves `backend:8000` and
 `frontend:3000` as network aliases.
+
+What supervises the API differs in all three, and each recovers a worker that
+died: the local stack runs its own reload supervisor, the dev stack is a single
+process whose exit Docker restarts, and production runs four workers under
+uvicorn's `Multiprocess`. A worker that is *wedged* rather than dead is handled
+the same way everywhere instead — the worker kills itself, see
+[Configuration](configuration.md#a-worker-whose-event-loop-has-stopped-turning).
 
 !!! warning "`NEXT_PUBLIC_*` are build arguments"
 

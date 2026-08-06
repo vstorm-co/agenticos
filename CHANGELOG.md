@@ -17,7 +17,29 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+
+- The dev and production stacks notice a worker whose event loop has stopped
+  turning (#358). Both were where #336 found them: `docker-compose-dev.yml` runs
+  a single unsupervised uvicorn, and `docker-compose-prod.yml` runs uvicorn's
+  `Multiprocess`, which pings each worker over a pipe answered by a thread — and
+  a thread keeps answering while the loop is blocked, so the one stack with
+  cover had cover against the least likely failure. The worker now judges its
+  own loop from a thread (`app/core/watchdog.py`) and kills its own process,
+  which turns a wedge into the one failure all three stacks already handle.
+  Neither supervisor was replaced and PID 1 is untouched in all three.
+- Ctrl+C returns from a worker that wedged *before* its first beat (#366). The
+  reload supervisor escalated to `SIGKILL` on a verdict it could not reach for a
+  worker that had never beaten — one hung on a Postgres that is down, say — so
+  the shutdown waited out Docker's ten-second grace period instead. It now
+  terminates and joins with a bound, and says which of the two it killed.
+
+### Changed
+
+- **`RELOAD_WEDGED_AFTER` is now `EVENT_LOOP_WEDGED_AFTER`.** It is no longer
+  only the reload supervisor's: the worker's own watchdog reads the same
+  variable, so one number turns the check off for a debugging session rather
+  than leaving one of the two judges running to kill it.
 
 ## [0.0.59] - 2026-08-06
 

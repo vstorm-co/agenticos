@@ -75,6 +75,19 @@ Four properties of that choice are the reason for it:
   consecutive silent polls are therefore needed rather than one: by the second,
   a healthy worker has beaten again and the verdict clears.
 
+## The other two stacks, which do not run this module
+
+`docker-compose-dev.yml` is a single unsupervised uvicorn and
+`docker-compose-prod.yml` is `--workers 4` under uvicorn's own `Multiprocess`,
+so neither has a parent that reads a beat, and neither could grow one without
+replacing a supervisor (#358). They are covered from the other side instead:
+`app.core.watchdog` makes the same judgement *inside* the worker and kills its
+own process, which turns a wedge into the one failure every stack already
+handles - a worker that is gone. That watchdog runs here too, and the two are
+not one mechanism twice: a process stopped outright (`kill -STOP`, a frozen
+cgroup) cannot run its own watchdog and only this supervisor sees it, while a
+blocked event loop is exactly what a watchdog on a thread sees.
+
 **What this does not cover**, deliberately:
 
 - **Replacing a worker that wedges before it serves.** `main_loop` - and so the
@@ -84,12 +97,10 @@ Four properties of that choice are the reason for it:
   container. `shutdown` no longer inherits that gap (#366): it cannot judge such
   a worker either, but it does not have to, because stopping one needs no
   verdict - `SIGTERM`, a second, then `SIGKILL`.
-- **The dev and production stacks.** Neither runs this module: `docker-compose-dev.yml`
-  is a single unsupervised uvicorn and `docker-compose-prod.yml` is `--workers`,
-  where uvicorn's own `Multiprocess` pings over the pipe described above.
 - **A debugger.** A breakpoint blocks the event loop and is indistinguishable
   from a deadlock by construction, so 15 seconds on one wedges the worker and it
-  is replaced. `RELOAD_WEDGED_AFTER=0` turns the whole check off.
+  is replaced. `EVENT_LOOP_WEDGED_AFTER=0` turns the whole check off, here and
+  in the worker's own watchdog.
 - **A worker in uninterruptible sleep.** `SIGKILL` is not delivered to a process
   in `D` state - a dead network mount is the way in - so the join after it hangs
   as `SIGTERM` would have. A bounded join would only move the hang into
@@ -165,8 +176,12 @@ POLLS_BEFORE_WEDGED: Final = 2
 
 # Seconds without a beat before a worker is replaced, `0` or below to switch the
 # check off - which is what somebody sitting on a breakpoint wants, a stopped
-# event loop being indistinguishable from a deadlock.
-WEDGED_AFTER_ENV_VAR: Final = "RELOAD_WEDGED_AFTER"
+# event loop being indistinguishable from a deadlock. The same variable is read
+# by `app.core.watchdog`, which judges the same event loop from inside the
+# worker on the two stacks that have no supervisor at all - one number, so
+# switching the check off for a breakpoint switches off both judges rather than
+# leaving the in-process one to kill the debugging session.
+WEDGED_AFTER_ENV_VAR: Final = "EVENT_LOOP_WEDGED_AFTER"
 
 # How long `shutdown` waits for a worker to act on `SIGTERM` before killing it.
 #
@@ -435,7 +450,7 @@ class SupervisedReload(ChangeReload):
 
 
 def wedged_after_from_environment() -> float:
-    """Read `RELOAD_WEDGED_AFTER`, the one knob on the wedge check.
+    """Read `EVENT_LOOP_WEDGED_AFTER`, the one knob on the wedge check.
 
     Seconds without a beat before the worker is replaced; `0` switches the check
     off entirely, which is what a breakpoint needs. A value that is not a number
