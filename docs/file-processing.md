@@ -335,8 +335,13 @@ history via `GET /rag/sync/logs`.
 When processing documents that contain images, the system can optionally
 describe images using LLM vision capabilities. Image description is a
 per-collection setting: turn it on in the knowledge base's ingestion
-configuration and pick a vision-capable model profile there. The generated
-descriptions are included in the document text for better semantic search.
+configuration and pick a vision-capable model profile there. The picker is the
+one the agent builder uses, so a provider, a model and its key can be defined
+without leaving the dialog — a deployment with no model profiles yet is not a
+dead end. What it does not offer is deleting a profile: that belongs where an
+organization's models are managed, because every agent pointed at one loses it.
+The generated descriptions are included in the document text for better semantic
+search.
 
 ## From a channel
 

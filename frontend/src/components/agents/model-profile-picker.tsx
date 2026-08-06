@@ -19,14 +19,25 @@ interface ModelProfilePickerProps {
   /**
    * Whether this panel can create a model, which also decides its shape.
    *
-   * Off in the chat on purpose, and the reason is the same one that makes the
-   * two layouts different. The chat popover answers one question - which model
-   * should *this conversation* run on - so it is a list of what exists. Adding a
-   * model is a different act: it creates something every agent in the
-   * organization can be pointed at, which is a Builder decision, and in the
-   * Builder the form is the panel rather than a state of it.
+   * Off where the panel only chooses between models somebody else defined - the
+   * specialist row answers one question, which model should *this* delegate run
+   * on, so it is a list of what exists. Adding a model is a different act: it
+   * creates something every agent in the organization can be pointed at, and
+   * where that is allowed the form is the panel rather than a state of it.
    */
   allowAdd?: boolean;
+  /**
+   * Whether a saved model can be deleted from here.
+   *
+   * Its own flag rather than a second meaning of `allowAdd`, because the two are
+   * different claims. Creating a model adds something agents may be pointed at;
+   * deleting one takes away something they already are, from under every agent
+   * in the organization at once. The Builder is where an organization's models
+   * are managed, so it offers both. The knowledge-base dialog needs to name a
+   * model and store a key for it and nothing more, so it gets the first and not
+   * the second - which is the whole reason this split exists.
+   */
+  allowRemove?: boolean;
   disabled?: boolean;
 }
 
@@ -50,12 +61,23 @@ interface ModelProfilePickerProps {
  * `provider · model`, and the `no key` badge. That badge decides whether the
  * agent can run at all, and it was once visible on the vault page and invisible
  * here.
+ *
+ * Two flags, not one. `allowAdd` decides the shape - the form and its inline
+ * key field, or a list of what exists; `allowRemove` decides whether a saved
+ * model can be deleted from here. They were the same flag until the
+ * knowledge-base dialog needed one without the other.
+ *
+ * The current-model line renders in both shapes. It says whether the profile
+ * that will actually be used has a key, which is the fact that decides whether
+ * the run - or the ingestion - can happen at all, and it is not something one
+ * caller should get and another should have to infer from a list.
  */
 export function ModelProfilePicker({
   profiles,
   value,
   onChange,
   allowAdd = false,
+  allowRemove = false,
   disabled,
 }: ModelProfilePickerProps) {
   const t = useTranslations("agents");
@@ -80,14 +102,41 @@ export function ModelProfilePicker({
           // no key.
           noKey={!profile.secret_id}
           disabled={disabled}
-          onRemove={allowAdd ? () => deleteProfile.mutate(profile.id) : undefined}
+          onRemove={allowRemove ? () => deleteProfile.mutate(profile.id) : undefined}
         />
       ))}
     </div>
   );
 
-  // The chat popover chooses between what exists and adds nothing, so it is the
-  // list and only the list.
+  // What this runs on today, stated above whatever would change it: the form
+  // where there is one, the list where there is not. It is the fact somebody
+  // opens this panel to check, and in a list of a dozen saved models the chosen
+  // one's `no key` badge is a badge among twelve - which of them is chosen is
+  // what decides whether anything runs at all.
+  const current = selected ? (
+    <div
+      // Named, because the same label also appears in the saved-model list
+      // below: without it there are two identical strings on this panel and
+      // nothing distinguishes "what this agent runs on" from "one of the
+      // options".
+      role="group"
+      aria-label={t("currentModel")}
+      className="border-border bg-muted/20 flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2"
+    >
+      <ProviderIcon provider={selected.provider} />
+      <span className="min-w-0 flex-1 truncate text-sm">
+        <span className="font-medium">{selected.label}</span>
+        <span className="text-muted-foreground font-mono text-xs">
+          {" "}
+          {selected.provider} · {selected.model}
+        </span>
+      </span>
+      {!selected.secret_id && <Badge variant="destructive">{t("noKey")}</Badge>}
+    </div>
+  ) : null;
+
+  // A panel that only chooses between what exists is the list, and the line
+  // saying which of them is in use.
   if (!allowAdd) {
     if (profiles.length === 0) {
       return (
@@ -97,36 +146,17 @@ export function ModelProfilePicker({
         </div>
       );
     }
-    return list;
+    return (
+      <div className="space-y-3">
+        {current}
+        {list}
+      </div>
+    );
   }
 
   return (
     <div className="space-y-3">
-      {/* What the agent runs on today, stated before the form that changes it.
-          The form is the default view now, and without this line the one fact
-          somebody opens this panel to check - which model is this agent on -
-          would be the one thing behind a disclosure. */}
-      {selected && (
-        <div
-          // Named, because the same label also appears in the saved-model list
-          // below: without it there are two identical strings on this panel and
-          // nothing distinguishes "what this agent runs on" from "one of the
-          // options".
-          role="group"
-          aria-label={t("currentModel")}
-          className="border-border bg-muted/20 flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2"
-        >
-          <ProviderIcon provider={selected.provider} />
-          <span className="min-w-0 flex-1 truncate text-sm">
-            <span className="font-medium">{selected.label}</span>
-            <span className="text-muted-foreground font-mono text-xs">
-              {" "}
-              {selected.provider} · {selected.model}
-            </span>
-          </span>
-          {!selected.secret_id && <Badge variant="destructive">{t("noKey")}</Badge>}
-        </div>
-      )}
+      {current}
 
       {/* Provider, model and key, always. Choosing a model is picking those three
           things; the named profile is a consequence of the choice rather than the
