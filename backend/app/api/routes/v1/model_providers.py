@@ -14,10 +14,8 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
 
-from app.api.deps import Auth, DBSession, ModelProfileSvc, require
+from app.api.deps import Auth, ModelProfileSvc, SecretSvc, require
 from app.core.permissions import Perm
-from app.core.secret_kinds import ApiKeySecret, SecretKind, VaultScope, unseal_secret
-from app.repositories import organization_secret_repo
 from app.schemas.model_profile import (
     ModelProfileCreate,
     ModelProfileList,
@@ -107,7 +105,7 @@ async def delete_model_profile(profile_id: UUID, service: ModelProfileSvc, ctx: 
     response_model=ProviderModelList,
     dependencies=[Depends(require(Perm.AGENTS_VIEW))],
 )
-async def list_provider_models(provider: str, db: DBSession, ctx: Auth) -> Any:
+async def list_provider_models(provider: str, secrets: SecretSvc, ctx: Auth) -> Any:
     """What this provider offers, for the field where a model id is chosen.
 
     Suggestions, not a constraint - the field stays free text, because a
@@ -116,11 +114,11 @@ async def list_provider_models(provider: str, db: DBSession, ctx: Auth) -> Any:
     UI can be honest about which it is showing.
 
     The key comes from the vault, when the listing needs one and the
-    organization has one. It is unsealed for the length of one request and never
-    leaves this function; providers that publish a public list (OpenRouter) are
-    asked without one.
+    organization has one. Nothing here opens it: the vault service hands back a
+    bearer token for this one outbound request, and providers that publish a
+    public list (OpenRouter) are asked without one.
     """
-    api_key = await _listing_key(db, provider, organization_id=ctx.organization_id)
+    api_key = await secrets.listing_key(ctx, provider)
     models, source = await models_for(provider, api_key=api_key)
     return ProviderModelList(
         items=[
@@ -130,27 +128,3 @@ async def list_provider_models(provider: str, db: DBSession, ctx: Auth) -> Any:
         total=len(models),
         source=source,
     )
-
-
-async def _listing_key(db: Any, provider: str, *, organization_id: UUID) -> str | None:
-    """A key for this provider from the vault, if one is stored and is an API key.
-
-    Any of them will do - a listing is the same for every key an organization
-    holds - so the first is taken rather than making somebody choose. The other
-    secret shapes (an AWS pair, a service-account JSON) are not bearer tokens
-    and no listing endpoint takes them, so they are skipped rather than
-    mangled into a header.
-    """
-    secrets = await organization_secret_repo.list_secrets(
-        db, organization_id=organization_id, purposes=[provider]
-    )
-    for secret in secrets:
-        value = unseal_secret(
-            secret.sealed_secret,
-            kind=SecretKind(secret.kind),
-            scope=VaultScope.organization(organization_id),
-            key_version=secret.key_version,
-        )
-        if isinstance(value, ApiKeySecret):
-            return value.api_key.get_secret_value()
-    return None
