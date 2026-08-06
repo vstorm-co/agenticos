@@ -44,8 +44,8 @@ export function useKnowledgeBases() {
    * `qk.kb.list()` names no tenant, and every caller writes after an await, so
    * a creation started in one organization landed in the list the next one is
    * reading - `setQueryData` recreates the key the switch had just dropped. The
-   * guard is here rather than at the three call sites because there is no
-   * fourth caller that should be allowed to forget it.
+   * guard is here rather than at the two call sites because there is no third
+   * caller that should be allowed to forget it.
    */
   const writeCache = useCallback(
     (updater: (prev: KnowledgeBase[]) => KnowledgeBase[], startedIn: string | null) => {

@@ -152,8 +152,8 @@ describe("deleting a collection from its own page", () => {
     await mount();
 
     expect(screen.queryByRole("button", { name: "More actions" })).toBeNull();
-    // The other two write controls are gone with it, which is what says the
-    // page read the permission rather than losing the menu to a render error.
+    // Upload goes with it, which is the difference between this and the
+    // default-collection case below - there, only the menu is withheld.
     expect(screen.queryByRole("button", { name: "Upload" })).toBeNull();
   });
 

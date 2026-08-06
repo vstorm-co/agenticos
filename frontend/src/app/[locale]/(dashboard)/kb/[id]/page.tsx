@@ -621,9 +621,15 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
           loading={confirmBusy}
           onConfirm={async () => {
             setConfirmBusy(true);
-            await deleteDocument(removingDocument.id);
-            setConfirmBusy(false);
-            setRemovingDocument(null);
+            // `finally`, though `deleteDocument` toasts rather than throwing:
+            // the day it stops swallowing, the alternative is a dialog with
+            // both buttons dead and an unhandled rejection behind it.
+            try {
+              await deleteDocument(removingDocument.id);
+            } finally {
+              setConfirmBusy(false);
+              setRemovingDocument(null);
+            }
           }}
         />
       )}
@@ -639,9 +645,12 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
           loading={confirmBusy}
           onConfirm={async () => {
             setConfirmBusy(true);
-            await deleteSyncSource(disconnectingSource.id);
-            setConfirmBusy(false);
-            setDisconnectingSource(null);
+            try {
+              await deleteSyncSource(disconnectingSource.id);
+            } finally {
+              setConfirmBusy(false);
+              setDisconnectingSource(null);
+            }
           }}
         />
       )}
