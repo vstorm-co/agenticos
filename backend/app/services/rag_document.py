@@ -233,9 +233,44 @@ class RAGDocumentService:
 
         await vector_store.create_collection(collection_name)
 
+        await self._queue_parse(
+            doc_id,
+            collection_name=collection_name,
+            filename=filename,
+            file_data=file_data,
+            replace=replace,
+        )
+
+        return RAGIngestResponse(
+            id=str(doc_id),
+            status="processing",
+            filename=filename,
+            collection=collection_name,
+            message="File accepted. Processing in background.",
+        )
+
+    async def _queue_parse(
+        self,
+        doc_id: UUID,
+        *,
+        collection_name: str,
+        filename: str,
+        file_data: bytes,
+        replace: bool,
+    ) -> None:
+        """Put the file where the worker can read it and dispatch the parse.
+
+        The copy under `MEDIA_DIR/_rag_tmp` is what the flow opens: permanent
+        storage may be somewhere the worker container cannot reach, and the
+        directory is shared between the two.
+
+        Dispatched with `spawn_after_commit`, not `spawn`. The flow's first act
+        is to read this document by id on a session of its own, and until this
+        request's transaction commits there is no such row to find (#417).
+        """
         tmp_dir = Path(settings.MEDIA_DIR) / "_rag_tmp"
         tmp_dir.mkdir(parents=True, exist_ok=True)
-        tmp_path = str(tmp_dir / f"{doc_id!s}{ext}")
+        tmp_path = str(tmp_dir / f"{doc_id!s}{Path(filename).suffix.lower()}")
         # anyio, not open(): an upload can be tens of megabytes, and writing it
         # synchronously stalls every other request on this worker until it lands.
         async with await anyio.open_file(tmp_path, "wb") as f:
@@ -243,9 +278,6 @@ class RAGDocumentService:
         from app.core.background import spawn_after_commit
         from app.worker.tasks.rag_tasks import ingest_document_flow
 
-        # After the commit, not merely after this line: the flow's first act is
-        # to read this document by id on a session of its own, and until this
-        # request's transaction commits there is no such row to find (#417).
         spawn_after_commit(
             self.db,
             ingest_document_flow(
@@ -256,14 +288,6 @@ class RAGDocumentService:
                 replace=replace,
             ),
             name=f"ingest-document-{doc_id}",
-        )
-
-        return RAGIngestResponse(
-            id=str(doc_id),
-            status="processing",
-            filename=filename,
-            collection=collection_name,
-            message="File accepted. Processing in background.",
         )
 
     async def complete_ingestion(
@@ -295,15 +319,37 @@ class RAGDocumentService:
         )
 
     async def retry_ingestion(self, doc_id: str) -> RAGDocument:
-        """Reset a failed document for re-ingestion.
+        """Parse a failed document again, from the file it was uploaded with.
+
+        It reads the stored copy rather than asking for the file again: the
+        upload kept one for exactly this, and a retry that needed the original
+        would be an upload. `replace=True` because the previous attempt may have
+        indexed some of it before failing, and a retry must not leave a document
+        represented twice in a collection.
+
+        Dispatching is the whole of the operation. Until #441 this method moved
+        the row to `processing`, cleared the error message and dispatched
+        nothing - so a retry replaced the diagnosis with a document that would
+        stay `processing` for ever, which is worse than the failure it was
+        asked to fix.
 
         Raises:
             NotFoundError: If document does not exist.
-            ValueError: If document status is not 'error'.
+            BadRequestError: If the document did not fail, or was ingested
+                before uploads kept their file and so has nothing to re-read.
         """
         doc = await self.get_document(doc_id)
         if doc.status != "error":
-            raise ValueError("Only failed documents can be retried")
+            raise BadRequestError(
+                message="Only failed documents can be retried",
+                details={"doc_id": doc_id, "status": doc.status},
+            )
+        if not doc.storage_path:
+            raise BadRequestError(
+                message="This document has no stored file to re-read; upload it again",
+                details={"doc_id": doc_id, "filename": doc.filename},
+            )
+        file_data = await get_file_storage().load(doc.storage_path)
         updated = await rag_document_repo.update_status(
             self.db,
             doc.id,
@@ -313,6 +359,13 @@ class RAGDocumentService:
         )
         if updated is None:
             raise NotFoundError(message="Document not found", details={"doc_id": doc_id})
+        await self._queue_parse(
+            updated.id,
+            collection_name=updated.collection_name,
+            filename=updated.filename,
+            file_data=file_data,
+            replace=True,
+        )
         return updated
 
     async def delete_document(

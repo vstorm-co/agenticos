@@ -332,7 +332,12 @@ Ingested documents are tracked in the SQL database via the `RAGDocument` model:
 | `created_at` | Ingestion start time |
 | `completed_at` | Ingestion completion time |
 
-Failed ingestions can be retried via `POST /rag/documents/{id}/retry`.
+Failed ingestions can be retried via `POST /rag/documents/{id}/retry`. It
+re-reads `storage_path` — the copy the upload kept for exactly this — and
+dispatches the parse again, replacing whatever the failed attempt indexed. A
+document that did not fail, or that predates uploads keeping their file, is
+refused with a 400 rather than moved to `processing`
+([#441](https://github.com/vstorm-co/agenticos/issues/441)).
 
 
 ### Sync Operations

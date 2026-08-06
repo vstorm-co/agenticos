@@ -24,6 +24,7 @@ import pytest
 
 from app.core import background
 from app.core.config import settings
+from app.core.exceptions import BadRequestError
 from app.core.permissions import AuthContext
 from app.repositories import rag_document_repo
 from app.repositories import sync_log as sync_log_repo
@@ -164,3 +165,78 @@ async def test_an_uploaded_document_is_parsed_after_its_row_is_committed(
 
     await _run_deferred(session)
     assert dispatched == [str(document.id)]
+
+
+def _failed_document() -> SimpleNamespace:
+    """A document whose ingestion failed, with the file the upload kept."""
+    return SimpleNamespace(
+        id=uuid4(),
+        status="error",
+        storage_path="rag/handbooks/policy.txt",
+        collection_name="handbooks",
+        filename="policy.txt",
+    )
+
+
+async def test_retrying_a_failed_document_parses_it_again(
+    session, monkeypatch, tmp_path: Path
+) -> None:
+    """#441: the retry endpoint reported queueing a parse and queued nothing.
+
+    A retry that only moves the row to `processing` and clears the error is
+    worse than the failure it was asked to fix - the diagnosis is gone and the
+    document waits for a worker that was never told about it.
+    """
+    dispatched: list[tuple[str, bool]] = []
+    document = _failed_document()
+    retried = SimpleNamespace(**{**vars(document), "status": "processing"})
+
+    monkeypatch.setattr(settings, "MEDIA_DIR", str(tmp_path))
+    monkeypatch.setattr(rag_document_repo, "get_by_id", AsyncMock(return_value=document))
+    monkeypatch.setattr(rag_document_repo, "update_status", AsyncMock(return_value=retried))
+    storage = SimpleNamespace(load=AsyncMock(return_value=b"a policy nobody reads"))
+    monkeypatch.setattr("app.services.rag_document.get_file_storage", lambda: storage)
+
+    async def flow(*, rag_document_id: str, replace: bool, **_: Any) -> None:
+        dispatched.append((rag_document_id, replace))
+
+    monkeypatch.setattr(rag_tasks, "ingest_document_flow", flow)
+
+    await RAGDocumentService(session).retry_ingestion(str(document.id))
+
+    assert not background._running, _nothing_started("the retried parse")
+
+    await _run_deferred(session)
+    assert dispatched == [(str(document.id), True)], (
+        "a retry must replace what the first attempt indexed, or a document "
+        "that half-succeeded is represented twice in the collection"
+    )
+    storage.load.assert_awaited_once_with("rag/handbooks/policy.txt")
+
+
+async def test_retrying_a_document_with_no_stored_file_is_refused(session, monkeypatch) -> None:
+    """Documents ingested before uploads kept their file have nothing to re-read."""
+    document = _failed_document()
+    document.storage_path = ""
+    update = AsyncMock()
+    monkeypatch.setattr(rag_document_repo, "get_by_id", AsyncMock(return_value=document))
+    monkeypatch.setattr(rag_document_repo, "update_status", update)
+
+    with pytest.raises(BadRequestError):
+        await RAGDocumentService(session).retry_ingestion(str(document.id))
+
+    # The row keeps the error that explains it: a refusal must not clear the
+    # diagnosis on the way out, which is what made #441 one-way.
+    update.assert_not_awaited()
+
+
+async def test_retrying_a_document_that_did_not_fail_is_refused_not_a_500(
+    session, monkeypatch
+) -> None:
+    """It raised a bare `ValueError`, which the handlers can only call a 500."""
+    document = _failed_document()
+    document.status = "done"
+    monkeypatch.setattr(rag_document_repo, "get_by_id", AsyncMock(return_value=document))
+
+    with pytest.raises(BadRequestError):
+        await RAGDocumentService(session).retry_ingestion(str(document.id))
