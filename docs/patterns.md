@@ -106,6 +106,25 @@ string form, a `datetime` in ISO 8601, an `Enum` as its value. Money is the
 exception worth knowing: a `Decimal` encodes to a float, so a cost or a cap is
 stringified by the code that raises.
 
+**`details` describes the refusal, not the server.** Everything it holds is read
+by whoever was refused, so it names the field, the id or the resource they can
+act on - never a filesystem path, an upstream client's exception text, a setting's
+*value*, or the caller's own credential echoed back. The diagnosis is not deleted,
+it moves: the path the loader searched and the vendor SDK's message go in the log
+line beside the raise, where an operator reads them and a caller does not.
+
+```python
+except Exception as exc:
+    logger.exception("Knowledge base search failed")   # the upstream text stays here
+    raise ExternalServiceError(
+        message="Knowledge base search failed",
+        details={"collections": names, "operation": "retrieve"},
+    ) from exc
+```
+
+The same applies to an audit entry, which is `details` with a longer life: record
+*which* fields an administrator changed, not the values they submitted.
+
 ## Schema Patterns
 
 Separate schemas for different operations:
