@@ -10,12 +10,12 @@ from typing import Any
 # answers invert silently: the listing reports the tracking table as a collection, and
 # a caller may drop it.
 import app.db.models  # noqa: F401
-from app.core.exceptions import BadRequestError
 from app.db.base import Base
 from app.db.vector_tables import (
+    VECTOR_INDEX_SUFFIX,
     VECTOR_TABLE_PREFIX,
-    collides_with_model_table,
     is_runtime_vector_table,
+    validate_collection_name,
 )
 from app.schemas.rag import RAGDocumentItem, RAGDocumentList
 from app.services.rag.models import (
@@ -28,9 +28,6 @@ from app.services.rag.models import (
 )
 
 logger = logging.getLogger(__name__)
-
-_COLLECTION_NAME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9_]{0,63}$")
-_RESERVED_COLLECTION_NAMES = frozenset({"all"})
 
 
 class BaseVectorStore(ABC):
@@ -93,13 +90,18 @@ class BaseVectorStore(ABC):
         )
 
     async def create_collection(self, name: str) -> None:
-        if not _COLLECTION_NAME_RE.match(name):
-            raise ValueError(
-                "Collection name must start with a letter and contain only "
-                "letters, numbers, and underscores (max 64 chars)"
-            )
-        if name.lower() in _RESERVED_COLLECTION_NAMES:
-            raise ValueError(f"'{name}' is a reserved collection name")
+        """Make the collection's backing objects, refusing a name that cannot have any.
+
+        The check is here as well as in `_table` because a subclass is free to
+        implement `_ensure_collection` without building a table name, and this
+        is the method a caller creating a collection reaches.
+
+        Raises:
+            BadRequestError: The name is malformed, too long, reserved, or one
+                a model table already answers to - see
+                :func:`app.db.vector_tables.validate_collection_name`.
+        """
+        validate_collection_name(name, metadata=Base.metadata)
         await self._ensure_collection(name)
 
     def _build_chunk_metadata(
@@ -187,15 +189,6 @@ EmbeddingResolver = Callable[[str], Awaitable[ResolvedEmbeddings | None]]
 _HNSW_MAX_VECTOR_DIM = 2000
 
 
-def _validate_collection_name(name: str) -> str:
-    """Validate collection name to prevent SQL injection."""
-    if not re.match(r"^[a-zA-Z0-9_]+$", name):
-        raise ValueError(
-            f"Invalid collection name: {name}. Only alphanumeric and underscores allowed."
-        )
-    return name
-
-
 class PgVectorStore(BaseVectorStore):
     """PostgreSQL + pgvector implementation.
 
@@ -240,24 +233,22 @@ class PgVectorStore(BaseVectorStore):
         to recognise these names to keep them out of `alembic check` - a table created
         here exists in no model and no migration, and read as a table to drop (#288).
 
-        A name whose table the models declare is refused here rather than in
-        `create_collection`, because every method funnels through this one and two
-        of them are destructive. `rag-drop documents --yes` reaches
-        `delete_collection` with no knowledge base, no route and no permission
-        between the operator and `DROP TABLE IF EXISTS` on the tracking table
-        (#345), so a guard on the create path would not have been on that path.
+        The name is judged here rather than only in `create_collection`, because
+        every method funnels through this one and two of them are destructive.
+        `rag-drop documents --yes` reaches `delete_collection` with no knowledge
+        base, no route and no permission between the operator and
+        `DROP TABLE IF EXISTS` on the tracking table (#345), so a guard on the
+        create path would not have been on that path. This one used to hold a
+        laxer rule than `create_collection`'s - no length bound and no leading
+        letter - which is how a name refused at creation reached SQL anyway
+        (#368).
 
         Raises:
-            ValueError: The name is not a legal identifier.
-            BadRequestError: The collection would land on a table the models own.
+            BadRequestError: The name is malformed, too long, reserved, or one a
+                model table already answers to.
         """
-        table = f"{VECTOR_TABLE_PREFIX}{_validate_collection_name(name)}"
-        if collides_with_model_table(name, metadata=Base.metadata):
-            raise BadRequestError(
-                message=f"'{name}' is a reserved collection name",
-                details={"collection": name, "table": table.lower()},
-            )
-        return table
+        validate_collection_name(name, metadata=Base.metadata)
+        return f"{VECTOR_TABLE_PREFIX}{name}"
 
     async def _for_collection(self, name: str) -> tuple[EmbeddingService, int]:
         """The embedder and vector width this one collection uses.
@@ -329,7 +320,7 @@ class PgVectorStore(BaseVectorStore):
             )
             await session.execute(
                 text(f"""
-                CREATE INDEX IF NOT EXISTS {table}_embedding_idx
+                CREATE INDEX IF NOT EXISTS {table}{VECTOR_INDEX_SUFFIX}
                 ON {table} USING hnsw ({self._distance_expr(dim)} {operator_class})
             """)
             )

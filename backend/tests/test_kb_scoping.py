@@ -31,6 +31,23 @@ def _ctx(
     )
 
 
+@pytest.fixture
+def unclaimed_collection_name(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Creating a base claims its collection name, which reads the KB table.
+
+    Nobody holds the names these tests use, and the answer is not what they are
+    about - see `tests/api/test_collection_name_routes.py` for the claim itself.
+    Without this, the lookup reaches the `MagicMock` standing in for a session.
+    """
+    from app.repositories import knowledge_base_repo
+
+    async def held_by_nobody(_db: object, collection_name: str) -> list[KnowledgeBase]:
+        del collection_name
+        return []
+
+    monkeypatch.setattr(knowledge_base_repo, "list_by_collection_name", held_by_nobody)
+
+
 def _kb(
     scope: str,
     owner_user_id=None,
@@ -212,7 +229,7 @@ class TestKBAccessControl:
             await svc.create(data, ctx=_ctx())
 
     @pytest.mark.anyio
-    async def test_app_admin_can_create_app_kb(self, mock_db):
+    async def test_app_admin_can_create_app_kb(self, mock_db, unclaimed_collection_name):
         data = KnowledgeBaseCreate(name="Global KB", scope="app", collection_name="global")
         mock_kb = MagicMock()
 
@@ -224,7 +241,9 @@ class TestKBAccessControl:
             assert result is mock_kb
 
     @pytest.mark.anyio
-    async def test_an_org_kb_is_created_owned_by_its_creator(self, mock_db):
+    async def test_an_org_kb_is_created_owned_by_its_creator(
+        self, mock_db, unclaimed_collection_name
+    ):
         """`own` in the matrix is meaningless for a row nobody owns."""
         creator = uuid.uuid4()
         data = KnowledgeBaseCreate(name="Team KB", scope="org", collection_name="team")
