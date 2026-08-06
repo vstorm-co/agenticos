@@ -178,7 +178,7 @@ export function ActiveSessions() {
                     </p>
                     <p className="text-muted-foreground truncate text-xs">
                       {session.ip_address && `${session.ip_address} · `}
-                      Last active {timeAgo(session.last_used_at)}
+                      {t("lastActive", { when: timeAgo(session.last_used_at) })}
                     </p>
                   </div>
                 </div>

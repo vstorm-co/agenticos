@@ -14,7 +14,6 @@ from fastapi.responses import FileResponse
 from app.api.deps import (
     Auth,
     CollectionAccessSvc,
-    DBSession,
     KnowledgeBaseSvc,
     RAGDocumentSvc,
     SyncSourceSvc,
@@ -23,7 +22,6 @@ from app.api.deps import (
 )
 from app.core.exceptions import NotFoundError
 from app.core.permissions import Perm
-from app.repositories import sync_log as sync_log_repo
 from app.schemas.knowledge_base import (
     KnowledgeBaseCreate,
     KnowledgeBaseList,
@@ -33,7 +31,6 @@ from app.schemas.knowledge_base import (
 from app.schemas.rag import (
     RAGIngestResponse,
     RAGParsedContent,
-    RAGSyncLogItem,
     RAGSyncLogList,
     RAGSyncResponse,
     RAGTrackedDocumentList,
@@ -406,34 +403,29 @@ async def list_kb_sync_source_logs(
     kb_id: UUID,
     source_id: UUID,
     service: KnowledgeBaseSvc,
-    db: DBSession,
+    sync_source_svc: SyncSourceSvc,
     ctx: Auth,
     limit: int = Query(20, ge=1, le=100),
 ) -> Any:
-    """List sync run history for a specific KB sync source."""
+    """List sync run history for a specific KB sync source.
+
+    The source is resolved against this KB before its logs are read, rather than
+    the rows being filtered afterwards. Filtering afterwards leaked nothing, but
+    `limit` was applied in SQL to logs of *every* source with that id and then
+    thinned in Python - so a page came back short whenever another collection's
+    history interleaved with this one's, `total` described the survivors rather
+    than the source, and there was no way to page past the gap. A source that is
+    not this KB's is now missing rather than empty, which is what every other
+    per-resource read on this surface answers.
+    """
     kb = await service.get(kb_id, ctx=ctx)
-    logs = await sync_log_repo.get_all(db, sync_source_id=source_id, limit=limit)
-    # Verify source belongs to this KB's collection (security: don't leak other KBs' logs).
-    items = [
-        RAGSyncLogItem(
-            id=str(log.id),
-            source=log.source,
-            collection_name=log.collection_name,
-            status=log.status,
-            mode=log.mode,
-            total_files=log.total_files,
-            ingested=log.ingested,
-            updated=log.updated,
-            skipped=log.skipped,
-            failed=log.failed,
-            error_message=log.error_message,
-            started_at=log.started_at,
-            completed_at=log.completed_at,
+    source = await sync_source_svc.get_source(str(source_id))
+    if source.collection_name != kb.collection_name:
+        raise NotFoundError(
+            message="Sync source not found in this knowledge base",
+            details={"kb_id": str(kb_id), "source_id": str(source_id)},
         )
-        for log in logs
-        if log.collection_name == kb.collection_name
-    ]
-    return RAGSyncLogList(items=items, total=len(items))
+    return await sync_source_svc.list_logs(source.id, limit=limit)
 
 
 @router.delete(

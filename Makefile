@@ -193,6 +193,12 @@ quickstart: dev
 # Copied from the example rather than generated, so there is one definition of
 # the defaults, and never overwritten: the file that exists holds somebody's
 # keys.
+#
+# It runs last on purpose. It is the step most likely to fail on a given machine -
+# no network, a proxy, a lockfile wanting a newer bun - and make stops at the first
+# line that fails, so in front of the hooks it would leave somebody with no
+# `commit-msg` hook and nothing refusing a commit on `main`, for a reason whose
+# error message was about bun.
 install:
 	@if [ -f backend/.env ]; then \
 		echo "backend/.env already exists - leaving it alone"; \
@@ -201,13 +207,14 @@ install:
 		echo "▶ Created backend/.env from backend/.env.example"; \
 	fi
 	uv sync --directory backend --dev
-	cd frontend && bun install --frozen-lockfile
 	@if git rev-parse --git-dir > /dev/null 2>&1; then \
 		uv run --project backend pre-commit install --hook-type pre-commit --hook-type commit-msg; \
 	else \
 		echo "⚠️  Not a git repository - skipping pre-commit install"; \
 		echo "   Run 'git init && make install' to set up pre-commit hooks"; \
 	fi
+	cd frontend && bun install --frozen-lockfile
+	cd frontend && bun install --frozen-lockfile
 	@echo ""
 	@echo "✅ Installation complete!"
 	@echo ""

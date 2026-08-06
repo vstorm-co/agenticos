@@ -22,6 +22,16 @@ in it. If autogenerate is noisy again, that is the signal something was added to
 migration by hand and never declared on the model — fix the model, do not accept
 the noise.
 
+**One family of tables alembic does not own.** The vector store creates
+`rag_<collection>` per collection at runtime, so `alembic/env.py` filters them out of
+the comparison through `include_name`; without that, `make db-check` failed on any
+database that had ever ingested a document, reporting somebody's collections as tables
+to drop. Two things follow. Do not add them to the models to quieten a diff — they are
+per-tenant runtime objects, and declaring them would have alembic dropping a
+collection. And keep the predicate in `app/db/vector_tables.py` narrow: `rag_documents`
+*is* a model table, and an exclusion that reached it would silence real drift in the one
+table ingestion writes through.
+
 ## Workflow
 
 1. **Change the model** in `backend/app/db/models/`. `Mapped[...]` + `mapped_column()`,

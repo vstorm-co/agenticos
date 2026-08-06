@@ -14,7 +14,9 @@ untouched either way. Whole lines are scanned, string literals included: a
 runtime string holding a double-backtick span ends up in a chat message or a
 tool description, which is Markdown territory again.
 
-This file exempts itself — it has to be able to name the pattern it detects.
+This file exempts itself — it has to be able to name the pattern it detects — and
+skips any nested checkout, because a git worktree holds another branch's files plus
+a copy of this script, whose error message spells the pattern out.
 
 Usage::
 
@@ -27,6 +29,7 @@ Exits 1 when anything is found (so it can gate CI), 0 when clean.
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import sys
 from collections.abc import Iterator
@@ -41,20 +44,15 @@ TYPESCRIPT_SUFFIXES = {".ts", ".tsx", ".js", ".jsx"}
 PYTHON_SUFFIXES = {".py"}
 
 # This script's own docstring, regex and messages must be able to spell the
-# pattern out.
-SELF = Path(__file__).resolve()
+# pattern out - and so must every copy of it. Matched by name rather than by
+# absolute path: a copy under a worktree is a different path and was reported as
+# three findings on line 170 of a file nobody had edited.
+SELF = Path(__file__).name
 
 SKIP_DIRS = {
     ".git",
     ".next",
     ".venv",
-    # A git worktree is another checkout of this repository, so scanning one
-    # reports every finding twice - and `SELF` only excludes *this* copy of this
-    # script, not the copies of it living under each worktree, each of which
-    # contains the literal double backticks in its own error message. So with any
-    # worktree checked out the hook fails on itself and nothing else can be
-    # committed. Found the hard way, with six worktrees open at once.
-    "worktrees",
     "__pycache__",
     "node_modules",
     "htmlcov",
@@ -102,7 +100,7 @@ def typescript_comments(text: str) -> Iterator[tuple[int, str]]:
 
 def scan(path: Path) -> list[tuple[int, str]]:
     """Every offending line in one file, as (line number, line)."""
-    if path.resolve() == SELF:
+    if path.name == SELF:
         return []
     if path.suffix in MARKDOWN_SUFFIXES:
         lines = markdown_prose(path.read_text(encoding="utf-8"))
@@ -130,18 +128,41 @@ def fix(path: Path) -> int:
     return len(offenders)
 
 
+def is_nested_checkout(directory: Path) -> bool:
+    """Whether this directory is a checkout of its own rather than part of this one.
+
+    A git worktree holds a `.git` file, a clone holds a `.git` directory, and either
+    way the files under it belong to some other branch. Scanning one reports findings
+    twice, reports them against paths that are not on this branch, and - since a copy
+    of this script lives there too - fails on the error message it is about to print.
+
+    Detected rather than named: `.claude/worktrees/` is where this repository puts
+    them, but skipping every directory called `worktrees` both misses one placed
+    anywhere else and silently stops reading a `docs/worktrees/` that is only a
+    directory with a name.
+    """
+    return (directory / ".git").exists()
+
+
 def walk(roots: list[Path]) -> Iterator[Path]:
     for root in roots:
         if root.is_file():
             yield root
             continue
-        for path in root.rglob("*"):
-            if not path.is_file():
-                continue
-            if any(part in SKIP_DIRS for part in path.parts):
-                continue
-            if path.suffix in MARKDOWN_SUFFIXES | TYPESCRIPT_SUFFIXES | PYTHON_SUFFIXES:
-                yield path
+        for directory, subdirectories, filenames in os.walk(root):
+            here = Path(directory)
+            # Pruned in place, which is what `os.walk` reads to decide where to go
+            # next - the reason this is not `rglob`. Skipping a nested checkout means
+            # not descending into it, not filtering its files out one at a time.
+            subdirectories[:] = [
+                name
+                for name in subdirectories
+                if name not in SKIP_DIRS and not is_nested_checkout(here / name)
+            ]
+            for name in sorted(filenames):
+                path = here / name
+                if path.suffix in MARKDOWN_SUFFIXES | TYPESCRIPT_SUFFIXES | PYTHON_SUFFIXES:
+                    yield path
 
 
 def main() -> int:

@@ -44,8 +44,16 @@ There is no `(marketing)` route group.
   and `count === 1 ? "1 skill" : \`${count} skills\`` are sentences only English
   builds that way, so they are refused too - the message holds
   `{count, plural, =1 {1 skill} other {# skills}}` and the component passes `count`.
-  Same for a text node that mixes words with an interpolation (`Owned by {email}`):
-  it is one message with a named parameter, not English with a hole in it.
+  Same for a text node that mixes words with an interpolation: it is one message with
+  a named parameter, not English with a hole in it. **A single word counts** — on
+  either side, and whichever way round the guard reads it: `Owned by {email}`,
+  `{n} runs`, and `Rotate {name}` / `chunk {n}` / `· expires {date}` are all refused.
+  A lambda inside the interpolation does not make it something else, so a count summed
+  with `reduce` is refused too. Neither does an inline handler on the same line, nor
+  the formatter breaking the node over two lines: the guard reads the file joined back
+  together, so `{used} of {max} used` is caught with neither `>` nor `<` on its line.
+  A *plain* node broken across lines is still missed - that is #141, and it is 70 more
+  nodes.
 - **English is the source language, and `pl.json` holds only what is translated.**
   `src/i18n.ts` merges `en.json` underneath every locale, so a missing translation
   renders English instead of the key. A module-level table of labels cannot call a

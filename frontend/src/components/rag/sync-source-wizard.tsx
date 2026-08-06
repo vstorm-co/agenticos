@@ -514,6 +514,7 @@ function ConfigureStep({
   form: SyncSourceCreate;
   setForm: React.Dispatch<React.SetStateAction<SyncSourceCreate>>;
 }) {
+  const t = useTranslations("rag");
   const fields = Object.entries(connector.config_schema);
 
   if (fields.length === 0) {
@@ -531,8 +532,10 @@ function ConfigureStep({
   return (
     <div className="space-y-4">
       <p className="text-foreground/65 text-sm">
-        Configure {connector.name}. Required fields are marked with{" "}
-        <span className="text-destructive">*</span>.
+        {t.rich("configureRequiredFields", {
+          name: connector.name,
+          required: (chunks) => <span className="text-destructive">{chunks}</span>,
+        })}
       </p>
       {fields.map(([key, field]) => (
         <div key={key} className="space-y-1.5">

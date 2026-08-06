@@ -32,6 +32,14 @@ repeating their commands, and `tests/test_ci_parity.py` fails if a gating job
 grows a step `make check` does not run. It has drifted four times — see
 [Commands](commands.md#before-a-pull-request) for what `check` leaves out and why.
 
+**CI may run fewer jobs than `check` does, and that is not drift.** `test`,
+`test-frontend` and `e2e` are skipped on a pull request whose changed paths cannot
+affect them — a docs-only change runs none of the three, a backend-only change runs
+no frontend suite. What decides is `scripts/ci_changed_scope.py`, it errs towards
+running, and [Branches](branching.md#a-required-check-may-legitimately-report-skipped)
+has the rule and why a `skipped` required check still lets a merge through. Locally
+there is no equivalent: `check` runs everything.
+
 `make test-fast` skips coverage, which makes it the wrong last word before a push:
 the gate is most of what these commands are for. `pytest` without `uv run` picks up
 whatever interpreter is on the path rather than the pinned 3.12.
@@ -185,9 +193,17 @@ pre-write list even though the row is committed and both server layers return it
 ([#230](https://github.com/vstorm-co/agenticos/issues/230), about one run in
 eight). So:
 
-- **A fixture step asks the API.** Every step of `seed.setup.ts` asserts through
-  `/api/…`, because its job is that the fixture exists — and a fixture step that
-  fails takes every product spec with it.
+- **A fixture step asks the API, and keeps asking.** Every step of
+  `seed.setup.ts` asserts through `/api/…`, because its job is that the fixture
+  exists — and a fixture step that fails takes every product spec with it. After
+  a write it asks by polling (`nowThere`), never with a single read: a 2xx from
+  this backend means the request was answered, not that the write is readable,
+  because the commit runs in a dependency FastAPI unwinds after the response has
+  gone out ([#353](https://github.com/vstorm-co/agenticos/issues/353)). The
+  `alreadyThere` guard each step opens with stays a single read, since it runs
+  before the write. The one *post-write* check that read once cost 87 skipped
+  specs three times in a day
+  ([#335](https://github.com/vstorm-co/agenticos/issues/335)).
 - **A product spec that is about the rendering says so**, and reloads first if it
   needs a list it can trust. `vault.spec.ts` has three `page.reload()` calls
   marked `#230`; when that issue closes, they come out.

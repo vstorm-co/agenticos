@@ -219,7 +219,7 @@ export function WorkspaceToolResult({
           ))}
           {listed.length > 50 && (
             <li className="text-muted-foreground py-1 text-[11px]">
-              and {listed.length - 50} more — open the raw view for all of them
+              {t("moreEntries", { count: listed.length - 50 })}
             </li>
           )}
         </ul>
