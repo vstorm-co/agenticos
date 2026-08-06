@@ -904,7 +904,8 @@
       "workspace": "Your workspace",
       "build": "Your agents",
       "adoption": "How your builds behave",
-      "health": "Health"
+      "health": "Health",
+      "sandboxes": "Where agents run code"
     },
     "actions": {
       "newChat": "New chat",

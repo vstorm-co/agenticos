@@ -68,6 +68,25 @@ export const SPAN_CLASS: Record<Span, string> = {
   s12: "lg:col-span-12",
 };
 
+/**
+ * Where agents run code, for the audiences that hold `connections:manage`.
+ *
+ * Owner, admin and builder hold it; **operator does not** - read off
+ * `ROLE_PERMS` in `app/core/permissions.py` rather than off the persona, which
+ * points the other way. The section is therefore absent from the operator
+ * layout instead of being listed there and gated away: a layout entry no gate
+ * can ever pass is dead data. See #129 for the gap that leaves.
+ */
+const SANDBOX_SECTION: SectionDef = {
+  id: "sandboxes",
+  titleKey: "sandboxes",
+  entries: [
+    { widget: "sandbox-capacity", span: "s5" },
+    { widget: "sandbox-policy", span: "s7" },
+    { widget: "sandbox-sessions", span: "s12" },
+  ],
+};
+
 const STEWARD_SECTIONS: SectionDef[] = [
   {
     id: "attention",
@@ -103,6 +122,7 @@ const STEWARD_SECTIONS: SectionDef[] = [
       { widget: "org-ratings", span: "s6" },
     ],
   },
+  SANDBOX_SECTION,
   {
     id: "workspace",
     titleKey: "workspace",
@@ -202,6 +222,10 @@ export const LAYOUTS: Record<AudienceId, SectionDef[]> = {
         { widget: "top-people", span: "s12" },
       ],
     },
+    // A builder is who gives an agent the code-execution capability, so the
+    // memory ceiling their agents die on is their own question as much as an
+    // operator's - and they hold `connections:manage` where the operator does not.
+    SANDBOX_SECTION,
     {
       id: "activity",
       titleKey: null,
