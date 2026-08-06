@@ -31,6 +31,71 @@ Either way the process is reaped, so the zombies are gone in both cases. Neither
 happens once `should_exit` is set: a replacement started while the reloader is
 shutting down is a process nothing will ever stop.
 
+## A worker that is wedged rather than dead
+
+Both branches above key off a process that is *gone*. A worker deadlocked on a
+lock, spinning in a synchronous call, or blocked on a socket that never answers
+has no exit code at all, so the supervisor sees a healthy child and does nothing
+while every request times out (#336).
+
+So the worker also says, from its own event loop, that the loop is turning.
+uvicorn already has the hook: `Config.callback_notify` is awaited by
+`Server.on_tick` every `timeout_notify` seconds, which is the integration point
+systemd's watchdog uses. The callback stamps `time.monotonic()` into a shared
+cell; the supervisor reads the cell on the same quiet poll as everything else,
+and replaces a worker whose loop has not turned for `WEDGED_AFTER` seconds.
+
+Four properties of that choice are the reason for it:
+
+- **It measures liveness, not readiness.** The beat is a callback on an
+  otherwise idle timer, so it costs nothing and answers in milliseconds however
+  loaded the server is. An HTTP probe against the bound port would have been
+  fewer lines, but it traverses the application - so a slow database or a Redis
+  outage would read as a wedged worker and the supervisor would restart-loop a
+  healthy server against a broken dependency. Killing a worker for being slow is
+  worse than ignoring a wedged one.
+- **It sees what a pipe ping cannot.** `Multiprocess` asks the worker over a
+  pipe, and the answer comes from a dedicated thread - which keeps answering
+  while the event loop is blocked, the single most likely way to wedge an async
+  server. A beat that originates *on the loop* is exactly the signal that thread
+  cannot fake.
+- **A wedged worker is killed, not terminated.** `BaseReload.restart` sends
+  `SIGTERM` and joins - and the worker *catches* it, as the graceful shutdown
+  above says. Acting on it therefore needs the event loop to come round, which
+  is the one thing a wedged worker cannot do; a stopped process does not run the
+  handler at all and leaves the signal pending. Either way the join never
+  returns and the supervisor hangs with it. `SIGKILL` cannot be caught, which is
+  what `Multiprocess.keep_subprocess_alive` relies on for a worker it has judged
+  hung. `shutdown` needs the same escalation for the same reason, or Ctrl+C on a
+  wedged worker blocks until Docker's grace period runs out.
+- **A frozen host is not a wedged worker.** `docker pause`, a frozen cgroup and
+  a Docker Desktop VM resuming after the host slept all advance the monotonic
+  clock while *nothing* runs, worker and supervisor alike, so the first poll
+  after one reads a stale beat that says nothing about the worker. Two
+  consecutive silent polls are therefore needed rather than one: by the second,
+  a healthy worker has beaten again and the verdict clears.
+
+**What this does not cover**, deliberately:
+
+- **A worker that wedges before it serves.** `main_loop` - and so the first beat
+  - starts only once lifespan startup has finished, so a worker hung on a
+  database connect at boot never beats and is never judged. Judging it would
+  mean a startup grace period long enough to be meaningless on a cold container.
+  `shutdown` inherits the gap: with nothing to judge it cannot escalate, so
+  Ctrl+C on a worker hung against a Postgres that is down still waits out
+  Docker's grace period.
+- **The dev and production stacks.** Neither runs this module: `docker-compose-dev.yml`
+  is a single unsupervised uvicorn and `docker-compose-prod.yml` is `--workers`,
+  where uvicorn's own `Multiprocess` pings over the pipe described above.
+- **A debugger.** A breakpoint blocks the event loop and is indistinguishable
+  from a deadlock by construction, so 15 seconds on one wedges the worker and it
+  is replaced. `RELOAD_WEDGED_AFTER=0` turns the whole check off.
+- **A worker in uninterruptible sleep.** `SIGKILL` is not delivered to a process
+  in `D` state - a dead network mount is the way in - so the join after it hangs
+  as `SIGTERM` would have. A bounded join would only move the hang into
+  `BaseReload.restart`, which joins again with no timeout, so it is recorded
+  here rather than half-fixed.
+
 **This module is its own entrypoint** - `python -m cli.reload_supervisor` - and
 imports nothing beyond uvicorn and click on purpose. Reaching it through
 `cli.commands` instead would pull `app.main` into the reloader, and the reloader
@@ -41,7 +106,11 @@ for would be an odd way to fix this.
 """
 
 import logging
+import os
+import time
 from collections.abc import Callable
+from ctypes import c_double
+from multiprocessing import RawValue
 from pathlib import Path
 from socket import socket
 from typing import Final
@@ -62,11 +131,80 @@ WS_PROTOCOL: Final = "websockets-sansio"
 
 APP: Final = "app.main:app"
 
+# How often the worker's event loop says it is turning, as uvicorn's
+# `timeout_notify`. `Server.on_tick` runs ten times a second and notifies on the
+# first tick past this many seconds, so a beat lands every one to two seconds.
+BEAT_INTERVAL: Final = 1
+
+# How long a worker may go without a beat before it is judged wedged. It is
+# fifteen missed beats rather than a couple, because the cost of the two
+# mistakes is not symmetric: replacing a wedged worker late costs seconds on a
+# laptop, and replacing a healthy one early drops in-flight requests. Fifteen
+# seconds of an event loop not turning is not load - a loaded loop still runs a
+# timer callback in milliseconds - it is blocked, stopped or deadlocked. It also
+# leaves room for the beat's own jitter: `on_tick` schedules on `time.time()`
+# while the verdict is monotonic, so a backwards clock step delays a beat by the
+# size of the step. Fifteen seconds absorbs that; two would not. The
+# supervisor notices within `WEDGED_AFTER` plus the two polls
+# `POLLS_BEFORE_WEDGED` costs, so about twenty-five seconds, against the ninety a
+# container health check takes to reach a verdict nothing acts on.
+WEDGED_AFTER: Final = 15.0
+
+# Consecutive silent polls before the worker is replaced. Two, not one, because
+# `docker pause`, a frozen cgroup and a Docker Desktop VM resuming after the host
+# slept all advance the monotonic clock while *nothing* runs - supervisor
+# included - and the first poll after one of those reads a stale beat that says
+# nothing about the worker. By the next poll a healthy worker has beaten again,
+# about a second having passed, and the verdict clears; a wedged one fails both.
+# The reprieve costs one poll of detection, and it is deliberately not measured
+# as a gap in the supervisor's own polling: watchfiles ticks every five seconds
+# or so, so any threshold below that would have compared a poll gap against a
+# smaller number, judged every poll a freeze, and switched the check off in
+# silence.
+POLLS_BEFORE_WEDGED: Final = 2
+
+# Seconds without a beat before a worker is replaced, `0` or below to switch the
+# check off - which is what somebody sitting on a breakpoint wants, a stopped
+# event loop being indistinguishable from a deadlock.
+WEDGED_AFTER_ENV_VAR: Final = "RELOAD_WEDGED_AFTER"
+
+# The value of the shared cell before the worker's first beat. A worker is
+# judged only once it has beaten at least once, so a slow boot is never mistaken
+# for a wedge.
+NOT_YET_BEATEN: Final = 0.0
+
 logger = logging.getLogger("uvicorn.error")
 
 
+class EventLoopHeartbeat:
+    """The worker's end of the liveness signal, awaited on its own event loop.
+
+    Passed to the worker as `Config.callback_notify`, which means it is pickled
+    into the spawned process along with the shared cell it writes to - allowed
+    because the pickling happens while the child is being spawned, which is the
+    one time `multiprocessing` permits a shared value to cross.
+
+    `RawValue` and not `Value`, on two counts. `Value`'s lock is a `SemLock` from
+    the *default* context, which on Linux is `fork` - and uvicorn spawns, so
+    handing the worker one raises `A SemLock created in a fork context is being
+    shared with a process in a spawn context` and the container restart-loops
+    before it serves a request. That is not a macOS symptom, where the default
+    context is already `spawn`, so it appears first in CI or in Docker. And a
+    lock here would be a hazard even where it pickles: a worker killed while
+    holding it - which is exactly what this module does to a wedged one - leaves
+    it held for good, and the supervisor's next read of the cell hangs forever.
+    One aligned 8-byte double, one writer, one reader, no lock to lose.
+    """
+
+    def __init__(self, beat: c_double) -> None:
+        self._beat = beat
+
+    async def __call__(self) -> None:
+        self._beat.value = time.monotonic()
+
+
 class SupervisedReload(ChangeReload):
-    """A `--reload` reloader that also notices a worker that died.
+    """A `--reload` reloader that notices a worker that died, and one that wedged.
 
     `ChangeReload` polls for changes with a timeout rather than blocking
     forever, so overriding `should_restart` is enough to get a periodic tick:
@@ -81,11 +219,19 @@ class SupervisedReload(ChangeReload):
         config: Config,
         target: Callable[[list[socket] | None], None],
         sockets: list[socket],
+        *,
+        beat: c_double,
+        wedged_after: float = WEDGED_AFTER,
     ) -> None:
         super().__init__(config, target, sockets)
         # The pid whose ordinary exit has already been reported, so the "waiting
         # for a change" line is written once rather than on every poll.
         self._reported_pid: int | None = None
+        self._beat = beat
+        self._wedged_after = wedged_after
+        # Consecutive polls that have found the worker silent. One is not a
+        # verdict; `POLLS_BEFORE_WEDGED` explains why.
+        self._silent_polls = 0
 
     def should_restart(self) -> list[Path] | None:
         # `if changes`, not `is not None`: a change to a file the reload filter
@@ -97,7 +243,55 @@ class SupervisedReload(ChangeReload):
         if changes:
             return changes
         self._replace_a_dead_worker()
+        self._replace_a_wedged_worker()
         return None
+
+    def restart(self) -> None:
+        """Replace the worker, and forget the beat the previous one left behind.
+
+        Every replacement - a file change, a dead worker, a wedged one - arrives
+        here, and every one of them starts a worker that has not beaten yet.
+        Leaving the old worker's beat in the cell would have the new one judged
+        on it and killed on the next poll.
+
+        The cell is cleared *after* the replacement, not before. `Server.on_tick`
+        awaits `callback_notify` before it checks `should_exit`, so a worker sent
+        `SIGTERM` inside the second before its next beat is due gets one more
+        tick and beats one last time. Clearing first would hand that beat to the
+        replacement, which is then judged on it while it is still importing the
+        application. `BaseReload.restart` joins the old worker before it spawns
+        the new one, so by the time this line runs the last gasp has landed and
+        there is nothing left to write the cell but the replacement - which
+        cannot, until lifespan startup finishes seconds later.
+        """
+        super().restart()
+        self._beat.value = NOT_YET_BEATEN
+
+    def shutdown(self) -> None:
+        """Stop the worker, killing it outright if it is wedged.
+
+        `BaseReload.shutdown` sends `SIGTERM` and joins without a timeout, which
+        for a wedged worker is the hang this class exists to avoid: Ctrl+C or
+        `docker compose stop` would block until the ten-second grace period ran
+        out and Docker killed the container. A worker that is merely running
+        still gets `SIGTERM` and still drains its connections.
+
+        There is one shot at this, so the verdict is the instantaneous one -
+        `POLLS_BEFORE_WEDGED` cannot apply to a decision taken once. A healthy
+        worker whose host has just thawed is therefore killed rather than
+        drained. On a development server, dropping the requests in flight beats
+        hanging the terminal, and it is the same trade the container's own
+        `SIGKILL` makes ten seconds later.
+        """
+        silent_for = self._silent_for()
+        if silent_for is not None:
+            logger.error(
+                "Server process [%s] has not run its event loop for %.0fs. Killing it rather than waiting.",
+                self.process.pid,
+                silent_for,
+            )
+            self.process.kill()
+        super().shutdown()
 
     def _replace_a_dead_worker(self) -> None:
         """Reap a worker that is gone, and replace it if a signal took it.
@@ -133,17 +327,95 @@ class SupervisedReload(ChangeReload):
                 exitcode,
             )
 
+    def _silent_for(self) -> float | None:
+        """How long the worker's event loop has been silent, if that is a verdict.
+
+        `None` means there is nothing to judge, which covers four cases and not
+        only the obvious one: the check is switched off; the worker is not
+        running, so a worker that exited on its own stays waiting for the file
+        change that fixes it rather than being respawned onto the same
+        traceback; the worker has not beaten yet, so a slow boot is not a wedge;
+        or it beat recently enough.
+        """
+        if self._wedged_after <= 0 or self.process.exitcode is not None:
+            return None
+
+        beat = self._beat.value
+        if beat == NOT_YET_BEATEN:
+            return None
+
+        silent_for = time.monotonic() - beat
+        return silent_for if silent_for >= self._wedged_after else None
+
+    def _replace_a_wedged_worker(self) -> None:
+        """Replace a worker that is running but whose event loop has stopped turning."""
+        if self.should_exit.is_set():
+            # The reloader is on its way out and a replacement would outlive the
+            # supervisor meant to stop it - the same guard
+            # `_replace_a_dead_worker` opens with, for the same reason. Stopping
+            # a worker that is wedged is `shutdown`'s job, not this one's.
+            return
+
+        silent_for = self._silent_for()
+        if silent_for is None:
+            self._silent_polls = 0
+            return
+
+        self._silent_polls += 1
+        if self._silent_polls < POLLS_BEFORE_WEDGED:
+            return
+
+        logger.error(
+            "Server process [%s] has not run its event loop for %.0fs. Killing it and starting a replacement.",
+            self.process.pid,
+            silent_for,
+        )
+        # `SIGKILL`, and not the `SIGTERM` that `restart` would send on its own:
+        # the worker catches `SIGTERM` and acts on it from the event loop, so a
+        # wedged one never acts on it and the join inside `restart` would hang
+        # here forever. Killing first makes that join the no-op it needs to be.
+        self.process.kill()
+        self.process.join()
+        self.restart()
+
+
+def wedged_after_from_environment() -> float:
+    """Read `RELOAD_WEDGED_AFTER`, the one knob on the wedge check.
+
+    Seconds without a beat before the worker is replaced; `0` switches the check
+    off entirely, which is what a breakpoint needs. A value that is not a number
+    raises rather than falling back to the default: a typo that silently
+    restores 15 seconds is how somebody ends up debugging the supervisor.
+    """
+    return float(os.environ.get(WEDGED_AFTER_ENV_VAR, WEDGED_AFTER))
+
 
 def run_reload_server(*, host: str, port: int) -> None:
     """Run the development server under `SupervisedReload`.
 
     The wiring is `uvicorn.main.run`'s own reload branch, with the supervisor
     swapped: bind the socket in the parent so a replacement worker inherits a
-    port that never stopped being bound.
+    port that never stopped being bound, and hand the worker the heartbeat it
+    reports its event loop through.
     """
-    config = Config(APP, host=host, port=port, reload=True, ws=WS_PROTOCOL)
+    beat: c_double = RawValue("d", NOT_YET_BEATEN)
+    config = Config(
+        APP,
+        host=host,
+        port=port,
+        reload=True,
+        ws=WS_PROTOCOL,
+        callback_notify=EventLoopHeartbeat(beat),
+        timeout_notify=BEAT_INTERVAL,
+    )
     server = Server(config=config)
-    SupervisedReload(config, target=server.run, sockets=[config.bind_socket()]).run()
+    SupervisedReload(
+        config,
+        target=server.run,
+        sockets=[config.bind_socket()],
+        beat=beat,
+        wedged_after=wedged_after_from_environment(),
+    ).run()
 
 
 @click.command()

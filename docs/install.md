@@ -203,10 +203,20 @@ make run                                        # uvicorn --reload, supervised
     A worker killed by a signal is now replaced within about five seconds. One
     that exited on its own still waits for the edit that fixes it.
 
+    A **wedged** worker is replaced too — alive, but with an event loop that has
+    stopped turning, which has no exit code and so looks healthy to every other
+    recovery path. It reports its loop to the supervisor once a second, and
+    fifteen seconds of silence gets it killed and replaced. Set
+    `RELOAD_WEDGED_AFTER` in `backend/.env` to change that, or to `0` to switch
+    it off — which is what you want while debugging, because a breakpoint blocks
+    the event loop and no probe can tell that from a deadlock.
+
     This is the reload path only. `make dev-server` runs a single unsupervised
     uvicorn, so a kill takes PID 1 with it and `restart: unless-stopped`
-    restarts the container; `make prod` runs `--workers 4`, where uvicorn's own
-    `Multiprocess` supervisor already replaces a dead worker twice a second.
+    restarts the container, and a wedge is not covered at all; `make prod` runs
+    `--workers 4`, where uvicorn's own `Multiprocess` supervisor replaces a dead
+    worker twice a second and pings the rest over a pipe — which a worker
+    answers from a thread, so a blocked event loop there is invisible.
 
 !!! note "Python is pinned to 3.12"
 
