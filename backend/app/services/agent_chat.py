@@ -310,11 +310,9 @@ class ChatAgentRunner:
         budget_scope: BudgetScope | None = None
         output = ""
         try:
-            async with prepared.built.agent.iter(
+            async with prepared.iterate(
                 user_input,
-                deps=prepared.deps,
                 message_history=message_history,
-                usage_limits=prepared.built.usage_limits,
             ) as agent_run:
                 await stream(agent_run)
 

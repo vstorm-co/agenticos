@@ -95,7 +95,7 @@ from app.agents.subagent_runtime import (
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.db.models.agent_run import RunStatus
 from app.services.agent_chat import ChatTurn
-from app.services.agent_runner import ParkedApproval
+from app.services.agent_runner import ParkedApproval, PreparedRun
 from app.services.agent_session import AgentSession
 from app.services.usage_report import UsageReport
 
@@ -1428,21 +1428,23 @@ class _Turn:
         )
         return MagicMock()
 
-    def _prepared(self, agent: PydanticAgent[Any, Any]) -> MagicMock:
-        prepared = MagicMock()
-        prepared.run = MagicMock(id=uuid4(), agent_version_id=uuid4())
-        prepared.agent = MagicMock(id=uuid4())
-        prepared.deps = AgentDeps(organization_id=uuid4(), run_id=uuid4())
-        prepared.workspace = None
-        prepared.spec.budget = None
-        prepared.approvals.parked = {}
-        prepared.approvals.requested = []
-        prepared.built.agent = agent
-        prepared.built.ledger = self.ledger
-        prepared.built.model_label = "gpt-4.1"
+    def _prepared(self, agent: PydanticAgent[Any, Any]) -> PreparedRun:
+        """A real `PreparedRun`: `iterate` is what meters the turn, so a mock of
+        the prepared run would never reach the agent this class assembled."""
+        built = MagicMock()
+        built.agent = agent
+        built.ledger = self.ledger
+        built.model_label = "gpt-4.1"
+        built.deps = AgentDeps(organization_id=uuid4(), run_id=uuid4())
         # Real `None` rather than a mock: Pydantic AI reads this per request.
-        prepared.built.usage_limits = None
-        return prepared
+        built.usage_limits = None
+        return PreparedRun(
+            run=MagicMock(id=uuid4(), agent_version_id=uuid4()),
+            agent=MagicMock(id=uuid4()),
+            spec=MagicMock(budget=None),
+            built=built,
+            approvals=MagicMock(parked={}, requested=[]),
+        )
 
     @contextmanager
     def patched(self) -> Iterator[None]:
