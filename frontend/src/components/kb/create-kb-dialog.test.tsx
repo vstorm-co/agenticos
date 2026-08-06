@@ -38,7 +38,17 @@ function posted(): Record<string, unknown> {
 describe("CreateKBDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    // Every list this dialog reads is empty, except the one that is not a list:
+    // `/rag/embedding-models` answers `{default, models}`, and the model select
+    // is built from it rather than tolerating whatever arrives.
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+      path === "/rag/embedding-models"
+        ? {
+            default: "text-embedding-3-large",
+            models: [{ model: "text-embedding-3-large", dim: 3072 }],
+          }
+        : { items: [], total: 0 },
+    );
     vi.mocked(apiClient.post).mockResolvedValue({ id: "kb-1", name: "Handbook" });
     render(<CreateKBDialog open onOpenChange={vi.fn()} />, { wrapper });
   });

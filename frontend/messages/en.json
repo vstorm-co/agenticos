@@ -276,6 +276,8 @@
     "noKey2": "no key",
     "noMembersChooseFrom": "No members to choose from - this organization is just you.",
     "noNote": "No note",
+    "noProviderKeyAddOneHere": "No {provider} key in the vault yet. Add one here and it is stored for every agent in this organization.",
+    "noProviderKeyAskSomebody": "No {provider} key in the vault yet, and storing one needs a permission you do not hold. Somebody who can manage this organization's vault has to add it before this model will run.",
     "noSandboxConnectionRegistered": "No sandbox connection registered",
     "noSecretOfKind": "No {kind} secret in the vault",
     "noSecretSelected": "No secret selected. This capability needs one of kind {kind}, and the agent cannot be published until it has one.",
@@ -2886,7 +2888,7 @@
   "vault": {
     "access": "Access",
     "actions": "Actions",
-    "addKey": "Add a key",
+    "addKeyNamed": "Add a key: {name}",
     "addSecret": "Add a secret",
     "addedBy": "Added by",
     "apiKeyConstValue": "(\"api_key\"); const [value, setValue] = useState",

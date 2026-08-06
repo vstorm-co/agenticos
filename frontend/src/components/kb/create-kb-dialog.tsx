@@ -205,43 +205,60 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                 <p className="text-muted-foreground text-xs">{t("frozenAtCreationCollection")}</p>
                 <div className="space-y-1.5">
                   <Label htmlFor="kb-embedding-model">{t("model")}</Label>
-                  <Select
-                    value={embeddingModel ?? embeddingModels?.default ?? ""}
-                    onValueChange={setEmbeddingModel}
-                    disabled={!embeddingModels}
-                  >
-                    <SelectTrigger id="kb-embedding-model">
-                      <SelectValue placeholder={t("loadingModels")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(embeddingModels?.models ?? []).map((entry) => (
-                        <SelectItem
-                          key={entry.model}
-                          value={entry.model}
-                          // Without this every row answers to "openrouter…" -
-                          // the mark's title is part of the item's text - and
-                          // typing a model id finds nothing.
-                          textValue={entry.model}
-                          // In the list rather than in the row: the trigger
-                          // draws whatever the row draws, and "deployment
-                          // default" is a comparison against the other options.
-                          trailing={
-                            entry.model === embeddingModels?.default && (
-                              <span className="text-muted-foreground ml-auto shrink-0 pl-2 text-xs">
-                                {t("deploymentDefault")}
-                              </span>
-                            )
-                          }
-                        >
-                          {/* Whichever model is chosen, the request goes to
-                              OpenRouter and an OpenRouter key pays for it - so
-                              the mark says which key that is, which a bare
-                              model id never did. */}
-                          <ProviderRow provider={EMBEDDING_KEY_PURPOSE} name={entry.model} />
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {/*
+                    Not mounted until the list is, rather than mounted empty and
+                    disabled. A Radix select inside a form keeps a hidden native
+                    `<select>` in step with its value: when the value changes it
+                    assigns it and dispatches `change`, and `onValueChange` is
+                    handed whatever the element reads back. The `<option>`
+                    elements are registered by the items a render later, so a
+                    value that arrives with its options is assigned to a
+                    `<select>` that has none, reads back as `""`, and clobbers
+                    the state it was about to display - leaving the trigger on
+                    its placeholder for as long as the dialog is open. Mounting
+                    once the models are here means the value never transitions:
+                    `usePrevious` seeds itself with the current one.
+                  */}
+                  {embeddingModels === undefined ? (
+                    <p className="text-muted-foreground text-sm">{t("loadingModels")}</p>
+                  ) : (
+                    <Select
+                      value={embeddingModel ?? embeddingModels.default}
+                      onValueChange={setEmbeddingModel}
+                    >
+                      <SelectTrigger id="kb-embedding-model">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {embeddingModels.models.map((entry) => (
+                          <SelectItem
+                            key={entry.model}
+                            value={entry.model}
+                            // Without this every row answers to "openrouter…" -
+                            // the mark's title is part of the item's text - and
+                            // typing a model id finds nothing.
+                            textValue={entry.model}
+                            // In the list rather than in the row: the trigger
+                            // draws whatever the row draws, and "deployment
+                            // default" is a comparison against the other options.
+                            trailing={
+                              entry.model === embeddingModels.default && (
+                                <span className="text-muted-foreground ml-auto shrink-0 pl-2 text-xs">
+                                  {t("deploymentDefault")}
+                                </span>
+                              )
+                            }
+                          >
+                            {/* Whichever model is chosen, the request goes to
+                                OpenRouter and an OpenRouter key pays for it - so
+                                the mark says which key that is, which a bare
+                                model id never did. */}
+                            <ProviderRow provider={EMBEDDING_KEY_PURPOSE} name={entry.model} />
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="kb-embedding-key">{t("key")}</Label>

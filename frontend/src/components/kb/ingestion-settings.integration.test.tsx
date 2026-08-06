@@ -127,7 +127,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   state.profiles = [profile()];
   state.secrets = [];
-  state.permissions = [Perm.collectionsEdit, Perm.connectionsManage];
+  state.permissions = [Perm.collectionsEdit, Perm.connectionsManage, Perm.secretsEdit];
   serve();
 });
 
@@ -159,7 +159,22 @@ describe("the model that describes the images", () => {
     await userEvent.click(screen.getByRole("option", { name: /OpenAI/ }));
 
     expect(screen.getByText(/No OpenAI key in the vault yet/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Add a key" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add a key: OpenAI" })).toBeInTheDocument();
+  });
+
+  it("offers no such form to a caller who may not write to the vault", async () => {
+    // `connections:manage` lets somebody define the model; storing the key it
+    // runs on is `secrets:edit`, and this dialog is the second surface that
+    // renders the form - gating it in the Builder alone would have left this one
+    // offering a write that answers 403.
+    state.permissions = [Perm.collectionsEdit, Perm.connectionsManage];
+    show();
+
+    await userEvent.click(await screen.findByLabelText("Provider"));
+    await userEvent.click(screen.getByRole("option", { name: /OpenAI/ }));
+
+    expect(screen.queryByRole("button", { name: "Add a key: OpenAI" })).toBeNull();
+    expect(screen.getByText(/permission you do not hold/)).toBeInTheDocument();
   });
 
   it("stores no key while the dialog that holds it is frozen", async () => {
@@ -172,7 +187,7 @@ describe("the model that describes the images", () => {
     await userEvent.click(await screen.findByLabelText("Provider"));
     await userEvent.click(screen.getByRole("option", { name: /OpenAI/ }));
 
-    expect(screen.getByRole("button", { name: "Add a key" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Add a key: OpenAI" })).toBeDisabled();
   });
 
   it("says the chosen model has no key, which is what decides whether ingestion runs", async () => {

@@ -187,7 +187,7 @@ describe("CapabilitySettings secret picker", () => {
 
     expect(await screen.findByText("No api_key secret in the vault")).toBeInTheDocument();
     expect(picker()).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Add a key" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add a key: Weather" })).toBeInTheDocument();
   });
 
   it("binds the secret that was chosen, by id", async () => {
@@ -220,7 +220,7 @@ describe("CapabilitySettings secret picker", () => {
     });
 
     expect(await screen.findByRole("link", { name: "Store one in the vault" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Add a key" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add a key: Weather" })).toBeNull();
   });
 
   it("stores a new key in place and selects it, without leaving the page", async () => {
@@ -236,7 +236,7 @@ describe("CapabilitySettings secret picker", () => {
       hint: "cdef",
     });
 
-    await userEvent.click(await screen.findByRole("button", { name: "Add a key" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Add a key: Weather" }));
     await userEvent.type(screen.getByLabelText("Key"), "wx-secret-abcdef");
     await userEvent.click(screen.getByRole("button", { name: "Save key" }));
 
@@ -274,7 +274,7 @@ describe("CapabilitySettings secret picker", () => {
     });
 
     await waitFor(() => expect(screen.queryByLabelText("Secret")).toBeNull());
-    expect(screen.queryByRole("button", { name: "Add a key" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add a key: Weather" })).toBeNull();
   });
 
   it("does not claim the vault is empty when the vault could not be read", async () => {

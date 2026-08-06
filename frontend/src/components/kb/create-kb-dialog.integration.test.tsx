@@ -57,11 +57,57 @@ async function openEmbeddings() {
   await userEvent.click(screen.getByText("Embeddings"));
 }
 
+/** Open the disclosure the parser options and the images model live behind. */
+async function openParsing() {
+  await userEvent.click(screen.getByText("How documents are parsed"));
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
     if (path === "/secrets") return SECRETS;
     if (path === "/rag/embedding-models") return EMBEDDING_MODELS;
+    // The images section reads the caller's permissions, the provider catalog
+    // and what each provider publishes. Answering a list shape at
+    // `/me/permissions` is not "no permissions", it is a `TypeError`.
+    if (path === "/me/permissions")
+      return {
+        organization_id: "org-1",
+        role: "builder",
+        is_app_admin: false,
+        permissions: [
+          { permission: "connections:manage", scope: "all" },
+          { permission: "secrets:edit", scope: "all" },
+        ],
+      };
+    if (path === "/providers/catalog")
+      return {
+        items: [
+          {
+            id: "openai",
+            name: "OpenAI",
+            secret_kind: "api_key",
+            supports_base_url: false,
+            keyless: false,
+          },
+        ],
+        total: 1,
+      };
+    if (path === "/secrets/purposes")
+      return {
+        items: [
+          {
+            id: "openai",
+            label: "OpenAI",
+            category: "model_provider",
+            kind: "api_key",
+            help_url: null,
+            description: "OpenAI keys",
+          },
+        ],
+        total: 1,
+      };
+    if (path === "/providers/openai/models") return { items: [], total: 0, source: null };
     return { items: [], total: 0 };
   });
   render(<CreateKBDialog open onOpenChange={vi.fn()} />, { wrapper });
@@ -104,6 +150,27 @@ describe("the embedding key picker", () => {
 });
 
 describe("the embedding model picker", () => {
+  it("names the model the collection would be created with", async () => {
+    // The one choice in this dialog that cannot be revisited - the vector column
+    // is created at the model's width - and the trigger used to sit on its
+    // placeholder for as long as the dialog was open. Mounting a controlled
+    // Radix select before its options exist writes the value onto a hidden
+    // native `<select>` with no matching `<option>`, reads `""` back out of the
+    // change event, and hands that to `onValueChange`, which is `setState`.
+    await openEmbeddings();
+
+    expect(await screen.findByLabelText("Model")).toHaveTextContent("text-embedding-3-large");
+    expect(screen.queryByText("Loading models…")).toBeNull();
+  });
+
+  it("says the list is still loading rather than offering an empty picker", () => {
+    // Asserted before the query resolves, which is the state the placeholder is
+    // for: no select at all, because one whose value arrives after its options
+    // is the bug above.
+    expect(screen.getByText("Loading models…")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Model")).toBeNull();
+  });
+
   it("draws the mark of the key that pays, beside every model id", async () => {
     await openEmbeddings();
     await userEvent.click(screen.getByLabelText("Model"));
@@ -119,5 +186,30 @@ describe("the embedding model picker", () => {
 
     const preselected = await screen.findByRole("option", { name: /text-embedding-3-large/ });
     expect(preselected).toHaveTextContent("deployment default");
+  });
+});
+
+describe("the two keys this dialog can store", () => {
+  /**
+   * On a fresh deployment both offers appear at once - an embedding key in the
+   * Embeddings section and a model-provider key in the describing-model form,
+   * four inches apart, writing different secrets under different purposes. Both
+   * were labelled "Add a key", so a screen reader heard the same button twice
+   * and a test could only tell them apart by DOM position.
+   */
+
+  it("names each of them, so neither of them is just 'a key'", async () => {
+    await openEmbeddings();
+    await openParsing();
+    await userEvent.click(screen.getByLabelText("Describe images"));
+    await userEvent.click(await screen.findByLabelText("Provider"));
+    await userEvent.click(screen.getByRole("option", { name: /OpenAI/ }));
+
+    // Two offers, and the accessible name is what tells them apart - not the
+    // section each happens to sit in.
+    expect(
+      screen.getByRole("button", { name: "Add a key: OpenRouter (embeddings)" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add a key: OpenAI" })).toBeInTheDocument();
   });
 });
