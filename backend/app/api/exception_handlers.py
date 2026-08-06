@@ -45,7 +45,7 @@ def _envelope(
     status_code: int,
     code: str,
     message: str,
-    details: Any,
+    details: dict[str, Any] | None,
     headers: dict[str, str] | None = None,
 ) -> JSONResponse:
     """The one response shape, with `details` encoded rather than dumped.
