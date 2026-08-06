@@ -104,6 +104,27 @@ describe("the embedding key picker", () => {
 });
 
 describe("the embedding model picker", () => {
+  it("names the model the collection would be created with", async () => {
+    // The one choice in this dialog that cannot be revisited - the vector column
+    // is created at the model's width - and the trigger used to sit on its
+    // placeholder for as long as the dialog was open. Mounting a controlled
+    // Radix select before its options exist writes the value onto a hidden
+    // native `<select>` with no matching `<option>`, reads `""` back out of the
+    // change event, and hands that to `onValueChange`, which is `setState`.
+    await openEmbeddings();
+
+    expect(await screen.findByLabelText("Model")).toHaveTextContent("text-embedding-3-large");
+    expect(screen.queryByText("Loading models…")).toBeNull();
+  });
+
+  it("says the list is still loading rather than offering an empty picker", () => {
+    // Asserted before the query resolves, which is the state the placeholder is
+    // for: no select at all, because one whose value arrives after its options
+    // is the bug above.
+    expect(screen.getByText("Loading models…")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Model")).toBeNull();
+  });
+
   it("draws the mark of the key that pays, beside every model id", async () => {
     await openEmbeddings();
     await userEvent.click(screen.getByLabelText("Model"));
