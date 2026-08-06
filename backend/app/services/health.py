@@ -103,6 +103,28 @@ def _not_checked(key: str, because: str) -> SystemCheck:
     return SystemCheck(key=key, status="not_checked", detail=f"not checked: {because}")
 
 
+async def _abandon_the_transaction(db: AsyncSession) -> None:
+    """Leave the session usable after a probe's query has failed on it.
+
+    A statement that raises leaves its transaction in a failed state, and every
+    later use of that session - including the commit the request's session
+    dependency performs on the way out - raises too. That commit now runs
+    *before* the response is written (#353), so without this the endpoint an
+    operator reads because something is wrong answers 500 instead of the 503 it
+    diagnosed. Before #353 the same commit failed after the 503 had been sent,
+    which merely logged a traceback per readiness probe and told Starlette its
+    response had already started.
+
+    A rollback here does no I/O: the session either never acquired a connection
+    or holds one already invalidated. It is still guarded, because a session
+    that cannot be reset is not a reason for a health endpoint to raise.
+    """
+    try:
+        await db.rollback()
+    except Exception:
+        logger.warning("could not reset the session after a failed health probe", exc_info=True)
+
+
 async def probe_database(db: AsyncSession) -> SystemCheck:
     """Round-trip a trivial query.
 
@@ -115,9 +137,11 @@ async def probe_database(db: AsyncSession) -> SystemCheck:
         async with asyncio.timeout(PROBE_TIMEOUT_SECONDS):
             await db.execute(text("SELECT 1"))
     except TimeoutError:
+        await _abandon_the_transaction(db)
         return _timed_out("database", "SELECT 1")
     except Exception as exc:
         logger.warning("database health probe failed", exc_info=True)
+        await _abandon_the_transaction(db)
         return SystemCheck(key="database", status="unhealthy", detail=f"SELECT 1 failed: {exc}")
     return SystemCheck(
         key="database",
@@ -182,9 +206,11 @@ async def probe_vector_store(db: AsyncSession) -> SystemCheck:
                 )
             tables = (await db.execute(_EMBEDDING_TABLE_COUNT)).scalar_one()
     except TimeoutError:
+        await _abandon_the_transaction(db)
         return _timed_out("vector_store", "the pgvector catalog query")
     except Exception as exc:
         logger.warning("vector store health probe failed", exc_info=True)
+        await _abandon_the_transaction(db)
         return SystemCheck(
             key="vector_store",
             status="unhealthy",
@@ -223,9 +249,11 @@ async def probe_model_access(db: AsyncSession) -> SystemCheck:
             ).where(ModelProfile.secret_id.is_not(None))
             profiles, organizations = (await db.execute(usable)).one()
     except TimeoutError:
+        await _abandon_the_transaction(db)
         return _timed_out("model_access", "the model profile query")
     except Exception as exc:
         logger.warning("model access health probe failed", exc_info=True)
+        await _abandon_the_transaction(db)
         return SystemCheck(
             key="model_access",
             status="unhealthy",
