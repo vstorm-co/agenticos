@@ -38,12 +38,18 @@ from app.api.exception_handlers import (
     validation_exception_handler,
 )
 from app.core.config import settings
-from app.core.exceptions import AppException, ExternalServiceError, NotFoundError
+from app.core.exceptions import (
+    AppException,
+    BadRequestError,
+    ExternalServiceError,
+    NotFoundError,
+)
 from app.main import app
 from app.repositories import user_repo
 from app.schemas.message_rating import RatingValue
 from app.services.email import templates
 from app.services.email.exceptions import EmailTemplateError
+from app.services.model_profile import validate_endpoint_url
 
 
 class TestFieldPath:
@@ -341,9 +347,12 @@ class TestDetailsDescribeTheRefusalNotTheServer:
     names what the reader can act on; where the server looked and what a vendor
     SDK's `__str__` said belong in the log.
 
-    Both are exercised through the app rather than asserted on the exception,
-    because the leak is what reaches the wire - the same vehicle the class above
-    uses, `GET /users/avatar/{user_id}`, whose handler is the global one.
+    Each refusal is raised by the real call site and then carried through the
+    app, because what a service put in `details` and what a caller can read are
+    two assertions and only the second one is the defect. The vehicle is the
+    class above's - `GET /users/avatar/{user_id}` with the service mocked to
+    raise it - so none of these travels its own route; the handler is global,
+    and it is the handler that decides what reaches the wire.
     """
 
     @staticmethod
@@ -458,10 +467,13 @@ class TestDetailsDescribeTheRefusalNotTheServer:
         self, client: AsyncClient
     ):
         """The refusal is *about* the credential in the URL, so echoing it back
-        would write it into the response and into the handler's log line."""
-        from app.services.model_profile import validate_endpoint_url
+        would write it into the response and into the handler's log line.
 
-        with pytest.raises(AppException) as refusal:
+        The substring assertion is not a restatement of the one above it: the
+        envelope carries `message` as well as `details`, and a refusal that
+        named the endpoint in prose would leak the same password.
+        """
+        with pytest.raises(BadRequestError) as refusal:
             await validate_endpoint_url("https://svc:hunter2@models.internal/v1")
 
         response = await self._refusal_on_the_wire(client, refusal.value)

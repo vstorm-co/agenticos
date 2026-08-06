@@ -254,4 +254,3 @@ async def test_an_admin_password_change_is_audited_by_field_not_by_value(
     entry = mock_db_session.add.call_args.args[0]
     assert entry.action == "admin.user.update"
     assert entry.details == {"fields": ["full_name", "password"]}
-    assert "correct-horse-battery" not in str(entry.details)
