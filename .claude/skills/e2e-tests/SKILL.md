@@ -63,10 +63,17 @@ It does **not** promise the row is rendered, and that is not a shortcut — the 
 refetch is sometimes answered with the pre-write list even though the row is committed
 and both server layers return it (**#230**, about one run in eight). Two consequences:
 
-- **A fixture step asks the API.** Every step of `seed.setup.ts` asserts through
-  `/api/…` now, because its job is that the fixture exists. Whether it renders is a
-  product claim, and `vault.spec.ts` / `skills.spec.ts` make it against the rows the
-  seed left, on pages they loaded themselves.
+- **A fixture step asks the API, and asks more than once.** Every step of
+  `seed.setup.ts` asserts through `/api/…` now, because its job is that the fixture
+  exists. Whether it renders is a product claim, and `vault.spec.ts` /
+  `skills.spec.ts` make it against the rows the seed left, on pages they loaded
+  themselves. Asking the API is not enough on its own: **a 2xx from this backend
+  means the request was answered, not that the write is readable.** The commit sits
+  in a `Depends`-with-`yield` exit code, which FastAPI unwinds after the response
+  has gone out (**#353**) — measured at 21.7ms on one acceptance. So a fixture check
+  is `nowThere`, a poll, never a single read. The membership step was the one site
+  #222 missed when it converted the file, and it cost 87 skipped specs three times
+  in a day (**#335**).
 - **A product spec about the rendering reloads first**, marked `#230`, until that
   issue closes.
 
