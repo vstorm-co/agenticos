@@ -177,6 +177,19 @@ prod-logs:
 quickstart: dev
 
 # === Setup ===
+# Both halves of the toolchain, because `check` runs both. eslint, prettier, tsc,
+# vitest and next all live in `frontend/node_modules` and nowhere else, so a setup
+# that installs only the backend leaves `lint`, `lint-frontend`, `test-frontend`,
+# `build-frontend` and therefore `check` failing with `eslint: command not found`
+# - and `check` runs the backend half first, so it says so four minutes in.
+# `node_modules` is per-checkout and not shared between worktrees, which is why
+# this is owed on every clone rather than once a laptop.
+#
+# It runs last on purpose. It is the step most likely to fail on a given machine -
+# no network, a proxy, a lockfile wanting a newer bun - and make stops at the first
+# line that fails, so in front of the hooks it would leave somebody with no
+# `commit-msg` hook and nothing refusing a commit on `main`, for a reason whose
+# error message was about bun.
 install:
 	uv sync --directory backend --dev
 	@if git rev-parse --git-dir > /dev/null 2>&1; then \
@@ -185,6 +198,7 @@ install:
 		echo "⚠️  Not a git repository - skipping pre-commit install"; \
 		echo "   Run 'git init && make install' to set up pre-commit hooks"; \
 	fi
+	cd frontend && bun install --frozen-lockfile
 	@echo ""
 	@echo "✅ Installation complete!"
 	@echo ""
@@ -626,7 +640,7 @@ help:
 	@echo "  make prod           Production stack (requires backend/.env + nginx)"
 	@echo ""
 	@echo "Setup (without Docker):"
-	@echo "  make install       Install Python deps + pre-commit hooks"
+	@echo "  make install       Install Python + frontend deps and the pre-commit hooks"
 	@echo ""
 	@echo "Development:"
 	@echo "  make run           Start dev server (with hot reload)"
