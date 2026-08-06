@@ -12,10 +12,15 @@ weeks later (#423).
 
 So the exception's own text stays in the `logger.exception` beside the call and
 goes no further, and what is stored says which stage gave up, what class of
-thing raised, and what the reader can do about it. Nothing is deleted - the log
-is where an operator already looks, `PiiRedactionFilter` scrubs it on the way
-out, and a flow that re-raises still puts the whole traceback in its Prefect
-run.
+thing raised, and what the reader can do about it. Nothing is deleted: the log
+is where an operator already looks, and a flow that re-raises still puts the
+whole traceback in its Prefect run.
+
+The log is a smaller audience than the column, not a safe one. `setup_logging`
+puts `PiiRedactionFilter` on the *root logger*, where it never sees a record
+from a module logger, and the Prefect worker does not call it at all - so
+nothing scrubs these lines today (#440). That is why the rule here is where the
+text may go, rather than what it is allowed to contain.
 """
 
 from __future__ import annotations

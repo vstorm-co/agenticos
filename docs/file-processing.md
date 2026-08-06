@@ -356,7 +356,13 @@ a column is read again weeks later by anyone who opens the failed document. That
 text is not lost: every one of these call sites logs it with `logger.exception`,
 so the worker log has the message and the traceback, and a Prefect flow that
 re-raises has both in its run. `app/services/rag/failures.py` is where the two
-are separated; `PiiRedactionFilter` scrubs the log on the way out.
+are separated.
+
+The log is a smaller audience than the column, not a safe one — treat a worker
+log as something only operators read, and see [#440] for why the redaction
+filter this deployment ships does not currently scrub it.
+
+[#440]: https://github.com/vstorm-co/agenticos/issues/440
 
 
 ### Sync Operations
