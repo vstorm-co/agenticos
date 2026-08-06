@@ -102,7 +102,8 @@ other's.
 That the trigger carries no base filter is asserted rather than assumed, in
 `backend/tests/test_ci_workflow.py`. It has to be: a workflow that does not trigger
 produces no evidence that it did not, so nothing about a run can reveal the
-regression.
+regression. The same file asserts the other property no run can show — that every
+job bounds its own runtime, below.
 
 Two limits worth stating plainly. **A green stacked pull request was checked against
 its parent, not against `main`** — checks belong to a head commit, so retargeting
@@ -110,6 +111,31 @@ carries the old result forward unchanged; that is inherent to stacking rather th
 something a trigger can fix, and it is a reason to keep stacks short. And **CodeQL is
 not configured here**: it runs from GitHub's default setup, whose triggers are not in
 this repository, so whether it reads a stacked pull request is not ours to decide.
+
+### Every job bounds its own runtime
+
+`changes` was the only job in `ci.yml` carrying a `timeout-minutes`, so the other
+seven inherited GitHub's default of **360 minutes**
+([#364](https://github.com/vstorm-co/agenticos/issues/364)). Nothing has ever been
+observed to stall here — this bounds the tail rather than fixing something seen — but
+if one did, its required status check would be held for six hours and nothing in this
+repository would end it sooner.
+
+| Job | Bound | Observed |
+|---|---|---|
+| `changes` | 5 | 7s |
+| `lint` | 10 | 22s |
+| `Security Scan` | 10 | 14s |
+| `docs` | 15 | 4m34s |
+| `test-frontend` | 20 | 5m08s |
+| `docker` | 20 | 2m30s |
+| `test` | 25 | 7m43s |
+| `e2e` | 25 | 8m01s |
+
+Observed times are from run 31116003994, a full matrix on `main`. Each bound is
+several times its job rather than just above it: the timeout exists to end a stall,
+and one tight enough to trim a legitimately cold cache is a red build for a reason
+unrelated to the diff.
 
 ### One run per branch
 

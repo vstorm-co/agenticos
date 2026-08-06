@@ -60,6 +60,20 @@ concurrency:
 permissions:
   contents: read
 
+# **Every job carries a `timeout-minutes`, and #364 is why.** `changes` was the only
+# one that did, so the other seven inherited GitHub's default of 360 minutes: one
+# stalled job would have held a required status check for six hours with nothing in
+# this repository ending it sooner. Nothing has been observed to stall - this is a
+# bound on the tail, not a fix for something seen.
+#
+# Each is set several times the job's observed worst case rather than just above it.
+# The bound exists to end a stall, and a timeout tight enough to trim a legitimately
+# cold cache is a red build for a reason unrelated to the diff. Measured on run
+# 31116003994, a full matrix on `main`: changes 7s, lint 22s, Security Scan 14s,
+# docker 2m30s, docs 4m34s, test-frontend 5m08s, test 7m43s, e2e 8m01s.
+#
+# `backend/tests/test_ci_workflow.py` asserts that a job added later carries one too,
+# and that none is so generous it bounds nothing.
 jobs:
   changes:
     # Which of the three expensive suites this pull request can provably not
@@ -124,6 +138,7 @@ jobs:
     # tracked file rather than a subtree, and a suite that skips is only defensible
     # while something still looks at the whole tree.
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -182,6 +197,7 @@ jobs:
     # check is a pass, so that is a green merge button over a suite that never ran.
     if: ${{ !cancelled() && needs.changes.outputs.backend != 'false' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     services:
       postgres:
         # pgvector, not stock postgres: the RAG store runs
@@ -284,6 +300,7 @@ jobs:
     needs: changes
     if: ${{ !cancelled() && needs.changes.outputs.frontend != 'false' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -336,6 +353,7 @@ jobs:
     # backend, so it is only skippable for a change that touches neither.
     if: ${{ !cancelled() && needs.changes.outputs.e2e != 'false' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     services:
       postgres:
         # pgvector, not stock postgres: the RAG store runs
@@ -513,6 +531,7 @@ jobs:
   security:
     name: Security Scan
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -545,6 +564,7 @@ jobs:
 
   docs:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -573,6 +593,7 @@ jobs:
 
   docker:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: [lint, test]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
