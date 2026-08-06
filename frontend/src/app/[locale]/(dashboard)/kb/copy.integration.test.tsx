@@ -72,8 +72,12 @@ vi.mock("next/navigation", () => ({
   useParams: () => ({ id: "kb-1" }),
 }));
 
+/** What the caller holds, per test. `vi.hoisted` because the factory below runs
+ *  before this module's body does and cannot see a plain `let`. */
+const caller = vi.hoisted(() => ({ holds: [] as string[] }));
+
 vi.mock("@/hooks/use-permissions", () => ({
-  usePermissions: () => ({ can: (permission: string) => permission === Perm.collectionsEdit }),
+  usePermissions: () => ({ can: (permission: string) => caller.holds.includes(permission) }),
 }));
 
 const COLLECTION: KnowledgeBase = {
@@ -163,6 +167,7 @@ async function mountDetail() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  caller.holds = [Perm.collectionsView, Perm.collectionsEdit];
   serve();
 });
 
@@ -191,9 +196,28 @@ describe("what a collection's own page says", () => {
   it("counts the table's own footer through a plural message", async () => {
     await mountDetail();
 
-    expect(
-      screen.getByText(`${MARK}Showing 1 of 57 documents · drag files anywhere to add`),
-    ).toBeVisible();
+    expect(screen.getByText(new RegExp(`^${MARK}Showing 1 of 57 documents`))).toBeVisible();
+  });
+
+  it("offers the drag hint to a caller who may upload", async () => {
+    await mountDetail();
+
+    expect(screen.getByText(new RegExp(`${MARK}drag files anywhere to add$`))).toBeVisible();
+  });
+
+  it("tells a Viewer the count and not to drag files in", async () => {
+    // Every other write affordance here is already gated on `collections:edit`
+    // - Upload, Parse options, the delete menu, the per-row remove button, the
+    // empty state. The footer was copy rather than a control, so it was missed,
+    // and it instructed a Viewer to attempt something `handleFiles` returns
+    // straight back out of and the server would refuse besides.
+    caller.holds = [Perm.collectionsView];
+
+    await mountDetail();
+
+    const footer = screen.getByText(`${MARK}Showing 1 of 57 documents`);
+    expect(footer).toBeVisible();
+    expect(footer).not.toHaveTextContent("drag files anywhere to add");
   });
 
   it("takes a sync source's schedule from the catalog", async () => {
