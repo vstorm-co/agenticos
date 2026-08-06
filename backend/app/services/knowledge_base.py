@@ -5,10 +5,16 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+# Registers every model table on `Base.metadata`, which a caller-chosen collection
+# name is judged against below. The models arrive through `app.repositories` today;
+# naming the dependency here keeps the refusal from resting on somebody else's import.
+import app.db.models  # noqa: F401
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
+from app.db.base import Base
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.resource_grant import Visibility
+from app.db.vector_tables import collides_with_model_table
 from app.repositories import knowledge_base_repo, organization_secret_repo, rag_document_repo
 from app.repositories.rag_document import CollectionCounts
 from app.schemas.knowledge_base import (
@@ -35,6 +41,31 @@ def _derive_collection_name(name: str) -> str:
     """Slugify the KB name and append a short random suffix to avoid collisions."""
     slug = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_") or "kb"
     return f"{slug[:48]}_{secrets.token_hex(3)}"
+
+
+def _refuse_a_model_table_name(collection_name: str | None) -> None:
+    """Refuse a collection whose vector table the models already declare.
+
+    This route is the one that needs its own guard. `POST /rag/collections/{name}`
+    reaches the store, which refuses the name where it builds the table name;
+    creating a knowledge base only writes a row, so nothing would notice until
+    the first ingest hit `rag_documents` - or until the collection was dropped
+    and took every organization's document tracking with it (#345).
+
+    A derived name cannot collide (it carries a random suffix), so this is only
+    ever about a name the caller chose.
+
+    Raises:
+        BadRequestError: The name would land on a table the models own.
+    """
+    if collection_name is None or not collides_with_model_table(
+        collection_name, metadata=Base.metadata
+    ):
+        return
+    raise BadRequestError(
+        message=f"'{collection_name}' is a reserved collection name",
+        details={"collection_name": collection_name},
+    )
 
 
 def _no_knowledge_base(kb_id: UUID) -> NotFoundError:
@@ -224,10 +255,12 @@ class KnowledgeBaseService:
         tenant's embeddings are billed to the tenant rather than the operator.
 
         Raises:
-            BadRequestError: If the named model has no known vector width, or
-                the named key is not an API key this organization holds.
+            BadRequestError: If the named model has no known vector width, the
+                named key is not an API key this organization holds, or the
+                collection name is one the platform's own tables answer to.
         """
         self._check_create_permission(scope=data.scope, ctx=ctx)
+        _refuse_a_model_table_name(data.collection_name)
         config = await self._usable_config(ctx, data.ingestion_config)
         # The creator owns what they create, org scope included: `own` in the
         # permission matrix is meaningless for a row nobody owns, and sharing
