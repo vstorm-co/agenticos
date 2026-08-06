@@ -19,6 +19,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.52] - 2026-08-06
+
+### Fixed
+
+- `scripts/check_i18n.py` skipped any line containing `=>`, because a type like
+  `(() => Promise<void>) | null` reads as a text node to a regex — and an inline
+  handler is the most common thing on a JSX line, so the exemption was far wider
+  than the problem. It also matched nothing when a text node spanned two lines,
+  which the formatter does freely. The guard now masks generics rather than
+  skipping the line, and reads interpolation rules over the whole file (#314).
+- 55 strings across 30 files that those two blind spots had been hiding,
+  including two menu items sitting between translated siblings, and English
+  compiled into the two model-picker components (#332).
+
+
 ## [0.0.51] - 2026-08-06
 
 ### Fixed
