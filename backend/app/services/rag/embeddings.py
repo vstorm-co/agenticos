@@ -83,12 +83,13 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
         """
         if self._client is None:
             if not self._api_key:
-                origin = f" for {self._key_origin}" if self._key_origin else ""
                 details: dict[str, str] = {
                     "setting": "OPENROUTER_API_KEY",
                     "model": self.model,
                 }
+                origin = ""
                 if self._key_origin is not None:
+                    origin = f" for {self._key_origin}"
                     details["key_origin"] = self._key_origin
                 raise ConfigurationError(
                     message=(
