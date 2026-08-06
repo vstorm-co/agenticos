@@ -19,10 +19,13 @@ recognise one. Sharing a string is the easy half. The hard half is
 so "starts with `rag_`" is not a safe test, and an exclusion that got it wrong would
 silence real drift in the one table this project ingests through.
 
-Both sides of that ask it now. `alembic/env.py` asks which tables it must not
+Three sides of that ask it now. `alembic/env.py` asks which tables it must not
 compare; `PgVectorStore.list_collections` asks which are collections, and until it
 did, the prefix alone had it reporting `rag_documents` as a collection called
-`documents` (#339). One question, one answer, whichever direction it is read from.
+`documents` (#339); and `collides_with_model_table` asks it of a name nobody has
+created yet, which is the only moment a collection called `documents` can still be
+refused rather than aimed at the tracking table (#345). One question, one answer,
+whichever direction it is read from.
 """
 
 from __future__ import annotations
@@ -62,3 +65,43 @@ def is_runtime_vector_table(name: str, *, metadata: MetaData) -> bool:
         ```
     """
     return name.startswith(VECTOR_TABLE_PREFIX) and name not in metadata.tables
+
+
+def collides_with_model_table(collection: str, *, metadata: MetaData) -> bool:
+    """Whether a collection by this name would land on a table the models own.
+
+    The store names a collection's table by prefixing it, so `documents` lands on
+    `rag_documents` - the table tracking every ingested document in the
+    deployment, for every organization in it. Nothing about that is visible from
+    the name a caller typed, and the consequence is not a confused read:
+    `delete_collection` issues `DROP TABLE IF EXISTS`, so one tenant tidying up
+    their own collection aims it at everybody's tracking (#345).
+
+    This is the same question :func:`is_runtime_vector_table` answers, asked
+    before the table exists, so it is that function inverted rather than a list of
+    reserved names kept alongside it. The reserved set is therefore whatever the
+    models declare: a second `rag_`-prefixed model table added tomorrow is refused
+    without anybody remembering this function is here.
+
+    Args:
+        collection: A collection name as a caller supplied it.
+        metadata: The metadata to judge against, normally `Base.metadata` - with
+            the same caveat :func:`is_runtime_vector_table` carries. A caller that
+            has not imported the models is asserting an empty metadata, and gets
+            "nothing collides" with no error to say so.
+
+    Note:
+        The name is folded first because the store interpolates it into DDL
+        unquoted and Postgres folds an unquoted identifier: `Documents` reaches
+        the same table `documents` does, so a check comparing the name as typed
+        would refuse one spelling and hand the other a `DROP`.
+
+    Example:
+        ```python
+        collides_with_model_table("documents", metadata=Base.metadata)  # True
+        collides_with_model_table("documents_archive", metadata=Base.metadata)  # False
+        ```
+    """
+    return not is_runtime_vector_table(
+        f"{VECTOR_TABLE_PREFIX}{collection.lower()}", metadata=metadata
+    )

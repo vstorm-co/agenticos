@@ -4,12 +4,19 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 # Registers every model table on `Base.metadata`, which `list_collections` judges a
-# `rag_` table against. Another import already reaches the models today; this one
-# says the listing depends on it, rather than leaving that to a chain belonging to
-# a different concern.
+# `rag_` table against and `_table` refuses a collection name against. Another import
+# already reaches the models today; this one says the store depends on it, rather than
+# leaving that to a chain belonging to a different concern. On an empty metadata both
+# answers invert silently: the listing reports the tracking table as a collection, and
+# a caller may drop it.
 import app.db.models  # noqa: F401
+from app.core.exceptions import BadRequestError
 from app.db.base import Base
-from app.db.vector_tables import VECTOR_TABLE_PREFIX, is_runtime_vector_table
+from app.db.vector_tables import (
+    VECTOR_TABLE_PREFIX,
+    collides_with_model_table,
+    is_runtime_vector_table,
+)
 from app.schemas.rag import RAGDocumentItem, RAGDocumentList
 from app.services.rag.models import (
     CollectionInfo,
@@ -228,8 +235,25 @@ class PgVectorStore(BaseVectorStore):
         The prefix comes from `app/db/vector_tables.py` because `alembic/env.py` has
         to recognise these names to keep them out of `alembic check` - a table created
         here exists in no model and no migration, and read as a table to drop (#288).
+
+        A name whose table the models declare is refused here rather than in
+        `create_collection`, because every method funnels through this one and two
+        of them are destructive. `rag-drop documents --yes` reaches
+        `delete_collection` with no knowledge base, no route and no permission
+        between the operator and `DROP TABLE IF EXISTS` on the tracking table
+        (#345), so a guard on the create path would not have been on that path.
+
+        Raises:
+            ValueError: The name is not a legal identifier.
+            BadRequestError: The collection would land on a table the models own.
         """
-        return f"{VECTOR_TABLE_PREFIX}{_validate_collection_name(name)}"
+        table = f"{VECTOR_TABLE_PREFIX}{_validate_collection_name(name)}"
+        if collides_with_model_table(name, metadata=Base.metadata):
+            raise BadRequestError(
+                message=f"'{name}' is a reserved collection name",
+                details={"collection": name, "table": table.lower()},
+            )
+        return table
 
     async def _for_collection(self, name: str) -> tuple[EmbeddingService, int]:
         """The embedder and vector width this one collection uses.
