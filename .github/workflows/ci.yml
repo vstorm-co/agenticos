@@ -4,11 +4,30 @@ name: CI
 # Work reaches `main` by pull request from a short-lived branch, so the pull
 # request is where these run. The push trigger covers the merge itself - a
 # branch CI ignores is a branch whose status badge means nothing.
+#
+# **`pull_request` carries no `branches:` filter, and that is the point of #359.**
+# That filter matches on the *base*, so a pull request stacked on another feature
+# branch - which is what two branches touching one file are told to do here - matched
+# no trigger at all and ran nothing. Not red, not pending: `gh pr checks` answered
+# "no checks reported" and the rollup was empty, which reads as "still starting" to
+# anybody who does not go looking. Four pull requests merged that way on 2026-08-06,
+# each verified only on somebody's laptop, and the gap closed only when the child was
+# retargeted to `main` after the parent merged - the moment nobody waits seven minutes
+# for a branch that has looked settled for a day.
+#
+# Two things make this cheap rather than a doubling of the bill. The `changes` job
+# below already skips the three expensive suites a diff cannot affect, and it reads
+# `pulls/{n}/files`, which is the diff against *that* pull request's own base - so a
+# stacked child is classified on its own changes rather than on its parent's. And the
+# `concurrency` group is keyed on `github.ref`, so a stacked branch cancels its own
+# superseded runs like any other.
+#
+# The `push` trigger stays pinned to `main`: a branch push is already covered by its
+# pull request, and widening it would run everything twice.
 on:
   push:
     branches: [main, master]
   pull_request:
-    branches: [main, master]
 
 # One run per branch. `CLAUDE.md` asks for a commit and a push per finished piece,
 # which is right - but with nothing cancelling, each push started a fresh 24-minute

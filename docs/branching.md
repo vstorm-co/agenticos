@@ -79,6 +79,38 @@ first version of this got wrong:
 What a change set skips is printed in the `changes` job's log. Locally nothing is
 skipped: `make check` runs the whole set.
 
+### A stacked pull request runs CI too
+
+Two branches that edit the same file are told to stack — the second is opened
+against the first rather than against `main` — so `ci.yml`'s `pull_request` trigger
+carries **no `branches:` filter**. That filter matches on the *base*, and while it
+was there a stacked pull request matched no trigger and ran nothing at all
+([#359](https://github.com/vstorm-co/agenticos/issues/359)).
+
+The dangerous half was not the missing run, it was how it read. A pull request with
+no jobs shows an **empty** checks list, not a red one: `gh pr checks` answers "no
+checks reported" and the rollup is empty, which looks like a run that has not started
+yet. Four pull requests merged that way in one day, each verified only on a laptop.
+Nothing closed the gap until the child was retargeted to `main` after its parent
+merged, which is precisely when nobody waits for a fresh seven-minute run.
+
+It costs little: the `changes` job classifies a stacked child on its own diff — it
+reads `pulls/{n}/files`, which is the comparison against that pull request's own base
+— and the concurrency group below cancels the child's superseded runs like any
+other's.
+
+That the trigger carries no base filter is asserted rather than assumed, in
+`backend/tests/test_ci_workflow.py`. It has to be: a workflow that does not trigger
+produces no evidence that it did not, so nothing about a run can reveal the
+regression.
+
+Two limits worth stating plainly. **A green stacked pull request was checked against
+its parent, not against `main`** — checks belong to a head commit, so retargeting
+carries the old result forward unchanged; that is inherent to stacking rather than
+something a trigger can fix, and it is a reason to keep stacks short. And **CodeQL is
+not configured here**: it runs from GitHub's default setup, whose triggers are not in
+this repository, so whether it reads a stacked pull request is not ours to decide.
+
 ### One run per branch
 
 `ci.yml` carries a concurrency group keyed on `github.ref`, so pushing again to a
