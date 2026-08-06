@@ -1,28 +1,64 @@
-"""The development server survives a worker the kernel kills.
+"""The development server survives a worker the kernel kills, and one that wedges.
 
-`uvicorn --reload` does not: its reloader watches files and nothing else, so an
-OOM-killed worker leaves a zombie, a reloader still politely watching, and a
-container reporting `Up` with nothing listening (#308). These pin the decision
-the supervisor makes about a worker that is gone - replace it, or wait for the
-edit that fixes it - and that the local stack actually runs the supervisor.
+`uvicorn --reload` survives neither: its reloader watches files and nothing else,
+so an OOM-killed worker leaves a zombie, a reloader still politely watching, and
+a container reporting `Up` with nothing listening (#308) - and a worker that is
+alive but whose event loop has stopped turning is not even that visible (#336).
+These pin the decision the supervisor makes about each - replace it, kill and
+replace it, or wait for the edit that fixes it - and that the local stack
+actually runs the supervisor.
 """
 
+import asyncio
+import contextlib
 import logging
+import os
+import signal
 import subprocess
 import sys
+import threading
+import time
+from multiprocessing import Value
+from multiprocessing.context import SpawnProcess
+from multiprocessing.sharedctypes import Synchronized
 from pathlib import Path
-from typing import Any
+from types import FrameType
+from typing import Any, Final
 
 import pytest
 import yaml
 from uvicorn import Config
+from uvicorn._subprocess import get_subprocess
 from uvicorn.supervisors import ChangeReload
+from uvicorn.supervisors.basereload import BaseReload
 
 from cli import reload_supervisor
-from cli.reload_supervisor import APP, WS_PROTOCOL, SupervisedReload, run_reload_server
+from cli.reload_supervisor import (
+    APP,
+    BEAT_INTERVAL,
+    NOT_YET_BEATEN,
+    WEDGED_AFTER,
+    WEDGED_AFTER_ENV_VAR,
+    WS_PROTOCOL,
+    EventLoopHeartbeat,
+    SupervisedReload,
+    run_reload_server,
+    wedged_after_from_environment,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 LOCAL_COMPOSE = REPO_ROOT / "docker-compose.yml"
+
+# Long enough that no scheduling hiccup on a loaded CI runner reads as a wedge,
+# short enough that the test spends a fraction of a second proving one.
+A_SHORT_WEDGE: Final = 0.5
+
+# What a spawned worker gets to answer in before the test gives up on it. Long
+# because a cold interpreter on a loaded runner is slow, and bounded because the
+# regression it guards against is a supervisor that waits for ever.
+A_PATIENT_WAIT: Final = 30.0
+
+pytestmark = pytest.mark.anyio
 
 
 class FakeWorker:
@@ -31,23 +67,80 @@ class FakeWorker:
     def __init__(self, exitcode: int | None, pid: int = 4242) -> None:
         self.exitcode = exitcode
         self.pid = pid
+        self.killed = False
+
+    def kill(self) -> None:
+        self.killed = True
+        self.exitcode = -signal.SIGKILL
+
+    def join(self) -> None:
+        """A killed process is reaped immediately; a fake one has nothing to wait for."""
+
+
+class BeatingWorker:
+    """A stand-in worker: a real event loop running the real heartbeat.
+
+    Module-level and picklable, because `get_subprocess` spawns rather than
+    forks - the same reason `EventLoopHeartbeat` is a class and not a closure,
+    and the reason this is worth running for real: the shared cell has to
+    survive being pickled into a spawned process, which nothing in-process
+    proves.
+
+    It catches `SIGTERM` and leaves the loop to act on it, which is what
+    `uvicorn.Server.capture_signals` does. Without that the stand-in would die
+    on a signal the real worker survives, and the test below would pass against
+    a supervisor that hangs in production.
+    """
+
+    def __init__(self, heartbeat: EventLoopHeartbeat) -> None:
+        self._heartbeat = heartbeat
+        self._should_exit = False
+
+    def __call__(self, sockets: list[Any] | None = None) -> None:
+        signal.signal(signal.SIGTERM, self._request_exit)
+        asyncio.run(self._beat_until_stopped())
+
+    def _request_exit(self, sig: int, frame: FrameType | None) -> None:
+        self._should_exit = True
+
+    async def _beat_until_stopped(self) -> None:
+        while not self._should_exit:
+            await self._heartbeat()
+            await asyncio.sleep(0.05)
 
 
 class RecordingReload(SupervisedReload):
-    """Records the replacement rather than spawning a real worker."""
+    """Records the replacement rather than spawning a real worker.
 
-    def __init__(self, config: Config) -> None:
-        super().__init__(config, target=lambda sockets: None, sockets=[])
+    Only the spawn is stubbed - `BaseReload.restart` in the fixture below - so
+    `SupervisedReload.restart` itself, and the beat it clears, still run.
+    """
+
+    def __init__(self, config: Config, beat: "Synchronized[float]", wedged_after: float) -> None:
+        super().__init__(
+            config,
+            target=lambda sockets: None,
+            sockets=[],
+            beat=beat,
+            wedged_after=wedged_after,
+        )
         self.replacements = 0
 
-    def restart(self) -> None:
-        self.replacements += 1
-        self.process = FakeWorker(None, pid=self.process.pid + 1)
+
+def _record_the_replacement(self: RecordingReload) -> None:
+    self.replacements += 1
+    self.process = FakeWorker(None, pid=self.process.pid + 1)
+
+
+@pytest.fixture
+def beat() -> "Synchronized[float]":
+    """The cell the worker stamps its event loop into, as `run_reload_server` makes it."""
+    return Value("d", NOT_YET_BEATEN)
 
 
 @pytest.fixture
 def supervisor(
-    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, beat: "Synchronized[float]"
 ) -> RecordingReload:
     """A supervisor whose file watcher reports no changes, with its log captured.
 
@@ -57,7 +150,8 @@ def supervisor(
     the assertions can be about what was written rather than about handlers.
     """
     monkeypatch.setattr(ChangeReload, "should_restart", lambda self: None)
-    reloader = RecordingReload(Config(APP, reload=True, ws=WS_PROTOCOL))
+    monkeypatch.setattr(BaseReload, "restart", _record_the_replacement)
+    reloader = RecordingReload(Config(APP, reload=True, ws=WS_PROTOCOL), beat, A_SHORT_WEDGE)
     monkeypatch.setattr(reload_supervisor, "logger", logging.getLogger("tests.reload_supervisor"))
     caplog.set_level(logging.ERROR, logger="tests.reload_supervisor")
     return reloader
@@ -228,3 +322,196 @@ def test_the_local_stack_runs_the_supervisor_and_not_uvicorns_own_reloader() -> 
         "--port",
         "8000",
     ]
+
+
+def test_a_worker_whose_event_loop_stopped_turning_is_replaced(
+    supervisor: RecordingReload, beat: "Synchronized[float]"
+) -> None:
+    """The whole of #336: this worker is alive, so nothing else would ever act on it."""
+    beat.value = time.monotonic() - A_SHORT_WEDGE - 1
+    wedged = FakeWorker(None)
+    supervisor.process = wedged
+
+    assert supervisor.should_restart() is None
+    assert supervisor.replacements == 1
+    assert wedged.killed, "SIGTERM never reaches a wedged worker; the replacement would hang"
+
+
+def test_a_worker_still_beating_is_left_alone(
+    supervisor: RecordingReload, beat: "Synchronized[float]"
+) -> None:
+    """A slow server is not a wedged one, and replacing it drops requests it was serving."""
+    beat.value = time.monotonic()
+    supervisor.process = FakeWorker(None)
+
+    assert supervisor.should_restart() is None
+    assert supervisor.replacements == 0
+
+
+def test_a_worker_that_has_not_beaten_yet_is_left_alone(supervisor: RecordingReload) -> None:
+    """Booting is not wedging.
+
+    The first beat comes from `main_loop`, which runs only once lifespan startup
+    has finished - so a worker importing the application has an empty cell, and
+    judging it on that is a restart loop against a cold container.
+    """
+    supervisor.process = FakeWorker(None)
+
+    assert supervisor.should_restart() is None
+    assert supervisor.replacements == 0
+
+
+def test_a_worker_that_exited_on_its_own_is_not_killed_for_its_stale_beat(
+    supervisor: RecordingReload, beat: "Synchronized[float]"
+) -> None:
+    """Its beat stops when it exits, and respawning it loops on the same traceback.
+
+    Without the guard, the wedge check would undo the one decision
+    `_replace_a_dead_worker` makes deliberately.
+    """
+    beat.value = time.monotonic() - A_SHORT_WEDGE - 1
+    supervisor.process = FakeWorker(1)
+
+    assert supervisor.should_restart() is None
+    assert supervisor.replacements == 0
+
+
+def test_a_replacement_is_not_judged_on_the_beat_of_the_worker_it_replaced(
+    supervisor: RecordingReload, beat: "Synchronized[float]"
+) -> None:
+    """Otherwise the first replacement inherits a stale cell and is killed on the next poll."""
+    beat.value = time.monotonic() - A_SHORT_WEDGE - 1
+    supervisor.process = FakeWorker(None)
+
+    supervisor.should_restart()
+    supervisor.should_restart()
+
+    assert supervisor.replacements == 1
+    assert beat.value == NOT_YET_BEATEN
+
+
+def test_a_worker_wedging_during_shutdown_is_not_replaced(
+    supervisor: RecordingReload, beat: "Synchronized[float]"
+) -> None:
+    """A worker stops beating as it shuts down, and its replacement would be an orphan."""
+    supervisor.should_exit.set()
+    beat.value = time.monotonic() - A_SHORT_WEDGE - 1
+    supervisor.process = FakeWorker(None)
+
+    assert supervisor.should_restart() is None
+    assert supervisor.replacements == 0
+
+
+def test_the_wedge_check_can_be_switched_off(
+    monkeypatch: pytest.MonkeyPatch, beat: "Synchronized[float]"
+) -> None:
+    """A breakpoint blocks the event loop, and no probe can tell that from a deadlock."""
+    monkeypatch.setattr(ChangeReload, "should_restart", lambda self: None)
+    monkeypatch.setattr(BaseReload, "restart", _record_the_replacement)
+    off = RecordingReload(Config(APP, reload=True, ws=WS_PROTOCOL), beat, wedged_after=0)
+    off.process = FakeWorker(None)
+    beat.value = time.monotonic() - A_SHORT_WEDGE - 1
+
+    assert off.should_restart() is None
+    assert off.replacements == 0
+
+
+async def test_the_heartbeat_stamps_the_cell_the_supervisor_reads(
+    beat: "Synchronized[float]",
+) -> None:
+    await EventLoopHeartbeat(beat)()
+
+    assert beat.value == pytest.approx(time.monotonic(), abs=1)
+
+
+def test_the_worker_reports_its_event_loop_through_uvicorns_notify_hook(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`callback_notify` is awaited by `Server.on_tick`, which is the loop itself.
+
+    A thread answering a pipe - what `Multiprocess` asks - keeps answering while
+    the loop is blocked, which is the failure this is for.
+    """
+    captured: list[Config] = []
+    monkeypatch.setattr(Config, "bind_socket", lambda self: None)
+    monkeypatch.setattr(
+        SupervisedReload, "__init__", lambda self, config, **kw: captured.append(config)
+    )
+    monkeypatch.setattr(SupervisedReload, "run", lambda self: None)
+
+    run_reload_server(host="0.0.0.0", port=8000)
+
+    assert isinstance(captured[0].callback_notify, EventLoopHeartbeat)
+    assert captured[0].timeout_notify == BEAT_INTERVAL
+
+
+def test_the_threshold_comes_from_the_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv(WEDGED_AFTER_ENV_VAR, raising=False)
+    assert wedged_after_from_environment() == WEDGED_AFTER
+
+    monkeypatch.setenv(WEDGED_AFTER_ENV_VAR, "0")
+    assert wedged_after_from_environment() == 0
+
+
+def test_a_worker_stopped_mid_flight_is_killed_and_replaced() -> None:
+    """The end of #336, against a process that is genuinely alive and not answering.
+
+    `SIGSTOP` is the cheap way to produce one: the process exists, has no exit
+    code, and runs nothing. It is also the case that pins `kill` over
+    `terminate`. The worker catches `SIGTERM` and acts on it from the event
+    loop, so a wedged one never acts on it at all and the join inside
+    `BaseReload.restart` blocks the supervisor for good - a regression that
+    would hang this test rather than fail it, which is why the replacement runs
+    on a thread the test refuses to wait on indefinitely.
+    """
+    beat: Synchronized[float] = Value("d", NOT_YET_BEATEN)
+    config = Config(APP, reload=True, ws=WS_PROTOCOL)
+    worker = BeatingWorker(EventLoopHeartbeat(beat))
+    supervisor = SupervisedReload(
+        config, target=worker, sockets=[], beat=beat, wedged_after=A_SHORT_WEDGE
+    )
+    supervisor.process = get_subprocess(config, target=worker, sockets=[])
+    supervisor.process.start()
+    wedged = supervisor.process
+    replacing = threading.Thread(target=supervisor._replace_a_wedged_worker, daemon=True)
+    try:
+        _wait_until_beating(beat)
+        os.kill(wedged.pid, signal.SIGSTOP)
+        time.sleep(A_SHORT_WEDGE * 2)
+
+        replacing.start()
+        replacing.join(timeout=A_PATIENT_WAIT)
+
+        assert not replacing.is_alive(), "the supervisor is stuck on a worker that ignores SIGTERM"
+        assert wedged.exitcode == -signal.SIGKILL
+        assert supervisor.process is not wedged
+        _wait_until_beating(beat)
+    finally:
+        # The wedged worker goes first and unjoined: a supervisor still stuck on
+        # it has to be let go before its thread can finish, and joining a process
+        # that thread is already joining is how the cleanup deadlocks in turn.
+        _kill(wedged)
+        if replacing.ident is not None:
+            replacing.join(timeout=A_PATIENT_WAIT)
+        _reap(supervisor.process)
+        _reap(wedged)
+
+
+def _kill(process: SpawnProcess) -> None:
+    """Send `SIGKILL` to a process that may already be gone, and do not wait for it."""
+    with contextlib.suppress(ProcessLookupError):
+        os.kill(process.pid, signal.SIGKILL)
+
+
+def _reap(process: SpawnProcess) -> None:
+    """Kill a process and wait for it, a no-op once it has been reaped already."""
+    _kill(process)
+    process.join()
+
+
+def _wait_until_beating(beat: "Synchronized[float]", timeout: float = A_PATIENT_WAIT) -> None:
+    """Block until the worker has reported its event loop at least once."""
+    deadline = time.monotonic() + timeout
+    while beat.value == NOT_YET_BEATEN:
+        assert time.monotonic() < deadline, "the worker never reported a turning event loop"
+        time.sleep(0.05)
