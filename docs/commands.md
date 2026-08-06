@@ -64,7 +64,7 @@ first if the change is anywhere near the database.
 | `make db-init` | Start PostgreSQL + create initial migration + apply |
 | `make db-migrate` | Create new migration (prompts for message) |
 | `make db-upgrade` | Apply pending migrations |
-| `make db-check` | `alembic check` — fail if a model change has no migration. Non-destructive (it never downgrades), so unlike `test-migrations` it runs inside `make check`; needs a database at head, and skips rather than fails when none answers on 5432 |
+| `make db-check` | `alembic check` — fail if a model change has no migration. Non-destructive (it never downgrades), so unlike `test-migrations` it runs inside `make check`; needs a database at head, and skips rather than fails when none answers on 5432. The vector store's per-collection `rag_<collection>` tables are excluded from the comparison, since nothing models or migrates them — `rag_documents`, which is a model table, is not |
 | `make db-downgrade` | Rollback last migration |
 | `make db-current` | Show current migration revision |
 | `make db-history` | Show full migration history |
