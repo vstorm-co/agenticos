@@ -45,7 +45,7 @@ systemd's watchdog uses. The callback stamps `time.monotonic()` into a shared
 cell; the supervisor reads the cell on the same quiet poll as everything else,
 and replaces a worker whose loop has not turned for `WEDGED_AFTER` seconds.
 
-Three properties of that choice are the reason for it:
+Four properties of that choice are the reason for it:
 
 - **It measures liveness, not readiness.** The beat is a callback on an
   otherwise idle timer, so it costs nothing and answers in milliseconds however
@@ -81,6 +81,9 @@ Three properties of that choice are the reason for it:
   - starts only once lifespan startup has finished, so a worker hung on a
   database connect at boot never beats and is never judged. Judging it would
   mean a startup grace period long enough to be meaningless on a cold container.
+  `shutdown` inherits the gap: with nothing to judge it cannot escalate, so
+  Ctrl+C on a worker hung against a Postgres that is down still waits out
+  Docker's grace period.
 - **The dev and production stacks.** Neither runs this module: `docker-compose-dev.yml`
   is a single unsupervised uvicorn and `docker-compose-prod.yml` is `--workers`,
   where uvicorn's own `Multiprocess` pings over the pipe described above.
@@ -138,7 +141,10 @@ BEAT_INTERVAL: Final = 1
 # mistakes is not symmetric: replacing a wedged worker late costs seconds on a
 # laptop, and replacing a healthy one early drops in-flight requests. Fifteen
 # seconds of an event loop not turning is not load - a loaded loop still runs a
-# timer callback in milliseconds - it is blocked, stopped or deadlocked. The
+# timer callback in milliseconds - it is blocked, stopped or deadlocked. It also
+# leaves room for the beat's own jitter: `on_tick` schedules on `time.time()`
+# while the verdict is monotonic, so a backwards clock step delays a beat by the
+# size of the step. Fifteen seconds absorbs that; two would not. The
 # supervisor notices within `WEDGED_AFTER` plus the two polls
 # `POLLS_BEFORE_WEDGED` costs, so about twenty-five seconds, against the ninety a
 # container health check takes to reach a verdict nothing acts on.
@@ -249,11 +255,14 @@ class SupervisedReload(ChangeReload):
         on it and killed on the next poll.
 
         The cell is cleared *after* the replacement, not before. `Server.on_tick`
-        awaits `callback_notify` before it checks `should_exit`, so a worker that
-        has just been sent `SIGTERM` gets one more tick and beats one last time
-        on roughly one restart in ten. Clearing first would hand that beat to the
+        awaits `callback_notify` before it checks `should_exit`, so a worker sent
+        `SIGTERM` inside the second before its next beat is due gets one more
+        tick and beats one last time. Clearing first would hand that beat to the
         replacement, which is then judged on it while it is still importing the
-        application.
+        application. `BaseReload.restart` joins the old worker before it spawns
+        the new one, so by the time this line runs the last gasp has landed and
+        there is nothing left to write the cell but the replacement - which
+        cannot, until lifespan startup finishes seconds later.
         """
         super().restart()
         self._beat.value = NOT_YET_BEATEN
@@ -266,6 +275,13 @@ class SupervisedReload(ChangeReload):
         `docker compose stop` would block until the ten-second grace period ran
         out and Docker killed the container. A worker that is merely running
         still gets `SIGTERM` and still drains its connections.
+
+        There is one shot at this, so the verdict is the instantaneous one -
+        `POLLS_BEFORE_WEDGED` cannot apply to a decision taken once. A healthy
+        worker whose host has just thawed is therefore killed rather than
+        drained. On a development server, dropping the requests in flight beats
+        hanging the terminal, and it is the same trade the container's own
+        `SIGKILL` makes ten seconds later.
         """
         silent_for = self._silent_for()
         if silent_for is not None:
@@ -382,7 +398,7 @@ def run_reload_server(*, host: str, port: int) -> None:
     port that never stopped being bound, and hand the worker the heartbeat it
     reports its event loop through.
     """
-    beat = RawValue("d", NOT_YET_BEATEN)
+    beat: c_double = RawValue("d", NOT_YET_BEATEN)
     config = Config(
         APP,
         host=host,
