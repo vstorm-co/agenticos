@@ -875,6 +875,17 @@ def _seeded_registry(
                 extra={"subagent": specialist.name, "model": specialist.model},
             )
             continue
+        # Recorded here as well as in `_specialist_factory`, because a specialist
+        # kept across an approval park is re-registered through this path rather
+        # than the factory - and a `task` to it *after* the resume would otherwise
+        # open a panel carrying no definition, hiding the promote offer on the one
+        # kind of specialist the offer exists for, while it is visibly working.
+        journal.record_dynamic_definition(
+            name=specialist.name,
+            description=specialist.description,
+            instructions=specialist.instructions,
+            model=specialist.model,
+        )
         config = SubAgentConfig(
             name=specialist.name,
             description=specialist.description,
