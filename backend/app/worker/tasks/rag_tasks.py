@@ -31,6 +31,7 @@ from app.services.ingestion_config import (
 from app.services.rag.config import DocumentExtensions
 from app.services.rag.connectors import CONNECTOR_REGISTRY
 from app.services.rag.embeddings import EmbeddingService
+from app.services.rag.failures import IngestionStage, failure_summary
 from app.services.rag.ingestion import IngestionService
 from app.services.rag.models import IngestionStatus
 from app.services.rag.vectorstore import EmbeddingResolver
@@ -194,15 +195,25 @@ async def ingest_document_flow(
     source_path: str,
     replace: bool = False,
 ) -> dict[str, Any]:
-    """Process a document: parse, chunk, embed, store in vector DB."""
+    """Process a document: parse, chunk, embed, store in vector DB.
+
+    The row this puts an error on is read on the documents page, so what lands
+    there is a summary rather than the exception's own text (#423). The text
+    itself is in this flow's log twice over - the line below, and the traceback
+    Prefect records because the failure is re-raised.
+    """
     logger.info("Starting ingestion: %s -> %s", source_path, collection_name)
     try:
         return await _run_ingestion(
             rag_document_id, collection_name, filepath, source_path, replace
         )
     except Exception as exc:
-        logger.error("Ingestion failed: %s", exc)
-        await _update_status(rag_document_id, "error", error_message=str(exc))
+        logger.exception("Ingestion failed for %s", source_path)
+        await _update_status(
+            rag_document_id,
+            "error",
+            error_message=failure_summary(exc, stage=IngestionStage.INGEST),
+        )
         raise
 
 
@@ -215,8 +226,10 @@ async def sync_collection_flow(
     try:
         return await _run_sync(sync_log_id, source, collection_name, mode, path)
     except Exception as exc:
-        logger.error("Sync failed: %s", exc)
-        await _update_sync_log(sync_log_id, "error", error_message=str(exc))
+        logger.exception("Sync failed for %s -> %s", source, collection_name)
+        await _update_sync_log(
+            sync_log_id, "error", error_message=failure_summary(exc, stage=IngestionStage.SYNC)
+        )
         raise
 
 
@@ -275,8 +288,13 @@ async def _run_ingestion(
                 replace=replace,
                 source_path=source_path,
             )
-    except Exception as e:
-        await _update_status(rag_document_id, "error", error_message=str(e))
+    except Exception as exc:
+        logger.exception("Indexing failed for %s", source_path)
+        await _update_status(
+            rag_document_id,
+            "error",
+            error_message=failure_summary(exc, stage=IngestionStage.INDEX),
+        )
         raise
     finally:
         await _record_embedding_spend(
@@ -301,8 +319,13 @@ async def _run_ingestion(
             await RAGDocumentService(db).complete_ingestion(
                 rag_document_id, vector_document_id=result.document_id
             )
-    except Exception as e:
-        await _update_status(rag_document_id, "error", error_message=str(e))
+    except Exception as exc:
+        logger.exception("Indexed %s but could not record it", source_path)
+        await _update_status(
+            rag_document_id,
+            "error",
+            error_message=failure_summary(exc, stage=IngestionStage.RECORD),
+        )
         raise
 
     logger.info("Ingestion complete: %s", source_path)
@@ -502,11 +525,14 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
             try:
                 await assert_organization_within_budget(db, organization_id)
             except BudgetExceeded as exc:
-                await RAGSyncService(db).complete_sync(
-                    log_id, status="error", error_message=str(exc)
-                )
-                await source_svc.update_after_sync(source_id, status="error", error=str(exc))
-                return {"status": "error", "message": str(exc)}
+                # Through `failure_summary` like every other stored failure,
+                # which hands this one back whole: the ceiling and both numbers
+                # are ours, they are the organization's own, and they are what
+                # the person reading a stopped sync needs (#423).
+                reason = failure_summary(exc, stage=IngestionStage.SYNC)
+                await RAGSyncService(db).complete_sync(log_id, status="error", error_message=reason)
+                await source_svc.update_after_sync(source_id, status="error", error=reason)
+                return {"status": "error", "message": reason}
 
         ingestion_svc = await _ingestion_service_for(
             db,
