@@ -408,8 +408,9 @@ jobs:
         #
         #   reviewed  the reviewer read the diff and answered. Zero findings is
         #             a real answer and the most common one.
-        #   declined  a decision this workflow made - nothing to review, or a
-        #             diff over the line cap. Working as intended.
+        #   declined  no review, and nothing is wrong - nothing to review, a
+        #             diff over the line cap, or a run cancelled because a newer
+        #             one for the same pull request replaced it.
         #   broken    the reviewer could not run. Nothing was reviewed, the
         #             comment says so in those words, and the job fails.
         env:
