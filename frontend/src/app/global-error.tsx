@@ -47,6 +47,7 @@ export default function GlobalError({
               letterSpacing: "-0.025em",
             }}
           >
+            {/* i18n-exempt: outside next-intl's provider - this boundary replaces the root layout */}
             Something went wrong
           </h1>
           <p
@@ -88,6 +89,7 @@ export default function GlobalError({
                 color: "#fff",
               }}
             >
+              {/* i18n-exempt: outside next-intl's provider, as above */}
               Try again
             </button>
             {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}

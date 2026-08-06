@@ -102,7 +102,7 @@ export function PrivacyBodyEn() {
 
       <h2>{t("n11Contact")}</h2>
       <p>
-        Questions or requests: <a href="mailto:privacy@example.com">{t("privacyExampleCom4")}</a>.
+        {t("questionsRequests")} <a href="mailto:privacy@example.com">{t("privacyExampleCom4")}</a>.
       </p>
     </>
   );
@@ -207,7 +207,7 @@ export function PrivacyBodyPl() {
 
       <h2>{t("n11Kontakt")}</h2>
       <p>
-        Pytania lub żądania: <a href="mailto:privacy@example.com">{t("privacyExampleCom6")}</a>.
+        {t("pytaniaLubDania")} <a href="mailto:privacy@example.com">{t("privacyExampleCom6")}</a>.
       </p>
     </>
   );

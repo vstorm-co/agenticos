@@ -33,8 +33,9 @@ export function SlashCommandPalette({
     return (
       <div className="border-foreground/10 bg-popover absolute bottom-full left-0 mb-2 w-full max-w-sm rounded-xl border p-3 shadow-lg">
         <p className="text-foreground/55 text-xs">
-          No matching commands. Press <kbd className="font-mono">{t("esc")}</kbd>
-          {t("dismiss")}
+          {t.rich("noMatching", {
+            key: (chunks) => <kbd className="font-mono">{chunks}</kbd>,
+          })}
         </p>
       </div>
     );

@@ -2,6 +2,7 @@
 
 import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { problemList } from "@/lib/api-error";
@@ -152,6 +153,9 @@ export function useAgents({ includeArchived = false }: { includeArchived?: boole
 /** One agent, with the spec currently being edited. */
 export function useAgent(agentId: string | null) {
   const queryClient = useQueryClient();
+  // The one toast here the catalog already had a message for (#425). The rest of
+  // this file still writes its own, and no catalog message covers them.
+  const t = useTranslations("agents");
 
   const { data, isLoading } = useQuery({
     queryKey: qk.agents.detail(agentId ?? ""),
@@ -225,7 +229,7 @@ export function useAgent(agentId: string | null) {
     mutationFn: (file: File) => apiClient.upload<Agent>(`/agents/${agentId}/avatar`, file),
     onSuccess: async () => {
       await invalidate();
-      toast.success("Avatar updated");
+      toast.success(t("avatarUpdated"));
     },
     onError: (error) => toast.error(getErrorMessage(error)),
   });
