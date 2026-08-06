@@ -19,6 +19,25 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.56] - 2026-08-06
+
+### Changed
+
+- The last four route handlers that read a repository directly now go through a
+  service, which is what `.claude/rules/architecture.md` has always asked for:
+  the audit listing, a knowledge base's sync logs, an org integration's sync
+  logs, and the vault key a provider catalog is fetched with (#232).
+- `AuditService` is new. The `/audit` route held "an entry belongs to exactly one
+  organization" as a keyword argument it filled in itself, which is a scope no
+  service test can see and one the next reader of that entity would have had to
+  know to repeat.
+- Both surfaces showing a sync source's history read it through
+  `SyncSourceService.list_logs` rather than each carrying its own query and its
+  own copy of the same twelve-field mapping.
+- The provider-listing key moves out of a private helper in the route and into
+  `OrganizationSecretService`, so nothing in the HTTP layer unseals a secret.
+
+
 ## [0.0.55] - 2026-08-06
 
 ### Fixed
