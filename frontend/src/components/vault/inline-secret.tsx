@@ -21,7 +21,20 @@ interface InlineSecretProps {
    * who added it can place.
    */
   purpose: string;
-  /** Suggested name - "Tavily", "OpenAI" - so nobody has to invent one. */
+  /**
+   * What this key is called - "Tavily", "OpenAI", "OpenRouter (embeddings)".
+   *
+   * It fills the name field, so nobody has to invent one, and it names the
+   * button that opens the form. Both, because one page can render two of these:
+   * Create knowledge base offers an embedding key and a model-provider key four
+   * inches apart, and a button labelled "Add a key" twice is two writes a screen
+   * reader cannot tell apart and a test can only distinguish by DOM position.
+   *
+   * The button appends rather than inflects it - "Add a key: Daytona API key",
+   * not "Add Daytona API key key". Callers name their key in whatever words
+   * their own surface uses, some of them ending in "key" or "token" already, and
+   * a label built by inflection is only grammatical for the ones that do not.
+   */
   suggestedName: string;
   /** Where to get the key, when there is an obvious answer. */
   helpUrl?: string;
@@ -79,7 +92,7 @@ export function InlineSecret({
           }}
         >
           <Plus className="h-3.5 w-3.5" />
-          {t("addKey")}
+          {t("addKeyNamed", { name: suggestedName })}
         </Button>
         {/* Beside it, always. This form takes one shape - an opaque `api_key` -
             and the vault takes every other: an AWS pair, a service-account JSON,

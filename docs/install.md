@@ -122,6 +122,27 @@ part is missing rather than that something failed.
 | A port is already taken (3000, 5432, 6379, 8000, 4200) | Something else is on it. `make dev-down`, stop the other process, start again |
 | Anything stranger | `make docker-clean` wipes containers, networks **and volumes** - all local data - then `make dev` from scratch |
 
+### The health column is worth reading
+
+Every backend service has a probe, so `docker compose ps` is a first diagnosis
+rather than decoration:
+
+| Service | `healthy` means |
+|---|---|
+| `app` | `GET /api/v1/health` answered 200 — uvicorn is serving |
+| `prefect-runner` | it polled the Prefect API within the last 20 seconds |
+| `db` · `redis` · `prefect-server` | `pg_isready` · `PING` · `GET /api/health` |
+| `sandboxd` | `GET /healthz` — its own image's probe, not one of ours |
+
+The runner's probe is Prefect's own runner webserver, bound to `127.0.0.1:8080`
+inside the container and reachable from nowhere else. A runner whose process is
+alive but no longer polling turns `unhealthy` inside a minute — up to 20 seconds
+before `/health` starts answering 503, then three failed probes 15 seconds apart;
+42 seconds when it was measured. It used to be `unhealthy` from the second it
+started, because it inherited the API's HTTP probe from the image the two
+services share. `backend/Dockerfile` now carries no
+`HEALTHCHECK` at all — see [Configuration](configuration.md#background-work-prefect).
+
 ## The database must be pgvector
 
 Not stock Postgres. The retrieval store issues
@@ -168,8 +189,34 @@ does not.
 make install                                    # uv sync + pre-commit
 docker compose -f docker-compose.yml up -d db redis
 make db-upgrade                                 # apply migrations
-make run                                        # uvicorn --reload
+make run                                        # uvicorn --reload, supervised
 ```
+
+!!! note "The reloader is supervised"
+
+    `--reload` runs under `backend/cli/reload_supervisor.py` rather than
+    uvicorn's reloader alone. Uvicorn's watches files and nothing else, so a
+    worker the kernel kills — an out-of-memory kill being the realistic way — is
+    neither reaped nor replaced: the reloader keeps watching while no port is
+    listening, and inside a container that means PID 1 is still alive,
+    `docker ps` still says `Up`, and the restart policy has nothing to act on.
+    A worker killed by a signal is now replaced within about five seconds. One
+    that exited on its own still waits for the edit that fixes it.
+
+    A **wedged** worker is replaced too — alive, but with an event loop that has
+    stopped turning, which has no exit code and so looks healthy to every other
+    recovery path. It reports its loop to the supervisor once a second, and
+    fifteen seconds of silence gets it killed and replaced. Set
+    `RELOAD_WEDGED_AFTER` in `backend/.env` to change that, or to `0` to switch
+    it off — which is what you want while debugging, because a breakpoint blocks
+    the event loop and no probe can tell that from a deadlock.
+
+    This is the reload path only. `make dev-server` runs a single unsupervised
+    uvicorn, so a kill takes PID 1 with it and `restart: unless-stopped`
+    restarts the container, and a wedge is not covered at all; `make prod` runs
+    `--workers 4`, where uvicorn's own `Multiprocess` supervisor replaces a dead
+    worker twice a second and pings the rest over a pipe — which a worker
+    answers from a thread, so a blocked event loop there is invisible.
 
 !!! note "Python is pinned to 3.12"
 

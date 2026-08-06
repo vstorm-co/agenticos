@@ -1,5 +1,26 @@
 # Automated pull request review
 
+!!! warning "The reviewer is switched off on pull requests — [#311](https://github.com/vstorm-co/agenticos/issues/311)"
+
+    Since 2026-08-05 evening every run died about twelve seconds into
+    `Review the diff` (`codex exited with code 1`), concluded `success`, and
+    posted "the reviewer did not produce a result" — so eleven pull requests
+    merged with no review and nothing said the reviewer was broken rather than
+    quiet. The `pull_request` trigger has been removed until that is understood;
+    `workflow_dispatch` still works, for testing the fix. Everything below
+    describes the workflow as it will behave when the trigger is restored, and
+    [When it runs](#when-it-runs) says what is live today.
+
+    The **reporting** half of #311 is fixed: a run that does not review now
+    fails and says which stage broke, in the words Codex used —
+    [What a failed run looks like](#what-a-failed-run-looks-like). The cause is
+    not: the log for the whole outage reads `Your project has reached its
+    configured enforced spend limit`, which is a setting in the OpenAI project,
+    not in this repository.
+
+    Until the trigger is back the review before a merge is a human one, plus the
+    local `/review` command in `.claude/commands/review.md`.
+
 A GitHub Action reviews pull requests against **this repository's own standard**.
 It is not a linter with a language model attached: the prompt in
 `.github/codex/review-prompt.md` tells the reviewer to read `CLAUDE.md` and
@@ -32,9 +53,16 @@ is the second half of this page.
 
 | Trigger | Who | Note |
 |---|---|---|
-| A pull request is opened, reopened or marked ready | automatic | Drafts are skipped |
-| The `ai-review` label is added | anyone with write access | On demand |
-| `workflow_dispatch` with a pull request number | write access | Manual, for testing |
+| `workflow_dispatch` with a pull request number | write access | Manual, for testing. **The only live trigger today** |
+| A pull request is opened, reopened or marked ready | automatic | Drafts are skipped. Removed by [#311](https://github.com/vstorm-co/agenticos/issues/311) |
+| The `ai-review` label is added | anyone with write access | On demand. Removed by [#311](https://github.com/vstorm-co/agenticos/issues/311) |
+
+The last two rows are what the workflow does when the `pull_request` trigger is
+in it. Restoring them is putting two lines back at the top of
+`.github/workflows/ai-review.yml` — the label gate, the draft gate and the fork
+refusal were left in place, so nothing else has to be rebuilt. Adding the label
+today does nothing at all, which is the point: it is visibly not running rather
+than running and reporting nothing.
 
 Deliberately **not** on `synchronize`. Two developers, a dozen pushes per pull
 request: a review on every one of them is a review nobody reads. Ask for a
@@ -69,7 +97,7 @@ middle job runs a model over code the pull request controls.
 |---|---|---|
 | `context` | `pull-requests: read` | no |
 | `review` | `contents: read` | **yes** |
-| `publish` | `pull-requests: write` | no |
+| `publish` | `pull-requests: write`, `actions: read` | no |
 
 The job with `OPENAI_API_KEY` can write nothing back — no comment, no label, no
 ref — whatever the model is talked into. The job that writes has never seen the
@@ -132,11 +160,82 @@ itself in the summary comment.
   patch hunks first and demotes an unanchorable finding into the summary rather
   than losing it to a 422 — and catches the 422 as well, for the force-push
   that lands between the two jobs.
-- **A failed run.** If the reviewer produces nothing, the summary comment says
-  so and links the run. Silence would read as "no findings".
+- **A failed run.** The `review` job fails, and the comment says the reviewer
+  failed rather than that it had nothing to say. See below.
 
 Re-runs replace rather than pile up: the summary comment is upserted on an HTML
-marker, and the previous run's inline comments are deleted first.
+marker, and the previous run's inline comments are deleted first — but only by a
+run that reviewed. A broken run has nothing to replace them with, and deleting
+findings somebody has not finished acting on because the reviewer went down is
+the wrong half of "replace".
+
+## What a failed run looks like
+
+`Normalize the result` classifies every run into one of three, and that word
+decides both the heading on the comment and whether the job goes red.
+
+| Status | When | The job | The comment says |
+|---|---|---|---|
+| `reviewed` | Codex answered with the schema — `summary` plus a `findings` **list** | green | `## AI review`. With no findings: "the reviewer read the diff and had nothing to report" |
+| `declined` | Nothing to review, a diff over the line cap, or the run was cancelled | green | `## AI review — declined`, and which of the three |
+| `broken` | Misconfigured, no prompt on the base branch, Codex exited non-zero or never ran, or output that is not the schema | **red** | `## AI review — the reviewer failed`, then "Nothing here was reviewed" |
+
+Three edges of that table are the ones worth knowing, because each has a wrong
+answer that looks reasonable:
+
+- **A cancelled run is `declined`, not `broken`.** `cancel-in-progress` is on, so
+  a second dispatch for one pull request cancels the first — and `Normalize the
+  result` runs anyway, because `always()` covers cancellation. Reporting a dead
+  reviewer on a pull request whose replacement run is already in flight is the
+  #311 mistake pointing the other way.
+- **`findings` has to be a list, not merely present.** `{"findings": null}`
+  passes a key check, and `publish` reads it through
+  `Array.isArray(…) ? … : []` — so a malformed answer would render as "the
+  reviewer read the diff and had nothing to report", which is #311's sentence
+  again with a different cause.
+- **A `review` job that fails *before* `Normalize the result` is red with no
+  comment.** A failed checkout, a base branch missing `review-schema.json`: there
+  is no status, so `publish` is skipped. That is not new and not silent — the job
+  is red, which is the whole point — but it is the one path where the pull
+  request page carries the failure and nothing else does.
+
+The `broken` comment carries what Codex printed, in a `<details>` block. That is
+read back out of the run's own job log by `publish`, which is why that job holds
+`actions: read` — a `uses:` step's stderr goes nowhere else, and for the whole of
+#311 the one line that mattered was sitting at the bottom of a green job:
+
+```text
+ERROR: stream disconnected before completion: Your project has reached its
+configured enforced spend limit.
+```
+
+That block is log text in a public comment, which is worth being deliberate
+about: this repository's Actions logs are public too, and GitHub masks
+registered secrets before serving either, so a reader learns nothing there that
+the link to the run did not already give them.
+
+Three things about this worth knowing before changing it.
+
+**Red, not neutral.** The check is advisory and not required, so a red mark
+costs nobody a merge; it only makes an outage visible on the page somebody is
+already reading. A neutral conclusion renders as a grey tick, which is the thing
+#311 was about.
+
+**`Review the diff` still carries `continue-on-error`, and the job fails at its
+last step instead.** Failing at the Codex step would skip the two steps that
+write and upload the comment, and the pull request would get a red mark with no
+explanation. Read `steps.codex.outcome`, never `steps.codex.conclusion`: under
+`continue-on-error` the conclusion is `success` by construction, which is
+precisely how this stayed invisible.
+
+**`publish` is gated on `needs.review.outputs.status`, not on
+`needs.review.result`.** A job that deliberately fails is exactly the run whose
+comment matters most, so what decides whether the comment is posted is whether
+there is one to post.
+
+`backend/tests/test_ai_review_outcome.py` extracts that step from the workflow
+and runs it, because nothing else would: `actionlint` checks the YAML and
+`zizmor` the permissions, and neither executes the script.
 
 ## Setup
 

@@ -5,12 +5,15 @@ from typing import Any
 from pydantic import Field, field_validator
 
 from app.schemas.base import BaseSchema
+from app.services.rag.config import DEFAULT_COLLECTION_NAME
 
 
 class RAGSearchRequest(BaseSchema):
     """Parameters for a vector search query."""
 
-    collection_name: str = Field("documents", description="Target collection for search")
+    collection_name: str = Field(
+        DEFAULT_COLLECTION_NAME, description="Target collection for search"
+    )
     collection_names: list[str] | None = Field(
         None, description="Search across multiple collections (overrides collection_name)"
     )
@@ -157,7 +160,7 @@ class RAGRetryResponse(BaseSchema):
 class RAGSyncRequest(BaseSchema):
     """Request to trigger a sync operation."""
 
-    collection_name: str = Field("documents", description="Target collection")
+    collection_name: str = Field(DEFAULT_COLLECTION_NAME, description="Target collection")
     mode: str = Field("full", description="Sync mode: full, new_only, update_only")
     path: str = Field("", description="Source path")
 

@@ -10,6 +10,31 @@ on:
   pull_request:
     branches: [main, master]
 
+# One run per branch. `CLAUDE.md` asks for a commit and a push per finished piece,
+# which is right - but with nothing cancelling, each push started a fresh 24-minute
+# matrix and left the previous one running to completion, answering a question
+# about a commit nobody was waiting on. 75 of the 369 runs in the first six days of
+# August were superseded while still in flight, about 1,800 billed minutes, and
+# only 2 runs in that window were ever `cancelled`. See #317.
+#
+# `main` is deliberately excluded: the push run is what makes the merge history and
+# the badge mean anything, and a commit whose CI never finished is worse than a
+# minute overspent. `cancel-in-progress: false` is **not** how you exclude it, which
+# is the trap this originally fell into: false means *queue*, and GitHub's rule is
+# that "any existing pending job or workflow in the same concurrency group will be
+# canceled and the new queued job or workflow will take its place". So with one
+# group for `main`, merge A running and B pending, C landing cancels B outright and
+# B's commit gets no CI at all - at fourteen releases in six days plus feature
+# merges, against a ~10 minute `main` run, two merges inside one window is not rare.
+#
+# So `main` is kept out of the group entirely rather than out of the cancelling:
+# `github.run_id` is unique per run, so every push gets a group of its own and
+# neither queues nor cancels. Pull requests all resolve to `-pr` and cancel each
+# other per `github.ref`, which is the whole point.
+concurrency:
+  group: ci-${{ github.ref }}-${{ github.event_name == 'push' && github.run_id || 'pr' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 # Least privilege for every job. Nothing in this workflow writes anything back:
 # the docker job builds with `push: false`, and Codecov uses its own token. A
 # job that later needs more should declare it on itself, not here.
@@ -17,7 +42,68 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    # Which of the three expensive suites this pull request can provably not
+    # affect. `scripts/ci_changed_scope.py` decides, timidly - a path it does not
+    # recognise runs everything - and its docstring says why that direction is the
+    # only safe one. A skipped job satisfies a required status check (GitHub counts
+    # `success`, `skipped` and `neutral`), which is what makes this legal against
+    # the six contexts `main`'s ruleset requires; a workflow-level `paths:` filter
+    # would instead leave those checks never reporting and block every merge
+    # forever, which is the trap named in #317.
+    #
+    # A job of its own rather than a step inside `lint`, at the cost of the one
+    # billed minute GitHub rounds it up to: folding it into `lint` would be free,
+    # but it would put `test`, `test-frontend` and `e2e` behind `needs: lint`, so a
+    # ruff error would skip all three and hide whatever else was broken until the
+    # next push.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # A job-level block *replaces* the workflow-level one rather than adding to it,
+    # so `contents: read` has to be repeated here - this job checks out. Omitting it
+    # works on a public repository, where any token can read public content, and
+    # breaks on the day #317's premise changes and this repository goes private:
+    # a checkout failure that reads like a credentials problem.
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      backend: ${{ steps.scope.outputs.backend }}
+      frontend: ${{ steps.scope.outputs.frontend }}
+      e2e: ${{ steps.scope.outputs.e2e }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Work out which suites the changed paths require
+        id: scope
+        # Nothing is emitted on a push, so every downstream `if:` compares against
+        # an empty string and runs: a merge to `main` gets the whole matrix.
+        #
+        # That covers a *skipped step*. It does not cover this *job* failing - a 502
+        # from the API, a rate limit, `set -euo pipefail` catching anything - because
+        # a failed `needs` skips its dependents without evaluating their `if:` at
+        # all, and a skipped required check is a pass. `changes` is not itself one of
+        # the six required contexts, so nothing would have blocked: the merge button
+        # would go green on a branch where no suite ran. Hence `!cancelled()` on each
+        # gated job, which is what makes them run when this one fails.
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          gh api --paginate \
+            "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
+            --jq '.[] | .filename, (.previous_filename // empty)' \
+            > "$RUNNER_TEMP/changed.txt"
+          python3 scripts/ci_changed_scope.py "$RUNNER_TEMP/changed.txt" >> "$GITHUB_OUTPUT"
+
   lint:
+    # Never gated. It is one billed minute, `make lint-spelling` reads every
+    # tracked file rather than a subtree, and a suite that skips is only defensible
+    # while something still looks at the whole tree.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -28,6 +114,10 @@ jobs:
         uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           version: "latest"
+          # Caches `~/.cache/uv`, keyed on `**/uv.lock`. Without it every job
+          # re-resolved and re-downloaded all 278 locked packages, five times per
+          # run across this workflow. See #317.
+          enable-cache: true
 
       - name: Set up Python
         run: uv python install 3.12
@@ -65,6 +155,13 @@ jobs:
     # runs in the `test` job, where a database exists.
 
   test:
+    needs: changes
+    # Two mechanisms, deliberately both. `!= 'false'` rather than `== 'true'` because
+    # on a push the `changes` step does not run and the empty output has to mean
+    # *run*; `!cancelled()` because a `changes` job that *failed* would otherwise
+    # skip this one without the `if:` being read at all - and a skipped required
+    # check is a pass, so that is a green merge button over a suite that never ran.
+    if: ${{ !cancelled() && needs.changes.outputs.backend != 'false' }}
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -115,6 +212,7 @@ jobs:
         uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           version: "latest"
+          enable-cache: true
 
       - name: Set up Python
         run: uv python install 3.12
@@ -164,6 +262,8 @@ jobs:
           fail_ci_if_error: false
 
   test-frontend:
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.frontend != 'false' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -172,6 +272,18 @@ jobs:
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+
+      # `setup-bun` caches the bun binary, not the packages, so
+      # `bun install --frozen-lockfile` re-downloaded every dependency on every
+      # run. Bun's global install cache is what makes the second run cheap; the
+      # key is the lockfile, so a dependency change invalidates it and nothing
+      # else does.
+      - name: Cache the bun install cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('frontend/bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -200,6 +312,10 @@ jobs:
     # uv, a migrated database, a seeded organization and a running backend;
     # linting needs none of that, and making a formatting error wait on a
     # database pull — or hiding it behind a browser timeout — helps nobody.
+    needs: changes
+    # Exempted from neither half: this job drives the frontend against the
+    # backend, so it is only skippable for a change that touches neither.
+    if: ${{ !cancelled() && needs.changes.outputs.e2e != 'false' }}
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -253,6 +369,7 @@ jobs:
         uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           version: "latest"
+          enable-cache: true
 
       - name: Set up Python
         run: uv python install 3.12
@@ -313,6 +430,13 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
 
+      - name: Cache the bun install cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('frontend/bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+
       - name: Install frontend dependencies
         run: bun install --frozen-lockfile
         working-directory: frontend
@@ -324,7 +448,19 @@ jobs:
         run: bun run build
         working-directory: frontend
 
+      # Chromium is ~170 MB downloaded on every run otherwise. Keyed on the
+      # lockfile, because that is what pins the Playwright version the browser
+      # has to match - a browser cached against a different version is the kind
+      # of failure that reads as a flaky spec.
+      - name: Cache the Playwright browsers
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('frontend/bun.lock') }}
+
       - name: Install Playwright browsers
+        # `--with-deps` still runs: the apt packages Chromium links against live
+        # outside the cached directory, and installing them on a hit is seconds.
         run: bunx playwright install --with-deps chromium
         working-directory: frontend
 
@@ -367,6 +503,7 @@ jobs:
         uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           version: "latest"
+          enable-cache: true
 
       - name: Set up Python
         run: uv python install 3.12
@@ -398,6 +535,7 @@ jobs:
         uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           version: "latest"
+          enable-cache: true
 
       - name: Set up Python
         run: uv python install 3.12

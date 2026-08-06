@@ -24,10 +24,12 @@ function wrapper({ children }: { children: ReactNode }) {
 /**
  * Render the form over a configuration, and hand back what it tried to change.
  *
- * jsdom cannot open a Radix select, so nothing here drives one - the selects are
- * exercised end to end. What is asserted is everything the form decides on its
- * own: which controls exist for a given parser, how an unset value reads, and
- * what leaves through `onChange`.
+ * Nothing here drives a select; they are exercised end to end. This used to say
+ * jsdom cannot open a Radix one, which is not true - `vitest.setup.ts` shims the
+ * pointer-capture methods Radix needs, and `ingestion-settings.integration.test.
+ * tsx` next door opens the provider select. What is asserted here is everything
+ * the form decides on its own: which controls exist for a given parser, how an
+ * unset value reads, and what leaves through `onChange`.
  */
 function show(value: Partial<IngestionConfig> = {}) {
   const onChange = vi.fn<(next: IngestionConfig) => void>();
@@ -45,7 +47,15 @@ function show(value: Partial<IngestionConfig> = {}) {
 describe("IngestionSettings", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    // Everything this form reads is a list, except the caller's own permissions
+    // - which the model field asks for, because whether it may offer to create
+    // a model profile is `connections:manage`. A list-shaped answer there is not
+    // "no permissions", it is a `TypeError` in `usePermissions`.
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+      path === "/me/permissions"
+        ? { organization_id: "org-1", role: "member", is_app_admin: false, permissions: [] }
+        : { items: [], total: 0 },
+    );
   });
 
   it("names every control it renders", () => {
@@ -77,6 +87,25 @@ describe("IngestionSettings", () => {
     show({ pdf_parser: "llamaparse" });
 
     expect(screen.getByLabelText("LlamaParse tier")).toBeInTheDocument();
+  });
+
+  it("tells two LlamaParse keys apart by their masked tails", async () => {
+    // Both are called after the service they are for, because that is what the
+    // inline form suggests - so with only a name in the row, "whose account is
+    // billed" was a choice between two identical options.
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: [
+        { id: "s-1", name: "LlamaParse", hint: "3123", purpose: "llamaparse", kind: "api_key" },
+        { id: "s-2", name: "LlamaParse", hint: "9999", purpose: "llamaparse", kind: "api_key" },
+      ],
+      total: 2,
+    });
+    show({ pdf_parser: "llamaparse" });
+
+    await userEvent.click(screen.getByLabelText("LlamaParse key"));
+
+    expect(await screen.findByRole("option", { name: /····3123/ })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /····9999/ })).toBeInTheDocument();
   });
 
   it("offers OCR language and a timeout to the parser that reads them", () => {

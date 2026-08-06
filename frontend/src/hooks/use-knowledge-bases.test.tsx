@@ -220,22 +220,6 @@ describe("the list of knowledge bases", () => {
     expect(toast.error).toHaveBeenCalledWith("Failed to update knowledge base");
   });
 
-  it("deletes a collection, and reports a refusal", async () => {
-    const { result } = renderHook(() => useKnowledgeBases(), { wrapper });
-
-    await act(async () => {
-      await result.current.deleteKB("kb-1");
-    });
-    expect(apiClient.delete).toHaveBeenCalledWith("/kb/kb-1");
-    expect(toast.success).toHaveBeenCalledWith("Knowledge base deleted");
-
-    vi.mocked(apiClient.delete).mockRejectedValue(new Error("nope"));
-    await act(async () => {
-      await result.current.deleteKB("kb-1");
-    });
-    expect(toast.error).toHaveBeenCalledWith("Failed to delete knowledge base");
-  });
-
   it("puts the renamed collection back in the list, not just a toast", async () => {
     // The toast says it worked; the cache is what the page renders. These were
     // asserted separately from each other until the list was seeded, at which
@@ -258,25 +242,6 @@ describe("the list of knowledge bases", () => {
     await waitFor(() =>
       expect(result.current.kbs.map((kb) => kb.name)).toEqual(["Handbook v2", "Contracts"]),
     );
-  });
-
-  it("takes the deleted collection out of the list", async () => {
-    vi.mocked(apiClient.get).mockResolvedValue({
-      items: [
-        { id: "kb-1", name: "Handbook" },
-        { id: "kb-2", name: "Contracts" },
-      ],
-      total: 2,
-    });
-    vi.mocked(apiClient.delete).mockResolvedValue(undefined);
-    const { result } = renderHook(() => useKnowledgeBases(), { wrapper });
-    await waitFor(() => expect(result.current.kbs).toHaveLength(2));
-
-    await act(async () => {
-      await result.current.deleteKB("kb-1");
-    });
-
-    await waitFor(() => expect(result.current.kbs.map((kb) => kb.id)).toEqual(["kb-2"]));
   });
 
   it("refetches on demand", async () => {
@@ -699,6 +664,50 @@ describe("one collection's page", () => {
 
     await act(async () => {
       await result.current.deleteDocument("d-1");
+    });
+
+    expect(apiClient.delete).not.toHaveBeenCalled();
+  });
+
+  it("deletes the collection and stales the list the caller returns to", async () => {
+    // The page navigates to `/kb` on success, and that list is a query this
+    // hook does not own. Left cached, the collection that was just destroyed is
+    // the first thing waiting there.
+    client.setQueryData(qk.kb.list(), [{ id: "kb-1", name: "Handbook" }]);
+    const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+
+    await act(async () => {
+      await result.current.deleteCollection();
+    });
+
+    expect(apiClient.delete).toHaveBeenCalledWith("/kb/kb-1");
+    expect(client.getQueryState(qk.kb.list())?.isInvalidated).toBe(true);
+    expect(toast.success).toHaveBeenCalledWith("Knowledge base deleted");
+  });
+
+  it("hands a refused collection deletion back rather than letting the page leave", async () => {
+    // Swallowing this is how somebody lands on `/kb` with the collection still
+    // in the list and a toast saying it could not be deleted.
+    const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+    vi.mocked(apiClient.delete).mockRejectedValue(new Error("Not yours to delete"));
+
+    await expect(result.current.deleteCollection()).rejects.toThrow("Not yours to delete");
+    expect(toast.error).toHaveBeenCalledWith("Not yours to delete");
+  });
+
+  it("names a collection deletion that failed without a sentence of its own", async () => {
+    const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+    vi.mocked(apiClient.delete).mockRejectedValue("boom");
+
+    await expect(result.current.deleteCollection()).rejects.toBe("boom");
+    expect(toast.error).toHaveBeenCalledWith("Failed to delete knowledge base");
+  });
+
+  it("deletes no collection when none is open", async () => {
+    const { result } = renderHook(() => useKBDetail(null), { wrapper });
+
+    await act(async () => {
+      await result.current.deleteCollection();
     });
 
     expect(apiClient.delete).not.toHaveBeenCalled();

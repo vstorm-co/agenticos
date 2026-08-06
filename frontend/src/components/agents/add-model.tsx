@@ -5,7 +5,7 @@ import { Check, KeyRound, Plus } from "lucide-react";
 
 import { ModelCombobox } from "@/components/agents/model-combobox";
 import { InlineSecret } from "@/components/vault/inline-secret";
-import { ProviderIcon } from "@/components/vault/provider-icon";
+import { ProviderRow } from "@/components/vault/provider-row";
 import {
   Button,
   Input,
@@ -16,8 +16,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
-import { useModelProviders, useProviderModels, useSecretPurposes, useSecrets } from "@/hooks";
+import {
+  useModelProviders,
+  usePermissions,
+  useProviderModels,
+  useSecretPurposes,
+  useSecrets,
+} from "@/hooks";
 import { getErrorMessage } from "@/lib/utils";
+import { Perm } from "@/types/permissions";
 import type { ModelProfile } from "@/types/providers";
 import { useTranslations } from "next-intl";
 
@@ -100,6 +107,13 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
   const { createProfile, catalog } = useModelProviders();
   const { purposes } = useSecretPurposes();
   const { secrets } = useSecrets();
+  const { can } = usePermissions();
+  // Storing a key is `secrets:edit`, which is a different permission from the
+  // `connections:manage` that lets this form exist at all: somebody may define a
+  // model profile for the organization and still not be allowed to write the
+  // credential it runs on. Offering the form to them is a 403 dressed as a
+  // control.
+  const canStoreKey = can(Perm.secretsEdit);
 
   const [providerId, setProviderId] = useState("");
   const [model, setModel] = useState("");
@@ -189,12 +203,23 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
               {providers.map((entry) => {
                 const keyed = secrets.some((secret) => secret.purpose === entry.id);
                 return (
-                  <SelectItem key={entry.id} value={entry.id}>
-                    <span className="flex w-full items-center gap-2">
-                      <ProviderIcon provider={entry.id} />
-                      <span>{entry.label}</span>
-                      {keyed && <Check className="text-muted-foreground ml-auto h-3.5 w-3.5" />}
-                    </span>
+                  <SelectItem
+                    key={entry.id}
+                    value={entry.id}
+                    // The row draws a mark and a mark has a `<title>`, which
+                    // counts as the item's text: without this, type-to-search
+                    // matches the brand rather than the provider's name.
+                    textValue={entry.label}
+                    // Outside the row on purpose: the trigger mirrors an item's
+                    // text, and a tick there would read as "selected" rather
+                    // than "this provider already has a key".
+                    trailing={
+                      keyed && (
+                        <Check className="text-muted-foreground ml-auto h-3.5 w-3.5 shrink-0" />
+                      )
+                    }
+                  >
+                    <ProviderRow provider={entry.id} name={entry.label} />
                   </SelectItem>
                 );
               })}
@@ -252,9 +277,10 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
                 </SelectTrigger>
                 <SelectContent>
                   {keys.map((secret) => (
-                    <SelectItem key={secret.id} value={secret.id}>
-                      {secret.name}
-                      <span className="text-muted-foreground font-mono"> ····{secret.hint}</span>
+                    <SelectItem key={secret.id} value={secret.id} textValue={secret.name}>
+                      {/* The provider is the filter this list was built with, so
+                          it is also every row's mark - no `purpose` lookup. */}
+                      <ProviderRow provider={provider.id} name={secret.name} hint={secret.hint} />
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -264,16 +290,29 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
 
           {keys.length === 0 && (
             <div className="space-y-2">
+              {/* The sentence stays either way: a panel that simply drops the
+                  form leaves somebody staring at a submit they cannot enable
+                  with nothing saying why. What changes is what it points at -
+                  a field here, or the person who may fill one in. */}
               <p className="text-muted-foreground text-xs">
-                {t("noProviderKeyInVault", { provider: provider.label })}
+                {canStoreKey
+                  ? t("noProviderKeyAddOneHere", { provider: provider.label })
+                  : t("noProviderKeyAskSomebody", { provider: provider.label })}
               </p>
-              <InlineSecret
-                kind="api_key"
-                purpose={provider.id}
-                suggestedName={provider.label}
-                helpUrl={provider.help_url ?? undefined}
-                onCreated={setSecretId}
-              />
+              {canStoreKey && (
+                <InlineSecret
+                  kind="api_key"
+                  purpose={provider.id}
+                  suggestedName={provider.label}
+                  helpUrl={provider.help_url ?? undefined}
+                  onCreated={setSecretId}
+                  // Passed on rather than left to the submit button. This writes
+                  // an organization-wide secret, and a caller that disabled the
+                  // form - a dialog mid-save, a panel somebody may only read -
+                  // did not mean "except the vault".
+                  disabled={disabled}
+                />
+              )}
             </div>
           )}
         </div>
