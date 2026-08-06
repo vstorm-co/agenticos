@@ -3,6 +3,20 @@ import re
 from abc import ABC, abstractmethod
 from typing import Any
 
+# Registers every model table on `Base.metadata`, which `list_collections` judges a
+# `rag_` table against and `_table` refuses a collection name against. Another import
+# already reaches the models today; this one says the store depends on it, rather than
+# leaving that to a chain belonging to a different concern. On an empty metadata both
+# answers invert silently: the listing reports the tracking table as a collection, and
+# a caller may drop it.
+import app.db.models  # noqa: F401
+from app.core.exceptions import BadRequestError
+from app.db.base import Base
+from app.db.vector_tables import (
+    VECTOR_TABLE_PREFIX,
+    collides_with_model_table,
+    is_runtime_vector_table,
+)
 from app.schemas.rag import RAGDocumentItem, RAGDocumentList
 from app.services.rag.models import (
     CollectionInfo,
@@ -198,16 +212,20 @@ class PgVectorStore(BaseVectorStore):
         self,
         settings: RAGSettings,
         embedding_service: EmbeddingService,
-        resolver: "EmbeddingResolver | None" = None,
+        resolver: "EmbeddingResolver",
     ):
         self.settings = settings
         self.embedder = embedding_service
         self.dim = settings.embeddings_config.dim
-        # Which model - and whose key - one collection embeds with. None keeps
-        # the deployment defaults for everything, which is the pre-resolver
-        # behaviour and still what a collection outside the KB table gets.
+        # Which model - and whose key - one collection embeds with. Required,
+        # and deliberately not defaulted: it used to default to None, and the
+        # one construction that forgot it - the worker that ingests every
+        # uploaded document - silently ignored every collection's chosen key
+        # and model for as long as nobody read the bill (#306). A collection
+        # outside the KB table still gets the deployment defaults, but that is
+        # now the resolver answering None rather than nobody asking.
         self._resolver = resolver
-        self._services: dict[tuple[str, str], EmbeddingService] = {}
+        self._services: dict[tuple[str, str, str], EmbeddingService] = {}
         self.engine = create_async_engine(app_settings.DATABASE_URL, echo=False)
         self.async_session = sessionmaker(self.engine, class_=AsyncSession, expire_on_commit=False)
 
@@ -216,29 +234,61 @@ class PgVectorStore(BaseVectorStore):
         await self.engine.dispose()
 
     def _table(self, name: str) -> str:
-        """Get validated table name for a collection."""
-        return f"rag_{_validate_collection_name(name)}"
+        """Get validated table name for a collection.
+
+        The prefix comes from `app/db/vector_tables.py` because `alembic/env.py` has
+        to recognise these names to keep them out of `alembic check` - a table created
+        here exists in no model and no migration, and read as a table to drop (#288).
+
+        A name whose table the models declare is refused here rather than in
+        `create_collection`, because every method funnels through this one and two
+        of them are destructive. `rag-drop documents --yes` reaches
+        `delete_collection` with no knowledge base, no route and no permission
+        between the operator and `DROP TABLE IF EXISTS` on the tracking table
+        (#345), so a guard on the create path would not have been on that path.
+
+        Raises:
+            ValueError: The name is not a legal identifier.
+            BadRequestError: The collection would land on a table the models own.
+        """
+        table = f"{VECTOR_TABLE_PREFIX}{_validate_collection_name(name)}"
+        if collides_with_model_table(name, metadata=Base.metadata):
+            raise BadRequestError(
+                message=f"'{name}' is a reserved collection name",
+                details={"collection": name, "table": table.lower()},
+            )
+        return table
 
     async def _for_collection(self, name: str) -> tuple[EmbeddingService, int]:
         """The embedder and vector width this one collection uses.
 
-        Cached per (model, key): an `EmbeddingService` holds an HTTP client,
-        and rebuilding one per chunk would open a connection pool per page of a
-        PDF. The recorded width wins over the catalog's - the table was created
-        at that number.
+        Cached per (collection, model, key): an `EmbeddingService` holds an
+        HTTP client, and rebuilding one per chunk would open a connection pool
+        per page of a PDF. The collection is in the key because the service
+        carries a `key_origin` naming it - two collections on the same key
+        would otherwise share a client whose refusal names whichever of them
+        embedded first. That bounds a long-lived store's cache by the number
+        of collections it has embedded for rather than by the number of
+        distinct credentials; each entry builds its `OpenAI` client lazily, so
+        a collection only ever read costs an object and no socket.
+
+        The recorded width wins over the catalog's: the table was created at
+        that number.
         """
-        if self._resolver is None:
-            return self.embedder, self.dim
         resolved = await self._resolver(name)
         if resolved is None:
             return self.embedder, self.dim
-        cache_key = (resolved.model, resolved.api_key)
+        cache_key = (name, resolved.model, resolved.api_key)
         service = self._services.get(cache_key)
         if service is None:
             service = EmbeddingService(
                 settings=RAGSettings(embeddings_config=EmbeddingsConfig(model=resolved.model)),
                 api_key=resolved.api_key,
                 expected_dim=resolved.dim,
+                # So a resolution that ended on an empty key says which key it
+                # tried, for which collection, instead of advising an operator
+                # to set a variable they may already have set.
+                key_origin=resolved.describe(name),
             )
             self._services[cache_key] = service
         return service, resolved.dim
@@ -458,12 +508,31 @@ class PgVectorStore(BaseVectorStore):
         return sorted(chunks, key=lambda chunk: (chunk.page_num, chunk.chunk_num))
 
     async def list_collections(self) -> list[str]:
+        """Every collection this store holds, and nothing that only looks like one.
+
+        Carrying the prefix is not enough to be a collection: `rag_documents`
+        is a model table, so the prefix alone reported a collection called
+        `documents` on every deployment since that table existed, and a caller
+        that believed it would read chunks out of a schema with none of the
+        columns it expects (#339).
+
+        The question is the same one `alembic/env.py` asks from the other side,
+        so it is the same predicate rather than a second one - a `rag_` table
+        the models have never heard of. `app/db/vector_tables.py` says why both
+        halves are load-bearing.
+        """
         async with self.async_session() as session:
             result = await session.execute(
                 text(
-                    "SELECT table_name FROM information_schema.tables WHERE table_name LIKE 'rag_%' AND table_schema = 'public'"
-                )
+                    "SELECT table_name FROM information_schema.tables "
+                    "WHERE table_name LIKE :prefix AND table_schema = 'public'"
+                ),
+                {"prefix": f"{VECTOR_TABLE_PREFIX}%"},
             )
-            # removeprefix (Python 3.9+) strips only the leading "rag_" occurrence,
-            # unlike str.replace which would also hit inner occurrences.
-            return [row[0].removeprefix("rag_") for row in result.fetchall()]
+            # removeprefix strips the leading occurrence only, unlike str.replace,
+            # which would also hit the prefix inside a collection's own name.
+            return [
+                row[0].removeprefix(VECTOR_TABLE_PREFIX)
+                for row in result.fetchall()
+                if is_runtime_vector_table(row[0], metadata=Base.metadata)
+            ]

@@ -3,6 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AddModel } from "./add-model";
+import { Perm } from "@/types/permissions";
+import type { Permission } from "@/types/permissions";
 import type { SecretPurpose } from "@/types/secrets";
 
 /**
@@ -39,6 +41,7 @@ const state = {
   source: "live" as "live" | "curated" | null,
   loadingModels: false,
   createProfile: { mutateAsync: vi.fn(), isPending: false },
+  permissions: [] as Permission[],
 };
 
 const onCreatedSecret = { handler: undefined as ((id: string) => void) | undefined };
@@ -51,6 +54,9 @@ vi.mock("@/hooks", () => ({
     models: state.models,
     source: state.source,
     isLoading: state.loadingModels,
+  }),
+  usePermissions: () => ({
+    can: (permission: Permission) => state.permissions.includes(permission),
   }),
 }));
 
@@ -117,6 +123,10 @@ beforeEach(() => {
   state.source = "live";
   state.loadingModels = false;
   state.createProfile = { mutateAsync: vi.fn().mockResolvedValue({ id: "p-1" }), isPending: false };
+  // The form only exists for a caller holding `connections:manage`, and most of
+  // what is asserted below is about the form rather than about the vault - so
+  // the default caller may also store a key, and the tests that care say so.
+  state.permissions = [Perm.secretsEdit];
   onCreatedSecret.handler = undefined;
 });
 
@@ -124,6 +134,11 @@ function mount(props: Partial<Parameters<typeof AddModel>[0]> = {}) {
   const onCreated = vi.fn();
   render(<AddModel onCreated={onCreated} {...props} />);
   return { onCreated };
+}
+
+/** The brand mark actually drawn, by the name lobehub titles its SVG with. */
+function markIn(element: HTMLElement): string | null {
+  return element.querySelector("svg > title")?.textContent ?? null;
 }
 
 async function pickProvider(label: string) {
@@ -157,15 +172,60 @@ describe("the add-model form", () => {
     });
   });
 
-  it("marks the providers a key is already stored for", async () => {
+  it("marks the providers a key is already stored for, and only those", async () => {
+    // Which providers can answer today is the question this list is scanned
+    // for, and the tick is the whole of the answer.
     state.secrets = [secret()];
     mount();
 
     await userEvent.click(screen.getByLabelText("Provider"));
 
-    // The tick is decorative; what matters is that both are offered and the
-    // keyed one is distinguishable at all.
-    expect(screen.getByRole("option", { name: /OpenAI/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: /OpenAI/ }).querySelector(".lucide-check"),
+    ).not.toBeNull();
+    expect(
+      screen.getByRole("option", { name: /OpenRouter/ }).querySelector(".lucide-check"),
+    ).toBeNull();
+  });
+
+  it("draws each provider's own brand mark", async () => {
+    mount();
+
+    await userEvent.click(screen.getByLabelText("Provider"));
+
+    expect(markIn(screen.getByRole("option", { name: /OpenAI/ }))).toBe("OpenAI");
+    expect(markIn(screen.getByRole("option", { name: /OpenRouter/ }))).toBe("OpenRouter");
+  });
+
+  it("carries the chosen provider's mark on the closed trigger", async () => {
+    // For nothing: Radix draws the selected item's own text in the trigger.
+    mount();
+    await pickProvider("OpenRouter");
+
+    expect(markIn(screen.getByLabelText("Provider"))).toBe("OpenRouter");
+  });
+
+  it("leaves the has-a-key tick in the list rather than repeating it in the trigger", async () => {
+    // In the trigger there is nothing to compare it against, so a tick there
+    // reads as "selected" - which is a different claim, and a wrong one for a
+    // provider whose key was deleted.
+    state.secrets = [secret()];
+    mount();
+    await pickProvider("OpenAI");
+
+    expect(screen.getByLabelText("Provider").querySelector(".lucide-check")).toBeNull();
+  });
+
+  it("draws the mark and the masked tail of every key it offers", async () => {
+    state.secrets = [secret(), secret({ id: "s-2", name: "OpenAI staging", hint: "9999" })];
+    mount();
+    await pickProvider("OpenAI");
+
+    await userEvent.click(screen.getByLabelText("Key"));
+
+    const staging = screen.getByRole("option", { name: /OpenAI staging/ });
+    expect(markIn(staging)).toBe("OpenAI");
+    expect(staging).toHaveTextContent("····9999");
   });
 
   it("cannot be submitted before a provider is chosen", () => {
@@ -378,6 +438,73 @@ describe("the add-model form", () => {
     await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
 
     expect(screen.getByRole("button", { name: "Add model" })).toBeDisabled();
+  });
+});
+
+describe("storing the key the model runs on", () => {
+  /**
+   * `POST /secrets` is `secrets:edit`, and this form exists for somebody holding
+   * `connections:manage` - two different permissions, so a member may legitimately
+   * be allowed to define a model profile and not to write the credential it runs
+   * on. A control the caller may not use is not rendered, rather than rendered
+   * and then refused with a 403.
+   */
+
+  it("offers the form to a caller who may write to the vault", async () => {
+    mount();
+    await pickProvider("OpenAI");
+
+    expect(screen.getByRole("button", { name: "Store a key" })).toBeInTheDocument();
+  });
+
+  it("offers no such form without secrets:edit", async () => {
+    state.permissions = [];
+    mount();
+    await pickProvider("OpenAI");
+
+    // Paired with a positive assertion on purpose: the whole no-key block
+    // rendering nothing would satisfy the `toBeNull` on its own, and that is a
+    // different bug rather than this fix.
+    expect(screen.getByText(/No OpenAI key in the vault yet/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Store a key" })).toBeNull();
+  });
+
+  it("still says why the model cannot be added, rather than going quiet", async () => {
+    // Dropping the form and nothing else leaves a disabled submit with no
+    // explanation anywhere on the panel.
+    state.permissions = [];
+    mount();
+    await pickProvider("OpenAI");
+
+    expect(screen.getByText(/No OpenAI key in the vault yet/)).toBeInTheDocument();
+    expect(screen.getByText(/permission you do not hold/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add model" })).toBeDisabled();
+  });
+
+  it("says nothing about permissions to somebody who has them", async () => {
+    mount();
+    await pickProvider("OpenAI");
+
+    expect(screen.queryByText(/permission you do not hold/)).toBeNull();
+  });
+
+  it("leaves a keyless provider submittable without secrets:edit", async () => {
+    // The gate is about writing to the vault, not about the form: an Ollama
+    // profile needs no key at all, and refusing it here would take away
+    // something `connections:manage` really does allow.
+    state.permissions = [];
+    state.purposes = [...state.purposes, purpose("ollama", "Ollama")];
+    state.catalog = [
+      ...state.catalog,
+      capabilities("ollama", "Ollama", { supports_base_url: true, keyless: true }),
+    ];
+    mount();
+    await pickProvider("Ollama");
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.type(screen.getByLabelText("Endpoint"), "http://localhost:11434/v1");
+
+    expect(screen.getByRole("button", { name: "Add model" })).toBeEnabled();
   });
 });
 

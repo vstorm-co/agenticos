@@ -54,3 +54,8 @@ deployments.append(await send_notification_flow.ato_deployment(
 uv run --directory backend python -m app.worker.prefect_app
 # Prefect UI: http://localhost:4200
 ```
+
+At most `PREFECT_RUNNER_LIMIT` runs execute at once (default 5) and the rest queue,
+so a short schedule is cheap to add but not free: the interval decides how much
+work is waiting after downtime, and every run is a process that imports the whole
+application. Prefer the longest interval that still answers the question.

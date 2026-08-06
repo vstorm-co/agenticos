@@ -13,6 +13,11 @@ including schema validation, which FastAPI would otherwise answer in its own
 `{"detail": [...]}` format. Two shapes on the wire means every caller either
 handles both or silently mishandles one, and the one it mishandles is the one
 that carries the field names a form needs.
+
+Every response is built by `_envelope`, which encodes `details` the way
+`response_model` encodes a body. `JSONResponse` on its own serializes with
+plain `json.dumps`, and a domain exception carries whatever the service that
+raised it had to hand - most often the `UUID` it could not find.
 """
 
 import logging
@@ -20,6 +25,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from fastapi import FastAPI
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.requests import HTTPConnection
@@ -32,6 +38,63 @@ logger = logging.getLogger(__name__)
 # Where a validation error came from, as Pydantic reports it in the first
 # element of `loc`. Nothing a form can act on, so it is dropped from the path.
 _LOCATIONS = frozenset({"body", "query", "path", "header", "cookie"})
+
+
+def _envelope(
+    *,
+    status_code: int,
+    code: str,
+    message: str,
+    details: dict[str, Any] | None,
+    headers: dict[str, str] | None = None,
+) -> JSONResponse:
+    """The one response shape, with `details` encoded rather than dumped.
+
+    `JSONResponse` serializes with `json.dumps`, which raises `TypeError` on a
+    `UUID` - and `details` is where a service puts the id it could not find, the
+    timestamp a token expired at, the money a budget was short by. When the
+    handler raises, the refusal it was reporting never reaches the caller: the
+    log says `NOT_FOUND` and the wire says 500 with no body, so a stale session
+    is indistinguishable from a broken server (agenticos#307). `UserService`
+    passes the `UUID` it was given, which is why a JWT for a user that no longer
+    exists - a browser session kept across a database reset - answered every
+    request with an empty 500.
+
+    Stringifying at each call site is a rule only review can enforce, and the
+    call site that forgets is the one that takes an endpoint down. Most of this
+    codebase does stringify, out of habit rather than obligation, so the cost of
+    the convention is paid everywhere and the benefit held hostage to the two
+    places that did not. `jsonable_encoder` is what `response_model` already
+    uses, so `details` reaches the wire the same way every other field of every
+    other response does - a `UUID` as its string, a `datetime` in ISO 8601, an
+    `Enum` as its value - and a call site is free to pass what it holds.
+
+    Encoding is deliberately not wrapped in a `try`: a value `jsonable_encoder`
+    cannot reach - a live client, an open file - is a bug in the raising code and
+    has no business in an error payload. It should fail loudly here rather than
+    reach a caller as a plausible-looking refusal with a field quietly missing.
+
+    What this asks of a call site, and what the rule in
+    `.claude/rules/exceptions-security.md` now says: a value, not a row.
+    `jsonable_encoder` reaches an unrecognised object through `vars()`, so
+    `details={"user": user}` would serialize `hashed_password` where
+    `details={"user_id": user.id}` serializes an id. No call site does that today
+    and there is no guard against one that starts - a runtime type check here
+    would be a branch guarding a caller that does not exist, and the review that
+    would catch it is the same review that catches a plaintext secret anywhere
+    else.
+    """
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "error": {
+                "code": code,
+                "message": message,
+                "details": jsonable_encoder(details),
+            }
+        },
+        headers=headers,
+    )
 
 
 def _connection_meta(conn: HTTPConnection) -> dict[str, Any]:
@@ -76,15 +139,11 @@ async def app_exception_handler(request: HTTPConnection, exc: AppException) -> J
     if exc.status_code == 401:
         headers["WWW-Authenticate"] = "Bearer"
 
-    return JSONResponse(
+    return _envelope(
         status_code=exc.status_code,
-        content={
-            "error": {
-                "code": exc.code,
-                "message": exc.message,
-                "details": exc.details,
-            }
-        },
+        code=exc.code,
+        message=exc.message,
+        details=exc.details,
         headers=headers,
     )
 
@@ -148,18 +207,18 @@ async def budget_exceeded_handler(
         logger.warning("BUDGET_EXCEEDED: %s", exc, extra=_connection_meta(request))
         return None
 
-    return JSONResponse(
+    return _envelope(
         status_code=402,
-        content={
-            "error": {
-                "code": "BUDGET_EXCEEDED",
-                "message": str(exc),
-                "details": {
-                    "scope": exc.scope,
-                    "limit_usd": str(exc.limit_usd),
-                    "spent_usd": str(exc.spent_usd),
-                },
-            }
+        code="BUDGET_EXCEEDED",
+        message=str(exc),
+        details={
+            "scope": exc.scope,
+            # Money stays a string: `jsonable_encoder` answers a `Decimal` with
+            # a float (an int when the exponent is not negative), so `40.10`
+            # would leave as `40.1` and a cap is not a thing to reshape on the
+            # way out.
+            "limit_usd": str(exc.limit_usd),
+            "spent_usd": str(exc.spent_usd),
         },
     )
 
@@ -177,15 +236,11 @@ async def unhandled_exception_handler(
     if _is_websocket(request):
         return None
 
-    return JSONResponse(
+    return _envelope(
         status_code=500,
-        content={
-            "error": {
-                "code": "INTERNAL_ERROR",
-                "message": "An unexpected error occurred",
-                "details": None,
-            }
-        },
+        code="INTERNAL_ERROR",
+        message="An unexpected error occurred",
+        details=None,
     )
 
 

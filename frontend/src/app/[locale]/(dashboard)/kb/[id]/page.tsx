@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   CheckCircle2,
@@ -10,6 +11,7 @@ import {
   FileText,
   Loader2,
   Lock,
+  MoreHorizontal,
   Plug,
   Plus,
   RefreshCw,
@@ -24,7 +26,19 @@ import type { LucideIcon } from "lucide-react";
 
 import { ROUTES } from "@/lib/constants";
 import { PageHeader } from "@/components/dashboard/page-header";
-import { Badge, Button, DataTable, Progress, Skeleton, type Column } from "@/components/ui";
+import {
+  Badge,
+  Button,
+  ConfirmDialog,
+  DataTable,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Progress,
+  Skeleton,
+  type Column,
+} from "@/components/ui";
 import { EmptyState } from "@/components/states";
 import { SyncSourceWizard } from "@/components/rag/sync-source-wizard";
 import { SyncSourceLogs } from "@/components/rag/sync-source-logs";
@@ -42,10 +56,18 @@ import type { IngestionOverride, KBDocument, KBScope } from "@/types";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
 
-const SCOPE_META: Record<KBScope, { label: string; icon: LucideIcon }> = {
-  personal: { label: "Personal", icon: Lock },
-  org: { label: "Organization", icon: Users },
-  app: { label: "App-wide", icon: Sparkles },
+/**
+ * How each scope is drawn: an icon, and the key to the word for it.
+ *
+ * A key rather than the word, because a table at module scope has no
+ * translator to call - the component reads `t(labelKey)` at the point of use.
+ * Spelled out here, these were three one-word strings, which is under
+ * `check_i18n.py`'s two-word threshold and so rendered in English under `pl`.
+ */
+const SCOPE_META: Record<KBScope, { labelKey: string; icon: LucideIcon }> = {
+  personal: { labelKey: "scopePersonal", icon: Lock },
+  org: { labelKey: "scopeOrg", icon: Users },
+  app: { labelKey: "scopeApp", icon: Sparkles },
 };
 
 // Sync sources have no server-side pagination (the backend returns every source
@@ -53,12 +75,24 @@ const SCOPE_META: Record<KBScope, { label: string; icon: LucideIcon }> = {
 // behind a client-side "show all" toggle.
 const SYNC_SOURCES_VISIBLE = 10;
 
+/**
+ * The `DataTransfer` type a dragged file carries, spelled as the DOM spells it.
+ *
+ * A machine value, not copy - and it was in `messages/en.json` as `files2` and
+ * `files3`, where a translator opening `pl.json` would have been asked to
+ * translate it. "Pliki" is never in `dataTransfer.types`, so the whole
+ * drag-and-drop path would have gone quiet under `pl` with nothing on screen
+ * explaining it.
+ */
+const DRAGGED_FILES = "Files";
+
 interface KBDetailPageProps {
   params: Promise<{ id: string }>;
 }
 
 export default function KBDetailPage({ params }: KBDetailPageProps) {
   const t = useTranslations("pages.kb");
+  const router = useRouter();
   const { id } = use(params);
   const {
     kb,
@@ -78,6 +112,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
     updateIngestion,
     uploadDocument,
     deleteDocument,
+    deleteCollection,
     createSyncSource,
     cloneSyncSource,
     triggerSyncSource,
@@ -99,6 +134,26 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
   const [ingestionOpen, setIngestionOpen] = useState(false);
   const [overrideOpen, setOverrideOpen] = useState(false);
   /**
+   * What a destructive control has asked for and not yet been granted.
+   *
+   * Three of them, each held on the page rather than beside its button: the
+   * document one is raised from a `DataTable` cell and the sync-source one from
+   * a row component, and a dialog rendered inside either is a dialog inside a
+   * subtree that re-renders on every poll. These were `window.confirm` calls
+   * carrying hardcoded English, which is copy no locale and no `check_i18n.py`
+   * sweep can reach.
+   */
+  const [deletingCollection, setDeletingCollection] = useState(false);
+  const [removingDocument, setRemovingDocument] = useState<KBDocument | null>(null);
+  const [disconnectingSource, setDisconnectingSource] = useState<SyncSourceRead | null>(null);
+  /**
+   * Whether a granted one is still in the air. One flag for all three, because
+   * only one of these dialogs can be open at a time - and without it the confirm
+   * button stays live through the request, so a second click sends a second
+   * DELETE and the 404 it earns is toasted over a removal that worked.
+   */
+  const [confirmBusy, setConfirmBusy] = useState(false);
+  /**
    * How the next files added here are to be read, where that is not how the
    * collection reads them.
    *
@@ -109,6 +164,13 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
    */
   const [uploadOverride, setUploadOverride] = useState<IngestionOverride>({});
   const overrideCount = overrideSize(uploadOverride);
+  /**
+   * Chunks across the documents this page has actually fetched.
+   *
+   * Not the collection's total, and it cannot be: no response this page makes
+   * carries one. The strip below says which of the two it is showing.
+   */
+  const loadedVectors = documents.reduce((sum, doc) => sum + doc.chunk_count, 0);
 
   const handleDownload = async (doc: KBDocument) => {
     if (downloadingId) return;
@@ -166,7 +228,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
           <span className="text-muted-foreground text-xs">
             {doc.filetype || "-"}
             {doc.filesize !== null && ` · ${formatBytes(doc.filesize)}`}
-            {doc.chunk_count > 0 && ` · ${doc.chunk_count} chunks`}
+            {doc.chunk_count > 0 && ` · ${t("chunkCount", { count: doc.chunk_count })}`}
           </span>
         ),
       },
@@ -227,10 +289,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
                   variant="ghost"
                   size="sm"
                   className="text-muted-foreground hover:text-destructive h-8 w-8 p-0"
-                  onClick={() => {
-                    if (confirm(`Remove "${doc.filename}" from this knowledge base?`))
-                      deleteDocument(doc.id);
-                  }}
+                  onClick={() => setRemovingDocument(doc)}
                   title={t("removeDocument")}
                   aria-label={t("removeDocument2")}
                 >
@@ -242,7 +301,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
         },
       },
     ],
-    [deleteDocument, downloadingId, handleDownload, setViewerDoc, mayEdit],
+    [downloadingId, handleDownload, setViewerDoc, mayEdit],
   );
 
   if (isLoading && !kb) return <KBDetailSkeleton />;
@@ -259,7 +318,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
     <div
       className="relative pb-8"
       onDragEnter={(e) => {
-        if (e.dataTransfer.types.includes(t("files2"))) {
+        if (e.dataTransfer.types.includes(DRAGGED_FILES)) {
           dragCounterRef.current += 1;
           setIsDragging(true);
         }
@@ -269,7 +328,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
         if (dragCounterRef.current === 0) setIsDragging(false);
       }}
       onDragOver={(e) => {
-        if (e.dataTransfer.types.includes(t("files3"))) e.preventDefault();
+        if (e.dataTransfer.types.includes(DRAGGED_FILES)) e.preventDefault();
       }}
       onDrop={(e) => {
         e.preventDefault();
@@ -287,8 +346,10 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
             <div className="text-center">
               <p className="text-foreground text-lg font-semibold">{t("dropUpload")}</p>
               <p className="text-muted-foreground mt-1 text-sm">
-                Files will be added to{" "}
-                <span className="text-foreground font-medium">{kb.name}</span>
+                {t.rich("filesWillBeAddedTo", {
+                  name: kb.name,
+                  strong: (chunks) => <span className="text-foreground font-medium">{chunks}</span>,
+                })}
               </p>
             </div>
           </div>
@@ -339,23 +400,70 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
                   )}
                   {isUploading ? t("uploading") : t("upload")}
                 </Button>
+                {/* Behind a menu, not beside Refresh: destroying the collection
+                    and everything in it is not a same-weight sibling of
+                    re-reading it. It lives here rather than on the card in the
+                    list because this is the page that says what is inside.
+
+                    Not drawn at all for the default collection, which
+                    `KnowledgeBaseService.delete` refuses outright - offering it
+                    would be offering an action that can only answer 400. The
+                    card in the list hid it for the same reason. */}
+                {!kb.is_default && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-8 px-0"
+                        aria-label={t("moreActions")}
+                      >
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onSelect={() => setDeletingCollection(true)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        {t("deleteKnowledgeBase")}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
               </>
             )}
           </>
         }
       />
 
+      {/* What the collection holds, not what the table has fetched.
+
+          `documents` is one page of twenty, so this strip used to say "20
+          documents" over a collection of fifty-seven and then climb every time
+          Load more was pressed - which reads as ingestion happening rather than
+          as the page correcting itself. `documentsTotal` is the documents
+          query's own total; `kb.document_count` is not an alternative, because
+          the single-row `GET /kb/{id}` leaves all three counts at zero.
+
+          The vector count has no such total in any response this page makes, so
+          it says which it is. Once every document is loaded the sum *is* the
+          collection's, and it says so plainly; until then it names its own
+          scope rather than passing a partial sum off as the whole. */}
       <div className="text-muted-foreground mb-6 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
         <span className="inline-flex items-center gap-1.5">
           <scopeMeta.icon className="h-3.5 w-3.5" />
-          {scopeMeta.label}
-          {kb.is_default && " · Default"}
+          {t(scopeMeta.labelKey)}
+          {kb.is_default && ` · ${t("default")}`}
         </span>
         <span>·</span>
-        <span>{t("documentCount", { count: documents.length })}</span>
+        <span>{t("documentCount", { count: documentsTotal })}</span>
         <span>·</span>
         <span>
-          {t("vectorCount", { count: documents.reduce((sum, d) => sum + d.chunk_count, 0) })}
+          {hasMoreDocuments
+            ? t("vectorCountLoaded", { count: loadedVectors })
+            : t("vectorCount", { count: loadedVectors })}
         </span>
       </div>
 
@@ -446,7 +554,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
               </Button>
             )}
             <p className="text-muted-foreground text-center text-xs">
-              Showing {documents.length} of {documentsTotal} · drag files anywhere to add
+              {t("showingOfTotal", { loaded: documents.length, total: documentsTotal })}
             </p>
           </div>
         )}
@@ -493,7 +601,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
                     source={source}
                     kbId={id}
                     onTrigger={mayEdit ? () => triggerSyncSource(source.id) : undefined}
-                    onDelete={mayEdit ? () => deleteSyncSource(source.id) : undefined}
+                    onDelete={mayEdit ? () => setDisconnectingSource(source) : undefined}
                   />
                 ),
               )}
@@ -514,6 +622,81 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
           </>
         )}
       </section>
+
+      {/* The count is the collection's, not the table's. Documents page in
+          twenty at a time, so `documents.length` would promise to destroy far
+          less than the confirm button actually does. */}
+      <ConfirmDialog
+        open={deletingCollection}
+        onOpenChange={setDeletingCollection}
+        title={t("deleteCollectionTitle", { name: kb.name })}
+        description={t("deleteCollectionWarning", { count: documentsTotal })}
+        confirmLabel={t("delete")}
+        destructive
+        loading={confirmBusy}
+        onConfirm={async () => {
+          setConfirmBusy(true);
+          try {
+            await deleteCollection();
+          } catch {
+            // The hook has already said why. The collection is still there, so
+            // this page is still the right one to be on.
+            setConfirmBusy(false);
+            return;
+          }
+          // Closed before the navigation rather than left to the unmount: a
+          // client route change is not instant, and a modal frozen on its busy
+          // label with Cancel disabled is the last thing this page would say.
+          setConfirmBusy(false);
+          setDeletingCollection(false);
+          router.push(ROUTES.KB);
+        }}
+      />
+
+      {removingDocument && (
+        <ConfirmDialog
+          open
+          onOpenChange={() => setRemovingDocument(null)}
+          title={t("removeDocumentTitle", { filename: removingDocument.filename })}
+          description={t("removeDocumentWarning")}
+          confirmLabel={t("remove")}
+          destructive
+          loading={confirmBusy}
+          onConfirm={async () => {
+            setConfirmBusy(true);
+            // `finally`, though `deleteDocument` toasts rather than throwing:
+            // the day it stops swallowing, the alternative is a dialog with
+            // both buttons dead and an unhandled rejection behind it.
+            try {
+              await deleteDocument(removingDocument.id);
+            } finally {
+              setConfirmBusy(false);
+              setRemovingDocument(null);
+            }
+          }}
+        />
+      )}
+
+      {disconnectingSource && (
+        <ConfirmDialog
+          open
+          onOpenChange={() => setDisconnectingSource(null)}
+          title={t("disconnectSourceTitle", { name: disconnectingSource.name })}
+          description={t("disconnectSourceWarning")}
+          confirmLabel={t("disconnect")}
+          destructive
+          loading={confirmBusy}
+          onConfirm={async () => {
+            setConfirmBusy(true);
+            try {
+              await deleteSyncSource(disconnectingSource.id);
+            } finally {
+              setConfirmBusy(false);
+              setDisconnectingSource(null);
+            }
+          }}
+        />
+      )}
 
       <FileViewer
         kbId={id}
@@ -615,6 +798,7 @@ function SyncSourceRow({
   kbId: string;
   /** Absent when the caller may not write - the buttons are then not drawn. */
   onTrigger?: () => void;
+  /** Asks for the disconnection; the page owns the confirmation and the call. */
   onDelete?: () => void;
 }) {
   const t = useTranslations("pages.kb");
@@ -664,9 +848,7 @@ function SyncSourceRow({
             variant="ghost"
             size="sm"
             className="text-muted-foreground hover:text-destructive h-8 w-8 p-0"
-            onClick={() => {
-              if (confirm(`Disconnect "${source.name}"?`)) onDelete();
-            }}
+            onClick={onDelete}
             title={t("removeSource")}
             aria-label={t("removeSource2")}
           >
@@ -722,11 +904,16 @@ function Provenance({ doc }: { doc: KBDocument }) {
 }
 
 function StatusBadge({ status, message }: { status: string; message: string | null }) {
+  const t = useTranslations("pages.kb");
+  // Four one-word labels, which is under `check_i18n.py`'s two-word threshold -
+  // so they sat here in English and rendered that way under every locale. The
+  // fall-through keeps the server's own word for a status this build does not
+  // know: a value nothing has translated, rather than copy somebody wrote.
   const config = {
-    completed: { Icon: CheckCircle2, label: "Ready", spin: false },
-    processing: { Icon: Loader2, label: "Processing", spin: true },
-    pending: { Icon: Clock, label: "Pending", spin: false },
-    failed: { Icon: AlertCircle, label: "Failed", spin: false },
+    completed: { Icon: CheckCircle2, label: t("statusReady"), spin: false },
+    processing: { Icon: Loader2, label: t("statusProcessing"), spin: true },
+    pending: { Icon: Clock, label: t("statusPending"), spin: false },
+    failed: { Icon: AlertCircle, label: t("statusFailed"), spin: false },
   } as const;
   const c = (config as Record<string, (typeof config)[keyof typeof config]>)[status] ?? {
     Icon: Clock,
