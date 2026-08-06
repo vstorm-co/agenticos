@@ -4,7 +4,7 @@ Three views of the same fact - that an agent did something - from three angles:
 what happened (runs), what needs a person (approvals), and what it cost (spend).
 """
 
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 from uuid import UUID
 
@@ -208,29 +208,64 @@ async def decide_approval(
 async def get_spend(
     service: AgentRunnerSvc,
     ctx: Auth,
-    days: int = Query(30, ge=1, le=365),
+    days: int = Query(30, ge=1, le=365, description="A rolling window. Ignored if `from` is given"),
+    from_date: datetime | None = Query(
+        None, alias="from", description="Start of an explicit window, instead of `days`"
+    ),
+    to_date: datetime | None = Query(None, alias="to", description="End of it. Defaults to now"),
 ) -> Any:
     """Month-to-date spend plus a per-agent breakdown over the chosen window.
 
-    Month-to-date is calendar-aligned rather than rolling, so the number can be
-    reconciled against an invoice.
+    Two ways to say which window, because the page asks for both kinds: `days`
+    for the "last N days" presets, `from`/`to` for "this month", "last month" and
+    a calendar range. `from` wins when both arrive - an explicit range is a more
+    specific request than a default nobody changed.
+
+    **Month-to-date ignores the window entirely**, and every per-agent cap is
+    measured against it rather than against the range on screen. A monthly
+    ceiling compared with a rolling seven days reads as 20% used on the day the
+    cap was actually reached.
+
+    Month-to-date is also calendar-aligned rather than rolling, so the number can
+    be reconciled against an invoice.
     """
-    breakdown = await service.cost_breakdown(ctx, days=days)
+    since = from_date if from_date is not None else datetime.now(UTC) - timedelta(days=days)
+    agents = await service.spend_by_agent(ctx, since=since, until=to_date)
     return CostSummary(
-        period_days=days,
+        # Null once a range is explicit: "30 days" beside a `from`/`to` that says
+        # otherwise is a second answer to a question already answered.
+        period_days=None if from_date is not None else days,
+        from_date=since,
+        to_date=to_date,
         month_to_date_usd=await service.monthly_spend(ctx),
+        # How much of everything below is a fact. Summed from the per-agent rows
+        # rather than queried again, so the figure and its breakdown cannot
+        # disagree about which runs could not be priced.
+        partial_run_count=sum(row.partial_run_count for row in agents),
         by_agent=[
-            CostByAgent(agent_id=agent_id, model_label=model_label, cost_usd=cost, run_count=runs)
-            for agent_id, model_label, cost, runs in breakdown
+            CostByAgent(
+                agent_id=row.agent_id,
+                agent_name=row.agent_name,
+                cost_usd=row.cost_usd,
+                run_count=row.run_count,
+                partial_run_count=row.partial_run_count,
+                month_to_date_usd=row.month_to_date_usd,
+                monthly_cap_usd=row.monthly_cap_usd,
+            )
+            for row in agents
         ],
         # The two questions an invoice raises, which a per-agent breakdown
         # cannot answer: which vendor was paid, and through which key.
         by_provider=[
             CostByProvider(provider=provider, cost_usd=cost, run_count=runs)
-            for provider, cost, runs in await service.spend_by_provider(ctx, days=days)
+            for provider, cost, runs in await service.spend_by_provider(
+                ctx, since=since, until=to_date
+            )
         ],
         by_key=[
             CostByKey(secret_id=secret_id, label=label, cost_usd=cost, run_count=runs)
-            for secret_id, label, cost, runs in await service.spend_by_key(ctx, days=days)
+            for secret_id, label, cost, runs in await service.spend_by_key(
+                ctx, since=since, until=to_date
+            )
         ],
     )

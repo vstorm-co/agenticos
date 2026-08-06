@@ -225,6 +225,42 @@ a table primitive shared by the whole product is
 [proposed separately](https://github.com/vstorm-co/agenticos/issues/139), and
 nesting belongs in that rather than in one bespoke run table.
 
+### What the cost screen shows
+
+`GET /spend` takes its window two ways, because the page asks for both kinds:
+`days` for the *last N days* presets, and `from`/`to` for *this month*, *last
+month* and a calendar range. `from` wins when both arrive — an explicit range is a
+more specific request than a default nobody changed — and `period_days` comes back
+null in that case rather than repeating a number the range contradicts.
+
+**Every panel on the screen reads the same window.** The per-agent rows, By
+provider and By key all take the resolved `since`/`until` rather than a day count
+of their own, so two figures beside each other cannot end up describing different
+runs. That is the same defect #198 names one panel further up.
+
+**Month-to-date ignores the window entirely**, and so does every per-agent cap
+measured against it. A monthly ceiling compared with a rolling seven days reads as
+20% used on the day the cap was actually reached.
+
+Each per-agent row carries **two cost figures under two different names**, which is
+this page's rule throughout:
+
+| | |
+|---|---|
+| `cost_usd` | Its share of the window, **top-level runs only**, so the column sums to the total above it |
+| `month_to_date_usd` | Its **own** calendar month, delegated rows **included** — the spend its `monthly_cap_usd` is a cap on. It does not sum to the organization's month and is not drawn as if it did |
+
+`partial_run_count` says how much of any of it is a fact: how many runs in the
+window had a model with no price, so the cost is a floor by exactly that many.
+*"3 of 40 runs could not be priced"* is something a reader can act on; a figure
+wearing a plus sign is not.
+
+A row is **one per agent**, with `agent_name` on it. It used to be one per agent
+*and model*, carrying only `model_label` — so the tab listed model names where a
+reader expects an agent, and split one agent across two rows for having answered on
+two models. The per-model shape survives where it is the question being asked: the
+usage email still groups that way.
+
 ### Narrowing the approvals queue
 
 `GET /approvals` serves two views of the same rows. Pending only by default, which

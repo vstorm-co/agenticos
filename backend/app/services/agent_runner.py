@@ -123,7 +123,7 @@ from app.repositories import (
     agent_run_repo,
     knowledge_base_repo,
 )
-from app.repositories.agent_run import RunFilters, RunOrder
+from app.repositories.agent_run import AgentSpendRow, RunFilters, RunOrder
 from app.services.agent_registry import (
     DEFAULT_GRANTED_SCOPES,
     DELEGATION_CAPABILITY_ID,
@@ -2958,7 +2958,7 @@ class AgentRunnerService:
         return await organization_monthly_spend(self.db, ctx.organization_id)
 
     async def spend_by_provider(
-        self, ctx: AuthContext, *, days: int = 30
+        self, ctx: AuthContext, *, since: datetime, until: datetime | None = None
     ) -> list[tuple[str | None, Decimal, int]]:
         """What each model provider was paid over a window.
 
@@ -2966,15 +2966,18 @@ class AgentRunnerService:
         back out, so a delegate on a second vendor appears under that vendor
         rather than under the one its parent happened to use. The rows still sum
         to the bill.
+
+        The window is passed in rather than derived from a day count, so this and
+        the per-agent rows beside it always describe the same runs. Two figures
+        on one screen over two windows is the defect #198 is about, one panel
+        further down.
         """
         return await agent_run_repo.spend_by_provider(
-            self.db,
-            organization_id=ctx.organization_id,
-            since=datetime.now(UTC) - timedelta(days=days),
+            self.db, organization_id=ctx.organization_id, since=since, until=until
         )
 
     async def spend_by_key(
-        self, ctx: AuthContext, *, days: int = 30
+        self, ctx: AuthContext, *, since: datetime, until: datetime | None = None
     ) -> list[tuple[UUID | None, str | None, Decimal, int]]:
         """What each stored key was spent through over a window.
 
@@ -2982,16 +2985,32 @@ class AgentRunnerService:
         different stored key is the same question about the same money.
         """
         return await agent_run_repo.spend_by_key(
-            self.db,
-            organization_id=ctx.organization_id,
-            since=datetime.now(UTC) - timedelta(days=days),
+            self.db, organization_id=ctx.organization_id, since=since, until=until
         )
 
     async def cost_breakdown(
         self, ctx: AuthContext, *, days: int = 30
     ) -> list[tuple[UUID, str | None, Decimal, int]]:
-        """Spend per agent and model over a window - the dashboard's data."""
+        """Spend per agent and model over a window - the usage email's data."""
         since = datetime.now(UTC) - timedelta(days=days)
         return await agent_run_repo.cost_breakdown(
             self.db, organization_id=ctx.organization_id, since=since
+        )
+
+    async def spend_by_agent(
+        self, ctx: AuthContext, *, since: datetime, until: datetime | None = None
+    ) -> list[AgentSpendRow]:
+        """One row per agent for the Spend tab - the window, the month, the cap.
+
+        The month-to-date figure is always the calendar month regardless of the
+        window asked for, because that is the period a cap is a cap on. A tile
+        comparing a rolling seven days against a monthly ceiling would read as
+        20% used on the day the cap was actually reached.
+        """
+        return await agent_run_repo.spend_by_agent(
+            self.db,
+            organization_id=ctx.organization_id,
+            since=since,
+            until=until,
+            month_since=month_start(),
         )

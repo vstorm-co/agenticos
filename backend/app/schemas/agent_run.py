@@ -154,10 +154,63 @@ class ApprovalDecision(BaseSchema):
 
 
 class CostByAgent(BaseSchema):
+    """One agent's line on the Spend tab.
+
+    Two cost figures with two different names, which is the rule this page
+    follows throughout: a number needing a different denominator needs a
+    different word, never the same word with different arithmetic.
+    """
+
     agent_id: UUID
-    model_label: str | None = None
-    cost_usd: Decimal
+    agent_name: str | None = Field(
+        default=None,
+        description=(
+            "The agent's name. Absent from the usage email's breakdown, which "
+            "groups by agent *and model* and carries `model_label` instead"
+        ),
+    )
+    model_label: str | None = Field(
+        default=None,
+        description=(
+            "The model, on the email's per-model rows only. Null on the Spend "
+            "tab, which is one row per agent - listing a model label where a "
+            "reader expects an agent is what this row's `agent_name` fixed"
+        ),
+    )
+    cost_usd: Decimal = Field(
+        description=(
+            "This agent's share of the window, top-level runs only, so the "
+            "column sums to the total printed above it"
+        )
+    )
     run_count: int
+    partial_run_count: int = Field(
+        default=0,
+        description=(
+            "How many of those runs had a model with no price. The cost is a "
+            "floor by exactly that much, and '3 of 40 runs could not be priced' "
+            "is the difference between a figure a reader can act on and one "
+            "they have to take on trust"
+        ),
+    )
+    month_to_date_usd: Decimal | None = Field(
+        default=None,
+        description=(
+            "This agent's own calendar month, delegated runs **included** - "
+            "that is the spend its cap is a cap on, and a delegate's rows are "
+            "the only record of what it itself did. It does not sum to the "
+            "organization's month and must not be drawn as if it did"
+        ),
+    )
+    monthly_cap_usd: Decimal | None = Field(
+        default=None,
+        description=(
+            "The cap in the published spec, or null for an agent that sets "
+            "none. Always the calendar month, whatever window the tab is "
+            "showing: a rolling seven days measured against a monthly ceiling "
+            "reads as 20% used on the day the cap was actually reached"
+        ),
+    )
 
 
 class CostByProvider(BaseSchema):
@@ -190,8 +243,25 @@ class CostByKey(BaseSchema):
 class CostSummary(BaseSchema):
     """What the cost dashboard renders."""
 
-    period_days: int
+    period_days: int | None = Field(
+        default=None,
+        description=(
+            "The rolling window, when one was asked for that way. Null for an "
+            "explicit `from`/`to` range, which is not a number of days"
+        ),
+    )
+    from_date: datetime | None = Field(
+        default=None, description="Start of the window these figures cover"
+    )
+    to_date: datetime | None = Field(default=None, description="End of it, or null for 'up to now'")
     month_to_date_usd: Decimal
+    partial_run_count: int = Field(
+        default=0,
+        description=(
+            "Runs in the window whose cost is a floor because some model in "
+            "them had no price. How much of everything below is a fact"
+        ),
+    )
     by_agent: list[CostByAgent]
     by_provider: list[CostByProvider]
     by_key: list[CostByKey]

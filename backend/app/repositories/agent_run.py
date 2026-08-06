@@ -5,14 +5,14 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, func, select
+from sqlalchemy import ColumnElement, and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from app.db.models.agent import Agent
+from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, ToolApproval
 from app.db.models.conversation import Message
 from app.db.models.message_rating import MessageRating
@@ -331,7 +331,13 @@ def _duration_ms() -> ColumnElement[float]:
     run's *age* is a different question, and one this column deliberately does
     not answer.
     """
-    return func.extract("epoch", AgentRun.ended_at - AgentRun.started_at) * 1000
+    # `extract` is typed as producing an integer, and `epoch` produces fractional
+    # seconds - a run of 1.4s is 1400ms and not 1000. The cast states the real
+    # type rather than rounding the value to match the stub.
+    return cast(
+        "ColumnElement[float]",
+        func.extract("epoch", AgentRun.ended_at - AgentRun.started_at) * 1000,
+    )
 
 
 class RunOrder(enum.StrEnum):
@@ -511,6 +517,111 @@ async def cost_breakdown(
     return [(row[0], row[1], Decimal(row[2]), row[3]) for row in result.all()]
 
 
+@dataclass(frozen=True)
+class AgentSpendRow:
+    """One agent's line on the Spend tab.
+
+    Two cost figures, deliberately, with two different names - which is the rule
+    the whole page follows: a figure needing a different denominator needs a
+    different word, never the same word with different arithmetic.
+
+    Attributes:
+        agent_id: The agent.
+        agent_name: Its name. `CostByAgent` carried none, so the tab listed
+            *model labels* where a reader expects an agent - which is also why
+            this groups one row per agent rather than one per agent and model.
+        cost_usd: This agent's share of the window, **top-level runs only**, so
+            the column sums to the total printed above it. A delegate's tokens
+            are already inside its parent's row.
+        run_count: Runs behind that figure.
+        partial_run_count: How many of them had a model with no price. The
+            figure is a floor by exactly that much, and saying "3 of 40 runs
+            could not be priced" is the difference between a number a reader
+            can act on and one they have to take on trust.
+        month_to_date_usd: This agent's **own** month, delegated rows included -
+            because that is the spend its cap is a cap on, and a delegate's rows
+            are the only record of what it itself did. It does not sum to the
+            organization's month and is not drawn as if it did.
+        monthly_cap_usd: The cap in the published spec, or null for an agent
+            that sets none.
+    """
+
+    agent_id: UUID
+    agent_name: str
+    cost_usd: Decimal
+    run_count: int
+    partial_run_count: int
+    month_to_date_usd: Decimal
+    monthly_cap_usd: Decimal | None
+
+
+async def spend_by_agent(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    since: datetime,
+    until: datetime | None = None,
+    month_since: datetime,
+) -> list[AgentSpendRow]:
+    """One row per agent for the Spend tab: the window, the month and the cap.
+
+    Beside :func:`cost_breakdown` rather than replacing it. That one groups by
+    agent *and model* and is what the usage email reports; this answers a
+    different question - what a reader of one screen needs about one agent - and
+    collapsing the two would make the email's model split disappear.
+
+    Both windows in one query, by filtered aggregate, because two queries over
+    the same rows is two round trips and a chance for them to disagree about
+    which rows they saw.
+
+    The cap is read as one JSONB path out of the published spec rather than by
+    validating the spec. A cap has to render for an agent whose spec has stopped
+    building - a deleted secret, a capability dropped in a deploy - and that is
+    exactly the agent somebody is looking at the bill for.
+    """
+    window = [AgentRun.started_at >= since]
+    if until is not None:
+        window.append(AgentRun.started_at <= until)
+    top_level = and_(*window, AgentRun.parent_run_id.is_(None))
+    cap = AgentVersion.spec["budget"]["monthly_usd"]
+    rows = await db.execute(
+        select(
+            Agent.id,
+            Agent.name,
+            func.coalesce(func.sum(AgentRun.cost_usd).filter(top_level), 0),
+            func.count(AgentRun.id).filter(top_level),
+            func.count(AgentRun.id).filter(top_level, AgentRun.cost_is_partial),
+            func.coalesce(
+                func.sum(AgentRun.cost_usd).filter(AgentRun.started_at >= month_since), 0
+            ),
+            cap.as_float(),
+        )
+        .join(AgentRun, AgentRun.agent_id == Agent.id)
+        .outerjoin(AgentVersion, AgentVersion.id == Agent.current_version_id)
+        .where(
+            Agent.organization_id == organization_id,
+            # The union of the two windows, so one pass serves both filters. A
+            # row outside both contributes to neither aggregate and only costs
+            # the scan it would have cost twice otherwise.
+            or_(*window, AgentRun.started_at >= month_since),
+        )
+        .group_by(Agent.id, Agent.name, cap.as_float())
+        .order_by(func.coalesce(func.sum(AgentRun.cost_usd).filter(top_level), 0).desc())
+    )
+    return [
+        AgentSpendRow(
+            agent_id=agent_id,
+            agent_name=name,
+            cost_usd=Decimal(cost),
+            run_count=runs,
+            partial_run_count=unpriced,
+            month_to_date_usd=Decimal(month),
+            monthly_cap_usd=None if monthly_cap is None else Decimal(str(monthly_cap)),
+        )
+        for agent_id, name, cost, runs, unpriced, month, monthly_cap in rows.all()
+    ]
+
+
 def _own_cost() -> ColumnElement[Decimal]:
     """What a run spent *itself*, with its delegations' share taken back out.
 
@@ -549,6 +660,7 @@ async def spend_by_provider(
     *,
     organization_id: UUID,
     since: datetime,
+    until: datetime | None = None,
 ) -> list[tuple[str | None, Decimal, int]]:
     """Spend grouped by model provider - "what did we spend at OpenAI".
 
@@ -571,7 +683,11 @@ async def spend_by_provider(
             func.coalesce(func.sum(_own_cost()), 0),
             func.count(AgentRun.id),
         )
-        .where(AgentRun.organization_id == organization_id, AgentRun.started_at >= since)
+        .where(
+            AgentRun.organization_id == organization_id,
+            AgentRun.started_at >= since,
+            *([] if until is None else [AgentRun.started_at <= until]),
+        )
         .group_by(AgentRun.provider)
         .order_by(func.coalesce(func.sum(_own_cost()), 0).desc())
     )
@@ -583,6 +699,7 @@ async def spend_by_key(
     *,
     organization_id: UUID,
     since: datetime,
+    until: datetime | None = None,
 ) -> list[tuple[UUID | None, str | None, Decimal, int]]:
     """Spend grouped by the stored key that paid for it.
 
@@ -602,7 +719,11 @@ async def spend_by_key(
             func.count(AgentRun.id),
         )
         .join(OrganizationSecret, OrganizationSecret.id == AgentRun.secret_id, isouter=True)
-        .where(AgentRun.organization_id == organization_id, AgentRun.started_at >= since)
+        .where(
+            AgentRun.organization_id == organization_id,
+            AgentRun.started_at >= since,
+            *([] if until is None else [AgentRun.started_at <= until]),
+        )
         .group_by(AgentRun.secret_id, OrganizationSecret.name)
         .order_by(func.coalesce(func.sum(_own_cost()), 0).desc())
     )

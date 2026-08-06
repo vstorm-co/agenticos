@@ -472,8 +472,8 @@ class TestTheCostScreen:
 
         month_to_date = await service.monthly_spend(ctx)
         by_agent = await service.cost_breakdown(ctx)
-        by_provider = await service.spend_by_provider(ctx)
-        by_key = await service.spend_by_key(ctx)
+        by_provider = await service.spend_by_provider(ctx, since=month_start())
+        by_key = await service.spend_by_key(ctx, since=month_start())
 
         assert month_to_date == Decimal("1.00")
         assert sum(row[2] for row in by_agent) == month_to_date
