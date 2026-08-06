@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
+import { DASHBOARD_FRESHNESS } from "@/lib/query-freshness";
 import { qk } from "@/lib/query-keys";
 import type { RatingsSummary, UsageScope, UsageStats } from "@/types/stats";
 
@@ -10,18 +11,6 @@ export interface UsagePeriod {
   from: string;
   to: string;
 }
-
-/**
- * Daily aggregates refresh when the tab comes back, against the app-wide
- * default of not refetching on focus.
- *
- * That default exists so navigating around does not re-ask every list, and it
- * is right for a page somebody is reading. A dashboard is a page somebody
- * leaves open: coming back to yesterday's numbers after lunch and acting on
- * them is the failure the app-wide setting has no way to see. The queue is a
- * separate matter and already polls - see `useApprovals`.
- */
-const AGGREGATE_FRESHNESS = { refetchOnWindowFocus: true } as const;
 
 /**
  * The composed usage answer for one window.
@@ -43,7 +32,7 @@ export function useUsageStats(
         params: { from: period.from, to: period.to, scope },
       }),
     enabled: options?.enabled ?? true,
-    ...AGGREGATE_FRESHNESS,
+    ...DASHBOARD_FRESHNESS,
   });
   return { usage: data ?? null, isLoading, error, refetch };
 }
@@ -68,7 +57,7 @@ export function useVersionUsage(
     // No agent picked yet (the composed answer has not arrived, or no agent
     // has two versions with runs) - there is nothing to ask about.
     enabled: (options?.enabled ?? true) && agentId !== null,
-    ...AGGREGATE_FRESHNESS,
+    ...DASHBOARD_FRESHNESS,
   });
   return { byVersion: data?.by_version ?? [], isLoading, error, refetch };
 }
@@ -100,7 +89,7 @@ export function usePeopleUsage(
         },
       }),
     enabled: options?.enabled ?? true,
-    ...AGGREGATE_FRESHNESS,
+    ...DASHBOARD_FRESHNESS,
   });
   return { byUser: data?.by_user ?? [], isLoading, error, refetch };
 }
@@ -118,7 +107,7 @@ export function useRatingsSummary(
         params: { from: period.from, to: period.to, scope },
       }),
     enabled: options?.enabled ?? true,
-    ...AGGREGATE_FRESHNESS,
+    ...DASHBOARD_FRESHNESS,
   });
   return { ratings: data ?? null, isLoading, error, refetch };
 }

@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
+import { DASHBOARD_FRESHNESS } from "@/lib/query-freshness";
 import { qk } from "@/lib/query-keys";
 import { listSyncSources } from "@/lib/rag-api";
 import { useOrgStore } from "@/stores";
@@ -18,6 +19,7 @@ export function useRecentFailures(limit = 5, options?: { enabled?: boolean }) {
         params: { status: "failed,budget_exceeded", limit: String(limit) },
       }),
     enabled: options?.enabled ?? true,
+    ...DASHBOARD_FRESHNESS,
   });
   return { failures: data?.items ?? [], total: data?.total ?? 0, isLoading, error, refetch };
 }
@@ -29,6 +31,7 @@ export function useSyncSources(options?: { enabled?: boolean }) {
     queryKey: qk.rag.syncSources(activeOrgId ?? "current"),
     queryFn: () => listSyncSources(),
     enabled: options?.enabled ?? true,
+    ...DASHBOARD_FRESHNESS,
   });
   return { sources: data?.items ?? [], isLoading, error, refetch };
 }
@@ -42,6 +45,7 @@ export function useRecentConversations(limit = 4, options?: { enabled?: boolean 
         params: { limit: String(limit) },
       }),
     enabled: options?.enabled ?? true,
+    ...DASHBOARD_FRESHNESS,
   });
   return { conversations: data?.items ?? [], isLoading, error, refetch };
 }
@@ -80,6 +84,7 @@ export function useSharedWithMeCounts(options?: { enabled?: boolean }) {
       };
     },
     enabled: options?.enabled ?? true,
+    ...DASHBOARD_FRESHNESS,
   });
   return { counts: data ?? null, isLoading, error, refetch };
 }
@@ -90,6 +95,7 @@ export function useAdminStats(options?: { enabled?: boolean }) {
     queryKey: qk.admin.stats(),
     queryFn: () => apiClient.get<AdminStats>("/admin/stats"),
     enabled: options?.enabled ?? true,
+    ...DASHBOARD_FRESHNESS,
   });
   return { stats: data ?? null, isLoading, error, refetch };
 }
@@ -100,6 +106,7 @@ export function useSystemHealth(options?: { enabled?: boolean }) {
     queryKey: qk.admin.system(),
     queryFn: () => apiClient.get<SystemHealth>("/admin/system"),
     enabled: options?.enabled ?? true,
+    ...DASHBOARD_FRESHNESS,
   });
   return { health: data ?? null, isLoading, error, refetch };
 }
@@ -113,6 +120,7 @@ export function useAdminOrganizations(limit = 5, options?: { enabled?: boolean }
         params: { limit: String(limit) },
       }),
     enabled: options?.enabled ?? true,
+    ...DASHBOARD_FRESHNESS,
   });
   return { organizations: data?.items ?? [], isLoading, error, refetch };
 }
@@ -124,6 +132,7 @@ export function useAdminRatingsSummary(options?: { enabled?: boolean }) {
     queryFn: () =>
       apiClient.get<RatingSummary>("/admin/ratings/summary", { params: { days: "30" } }),
     enabled: options?.enabled ?? true,
+    ...DASHBOARD_FRESHNESS,
   });
   return { summary: data ?? null, isLoading, error, refetch };
 }

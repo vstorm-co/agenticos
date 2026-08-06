@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, focusManager } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -183,5 +183,31 @@ describe("useRatingsSummary", () => {
 
     await waitFor(() => expect(result.current.error).toBeTruthy());
     expect(result.current.ratings).toBeNull();
+  });
+});
+
+describe("dashboard freshness", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  /** The app's real defaults - without them this test proves nothing. */
+  function appWrapper({ children }: { children: ReactNode }) {
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: 5 * 60 * 1000, refetchOnWindowFocus: false },
+      },
+    });
+    return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  }
+
+  it("asks again when the tab regains focus", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ total_runs: 1 });
+    const { result } = renderHook(() => useUsageStats(PERIOD), { wrapper: appWrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(apiClient.get).toHaveBeenCalledTimes(1);
+
+    focusManager.setFocused(false);
+    focusManager.setFocused(true);
+
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(2));
   });
 });
