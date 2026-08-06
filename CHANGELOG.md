@@ -19,6 +19,23 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.41] - 2026-08-06
+
+### Fixed
+
+- The local supervisor replaced a worker that had died but ignored one that was
+  alive and not answering — deadlocked on a lock, spinning, or blocked on a
+  socket that never replies. Such a worker has no exit code, so the supervisor
+  saw a healthy child and did nothing while the container served no requests.
+  The worker now stamps a monotonic beat from uvicorn's `callback_notify`, and a
+  worker silent across two consecutive polls is replaced (#336).
+
+### Added
+
+- `RELOAD_WEDGED_AFTER` — how long a worker may go without running its event
+  loop before it is treated as wedged. Set it to `0` under a debugger.
+
+
 ## [0.0.40] - 2026-08-06
 
 ### Fixed
