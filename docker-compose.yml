@@ -46,10 +46,18 @@ services:
       # Empty outside compose, so a bare `uvicorn` run degrades to "no container
       # workspace available" rather than erroring. Note what is absent here:
       # no docker.sock, which is the whole point of the service below.
-    # --ws websockets-sansio: uvicorn's `auto` picks the legacy websockets impl,
-    # which is broken with websockets >=14 (handshake → HTTP 500). The sansio
-    # implementation is the modern, compatible one. Required for the chat WS.
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --ws websockets-sansio
+    # Not `uvicorn --reload` directly. Its reloader is a file watcher, not a
+    # process supervisor: when the kernel kills the worker - an OOM kill is the
+    # realistic way - it neither reaps it nor replaces it, so PID 1 stays alive,
+    # this container stays `Up`, `restart:` below has nothing to act on, and
+    # nothing is listening. `cli/reload_supervisor.py` is the same reloader with
+    # a worker the kernel killed replaced within about five seconds.
+    #
+    # The websockets implementation moved in there too: uvicorn's `auto` picks
+    # the legacy one, broken with websockets >=14 (handshake → HTTP 500), and
+    # the chat WS needs the sansio one. The other two compose files still pass
+    # `--ws websockets-sansio` explicitly, because neither runs with `--reload`.
+    command: python -m cli.commands server run --host 0.0.0.0 --port 8000 --reload
     networks:
       - backend
     depends_on:

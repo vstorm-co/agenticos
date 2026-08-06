@@ -12,6 +12,7 @@ from tabulate import tabulate
 from app import __version__
 from app.commands import register_commands
 from app.main import app
+from cli.reload_supervisor import APP, WS_PROTOCOL, run_reload_server
 from app.core.exceptions import AlreadyExistsError
 from app.db.session import async_session_maker
 from app.schemas.user import UserCreate
@@ -34,13 +35,16 @@ def server_cli():
 @click.option("--port", default=8000, type=int, help="Port to bind to")
 @click.option("--reload", is_flag=True, help="Enable auto-reload")
 def server_run(host: str, port: int, reload: bool):
-    """Run the development server."""
-    uvicorn.run(
-        "app.main:app",
-        host=host,
-        port=port,
-        reload=reload,
-    )
+    """Run the server.
+
+    `--reload` runs under `SupervisedReload` rather than uvicorn's own reloader,
+    which never notices a worker the kernel kills - it keeps watching files
+    while nothing is listening. `cli/reload_supervisor.py` has the whole story.
+    """
+    if reload:
+        run_reload_server(host=host, port=port)
+        return
+    uvicorn.run(APP, host=host, port=port, ws=WS_PROTOCOL)
 
 
 @server_cli.command("routes")

@@ -168,8 +168,24 @@ does not.
 make install                                    # uv sync + pre-commit
 docker compose -f docker-compose.yml up -d db redis
 make db-upgrade                                 # apply migrations
-make run                                        # uvicorn --reload
+make run                                        # uvicorn --reload, supervised
 ```
+
+!!! note "The reloader is supervised"
+
+    `--reload` runs under `backend/cli/reload_supervisor.py` rather than
+    uvicorn's reloader alone. Uvicorn's watches files and nothing else, so a
+    worker the kernel kills — an out-of-memory kill being the realistic way — is
+    neither reaped nor replaced: the reloader keeps watching while no port is
+    listening, and inside a container that means PID 1 is still alive, `docker
+    ps` still says `Up`, and the restart policy has nothing to act on. A worker
+    killed by a signal is now replaced within about five seconds. One that
+    exited on its own still waits for the edit that fixes it.
+
+    This is the reload path only. `make dev-server` runs a single unsupervised
+    uvicorn, so a kill takes PID 1 with it and `restart: unless-stopped`
+    restarts the container; `make prod` runs `--workers 4`, where uvicorn's own
+    `Multiprocess` supervisor already replaces a dead worker twice a second.
 
 !!! note "Python is pinned to 3.12"
 
