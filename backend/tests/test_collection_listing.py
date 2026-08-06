@@ -9,7 +9,7 @@ existed, and a caller that believed it would read chunks out of a table with non
 of the columns it expects (#339).
 
 The fix is the predicate `alembic/env.py` already asks from the other side, not a
-name this file could spell out - which is why the second test below exists. A
+name this file could spell out - which is what the last test below is for. A
 collection genuinely called `documents_archive` has to keep listing.
 """
 
