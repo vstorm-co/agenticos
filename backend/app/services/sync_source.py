@@ -63,6 +63,25 @@ def _mask_config(config: dict, connector_type: str) -> dict:
     }
 
 
+async def _refuse_an_invalid_config(config: dict, connector_type: str) -> None:
+    """Ask the connector whether it would accept this config, before it is stored.
+
+    Every write path asks, so a value the connector refuses cannot be persisted
+    by any of them. The alternative is a check that lives only on the sink -
+    correct, but it answers in a background sync log rather than to the caller
+    who sent the value, and only once somebody triggers a run.
+    """
+    connector_cls = CONNECTOR_REGISTRY.get(connector_type)
+    if connector_cls is None:  # pragma: no cover - a stored row names a live connector
+        return
+    is_valid, error = await connector_cls().validate_config(config)
+    if not is_valid:
+        raise BadRequestError(
+            message=f"Invalid connector config: {error}",
+            details={"connector_type": connector_type},
+        )
+
+
 def _raw_config(source: SyncSource) -> dict:
     c = source.config
     if isinstance(c, dict):
@@ -213,6 +232,9 @@ class SyncSourceService:
         existing = await self.get_source(source_id)
         raw = _raw_config(existing)
         decrypted = _decrypt_config(raw)
+        # A clone copies a config somebody else's row already holds, and rows
+        # predating this check exist. Judged again rather than trusted.
+        await _refuse_an_invalid_config(decrypted, existing.connector_type)
         re_encrypted = _encrypt_config(decrypted, existing.connector_type)
 
         source = await sync_source_repo.create(
@@ -245,6 +267,14 @@ class SyncSourceService:
                 if isinstance(v, str) and v == _SECRET_MASK:
                     continue
                 merged[k] = v
+            # The merged config, not the patch: a caller sends one field and the
+            # connector judges the whole thing it will actually run with. Asked
+            # here as well as on create because `create_source` was the only
+            # route that asked, so a value refused at creation could be reached
+            # by patching it in afterwards - and the sink check inside the
+            # connector then answered an hour later in a sync log rather than to
+            # the caller who sent it.
+            await _refuse_an_invalid_config(merged, existing.connector_type)
             updates["config"] = _encrypt_config(merged, existing.connector_type)
 
         source = await sync_source_repo.update(self.db, UUID(source_id), **updates)

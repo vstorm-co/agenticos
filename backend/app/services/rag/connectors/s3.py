@@ -70,12 +70,24 @@ class S3Connector(BaseSyncConnector):
     }
 
     def _get_s3_client(self, config: dict):
-        """Build a boto3 S3 client from per-source config with settings fallback."""
+        """Build a boto3 S3 client from this source's own credentials.
+
+        The key and secret come from the source and nowhere else. They used to
+        fall back to `S3_RAG_ACCESS_KEY` / `S3_RAG_SECRET_KEY`, and that is the
+        same shape removed from the Drive connector alongside it: a fallback
+        means the caller's `bucket` chooses what is read under the *operator's*
+        identity rather than their own, which turns one field of a source's
+        configuration into a reach across organizations. Worse than the Drive
+        case, because both settings default to empty - so the fallback resolved
+        to `None`, boto3 fell through to the container's own credential chain,
+        and the reach was whatever the task role could see.
+
+        Only the endpoint and region still fall back. Neither names a principal;
+        they say where the store is, not who is asking.
+        """
         client_kwargs: dict[str, Any] = {
-            "aws_access_key_id": config.get("access_key_id") or settings.S3_RAG_ACCESS_KEY or None,
-            "aws_secret_access_key": config.get("secret_access_key")
-            or settings.S3_RAG_SECRET_KEY
-            or None,
+            "aws_access_key_id": config.get("access_key_id") or None,
+            "aws_secret_access_key": config.get("secret_access_key") or None,
             "region_name": config.get("region") or settings.S3_RAG_REGION,
         }
         endpoint = config.get("endpoint_url") or settings.S3_RAG_ENDPOINT

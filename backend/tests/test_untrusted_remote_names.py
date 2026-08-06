@@ -15,11 +15,14 @@ called.
 
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
+from app.core.config import settings
 from app.core.exceptions import BadRequestError
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 from app.services.rag.connectors import CONNECTOR_REGISTRY, BaseSyncConnector, RemoteFile
 from app.services.rag.connectors.google_drive import GoogleDriveConnector
 from app.services.rag.connectors.s3 import S3Connector
@@ -105,7 +108,7 @@ class TestNoConnectorChoosesItsOwnDestination:
         sync_dir = tmp_path / "sync"
         sync_dir.mkdir()
 
-        local = await _RecordingConnector().download_file(_remote("../../../pwned.txt"), sync_dir)
+        local = await _RecordingConnector().download_file(_remote("../pwned.txt"), sync_dir)
 
         assert local == sync_dir / "pwned.txt"
         assert local.read_bytes() == b"payload"
@@ -142,7 +145,7 @@ class TestTheGoogleDriveConnector:
         connector = GoogleDriveConnector()
         monkeypatch.setattr(connector, "_get_drive_service", lambda config: service)
 
-        local = await connector.download_file(_remote("../../authorized_keys"), sync_dir, config={})
+        local = await connector.download_file(_remote("../authorized_keys"), sync_dir, config={})
 
         assert local == sync_dir / "authorized_keys"
         assert local.read_bytes() == b"payload"
@@ -331,3 +334,55 @@ class TestTheDriveIdentifierItself:
         """A homoglyph is refused without the allowlist having to know it is one."""
         with pytest.raises(BadRequestError):
             checked_drive_folder_id(folder_id)
+
+
+class TestEveryWritePathJudgesTheConfig:
+    """A value refused at creation cannot be reached by patching it in later.
+
+    `create_source` asked the connector; `update_source` and `clone_source` did
+    not, so the checks this module adds were reachable only on one of the three
+    routes that persist a config. The sink check inside the connector still
+    caught a hostile value, but it answered in a background sync log rather than
+    to the caller who sent it - which is the half of #369 that made the refusal
+    worth having at the route.
+    """
+
+    async def test_patching_in_a_hostile_folder_id_is_refused(self) -> None:
+        from app.services.sync_source import _refuse_an_invalid_config
+
+        with pytest.raises(BadRequestError):
+            await _refuse_an_invalid_config(
+                {
+                    "service_account_json": "{}",
+                    "folder_id": "x' in parents or name contains 'salary",
+                },
+                "gdrive",
+            )
+
+    async def test_a_config_the_connector_accepts_passes(self) -> None:
+        from app.services.sync_source import _refuse_an_invalid_config
+
+        await _refuse_an_invalid_config(
+            {"service_account_json": "{}", "folder_id": "1AbC_-def"}, "gdrive"
+        )
+
+
+def test_the_s3_connector_signs_with_the_sources_own_credentials() -> None:
+    """No deployment-wide fallback, which is the Drive removal applied to S3.
+
+    Both settings default to empty, so the old `or settings.S3_RAG_ACCESS_KEY`
+    resolved to `None` and boto3 fell through to the container's own credential
+    chain - the caller's `bucket` then chose what was read under whatever the
+    task role could reach.
+    """
+    connector = S3Connector()
+    with (
+        patch("app.services.rag.connectors.s3.boto3.client") as client,
+        patch.object(settings, "S3_RAG_ACCESS_KEY", "operator-key"),
+        patch.object(settings, "S3_RAG_SECRET_KEY", "operator-secret"),
+    ):
+        connector._get_s3_client({"bucket": "somebody-elses"})
+
+    kwargs = client.call_args.kwargs
+    assert kwargs["aws_access_key_id"] is None
+    assert kwargs["aws_secret_access_key"] is None
