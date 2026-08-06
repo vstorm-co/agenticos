@@ -14,6 +14,8 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
+from app.db.base import Base
+from app.db.vector_tables import VECTOR_TABLE_PREFIX
 from app.services.rag.vectorstore import PgVectorStore
 
 pytestmark = pytest.mark.anyio
@@ -38,8 +40,12 @@ async def test_the_listing_holds_the_collection_and_not_the_documents_table(
             )
         )
         # The premise, asserted rather than assumed: the tracking table is in
-        # this database and does carry the prefix the store matches on.
-        assert {row[0] for row in present} == {"rag_documents", "rag_company_handbook"}
+        # this database and does carry the prefix the store matches on. Derived
+        # from the metadata, so a second prefixed model table added later is part
+        # of the premise instead of failing this line.
+        modelled = {name for name in Base.metadata.tables if name.startswith(VECTOR_TABLE_PREFIX)}
+        assert "rag_documents" in modelled
+        assert {row[0] for row in present} == modelled | {"rag_company_handbook"}
 
     store = PgVectorStore.__new__(PgVectorStore)
     store.async_session = async_sessionmaker(engine, expire_on_commit=False)

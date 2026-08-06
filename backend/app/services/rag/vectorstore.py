@@ -3,7 +3,11 @@ import re
 from abc import ABC, abstractmethod
 from typing import Any
 
-import app.db.models  # noqa: F401  - registers every model table on `Base.metadata`
+# Registers every model table on `Base.metadata`, which `list_collections` judges a
+# `rag_` table against. Another import already reaches the models today; this one
+# says the listing depends on it, rather than leaving that to a chain belonging to
+# a different concern.
+import app.db.models  # noqa: F401
 from app.db.base import Base
 from app.db.vector_tables import VECTOR_TABLE_PREFIX, is_runtime_vector_table
 from app.schemas.rag import RAGDocumentItem, RAGDocumentList
