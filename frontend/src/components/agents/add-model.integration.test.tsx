@@ -126,6 +126,11 @@ function mount(props: Partial<Parameters<typeof AddModel>[0]> = {}) {
   return { onCreated };
 }
 
+/** The brand mark actually drawn, by the name lobehub titles its SVG with. */
+function markIn(element: HTMLElement): string | null {
+  return element.querySelector("svg > title")?.textContent ?? null;
+}
+
 async function pickProvider(label: string) {
   await userEvent.click(screen.getByLabelText("Provider"));
   await userEvent.click(screen.getByRole("option", { name: new RegExp(label) }));
@@ -166,6 +171,46 @@ describe("the add-model form", () => {
     // The tick is decorative; what matters is that both are offered and the
     // keyed one is distinguishable at all.
     expect(screen.getByRole("option", { name: /OpenAI/ })).toBeInTheDocument();
+  });
+
+  it("draws each provider's own brand mark", async () => {
+    mount();
+
+    await userEvent.click(screen.getByLabelText("Provider"));
+
+    expect(markIn(screen.getByRole("option", { name: /OpenAI/ }))).toBe("OpenAI");
+    expect(markIn(screen.getByRole("option", { name: /OpenRouter/ }))).toBe("OpenRouter");
+  });
+
+  it("carries the chosen provider's mark on the closed trigger", async () => {
+    // For nothing: Radix draws the selected item's own text in the trigger.
+    mount();
+    await pickProvider("OpenRouter");
+
+    expect(markIn(screen.getByLabelText("Provider"))).toBe("OpenRouter");
+  });
+
+  it("leaves the has-a-key tick in the list rather than repeating it in the trigger", async () => {
+    // In the trigger there is nothing to compare it against, so a tick there
+    // reads as "selected" - which is a different claim, and a wrong one for a
+    // provider whose key was deleted.
+    state.secrets = [secret()];
+    mount();
+    await pickProvider("OpenAI");
+
+    expect(screen.getByLabelText("Provider").querySelector(".lucide-check")).toBeNull();
+  });
+
+  it("draws the mark and the masked tail of every key it offers", async () => {
+    state.secrets = [secret(), secret({ id: "s-2", name: "OpenAI staging", hint: "9999" })];
+    mount();
+    await pickProvider("OpenAI");
+
+    await userEvent.click(screen.getByLabelText("Key"));
+
+    const staging = screen.getByRole("option", { name: /OpenAI staging/ });
+    expect(markIn(staging)).toBe("OpenAI");
+    expect(staging).toHaveTextContent("····9999");
   });
 
   it("cannot be submitted before a provider is chosen", () => {

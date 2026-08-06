@@ -1036,6 +1036,7 @@
     "create": "Create",
     "createKnowledgeBase": "Create knowledge base",
     "creating": "Creating...",
+    "customized": "customized",
     "defaultIngestionConfigConst": "(DEFAULT_INGESTION_CONFIG); const [embeddingModel, setEmbeddingModel] = useState",
     "deploymentDefault": "deployment default",
     "deploymentDefaults": "deployment defaults",

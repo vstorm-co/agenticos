@@ -5,8 +5,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ConnectionDialog } from "./connection-dialog";
 import type { SandboxConnectionRecord } from "@/lib/sandbox-connections-api";
 
+interface VaultKey {
+  id: string;
+  name: string;
+  kind: string;
+  hint: string;
+  /** What the key is for. Absent for one stored against no service at all. */
+  purpose?: string;
+}
+
 const state = vi.hoisted(() => ({
-  secrets: [{ id: "s-1", name: "Sandbox token", kind: "api_key", hint: "4242" }],
+  secrets: [{ id: "s-1", name: "Sandbox token", kind: "api_key", hint: "4242" }] as VaultKey[],
   local: null as {
     url: string | null;
     token_available: boolean;
@@ -45,6 +54,11 @@ vi.mock("@/components/vault/inline-secret", () => ({
     </button>
   ),
 }));
+
+/** The brand mark actually drawn, by the name lobehub titles its SVG with. */
+function markIn(element: HTMLElement): string | null {
+  return element.querySelector("svg > title")?.textContent ?? null;
+}
 
 function connection(overrides: Partial<SandboxConnectionRecord> = {}): SandboxConnectionRecord {
   return {
@@ -159,6 +173,38 @@ describe("ConnectionDialog", () => {
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
 
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ secret_id: "s-1" }));
+  });
+
+  it("draws each key's own mark and masked tail, and a monogram for a custom one", async () => {
+    // Any API key in the vault can be offered here, so the mark is the one
+    // thing that says which service a row's token actually belongs to. A key
+    // stored for no particular service has no logo anywhere - that is the
+    // normal case, and a monogram is what keeps it from being a blank gap.
+    state.secrets = [
+      { id: "s-1", name: "Sandbox token", kind: "api_key", hint: "4242" },
+      { id: "s-2", name: "Daytona prod", kind: "api_key", hint: "7777", purpose: "daytona" },
+      { id: "s-3", name: "Acme webhook", kind: "api_key", hint: "1111", purpose: "openai" },
+    ];
+    mount(connection({ secret_id: null }));
+
+    await userEvent.click(screen.getByLabelText("Credential"));
+
+    const marked = screen.getByRole("option", { name: /Acme webhook/ });
+    expect(markIn(marked)).toBe("OpenAI");
+    expect(marked).toHaveTextContent("····1111");
+    // `daytona` is a service with no compiled-in mark, and so is a key with no
+    // purpose at all: both fall back rather than drawing nothing.
+    expect(markIn(screen.getByRole("option", { name: /Daytona prod/ }))).toBeNull();
+    expect(markIn(screen.getByRole("option", { name: /Sandbox token/ }))).toBeNull();
+  });
+
+  it("carries the chosen key's mark on the closed trigger", async () => {
+    state.secrets = [
+      { id: "s-1", name: "OpenAI prod", kind: "api_key", hint: "4242", purpose: "openai" },
+    ];
+    mount(connection());
+
+    expect(markIn(screen.getByLabelText("Credential"))).toBe("OpenAI");
   });
 
   it("takes one added inline as well", async () => {
