@@ -218,25 +218,32 @@ it is about to wait.
 ### What each surface records
 
 Every surface reaches the same runner, so every run gets its row — its cost, its
-status, its tokens, and the budget enforced against it. Writing the **transcript**
-is the caller's job, and the callers are not equal. That matters because a run's
-drill-down is read from those rows: what a surface never wrote, no page can show.
+status, its tokens, and the budget enforced against it. It also gets its
+**transcript**: the question, the answer, and every tool call with the arguments
+it was made with and what came back. That matters because a run's drill-down is
+read from those rows — what nothing wrote, no page can show.
+
+The transcript is written by the runner, not by the surface. It used to be the
+surface's job, and four of them did not do it: the widget, a mention, the API and
+every resumed run recorded nothing at all, so an organization was billed for an
+answer with no row saying what was asked. A thing every surface has to remember
+is a thing the next surface will not.
 
 | Surface | What reaches `messages` and `tool_calls` |
 |---|---|
 | Web chat, run finished | Everything — prompt, reasoning, tool arguments and results, model and version |
 | Web chat, run failed | The prompt only. The exception skips the assistant write |
-| A channel bot's default agent | Prompt and answer as text — no tool calls, model or version |
-| Embedded widget | Nothing. A conversation row is created and left empty |
-| `@mention` on a channel | Nothing |
-| HTTP API | Nothing, even when the caller passes a `conversation_id` |
-| A run resumed after an approval | Nothing — the continuation writes no messages |
+| A channel bot's default agent | Everything except the reasoning, which only a streamed run exposes |
+| `@mention` on a channel | The same, with the handle stripped from the recorded prompt |
+| Embedded widget | The same. The visitor is anonymous; the run and the turns belong to the widget's owner |
+| HTTP API | The same when the call carries a `conversation_id`. Nothing without one — there is no thread to write a turn into, and the run row is still the record that it happened |
+| A run resumed after an approval | Its continuation — the answer and the calls it made. No user turn: it picks up at the call it stopped on, and inventing a question would put words in somebody's mouth |
 
-`tool_calls` rows are written in exactly one place, and it is fed by a list only
-the streaming path fills, so tool calls are observable only where somebody is
-watching. Levelling this up is tracked work, not a design choice; until it lands,
-a run detail view on those surfaces says *this surface does not record steps* and
-names the surface, rather than drawing an empty panel.
+Two things are deliberately not recorded. A channel reply's **delivery notes** — *this
+file was too large to send* — stay out of the transcript: they are about what the
+reply could not carry, not about what the agent said. And an **attachment folded
+into a prompt** contributes only its text; the file itself is a row of its own,
+and its `repr` in a message body would be worse than nothing.
 
 ### What a turn looks like in web chat
 

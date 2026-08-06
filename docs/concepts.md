@@ -102,10 +102,12 @@ somebody typed; it is linked as soon as there is a run to link it to. Deleting a
 run nulls the column instead of deleting the turns: the words were still said,
 and the conversation is where somebody reads them.
 
-Linking a turn is not the same as writing one, and which surfaces write a
-transcript at all is a separate question - one this column cannot answer, since
-it links rows that exist. Web chat records everything; the surfaces that record
-less are listed under [Surfaces](channels.md#what-each-surface-records).
+Linking a turn is not the same as writing one, and what each surface actually
+writes is a separate question - one this column cannot answer, since it links
+rows that already exist. The non-streaming surfaces are written by the runner
+rather than by themselves, which is what made them uniform; the exceptions and
+what they leave out are listed under
+[Surfaces](channels.md#what-each-surface-records).
 
 ---
 

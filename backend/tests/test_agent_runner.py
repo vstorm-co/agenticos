@@ -15,6 +15,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic_ai.messages import ModelRequest, ModelResponse, ToolCallPart, ToolReturnPart
 from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai.usage import RequestUsage
 
@@ -55,11 +56,21 @@ def _db(monthly_budget_usd: Decimal | None = None):
     return db
 
 
-def _prepared(ledger: SpendLedger | None = None):
+def _prepared(ledger: SpendLedger | None = None, *, conversation_id: uuid.UUID | None = None):
     prepared = MagicMock()
-    prepared.run = MagicMock(id=uuid.uuid4())
+    # No conversation unless a test asks for one. `_run` writes the transcript
+    # into the run's conversation, and a `MagicMock` here is truthy - which would
+    # send every accounting test through a write it is not about, against a
+    # session that cannot serve it.
+    prepared.run = MagicMock(
+        id=uuid.uuid4(),
+        agent_id=uuid.uuid4(),
+        agent_version_id=uuid.uuid4(),
+        conversation_id=conversation_id,
+    )
     prepared.built = MagicMock()
     prepared.built.ledger = ledger or SpendLedger()
+    prepared.built.model_label = "gpt-4.1"
     prepared.approvals.parked = {}
     # Real containers, not mocks: `finish` walks both to fold the delegation tree
     # into whatever parked state the surface reported, and a `MagicMock` is not
@@ -822,6 +833,107 @@ class TestRunAccounting:
         assert finish.call_args.kwargs["status"] == RunStatus.FAILED.value
 
 
+class TestWhatANonStreamingRunRecords:
+    """The transcript, written by the runner rather than by each surface.
+
+    Four surfaces reached `_run` and recorded nothing: the embedded widget, a
+    channel mention, the HTTP API and every resumed run. An organization was
+    billed for an answer given to a visitor on a client's site, with no row
+    saying what was asked or what was said back. The channel bot did write two
+    lines of text and dropped the tool calls, the model and the version.
+
+    So the write moved to the one place a non-streaming run executes. The
+    streaming chat does not come through here and keeps its own, because it has
+    events to attach and a socket to answer on.
+    """
+
+    @staticmethod
+    def _answered(output: object, messages: list[Any] | None = None) -> MagicMock:
+        return MagicMock(output=output, new_messages=MagicMock(return_value=messages or []))
+
+    @pytest.mark.anyio
+    async def test_the_question_the_answer_and_the_tool_calls_all_reach_the_transcript(self):
+        conversation_id = uuid.uuid4()
+        service = AgentRunnerService(_db())
+        prepared = _prepared(conversation_id=conversation_id)
+        prepared.built.agent.run = AsyncMock(
+            return_value=self._answered(
+                "sent",
+                [
+                    ModelResponse(
+                        parts=[
+                            ToolCallPart(
+                                tool_name="send_email",
+                                args={"to": "ada@example.com"},
+                                tool_call_id="c1",
+                            )
+                        ]
+                    ),
+                    ModelRequest(
+                        parts=[
+                            ToolReturnPart(tool_name="send_email", content="ok", tool_call_id="c1")
+                        ]
+                    ),
+                ],
+            )
+        )
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch.object(service.transcript, "record", new=AsyncMock()) as record,
+        ):
+            await service.execute(_ctx(), uuid.uuid4(), "email ada")
+
+        written = record.await_args.kwargs
+        assert (written["prompt"], written["answer"]) == ("email ada", "sent")
+        assert written["model_label"] == "gpt-4.1"
+        assert [(call.tool_name, call.args, call.result) for call in written["tool_calls"]] == [
+            ("send_email", {"to": "ada@example.com"}, "ok")
+        ]
+
+    @pytest.mark.anyio
+    async def test_a_run_that_broke_still_records_what_was_asked(self):
+        """The run that failed is the one somebody opens. Without the question
+        there is nothing on the page to interpret the failure against."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared(conversation_id=uuid.uuid4())
+        prepared.built.agent.run = AsyncMock(side_effect=RuntimeError("provider down"))
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch.object(service.transcript, "record", new=AsyncMock()) as record,
+            pytest.raises(RuntimeError),
+        ):
+            await service.execute(_ctx(), uuid.uuid4(), "email ada")
+
+        written = record.await_args.kwargs
+        assert (written["prompt"], written["answer"]) == ("email ada", "")
+
+    @pytest.mark.anyio
+    async def test_an_attached_file_is_not_recorded_as_a_repr_of_itself(self):
+        """A prompt an attachment was folded into arrives as parts. Only the text
+        is the turn; the binary part is the file, and its `repr` in the message
+        body is worse than nothing."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared(conversation_id=uuid.uuid4())
+        prepared.built.agent.run = AsyncMock(return_value=self._answered("read it"))
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch(
+                "app.services.agent_runner.AttachmentRouter.build_prompt",
+                new=AsyncMock(return_value=["summarise this", object()]),
+            ),
+            patch.object(service.transcript, "record", new=AsyncMock()) as record,
+        ):
+            await service.execute(_ctx(), uuid.uuid4(), "summarise this", attachments=[MagicMock()])
+
+        assert record.await_args.kwargs["prompt"] == "summarise this"
+
+
 class TestStoppingANonStreamingRun:
     """A cancelled run, through `execute`.
 
@@ -1197,6 +1309,51 @@ class TestResume:
         assert channel.decided["call-1"] == ApprovalGranted(
             tool_args={"to": "customer@example.com"}
         )
+
+    @pytest.mark.anyio
+    async def test_a_resumed_run_records_its_continuation_and_invents_no_question(self):
+        """A resumed run used to record nothing at all: `resume` replays through
+        `_run`, and the write lived in each surface. So the decision a person made
+        produced work with no transcript.
+
+        `prompt=None` is the other half. The run picks up at the tool call it
+        stopped on - there is no new question, and writing one would put words in
+        somebody's mouth."""
+        service = AgentRunnerService(_db())
+        approval = self._approval(
+            status=ApprovalStatus.APPROVED.value, tool_args={"to": "customer@example.com"}
+        )
+        run = _parked_run(
+            conversation_id=uuid.uuid4(),
+            paused_state={"messages": [], "tool_call_ids": {str(approval.id): "call-1"}},
+        )
+
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                new=AsyncMock(return_value=run),
+            ),
+            patch(
+                "app.services.agent_runner.agent_run_repo.list_approvals_for_run",
+                new=AsyncMock(return_value=[approval]),
+            ),
+            patch(
+                "app.services.agent_runner.agent_repo.get_version",
+                new=AsyncMock(return_value=self._version()),
+            ),
+            patch("app.services.agent_runner.build_agent", return_value=self._built()),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch.object(service.registry, "get", new=AsyncMock(return_value=MagicMock())),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch.object(service.transcript, "record", new=AsyncMock()) as record,
+        ):
+            await service.resume(_ctx(), run.id)
+
+        written = record.await_args.kwargs
+        assert (written["prompt"], written["answer"]) == (None, "sent")
 
     @pytest.mark.anyio
     async def test_a_resumed_run_keeps_the_spend_it_had_already_booked(self):

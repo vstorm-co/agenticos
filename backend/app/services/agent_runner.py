@@ -148,6 +148,7 @@ from app.services.skill_workspace import MaterialisedSkills, collect_changes
 from app.services.skill_workspace import materialise as materialise_skills
 from app.services.skills import SkillService
 from app.services.spend import month_start, organization_monthly_spend
+from app.services.transcript import RecordedToolCall, TranscriptService, tool_calls_in
 
 logger = logging.getLogger(__name__)
 
@@ -1126,6 +1127,23 @@ def _spend_already_booked(run: AgentRun) -> SpendEntry:
     )
 
 
+def _prompt_text(user_prompt: str | list[Any] | None) -> str | None:
+    """The words to record as the user's turn, if there are any.
+
+    `None` stays `None`: a resumed run has no new prompt - it picks up at the
+    tool call it stopped on - and writing a turn there would put words in
+    somebody's mouth.
+
+    A list is a prompt an attachment was folded into, where the non-text parts
+    are the file itself. Only the text is recorded; the transcript's own file
+    rows are where an attachment belongs, and a `repr` of `BinaryContent` in the
+    message body is worse than nothing.
+    """
+    if user_prompt is None or isinstance(user_prompt, str):
+        return user_prompt
+    return "".join(part for part in user_prompt if isinstance(part, str))
+
+
 class AgentRunnerService:
     """Prepare, execute and account for agent runs."""
 
@@ -1139,6 +1157,7 @@ class AgentRunnerService:
         self.organizations = OrganizationService(db)
         self.workspaces = SandboxWorkspaceService(db)
         self.proposals = SkillProposalService(db)
+        self.transcript = TranscriptService(db)
 
     async def _collection_names(self, spec: AgentSpec, ctx: AuthContext) -> list[str]:
         """Vector-store collection names for the agent's bound collections.
@@ -2748,6 +2767,15 @@ class AgentRunnerService:
         cancellation and a crash are all recorded the same way whether the run is
         new or resumed.
 
+        **It is also where the transcript is written, for the same reason.** Every
+        surface that does not stream reaches this method, and every one of them
+        used to be responsible for recording what the run said: the embedded
+        widget, a channel mention, the HTTP API and every resumed run recorded
+        nothing at all, so an organization was billed for answers no row
+        described. A thing four surfaces have to remember is a thing the fifth
+        will not. The streaming chat does not come through here and keeps writing
+        its own, because it has events to attach and a socket to answer on.
+
         **A cancellation is one of those endings, and it needs both halves.**
         `asyncio.CancelledError` is a `BaseException`, so it reaches neither
         handler below on its own: the status stayed at its initial `FAILED` with
@@ -2766,6 +2794,7 @@ class AgentRunnerService:
         output = ""
         paused: PausedRunState | None = None
         budget_scope: BudgetScope | None = None
+        called: list[RecordedToolCall] = []
         try:
             # `metered_by` books what the request wrapper cannot see - the
             # embedding calls a knowledge search makes - to this run's ledger,
@@ -2778,6 +2807,10 @@ class AgentRunnerService:
                     deferred_tool_results=deferred_tool_results,
                     usage_limits=prepared.built.usage_limits,
                 )
+            # `new_messages`, not `all_messages`: a resumed run is handed
+            # everything up to the park as history, and the wider list would
+            # write the first attempt's calls again under the same run.
+            called = tool_calls_in(result.new_messages())
             if isinstance(result.output, DeferredToolRequests):
                 paused = PausedRunState(
                     messages=ModelMessagesTypeAdapter.dump_python(
@@ -2817,6 +2850,16 @@ class AgentRunnerService:
                 error=error,
                 paused_state=paused,
                 budget_scope=budget_scope,
+            )
+            # In the `finally`, so a run that failed, parked or was stopped still
+            # says what was asked and what it managed to do. Those are the runs
+            # somebody opens.
+            await self.transcript.record(
+                prepared.run,
+                prompt=_prompt_text(user_prompt),
+                answer=output,
+                tool_calls=called,
+                model_label=prepared.built.model_label,
             )
             # Committed here rather than left to the session context: that exit
             # rolls back on any exception, and cancellation never reaches it at
