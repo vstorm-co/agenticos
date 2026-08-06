@@ -177,8 +177,16 @@ prod-logs:
 quickstart: dev
 
 # === Setup ===
+# Both halves of the toolchain, because `check` runs both. eslint, prettier, tsc,
+# vitest and next all live in `frontend/node_modules` and nowhere else, so a setup
+# that installs only the backend leaves `lint`, `lint-frontend`, `test-frontend`,
+# `build-frontend` and therefore `check` failing with `eslint: command not found`
+# - and `check` runs the backend half first, so it says so four minutes in.
+# `node_modules` is per-checkout and not shared between worktrees, which is why
+# this is owed on every clone rather than once a laptop.
 install:
 	uv sync --directory backend --dev
+	cd frontend && bun install --frozen-lockfile
 	@if git rev-parse --git-dir > /dev/null 2>&1; then \
 		uv run --project backend pre-commit install --hook-type pre-commit --hook-type commit-msg; \
 	else \
@@ -626,7 +634,7 @@ help:
 	@echo "  make prod           Production stack (requires backend/.env + nginx)"
 	@echo ""
 	@echo "Setup (without Docker):"
-	@echo "  make install       Install Python deps + pre-commit hooks"
+	@echo "  make install       Install Python + frontend deps and the pre-commit hooks"
 	@echo ""
 	@echo "Development:"
 	@echo "  make run           Start dev server (with hot reload)"
