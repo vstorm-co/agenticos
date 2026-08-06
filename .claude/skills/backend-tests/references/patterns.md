@@ -73,6 +73,14 @@ nothing.
 
 ## Migrations
 
-`make test-migrations` applies and rolls back the whole chain against Postgres. It is
-the only thing that proves `downgrade()` is real. Run it when you touch
-`alembic/versions/` — see the `alembic-migration` skill.
+`tests/test_migrations.py` applies and rolls back the whole chain against Postgres,
+and it is what proves `downgrade()` is real. It runs in `make test` — on a database
+it creates and drops itself (`agenticos_migrations_test_p<pid>`), because
+`downgrade base` empties whatever it is pointed at. Run it when you touch
+`alembic/versions/`; see the `alembic-migration` skill.
+
+It skips when no Postgres answers, and **only** then: under `CI` an unreachable
+server raises instead, because a declared service container that did not start is
+not a laptop without Docker. The module spent its whole life skipping in CI for want
+of a database nothing created, and a skip is not a failure
+([#234](https://github.com/vstorm-co/agenticos/issues/234)).
