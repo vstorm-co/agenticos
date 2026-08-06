@@ -19,6 +19,24 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.34] - 2026-08-06
+
+### Changed
+
+- **The automated reviewer no longer runs on a pull request**
+  ([#311](https://github.com/vstorm-co/agenticos/issues/311)). Every `ai-review` run since
+  2026-08-05 evening died about twelve seconds into its Codex step with `codex exited with code 1` —
+  the shape of an authentication, quota or entitlement refusal at the first API call rather than a
+  model working and failing — and then concluded `success` and posted "No review: the reviewer did
+  not produce a result", a sentence that reads like a verdict on the diff. Eleven pull requests
+  merged with no automated review before anybody noticed, three of them releases. A reviewer that
+  runs and says nothing is worse than one that plainly is not running, so the `pull_request` trigger
+  is removed until the Codex failure is understood; `workflow_dispatch` stays, because the fix has
+  to be testable against a real pull request. Adding the `ai-review` label now does nothing at all.
+  `CLAUDE.md` and [code review](docs/code-review.md) say so, and the latter records that its own
+  "a failed run says so" claim is what #311 disproved — making a failed run *report* as a failure is
+  the second half of that issue and is not done.
+
 ## [0.0.33] - 2026-08-06
 
 ### Fixed
