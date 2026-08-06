@@ -52,18 +52,22 @@ def _envelope(
 
     `JSONResponse` serializes with `json.dumps`, which raises `TypeError` on a
     `UUID` - and `details` is where a service puts the id it could not find, the
-    timestamp a token expired at, the money a budget was short by. Around twenty
-    call sites pass a raw `UUID` today. When the handler raises, the refusal it
-    was reporting never reaches the caller: the log says `NOT_FOUND` and the wire
-    says 500 with no body, so a stale session is indistinguishable from a broken
-    server (agenticos#307).
+    timestamp a token expired at, the money a budget was short by. When the
+    handler raises, the refusal it was reporting never reaches the caller: the
+    log says `NOT_FOUND` and the wire says 500 with no body, so a stale session
+    is indistinguishable from a broken server (agenticos#307). `UserService`
+    passes the `UUID` it was given, which is why a JWT for a user that no longer
+    exists - a browser session kept across a database reset - answered every
+    request with an empty 500.
 
-    Stringifying at each call site would be twenty edits enforceable only by
-    review, and the twenty-first is written next month. `jsonable_encoder` is
-    what `response_model` already uses, so `details` reaches the wire the same
-    way every other field of every other response does - a `UUID` as its string,
-    a `datetime` in ISO 8601, an `Enum` as its value - and a call site is free to
-    pass what it actually has.
+    Stringifying at each call site is a rule only review can enforce, and the
+    call site that forgets is the one that takes an endpoint down. Most of this
+    codebase does stringify, out of habit rather than obligation, so the cost of
+    the convention is paid everywhere and the benefit held hostage to the two
+    places that did not. `jsonable_encoder` is what `response_model` already
+    uses, so `details` reaches the wire the same way every other field of every
+    other response does - a `UUID` as its string, a `datetime` in ISO 8601, an
+    `Enum` as its value - and a call site is free to pass what it holds.
 
     Encoding is deliberately not wrapped in a `try`: a value `jsonable_encoder`
     cannot reach - a live client, an open file - is a bug in the raising code and
