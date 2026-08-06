@@ -216,3 +216,27 @@ dropping each other's tables and reporting failures that belonged to neither bra
 The suite still refuses any database whose name does not contain `test` or `ci`: it
 drops tables unconditionally, so the guard is the only thing between it and a
 development database.
+
+### The migration suite has a third one
+
+`tests/test_migrations.py` applies the whole chain to an empty database and rolls it
+back to base, so it can use neither of the above: the integration database already
+has the schema in it (built from the models, which is a different question), and
+`downgrade base` against the unit suite's would empty it mid-run. It gets
+`agenticos_migrations_test_p<pid>`, created before its first test and dropped after
+its last, and every alembic subprocess is passed that name explicitly rather than
+inheriting `POSTGRES_DB`.
+
+That database used to have to exist already, and nothing ever created it, so every
+test in the module skipped on every CI run this project had — a green build over the
+only assertions that `downgrade()` works at all
+([#234](https://github.com/vstorm-co/agenticos/issues/234)). It now creates its own,
+and the surviving skip means only what it says: **no Postgres answered.** In CI,
+where a service container is declared, that is a failure instead — a container that
+did not start is not an environment that cannot answer, and the two are
+indistinguishable in pytest's output.
+
+`make test-migrations` still exists and is still the one to run by hand after
+touching `alembic/versions/`, but it points at whatever `backend/.env` says, which
+on a laptop is the database with your own work in it. Prefer
+`uv run pytest tests/test_migrations.py`, which cannot reach it.

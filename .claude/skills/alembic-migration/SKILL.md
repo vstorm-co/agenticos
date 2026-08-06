@@ -46,9 +46,13 @@ the noise.
    ```bash
    uv run alembic upgrade head && uv run alembic current
    uv run alembic downgrade -1 && uv run alembic upgrade head
-   make test-migrations   # the whole chain, forwards and back, against Postgres
+   uv run pytest tests/test_migrations.py   # the whole chain, forwards and back
    ```
-   `make test-migrations` is the only thing that proves `downgrade()` is real.
+   That module is what proves `downgrade()` is real. It runs in `make test`, against
+   a database it creates and drops itself (`agenticos_migrations_test_p<pid>`), so it
+   is also safe to run while your own database is populated. `make test-migrations`
+   asks the same question by hand — but against whatever `backend/.env` names, which
+   on a laptop is the database with your work in it.
 
 ## Tightening a rule is a data migration
 
