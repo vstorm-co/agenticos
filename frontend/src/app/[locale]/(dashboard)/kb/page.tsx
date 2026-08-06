@@ -19,16 +19,21 @@ import {
   Skeleton,
 } from "@/components/ui";
 import { useKnowledgeBases, usePermissions } from "@/hooks";
-import { cn } from "@/lib/utils";
 import { ROUTES } from "@/lib/constants";
 import type { KBScope, KnowledgeBase } from "@/types";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
 
-const SCOPE_META: Record<KBScope, { label: string; icon: LucideIcon }> = {
-  personal: { label: "Personal", icon: Lock },
-  org: { label: "Organization", icon: Users },
-  app: { label: "App-wide", icon: Sparkles },
+/**
+ * How each scope is drawn: an icon, and the key to the word for it.
+ *
+ * A key rather than the word, because a table at module scope has no
+ * translator to call - `KBCard` reads `t(labelKey)` at the point of use.
+ */
+const SCOPE_META: Record<KBScope, { labelKey: string; icon: LucideIcon }> = {
+  personal: { labelKey: "scopePersonal", icon: Lock },
+  org: { labelKey: "scopeOrg", icon: Users },
+  app: { labelKey: "scopeApp", icon: Sparkles },
 };
 
 /**
@@ -151,8 +156,14 @@ function KBCard({ kb }: { kb: KnowledgeBase }) {
   const t = useTranslations("pages.kb");
   const meta = SCOPE_META[kb.scope];
 
+  // The class list below is a class list, not a message. It was in
+  // `messages/en.json` as `groupBorderBorderBg2`, read through
+  // `useTranslations` and handed to `cn()` - a translator opening `pl.json` was
+  // being asked to translate Tailwind. Its leading `group` is gone with it: the
+  // only `group-hover` in this file was on the delete button #303 removed, so
+  // it named a relationship nothing was on the other end of.
   return (
-    <div className={cn(t("groupBorderBorderBg2"))}>
+    <div className="border-border bg-card hover:border-foreground/30 hover:bg-accent relative flex flex-col rounded-xl border transition-colors">
       {/* The card is a link and nothing else, so the layering is a link over
           content that declines the click rather than the three-way z-index
           argument this used to be. Deleting a collection now lives on the
@@ -192,7 +203,7 @@ function KBCard({ kb }: { kb: KnowledgeBase }) {
         <div className="text-muted-foreground mt-5 flex items-center justify-between gap-2 text-xs">
           <span className="inline-flex items-center gap-1.5 truncate">
             <meta.icon className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate">{meta.label}</span>
+            <span className="truncate">{t(meta.labelKey)}</span>
           </span>
           <ArrowUpRight className="h-4 w-4 shrink-0" />
         </div>
