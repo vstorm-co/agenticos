@@ -89,6 +89,25 @@ describe("IngestionSettings", () => {
     expect(screen.getByLabelText("LlamaParse tier")).toBeInTheDocument();
   });
 
+  it("tells two LlamaParse keys apart by their masked tails", async () => {
+    // Both are called after the service they are for, because that is what the
+    // inline form suggests - so with only a name in the row, "whose account is
+    // billed" was a choice between two identical options.
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: [
+        { id: "s-1", name: "LlamaParse", hint: "3123", purpose: "llamaparse", kind: "api_key" },
+        { id: "s-2", name: "LlamaParse", hint: "9999", purpose: "llamaparse", kind: "api_key" },
+      ],
+      total: 2,
+    });
+    show({ pdf_parser: "llamaparse" });
+
+    await userEvent.click(screen.getByLabelText("LlamaParse key"));
+
+    expect(await screen.findByRole("option", { name: /····3123/ })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /····9999/ })).toBeInTheDocument();
+  });
+
   it("offers OCR language and a timeout to the parser that reads them", () => {
     show({ pdf_parser: "liteparse" });
 
