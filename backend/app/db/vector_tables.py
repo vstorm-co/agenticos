@@ -47,10 +47,13 @@ def is_runtime_vector_table(name: str, *, metadata: MetaData) -> bool:
     Args:
         name: A table name as reflected from the database.
         metadata: The metadata to judge against - what autogenerate is comparing to,
-            or `Base.metadata` for a caller outside alembic. Passed in rather than
-            imported, so this cannot answer differently depending on which models
-            happen to have been imported yet; a caller that imports it is
-            responsible for having imported the models too.
+            or `Base.metadata` for a caller outside alembic. A parameter rather
+            than an import because this function must not choose: whichever
+            metadata the caller is reasoning about is the one the answer has to
+            be true of. It does not make the answer independent of what has been
+            imported - a caller passing `Base.metadata` is asserting that the
+            models are registered on it, and one that has not imported them gets
+            "every `rag_` table is the store's" with no error to say so.
 
     Example:
         ```python

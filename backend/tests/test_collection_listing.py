@@ -15,6 +15,7 @@ collection genuinely called `documents_archive` has to keep listing.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -26,6 +27,8 @@ from app.db.vector_tables import VECTOR_TABLE_PREFIX
 from app.services.rag.vectorstore import PgVectorStore
 
 pytestmark = pytest.mark.anyio
+
+BACKEND_ROOT = Path(__file__).resolve().parent.parent
 
 
 class _Result:
@@ -77,6 +80,36 @@ async def test_a_table_the_models_own_is_not_reported_as_a_collection() -> None:
     store = _store_over([*modelled, f"{VECTOR_TABLE_PREFIX}company_handbook"])
 
     assert await store.list_collections() == ["company_handbook"]
+
+
+def test_the_store_registers_the_models_it_judges_a_table_against() -> None:
+    """The one line holding the fix up, and the only way left to guard it.
+
+    `is_runtime_vector_table` is only as good as the metadata handed to it: on an
+    empty `Base.metadata` every prefixed table reads as a collection, which is
+    #339 again with no error to announce it. So `vectorstore.py` imports
+    `app.db.models` for the side effect.
+
+    That import is *currently* redundant - `app.services.embedding_resolution`
+    reaches the models through `app.repositories` - and redundant is exactly the
+    problem. It makes the line read as unused (it carries a `noqa`, so nothing
+    else objects), and it puts the correctness of this listing on an import chain
+    belonging to a different concern, which a refactor may cut without ever
+    looking here.
+
+    Asserted on the source because no run of this suite can assert it on
+    behaviour: `tests/conftest.py` imports `app.main`, so the metadata is
+    populated before any test module loads, and even a subprocess would still be
+    saved by the accidental route - a test that cannot fail on the edit worth
+    catching is not a guard.
+    """
+    source = (BACKEND_ROOT / "app" / "services" / "rag" / "vectorstore.py").read_text()
+
+    assert "import app.db.models" in source, (
+        "the vector store no longer registers the models on Base.metadata, so "
+        "list_collections judges tables against whatever happens to have been imported; "
+        "on an empty metadata it reports rag_documents as a collection again (#339)"
+    )
 
 
 async def test_a_collection_whose_name_starts_like_a_model_table_still_lists() -> None:
