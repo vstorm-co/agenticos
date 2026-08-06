@@ -46,26 +46,26 @@ def _derive_collection_name(name: str) -> str:
 def _refuse_a_model_table_name(collection_name: str | None) -> None:
     """Refuse a collection whose vector table the models already declare.
 
-    This route is the one that needs its own guard. `POST /rag/collections/{name}`
-    reaches the store, which refuses the name where it builds the table name;
-    creating a knowledge base only writes a row, so nothing would notice until
+    Creating a knowledge base needs its own guard because it never reaches the
+    store: `POST /rag/collections/{name}` is refused where the store builds the
+    table name, but this writes a row and stops, so nothing would notice until
     the first ingest hit `rag_documents` - or until the collection was dropped
-    and took every organization's document tracking with it (#345).
+    and aimed at every organization's document tracking (#345).
 
-    A derived name cannot collide (it carries a random suffix), so this is only
-    ever about a name the caller chose.
+    `None` is the caller leaving the name to :func:`_derive_collection_name`,
+    which cannot collide - it appends a random suffix - so this is only ever
+    about a name somebody chose.
 
     Raises:
         BadRequestError: The name would land on a table the models own.
     """
-    if collection_name is None or not collides_with_model_table(
+    if collection_name is not None and collides_with_model_table(
         collection_name, metadata=Base.metadata
     ):
-        return
-    raise BadRequestError(
-        message=f"'{collection_name}' is a reserved collection name",
-        details={"collection_name": collection_name},
-    )
+        raise BadRequestError(
+            message=f"'{collection_name}' is a reserved collection name",
+            details={"collection_name": collection_name},
+        )
 
 
 def _no_knowledge_base(kb_id: UUID) -> NotFoundError:
