@@ -176,9 +176,28 @@ decides both the heading on the comment and whether the job goes red.
 
 | Status | When | The job | The comment says |
 |---|---|---|---|
-| `reviewed` | Codex answered with the schema | green | `## AI review`. With no findings: "the reviewer read the diff and had nothing to report" |
-| `declined` | Nothing to review, or a diff over the line cap | green | `## AI review — declined`, and which cap |
-| `broken` | Misconfigured, no prompt on the base branch, Codex exited non-zero, or output that is not the schema | **red** | `## AI review — the reviewer failed`, then "Nothing here was reviewed" |
+| `reviewed` | Codex answered with the schema — `summary` plus a `findings` **list** | green | `## AI review`. With no findings: "the reviewer read the diff and had nothing to report" |
+| `declined` | Nothing to review, a diff over the line cap, or the run was cancelled | green | `## AI review — declined`, and which of the three |
+| `broken` | Misconfigured, no prompt on the base branch, Codex exited non-zero or never ran, or output that is not the schema | **red** | `## AI review — the reviewer failed`, then "Nothing here was reviewed" |
+
+Three edges of that table are the ones worth knowing, because each has a wrong
+answer that looks reasonable:
+
+- **A cancelled run is `declined`, not `broken`.** `cancel-in-progress` is on, so
+  a second dispatch for one pull request cancels the first — and `Normalize the
+  result` runs anyway, because `always()` covers cancellation. Reporting a dead
+  reviewer on a pull request whose replacement run is already in flight is the
+  #311 mistake pointing the other way.
+- **`findings` has to be a list, not merely present.** `{"findings": null}`
+  passes a key check, and `publish` reads it through
+  `Array.isArray(…) ? … : []` — so a malformed answer would render as "the
+  reviewer read the diff and had nothing to report", which is #311's sentence
+  again with a different cause.
+- **A `review` job that fails *before* `Normalize the result` is red with no
+  comment.** A failed checkout, a base branch missing `review-schema.json`: there
+  is no status, so `publish` is skipped. That is not new and not silent — the job
+  is red, which is the whole point — but it is the one path where the pull
+  request page carries the failure and nothing else does.
 
 The `broken` comment carries what Codex printed, in a `<details>` block. That is
 read back out of the run's own job log by `publish`, which is why that job holds

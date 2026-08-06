@@ -76,17 +76,20 @@ def step(job: str, name: str) -> dict[str, Any]:
 
 
 def run_normalize(
-    tmp_path: Path, *, codex_wrote: str | None = None, **overrides: str
+    tmp_path: Path, *, codex_wrote: str | bytes | None = None, **overrides: str
 ) -> tuple[str, str]:
     """Run `Normalize the result` and return its `status` output and the summary it wrote.
 
     `codex_wrote` is the content of the result file as Codex left it, or None
-    for the run where Codex left nothing at all.
+    for the run where Codex left nothing at all. Bytes, for the run where what
+    it left is not text.
     """
     tmp_path.mkdir(parents=True, exist_ok=True)
     review_dir = tmp_path / "ai-review"
     review_dir.mkdir()
-    if codex_wrote is not None:
+    if isinstance(codex_wrote, bytes):
+        (review_dir / "findings.json").write_bytes(codex_wrote)
+    elif codex_wrote is not None:
         (review_dir / "findings.json").write_text(codex_wrote)
 
     output = tmp_path / "github_output"
@@ -135,7 +138,32 @@ def test_a_failed_codex_step_is_broken_and_says_nothing_was_reviewed(tmp_path: P
     status, summary = run_normalize(tmp_path, CODEX_OUTCOME="failure")
     assert status == "broken"
     assert "The reviewer failed" in summary
-    assert "the Codex step ended `failure`" in summary
+    assert "Codex exited non-zero" in summary
+
+
+def test_a_cancelled_run_is_declined_rather_than_broken(tmp_path: Path) -> None:
+    """A superseded dispatch must not report the reviewer as dead.
+
+    `cancel-in-progress` is on, so asking for a second review of one pull
+    request cancels the first - and `Normalize the result` runs anyway, because
+    `always()` covers cancellation. Calling that `broken` would put "the
+    reviewer failed" on a pull request whose replacement run is in flight.
+    """
+    status, summary = run_normalize(tmp_path, CODEX_OUTCOME="cancelled")
+    assert status == "declined"
+    assert "cancelled" in summary
+
+
+def test_a_step_failing_before_codex_does_not_blame_codex(tmp_path: Path) -> None:
+    """`skipped` means something earlier failed, so the causes listed differ.
+
+    Reporting "an expired key, a spend limit, a bad model slug" for a prompt
+    that was never composed sends the reader to the wrong place.
+    """
+    status, summary = run_normalize(tmp_path, CODEX_OUTCOME="skipped")
+    assert status == "broken"
+    assert "Codex never ran" in summary
+    assert "spend limit" not in summary
 
 
 def test_a_codex_failure_outranks_the_file_it_left_behind(tmp_path: Path) -> None:
@@ -161,6 +189,29 @@ def test_output_that_is_not_the_review_schema_is_broken_and_carries_the_raw_outp
     status, summary = run_normalize(tmp_path, codex_wrote='{"verdict": "looks fine"}')
     assert status == "broken"
     assert '{"verdict": "looks fine"}' in summary
+
+
+@pytest.mark.parametrize("findings", ["null", '"none"', "{}"])
+def test_findings_that_is_not_a_list_is_broken(tmp_path: Path, findings: str) -> None:
+    """Present is not enough, and the difference is the whole point of #311.
+
+    A key check passes `{"findings": null}`, `publish` then reads it through
+    `Array.isArray(…) ? … : []`, and the comment claims the reviewer read the
+    diff and had nothing to report - which it did not.
+    """
+    status, _ = run_normalize(tmp_path, codex_wrote=f'{{"summary": "x", "findings": {findings}}}')
+    assert status == "broken"
+
+
+def test_a_result_file_that_is_not_utf8_is_reported_rather_than_fatal(tmp_path: Path) -> None:
+    """Decoding it outside the guard would fail the step and skip the upload.
+
+    The pull request would then get no comment at all, for exactly the input
+    "the reviewer returned something unreadable" is there to report.
+    """
+    status, summary = run_normalize(tmp_path, codex_wrote=b"\xff\xfe not json")
+    assert status == "broken"
+    assert "not the review schema" in summary
 
 
 def test_a_misconfigured_reviewer_is_broken(tmp_path: Path) -> None:
@@ -207,11 +258,14 @@ def test_a_declined_diff_is_a_decision_rather_than_a_breakage(
     assert expected in summary
 
 
-def test_the_job_fails_on_broken_and_on_nothing_else() -> None:
+def test_a_broken_run_has_a_step_whose_only_job_is_to_fail_it() -> None:
     """A red job is the whole of the second half of #311.
 
     The condition is asserted rather than the behaviour because GitHub, not
-    bash, decides whether the step runs.
+    bash, decides whether the step runs. It is not the only way this job can go
+    red - any earlier step failing does it too, and then this one is skipped by
+    the implicit `success()` - but it is the only one that catches a reviewer
+    that produced nothing while every step reported fine.
     """
     failing = step("review", FAIL_STEP)
     assert failing["if"] == "steps.result.outputs.status == 'broken'"

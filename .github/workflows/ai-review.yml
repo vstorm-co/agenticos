@@ -472,13 +472,32 @@ jobs:
                   "the pull request, or raise `AI_REVIEW_MAX_CHANGED_LINES` if a diff "
                   "this size is genuinely one change.",
               )
-          elif codex != "success":
+          elif codex == "cancelled":
+              # Superseded by a newer dispatch for the same pull request, or the
+              # job's own timeout. Neither is a broken reviewer, and calling it
+              # one would put "the reviewer failed" on a pull request whose
+              # replacement run is already in flight.
+              status = write(
+                  "declined",
+                  "No review: the run was cancelled before Codex finished - superseded "
+                  "by a newer run for this pull request, or over the job's time limit.",
+              )
+          elif codex == "failure":
               status = write(
                   "broken",
-                  f"**The reviewer failed** - the Codex step ended `{codex}`. What it "
-                  "printed is below; the usual causes are an expired or rate-limited "
-                  "OpenAI key, a project spend limit, and a model slug the installed "
-                  "CLI does not carry.",
+                  "**The reviewer failed** - Codex exited non-zero. What it printed is "
+                  "below; the usual causes are an expired or rate-limited OpenAI key, a "
+                  "project spend limit, and a model slug the installed CLI does not "
+                  "carry.",
+              )
+          elif codex != "success":
+              # `skipped`, which at this point means a step between the diff and
+              # Codex failed. Naming Codex would send the reader to the wrong
+              # place, and none of the causes above can apply.
+              status = write(
+                  "broken",
+                  f"**The reviewer failed:** Codex never ran (`{codex}`) - a step before "
+                  "it failed. See the workflow run.",
               )
           elif not out.exists():
               status = write(
@@ -487,10 +506,17 @@ jobs:
                   "file. See the workflow run.",
               )
           else:
-              raw = out.read_text()
+              # `errors="replace"` because a decode error here would fail the
+              # step, skip the upload and leave the pull request with nothing -
+              # for the one input the branch below exists to report.
+              raw = out.read_text(errors="replace")
               try:
                   parsed = json.loads(raw)
-                  if not isinstance(parsed, dict) or "findings" not in parsed:
+                  # `findings` has to be a *list*, not merely present: `null`
+                  # passes a key check and then renders as "no findings - the
+                  # reviewer read the diff and had nothing to report", which is
+                  # the #311 sentence again with a different cause.
+                  if not isinstance(parsed, dict) or not isinstance(parsed.get("findings"), list):
                       raise ValueError("not the review schema")
               except (json.JSONDecodeError, ValueError) as exc:
                   status = write(
