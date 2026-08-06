@@ -145,6 +145,13 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
    */
   const [uploadOverride, setUploadOverride] = useState<IngestionOverride>({});
   const overrideCount = overrideSize(uploadOverride);
+  /**
+   * Chunks across the documents this page has actually fetched.
+   *
+   * Not the collection's total, and it cannot be: no response this page makes
+   * carries one. The strip below says which of the two it is showing.
+   */
+  const loadedVectors = documents.reduce((sum, doc) => sum + doc.chunk_count, 0);
 
   const handleDownload = async (doc: KBDocument) => {
     if (downloadingId) return;
@@ -410,6 +417,19 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
         }
       />
 
+      {/* What the collection holds, not what the table has fetched.
+
+          `documents` is one page of twenty, so this strip used to say "20
+          documents" over a collection of fifty-seven and then climb every time
+          Load more was pressed - which reads as ingestion happening rather than
+          as the page correcting itself. `documentsTotal` is the documents
+          query's own total; `kb.document_count` is not an alternative, because
+          the single-row `GET /kb/{id}` leaves all three counts at zero.
+
+          The vector count has no such total in any response this page makes, so
+          it says which it is. Once every document is loaded the sum *is* the
+          collection's, and it says so plainly; until then it names its own
+          scope rather than passing a partial sum off as the whole. */}
       <div className="text-muted-foreground mb-6 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
         <span className="inline-flex items-center gap-1.5">
           <scopeMeta.icon className="h-3.5 w-3.5" />
@@ -417,10 +437,12 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
           {kb.is_default && " · Default"}
         </span>
         <span>·</span>
-        <span>{t("documentCount", { count: documents.length })}</span>
+        <span>{t("documentCount", { count: documentsTotal })}</span>
         <span>·</span>
         <span>
-          {t("vectorCount", { count: documents.reduce((sum, d) => sum + d.chunk_count, 0) })}
+          {hasMoreDocuments
+            ? t("vectorCountLoaded", { count: loadedVectors })
+            : t("vectorCount", { count: loadedVectors })}
         </span>
       </div>
 
