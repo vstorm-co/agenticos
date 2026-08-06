@@ -663,6 +663,45 @@ class TestConversationServiceAddMessage:
         assert written["cost_usd"] == Decimal("0.0125")
 
     @pytest.mark.anyio
+    async def test_a_run_id_in_the_request_body_reaches_no_row(self, service: ConversationService):
+        """`POST /conversations/{id}/messages` binds `MessageCreate` from JSON, so a
+        `run_id` the schema accepted would let anybody append their words to another
+        organization's run transcript - the route scopes the conversation, and a bare
+        run id carries nothing to scope. Which run produced a turn is the runner's to
+        say, so it is a keyword on this method and the field is dropped."""
+        from app.schemas.conversation import MessageCreate
+
+        conv_id, someone_elses_run = uuid4(), uuid4()
+        data = MessageCreate.model_validate(
+            {"role": "user", "content": "attached to your run", "run_id": str(someone_elses_run)}
+        )
+
+        with patch("app.services.conversation.conversation_repo") as mock_repo:
+            mock_repo.get_conversation_by_id = AsyncMock(return_value=MockConversation(id=conv_id))
+            mock_repo.create_message = AsyncMock(return_value=MockMessage())
+
+            await service.add_message(conv_id, data, organization_id=TEST_ORG_ID)
+
+        assert mock_repo.create_message.await_args.kwargs["run_id"] is None
+
+    @pytest.mark.anyio
+    async def test_the_runner_is_what_puts_a_turn_in_a_runs_transcript(
+        self, service: ConversationService
+    ):
+        from app.schemas.conversation import MessageCreate
+
+        conv_id, run_id = uuid4(), uuid4()
+        data = MessageCreate(role="assistant", content="answered")
+
+        with patch("app.services.conversation.conversation_repo") as mock_repo:
+            mock_repo.get_conversation_by_id = AsyncMock(return_value=MockConversation(id=conv_id))
+            mock_repo.create_message = AsyncMock(return_value=MockMessage())
+
+            await service.add_message(conv_id, data, organization_id=TEST_ORG_ID, run_id=run_id)
+
+        assert mock_repo.create_message.await_args.kwargs["run_id"] == run_id
+
+    @pytest.mark.anyio
     async def test_add_message_to_archived_conversation_raises_bad_request(
         self, service: ConversationService
     ):

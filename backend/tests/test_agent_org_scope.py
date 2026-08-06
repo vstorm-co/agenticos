@@ -140,7 +140,7 @@ class TestPersistUserTurnOrgScope:
             patch("app.services.agent.get_db_context", _fake_db_context),
             patch("app.services.agent.get_conversation_service", return_value=service),
         ):
-            conversation_id, newly_created = await persist_user_turn(
+            prompt = await persist_user_turn(
                 _user(),
                 "hello",
                 [],
@@ -149,8 +149,8 @@ class TestPersistUserTurnOrgScope:
                 organization_id=org_id,
             )
 
-        assert newly_created is True
-        assert conversation_id == str(created.id)
+        assert prompt.newly_created is True
+        assert prompt.conversation_id == str(created.id)
         assert service.create_conversation.call_args.args[0].organization_id == org_id
 
     @pytest.mark.anyio
@@ -165,7 +165,7 @@ class TestPersistUserTurnOrgScope:
             patch("app.services.agent.get_db_context", _fake_db_context),
             patch("app.services.agent.get_conversation_service", return_value=service),
         ):
-            resolved, newly_created = await persist_user_turn(
+            prompt = await persist_user_turn(
                 _user(),
                 "hello",
                 [],
@@ -174,9 +174,12 @@ class TestPersistUserTurnOrgScope:
                 organization_id=org_id,
             )
 
-        assert newly_created is False
-        assert resolved == str(conversation_id)
-        service.add_message.assert_awaited_once()
+        assert prompt.newly_created is False
+        assert prompt.conversation_id == str(conversation_id)
+        # The row the prompt landed in, so the caller can link it to the run that
+        # does not exist yet. Without it the question is unreachable from run
+        # history and only the answer is.
+        assert prompt.message_id == service.add_message.return_value.id
 
     @pytest.mark.anyio
     async def test_resuming_foreign_org_conversation_is_refused(self):

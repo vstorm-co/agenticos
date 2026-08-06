@@ -44,6 +44,7 @@ import logging
 from collections.abc import AsyncIterator, Iterator
 from contextlib import contextmanager
 from decimal import Decimal
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
@@ -94,6 +95,7 @@ from app.agents.subagent_runtime import (
 )
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.db.models.agent_run import RunStatus
+from app.services.agent import PersistedPrompt
 from app.services.agent_chat import ChatTurn
 from app.services.agent_runner import ParkedApproval
 from app.services.agent_session import AgentSession
@@ -152,7 +154,8 @@ def _chat(
     conversation: str | None = _CONVERSATION,
     newly_created: bool = False,
     message_id: str | None = "saved-1",
-) -> Iterator[None]:
+    prompt_message_id: UUID | None = None,
+) -> Iterator[SimpleNamespace]:
     """The session's collaborators, stubbed at the seam this module owns.
 
     `ChatAgentRunner.run` is `agent_chat.py`'s contract - gated there, and driven
@@ -160,23 +163,28 @@ def _chat(
     the *frames* this session puts on the wire for a turn that ended a particular
     way, so the runner is where the stub goes and `run` is how a test says how the
     turn ended.
+
+    Yields the two persistence stubs, for the tests that read what this module
+    hands them rather than what it puts on the wire.
     """
+    prompt = AsyncMock(
+        return_value=PersistedPrompt(
+            conversation_id=conversation,
+            newly_created=newly_created,
+            message_id=prompt_message_id,
+        )
+    )
+    answer = AsyncMock(return_value=message_id)
     with (
-        patch(
-            "app.services.agent_session.persist_user_turn",
-            new=AsyncMock(return_value=(conversation, newly_created)),
-        ),
-        patch(
-            "app.services.agent_session.persist_assistant_turn",
-            new=AsyncMock(return_value=message_id),
-        ),
+        patch("app.services.agent_session.persist_user_turn", new=prompt),
+        patch("app.services.agent_session.persist_assistant_turn", new=answer),
         patch("app.services.agent_session.get_db_context") as db_context,
         patch("app.services.agent_session.ChatAgentRunner") as runner_cls,
     ):
         db_context.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
         db_context.return_value.__aexit__ = AsyncMock(return_value=False)
         runner_cls.return_value.run = run
-        yield
+        yield SimpleNamespace(prompt=prompt, answer=answer, runner=runner_cls.return_value)
 
 
 def _next_frame(session: AgentSession) -> asyncio.Event:
@@ -354,6 +362,21 @@ class TestATurnThatFinished:
             "message_saved",
             {"message_id": "saved-1", "conversation_id": _CONVERSATION},
         )
+
+    async def test_both_halves_of_the_turn_are_filed_under_the_run_that_produced_them(self):
+        """`messages.run_id` is what makes a run's transcript readable from run
+        history rather than only from the conversation. The answer carries it
+        directly; the question is handed to the runner, which links it as soon as
+        it has opened a run - the prompt is written before there is one."""
+        session = _session()
+        turn = _finished_turn()
+        prompt_message_id = uuid4()
+
+        with _chat(AsyncMock(return_value=turn), prompt_message_id=prompt_message_id) as chat:
+            await session.process_message(_message())
+
+        assert chat.answer.await_args.kwargs["run_id"] == turn.run_id
+        assert chat.runner.run.await_args.kwargs["prompt_message_id"] == prompt_message_id
 
     async def test_a_turn_in_an_existing_conversation_does_not_announce_one(self):
         """The client creates a thread in its sidebar on this frame, so a second
@@ -1453,7 +1476,9 @@ class _Turn:
             patch("app.services.agent_chat.member_repo") as members,
             patch("app.services.agent_chat.AgentRunnerService") as runner_cls,
         ):
-            persist.return_value = (_CONVERSATION, False)
+            persist.return_value = PersistedPrompt(
+                conversation_id=_CONVERSATION, newly_created=False
+            )
             db_context.return_value.__aenter__ = AsyncMock(
                 return_value=MagicMock(commit=AsyncMock())
             )

@@ -400,6 +400,7 @@ class ConversationService:
         *,
         organization_id: OrgScope,
         user_id: UUID | None = None,
+        run_id: UUID | None = None,
     ) -> Message:
         """Append one message into a conversation in `organization_id`.
 
@@ -412,6 +413,13 @@ class ConversationService:
         shared with. It is optional because one caller has no user to check:
         the assistant turn is written by the agent, after `persist_user_turn`
         has already resolved the same conversation for the person who asked.
+
+        `run_id` is a keyword rather than a field on `MessageCreate` because
+        that schema is bound from a request body. A run id taken from a caller
+        would put their words in another organization's run transcript - the
+        route scopes the conversation, and a bare id carries nothing to scope.
+        Only the runner knows which run produced a turn, and only the runner
+        passes this.
 
         An archived conversation is closed to new messages: archiving is the
         user saying "this thread is finished", and a message appended afterwards
@@ -445,6 +453,7 @@ class ConversationService:
             cost_usd=data.cost_usd,
             agent_id=data.agent_id,
             agent_version_id=data.agent_version_id,
+            run_id=run_id,
         )
 
     async def delete_message(self, message_id: UUID) -> bool:

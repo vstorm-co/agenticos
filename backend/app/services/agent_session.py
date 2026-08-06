@@ -166,7 +166,7 @@ class AgentSession:
             await send_event(self.websocket, "error", {"message": _PICK_AN_AGENT})
             return
         try:
-            self.current_conversation_id, newly_created = await persist_user_turn(
+            prompt = await persist_user_turn(
                 self.user,
                 user_message,
                 file_ids,
@@ -177,7 +177,8 @@ class AgentSession:
         except AuthorizationError as e:
             await send_event(self.websocket, "error", {"message": e.message})
             return
-        if newly_created and self.current_conversation_id:
+        self.current_conversation_id = prompt.conversation_id
+        if prompt.newly_created and self.current_conversation_id:
             await send_event(
                 self.websocket,
                 "conversation_created",
@@ -215,6 +216,7 @@ class AgentSession:
                     conversation_id=(
                         UUID(self.current_conversation_id) if self.current_conversation_id else None
                     ),
+                    prompt_message_id=prompt.message_id,
                     ask_user=self._ask_one,
                     stream=stream,
                     subagent_events=self._subagent_event,
@@ -243,6 +245,7 @@ class AgentSession:
                     agent_id=agent_id,
                     agent_version_id=agent_version_id,
                     usage=turn.usage,
+                    run_id=turn.run_id,
                 )
 
             if assistant_msg_id:

@@ -216,6 +216,7 @@ async def _run(
     organization_id: uuid.UUID | None = None,
     agent_id: uuid.UUID | None = None,
     conversation_id: uuid.UUID | None = None,
+    prompt_message_id: uuid.UUID | None = None,
     ask_user: Any = None,
     stream: Any = _nothing,
     user_input: Any = "what is the refund window",
@@ -229,6 +230,7 @@ async def _run(
         user_input=user_input,
         message_history=[],
         conversation_id=conversation_id,
+        prompt_message_id=prompt_message_id,
         attachments=attachments,
         ask_user=ask_user or AsyncMock(return_value=[]),
         stream=stream,
@@ -410,6 +412,82 @@ class TestRecordingTheRun:
             await _run(_db())
 
         assert runner.finish.call_args.kwargs["status"] is RunStatus.FAILED
+
+
+class TestLinkingThePromptToTheRun:
+    """`messages.run_id` on the question, not only on the answer.
+
+    The surface writes the prompt before this method is called, because a build
+    that refuses - a deleted secret, a model profile removed in a deploy - must
+    not lose what somebody typed. There is no run row to name at that moment, so
+    the link is made here, as soon as `prepare` has opened one.
+    """
+
+    async def test_the_prompt_is_stamped_with_the_run_that_answers_it(self):
+        prepared = _prepared()
+        conversation_id = uuid.uuid4()
+        message_id = uuid.uuid4()
+
+        with (
+            _runner(prepared),
+            patch("app.services.agent_chat.conversation_repo") as conversations,
+        ):
+            conversations.link_message_to_run = AsyncMock()
+            await _run(_db(), conversation_id=conversation_id, prompt_message_id=message_id)
+
+        assert conversations.link_message_to_run.await_args.kwargs == {
+            "message_id": message_id,
+            "run_id": prepared.run.id,
+            # Off the run rather than taken on trust, so a message id from
+            # another thread cannot be pulled into this run's transcript.
+            "conversation_id": conversation_id,
+        }
+
+    async def test_a_run_that_failed_still_has_the_question_that_started_it(self):
+        """Linked before the run rather than after it. A transcript holding the
+        answer but not the question can still be read; one holding neither cannot,
+        and a failed run is exactly the one somebody opens."""
+        prepared = _prepared()
+        message_id = uuid.uuid4()
+
+        with (
+            _runner(prepared),
+            patch("app.services.agent_chat.conversation_repo") as conversations,
+            pytest.raises(RuntimeError, match="went away"),
+        ):
+            conversations.link_message_to_run = AsyncMock()
+            await _run(
+                _db(),
+                conversation_id=uuid.uuid4(),
+                prompt_message_id=message_id,
+                stream=AsyncMock(side_effect=RuntimeError("the model went away")),
+            )
+
+        assert conversations.link_message_to_run.await_args.kwargs["message_id"] == message_id
+
+    @pytest.mark.parametrize(
+        ("conversation_id", "message_id"),
+        [
+            (None, uuid.uuid4()),
+            (uuid.uuid4(), None),
+            (None, None),
+        ],
+        ids=["no conversation", "prompt not persisted", "neither"],
+    )
+    async def test_nothing_is_linked_when_there_is_no_row_to_link(
+        self, conversation_id, message_id
+    ):
+        """`persist_user_turn` logs and swallows a write failure, so a turn can
+        reach here with no prompt row at all. Writing `run_id` against `None`
+        would raise inside a run that is otherwise fine."""
+        with (
+            _runner(_prepared()),
+            patch("app.services.agent_chat.conversation_repo") as conversations,
+        ):
+            conversations.link_message_to_run = AsyncMock()
+            await _run(_db(), conversation_id=conversation_id, prompt_message_id=message_id)
+
+        conversations.link_message_to_run.assert_not_awaited()
 
 
 class TestPausingMidRun:

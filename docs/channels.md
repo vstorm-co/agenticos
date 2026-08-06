@@ -215,6 +215,29 @@ it is about to wait.
   binding may override it, because a web chat and a Slack channel are not the same
   sharing question.
 
+### What each surface records
+
+Every surface reaches the same runner, so every run gets its row — its cost, its
+status, its tokens, and the budget enforced against it. Writing the **transcript**
+is the caller's job, and the callers are not equal. That matters because a run's
+drill-down is read from those rows: what a surface never wrote, no page can show.
+
+| Surface | What reaches `messages` and `tool_calls` |
+|---|---|
+| Web chat, run finished | Everything — prompt, reasoning, tool arguments and results, model and version |
+| Web chat, run failed | The prompt only. The exception skips the assistant write |
+| A channel bot's default agent | Prompt and answer as text — no tool calls, model or version |
+| Embedded widget | Nothing. A conversation row is created and left empty |
+| `@mention` on a channel | Nothing |
+| HTTP API | Nothing, even when the caller passes a `conversation_id` |
+| A run resumed after an approval | Nothing — the continuation writes no messages |
+
+`tool_calls` rows are written in exactly one place, and it is fed by a list only
+the streaming path fills, so tool calls are observable only where somebody is
+watching. Levelling this up is tracked work, not a design choice; until it lands,
+a run detail view on those surfaces says *this surface does not record steps* and
+names the surface, rather than drawing an empty panel.
+
 ### What a turn looks like in web chat
 
 **The work is a narration, not a stack of cards.** Each tool call is one line — *Wrote
