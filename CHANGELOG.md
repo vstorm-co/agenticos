@@ -19,6 +19,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.44] - 2026-08-06
+
+### Fixed
+
+- `PgVectorStore.list_collections()` reported a collection called `documents`
+  that does not exist. It matched every table by name prefix, and `rag_documents`
+  — the model table tracking ingested documents — matched. The listing has held
+  that phantom on every deployment since the table existed, and `rag-stats`
+  reported the row count of that tracking table as a vector count. Collection
+  membership is now decided by `is_runtime_vector_table`, the same predicate
+  alembic uses, so the two answer from one source (#339).
+- The prefix match also treated `_` as a SQL wildcard, so a table named
+  `ragXfoo` listed as a collection called `Xfoo`.
+
+
 ## [0.0.43] - 2026-08-06
 
 ### Fixed
