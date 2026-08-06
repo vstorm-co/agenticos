@@ -19,6 +19,26 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.33] - 2026-08-06
+
+### Fixed
+
+- **The Prefect runner no longer starts every queued flow run at once.** `aserve` declares
+  `limit: Optional[int] = None` and hands that straight to `Runner(limit=...)`, where `None` means
+  *no cap* — while constructing a `Runner` without the argument falls back to Prefect's own default
+  of five. Calling `aserve(*deployments)` and saying nothing was therefore the one spelling that
+  removed the ceiling entirely. Starting the stack after three days of downtime, the runner found
+  the backlog of once-a-minute `rag-sync-check` runs and started 71 `prefect.engine` processes at
+  once — each a fresh interpreter importing the whole application, about 120 MB apiece. 6.02 GiB of
+  a 7.75 GiB host, and the kernel resolved it by OOM-killing the API container's worker.
+
+### Added
+
+- **`PREFECT_RUNNER_LIMIT`** (default `5`) — how many flow runs execute at once; the rest queue. A
+  memory ceiling rather than a throughput dial, and the moment it matters is the restart after
+  downtime rather than the steady state. Documented in
+  [configuration](docs/configuration.md#background-work-prefect).
+
 ## [0.0.32] - 2026-08-06
 
 ### Fixed
