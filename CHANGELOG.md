@@ -19,6 +19,126 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.59] - 2026-08-06
+
+### Fixed
+
+- `tests/test_migrations.py` ran for the first time. It needed a database called
+  `agenticos_migrations_test`, a missing one became a module-level skip, and
+  nothing in the repository ever created it — so the only assertions that
+  `downgrade()` works at all reported "4 skipped" into a green build on every CI
+  run this project has ever had (#234). The module creates that database before
+  its first test and drops it after its last, with the process id in the name so
+  two runs on one machine cannot drop each other's mid-upgrade (#346).
+- A remaining skip now means one thing only: no Postgres answered. Under `CI` it
+  is not a skip at all but a failure, because a declared service container that
+  did not come up is not a laptop without Docker.
+- The probe says *why* the server did not answer. A Postgres that is up and
+  refusing — a wrong password, a database in recovery — used to be reported as a
+  container that never started.
+
+
+## [0.0.58] - 2026-08-06
+
+### Fixed
+
+- `make install` did not create `backend/.env`, the third thing a fresh checkout
+  is missing. Everything running on the host reads it — `db-check`, `db-upgrade`,
+  `run`, and pytest through `app.core.config` — so without one
+  `POSTGRES_PASSWORD` is empty and `alembic check` is refused with
+  `fe_sendauth: no password supplied`, four minutes into `make check`. It is
+  copied from the example, once, and an existing file is never overwritten (#299).
+- `REDIS_PASSWORD` carried a live placeholder in the example. Copied into a dev
+  `.env` it made every request fail against a local redis that has no
+  `requirepass`, and in a deployed stack it let `change-me-in-production` be
+  inherited from an example file. It is commented out in both directions now,
+  and the deployed compose files already refuse to start without a real one.
+- The empty `SANDBOXD_TOKEN=` in the example did not match the `^SANDBOXD_TOKEN=.`
+  that `make dev` greps for, so a fresh checkout ended up with the key twice and
+  worked only by last-wins. The assignment is gone; the comment stays.
+
+
+## [0.0.57] - 2026-08-06
+
+### Fixed
+
+- `make install` did not install the frontend toolchain, so a fresh checkout
+  could not run `make check` at all: eslint, prettier, tsc, vitest and next live
+  only in `frontend/node_modules`, and the first four minutes of `check` are the
+  backend half, so it said `eslint: command not found` well after you had walked
+  away (#227).
+
+### Changed
+
+- `test_ci_parity.py` now holds the setup commands to the mirror-image rule: a
+  gating job may prepare its runner however it likes, as long as `make install`
+  prepares a laptop the same way. The next toolchain CI adds has to land in
+  `install` or be exempted with a written reason.
+- `make quickstart` no longer claims to install dependencies in `docs/commands.md`.
+  It is `quickstart: dev`, and nothing in that chain reaches `install` — which
+  sent people down exactly the road this release closes.
+
+
+## [0.0.56] - 2026-08-06
+
+### Changed
+
+- The last four route handlers that read a repository directly now go through a
+  service, which is what `.claude/rules/architecture.md` has always asked for:
+  the audit listing, a knowledge base's sync logs, an org integration's sync
+  logs, and the vault key a provider catalog is fetched with (#232).
+- `AuditService` is new. The `/audit` route held "an entry belongs to exactly one
+  organization" as a keyword argument it filled in itself, which is a scope no
+  service test can see and one the next reader of that entity would have had to
+  know to repeat.
+- Both surfaces showing a sync source's history read it through
+  `SyncSourceService.list_logs` rather than each carrying its own query and its
+  own copy of the same twelve-field mapping.
+- The provider-listing key moves out of a private helper in the route and into
+  `OrganizationSecretService`, so nothing in the HTTP layer unseals a secret.
+
+
+## [0.0.55] - 2026-08-06
+
+### Fixed
+
+- The reserved-names integration test set the vector store's resolver to `None`,
+  which stopped being valid in 0.0.43 when the resolver became required and its
+  `None` short-circuit was deleted. `_for_collection` calls it unconditionally,
+  so the test raised `TypeError: 'NoneType' object is not callable` on every run
+  with a real database. Shipped in 0.0.45 and fixed here.
+
+
+## [0.0.54] - 2026-08-06
+
+### Fixed
+
+- A knowledge base's sync history came back short. The route read every log
+  carrying that source id, applied `limit` in SQL, and only then dropped the rows
+  belonging to another collection — so the page was cut before the thinning. A
+  source repointed at another base (`SyncSourceUpdate` carries
+  `collection_name`, and earlier runs keep the name they ran against) made a
+  request for twenty runs answer with fewer, `total` described the survivors
+  rather than the source, and there was no way to page past the gap. The source
+  is resolved against the base first now (#233).
+- A source that is not this base's answers `404` rather than `200 []`. Both
+  rendered "no syncs yet", and one of them was a request that should have failed.
+
+
+## [0.0.53] - 2026-08-06
+
+### Fixed
+
+- The double-backtick guard skipped every directory called `worktrees`, which was
+  the wrong rule twice over: it silently stopped reading a `docs/worktrees/` that
+  is only a directory with a name, and it still walked a git worktree placed
+  anywhere else. It now detects a nested checkout — a `.git` file or directory —
+  and declines to descend into it, which is what the rule always meant (#225).
+- The self-exemption matched one absolute path, so every copy of the script under
+  a worktree was reported as three findings on a line nobody had edited. It
+  matches the file's name now, and `--fix` is safe on a copy for the same reason.
+
+
 ## [0.0.52] - 2026-08-06
 
 ### Fixed
