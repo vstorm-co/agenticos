@@ -146,6 +146,15 @@ frontend spec answers in about two seconds against seventy for the suite, one ba
 file in under one against ninety-five for `make test`. CI's jobs run in parallel and
 answer in about seven minutes — from a pushed branch, while you carry on working.
 
+Two things about that answer, both since #317. **Pushing again cancels the run in
+flight**, so the answer you were waiting on disappears rather than arriving about a
+commit you have already replaced — which is the point, but it means a push is also a
+decision to stop caring about the previous one. And **CI runs fewer jobs than
+`make check` does**: `test`, `test-frontend` and `e2e` skip when the changed paths
+cannot affect them, so a backend-only branch gets no frontend answer at all, and a
+`skipped` required check is a pass rather than a problem.
+`docs/branching.md` has the rule.
+
 ```bash
 cd frontend && bunx vitest run src/components/chat/usage-strip.test.tsx
 cd backend  && uv run pytest tests/test_sandbox_workspace.py -q
