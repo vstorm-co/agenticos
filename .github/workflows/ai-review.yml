@@ -1,5 +1,26 @@
 name: AI review
 
+# **Not running on pull requests today - #311.** Every run since 2026-08-05
+# evening has died about twelve seconds into `Review the diff` with
+# `codex exited with code 1`, which is the shape of an authentication, quota or
+# entitlement refusal at the first API call rather than a model working and
+# failing. The workflow concluded `success` each time and posted "the reviewer
+# did not produce a result", so eleven pull requests merged with no review while
+# nothing on the page said the reviewer was broken rather than quiet. A reviewer
+# that runs and says nothing is worse than one that plainly is not running, so
+# the `pull_request` trigger is gone until the Codex failure is understood.
+#
+# `workflow_dispatch` stays: whatever fixes #311 has to be testable against a
+# real pull request. Re-enabling means putting back, above `workflow_dispatch`:
+#
+#   pull_request:
+#     types: [opened, reopened, ready_for_review, labeled]
+#
+# and nothing else. The label gate, the draft gate, the fork refusal and the
+# three-job split below are deliberately untouched - their `pull_request` halves
+# are inert while only `workflow_dispatch` fires, which is the price of keeping
+# re-enabling a trigger change rather than a rewrite.
+#
 # An automated reviewer that reads this repository's own standard rather than a
 # generic checklist. `CLAUDE.md` and `.claude/rules/*` already say what correct
 # means here - `require()` on collection routes only, repositories never
@@ -23,16 +44,12 @@ name: AI review
 # from the default branch **with secrets**, for a comment on any pull request
 # including one from a fork. Checking out the pull request's own code in that
 # context, in the job that holds `OPENAI_API_KEY`, is the shape CodeQL flags as
-# `actions/untrusted-checkout` - correctly. The `ai-review` label does the same
-# job through `pull_request`, which hands a fork neither the secret nor a
-# writable token, so the exposure is gone rather than argued about.
+# `actions/untrusted-checkout` - correctly. `workflow_dispatch`, and the
+# `ai-review` label when `pull_request` is back, ask for a review on demand
+# without that privilege: neither hands a fork the secret or a writable token,
+# so the exposure is gone rather than argued about.
 
 on:
-  pull_request:
-    # Deliberately not `synchronize`. Two developers, a dozen pushes per pull
-    # request; a review on every one of them is a review nobody reads. Re-run
-    # after fixes by adding the `ai-review` label.
-    types: [opened, reopened, ready_for_review, labeled]
   workflow_dispatch:
     inputs:
       pr_number:
@@ -63,9 +80,11 @@ jobs:
     timeout-minutes: 5
     permissions:
       pull-requests: read
-    # The gate for both triggers, evaluated before anything is checked out.
-    # `labeled` fires for every label, so it is narrowed to `ai-review` - which
-    # only somebody with write access can add, and which is what makes the
+    # The gate for every trigger, evaluated before anything is checked out.
+    # Only the `workflow_dispatch` arm can fire today (see the note at the top of
+    # this file); the rest is kept for the day `pull_request` comes back, because
+    # `labeled` fires for every label and has to be narrowed to `ai-review` -
+    # which only somebody with write access can add, and which is what makes the
     # on-demand re-run safe without an author-association check of its own.
     if: >-
       github.event_name == 'workflow_dispatch'

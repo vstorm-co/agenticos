@@ -121,6 +121,22 @@ Computed properties:
 | `REDIS_PASSWORD` | (none) | Redis password (optional) |
 | `REDIS_DB` | `0` | Redis database number |
 
+## Background work (Prefect)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PREFECT_API_URL` | `http://localhost:4200/api` | The self-hosted server, or a Prefect Cloud workspace URL |
+| `PREFECT_API_KEY` | (none) | Prefect Cloud only |
+| `PREFECT_RUNNER_LIMIT` | `5` | How many flow runs execute at once; the rest queue |
+
+`PREFECT_RUNNER_LIMIT` is a memory ceiling, not a throughput dial. Each run is a
+separate process that imports the whole application — roughly 120 MB — and the
+number that matters is not the steady state but the restart: the runner comes up,
+finds every run that was scheduled while it was down, and starts as many as the
+limit allows. Uncapped, three days of downtime was 71 processes and 6 GiB. Raise
+it if ingestion queues behind syncs on a machine with memory to spare; lower it on
+a small host.
+
 ## AI Models — configured in the app, not here
 
 Chat models are not environment variables. Each organization stores its own
