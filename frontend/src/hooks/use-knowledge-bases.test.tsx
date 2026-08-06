@@ -703,6 +703,50 @@ describe("one collection's page", () => {
 
     expect(apiClient.delete).not.toHaveBeenCalled();
   });
+
+  it("deletes the collection and stales the list the caller returns to", async () => {
+    // The page navigates to `/kb` on success, and that list is a query this
+    // hook does not own. Left cached, the collection that was just destroyed is
+    // the first thing waiting there.
+    client.setQueryData(qk.kb.list(), [{ id: "kb-1", name: "Handbook" }]);
+    const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+
+    await act(async () => {
+      await result.current.deleteCollection();
+    });
+
+    expect(apiClient.delete).toHaveBeenCalledWith("/kb/kb-1");
+    expect(client.getQueryState(qk.kb.list())?.isInvalidated).toBe(true);
+    expect(toast.success).toHaveBeenCalledWith("Knowledge base deleted");
+  });
+
+  it("hands a refused collection deletion back rather than letting the page leave", async () => {
+    // Swallowing this is how somebody lands on `/kb` with the collection still
+    // in the list and a toast saying it could not be deleted.
+    const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+    vi.mocked(apiClient.delete).mockRejectedValue(new Error("Not yours to delete"));
+
+    await expect(result.current.deleteCollection()).rejects.toThrow("Not yours to delete");
+    expect(toast.error).toHaveBeenCalledWith("Not yours to delete");
+  });
+
+  it("names a collection deletion that failed without a sentence of its own", async () => {
+    const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+    vi.mocked(apiClient.delete).mockRejectedValue("boom");
+
+    await expect(result.current.deleteCollection()).rejects.toBe("boom");
+    expect(toast.error).toHaveBeenCalledWith("Failed to delete knowledge base");
+  });
+
+  it("deletes no collection when none is open", async () => {
+    const { result } = renderHook(() => useKBDetail(null), { wrapper });
+
+    await act(async () => {
+      await result.current.deleteCollection();
+    });
+
+    expect(apiClient.delete).not.toHaveBeenCalled();
+  });
 });
 
 describe("uploading a document", () => {
