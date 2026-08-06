@@ -23,7 +23,7 @@ from pydantic import BaseModel
 
 from app.agents.capabilities import REGISTRY, CapabilityToolInfo, load_builtins, register
 from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
-from app.agents.spec import AgentSpec
+from app.agents.spec import AgentSpec, CapabilityBindingSpec, SpecialistSpec
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
@@ -368,6 +368,111 @@ class TestCreate:
         assert "@support" in refused.value.message
         assert "different handle" in refused.value.message
         assert create.await_count == 0
+
+
+class TestPromoteSpecialist:
+    """The one exit a specialist has that keeps its provenance visible.
+
+    Promoting turns a specialist - inline or one a model invented mid-run - into an
+    ordinary draft agent owned by whoever promoted it, and stops there: no publish,
+    no pin, no touching what it came from. Each of those is the author's next
+    decision, with the normal validation in front of it.
+    """
+
+    @pytest.mark.anyio
+    async def test_a_promoted_specialist_becomes_a_draft_the_promoter_owns(self):
+        ctx = _ctx()
+        specialist = SpecialistSpec(
+            name="invoice-parser",
+            description="Pulls line items out of an invoice",
+            instructions="You read invoices and return their line items as JSON.",
+            model_profile_id=uuid4(),
+        )
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get_by_slug", new=AsyncMock(return_value=None)),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.create", new=AsyncMock(return_value=_agent(ctx))
+            ) as create,
+            patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()) as audit,
+        ):
+            await AgentRegistryService(_db()).promote_specialist(
+                ctx, specialist, fallback_model_profile_id=None
+            )
+
+        written = create.call_args.kwargs
+        assert written["slug"] == "invoice-parser"
+        assert written["name"] == "invoice-parser"
+        # The specialist's own instructions and model reach the draft verbatim - a
+        # draft that publishes and runs the same is the whole point.
+        assert written["draft_spec"]["instructions"] == specialist.instructions
+        assert written["draft_spec"]["model_profile_id"] == str(specialist.model_profile_id)
+        # Owned by the promoter, because `create` is - a specialist created inside
+        # someone else's run does not become their agent without this.
+        assert written["owner_user_id"] == ctx.user_id
+        assert {call.kwargs["action"] for call in audit.await_args_list} == {
+            "agent.created",
+            "agent.promoted_from_specialist",
+        }
+
+    @pytest.mark.anyio
+    async def test_a_specialist_on_the_parents_model_takes_the_parents_profile(self):
+        """`model_profile_id=None` on a specialist means "the parent's model", and a
+        standalone agent has no parent - so the fallback is resolved into the draft,
+        which is what lets it publish without first being given a model by hand."""
+        ctx = _ctx()
+        parent_profile = uuid4()
+        specialist = SpecialistSpec(
+            name="summariser",
+            description="Summarises in three bullets",
+            instructions="Summarise the input in exactly three bullets.",
+            model_profile_id=None,
+        )
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get_by_slug", new=AsyncMock(return_value=None)),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.create", new=AsyncMock(return_value=_agent(ctx))
+            ) as create,
+            patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()),
+        ):
+            await AgentRegistryService(_db()).promote_specialist(
+                ctx, specialist, fallback_model_profile_id=parent_profile
+            )
+
+        assert create.call_args.kwargs["draft_spec"]["model_profile_id"] == str(parent_profile)
+
+    @pytest.mark.anyio
+    async def test_promoting_does_not_pin_the_new_agent_as_a_delegate(self):
+        """`to_agent_spec` drops what a specialist cannot carry, and the draft is a
+        plain agent: no delegates pinned to it, no delegates of its own. Promoting is
+        a copy, not a wiring-up - pinning it back to a parent is a separate decision.
+        """
+        ctx = _ctx()
+        specialist = SpecialistSpec(
+            name="researcher",
+            description="Finds and cites sources",
+            instructions="Research the topic and cite your sources.",
+            model_profile_id=uuid4(),
+            capabilities=[CapabilityBindingSpec(id="web_search")],
+        )
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get_by_slug", new=AsyncMock(return_value=None)),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.create", new=AsyncMock(return_value=_agent(ctx))
+            ) as create,
+            patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()),
+        ):
+            await AgentRegistryService(_db()).promote_specialist(
+                ctx, specialist, fallback_model_profile_id=None
+            )
+
+        draft = create.call_args.kwargs["draft_spec"]
+        assert draft["subagents"] == []
+        # The specialist's own capabilities do come across - a researcher that
+        # cannot search is not the researcher that ran.
+        assert [binding["id"] for binding in draft["capabilities"]] == ["web_search"]
 
 
 class TestSaveDraft:

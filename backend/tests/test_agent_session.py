@@ -1187,6 +1187,10 @@ class TestForwardingDelegationFrames:
                     # only sometimes receives is a field it has to guess about, and
                     # guessing the parent is what this replaced.
                     "parent_task_id": None,
+                    # `None` for a configured delegate; set only for a specialist the
+                    # model invented at run time, whose definition a surface offers to
+                    # keep. On the wire either way, for the same reason.
+                    "specialist": None,
                 },
             )
         ]

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { CopyPlus, Plus, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 
 import { CapabilitySettings } from "@/components/agents/capability-settings";
 import { CollectionPicker } from "@/components/agents/collection-picker";
@@ -9,7 +10,13 @@ import { DelegationModeField } from "@/components/agents/delegation-mode-field";
 import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
 import { SkillGallery } from "@/components/agents/skill-gallery";
 import { Button, Input, Label, Switch, Textarea } from "@/components/ui";
-import { useKnowledgeBases, useModelProviders, useSkills } from "@/hooks";
+import {
+  useAgents,
+  useKnowledgeBases,
+  useModelProviders,
+  usePermissions,
+  useSkills,
+} from "@/hooks";
 import {
   newSpecialist,
   specialistNameError,
@@ -17,8 +24,10 @@ import {
   withCapability,
   withSkills,
 } from "@/lib/agent-spec";
+import { getErrorMessage } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import type { CapabilityBindingSpec, CapabilityCatalogEntry, SpecialistSpec } from "@/types/agents";
+import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
 
 interface SpecialistListProps {
@@ -27,6 +36,13 @@ interface SpecialistListProps {
   /** Everything an agent may be given; a specialist may be given it too. */
   catalog: CapabilityCatalogEntry[];
   clashes: ReadonlySet<string>;
+  /**
+   * The parent agent's model profile, passed to promotion as the fallback for a
+   * specialist that runs on "the same model as its parent" (a null
+   * `model_profile_id`): a standalone agent has no parent, so the parent's is
+   * resolved into the draft. A pass-through - the list itself has no use for it.
+   */
+  parentModelProfileId: string | null;
   disabled?: boolean;
 }
 
@@ -49,6 +65,7 @@ export function SpecialistList({
   onChange,
   catalog,
   clashes,
+  parentModelProfileId,
   disabled,
 }: SpecialistListProps) {
   const t = useTranslations("agents");
@@ -110,6 +127,7 @@ export function SpecialistList({
             specialist={specialist}
             catalog={catalog}
             clashes={clashes}
+            parentModelProfileId={parentModelProfileId}
             disabled={disabled}
             onChange={patch}
             onRemove={() => {
@@ -127,6 +145,7 @@ interface SpecialistEditorProps {
   specialist: SpecialistSpec;
   catalog: CapabilityCatalogEntry[];
   clashes: ReadonlySet<string>;
+  parentModelProfileId: string | null;
   disabled?: boolean;
   onChange: (changes: Partial<SpecialistSpec>) => void;
   onRemove: () => void;
@@ -144,13 +163,28 @@ function SpecialistEditor({
   specialist,
   catalog,
   clashes,
+  parentModelProfileId,
   disabled,
   onChange,
   onRemove,
 }: SpecialistEditorProps) {
   const t = useTranslations("agents");
+  const { promote } = useAgents();
+  const { can } = usePermissions();
   const nameKey = specialistNameError(specialist.name);
   const clash = clashes.has(specialist.name);
+  // A control the caller may not use is not rendered - promoting creates an
+  // agent, which takes `agents:edit`, the same permission `create` is gated on.
+  const canPromote = can(Perm.agentsEdit);
+
+  const onPromote = () =>
+    promote.mutate(
+      { specialist, fallbackModelProfileId: parentModelProfileId },
+      {
+        onSuccess: (agent) => toast.success(t("specialistPromoted", { name: agent.name })),
+        onError: (error) => toast.error(getErrorMessage(error)),
+      },
+    );
 
   return (
     <div className="border-border space-y-4 rounded-lg border p-4">
@@ -221,7 +255,25 @@ function SpecialistEditor({
         onChange={onChange}
       />
 
-      <div className="flex justify-end">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        {canPromote ? (
+          <div className="min-w-0">
+            <Button
+              variant="outline"
+              size="sm"
+              // The name is the new agent's handle too, so a name that is not yet
+              // a valid handle cannot be promoted - the server would refuse it.
+              disabled={disabled || nameKey !== null || promote.isPending}
+              onClick={onPromote}
+            >
+              <CopyPlus className="h-3.5 w-3.5" />
+              {t("promoteSpecialist")}
+            </Button>
+            <p className="text-muted-foreground mt-1 text-xs">{t("promoteSpecialistDetail")}</p>
+          </div>
+        ) : (
+          <span />
+        )}
         <Button variant="ghost" size="sm" disabled={disabled} onClick={onRemove}>
           <Trash2 className="h-3.5 w-3.5" />
           {t("removeSpecialist")}

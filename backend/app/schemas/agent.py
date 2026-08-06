@@ -8,7 +8,7 @@ from uuid import UUID
 from pydantic import Field
 
 from app.agents.capabilities import CapabilityToolInfo
-from app.agents.spec import AgentSpec
+from app.agents.spec import AgentSpec, SpecialistSpec
 from app.core.secret_kinds import SecretRequirement
 from app.schemas.base import BaseSchema
 
@@ -92,6 +92,31 @@ class AgentClone(BaseSchema):
     """
 
     name: str | None = Field(default=None, min_length=1, max_length=128)
+
+
+class SpecialistPromote(BaseSchema):
+    """Turn a specialist into a draft agent the caller owns.
+
+    The specialist is sent whole rather than referenced, because the two surfaces
+    that promote one hold it whole and neither can be looked up server-side: the
+    Builder holds an inline specialist's `SpecialistSpec` in the draft being edited,
+    possibly unsaved, and chat holds a dynamic one only in the delegation frame that
+    announced it - nothing persists a specialist a model invented. So the conversion
+    (`SpecialistSpec.to_agent_spec`) runs on what the client sends, which is exactly
+    the same trust boundary `import` already crosses: a draft is not validated, and
+    publish checks the promoter's own access to everything it names.
+    """
+
+    specialist: SpecialistSpec
+    fallback_model_profile_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The parent agent's model profile, used when an inline specialist runs on "
+            "'the same model as its parent' (a null `model_profile_id`): a standalone "
+            "agent has no parent to fall back to, so the parent's is resolved now. A "
+            "dynamic specialist always names its own model, so this is null for one."
+        ),
+    )
 
 
 class AgentVersionRead(BaseSchema):

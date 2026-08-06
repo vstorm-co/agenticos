@@ -311,6 +311,23 @@ interface SubagentFrameBase {
   depth: number;
 }
 
+/**
+ * The whole of a specialist a model invented mid-run, carried so it can be kept.
+ *
+ * Present on the opening frame of a *dynamic* delegation and nowhere else: a
+ * delegate is published and an inline specialist lives in its parent's spec, but
+ * one a model wrote at run time is persisted nowhere, so this streamed copy is the
+ * only place its definition is legible - and only while the run is on screen. It
+ * mirrors the backend `SpecialistDefinition`, and is everything such a specialist
+ * has: instructions and a model, no capabilities, knowledge or delegates.
+ */
+export interface SpecialistDefinition {
+  description: string;
+  instructions: string;
+  /** The label of the model profile the specialist named, resolved on promotion. */
+  model: string;
+}
+
 export interface SubagentStartFrame extends SubagentFrameBase {
   kind: "subagent_start";
   mode: SubagentMode;
@@ -323,6 +340,13 @@ export interface SubagentStartFrame extends SubagentFrameBase {
    * two specialists running at once are both one level up from a nested start.
    */
   parent_task_id: string | null;
+  /**
+   * A dynamic specialist's definition, or null for a delegate or inline specialist.
+   *
+   * Set only for a specialist the model invented at run time - the one kind nothing
+   * else keeps - so a surface can offer to promote it while the run is on screen.
+   */
+  specialist: SpecialistDefinition | null;
 }
 
 export interface SubagentTextDeltaFrame extends SubagentFrameBase {
@@ -423,6 +447,12 @@ export interface Delegation {
    */
   parentTaskId: string | null;
   status: DelegationStatus;
+  /**
+   * The definition of a specialist the model invented, or null for anything already
+   * keepable. Set from the start frame; what a "promote to a draft agent" action in
+   * chat reads, and what its absence hides that action for. See `SpecialistDefinition`.
+   */
+  specialist: SpecialistDefinition | null;
   text: string;
   thinking: string;
   steps: DelegationStep[];

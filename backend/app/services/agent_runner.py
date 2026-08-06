@@ -257,6 +257,31 @@ def _refuse_duplicate_names(resolved: list[ResolvedSubagent]) -> None:
         )
 
 
+class DynamicSpecialistFrame(BaseModel):
+    """One specialist a level of the tree kept with `create_agent`, stored across a park.
+
+    The library holds a `create_agent` registration in a registry it builds per
+    *built* agent, and a resume is a fresh build - so without this a specialist kept
+    before an approval park was gone after it, while the replayed transcript still
+    said it had been created and `task` answered "unknown subagent" (agenticos#175).
+    The four fields are the whole of what `create_agent` was given, which is exactly
+    what a resume needs to build the specialist again on the run's shared budget.
+
+    Where one of these is stored says which level kept it: the run's own agent's sit
+    flat on `PausedRunState.dynamic_specialists`, and a nested delegate's hang off
+    that delegate's :class:`DelegationFrame` the way its conversation does - which is
+    what carries a nested delegate's specialist across a park too (agenticos#254). See
+    :class:`app.agents.subagent_runtime.RegisteredSpecialist`.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(description="How the model addresses it in `task`")
+    description: str = Field(description="What it is for, one line")
+    instructions: str = Field(description="Its system prompt - the whole of its behaviour")
+    model: str = Field(description="The organization model profile label it runs on")
+
+
 class DelegationFrame(BaseModel):
     """A delegation the run parked inside, and where its delegate stopped.
 
@@ -279,6 +304,12 @@ class DelegationFrame(BaseModel):
     delegation re-run from the start exactly as it is of one continued. Left out,
     the child run row written when the delegation ends holds only what the last
     turn spent - see :class:`app.agents.subagent_runtime.DelegationSpend`.
+
+    `dynamic_specialists` is the same shape for `create_agent`: the specialists this
+    delegate kept, so a nested `create_agent` survives the park its own delegate
+    caused. It rides on the frame rather than on the flat run-level list because a
+    nested delegate has its own registry, and a resume seeds each level's from its own
+    key (agenticos#254).
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -331,6 +362,23 @@ class DelegationFrame(BaseModel):
             "per delegation now, so the turn that resumes cannot re-derive it"
         ),
     )
+    billed_cost_usd: Decimal = Field(
+        default=Decimal(0),
+        description=(
+            "What this delegation's row is owed by the stop - its own spend plus its "
+            "inline specialists', which `cost_usd` above leaves out because that is "
+            "the panel number. Equal to `cost_usd` for a delegate with no inline "
+            "specialist below it; carried so a published delegate that parked with "
+            "one resumes with its month intact (agenticos#228). Zero on an inline "
+            "specialist's own frame - it bills to its ancestor's row, not its own"
+        ),
+    )
+    billed_input_tokens: int = Field(default=0, description="The billed share, in input tokens")
+    billed_output_tokens: int = Field(default=0, description="The billed share, in output tokens")
+    billed_cost_is_partial: bool = Field(
+        default=False,
+        description="Whether the billed share went unpriced, making `billed_cost_usd` a floor",
+    )
     started_at: datetime | None = Field(
         default=None,
         description=(
@@ -342,30 +390,15 @@ class DelegationFrame(BaseModel):
     delegations: list[DelegationFrame] = Field(
         default_factory=list, description="Delegations this delegate had itself parked on"
     )
-
-
-class DynamicSpecialistFrame(BaseModel):
-    """One specialist the run's own agent kept with `create_agent`, stored across a park.
-
-    The library holds a `create_agent` registration in a registry it builds per
-    *built* agent, and a resume is a fresh build - so without this a specialist kept
-    before an approval park was gone after it, while the replayed transcript still
-    said it had been created and `task` answered "unknown subagent" (agenticos#175).
-    The four fields are the whole of what `create_agent` was given, which is exactly
-    what a resume needs to build the specialist again on the run's shared budget.
-
-    The run's own agent's specialists only: a nested delegate's registry is its own,
-    and carrying one across a park would have to hang off that delegate's
-    :class:`DelegationFrame` the way its conversation does. See
-    :class:`app.agents.subagent_runtime.RegisteredSpecialist`.
-    """
-
-    model_config = ConfigDict(extra="forbid")
-
-    name: str = Field(description="How the model addresses it in `task`")
-    description: str = Field(description="What it is for, one line")
-    instructions: str = Field(description="Its system prompt - the whole of its behaviour")
-    model: str = Field(description="The organization model profile label it runs on")
+    dynamic_specialists: list[DynamicSpecialistFrame] = Field(
+        default_factory=list,
+        description=(
+            "The specialists this delegate kept with `create_agent`, re-registered "
+            "into its fresh registry on resume so a nested `create_agent` survives the "
+            "park too. Empty for a delegate that kept none, and for one parked before "
+            "this existed"
+        ),
+    )
 
 
 class PausedRunState(BaseModel):
@@ -532,7 +565,10 @@ class ApprovalChannel:
         return ApprovalPending()
 
 
-def _delegation_frames(parked: Sequence[ParkedDelegation]) -> list[DelegationFrame]:
+def _delegation_frames(
+    parked: Sequence[ParkedDelegation],
+    registered: Mapping[str | None, Sequence[RegisteredSpecialist]],
+) -> list[DelegationFrame]:
     """One run's parked delegations, nested the way they were made.
 
     Assembled from a flat list because that is what the capability can safely
@@ -544,10 +580,28 @@ def _delegation_frames(parked: Sequence[ParkedDelegation]) -> list[DelegationFra
     The recursion is bounded by `max_depth`, and by the fact that a delegation's
     children all carry its task id as their parent while its own parent is
     something else.
+
+    `registered` is what each level kept with `create_agent`, keyed by the `task`
+    call the level was delegated from - the same key the capability snapshotted it
+    under. A frame carries the specialists its own delegate kept, looked up by the
+    frame's `tool_call_id`, so a nested `create_agent` rides on the same frame its
+    conversation does and survives the park (agenticos#254). The run's own agent's
+    key (`None`) is not read here - `_parked_tree` puts it on the flat run-level list.
     """
     by_parent: dict[str | None, list[ParkedDelegation]] = {}
     for entry in parked:
         by_parent.setdefault(entry.parent_task_id, []).append(entry)
+
+    def specialists(tool_call_id: str) -> list[DynamicSpecialistFrame]:
+        return [
+            DynamicSpecialistFrame(
+                name=kept.name,
+                description=kept.description,
+                instructions=kept.instructions,
+                model=kept.model,
+            )
+            for kept in registered.get(tool_call_id, [])
+        ]
 
     def frames(entries: list[ParkedDelegation]) -> list[DelegationFrame]:
         return [
@@ -564,8 +618,13 @@ def _delegation_frames(parked: Sequence[ParkedDelegation]) -> list[DelegationFra
                 input_tokens=entry.spent.input_tokens,
                 output_tokens=entry.spent.output_tokens,
                 cost_is_partial=entry.spent.has_unpriced_models,
+                billed_cost_usd=entry.spent.billed_cost_usd,
+                billed_input_tokens=entry.spent.billed_input_tokens,
+                billed_output_tokens=entry.spent.billed_output_tokens,
+                billed_cost_is_partial=entry.spent.billed_has_unpriced_models,
                 started_at=entry.started_at,
                 delegations=frames(by_parent.get(entry.task_id, [])),
+                dynamic_specialists=specialists(entry.tool_call_id),
             )
             for entry in entries
         ]
@@ -609,6 +668,18 @@ class _ResumePlan:
     the resume that settled it.
     """
 
+    specialists: dict[str, list[RegisteredSpecialist]]
+    """The specialists each *continued* delegate kept, on the same `task`-call key.
+
+    Only for a frame whose place was kept: a delegate re-run from the start re-runs
+    its own `create_agent` and registers them again, so seeding those would be a
+    duplicate. A continued delegate does not re-run `create_agent` - the call is a
+    completed entry in its replayed history - so its registry starts empty and has to
+    be seeded, which is exactly the nested case agenticos#254 was losing. The run's
+    own agent's are not here; they come off `PausedRunState.dynamic_specialists`
+    under the `None` key.
+    """
+
 
 def _resume_plan(state: PausedRunState, decided_args: Mapping[str, dict[str, Any]]) -> _ResumePlan:
     """Split a parked run's verdicts across the agents that were waiting on them.
@@ -629,6 +700,7 @@ def _resume_plan(state: PausedRunState, decided_args: Mapping[str, dict[str, Any
     resuming: dict[str, ResumedDelegation] = {}
     spent: dict[str, DelegationSpend] = {}
     started: dict[str, datetime | None] = {}
+    specialists: dict[str, list[RegisteredSpecialist]] = {}
 
     def level(frames: list[DelegationFrame], own: list[str]) -> DeferredToolResults:
         results = DeferredToolResults()
@@ -648,6 +720,14 @@ def _resume_plan(state: PausedRunState, decided_args: Mapping[str, dict[str, Any
                 input_tokens=frame.input_tokens,
                 output_tokens=frame.output_tokens,
                 has_unpriced_models=frame.cost_is_partial,
+                # The row's share, carried alongside the panel's so a published
+                # delegate that parked with an inline specialist below it resumes
+                # with its month whole (agenticos#228). Zero on an inline
+                # specialist's frame, which bills to its ancestor, not itself.
+                billed_cost_usd=frame.billed_cost_usd,
+                billed_input_tokens=frame.billed_input_tokens,
+                billed_output_tokens=frame.billed_output_tokens,
+                billed_has_unpriced_models=frame.billed_cost_is_partial,
             )
             started[frame.tool_call_id] = frame.started_at
             if not frame.messages:
@@ -661,6 +741,19 @@ def _resume_plan(state: PausedRunState, decided_args: Mapping[str, dict[str, Any
                 messages=ModelMessagesTypeAdapter.validate_python(frame.messages),
                 results=level(frame.delegations, by_delegation.get(frame.task_id, [])),
             )
+            # Seeded only for a continued delegate, and keyed by the `task` call it
+            # was delegated from - which is what its own `build_delegation` reads back
+            # as `enclosing_tool_call_id()` to fill its fresh registry.
+            if frame.dynamic_specialists:
+                specialists[frame.tool_call_id] = [
+                    RegisteredSpecialist(
+                        name=kept.name,
+                        description=kept.description,
+                        instructions=kept.instructions,
+                        model=kept.model,
+                    )
+                    for kept in frame.dynamic_specialists
+                ]
         return results
 
     return _ResumePlan(
@@ -668,6 +761,7 @@ def _resume_plan(state: PausedRunState, decided_args: Mapping[str, dict[str, Any
         delegations=resuming,
         spent=spent,
         started=started,
+        specialists=specialists,
     )
 
 
@@ -1149,7 +1243,7 @@ class AgentRunnerService:
         resuming: dict[str, ResumedDelegation],
         already_spent: dict[str, DelegationSpend],
         already_started: dict[str, datetime | None],
-        specialists: Sequence[RegisteredSpecialist] = (),
+        specialists: Mapping[str | None, Sequence[RegisteredSpecialist]] | None = None,
         model_profile_id: UUID | None = None,
         version_id: UUID | None = None,
         environment_id: UUID | None = None,
@@ -1176,11 +1270,13 @@ class AgentRunnerService:
         then or the row it eventually writes holds only this turn's spend and begins
         at the resume.
 
-        `specialists` is the same kind of thing for `create_agent`: the specialists
-        the run's own agent kept, empty on a fresh run and filled from
-        `PausedRunState` on a resume, re-registered by the depth-0 delegation
-        capability before the replay so a kept specialist is reachable after the
-        park that created it (agenticos#175).
+        `specialists` is the same kind of thing for `create_agent`, keyed by the
+        `task` call each level was delegated from: `None` for the run's own agent, a
+        nested delegate's enclosing call otherwise. `None` on a fresh run and filled
+        from `PausedRunState` on a resume, re-registered by each level's delegation
+        capability before the replay so a kept specialist is reachable after the park
+        that created it - at the run's own agent (agenticos#175) and inside a nested
+        delegate (agenticos#254) alike.
         """
         # A caller's override wins over the spec's choice. Only the model is
         # replaced - instructions, tools, budgets and the approval gate are the
@@ -1305,7 +1401,7 @@ class AgentRunnerService:
             resuming=resuming,
             spent=already_spent,
             started=already_started,
-            to_register=list(specialists),
+            to_register={} if specialists is None else {k: list(v) for k, v in specialists.items()},
         )
         runtime = await self._delegation_runtime(
             ctx,
@@ -2255,9 +2351,10 @@ class AgentRunnerService:
         that delegates again from nothing and answers a question nobody asked.
 
         The kept specialists come from the same stash, snapshotted by the delegation
-        capability's `wrap_run` when the run ended - empty unless the run's own
-        agent invented one it kept, and carried forward so the resume can register
-        it again (agenticos#175).
+        capability's `wrap_run` when the run ended and keyed by the `task` call each
+        level was delegated from. The run's own agent's (`None`) go flat on
+        `dynamic_specialists`; a nested delegate's ride on its own `DelegationFrame`,
+        which is what carries them across a park too (agenticos#254, agenticos#175).
         """
         return paused_state.model_copy(
             update={
@@ -2266,7 +2363,7 @@ class AgentRunnerService:
                     for parked in prepared.approvals.requested
                     if parked.task_id is not None
                 },
-                "delegations": _delegation_frames(prepared.stash.parked),
+                "delegations": _delegation_frames(prepared.stash.parked, prepared.stash.registered),
                 "dynamic_specialists": [
                     DynamicSpecialistFrame(
                         name=specialist.name,
@@ -2274,7 +2371,7 @@ class AgentRunnerService:
                         instructions=specialist.instructions,
                         model=specialist.model,
                     )
-                    for specialist in prepared.stash.registered
+                    for specialist in prepared.stash.registered.get(None, [])
                 ],
             }
         )
@@ -2466,17 +2563,23 @@ class AgentRunnerService:
             resuming=plan.delegations,
             already_spent=plan.spent,
             already_started=plan.started,
-            # The specialists the run's own agent kept before it parked, rebuilt
-            # into a fresh registry before the replay so `task` reaches them again.
-            specialists=[
-                RegisteredSpecialist(
-                    name=frame.name,
-                    description=frame.description,
-                    instructions=frame.instructions,
-                    model=frame.model,
-                )
-                for frame in state.dynamic_specialists
-            ],
+            # The specialists each level kept before it parked, rebuilt into that
+            # level's fresh registry before the replay so `task` reaches them again.
+            # `None` is the run's own agent, off the flat state list; a nested
+            # delegate's come from its `DelegationFrame`, keyed by its `task` call
+            # (agenticos#254). One map, so `_assemble` seeds every level in one pass.
+            specialists={
+                None: [
+                    RegisteredSpecialist(
+                        name=frame.name,
+                        description=frame.description,
+                        instructions=frame.instructions,
+                        model=frame.model,
+                    )
+                    for frame in state.dynamic_specialists
+                ],
+                **plan.specialists,
+            },
         )
         prepared.built.ledger.book(_spend_already_booked(run))
 

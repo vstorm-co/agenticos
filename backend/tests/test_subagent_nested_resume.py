@@ -74,6 +74,9 @@ from app.agents.subagent_runtime import (
     DelegationRecorder,
     DelegationSpend,
     DelegationStash,
+    DynamicSpecialists,
+    ParkedDelegation,
+    RegisteredSpecialist,
     ResolvedSubagent,
     ResumedDelegation,
     SubagentRuntime,
@@ -82,6 +85,7 @@ from app.db.models.agent_run import ApprovalStatus
 from app.services.agent_runner import (
     ApprovalChannel,
     DelegationFrame,
+    DynamicSpecialistFrame,
     PausedRunState,
     _delegation_frames,
     _resume_plan,
@@ -271,6 +275,7 @@ def _capability(
     depth: int = 0,
     ledger: SpendLedger | None = None,
     record: DelegationRecorder | None = None,
+    dynamic: DynamicSpecialists | None = None,
 ) -> Delegation:
     """The delegation capability as the registry builds it, over a shared stash."""
     runtime = SubagentRuntime(
@@ -280,6 +285,7 @@ def _capability(
         stash=stash,
         ledger=ledger,
         record=record,
+        dynamic=dynamic,
     )
     built = build(
         [CapabilityBinding(capability_id="subagents", config={})],
@@ -319,6 +325,7 @@ def _middle_delegate(
     calls: list[dict[str, Any]],
     stash: DelegationStash,
     metering: _Metering | None = None,
+    specialist_agent_id: UUID | None = None,
 ) -> ResolvedSubagent:
     """A delegate that delegates on, so the gated tool sits two levels down.
 
@@ -331,6 +338,10 @@ def _middle_delegate(
     is being followed across a park, and a middle that charged as well would put its
     own requests inside its subtree's total, which is a different defect
     (agenticos#180) and not this one.
+
+    `specialist_agent_id` publishes the specialist - gives it a row of its own - so a
+    test can assert the row it writes. Left `None`, the specialist is inline and its
+    spend bills to its nearest published ancestor instead (agenticos#228).
     """
 
     def build_it() -> PydanticAgent[Any, Any]:
@@ -343,6 +354,7 @@ def _middle_delegate(
                         gated=gated,
                         calls=calls,
                         charge=None if metering is None else metering.charge,
+                        agent_id=specialist_agent_id,
                     ),
                     stash=stash,
                     depth=1,
@@ -512,8 +524,38 @@ def _parked_state(
             for parked in channel.requested
             if parked.task_id is not None
         },
-        delegations=_delegation_frames(stash.parked),
+        delegations=_delegation_frames(stash.parked, stash.registered),
+        dynamic_specialists=[
+            DynamicSpecialistFrame(
+                name=kept.name,
+                description=kept.description,
+                instructions=kept.instructions,
+                model=kept.model,
+            )
+            for kept in stash.registered.get(None, [])
+        ],
     )
+
+
+def _to_register(state: PausedRunState, plan: Any) -> dict[str | None, list[RegisteredSpecialist]]:
+    """The specialists a resume re-registers, keyed as `resume` keys them.
+
+    `None` is the run's own agent, off the flat state list; a nested delegate's come
+    from `plan.specialists`, keyed by the `task` call it was delegated from. The
+    trip `resume` makes when it builds `_assemble`'s `specialists` map.
+    """
+    return {
+        None: [
+            RegisteredSpecialist(
+                name=frame.name,
+                description=frame.description,
+                instructions=frame.instructions,
+                model=frame.model,
+            )
+            for frame in state.dynamic_specialists
+        ],
+        **plan.specialists,
+    }
 
 
 def _verdicts(
@@ -549,7 +591,12 @@ async def _resume(
     """
     decided, approved_args = _verdicts(parked.state, parked.queue)
     plan = _resume_plan(parked.state, approved_args)
-    stash = DelegationStash(resuming=plan.delegations, spent=plan.spent, started=plan.started)
+    stash = DelegationStash(
+        resuming=plan.delegations,
+        spent=plan.spent,
+        started=plan.started,
+        to_register=_to_register(parked.state, plan),
+    )
     agent, deps = _orchestrator(
         delegate(stash),
         stash=stash,
@@ -850,6 +897,86 @@ class TestWhenAPlaceCannotBeKept:
         assert plan.started == {"the-task-call": began}
 
 
+class TestABilledShareSurvivesAPark:
+    """A published delegate's row keeps its inline specialist's spend across a park.
+
+    The intersection of agenticos#228 and agenticos#245: the row a published delegate
+    writes is its own spend plus its inline specialists', and that whole has to be
+    carried across a park the way its panel spend is - the paused state is JSONB and
+    the resuming turn's ledger starts empty, so a billed share not written down is a
+    row that resumes short by exactly what the specialist spent before the approval.
+    """
+
+    def test_the_billed_share_is_written_carried_and_read_back(self):
+        """Through `_delegation_frames`, the column, and `_resume_plan`, in one trip.
+
+        A published researcher parked with $0.75 billed to its row - its own $0.50
+        and its inline fact-checker's $0.25 - and the fact-checker parked with $0.25
+        of its own but nothing billed to a row it does not have. The whole trip is
+        exercised because that is the trip a real park makes: the frame is built from
+        the stash, dumped as JSON, validated back, and split by `_resume_plan`.
+        """
+        parked = [
+            ParkedDelegation(
+                tool_call_id="researcher-call",
+                task_id="researcher-task",
+                parent_task_id=None,
+                subagent="researcher",
+                agent_id=uuid4(),
+                agent_version_id=uuid4(),
+                child_run_id=None,
+                messages=[],
+                spent=DelegationSpend(
+                    cost_usd=Decimal("0.50"),
+                    input_tokens=INPUT_TOKENS * 2,
+                    output_tokens=OUTPUT_TOKENS * 2,
+                    billed_cost_usd=Decimal("0.75"),
+                    billed_input_tokens=INPUT_TOKENS * 3,
+                    billed_output_tokens=OUTPUT_TOKENS * 3,
+                ),
+                started_at=None,
+            ),
+            ParkedDelegation(
+                tool_call_id="fact-checker-call",
+                task_id="fact-checker-task",
+                parent_task_id="researcher-task",
+                subagent="fact-checker",
+                agent_id=None,
+                agent_version_id=None,
+                child_run_id=None,
+                messages=[],
+                spent=DelegationSpend(
+                    cost_usd=Decimal("0.25"),
+                    input_tokens=INPUT_TOKENS,
+                    output_tokens=OUTPUT_TOKENS,
+                ),
+                started_at=None,
+            ),
+        ]
+
+        (researcher_frame,) = _delegation_frames(parked, {})
+        (fact_checker_frame,) = researcher_frame.delegations
+        # Written from the stash: the published delegate's row keeps the whole, the
+        # inline specialist's frame bills nothing to a row of its own.
+        assert researcher_frame.billed_cost_usd == Decimal("0.75")
+        assert fact_checker_frame.billed_cost_usd == Decimal("0")
+
+        state = PausedRunState.model_validate(
+            PausedRunState(
+                messages=[], tool_call_ids={}, delegations=[researcher_frame]
+            ).model_dump(mode="json")
+        )
+        plan = _resume_plan(state, {})
+
+        # Read back onto the key the resuming turn opens the delegation under, so
+        # `_billed` adds the specialist's pre-park spend to the researcher's row.
+        # (Its place was not kept - `messages=[]` - so the fact-checker is re-run
+        # rather than continued, which is why only the researcher's key is here; its
+        # own $0.25 is already inside the researcher's $0.75 either way.)
+        assert plan.spent["researcher-call"].billed_cost_usd == Decimal("0.75")
+        assert plan.spent["researcher-call"].billed_input_tokens == INPUT_TOKENS * 3
+
+
 class TestAnOlderParkedRun:
     """A run parked before any of this existed has to stay resumable.
 
@@ -1027,7 +1154,10 @@ async def _until_it_answers(
             decided, approved_args = _verdicts(state, queue)
             plan = _resume_plan(state, approved_args)
             stash = DelegationStash(
-                resuming=plan.delegations, spent=plan.spent, started=plan.started
+                resuming=plan.delegations,
+                spent=plan.spent,
+                started=plan.started,
+                to_register=_to_register(state, plan),
             )
             history = ModelMessagesTypeAdapter.validate_python(state.messages)
             results = plan.results
@@ -1158,7 +1288,11 @@ class TestWhatADelegateSpentBeforeItParked:
 
         parked, answer = await _until_it_answers(
             lambda _stash, metering: _specialist_delegate(
-                gated=True, calls=calls, cities=("Krakow", "Warsaw"), charge=metering.charge
+                gated=True,
+                calls=calls,
+                cities=("Krakow", "Warsaw"),
+                charge=metering.charge,
+                agent_id=uuid4(),
             ),
             turn_costs=(Decimal("0.25"), Decimal("0.75"), Decimal("0.50")),
             parent_cost=Decimal("0.10"),
@@ -1194,7 +1328,11 @@ class TestWhatADelegateSpentBeforeItParked:
 
         parked, answer = await _until_it_answers(
             lambda stash, metering: _middle_delegate(
-                gated=True, calls=calls, stash=stash, metering=metering
+                gated=True,
+                calls=calls,
+                stash=stash,
+                metering=metering,
+                specialist_agent_id=uuid4(),
             ),
             turn_costs=(Decimal("0.25"), Decimal("0.75")),
             parent_cost=Decimal("0.10"),
@@ -1204,8 +1342,9 @@ class TestWhatADelegateSpentBeforeItParked:
         assert answer == "answer: edited: weather: Krakow: 21C and clear"
         assert calls == [{"city": "Krakow"}]
         # The specialist's own row holds what the specialist spent across both turns.
-        # The editor's holds its subtree, which is the separate defect agenticos#180
-        # is about and is deliberately not asserted here.
+        # Published (it has an `agent_id`), so it has a row at all; the editor's holds
+        # its subtree, which is the separate defect agenticos#180 is about and is
+        # deliberately not asserted here.
         specialist = [outcome for outcome in recorder.outcomes if outcome.subagent == SPECIALIST]
         assert [outcome.cost_usd for outcome in specialist] == [Decimal("1.00")]
         # Nested where it was made, which is what keeps one level's carry off another.
@@ -1320,3 +1459,246 @@ class TestWhenADelegateFirstBegan:
         delegation.carried_started_at = began
 
         assert journal._span_start(delegation, None) == began
+
+
+MODEL = "test-model"
+"""The one model label a dynamic specialist may name here - the middle's own catalog."""
+
+HELPER = "helper"
+"""The specialist the middle delegate invents with `create_agent`."""
+
+
+def _dynamic_helper(
+    calls: list[dict[str, Any]], *, gated: bool = True, charge: Charge | None = None
+) -> DynamicSpecialists:
+    """A middle delegate's `allow_dynamic`: it invents the gated specialist itself.
+
+    The build closure ignores the name, instructions and model the model wrote and
+    returns the same `look_up` agent the pinned-specialist tests use - what is under
+    test is that the *registration* survives the park and rebuilds on the run's shared
+    ledger, not what the model wrote into it. The build path is the one a resume takes:
+    `_seeded_registry` re-registers a carried specialist with a lazy build through this
+    same closure.
+    """
+
+    def build(*, name: str, instructions: str, model: str) -> PydanticAgent[Any, Any]:
+        return _specialist_agent(gated=gated, calls=calls, charge=charge)
+
+    return DynamicSpecialists(build=build, allowed_models=(MODEL,))
+
+
+def _inventing_model(prefix: str, specialist: str) -> FunctionModel:
+    """A model that keeps a specialist with `create_agent`, then delegates to it.
+
+    Two tool calls in turn - `create_agent` then `task` - so the registration is made
+    inside the run, exactly where a nested `create_agent` lives. On the replay the
+    `create_agent` return is already in the history and is not re-run, so the specialist
+    is reachable only if its registration was carried: that is the whole of #254.
+    """
+    return _tools_then_report(
+        prefix,
+        ToolCallPart(
+            "create_agent",
+            {
+                "name": specialist,
+                "description": "looks the weather up",
+                "instructions": "You look the weather up.",
+                "model": MODEL,
+            },
+        ),
+        ToolCallPart("task", {"description": "the weather in Krakow", "subagent_type": specialist}),
+    )
+
+
+def _inventing_middle_delegate(
+    *,
+    gated: bool,
+    calls: list[dict[str, Any]],
+    stash: DelegationStash,
+    metering: _Metering | None = None,
+) -> ResolvedSubagent:
+    """A delegate that invents its own specialist with `create_agent` and delegates to it.
+
+    The two-level shape #254 is about: the specialist lives one level down, in a
+    registry the *middle* delegate owns - so a park that stops inside it loses the
+    registration unless it is carried on the middle's own frame and re-seeded into the
+    middle's fresh registry on resume. Built the way the runner builds one: its own
+    delegation capability, its own runtime with `allow_dynamic`, and the *same* stash.
+    """
+
+    def build_it() -> PydanticAgent[Any, Any]:
+        return PydanticAgent(
+            _inventing_model("edited", HELPER),
+            output_type=[str, DeferredToolRequests],
+            capabilities=[
+                _capability(
+                    stash=stash,
+                    depth=1,
+                    ledger=None if metering is None else metering.ledger,
+                    record=None if metering is None else metering.record,
+                    dynamic=_dynamic_helper(
+                        calls,
+                        gated=gated,
+                        charge=None if metering is None else metering.charge,
+                    ),
+                )
+            ],
+        )
+
+    return _resolved(MIDDLE, build_it)
+
+
+class TestANestedDynamicSpecialistSurvivesTheParkThatCreatedIt:
+    """agenticos#254: a `create_agent` specialist a nested delegate kept must be
+    reachable after the park its own delegate caused, the way #175 made one the run's
+    own agent kept reachable.
+
+    Each level of the tree that binds `allow_dynamic` owns its own registry, and a
+    resume is a fresh build of every level - so a nested `create_agent` was lost across
+    the park while the replayed transcript still said the specialist had been created,
+    and `task` answered "unknown subagent". The fix carries each level's kept
+    specialists on its own `DelegationFrame`, keyed by the `task` call it was delegated
+    from, and re-seeds that level's registry from the same key on resume.
+
+    Driven through the real capability, the real gate, and the runner's real split of
+    the verdicts and the specialists - and through `paused_state` as JSON, the trip a
+    park actually makes.
+    """
+
+    async def _park(self) -> tuple[PausedRunState, _Queue, list[dict[str, Any]]]:
+        """Run to the park a nested `create_agent` + gated `task` reaches, as a row keeps it."""
+        calls: list[dict[str, Any]] = []
+        stash = DelegationStash()
+        ledger = SpendLedger()
+        queue = _Queue()
+        channel = _channel()
+        middle = _inventing_middle_delegate(
+            gated=True,
+            calls=calls,
+            stash=stash,
+            metering=_Metering(
+                ledger=ledger, charge=_charging(ledger, Decimal("0.25")), record=Recorder()
+            ),
+        )
+        agent, deps = _orchestrator(middle, stash=stash, channel=channel, ledger=ledger)
+        result = await agent.run("what is the weather in Krakow", deps=deps)
+        assert isinstance(result.output, DeferredToolRequests), result.output
+        assert calls == [], "the gate parked before the tool body ran"
+        await _write_approvals(channel, queue)
+        state = PausedRunState.model_validate(
+            _parked_state(result, channel=channel, stash=stash).model_dump(mode="json")
+        )
+        queue.decide(approved=True)
+        return state, queue, calls
+
+    async def test_the_middle_frame_carries_the_specialist_it_kept(self):
+        """The capture half: the kept specialist hangs off the delegate's own frame,
+        not the flat run-level list the run's own agent's use."""
+        state, _queue, _calls = await self._park()
+
+        (middle_frame,) = state.delegations
+        assert middle_frame.subagent == MIDDLE
+        assert [kept.name for kept in middle_frame.dynamic_specialists] == [HELPER]
+        # The run's own agent kept nothing, so the flat list stays empty - the carry
+        # rode entirely on the frame.
+        assert state.dynamic_specialists == []
+
+    async def test_the_resumed_nested_level_reaches_the_specialist_and_meters_it(self):
+        """The whole of the fix: the specialist the middle kept before the park is
+        reachable at that level after it, and its request lands on the resume's shared
+        ledger.
+
+        The metering is asserted off the ledger rather than a recorder, because the
+        recorder reads the ledger: what proves the rebuilt specialist actually ran is
+        the entry its `look_up` turn booked.
+        """
+        state, queue, calls = await self._park()
+        decided, approved_args = _verdicts(state, queue)
+        plan = _resume_plan(state, approved_args)
+        ledger = SpendLedger()
+        stash = DelegationStash(
+            resuming=plan.delegations,
+            spent=plan.spent,
+            started=plan.started,
+            to_register=_to_register(state, plan),
+        )
+        middle = _inventing_middle_delegate(
+            gated=True,
+            calls=calls,
+            stash=stash,
+            metering=_Metering(
+                ledger=ledger, charge=_charging(ledger, Decimal("0.75")), record=Recorder()
+            ),
+        )
+        agent, deps = _orchestrator(
+            middle, stash=stash, channel=_channel(decided=decided), ledger=ledger
+        )
+
+        resumed = await agent.run(
+            None,
+            deps=deps,
+            message_history=ModelMessagesTypeAdapter.validate_python(state.messages),
+            deferred_tool_results=plan.results,
+        )
+
+        # Both levels answered, and the specialist's own report - which only a run
+        # that reached `helper` by name can produce - carries the gated tool's output.
+        # (The middle echoes every tool return, `create_agent`'s included, so this is a
+        # substring rather than the whole string.)
+        answer = _answer(resumed)
+        assert answer.startswith("answer: edited:")
+        assert "weather: Krakow: 21C and clear" in answer
+        assert calls == [{"city": "Krakow"}], "continued, so the gated call ran once"
+        # Metered on the run's shared ledger: the resumed specialist booked its request
+        # there, exactly as it did before the park.
+        assert [entry.input_tokens for entry in ledger.entries] == [INPUT_TOKENS]
+
+    async def test_a_root_only_carry_loses_the_nested_specialist(self):
+        """Proof the per-level carry is load-bearing: carrying only the root - what the
+        tree-carry did before #254 - leaves the middle's registry empty on resume, so
+        `task` answers "unknown subagent" for the specialist the transcript says exists
+        and the gated call never runs.
+        """
+        state, queue, calls = await self._park()
+        decided, approved_args = _verdicts(state, queue)
+        plan = _resume_plan(state, approved_args)
+        ledger = SpendLedger()
+        # Root only: drop `plan.specialists`, the way the pre-#254 tree-carry did. The
+        # run's own agent kept nothing, so this is an empty seed.
+        stash = DelegationStash(
+            resuming=plan.delegations,
+            spent=plan.spent,
+            started=plan.started,
+            to_register={
+                None: [
+                    RegisteredSpecialist(
+                        name=frame.name,
+                        description=frame.description,
+                        instructions=frame.instructions,
+                        model=frame.model,
+                    )
+                    for frame in state.dynamic_specialists
+                ]
+            },
+        )
+        middle = _inventing_middle_delegate(
+            gated=True,
+            calls=calls,
+            stash=stash,
+            metering=_Metering(
+                ledger=ledger, charge=_charging(ledger, Decimal("0.75")), record=Recorder()
+            ),
+        )
+        agent, deps = _orchestrator(
+            middle, stash=stash, channel=_channel(decided=decided), ledger=ledger
+        )
+
+        resumed = await agent.run(
+            None,
+            deps=deps,
+            message_history=ModelMessagesTypeAdapter.validate_python(state.messages),
+            deferred_tool_results=plan.results,
+        )
+
+        assert f"Unknown subagent '{HELPER}'" in _answer(resumed)
+        assert calls == [], "the specialist was lost, so the gated call never ran"
