@@ -62,7 +62,7 @@ from decimal import Decimal
 from typing import Any, cast
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from pydantic_ai import Agent as PydanticAgent
 from pydantic_ai.messages import ModelMessagesTypeAdapter
 from pydantic_ai.tools import DeferredToolRequests, DeferredToolResults, ToolApproved
@@ -88,6 +88,7 @@ from app.agents.capabilities.subagents import SubagentsConfig, acting_delegate
 from app.agents.deps import AgentDeps
 from app.agents.factory import BuiltAgent, build_agent
 from app.agents.model_resolver import ModelRequestSpec
+from app.agents.observability import current_trace_id
 from app.agents.spec import (
     AgentSpec,
     CapabilityBindingSpec,
@@ -110,6 +111,7 @@ from app.agents.subagent_runtime import (
     ResumedDelegation,
     SubagentRuntime,
 )
+from app.core.config import settings
 from app.core.exceptions import BadRequestError, NotFoundError, RunExecutionError
 from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import StorableSecret
@@ -1126,6 +1128,25 @@ def _spend_already_booked(run: AgentRun) -> SpendEntry:
         cost_usd=run.cost_usd,
         priced=not run.cost_is_partial,
     )
+
+
+def _observability_of(stored: dict[str, Any]) -> ObservabilitySpec | None:
+    """The observability block of a stored spec, without validating the rest of it.
+
+    One block out of the document rather than `AgentSpec.model_validate`, because
+    a spec that has stopped validating - a capability dropped in a deploy, a
+    narrowed rule - is exactly the agent somebody is trying to read a trace for.
+    Refusing them the link would make a debugging aid fail on the runs that need
+    debugging.
+    """
+    block = stored.get("observability")
+    if not isinstance(block, dict):
+        return None
+    try:
+        return ObservabilitySpec.model_validate(block)
+    except ValidationError:
+        logger.warning("run_trace_observability_unreadable")
+        return None
 
 
 def _prompt_text(user_prompt: str | list[Any] | None) -> str | None:
@@ -2280,14 +2301,22 @@ class AgentRunnerService:
         *,
         status: RunStatus,
         error: str | None = None,
-        logfire_trace_id: str | None = None,
         paused_state: PausedRunState | None = None,
         budget_scope: BudgetScope | None = None,
     ) -> AgentRun:
         """Record what the run consumed and how it ended.
 
         Called from a `finally` block by every surface: a crashed run still
-        spent money, and a budget that ignores failures is not a budget.
+        spent money, and a budget that ignores failures is not a budget. That is
+        also what makes this the right place to read the **trace id**: it is
+        reached however the run ended, and the run somebody most wants a trace for
+        is the one that failed.
+
+        The id is read here rather than accepted as a parameter, which is what it
+        used to be. No caller ever passed one, so the write was guarded by a
+        condition that was always false and `AgentRunRead.logfire_trace_id` -
+        documented as a deep link into the trace - was null on every row ever
+        written (#206).
 
         `paused_state` is what a parked run is resumed from. Passing nothing
         clears it, which is what makes a finished run un-resumable rather than
@@ -2332,7 +2361,7 @@ class AgentRunnerService:
             cost_is_partial=ledger.has_unpriced_models,
             ended_at=datetime.now(UTC),
             error=error,
-            logfire_trace_id=logfire_trace_id,
+            logfire_trace_id=current_trace_id(),
             paused_state=None if parked is None else parked.model_dump(mode="json"),
         )
         # After the parent's row and on every path out of the run, for the reason
@@ -2926,6 +2955,48 @@ class AgentRunnerService:
         if run is None:
             raise NotFoundError(message="Run not found", details={"run_id": str(run_id)})
         return run
+
+    async def trace_url(self, ctx: AuthContext, run: AgentRun) -> str | None:
+        """Where this run's trace can be read, if anywhere can.
+
+        `None` on three honest paths, and a client renders no link for any of
+        them: the run has no trace id (nothing was tracing), no slugs are
+        configured, or the agent redirects its traces to a project whose slugs
+        nobody told us. All three are configuration facts. The trace id stays on
+        the row regardless, because it is useful to anybody with Logfire access
+        even with no URL in the product.
+
+        Resolved per run rather than once per deployment because
+        `ObservabilitySpec` exists to send *one agent's* traces to a client's own
+        project - so a link built from the deployment's slugs would point at a
+        project that does not contain this run. The agent's own slugs win; the
+        deployment's are the fallback for every agent that redirects nothing.
+
+        Offered on the detail read only. Resolving it needs the version's stored
+        spec, which is a lookup per row, and a list of fifty runs has no use for
+        fifty trace links.
+
+        `ctx` is taken rather than derived from the run because the version lookup
+        is tenant-scoped and every read in this service goes through the same
+        boundary - a spec fetched by id alone would be one place a listing could
+        widen.
+        """
+        if run.logfire_trace_id is None:
+            return None
+        organization, project = settings.LOGFIRE_ORGANIZATION, settings.LOGFIRE_PROJECT
+        if run.agent_version_id is not None:
+            version = await agent_repo.get_version(
+                self.db, run.agent_version_id, organization_id=ctx.organization_id
+            )
+            observability = None if version is None else _observability_of(version.spec)
+            if observability is not None and observability.organization and observability.project:
+                organization, project = observability.organization, observability.project
+        if not organization or not project:
+            return None
+        return (
+            f"{settings.LOGFIRE_BASE_URL.rstrip('/')}/{organization}/{project}"
+            f"?q=trace_id%3D%27{run.logfire_trace_id}%27"
+        )
 
     async def monthly_spend(self, ctx: AuthContext, *, agent_id: UUID | None = None) -> Decimal:
         """Spend so far this calendar month, for the org or one agent.

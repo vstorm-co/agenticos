@@ -27,7 +27,25 @@ class AgentRunRead(BaseSchema):
         description="True when a model in this run had no price - the cost is a floor"
     )
     logfire_trace_id: str | None = Field(
-        default=None, description="Deep-link into the full trace; spans are not duplicated here"
+        default=None,
+        description=(
+            "The trace this run executed inside, as Logfire spells it. Useful to "
+            "anybody with Logfire access on its own; `logfire_url` is the link, "
+            "when there is somewhere to link to. Null when nothing was tracing - "
+            "a deployment with no `LOGFIRE_TOKEN`"
+        ),
+    )
+    logfire_url: str | None = Field(
+        default=None,
+        description=(
+            "Where this run's trace can be read. Sent on the single-run read only: "
+            "resolving it needs the version's stored spec, because an agent may "
+            "redirect its traces to a client's own project, and a list of fifty "
+            "runs has no use for fifty trace links. Null when no organization and "
+            "project slug are configured - a `LOGFIRE_TOKEN` is a write credential "
+            "and carries neither, so the absence is a configuration fact rather "
+            "than a promise this schema is failing to keep"
+        ),
     )
     error: str | None = None
     started_at: datetime | None = None

@@ -83,4 +83,8 @@ class TestSpec:
         from pydantic import ValidationError
 
         with pytest.raises(ValidationError):
-            ObservabilitySpec(project="acme")  # ty: ignore[unknown-argument]
+            # `project` used to stand in for an unknown key here and is now a real
+            # field - where a client's traces can be *read*, which a write token
+            # does not say (#206). A plausible wrong name for it is the better
+            # example anyway: that is what somebody actually types.
+            ObservabilitySpec(project_slug="acme")  # ty: ignore[unknown-argument]

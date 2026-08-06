@@ -125,8 +125,16 @@ async def list_runs(
     "/runs/{run_id}", response_model=AgentRunRead, dependencies=[Depends(require(Perm.RUNS_VIEW))]
 )
 async def get_run(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
-    """One run. The step-by-step trace lives in Logfire under its trace id."""
-    return await service.get_run(ctx, run_id)
+    """One run, and where its trace can be read if anywhere can.
+
+    `logfire_url` is on this read and not on the list: resolving it needs the
+    version's stored spec, because an agent may redirect its traces to a client's
+    own Logfire project, and fifty rows have no use for fifty trace links.
+    """
+    run = await service.get_run(ctx, run_id)
+    return AgentRunRead.model_validate(run).model_copy(
+        update={"logfire_url": await service.trace_url(ctx, run)}
+    )
 
 
 @router.post(

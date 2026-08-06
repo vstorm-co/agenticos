@@ -18,24 +18,34 @@ because two of its three pieces are not page changes at all: a project slug beco
 setting, and a slug on the spec is a `SPEC_VERSION` bump touching every stored spec and
 every client's exported YAML.
 
-Four findings, none of which the decision disputes:
+Four findings, none of which the decision disputes. **The first three have since been
+fixed rather than argued with — that is what #206 was**, and each is annotated below with
+what it cost:
 
-1. **`logfire_trace_id` has never been written.** It is a parameter of
-   `AgentRunner.finish()` (`app/services/agent_runner.py:603`) that no caller passes —
-   not web chat, not the API, not a channel, not the embedded widget. The
-   column is always `NULL`. The "link out" had no data behind it.
-2. **Nothing stores a Logfire project URL.** `LOGFIRE_TOKEN` is a write credential
-   (`app/core/config.py:43`); a deep link needs an organization and project slug, which
-   would be a new setting.
+1. **`logfire_trace_id` had never been written.** It was a parameter of
+   `AgentRunner.finish()` that no caller passed — not web chat, not the API, not a
+   channel, not the embedded widget — so `finish_run`'s `if logfire_trace_id is not None`
+   was a guard that never opened and the column was `NULL` on every row. The "link out"
+   had no data behind it. **Fixed by deleting the parameter**: `finish` reads the current
+   trace id itself, which is the same "a thing every caller has to remember is a thing the
+   next caller will not" lesson the transcript write learned, and `finish` is reached from
+   a `finally` so the run that *failed* — the one somebody wants a trace for — gets one too.
+2. **Nothing stored a Logfire project URL.** `LOGFIRE_TOKEN` is a write credential and a
+   deep link needs an organization and project slug. **Fixed as three settings**
+   (`LOGFIRE_ORGANIZATION`, `LOGFIRE_PROJECT`, `LOGFIRE_BASE_URL` — `logfire-eu` is a
+   different host from `logfire-us`, and a link built for the wrong one 404s).
 3. **A redirected agent needs a *different* URL.** `ObservabilitySpec.token_secret_id`
-   (`app/agents/spec.py:311`) exists precisely so a client's agent traces into the
-   client's own project. Linking correctly would mean a project slug on the spec — a
-   `SPEC_VERSION` bump touching every stored spec and every client's exported YAML.
-   Disproportionate for a hyperlink.
-   **This bullet has since lost most of its weight**: nothing is in real use, so there are
-   no stored specs to migrate and no client YAML to break — the bump costs what the code
-   change costs. Findings 1, 2 and 4 stand as written, and the deep link was reinstated at
-   sign-off; #206 prices it without the compatibility tax assumed here.
+   exists precisely so a client's agent traces into the client's own project, so linking
+   correctly means slugs on the spec — which this bullet priced as a `SPEC_VERSION` bump
+   "touching every stored spec and every client's exported YAML. Disproportionate for a
+   hyperlink."
+   **That was wrong twice over.** Nothing is in real use, so there was no stored spec to
+   migrate and no client YAML to break; and both fields are *optional with a default*,
+   which the `agent-spec` skill's own table calls free — every stored document keeps
+   loading unchanged and there is no migration to write at all. `SPEC_VERSION` is 8 so a
+   reader can tell when the fields appeared. Where an agent redirects, its slugs win; the
+   deployment's are the fallback, and an agent that names a token but no slugs offers **no**
+   link rather than one into a project that does not contain the run.
 4. **We already store, and already serve, what the trace would show.** `messages` carries
    `role`, `content`, `thinking`, `model_name`, `agent_version` and `tokens_used`;
    `tool_calls` carries `tool_name`, `args`, `result`, `status`, `duration_ms`.
@@ -506,15 +516,18 @@ Everything else is frontend.
   what this page can show and what it has to admit, so it is the one item here that
   changes a deliverable rather than sitting beside it. Filed rather than folded in, and
   the detail view is built so that #205 landing fills it in without a frontend change.
-- **#206 — `AgentRunRead.logfire_trace_id` is documented as *"Deep-link into the full
-  trace"* and is always `null`** (`app/schemas/agent_run.py:29`), and `GET /runs/{run_id}`
-  repeats the promise in a docstring the reference docs publish (`runs.py:51`). The public
-  API says where to look and hands over nothing to look with. §1 read that as grounds for
-  removing the field; review decided to **wire it** instead, so #206 owns the whole chain —
-  the trace id at every `finish()` call site, the project slug as a setting, and the slug on
-  the spec. Independent of this page either way: nothing here reads the field, and nothing
-  here waits on it. §1's four findings still hold, and they are why that issue is priced
-  the way it is.
+- **#206 — `AgentRunRead.logfire_trace_id` was documented as *"Deep-link into the full
+  trace"* and was always `null`**, and `GET /runs/{run_id}` repeated the promise in a
+  docstring the reference docs publish. The public API said where to look and handed over
+  nothing to look with. §1 read that as grounds for removing the field; review decided to
+  **wire it**, and it now is: the trace id is read inside `finish` so every ending records
+  one, three settings say where a trace can be read, and `ObservabilitySpec` carries the
+  slugs for an agent whose traces go to a client's project. `GET /runs/{run_id}` returns a
+  resolved `logfire_url`, and the list does not — resolving it needs the version's stored
+  spec, and fifty rows have no use for fifty trace links. Still independent of this page
+  either way: the run detail view reads our own rows, so nothing here goes blank on a
+  deployment that never set `LOGFIRE_TOKEN`.
+
 - **`RunSurface.PLAYGROUND` was dead, exactly like `SCHEDULE`** (§6) — a value nothing
   assigned, on a column the API returns and a filter would otherwise offer. It was only
   the default of `prepare()`'s `surface` parameter, and every call site passed one

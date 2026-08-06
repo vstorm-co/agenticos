@@ -177,6 +177,9 @@ see RAG below.
 | `LOGFIRE_TOKEN` | (none) | Pydantic Logfire token. Get one at https://logfire.pydantic.dev |
 | `LOGFIRE_SERVICE_NAME` | `agenticos` | Service name in Logfire dashboard |
 | `LOGFIRE_ENVIRONMENT` | `development` | Environment tag |
+| `LOGFIRE_ORGANIZATION` | (none) | Organization slug, for building a link **into** a stored trace. The token is a *write* credential and carries neither slug |
+| `LOGFIRE_PROJECT` | (none) | Project slug, alongside the organization. With either unset a run's `logfire_trace_id` is still recorded and no link is offered |
+| `LOGFIRE_BASE_URL` | `https://logfire-us.pydantic.dev` | Which Logfire deployment those slugs belong to. `logfire-eu` is a different host, and a link built for the wrong one 404s |
 
 ## Web Search
 
