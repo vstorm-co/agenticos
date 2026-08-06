@@ -35,7 +35,11 @@ What it deliberately does not look at:
   interpolation rules now are reports 70 more nodes across 42 files, 54 of them real
   copy and the rest the `) : cond ? (` a ternary leaves between two elements, which
   wants a discriminator of its own. That is #141, a copy migration of its own size
-  rather than part of closing #314.
+  rather than part of closing #314;
+* **any `.ts` file at all.** Every rule above anchors on a JSX bracket, so a hook or a
+  module table is not merely unchecked but uncheckable by them - `; return` would read
+  as a text node. That leaves 406 offences across 91 files, measured: #446, which wants
+  #395's parser first because a parser reads a `.ts` file by construction.
 
 False positives get an inline `{/* i18n-exempt: why */}` or a trailing
 `// i18n-exempt: why`. The comment is required to carry a reason, because "this
@@ -43,7 +47,7 @@ one is fine" is the sentence that turns a gate into a rubber stamp.
 
 Two more rules read the catalog and ask a question of the source, rather than reading
 the source and asking a question of it - which is why neither needs the parser #395
-wants, and why both find copy in a `.ts` file that the sweep above has never opened:
+wants, and why both reach the `.ts` files the sweep above never opens:
 
 * `unread_keys` - a key nothing reads. 141 of them, and 82 had a Polish translation
   somebody had written for nobody. The extraction pass sometimes lifted a string into
@@ -469,12 +473,12 @@ def key_reads(text: str) -> tuple[set[str], list[re.Pattern[str]]]:
     built: list[re.Pattern[str]] = []
     for quote, body in call.findall(text):
         for namespace in namespaces:
-            prefix = re.escape(f"{namespace}.") if namespace else ""
+            dotted = f"{namespace}.{body}" if namespace else body
             if quote == '"':
-                named.add(f"{namespace}.{body}" if namespace else body)
+                named.add(dotted)
             else:
-                parts = [re.escape(part) for part in re.split(r"\$\{[^{}]*\}", body)]
-                built.append(re.compile("^" + prefix + r"\w*".join(parts) + "$"))
+                parts = [re.escape(part) for part in re.split(r"\$\{[^{}]*\}", dotted)]
+                built.append(re.compile("^" + r"\w*".join(parts) + "$"))
     return named, built
 
 
@@ -560,10 +564,15 @@ def duplicated_in_source(catalog: dict, sources: list[Path]) -> list[tuple[Path,
 
 
 def catalog_entries(node: object, prefix: str = "") -> list[tuple[str, str]]:
-    if isinstance(node, str):
-        return [(prefix.rstrip("."), node)]
+    """Every message the catalog holds: its dotted key, and its text.
+
+    `en.json` is a tree of namespaces whose leaves are messages, so anything that is not
+    a dict is one. The assertion is what says so out loud - a number or a list in there
+    would otherwise be compared against source as `str(value)` and quietly match nothing.
+    """
     if not isinstance(node, dict):
-        return []
+        assert isinstance(node, str), f"{prefix.rstrip('.')} is not a message"
+        return [(prefix.rstrip("."), node)]
     return [
         pair for key, value in node.items() for pair in catalog_entries(value, f"{prefix}{key}.")
     ]
@@ -579,12 +588,7 @@ def _holds(catalog: dict, dotted: str) -> bool:
 
 
 def catalog_keys(node: object, prefix: str = "") -> set[str]:
-    if not isinstance(node, dict):
-        return {prefix.rstrip(".")}
-    keys: set[str] = set()
-    for key, value in node.items():
-        keys |= catalog_keys(value, f"{prefix}{key}.")
-    return keys
+    return {key for key, _ in catalog_entries(node, prefix)}
 
 
 def main() -> int:
@@ -595,19 +599,20 @@ def main() -> int:
     catalog = json.loads(CATALOG.read_text())
     failures: list[str] = []
     absent: list[str] = []
-    # Both catalog rules read `.ts` as well as `.tsx`, and read the `dev/` playground too.
-    # The offence sweep skips both - a hook holds no JSX, and the playground's copy is not
-    # the product's - but a key a hook reads is read, and one the playground reads is not
-    # dead. Only tests are excluded on both counts: a test names the copy it asserts on.
+    # Three file sets, and the difference between them is what each rule can honestly say.
+    # `sources` is everything: the catalog rules read a `.ts` file because a hook's toast
+    # is copy, and read the `dev/` playground because a key it reads is not dead. `product`
+    # drops the playground, whose copy is nobody's to translate. `sweep` is `.tsx` alone -
+    # every rule in `offences` anchors on a JSX bracket, and `; return` in a `.ts` file
+    # would read as a text node (#446). Tests are out of all three: a test names its copy.
     sources = [
         path
         for path in sorted(SRC.rglob("*.ts*"))
         if path.suffix in (".ts", ".tsx") and not path.name.endswith(SKIPPED_NAMES)
     ]
-    for path in sources:
+    product = [path for path in sources if not any(part in str(path) for part in SKIPPED_DIRS)]
+    for path in [one for one in product if one.suffix == ".tsx"]:
         relative = str(path.relative_to(ROOT))
-        if path.suffix != ".tsx" or any(part in relative for part in SKIPPED_DIRS):
-            continue
         for number, what in offences(path):
             failures.append(f"{relative}:{number}: {what}")
         for number, what in missing_keys(path, catalog):
@@ -652,12 +657,7 @@ def main() -> int:
         )
         return 1
 
-    # The playground reads the catalog like anything else, so it counts above; what it
-    # renders is not the product's copy, so it does not count here.
-    duplicated = duplicated_in_source(
-        catalog,
-        [path for path in sources if not any(part in str(path) for part in SKIPPED_DIRS)],
-    )
+    duplicated = duplicated_in_source(catalog, product)
     if duplicated:
         shown = duplicated if "--all" in sys.argv else duplicated[:200]
         print(f"{len(duplicated)} message(s) also written out in the source:\n")
