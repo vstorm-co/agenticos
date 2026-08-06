@@ -318,8 +318,7 @@ function CsvViewer({ url }: { url: string }) {
       </div>
       {truncated && (
         <p className="text-foreground/55 mt-2 text-center font-mono text-[10px] tracking-wider uppercase">
-          Showing {MAX_ROWS.toLocaleString()} of {body.length.toLocaleString()} rows · download to
-          see all
+          {t("preview.truncatedRows", { shown: MAX_ROWS, total: body.length })}
         </p>
       )}
     </div>

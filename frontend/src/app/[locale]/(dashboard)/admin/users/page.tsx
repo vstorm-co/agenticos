@@ -234,7 +234,7 @@ export default function AdminUsersPage() {
         </Select>
 
         <span className="text-muted-foreground ml-auto text-xs">
-          {total.toLocaleString()} total
+          {t("totalCount", { count: total })}
         </span>
       </div>
 

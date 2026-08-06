@@ -48,6 +48,24 @@ async def test_the_runner_refuses_to_start_more_runs_than_the_host_can_hold(
     assert isinstance(limit, int) and limit > 0
 
 
+async def test_the_runner_serves_a_health_endpoint_of_its_own(
+    captured_runner: MagicMock,
+) -> None:
+    """Without it this container's health status is a constant, and a constant is not a status.
+
+    The runner shares `agenticos_backend` with the API, whose image-level
+    `HEALTHCHECK` asked localhost:8000 for `/api/v1/health` - nothing the runner
+    serves, so it was `unhealthy` from the second it started and a runner that had
+    actually died looked exactly like one that was fine. `webserver=True` starts
+    Prefect's own runner server, whose `/health` answers 503 once `last_polled`
+    goes stale; the compose files probe it and the image no longer carries a
+    `HEALTHCHECK` at all.
+    """
+    await prefect_app.main()
+
+    assert captured_runner.factory.call_args.kwargs["webserver"] is True
+
+
 async def test_every_deployment_is_registered_before_the_runner_starts(
     captured_runner: MagicMock,
 ) -> None:

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { ProviderIcon } from "@/components/vault/provider-icon";
+import { ProviderRow } from "@/components/vault/provider-row";
 import { useSecretPurposes } from "@/hooks";
 import { cn } from "@/lib/utils";
 
@@ -245,13 +245,10 @@ export function AddSecretDialog({
                 </SelectTrigger>
                 <SelectContent className="max-h-80">
                   {inCategory.map((entry) => (
-                    <SelectItem key={entry.id} value={entry.id}>
+                    <SelectItem key={entry.id} value={entry.id} textValue={entry.label}>
                       {/* The mark, where there is one. A vault is scanned rather
                           than read, and a logo is what the eye lands on. */}
-                      <span className="flex items-center gap-2">
-                        <ProviderIcon provider={entry.id} className="h-4 w-4" />
-                        <span>{entry.label}</span>
-                      </span>
+                      <ProviderRow provider={entry.id} name={entry.label} />
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -289,8 +286,8 @@ export function AddSecretDialog({
                 </SelectContent>
               </Select>
               <p className="text-muted-foreground text-xs">
-                {visibility === "org" ? t("sharedAccountAnyoneHere") : t("yoursAloneYouCan")} Either
-                way, an agent that uses this key runs with it for everyone who can run that agent.
+                {visibility === "org" ? t("sharedAccountAnyoneHere") : t("yoursAloneYouCan")}{" "}
+                {t("eitherWayAgentRunsWithIt")}
               </p>
             </div>
           </div>
@@ -437,14 +434,15 @@ export function RotateSecretDialog({
     >
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Rotate {secret?.name}</DialogTitle>
+          <DialogTitle>{t("rotateNamed", { name: secret?.name ?? "" })}</DialogTitle>
           <DialogDescription>{t("newValueReplacesOld")}</DialogDescription>
         </DialogHeader>
 
         {secret && info && (
           <div className="max-h-[60vh] space-y-4 overflow-y-auto px-1">
             <p className="text-muted-foreground text-xs">
-              {info.name} · currently ends <span className="font-mono">····{secret.hint}</span>
+              {t("nameCurrentlyEnds", { name: info.name })}{" "}
+              <span className="font-mono">····{secret.hint}</span>
             </p>
             <SecretFields
               info={info}

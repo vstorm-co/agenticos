@@ -136,7 +136,7 @@ export function CollectionPicker({
                   {collection.chunk_count > 0 && (
                     <span className="inline-flex items-center gap-1">
                       <Layers className="h-3 w-3" />
-                      {collection.chunk_count.toLocaleString()} chunks
+                      {t("chunkCount", { count: collection.chunk_count })}
                     </span>
                   )}
                   {pending > 0 && (
@@ -149,7 +149,7 @@ export function CollectionPicker({
                       ) : (
                         <AlertTriangle className="h-3 w-3" />
                       )}
-                      {pending} not indexed
+                      {t("notIndexedCount", { count: pending })}
                     </span>
                   )}
                   <span className="font-mono">{collection.embedding_model}</span>

@@ -119,7 +119,7 @@ export function Pager({
   if (pageCount <= 1) {
     return matched === total ? null : (
       <p className="text-muted-foreground text-xs">
-        {matched} of {total} {noun}
+        {t("matchedOfTotal", { matched, total, noun })}
       </p>
     );
   }
@@ -127,8 +127,9 @@ export function Pager({
   return (
     <div className="flex flex-wrap items-center justify-between gap-2">
       <p className="text-muted-foreground text-xs">
-        {matched === total ? `${total} ${noun}` : `${matched} of ${total} ${noun}`} · page{" "}
-        {page + 1} of {pageCount}
+        {matched === total
+          ? t("pagerAll", { total, noun, page: page + 1, pageCount })
+          : t("pagerMatched", { matched, total, noun, page: page + 1, pageCount })}
       </p>
       <div className="flex items-center gap-1">
         <Button

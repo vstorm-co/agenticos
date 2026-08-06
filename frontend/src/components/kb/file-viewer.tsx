@@ -492,7 +492,7 @@ function ParsedView({
           </p>
           {parsed.parser && (
             <p className="text-muted-foreground mt-2 font-mono text-xs">
-              parsed with {parsed.parser}
+              {t("parsedWith", { parser: parsed.parser })}
             </p>
           )}
         </div>
@@ -520,7 +520,7 @@ function ParsedView({
           <section key={page.page_num}>
             {multiPage && (
               <p className="text-muted-foreground mb-2 text-xs font-medium tracking-wide uppercase">
-                Page {page.page_num}
+                {t("pageNumber", { number: page.page_num })}
               </p>
             )}
             {!page.has_text && (
