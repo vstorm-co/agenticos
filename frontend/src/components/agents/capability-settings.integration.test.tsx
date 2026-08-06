@@ -410,6 +410,27 @@ describe("SecretField · narrowing by what a key is for", () => {
     await waitFor(() => expect(screen.getByLabelText("Secret")).toHaveTextContent("OpenAI"));
   });
 
+  it("draws each key's mark and masked tail, so eleven api_key rows are eleven rows", async () => {
+    // The reason narrowing was added at all: a real vault holds a dozen keys of
+    // this kind. The purpose that filters the list is also what draws the row.
+    serve([
+      { ...API_KEY_SECRET, id: "sec-openai", name: "Prod", purpose: "openai" },
+      // No purpose at all - stored before purposes existed. It is still offered,
+      // and a monogram is what keeps it from being a blank gap.
+      { ...API_KEY_SECRET, id: "sec-old", name: "Search key" },
+    ]);
+    mount(binding());
+
+    await userEvent.click(await screen.findByLabelText("Secret"));
+
+    const marked = screen.getByRole("option", { name: /Prod/ });
+    expect(marked.querySelector("svg > title")?.textContent).toBe("OpenAI");
+    expect(marked).toHaveTextContent("····P7KD");
+    expect(
+      screen.getByRole("option", { name: /Search key/ }).querySelector("svg > title"),
+    ).toBeNull();
+  });
+
   it("offers every key of the right kind when nothing names a service", async () => {
     // An unconditional requirement - the weather capability - has no field to
     // read a service from, so narrowing would be guessing.

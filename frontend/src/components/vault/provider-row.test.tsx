@@ -73,6 +73,37 @@ describe("what a select trigger inherits from the row", () => {
     expect(markIn(screen.getByLabelText("Provider"))).toBe("OpenRouter");
   });
 
+  it("needs `textValue`, because the mark's own title is part of the item's text", async () => {
+    // Radix takes an item's type-to-search key from its `textContent` unless
+    // `textValue` says otherwise, and lobehub titles its SVGs - so a row for
+    // `text-embedding-3-large` answered to `openroutertext-embedding-3-large`
+    // and typing `t` found nothing. Every picker that draws a mark passes it.
+    render(
+      <Select>
+        <SelectTrigger aria-label="Model">
+          <SelectValue placeholder="Pick one" />
+        </SelectTrigger>
+        <SelectContent>
+          {/* First, so that "the search did nothing" and "the search found the
+              second one" are two different outcomes rather than one. */}
+          <SelectItem value="ada" textValue="ada-002">
+            <ProviderRow provider="openrouter" name="ada-002" />
+          </SelectItem>
+          <SelectItem value="large" textValue="text-embedding-3-large">
+            <ProviderRow provider="openrouter" name="text-embedding-3-large" />
+          </SelectItem>
+        </SelectContent>
+      </Select>,
+    );
+
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.keyboard("t");
+
+    expect(screen.getByRole("option", { name: /text-embedding-3-large/ })).toHaveAttribute(
+      "data-highlighted",
+    );
+  });
+
   it("leaves a trailing badge in the list instead of repeating it in the trigger", async () => {
     pickerWith(<Check data-testid="keyed" className="ml-auto h-3.5 w-3.5" />);
 

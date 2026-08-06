@@ -234,6 +234,10 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                           <SelectItem
                             key={entry.model}
                             value={entry.model}
+                            // Without this every row answers to "openrouter…" -
+                            // the mark's title is part of the item's text - and
+                            // typing a model id finds nothing.
+                            textValue={entry.model}
                             // In the list rather than in the row: the trigger
                             // draws whatever the row draws, and "deployment
                             // default" is a comparison against the other options.
@@ -270,11 +274,11 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                           `EmbeddingService` sends every request to
                           openrouter.ai - so it carries the same mark as the
                           organization's, and the row says which of them pays. */}
-                      <SelectItem value={DEPLOYMENT_KEY}>
+                      <SelectItem value={DEPLOYMENT_KEY} textValue={t("deploymentKey")}>
                         <ProviderRow provider={EMBEDDING_KEY_PURPOSE} name={t("deploymentKey")} />
                       </SelectItem>
                       {embeddingKeys.map((secret) => (
-                        <SelectItem key={secret.id} value={secret.id}>
+                        <SelectItem key={secret.id} value={secret.id} textValue={secret.name}>
                           <ProviderRow
                             provider={EMBEDDING_KEY_PURPOSE}
                             name={secret.name}

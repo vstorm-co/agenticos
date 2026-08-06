@@ -136,6 +136,9 @@ export function ChatModelPicker({ value, onChange }: ChatModelPickerProps) {
                 <SelectItem
                   key={entry.id}
                   value={entry.id}
+                  // Type-to-search keys off this rather than off the mark's own
+                  // title, which is otherwise part of the item's text.
+                  textValue={entry.label}
                   // Outside the row: the trigger mirrors an item's text, and a
                   // tick there reads as "selected" rather than "has a key".
                   trailing={

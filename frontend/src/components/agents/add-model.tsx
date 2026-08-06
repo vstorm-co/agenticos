@@ -206,6 +206,10 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
                   <SelectItem
                     key={entry.id}
                     value={entry.id}
+                    // The row draws a mark and a mark has a `<title>`, which
+                    // counts as the item's text: without this, type-to-search
+                    // matches the brand rather than the provider's name.
+                    textValue={entry.label}
                     // Outside the row on purpose: the trigger mirrors an item's
                     // text, and a tick there would read as "selected" rather
                     // than "this provider already has a key".
@@ -273,7 +277,7 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
                 </SelectTrigger>
                 <SelectContent>
                   {keys.map((secret) => (
-                    <SelectItem key={secret.id} value={secret.id}>
+                    <SelectItem key={secret.id} value={secret.id} textValue={secret.name}>
                       {/* The provider is the filter this list was built with, so
                           it is also every row's mark - no `purpose` lookup. */}
                       <ProviderRow provider={provider.id} name={secret.name} hint={secret.hint} />

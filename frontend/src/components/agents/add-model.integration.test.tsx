@@ -172,15 +172,20 @@ describe("the add-model form", () => {
     });
   });
 
-  it("marks the providers a key is already stored for", async () => {
+  it("marks the providers a key is already stored for, and only those", async () => {
+    // Which providers can answer today is the question this list is scanned
+    // for, and the tick is the whole of the answer.
     state.secrets = [secret()];
     mount();
 
     await userEvent.click(screen.getByLabelText("Provider"));
 
-    // The tick is decorative; what matters is that both are offered and the
-    // keyed one is distinguishable at all.
-    expect(screen.getByRole("option", { name: /OpenAI/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: /OpenAI/ }).querySelector(".lucide-check"),
+    ).not.toBeNull();
+    expect(
+      screen.getByRole("option", { name: /OpenRouter/ }).querySelector(".lucide-check"),
+    ).toBeNull();
   });
 
   it("draws each provider's own brand mark", async () => {
