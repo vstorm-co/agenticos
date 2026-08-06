@@ -269,6 +269,12 @@ predicate lives in `app/db/vector_tables.py`, and it is narrower than the prefix
 purpose — `rag_documents` *is* a model table, and excluding it would have turned the
 gate off for the one table ingestion writes through.
 
+The store answers the same question with the same predicate: `list_collections`,
+which is what `rag-collections` prints, reports a `rag_` table only when no model
+declares it. Matching the prefix alone had it reporting `rag_documents` as a
+collection called `documents` — one nobody created, whose "vector count" was the
+number of ingested documents, and which any caller could then ask to search.
+
 ### RAG is Global
 
 Collections are shared across **all users**:
