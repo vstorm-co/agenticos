@@ -354,9 +354,7 @@ function RuntimeField({ connection, runtime, disabled, onChange }: RuntimeFieldP
       </Select>
 
       {error !== null && (
-        <p className="text-destructive text-xs">
-          {error} Until it answers, the runtimes it allows cannot be listed here.
-        </p>
+        <p className="text-destructive text-xs">{t("runtimesUnreadable", { error })}</p>
       )}
 
       {error === null && runtime !== null && !known && !isLoading && runtimes.length > 0 && (

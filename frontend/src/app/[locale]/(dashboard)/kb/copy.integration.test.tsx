@@ -126,6 +126,15 @@ const SOURCE = {
 
 function serve() {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+    // Not a list, and the create dialog builds its model select straight off
+    // `models` rather than tolerating whatever arrives - so the catch-all below
+    // would hand it `{items, total}` and it would throw on mount.
+    if (path === "/rag/embedding-models") {
+      return {
+        default: "text-embedding-3-large",
+        models: [{ model: "text-embedding-3-large", dim: 3072 }],
+      };
+    }
     if (path.includes("/documents")) return { items: [DOCUMENT], total: 57 };
     if (path.endsWith("/connectors")) return { items: [] };
     if (path.endsWith("/sync-sources")) return { items: [SOURCE], total: 1 };

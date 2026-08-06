@@ -754,7 +754,7 @@ export default function RAGPage() {
                         <AlertDialogContent>
                           <AlertDialogHeader>
                             <AlertDialogTitle>
-                              Delete &ldquo;{doc.filename}&rdquo;?
+                              {t("deleteDocumentNamed", { name: doc.filename })}
                             </AlertDialogTitle>
                             <AlertDialogDescription>
                               {t("willRemoveDocumentFrom")}
@@ -915,8 +915,10 @@ export default function RAGPage() {
                           </p>
                           {source.last_sync_at && (
                             <p className="text-xs">
-                              Last sync: {timeAgo(source.last_sync_at)} &mdash;{" "}
-                              {source.last_sync_status}
+                              {t("lastSyncStatus", {
+                                when: timeAgo(source.last_sync_at),
+                                status: source.last_sync_status ?? "",
+                              })}
                             </p>
                           )}
                           {source.last_error && (
@@ -946,7 +948,7 @@ export default function RAGPage() {
                             <AlertDialogContent>
                               <AlertDialogHeader>
                                 <AlertDialogTitle>
-                                  Delete source &ldquo;{source.name}&rdquo;?
+                                  {t("deleteSourceNamed", { name: source.name })}
                                 </AlertDialogTitle>
                                 <AlertDialogDescription>
                                   {t("willRemoveSyncSource")}
