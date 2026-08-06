@@ -88,8 +88,11 @@ own key for:
 ## What never happens
 
 - **No API response returns a plaintext.** There is no endpoint for it. The service
-  that owns organization secrets has exactly one reader that yields plaintext, and
-  it is called by the runner while it builds an agent.
+  that owns organization secrets has two readers that yield one, and neither hands it
+  to a caller: the runner's, while it builds an agent, and the model catalog's, which
+  spends a bearer token on one outbound request to a provider and returns the model
+  names that came back. Nothing outside that service opens a secret — the model
+  listing route used to, and that was the layering defect.
 - **No log line or audit entry contains one.** Every secret-bearing field is a
   Pydantic `SecretStr`, so the dataclasses carrying credentials mask themselves in
   a repr — which is the way a plaintext key usually escapes.

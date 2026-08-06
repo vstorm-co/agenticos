@@ -14,7 +14,6 @@ from fastapi.responses import FileResponse
 from app.api.deps import (
     Auth,
     CollectionAccessSvc,
-    DBSession,
     KnowledgeBaseSvc,
     RAGDocumentSvc,
     SyncSourceSvc,
@@ -23,7 +22,6 @@ from app.api.deps import (
 )
 from app.core.exceptions import NotFoundError
 from app.core.permissions import Perm
-from app.repositories import sync_log as sync_log_repo
 from app.schemas.knowledge_base import (
     KnowledgeBaseCreate,
     KnowledgeBaseList,
@@ -33,7 +31,6 @@ from app.schemas.knowledge_base import (
 from app.schemas.rag import (
     RAGIngestResponse,
     RAGParsedContent,
-    RAGSyncLogItem,
     RAGSyncLogList,
     RAGSyncResponse,
     RAGTrackedDocumentList,
@@ -410,7 +407,6 @@ async def list_kb_sync_source_logs(
     source_id: UUID,
     service: KnowledgeBaseSvc,
     sync_source_svc: SyncSourceSvc,
-    db: DBSession,
     ctx: Auth,
     limit: int = Query(20, ge=1, le=100),
 ) -> Any:
@@ -432,26 +428,7 @@ async def list_kb_sync_source_logs(
             message="Sync source not found in this knowledge base",
             details={"kb_id": str(kb_id), "source_id": str(source_id)},
         )
-    logs = await sync_log_repo.get_all(db, sync_source_id=source.id, limit=limit)
-    items = [
-        RAGSyncLogItem(
-            id=str(log.id),
-            source=log.source,
-            collection_name=log.collection_name,
-            status=log.status,
-            mode=log.mode,
-            total_files=log.total_files,
-            ingested=log.ingested,
-            updated=log.updated,
-            skipped=log.skipped,
-            failed=log.failed,
-            error_message=log.error_message,
-            started_at=log.started_at,
-            completed_at=log.completed_at,
-        )
-        for log in logs
-    ]
-    return RAGSyncLogList(items=items, total=len(items))
+    return await sync_source_svc.list_logs(source.id, limit=limit)
 
 
 @router.delete(

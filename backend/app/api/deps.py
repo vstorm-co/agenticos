@@ -729,3 +729,12 @@ def get_secret_service(db: DBSession) -> OrganizationSecretService:
 
 
 SecretSvc = Annotated[OrganizationSecretService, Depends(get_secret_service)]
+from app.services.audit import AuditService
+
+
+def get_audit_service(db: DBSession) -> AuditService:
+    """Create AuditService instance with database session."""
+    return AuditService(db)
+
+
+AuditSvc = Annotated[AuditService, Depends(get_audit_service)]
