@@ -240,10 +240,14 @@ class RAGDocumentService:
         # synchronously stalls every other request on this worker until it lands.
         async with await anyio.open_file(tmp_path, "wb") as f:
             await f.write(file_data)
-        from app.core.background import spawn
+        from app.core.background import spawn_after_commit
         from app.worker.tasks.rag_tasks import ingest_document_flow
 
-        spawn(
+        # After the commit, not merely after this line: the flow's first act is
+        # to read this document by id on a session of its own, and until this
+        # request's transaction commits there is no such row to find (#417).
+        spawn_after_commit(
+            self.db,
             ingest_document_flow(
                 rag_document_id=str(doc_id),
                 collection_name=collection_name,

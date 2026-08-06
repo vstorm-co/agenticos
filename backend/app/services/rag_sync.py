@@ -101,9 +101,12 @@ class RAGSyncService:
             collection_name=collection_name,
             mode=mode,
         )
-        from app.core.background import spawn
+        from app.core.background import spawn_after_commit
 
-        spawn(
+        # The flow reads this sync log by id on its own session, so it starts
+        # after the commit rather than after this line (#417).
+        spawn_after_commit(
+            self.db,
             sync_collection_flow(
                 sync_log_id=str(sync_log.id),
                 source="local",
