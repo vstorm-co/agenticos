@@ -19,6 +19,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.55] - 2026-08-06
+
+### Fixed
+
+- The reserved-names integration test set the vector store's resolver to `None`,
+  which stopped being valid in 0.0.43 when the resolver became required and its
+  `None` short-circuit was deleted. `_for_collection` calls it unconditionally,
+  so the test raised `TypeError: 'NoneType' object is not callable` on every run
+  with a real database. Shipped in 0.0.45 and fixed here.
+
+
 ## [0.0.54] - 2026-08-06
 
 ### Fixed
