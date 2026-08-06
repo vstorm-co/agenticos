@@ -72,16 +72,29 @@ class TestEveryPullRequestIsChecked:
             "worse: the required checks never report and the merge button stays grey."
         )
 
-    def test_the_whole_workflow_is_not_filtered_by_path(self, workflow: dict[str, Any]) -> None:
+    def test_no_trigger_is_filtered_by_path(self, triggers: dict[str, Any]) -> None:
         """A job-level `if:` skips and satisfies a required check; a `paths:` filter never reports.
 
         `docs/branching.md` records why the change-scope gate had to be written as
         the former. This is the assertion that keeps it written that way.
+
+        It reads the `on:` block, because that is the only place GitHub looks for a
+        path filter. The first spelling of this asserted `"paths" not in workflow`
+        against the *top level* of the file, where the schema has no `paths` key to
+        find - so it passed whatever anybody wrote, a `paths:` under `push`
+        included, and guarded nothing.
         """
-        assert "paths" not in workflow, (
-            "a workflow-level `paths:` filter stops the required contexts being posted, so "
-            "`main`'s ruleset waits for checks that will never arrive - see "
-            "docs/branching.md. Gate the individual jobs instead."
+        filtered = sorted(
+            event
+            for event, config in triggers.items()
+            if {"paths", "paths-ignore"} & set(config or {})
+        )
+        assert not filtered, (
+            f"the {filtered} trigger(s) filter on a path. A filtered-out workflow never posts "
+            "its required contexts at all, so `main`'s ruleset waits for checks that will "
+            "never arrive and the merge button stays grey forever - see docs/branching.md. "
+            "Gate the individual jobs on `changes` instead, where a skip still satisfies the "
+            "check."
         )
 
 
