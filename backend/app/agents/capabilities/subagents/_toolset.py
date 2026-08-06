@@ -67,6 +67,7 @@ from pydantic_ai.toolsets import ToolsetTool, WrapperToolset
 
 from app.agents.capabilities.subagents._journal import DelegationJournal
 from app.agents.deps import AgentDeps
+from app.agents.subagent_events import SpecialistDefinition
 
 TASK_TOOL = "task"
 """The library's delegation entry point, under the id this repository declares it.
@@ -137,7 +138,22 @@ class DelegatingToolset(WrapperToolset[AgentDeps]):
             refusal = self._refuse_dynamic(tool_args, named=str(tool_args.get("name", "")))
             if refusal is not None:
                 return refusal
-            return await self.wrapped.call_tool(name, _autonomously(tool_args), ctx, tool)
+            result = await self.wrapped.call_tool(name, _autonomously(tool_args), ctx, tool)
+            # Recorded only on success, so a `task` that reaches this specialist by
+            # name later can carry its definition to the surface - the only place a
+            # kept dynamic specialist's promote offer can read it (agenticos#292 moved
+            # this off the build factory, so a one-shot `delegate` no longer writes a
+            # name-keyed store it would collide in). The library answers a refused
+            # build with an error string rather than raising, so "created" is read off
+            # the answer it hands back, the same phrase it reports success with.
+            if "created successfully" in result:
+                self.journal.record_dynamic_definition(
+                    name=str(tool_args.get("name", "")),
+                    description=str(tool_args.get("description", "")),
+                    instructions=str(tool_args.get("instructions", "")),
+                    model=str(tool_args.get("model", "")),
+                )
+            return result
 
         entry = _ENTRY_POINTS.get(name)
         if entry is None:
@@ -154,11 +170,22 @@ class DelegatingToolset(WrapperToolset[AgentDeps]):
     ) -> Any:
         """One delegation, whichever entry point the model reached it through."""
         name_asked = str(tool_args.get(entry.delegate, ""))
+        specialist: SpecialistDefinition | None = None
         if entry.dynamic:
             refusal = self._refuse_dynamic(tool_args, named=name_asked)
             if refusal is not None:
                 return refusal
             tool_args = _autonomously(tool_args)
+            # A one-shot `delegate` carries its whole specialist in its own arguments,
+            # so the definition is built here and owned by the delegation rather than
+            # kept in a name-keyed store two same-named siblings would collide in
+            # (agenticos#292). `entry.prompt` is the specialist's description for this
+            # entry point, the same text the frame's `prompt` carries.
+            specialist = SpecialistDefinition(
+                description=str(tool_args.get(entry.prompt, "")),
+                instructions=str(tool_args.get("instructions", "")),
+                model=str(tool_args.get("model", "")),
+            )
 
         sink = ctx.deps.subagent_events
         # Before the ceiling is checked, so a background delegation that has
@@ -180,6 +207,9 @@ class DelegatingToolset(WrapperToolset[AgentDeps]):
             # replayed run presents the same call, which is how the stand-in agent
             # knows to continue the delegate rather than start it again.
             tool_call_id=ctx.tool_call_id,
+            # `None` for `task`; the specialist a one-shot `delegate` invented, so the
+            # delegation owns its own copy of it (agenticos#292).
+            specialist=specialist,
         )
         try:
             with self.journal.delegating(delegation):
