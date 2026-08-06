@@ -437,7 +437,7 @@ export function RotateSecretDialog({
     >
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Rotate {secret?.name}</DialogTitle>
+          <DialogTitle>{t("rotateNamed", { name: secret?.name ?? "" })}</DialogTitle>
           <DialogDescription>{t("newValueReplacesOld")}</DialogDescription>
         </DialogHeader>
 

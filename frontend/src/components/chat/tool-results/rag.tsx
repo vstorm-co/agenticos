@@ -149,7 +149,7 @@ function RAGSourceGroup({
                       {chunk.chunk && (
                         <>
                           {chunk.page && <span>·</span>}
-                          <span>chunk {chunk.chunk}</span>
+                          <span>{t("chunkNumber", { number: chunk.chunk })}</span>
                         </>
                       )}
                     </div>

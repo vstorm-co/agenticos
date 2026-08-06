@@ -397,9 +397,11 @@ export default function OrgMembersPage({ params }: PageProps) {
                         {inv.email_domain && <> · @{inv.email_domain} only</>}
                       </>
                     ) : (
-                      <>Invited {formatDate(inv.created_at)}</>
+                      <>{t("invitedOn", { date: formatDate(inv.created_at) })}</>
                     )}
-                    {inv.expires_at && <> · expires {formatDate(inv.expires_at)}</>}
+                    {inv.expires_at && (
+                      <> · {t("expiresOn", { date: formatDate(inv.expires_at) })}</>
+                    )}
                   </p>
                 </div>
                 <Badge variant={ROLE_VARIANT[inv.role]} className="capitalize">

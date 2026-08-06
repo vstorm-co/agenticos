@@ -639,7 +639,7 @@ function SyncSourceRow({
             {source.schedule_minutes && source.schedule_minutes > 0 && (
               <>
                 <span>·</span>
-                <span>every {source.schedule_minutes}m</span>
+                <span>{t("everyMinutes", { minutes: source.schedule_minutes })}</span>
               </>
             )}
           </div>
