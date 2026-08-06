@@ -193,9 +193,10 @@ describe("ConnectionDialog", () => {
     expect(markIn(marked)).toBe("OpenAI");
     expect(marked).toHaveTextContent("····1111");
     // `daytona` is a service with no compiled-in mark, and so is a key with no
-    // purpose at all: both fall back rather than drawing nothing.
-    expect(markIn(screen.getByRole("option", { name: /Daytona prod/ }))).toBeNull();
-    expect(markIn(screen.getByRole("option", { name: /Sandbox token/ }))).toBeNull();
+    // purpose at all. Both draw the monogram of what they are for - the initial
+    // in front of the name - rather than leaving the square empty.
+    expect(screen.getByRole("option", { name: /Daytona prod/ }).textContent).toMatch(/^dDaytona/);
+    expect(screen.getByRole("option", { name: /Sandbox token/ }).textContent).toMatch(/^cSandbox/);
   });
 
   it("carries the chosen key's mark on the closed trigger", async () => {

@@ -110,8 +110,13 @@ SelectLabel.displayName = SelectPrimitive.Label.displayName;
  * against the other options - a tick meaning "this one already has a key" - must
  * not go in `children`, where the trigger would repeat it as if it meant
  * "selected". `trailing` renders outside `ItemText`, so it stays in the list;
- * give it `ml-auto` to sit at the right, inside the padding the selected-item
- * indicator occupies.
+ * give it `ml-auto` to put it at the right-hand edge of the content box, which
+ * `pr-8` keeps clear of the selected-item indicator.
+ *
+ * One thing `children` costs: an item with no `textValue` takes its
+ * type-to-search key from its own `textContent`, so children carrying anything
+ * but the label - a brand mark's `<title>`, a monogram's initial - need
+ * `textValue` as well. See `ProviderRow`.
  */
 const SelectItem = React.forwardRef<
   React.ComponentRef<typeof SelectPrimitive.Item>,
