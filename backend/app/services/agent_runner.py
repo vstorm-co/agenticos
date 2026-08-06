@@ -2960,7 +2960,13 @@ class AgentRunnerService:
     async def spend_by_provider(
         self, ctx: AuthContext, *, days: int = 30
     ) -> list[tuple[str | None, Decimal, int]]:
-        """What each model provider was paid over a window."""
+        """What each model provider was paid over a window.
+
+        Every run contributes its **own** spend, its delegations' share taken
+        back out, so a delegate on a second vendor appears under that vendor
+        rather than under the one its parent happened to use. The rows still sum
+        to the bill.
+        """
         return await agent_run_repo.spend_by_provider(
             self.db,
             organization_id=ctx.organization_id,
@@ -2970,7 +2976,11 @@ class AgentRunnerService:
     async def spend_by_key(
         self, ctx: AuthContext, *, days: int = 30
     ) -> list[tuple[UUID | None, str | None, Decimal, int]]:
-        """What each stored key was spent through over a window."""
+        """What each stored key was spent through over a window.
+
+        Own spend per run, as :meth:`spend_by_provider` - a delegate running on a
+        different stored key is the same question about the same money.
+        """
         return await agent_run_repo.spend_by_key(
             self.db,
             organization_id=ctx.organization_id,

@@ -17,14 +17,21 @@ import asyncio
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
+from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from pydantic_ai.tools import DeferredToolRequests
+from pydantic_ai.usage import RequestUsage
 
-from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
+from app.agents.capabilities.budget import (
+    BudgetExceeded,
+    BudgetScope,
+    SpendLedger,
+    record_ambient_usage,
+)
 from app.agents.deps import AgentDeps
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import OrgRoleName
@@ -526,6 +533,47 @@ class TestTellingTheSurfaceItsRunIsOpen:
             turn = await _run(_db())
 
         assert turn.output == "the refund window is 30 days"
+
+
+class TestMeteringWhatTheRequestWrapperCannotSee:
+    """A knowledge search's embedding cost, on the product's primary surface.
+
+    `record_ambient_usage` books onto whichever ledger is active, and having none
+    is deliberately a no-op - an embedding provider should not refuse to embed
+    because nobody is counting. That makes forgetting the meter silent: this path
+    had no `metered_by` at all, so every knowledge search in web chat was free.
+    The run under-reported its `cost_usd`, `cost_is_partial` stayed unset so
+    nothing on screen hinted at it, and the organization's monthly total never saw
+    it (#16).
+    """
+
+    async def test_an_embedding_during_the_stream_lands_on_the_run(self):
+        prepared = _prepared()
+        prepared.built.ledger = SpendLedger()
+
+        async def searches(_agent_run: Any) -> None:
+            """A tool call that embeds, as a knowledge search does."""
+            record_ambient_usage(
+                "text-embedding-3-small", RequestUsage(input_tokens=1_000_000), "openai"
+            )
+
+        with _runner(prepared) as runner:
+            await _run(_db(), stream=searches)
+
+        # Through `finish`, because that is what writes the ledger to the row -
+        # asserting on the ledger alone would pass with the meter still missing.
+        assert runner.finish.await_args.args[0].built.ledger.total_usd > 0
+
+    async def test_the_meter_is_closed_once_the_turn_is_over(self):
+        """A ledger left active would bill the next thing that embeds - an
+        ingestion job, a warmup - to a run that has already been paid for."""
+        with _runner(_prepared()):
+            await _run(_db())
+
+        ledger = SpendLedger()
+        record_ambient_usage("text-embedding-3-small", RequestUsage(input_tokens=1000), "openai")
+
+        assert ledger.total_usd == Decimal(0)
 
 
 class TestPausingMidRun:

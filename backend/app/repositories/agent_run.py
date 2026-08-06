@@ -511,12 +511,44 @@ async def cost_breakdown(
     return [(row[0], row[1], Decimal(row[2]), row[3]) for row in result.all()]
 
 
+def _own_cost() -> ColumnElement[Decimal]:
+    """What a run spent *itself*, with its delegations' share taken back out.
+
+    Every run in a tree shares one spend ledger, so a parent's `cost_usd` already
+    contains its children's. That left the two vendor questions with no right
+    answer while each row could only be counted whole:
+
+    * counting every row billed the money twice - $1.00 of work read as
+      `openai 1.00` + `anthropic 0.40`, more than the organization was charged;
+    * counting only top-level rows totalled correctly and then attributed the
+      delegate's $0.40 to the *parent's* vendor, because that is the provider on
+      the row being summed. Silently, with nothing on screen to hint at it.
+
+    Subtracting the direct children's costs gives each row the spend it is
+    actually responsible for, at the provider and the key it actually used. It
+    nests: a child that delegated further has its own grandchildren subtracted the
+    same way, once, by it. And summed over every row it still comes to the bill,
+    because each non-top-level cost is added once by its own row and removed once
+    by its parent's.
+
+    The subquery is not windowed. A run can only start after its parent does, so a
+    child inside the window whose parent started before it is the one asymmetric
+    case: the child's own spend counts and the parent's does not, which is what a
+    window over money spent *in* the window should say.
+    """
+    delegated = aliased(AgentRun)
+    return AgentRun.cost_usd - (
+        select(func.coalesce(func.sum(delegated.cost_usd), 0))
+        .where(delegated.parent_run_id == AgentRun.id)
+        .scalar_subquery()
+    )
+
+
 async def spend_by_provider(
     db: AsyncSession,
     *,
     organization_id: UUID,
     since: datetime,
-    include_delegations: bool = False,
 ) -> list[tuple[str | None, Decimal, int]]:
     """Spend grouped by model provider - "what did we spend at OpenAI".
 
@@ -525,28 +557,24 @@ async def spend_by_provider(
     month appears to have cost. Runs from before this was recorded group under
     NULL, which the caller renders as "not recorded" rather than as a provider.
 
-    `include_delegations` defaults to `False`, as in :func:`sum_cost_since`, and
-    this is the grouping where excluding them is least obvious and most necessary.
-    A delegation's tokens are already inside the parent run's `cost_usd`, which
-    carries the *parent's* provider - so counting the child row too both bills the
-    money twice and attributes it to two vendors at once. Excluded, an invoice
-    question is answered with numbers that add up to the bill; the price is that a
-    delegate running on a second vendor is invisible here, because a run has one
-    ledger and one provider column and this table cannot split it.
+    Every row counts, for its **own** spend - see :func:`_own_cost`. That is what
+    lets a delegate on a second vendor appear here at all: the total still
+    reconciles with the bill, and the attribution is no longer the parent's
+    provider wearing the child's money.
+
+    The count is runs that *touched* this vendor, which is why a pure orchestrator
+    appears under its own provider with whatever it spent on deciding to delegate.
     """
-    query = (
+    result = await db.execute(
         select(
             AgentRun.provider,
-            func.coalesce(func.sum(AgentRun.cost_usd), 0),
+            func.coalesce(func.sum(_own_cost()), 0),
             func.count(AgentRun.id),
         )
         .where(AgentRun.organization_id == organization_id, AgentRun.started_at >= since)
         .group_by(AgentRun.provider)
-        .order_by(func.coalesce(func.sum(AgentRun.cost_usd), 0).desc())
+        .order_by(func.coalesce(func.sum(_own_cost()), 0).desc())
     )
-    if not include_delegations:
-        query = query.where(AgentRun.parent_run_id.is_(None))
-    result = await db.execute(query)
     return [(row[0], Decimal(row[1]), row[2]) for row in result.all()]
 
 
@@ -555,7 +583,6 @@ async def spend_by_key(
     *,
     organization_id: UUID,
     since: datetime,
-    include_delegations: bool = False,
 ) -> list[tuple[UUID | None, str | None, Decimal, int]]:
     """Spend grouped by the stored key that paid for it.
 
@@ -563,25 +590,22 @@ async def spend_by_key(
     a null label rather than dropping the rows: the money was spent whether or
     not the key still exists.
 
-    `include_delegations` defaults to `False` for the reason :func:`sum_cost_since`
-    gives: the delegation's cost is already on the parent's row, under the key that
-    row names, so counting both charges one key's spend twice over.
+    Own spend per row, exactly as :func:`spend_by_provider` - a delegate running
+    on a different stored key is the same defect in the same shape, and the same
+    subtraction fixes it.
     """
-    query = (
+    result = await db.execute(
         select(
             AgentRun.secret_id,
             OrganizationSecret.name,
-            func.coalesce(func.sum(AgentRun.cost_usd), 0),
+            func.coalesce(func.sum(_own_cost()), 0),
             func.count(AgentRun.id),
         )
         .join(OrganizationSecret, OrganizationSecret.id == AgentRun.secret_id, isouter=True)
         .where(AgentRun.organization_id == organization_id, AgentRun.started_at >= since)
         .group_by(AgentRun.secret_id, OrganizationSecret.name)
-        .order_by(func.coalesce(func.sum(AgentRun.cost_usd), 0).desc())
+        .order_by(func.coalesce(func.sum(_own_cost()), 0).desc())
     )
-    if not include_delegations:
-        query = query.where(AgentRun.parent_run_id.is_(None))
-    result = await db.execute(query)
     return [(row[0], row[1], Decimal(row[2]), row[3]) for row in result.all()]
 
 

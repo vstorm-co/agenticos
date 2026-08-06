@@ -171,13 +171,29 @@ organization's monthly number also carries ingestion spend, which the per-agent
 number does not: indexing a shared knowledge base is nobody's agent's spend.
 
 **Every query has to say which of the two it is answering**, and the first column
-is the default. The month-to-date figure, the per-agent breakdown behind it and the
-splits by provider and by key all exclude child rows, so the three breakdowns on
-the cost screen add up to the total printed above them - and the organization's
-usage email reports that same total rather than a sum of one of them. Only a
-question asked *about one agent* includes them. Three of these five queries shipped
-without the distinction and each reported $1.40 for $1.00 of work; if a new one is
-added, the default is the safe one.
+is the default. The month-to-date figure and the per-agent breakdown behind it
+exclude child rows, so they add up to the total printed above them — and the
+organization's usage email reports that same total rather than a sum of one of
+them. Only a question asked *about one agent* includes them. Three of these five
+queries shipped without the distinction and each reported $1.40 for $1.00 of work;
+if a new one is added, the default is the safe one.
+
+#### The two vendor questions need a third answer
+
+**By provider** and **by key** cannot use either column, and getting that wrong is
+invisible on screen. Excluding child rows totals correctly and then attributes the
+delegate's money to the *parent's* vendor, because that is the provider on the row
+being summed: an orchestrator on OpenAI delegating $0.40 of work to an agent on
+Anthropic reported `openai $1.00` and no Anthropic row at all. Including them
+reported `openai $1.00` + `anthropic $0.40` — more than the bill.
+
+So these two sum each run's **own** spend: its cost with its direct delegations'
+costs subtracted. `openai $0.60` + `anthropic $0.40`, which is both the right
+attribution and the right total. It nests — a delegate that delegated further has
+its grandchildren taken out by it, once — and summed over every row it still comes
+to the bill, because each child's cost is added by its own row and removed by its
+parent's. A key works the same way, and matters more: a key is what somebody
+rotates when a bill looks wrong.
 
 ### What run history shows
 
