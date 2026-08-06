@@ -19,6 +19,66 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.59] - 2026-08-06
+
+### Fixed
+
+- `tests/test_migrations.py` ran for the first time. It needed a database called
+  `agenticos_migrations_test`, a missing one became a module-level skip, and
+  nothing in the repository ever created it — so the only assertions that
+  `downgrade()` works at all reported "4 skipped" into a green build on every CI
+  run this project has ever had (#234). The module creates that database before
+  its first test and drops it after its last, with the process id in the name so
+  two runs on one machine cannot drop each other's mid-upgrade (#346).
+- A remaining skip now means one thing only: no Postgres answered. Under `CI` it
+  is not a skip at all but a failure, because a declared service container that
+  did not come up is not a laptop without Docker.
+- The probe says *why* the server did not answer. A Postgres that is up and
+  refusing — a wrong password, a database in recovery — used to be reported as a
+  container that never started.
+
+
+## [0.0.58] - 2026-08-06
+
+### Fixed
+
+- `make install` did not create `backend/.env`, the third thing a fresh checkout
+  is missing. Everything running on the host reads it — `db-check`, `db-upgrade`,
+  `run`, and pytest through `app.core.config` — so without one
+  `POSTGRES_PASSWORD` is empty and `alembic check` is refused with
+  `fe_sendauth: no password supplied`, four minutes into `make check`. It is
+  copied from the example, once, and an existing file is never overwritten (#299).
+- `REDIS_PASSWORD` carried a live placeholder in the example. Copied into a dev
+  `.env` it made every request fail against a local redis that has no
+  `requirepass`, and in a deployed stack it let `change-me-in-production` be
+  inherited from an example file. It is commented out in both directions now,
+  and the deployed compose files already refuse to start without a real one.
+- The empty `SANDBOXD_TOKEN=` in the example did not match the `^SANDBOXD_TOKEN=.`
+  that `make dev` greps for, so a fresh checkout ended up with the key twice and
+  worked only by last-wins. The assignment is gone; the comment stays.
+
+
+## [0.0.57] - 2026-08-06
+
+### Fixed
+
+- `make install` did not install the frontend toolchain, so a fresh checkout
+  could not run `make check` at all: eslint, prettier, tsc, vitest and next live
+  only in `frontend/node_modules`, and the first four minutes of `check` are the
+  backend half, so it said `eslint: command not found` well after you had walked
+  away (#227).
+
+### Changed
+
+- `test_ci_parity.py` now holds the setup commands to the mirror-image rule: a
+  gating job may prepare its runner however it likes, as long as `make install`
+  prepares a laptop the same way. The next toolchain CI adds has to land in
+  `install` or be exempted with a written reason.
+- `make quickstart` no longer claims to install dependencies in `docs/commands.md`.
+  It is `quickstart: dev`, and nothing in that chain reaches `install` — which
+  sent people down exactly the road this release closes.
+
+
 ## [0.0.56] - 2026-08-06
 
 ### Changed

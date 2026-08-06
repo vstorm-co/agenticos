@@ -24,6 +24,13 @@ command only CI knows about.
 
 The same shape as `test_coverage_gate.py`, and for the same reason: a gate whose
 failure mode is a green build needs something checking the checker.
+
+Comparing the *steps* is not the whole claim, though, which is #227: `check` ran
+every command CI runs and still could not run at all in a fresh checkout, because
+nothing in the documented setup path installed `frontend/node_modules` and every
+frontend step then answered `eslint: command not found`. So the setup commands
+are held to the mirror-image rule - a gating job may prepare its runner however
+it likes, as long as `make install` prepares a laptop the same way.
 """
 
 from __future__ import annotations
@@ -45,14 +52,28 @@ MAKEFILE = REPO_ROOT / "Makefile"
 # only on a push to `main`.
 GATING_JOBS = ("lint", "test", "test-frontend", "docs", "security")
 
-# Commands that prepare a runner rather than check anything. A laptop already has
-# these, which is why they have no Makefile equivalent and no place in `check`.
+# Commands that prepare a runner rather than check anything. They have no place in
+# `check` - it checks a checkout, it does not build one - so they answer to
+# `install` instead, which is what INSTALL_EXEMPT below is about.
 ENVIRONMENT_SETUP = frozenset(
     {
         "uv python install 3.12",
         "uv sync --directory backend --dev",
         "uv sync --directory backend --group docs",
         "bun install --frozen-lockfile",
+    }
+)
+
+# The setup commands `make install` does not owe, each with the reason nothing is
+# missing without it. Everything else CI installs, `install` installs too.
+INSTALL_EXEMPT = frozenset(
+    {
+        # `uv sync` reads `backend/.python-version` and fetches the interpreter
+        # itself; the runner needs it named because it starts with none.
+        "uv python install 3.12",
+        # `docs` and `docs-build` pass `--group docs` to `uv run`, which resolves
+        # the group at the point of use rather than into a synced virtualenv.
+        "uv sync --directory backend --group docs",
     }
 )
 
@@ -95,6 +116,28 @@ def prerequisites() -> dict[str, list[str]]:
                 continue
             graph.setdefault(target, []).extend(deps.split())
     return graph
+
+
+@pytest.fixture(scope="module")
+def recipes() -> dict[str, str]:
+    """Every Makefile target mapped to its recipe as one string.
+
+    Joined rather than kept as lines because the questions asked of it are about
+    whether a command is in there at all - `cd frontend && bun install …` is the
+    same setup step as CI's bare `bun install …`, run from the directory the
+    lockfile is in.
+    """
+    bodies: dict[str, list[str]] = {}
+    current: list[str] = []
+    for line in MAKEFILE.read_text().splitlines():
+        if line.startswith("\t"):
+            for target in current:
+                bodies.setdefault(target, []).append(line.lstrip("\t").removeprefix("@"))
+        elif match := _MAKE_RULE.match(line):
+            current = [target for target in match.group(1).split() if not target.startswith(".")]
+        elif line.strip():
+            current = []
+    return {target: "\n".join(lines) for target, lines in bodies.items()}
 
 
 @pytest.fixture(scope="module")
@@ -169,6 +212,64 @@ class TestEveryGatingStepIsAMakeTarget:
             f"the `{job}` job runs {unreachable}, which `make check` does not - the "
             "exact shape of #143. Add it to `check`, or to CI_ONLY_TARGETS with the "
             "reason it belongs only in CI."
+        )
+
+
+class TestInstallPreparesWhatTheChecksNeed:
+    """A check nothing can run is a check `make check` reports as an error.
+
+    `make install` is the whole documented setup path - `docs/install.md` names it
+    and nothing else - so a toolchain it does not install is one the next command
+    fails on, with `command not found` rather than anything actionable.
+    """
+
+    def test_every_setup_command_a_gating_job_runs_is_part_of_install(
+        self, workflow: dict[str, Any], recipes: dict[str, str]
+    ) -> None:
+        missing = sorted(
+            {
+                command
+                for job in GATING_JOBS
+                for command in _run_steps(workflow, job)
+                if command in ENVIRONMENT_SETUP
+                and command not in INSTALL_EXEMPT
+                and command not in recipes["install"]
+            }
+        )
+        assert not missing, (
+            f"CI runs {missing} to prepare a runner and `make install` does not, so a "
+            "fresh checkout cannot run the checks that need it - the shape of #227. Add "
+            "it to `install`, or to INSTALL_EXEMPT with the reason a laptop is fine "
+            "without it."
+        )
+
+    def test_install_creates_the_env_file_the_host_checks_read(
+        self, recipes: dict[str, str]
+    ) -> None:
+        """CI needs no `backend/.env`; a laptop cannot run `db-check` without one.
+
+        The runner sets `POSTGRES_*` on the job, so nothing in the workflow says
+        this out loud and the parity rule above cannot see it. On a laptop the
+        settings come from the file, `POSTGRES_PASSWORD` defaults to empty, and
+        `alembic check` is refused with `fe_sendauth: no password supplied` (#299).
+        """
+        recipe = recipes["install"]
+        assert "backend/.env.example" in recipe and "backend/.env" in recipe, (
+            "`make install` does not create `backend/.env`, so `make check` stops at "
+            "`db-check` in a fresh checkout with a psycopg2 traceback."
+        )
+
+    def test_install_does_not_overwrite_an_env_file_that_exists(
+        self, recipes: dict[str, str]
+    ) -> None:
+        """The file that exists holds somebody's keys, and `install` is re-run often.
+
+        `docs/install.md` calls every step idempotent, and this is the one where
+        idempotent and destructive are one character apart.
+        """
+        assert "[ -f backend/.env ]" in recipes["install"], (
+            "the copy has to be guarded on the file's absence - `cp` over an existing "
+            "`backend/.env` destroys the credentials in it"
         )
 
 
