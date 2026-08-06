@@ -27,12 +27,12 @@ import pytest
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
-from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
+from app.db.models.agent_run import AgentRun, RunOrder, RunRating, RunStatus, RunSurface
 from app.db.models.conversation import Conversation, Message
 from app.db.models.message_rating import MessageRating
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
-from app.repositories.agent_run import RunFilters, RunOrder, RunRating
+from app.repositories.agent_run import RunFilters
 from app.services.agent_runner import AgentRunnerService
 
 pytestmark = pytest.mark.anyio

@@ -115,7 +115,7 @@ from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import StorableSecret
 from app.db.models.agent import Agent, AgentStatus
 from app.db.models.agent_exposure import AgentExposure
-from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, RunSurface
+from app.db.models.agent_run import AgentRun, ApprovalStatus, RunOrder, RunStatus, RunSurface
 from app.db.models.chat_file import ChatFile
 from app.repositories import (
     agent_environment_repo,
@@ -123,7 +123,7 @@ from app.repositories import (
     agent_run_repo,
     knowledge_base_repo,
 )
-from app.repositories.agent_run import AgentSpendRow, RunFilters, RunOrder
+from app.repositories.agent_run import AgentSpendRow, RunFilters
 from app.services.agent_registry import (
     DEFAULT_GRANTED_SCOPES,
     DELEGATION_CAPABILITY_ID,
@@ -1186,7 +1186,9 @@ class AgentRunnerService:
         ctx: AuthContext,
         agent_id: UUID,
         *,
-        surface: RunSurface = RunSurface.PLAYGROUND,
+        # The same default `execute` carries, so the two cannot disagree about
+        # what an unnamed surface is. Every production caller passes one.
+        surface: RunSurface = RunSurface.API,
         conversation_id: UUID | None = None,
         channel_key: str | None = None,
         user_name: str | None = None,

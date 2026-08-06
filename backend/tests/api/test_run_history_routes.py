@@ -161,6 +161,13 @@ class TestWhatIsRefusedRatherThanMatchedAgainstNothing:
             "?surface=carrier-pigeon",
             "?started_from=last-tuesday",
             "?user_id=not-a-uuid",
+            # Both were `RunSurface` members nothing ever assigned, so a filter
+            # offering either answered with nothing on every deployment for ever
+            # (#207). Refusing them is the shape of the fix: the vocabulary is
+            # now exactly the surfaces that exist, and this fails if one comes
+            # back without a writer.
+            "?surface=schedule",
+            "?surface=playground",
         ],
     )
     async def test_a_value_outside_its_type_is_a_422(self, query):
@@ -171,13 +178,3 @@ class TestWhatIsRefusedRatherThanMatchedAgainstNothing:
             response = await client.get(f"/api/v1/runs{query}")
 
         assert response.status_code == 422
-
-    async def test_a_dead_enum_value_is_still_accepted_by_the_type(self):
-        """`playground` and `schedule` are `RunSurface` members nothing assigns
-        (#207). The route validates against the enum, not against what is in the
-        table, so they are accepted and answer with nothing - which is honest,
-        and is why removing them is an enum decision rather than a route one."""
-        async with _client(_service()) as client:
-            response = await client.get("/api/v1/runs?surface=schedule")
-
-        assert response.status_code == 200

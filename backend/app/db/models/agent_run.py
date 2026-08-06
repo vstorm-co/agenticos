@@ -55,6 +55,19 @@ class RunStatus(enum.StrEnum):
 class RunSurface(enum.StrEnum):
     """Where a run came from. The same agent, many faces.
 
+    **Every member here is assigned by something, and that is a rule rather than
+    an observation.** This is a public vocabulary: anything that enumerates it
+    offers a filter, so a value nobody writes is a filter that answers with
+    nothing on every deployment for ever - and a reader reasonably concludes that
+    scheduled runs exist and none have happened yet. `PLAYGROUND` and `SCHEDULE`
+    were exactly that, and between them they cost two design documents a
+    paragraph each explaining an omission (#207).
+
+    `EMBED` is the other half of the same lesson from the other direction. It did
+    not exist, so an embedded-widget run was stamped `WEB` - and a widget on a
+    client's public site and an employee in the dashboard are not the same thing
+    to anybody asking how the product is used (#208).
+
     A delegation is deliberately not one of them: a Slack mention that delegated
     to a researcher is still Slack, and adding a member here would make "where
     did this come from" and "was this delegated" the same column with room for
@@ -62,13 +75,45 @@ class RunSurface(enum.StrEnum):
     is the one people actually ask.
     """
 
-    PLAYGROUND = "playground"
     WEB = "web"
+    EMBED = "embed"
     API = "api"
     SLACK = "slack"
     TELEGRAM = "telegram"
     MATTERMOST = "mattermost"
-    SCHEDULE = "schedule"
+
+
+class RunOrder(enum.StrEnum):
+    """What run history is sorted by.
+
+    Two, rather than a column name a caller supplies: an `ORDER BY` assembled
+    from a query string is an injection surface, and these are the two orders the
+    page has a reason to offer. Newest-first is the default because run history
+    is read as a feed.
+
+    Here beside the statuses rather than with the query it parameterises, because
+    it is vocabulary about a run: a route validates a query parameter against it
+    and a repository turns it into an `ORDER BY`, and neither owns it.
+    """
+
+    STARTED_AT = "started_at"
+    DURATION = "duration"
+
+
+class RunRating(enum.StrEnum):
+    """Which way a run's answer was rated, as run history asks about it.
+
+    `DOWN` is the reason this exists: `message_ratings` holds a thumb and an
+    optional comment per assistant message, and it is the highest-signal
+    debugging queue the platform will ever have - the answers real people said
+    were wrong, in their own words. Nothing below the app admin could reach any
+    of it, which is what makes "quality fell four points" a number nobody can
+    act on. `UP` is here because it costs one comparison and "what did people
+    like" is the same question from the other side.
+    """
+
+    UP = "up"
+    DOWN = "down"
 
 
 class AgentRun(Base, TimestampMixin):

@@ -1,6 +1,5 @@
 """Agent run and approval repositories (PostgreSQL async)."""
 
-import enum
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
@@ -13,7 +12,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.db.models.agent import Agent, AgentVersion
-from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, ToolApproval
+from app.db.models.agent_run import (
+    AgentRun,
+    ApprovalStatus,
+    RunOrder,
+    RunRating,
+    RunStatus,
+    ToolApproval,
+)
 from app.db.models.conversation import Message
 from app.db.models.message_rating import MessageRating
 from app.db.models.organization_secret import OrganizationSecret
@@ -197,22 +203,6 @@ async def mark_running(db: AsyncSession, *, run: AgentRun) -> AgentRun:
     return run
 
 
-class RunRating(enum.StrEnum):
-    """Which way a run's answer was rated, as run history asks about it.
-
-    `DOWN` is the reason this exists: `message_ratings` holds a thumb and an
-    optional comment per assistant message, and it is the highest-signal
-    debugging queue the platform will ever have - the answers real people said
-    were wrong, in their own words. Nothing below the app admin could reach any
-    of it, which is what makes "quality fell four points" a number nobody can
-    act on. `UP` is here because it costs one comparison and "what did people
-    like" is the same question from the other side.
-    """
-
-    UP = "up"
-    DOWN = "down"
-
-
 @dataclass(frozen=True)
 class RunFilters:
     """How run history is narrowed, as one value rather than nine parameters.
@@ -338,18 +328,6 @@ def _duration_ms() -> ColumnElement[float]:
         "ColumnElement[float]",
         func.extract("epoch", AgentRun.ended_at - AgentRun.started_at) * 1000,
     )
-
-
-class RunOrder(enum.StrEnum):
-    """What run history is sorted by.
-
-    Two, not an arbitrary column name: an `order_by` built from a query string
-    is an injection surface, and these are the two orders the page has a reason
-    to offer. Newest-first is the default because run history is read as a feed.
-    """
-
-    STARTED_AT = "started_at"
-    DURATION = "duration"
 
 
 async def list_runs(

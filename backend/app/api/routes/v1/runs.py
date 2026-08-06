@@ -12,8 +12,14 @@ from fastapi import APIRouter, Depends, Query
 
 from app.api.deps import AgentRunnerSvc, ApprovalSvc, Auth, require
 from app.core.permissions import Perm
-from app.db.models.agent_run import ApprovalStatus, RunStatus, RunSurface
-from app.repositories.agent_run import ApprovalFilters, RunFilters, RunOrder, RunRating
+from app.db.models.agent_run import (
+    ApprovalStatus,
+    RunOrder,
+    RunRating,
+    RunStatus,
+    RunSurface,
+)
+from app.repositories.agent_run import ApprovalFilters, RunFilters
 from app.schemas.agent import AgentRunResult
 from app.schemas.agent_run import (
     AgentRunList,

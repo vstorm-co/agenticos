@@ -161,7 +161,11 @@ class EmbedSession:
             ctx,
             self.embed.agent_id,
             prompt,
-            surface=RunSurface.WEB,
+            # Not `WEB`. A widget on somebody else's public site and an employee
+            # in the dashboard are not the same thing to anyone asking how this
+            # product is used, and stamping both the same made every embedded
+            # run indistinguishable from web chat (#208).
+            surface=RunSurface.EMBED,
             conversation_id=self.conversation_id,
         )
         return answer or "…"

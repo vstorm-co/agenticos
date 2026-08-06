@@ -327,8 +327,8 @@ not hold.
 
 ### A delegation on a surface that cannot show one
 
-Every other surface — Slack, Telegram, Mattermost, the REST API, a schedule — gets no
-delegation frames at all. The delegation still runs and is still recorded; it is
+Every other surface — Slack, Telegram, Mattermost, the embedded widget, the REST
+API — gets no delegation frames at all. The delegation still runs and is still recorded; it is
 simply not narrated, the same arrangement `ask_user` has.
 
 That default is load-bearing rather than convenient, and it is the one thing to know

@@ -322,17 +322,18 @@ the two pages read as one product:
   button; a **Clear filters** link appears only when something is narrowed. The bar
   renders inside the Run history card in every state — an empty result whose way out
   (Clear) has vanished is a dead end.
-- **The surface list is the honest one.** Two of the seven `RunSurface` values are dead —
-  defined and never assigned — and neither is offered. `SCHEDULE` is the known one.
-  `PLAYGROUND` is the second and less obvious: it is only the default of `execute()`'s
-  `surface` parameter (`agent_runner.py:710`), and every one of the four call sites passes
-  a surface explicitly, so no row is ever stamped with it. A filter option that can only
-  ever return nothing is a filter that makes a reader doubt the data, not the filter.
-  `embed` and `mattermost` are offered but flagged: today an embedded run is stamped
-  `web` (`embed_session.py:164`) and a Mattermost mention falls through to `api`
-  (`channels/mentions.py`), so those two only return truth after the recording widening
-  #149's review settled — priced in §7 and shared with #37's stage 2, whichever lands
-  first (`e76af9d` on that branch already carries it).
+- **The surface list is the honest one, and it is now honest by construction.** This
+  section used to say which two of seven values were dead and which two were lying, and
+  offer the list with badges around both problems. That prose is gone because the
+  vocabulary is: `SCHEDULE` and `PLAYGROUND` are **deleted** (#207 — a value nobody
+  writes is a filter that answers with nothing on every deployment for ever), `EMBED` is
+  **added** and stamped by `embed_session.py`, and `mattermost` is in `_SURFACES` so a
+  Mattermost mention is no longer recorded as an HTTP API call (#208). Six members, every
+  one assigned by something, and the enum's own docstring now states that as a rule with
+  a test asserting it. **The filter offers all six with no badges.** One caveat that is
+  history rather than design: rows written before this landed still say `web` for an
+  embedded run and `api` for a Mattermost one, and nothing can tell which — the column
+  is correct from here forward, not backwards.
 - **"Triggered by" is who a run *ran as*, which is not always who asked.**
   `agent_runs.user_id` is `ctx.user_id` (`agent_runner.py:449`), and for an embedded widget
   that is the widget's **owner**: the visitor is anonymous and has no row anywhere. The
@@ -514,13 +515,13 @@ Everything else is frontend.
   the spec. Independent of this page either way: nothing here reads the field, and nothing
   here waits on it. §1's four findings still hold, and they are why that issue is priced
   the way it is.
-- **`RunSurface.PLAYGROUND` is dead, exactly like `SCHEDULE`** (§6) — a value nothing
-  assigns, on a column the API returns and a filter would otherwise offer. It is only the
-  default of `execute()`'s `surface` parameter (`agent_runner.py:710`) and all four call
-  sites pass one explicitly. #207 covers `SCHEDULE` and #178 covers the third of these,
-  `ApprovalStatus.EXPIRED`. **Recommendation: fold `PLAYGROUND` into #207** rather than open
-  a fourth issue — same enum, same file, and the decision is the same one either way (assign
-  it or delete it).
+- **`RunSurface.PLAYGROUND` was dead, exactly like `SCHEDULE`** (§6) — a value nothing
+  assigned, on a column the API returns and a filter would otherwise offer. It was only
+  the default of `prepare()`'s `surface` parameter, and every call site passed one
+  explicitly. Folded into **#207** rather than opened as a fourth issue, and both are now
+  deleted; that default points at `RunSurface.API`, the same one `execute()` already
+  carried, so the two cannot disagree about what an unnamed surface is. #178 was the third
+  of these dead values, `ApprovalStatus.EXPIRED`, and is gone the same way.
 
 A second find — "Spend by agent" listing model labels because `CostByAgent` carries no
 name (`runs/page.tsx:276`) — started here, but the mockup shows it fixed and the change
