@@ -228,9 +228,31 @@ Per collection, alongside the parser:
 | `markdown` | Markdown/structured docs; splits at heading boundaries |
 | `fixed` | Uniform chunk sizes; simplest but may split mid-sentence |
 
-### Embedding Providers
-Embeddings are generated using **OpenAI** (`text-embedding-3-small` by default).
-Set `EMBEDDING_MODEL` to change the model.
+### Embeddings — the model, and whose key pays
+
+Embeddings go out through OpenRouter to an OpenAI embedding model. Both halves
+of that call are decided **per collection**, not per deployment, by
+`app/services/embedding_resolution.py`:
+
+| | |
+|---|---|
+| **Model and width** | Recorded on the knowledge base at creation (`embedding_model`, `embedding_dim`) and never changed afterwards — `PgVectorStore` writes `embedding vector(N)` once, so a second model either cannot be written or is silently compared against vectors from another space. `EMBEDDING_MODEL` decides only what a *new* collection is built with. |
+| **Credential** | The vault key chosen on the collection (`embedding_secret_id`), which is what the organization is billed for. A collection that chose none embeds on the deployment's `OPENROUTER_API_KEY`. |
+
+The key is validated at creation — a key another organization holds, or one of
+the wrong purpose, is refused there, where the person choosing can fix it. At
+embed time nothing is refused: a chosen key that has since been deleted, cannot
+be unsealed, or does not hold an API key falls back to the deployment's, because
+*whose key pays* must never decide *whether documents can be found*.
+
+That fallback is announced rather than assumed. The resolution carries which of
+the five sources it landed on, ingestion writes the degraded ones into the
+Prefect run's log, and a deployment with no key of its own fails with a message
+naming the collection and which key it tried — not with advice to set a variable
+about a collection that already had a key. Before #306 the ingestion worker was
+the one caller that never asked the resolver at all, so every uploaded document
+was embedded with the deployment's model and key whatever its collection had
+chosen.
 
 ### Vector Storage
 Vectors are stored in **pgvector** using the existing PostgreSQL database.
