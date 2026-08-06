@@ -195,10 +195,25 @@ class PdfParser(BaseModel):
     liteparse_max_pages: int = 1000
 
 
+# The collection a caller gets when they name none: the `--collection` default on
+# every `rag-*` command, and the one the search and sync request bodies fall back to.
+#
+# It was `documents`, which is the tracking table's own name once the store prefixes
+# it - so the documented first-run ingest, `rag-ingest ./docs/guide.pdf` with no
+# `--collection`, aimed the quickstart at `rag_documents` and failed creating an
+# index on a column that table does not have (#345). A name is now refused when the
+# models declare its table, and a default that is refused is not a default, so this
+# moved rather than the refusal being softened. `RAGSettings` carried a
+# `collection_name` field spelling the same value once more; nothing read it, so it
+# is gone rather than moved here.
+#
+# `tests/test_reserved_collection_names.py` asserts this never names a model table
+# again, which is the only guard that survives somebody editing the line.
+DEFAULT_COLLECTION_NAME = "default"
+
+
 class RAGSettings(BaseModel):
     """RAG pipeline configuration."""
-
-    collection_name: str = "documents"
 
     allowed_extensions: list[DocumentExtensions] = Field(
         default_factory=lambda: list(DocumentExtensions)
