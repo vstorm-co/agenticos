@@ -274,6 +274,15 @@ Sync operations are tracked via the `SyncLog` model, recording source, mode,
 total files, ingested/updated/skipped/failed counts, and timing. View sync
 history via `GET /rag/sync/logs`.
 
+One source's own history is `GET /kb/{kb_id}/sync-sources/{source_id}/logs`. The
+source is resolved against that knowledge base first, so a source belonging to
+another base answers **404** rather than an empty list — the two render the same
+screen otherwise, and one of them is a request that should have failed. Its runs
+are then read by source id, which is what keeps `limit` and `total` describing the
+same set of rows: a source repointed at another base keeps its earlier runs under
+the collection name it had then, and those used to be dropped from the page after
+`limit` had already cut it.
+
 ### Image Description
 
 When processing documents that contain images, the system can optionally
