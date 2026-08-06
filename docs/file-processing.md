@@ -275,15 +275,49 @@ declares it. Matching the prefix alone had it reporting `rag_documents` as a
 collection called `documents` — one nobody created, whose "vector count" was the
 number of ingested documents, and which any caller could then ask to search.
 
-**A collection may not be named after a table the models own**, which is that
-predicate read a third way — asked of a name before its table exists. Creating one
-is refused with a 400, both at the API and in the store itself, because
-`rag-drop <name>` reaches the store with no route in between. The name that made
-this necessary is `documents`: prefixed, it *is* the tracking table, so dropping
-such a collection aimed `DROP TABLE IF EXISTS` at every organization's ingestion
-history. The refusal is derived rather than listed, so a `rag_`-prefixed model
-table added later is covered, and a collection called `documents_archive` — which a
-literal exclusion would have taken with it — is not affected.
+#### What a collection may be called
+
+A collection name is a string a caller chooses and the store builds identifiers
+out of, so **one function decides whether it is usable** —
+`validate_collection_name` in `app/db/vector_tables.py`. Four refusals, each a 400:
+
+| Refused | Because |
+|---|---|
+| Not a bare identifier — `foo-bar`, `2024_reports`, anything with a space or a quote | The store interpolates the name into DDL unquoted. A leading digit only *looks* safe: the `rag_` prefix supplies the letter the name is missing. |
+| Longer than 45 characters | Postgres keeps 63 bytes of an identifier and truncates the rest silently. `rag_<name>` fits at 59, but `rag_<name>_embedding_idx` does not, and the bound is the longest identifier — not the shortest. |
+| `all` | Reserved. |
+| A table the models own — `documents` | See below. |
+
+The length bound is the one that reads as pedantry and is not. Two collections
+agreeing up to the truncation point are **one object**: one table if the name was
+too long, so either organization's `DROP` destroys the other's vectors and every
+search crosses between them; and one index if only the index name was, which is
+quieter — `CREATE INDEX IF NOT EXISTS` finds the first collection's index already
+there and builds nothing, leaving the second unindexed at whatever width the first
+was built at. Nothing above the database can see either, because a collection name
+is compared as a whole string everywhere else.
+
+**A collection may not be named after a table the models own**, which is the
+runtime-table predicate read a third way — asked of a name before its table exists.
+Refused both at the API and in the store itself, because `rag-drop <name>` reaches
+the store with no route in between. The name that made this necessary is
+`documents`: prefixed, it *is* the tracking table, so dropping such a collection
+aimed `DROP TABLE IF EXISTS` at every organization's ingestion history. The refusal
+is derived rather than listed, so a `rag_`-prefixed model table added later is
+covered, and a collection called `documents_archive` — which a literal exclusion
+would have taken with it — is not affected.
+
+**And the name has to be free.** The vector namespace is deployment-global: two
+knowledge bases holding one collection name share one table, so a name already held
+outside the caller's reach is refused with a 409 —
+`CollectionAccessService.claim`, which `POST /kb` and `POST /rag/collections/{name}`
+both call. Only one of them used to. `POST /kb` wrote whatever `collection_name` it
+was sent, so a member with `collections:edit` could aim a knowledge base at another
+organization's vector table and then read and write it through every gate
+afterwards, because a collection resolves through whichever knowledge base the
+caller *can* read — and now one of them is theirs. A name a caller does not supply
+is derived from the display name plus six random hex characters, and is claimed on
+the same path rather than trusted for being random.
 
 `documents` was also the **default** collection, so the CLI quickstart used to aim
 at the tracking table; the default is now `default`. A knowledge base created with
@@ -292,15 +326,29 @@ can be ingested into it — delete it and create one under another name. Nothing
 lost in doing so: an ingest into that collection has never succeeded, because
 building the vector index on a table with no `embedding` column fails.
 
-### RAG is Global
+### Who reaches a collection
 
-Collections are shared across **all users**:
+A collection name is a string; the `knowledge_bases` row behind it is the thing
+that has an owner, so **the row decides**. Every `/rag` and `/kb` route resolves
+the name through `CollectionAccessService`, and a name belonging to another
+organization is indistinguishable from one that was never created.
 
-- Any authenticated user can search any collection via `POST /rag/search` or
-  through the AI agent's RAG tool.
-- Only admins can manage collections, upload documents, configure sync sources,
-  and view ingestion logs.
-- There is no per-user document isolation.
+- **Reading** — `collections:view`, and then the row: an `app`-scoped base is
+  deployment-wide by design, a `personal` one belongs to its owner, and an `org`
+  one takes the caller's scope against the row's owner and visibility, widened by
+  an explicit grant. `POST /rag/search` resolves *every* collection it was given
+  before reading a vector, and refuses the whole search rather than dropping the
+  one it cannot reach.
+- **Writing** — `collections:edit` reaching the row, by the same rules. Only a
+  platform admin writes to an `app`-scoped base.
+- **The one exception** is `POST /rag/sync/local`, which still takes the platform
+  admin role: its `path` names a directory on the server rather than anything a
+  tenant owns.
+
+This page used to say the opposite — that any authenticated user could search any
+collection and that "only admins" could manage them. That was true of a version
+where the gate was the platform-admin role, which kept ordinary members out of RAG
+entirely while letting any platform admin read every tenant's collections.
 
 ### Document Tracking
 
