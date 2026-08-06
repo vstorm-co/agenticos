@@ -62,7 +62,14 @@ READABLE_ATTRS = (
     "subtitle",
 )
 ATTR = re.compile(rf'\b({"|".join(READABLE_ATTRS)})="([^"]*)"')
-JSX_TEXT = re.compile(r">\s*([^<>{}\n][^<>{}\n]*?)\s*<")
+# A text node: between the `>` that closes a tag and the `<` that opens the next.
+# The lookbehind is what tells that `>` from an arrow's or a comparison's, and it
+# replaced a per-line guess. A line holding `=>` used to be skipped whole, on the
+# grounds that `onTest: (() => Promise<void>) | null` reads as a text node - so an
+# inline handler, the most common thing on a JSX line, exempted the copy beside it.
+# `<DropdownMenuItem onSelect={() => onTools(c)}>Check connection<…` was invisible
+# for that reason, between two siblings that read from the catalog (#314).
+JSX_TEXT = re.compile(r"(?<![=!\-])>\s*([^<>{}\n][^<>{}\n]*?)\s*<")
 TOASTS = re.compile(r'\btoast\.(?:success|error|info|warning|message)\(\s*"([^"]+)"')
 # Copy hiding in an expression rather than in a text node - `{busy ? "Saving…" :
 # "Save"}`, a ternary in a prop, a sentence pushed into an array. Two words is the
@@ -163,15 +170,6 @@ def offences(path: Path) -> list[tuple[int, str]]:
         for opener in ("//", "/*"):
             if opener in line:
                 line = line[: line.index(opener)]
-        # TypeScript, not JSX: `onTest: (() => Promise<void>) | null` looks like a text
-        # node to a regex, and a generic parameter is not something anybody reads.
-        #
-        # Only `JSX_TEXT` is held back by it. The rules below that need an interpolation
-        # beside a word are safe on these lines, because a type annotation carries no
-        # `{expr}` next to a noun - and they have to be, since a lambda in the
-        # interpolation is how a count gets computed. Skipping the whole line was what
-        # let a `reduce`-built count through.
-        typescript = "=>" in line or "Promise<" in line
         # An exemption on the line above covers the line below it, which is where a
         # `{/* i18n-exempt: … */}` comment ends up after formatting.
         if number >= 2 and EXEMPT.search(lines[number - 2]):
@@ -179,7 +177,7 @@ def offences(path: Path) -> list[tuple[int, str]]:
         for match in ATTR.finditer(line):
             if is_copy(match.group(2)):
                 found.append((number, f'{match.group(1)}="{match.group(2)}"'))
-        for match in () if typescript else JSX_TEXT.finditer(line):
+        for match in JSX_TEXT.finditer(line):
             # `percent >= 80 && "text-amber-600"` reads as a text node to a regex.
             # An operator between the angle brackets means it is an expression.
             if is_copy(match.group(1)) and not re.search(r"&&|\|\||=>", match.group(1)):

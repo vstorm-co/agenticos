@@ -965,8 +965,10 @@ function ConnectionMenu({
         {state === "needs-authorization" && (
           <DropdownMenuItem onSelect={onOAuth}>{t("finishSign")}</DropdownMenuItem>
         )}
-        <DropdownMenuItem onSelect={() => onTools(connection)}>Check connection</DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => onEdit(connection)}>Settings</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => onTools(connection)}>
+          {t("checkConnection")}
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => onEdit(connection)}>{t("settings")}</DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
           className="text-destructive focus:text-destructive"

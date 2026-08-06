@@ -40,6 +40,11 @@ There is no `(marketing)` route group.
   component - a text node, a readable attribute, a toast, a sentence in a ternary -
   and on the reverse, a key a component reads that `messages/en.json` does not hold.
   A genuine non-string takes `i18n-exempt: <reason>`; the reason is required.
+  It reads a file **line by line**, so two shapes still get past it: a text node the
+  formatter broke across lines, and a template literal with one word beside its
+  interpolation (`` `Remove ${name}` ``). Neither is allowed - they are unread, not
+  exempt - and there are 114 of them in the tree waiting for the parser rewrite.
+  Do not add a 115th because the guard stays quiet.
 - **A count is an ICU `plural`, never a ternary.** `{n} file{n === 1 ? "" : "s"}`
   and `count === 1 ? "1 skill" : \`${count} skills\`` are sentences only English
   builds that way, so they are refused too - the message holds
