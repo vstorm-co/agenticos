@@ -49,8 +49,8 @@ import {
  * off the reply to sending it (it is emailed, the inviter's screen deliberately
  * never prints it, and a test has no inbox).
  *
- * **Every step asserts through the API, not by finding the new row on screen**,
- * and that line is the whole of #132. A step whose job is "the fixture exists"
+ * **A step asserts through the API, not by finding the new row on screen**, and
+ * that line is the whole of #132. A step whose job is "the fixture exists"
  * used to prove it by waiting for the row to appear in a list — which fails when
  * the list has not caught up, and a failure here skips every product spec behind
  * it, so a browser-side staleness bug arrived on pull requests looking like a
@@ -58,6 +58,16 @@ import {
  * file, and is filed as #230: the write is accepted, the row is committed, both
  * server layers answer a list containing it, and the page goes on rendering the
  * one without it.
+ *
+ * Asking the API is necessary and not sufficient: a 2xx here means the request
+ * was answered, not that the write is readable. The commit runs in a dependency
+ * FastAPI unwinds after the response has gone out (#353), so the next read can
+ * arrive at a database the write has not been applied to — measured at 21.7ms
+ * on one acceptance. So a check that follows a write is a poll (`nowThere`),
+ * never a single read. The `alreadyThere` guard at the head of each step is one
+ * read on purpose: it runs *before* the write, and the worst a stale answer
+ * costs there is doing work that was already done. `a draft agent exists` is the
+ * remaining exception in either direction — it waits on the Builder's heading.
  *
  * Whether the row *renders* is a product claim and belongs to a product spec —
  * `vault.spec.ts` and `skills.spec.ts` assert exactly that against the rows this
@@ -243,26 +253,34 @@ setup("the organization has connected an MCP server", async ({ page }) => {
 
 setup("a colleague is a member of the organization", async ({ page, browser }) => {
   const organizationId = await activeOrganizationId(page.request);
-
-  const members = await json<{ items: { email: string }[] }>(
-    page.request,
-    `/api/orgs/${organizationId}/members`,
-  );
-  if (members.items.some((member) => member.email === COLLEAGUE_EMAIL)) return;
+  const membersPath = `/api/orgs/${organizationId}/members`;
+  if (await alreadyThere(page.request, membersPath, "email", COLLEAGUE_EMAIL)) return;
 
   await registerColleague(page.request);
   const token = await ensurePendingInvitation(page, organizationId);
   await acceptAsColleague(browser, token);
 
-  const after = await json<{ items: { email: string }[] }>(
-    page.request,
-    `/api/orgs/${organizationId}/members`,
-  );
-  expect(
-    after.items.map((member) => member.email),
-    "the colleague accepted the invitation but is not a member",
-  ).toContain(COLLEAGUE_EMAIL);
+  // `acceptAsColleague` returns only once the colleague's own screen says they
+  // joined, so the server has answered 204 before this line - and that is still
+  // not the same as the row being readable by the owner, because the acceptance
+  // commits *after* the response goes out (#353).
+  //
+  // This step used to read the list once and assert on it. It was the only one
+  // in the file that did: #222 converted four call sites to `nowThere` and did
+  // not reach this one, which is why this is the step that turns a fixture
+  // project red and takes all eighty-seven product specs with it (#335).
+  await nowThere(page, membersPath, "email", COLLEAGUE_EMAIL);
 });
+
+/** One field of every row in a collection — what both checks below look at. */
+async function valuesAt(
+  request: APIRequestContext,
+  path: string,
+  field: string,
+): Promise<unknown[]> {
+  const list = await json<{ items: Record<string, unknown>[] }>(request, path);
+  return list.items.map((item) => item[field]);
+}
 
 /**
  * Whether a row with this value is already in a collection.
@@ -278,8 +296,7 @@ async function alreadyThere(
   field: string,
   value: string,
 ): Promise<boolean> {
-  const list = await json<{ items: Record<string, unknown>[] }>(request, path);
-  return list.items.some((item) => item[field] === value);
+  return (await valuesAt(request, path, field)).includes(value);
 }
 
 /**
@@ -291,15 +308,30 @@ async function alreadyThere(
  * project dependency the whole suite is reported red having run no product spec —
  * three branches paid a diagnosis for that in one day (#132).
  *
- * Polled rather than asked once because it costs nothing to be kind about
- * ordering, and it is the same shape the MCP step has used all along.
+ * **Polled because the API is answered before the write is durable**, which is
+ * not a courtesy about ordering but a measured property of this backend. A
+ * dependency with `yield` has its exit code unwound by FastAPI *after*
+ * `await response(...)` (`fastapi/routing.py`, `request_response`, read at
+ * 0.141.1 — the teardown has moved relative to the send before), and
+ * `get_db_session` is where the commit lives — so a 2xx reaches the client with
+ * the transaction still open, and the client's next request can read a database
+ * the write has not been applied to. Measured against this backend: an
+ * acceptance answered 204, and the membership it created was invisible to the
+ * very next read for **21.7ms**. Filed as #353; when it closes, every caller
+ * here can go back to asking once.
+ *
+ * Polling the list and matching on it, rather than polling a boolean, so a
+ * failure prints the values that *were* there. "never listed a row whose email
+ * is colleague@example.com" says the fixture lost; `Received array:
+ * ["admin@example.com"]` says what it lost to, which is the difference between
+ * a race and a write that never happened.
  */
 async function nowThere(page: Page, path: string, field: string, value: string): Promise<void> {
   await expect
-    .poll(() => alreadyThere(page.request, path, field, value), {
-      message: `the write was accepted, but ${path} still lists no ${field} of ${value}`,
+    .poll(() => valuesAt(page.request, path, field), {
+      message: `the write was accepted, but ${path} never listed a row whose ${field} is ${value}`,
     })
-    .toBe(true);
+    .toContain(value);
 }
 
 /** A JSON GET that fails loudly, so a broken fixture reads as a broken fixture. */

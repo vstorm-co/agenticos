@@ -48,8 +48,8 @@ export function useKnowledgeBases() {
    * `qk.kb.list()` names no tenant, and every caller writes after an await, so
    * a creation started in one organization landed in the list the next one is
    * reading - `setQueryData` recreates the key the switch had just dropped. The
-   * guard is here rather than at the three call sites because there is no
-   * fourth caller that should be allowed to forget it.
+   * guard is here rather than at the two call sites because there is no third
+   * caller that should be allowed to forget it.
    */
   const writeCache = useCallback(
     (updater: (prev: KnowledgeBase[]) => KnowledgeBase[], startedIn: string | null) => {
@@ -99,21 +99,11 @@ export function useKnowledgeBases() {
     [writeCache, listOrgId],
   );
 
-  const deleteKB = useCallback(
-    async (id: string) => {
-      const startedIn = listOrgId;
-      try {
-        await apiClient.delete(`/kb/${id}`);
-        writeCache((prev) => prev.filter((k) => k.id !== id), startedIn);
-        toast.success("Knowledge base deleted");
-      } catch {
-        toast.error("Failed to delete knowledge base");
-      }
-    },
-    [writeCache, listOrgId],
-  );
-
-  return { kbs, isLoading, listError, fetchKBs, createKB, patchKB, deleteKB };
+  // There is deliberately no delete here. A collection is deleted from its own
+  // page, where the document count is on screen - `useKBDetail.deleteCollection`
+  // - and a second path that swallowed the refusal and patched this cache
+  // optimistically was two answers to one question.
+  return { kbs, isLoading, listError, fetchKBs, createKB, patchKB };
 }
 
 /**
@@ -154,6 +144,7 @@ export interface UploadProgress {
 }
 
 export function useKBDetail(id: string | null) {
+  const queryClient = useQueryClient();
   const [kb, setKb] = useState<KnowledgeBase | null>(null);
   const [documents, setDocuments] = useState<KBDocument[]>([]);
   const [documentsTotal, setDocumentsTotal] = useState(0);
@@ -402,6 +393,31 @@ export function useKBDetail(id: string | null) {
     [id, activeOrgId, stillSameTenant],
   );
 
+  /**
+   * Delete the open collection and everything indexed in it.
+   *
+   * The list's cache is invalidated rather than patched: `useKnowledgeBases`
+   * owns `qk.kb.list()`, and the page this returns to is the one that reads it.
+   * There is no tenant guard here for the same reason there is nothing to write
+   * - the row is gone from the server whichever organization is active by the
+   * time it answers.
+   *
+   * The refusal is rethrown as well as toasted, because the caller navigates
+   * away on success: swallowing it would leave somebody looking at `/kb` with a
+   * collection still in it and a toast explaining why.
+   */
+  const deleteCollection = useCallback(async () => {
+    if (!id) return;
+    try {
+      await apiClient.delete(`/kb/${id}`);
+      queryClient.invalidateQueries({ queryKey: qk.kb.list() });
+      toast.success("Knowledge base deleted");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to delete knowledge base");
+      throw e;
+    }
+  }, [id, queryClient]);
+
   const createSyncSource = useCallback(
     async (data: SyncSourceCreate) => {
       if (!id) return;
@@ -494,6 +510,7 @@ export function useKBDetail(id: string | null) {
     updateIngestion,
     uploadDocument,
     deleteDocument,
+    deleteCollection,
     createSyncSource,
     cloneSyncSource,
     triggerSyncSource,

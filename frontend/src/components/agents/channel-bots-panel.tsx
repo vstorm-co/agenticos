@@ -134,7 +134,7 @@ export function ChannelBotsPanel({ canManage }: { canManage: boolean }) {
                 <SelectItem value="off">{t("usageLogOnly")}</SelectItem>
                 <SelectItem value="near_limit">{t("usageNearLimit")}</SelectItem>
                 <SelectItem value="every_n">
-                  usage: every {bot.usage_reporting.every_n} messages
+                  {t("usageEveryNMessages", { count: bot.usage_reporting.every_n })}
                 </SelectItem>
                 <SelectItem value="always">{t("usageEveryReply")}</SelectItem>
               </SelectContent>

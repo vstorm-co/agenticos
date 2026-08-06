@@ -228,13 +228,69 @@ Per collection, alongside the parser:
 | `markdown` | Markdown/structured docs; splits at heading boundaries |
 | `fixed` | Uniform chunk sizes; simplest but may split mid-sentence |
 
-### Embedding Providers
-Embeddings are generated using **OpenAI** (`text-embedding-3-small` by default).
-Set `EMBEDDING_MODEL` to change the model.
+### Embeddings — the model, and whose key pays
+
+Embeddings go out through OpenRouter to an OpenAI embedding model. Both halves
+of that call are decided **per collection**, not per deployment, by
+`app/services/embedding_resolution.py`:
+
+| | |
+|---|---|
+| **Model and width** | Recorded on the knowledge base at creation (`embedding_model`, `embedding_dim`) and never changed afterwards — `PgVectorStore` writes `embedding vector(N)` once, so a second model either cannot be written or is silently compared against vectors from another space. `EMBEDDING_MODEL` decides only what a *new* collection is built with. |
+| **Credential** | The vault key chosen on the collection (`embedding_secret_id`), which is what the organization is billed for. A collection that chose none embeds on the deployment's `OPENROUTER_API_KEY`. |
+
+The key is validated at creation — a key another organization holds, or one of
+the wrong purpose, is refused there, where the person choosing can fix it. At
+embed time nothing is refused: a chosen key that has since been deleted, cannot
+be unsealed, or does not hold an API key falls back to the deployment's, because
+*whose key pays* must never decide *whether documents can be found*.
+
+That fallback is announced rather than assumed. The resolution carries which of
+the five sources it landed on, ingestion writes the degraded ones into the
+Prefect run's log, and a deployment with no key of its own fails with a message
+naming the collection and which key it tried — not with advice to set a variable
+about a collection that already had a key. Before #306 the ingestion worker was
+the one caller that never asked the resolver at all, so every uploaded document
+was embedded with the deployment's model and key whatever its collection had
+chosen.
 
 ### Vector Storage
 Vectors are stored in **pgvector** using the existing PostgreSQL database.
 No additional services needed.
+
+**One table per collection, created at runtime.** The store issues `CREATE TABLE IF
+NOT EXISTS rag_<collection>` the first time a collection is written to, so those
+tables exist in the database and in nothing else — no model declares them and no
+migration creates them, because a deployment holds as many as somebody has made
+knowledge bases. Alembic does not own them, and `alembic/env.py` says so through
+`include_name`: without that, `make db-check` read every one as a table the models
+had dropped and failed on any database that had ever ingested a document. The
+predicate lives in `app/db/vector_tables.py`, and it is narrower than the prefix on
+purpose — `rag_documents` *is* a model table, and excluding it would have turned the
+gate off for the one table ingestion writes through.
+
+The store answers the same question with the same predicate: `list_collections`,
+which is what `rag-collections` prints, reports a `rag_` table only when no model
+declares it. Matching the prefix alone had it reporting `rag_documents` as a
+collection called `documents` — one nobody created, whose "vector count" was the
+number of ingested documents, and which any caller could then ask to search.
+
+**A collection may not be named after a table the models own**, which is that
+predicate read a third way — asked of a name before its table exists. Creating one
+is refused with a 400, both at the API and in the store itself, because
+`rag-drop <name>` reaches the store with no route in between. The name that made
+this necessary is `documents`: prefixed, it *is* the tracking table, so dropping
+such a collection aimed `DROP TABLE IF EXISTS` at every organization's ingestion
+history. The refusal is derived rather than listed, so a `rag_`-prefixed model
+table added later is covered, and a collection called `documents_archive` — which a
+literal exclusion would have taken with it — is not affected.
+
+`documents` was also the **default** collection, so the CLI quickstart used to aim
+at the tracking table; the default is now `default`. A knowledge base created with
+the old name before this landed still exists and is still deletable, but nothing
+can be ingested into it — delete it and create one under another name. Nothing is
+lost in doing so: an ingest into that collection has never succeeded, because
+building the vector index on a table with no `embedding` column fails.
 
 ### Who can search, who can write
 
@@ -283,8 +339,13 @@ history via `GET /rag/sync/logs`.
 When processing documents that contain images, the system can optionally
 describe images using LLM vision capabilities. Image description is a
 per-collection setting: turn it on in the knowledge base's ingestion
-configuration and pick a vision-capable model profile there. The generated
-descriptions are included in the document text for better semantic search.
+configuration and pick a vision-capable model profile there. The picker is the
+one the agent builder uses, so a provider, a model and its key can be defined
+without leaving the dialog — a deployment with no model profiles yet is not a
+dead end. What it does not offer is deleting a profile: that belongs where an
+organization's models are managed, because every agent pointed at one loses it.
+The generated descriptions are included in the document text for better semantic
+search.
 
 ## From a channel
 

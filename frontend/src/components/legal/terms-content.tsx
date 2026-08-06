@@ -13,11 +13,7 @@ export function TermsBodyEn() {
   const t = useTranslations("legal");
   return (
     <>
-      <p>
-        These Terms of Service (&ldquo;Terms&rdquo;) govern your access to and use of {APP_NAME}{" "}
-        (the &ldquo;Service&rdquo;). By creating an account, accessing the Service, or clicking
-        &ldquo;I agree,&rdquo; you accept these Terms.
-      </p>
+      <p>{t("termsIntro", { appName: APP_NAME })}</p>
       <p>{t("ifYouAposRe")}</p>
 
       <h2>{t("n1Service")}</h2>
@@ -94,11 +90,7 @@ export function TermsBodyPl() {
   const t = useTranslations("legal.pl");
   return (
     <>
-      <p>
-        Niniejszy Regulamin (&bdquo;Regulamin&rdquo;) określa zasady dostępu i korzystania z{" "}
-        {APP_NAME} (&bdquo;Usługa&rdquo;). Zakładając konto, uzyskując dostęp do Usługi lub klikając
-        &bdquo;Zgadzam się&rdquo;, akceptujesz ten Regulamin.
-      </p>
+      <p>{t("termsIntro", { appName: APP_NAME })}</p>
       <p>{t("jeLiKorzystaszZ")}</p>
 
       <h2>{t("n1UsUga")}</h2>

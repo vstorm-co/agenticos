@@ -72,6 +72,14 @@ function mockApi(kbList: KnowledgeBase[] | Error) {
         ? Promise.reject(kbList)
         : Promise.resolve({ items: kbList, total: kbList.length });
     }
+    // The create dialog picks an embedding model, and renders straight from the
+    // answer - an `{ items: [] }` shaped reply has no `models` to map over.
+    if (endpoint === "/rag/embedding-models") {
+      return Promise.resolve({
+        default: "text-embedding-3-large",
+        models: [{ model: "text-embedding-3-large", dimensions: 3072 }],
+      });
+    }
     return Promise.resolve({ items: [], total: 0 });
   });
 }
@@ -90,8 +98,11 @@ beforeEach(() => {
   window.history.replaceState({}, "", "/rag");
 });
 
+// Deleting a collection is not on this page: it lives on the collection's own
+// page, where the document count is on screen, and `delete-collection.integration
+// .test.tsx` covers who is offered it there.
 describe("write controls are gated on collections:edit (#31)", () => {
-  it("a viewer sees neither the create button nor a delete control", async () => {
+  it("a viewer sees no create button", async () => {
     mockApi([kb("kb-1", "Handbook", "handbook")]);
 
     render(<RAGPage />, { wrapper });
@@ -100,12 +111,9 @@ describe("write controls are gated on collections:edit (#31)", () => {
     expect(
       screen.queryByRole("button", { name: "pages.kb.newKnowledgeBase" }),
     ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "pages.kb.deleteKnowledgeBase" }),
-    ).not.toBeInTheDocument();
   });
 
-  it("an editor sees both, so the viewer assertion is not passing vacuously", async () => {
+  it("an editor sees it, so the viewer assertion is not passing vacuously", async () => {
     perms.add("collections:edit");
     mockApi([kb("kb-1", "Handbook", "handbook")]);
 
@@ -113,9 +121,6 @@ describe("write controls are gated on collections:edit (#31)", () => {
 
     await waitFor(() => expect(screen.getByText("Handbook")).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "pages.kb.newKnowledgeBase" })).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "pages.kb.deleteKnowledgeBase" }),
-    ).toBeInTheDocument();
   });
 
   it("a viewer's empty state offers no create call-to-action", async () => {

@@ -139,7 +139,8 @@ export default function ProfileSettingsPage() {
                   : t("uploadAvatar4")}
             </Button>
             <p className="text-muted-foreground mt-2 text-xs">
-              {isAppAdmin(user) ? t("admin") : ""}Member since {formatDate(user.created_at)}
+              {isAppAdmin(user) ? t("admin") : ""}
+              {t("memberSince", { date: formatDate(user.created_at) })}
             </p>
           </div>
         </div>

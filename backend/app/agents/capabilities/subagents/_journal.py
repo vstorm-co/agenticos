@@ -306,6 +306,25 @@ class Delegation:
     :attr:`public_id`, so the continuation reopens the panel that was left waiting
     rather than opening a second one beside it (agenticos#173)."""
 
+    specialist: SpecialistDefinition | None = None
+    """The definition of the specialist a one-shot `delegate` invented for *this* one.
+
+    A `delegate` call carries the whole specialist - instructions, model, the
+    description the model wrote - in its own arguments, so the definition is known
+    the moment the delegation opens and belongs to the delegation itself. Owned here
+    rather than looked up by name because two `delegate` calls in one turn may share
+    a name with different instructions, and pydantic-ai may run them concurrently: a
+    shared name-keyed store lets the second overwrite the first, so whichever settles
+    later stamps the wrong specialist onto its opening frame and the promote offer
+    carries someone else's instructions (agenticos#292).
+
+    `None` for every other delegation - a configured delegate, an inline specialist,
+    and a `task` to a `create_agent` specialist. The last is genuinely addressed by
+    name and registered one-per-name, so it is resolved through
+    :attr:`DelegationJournal._dynamic_definitions`; see
+    :meth:`DelegationJournal._definition_for`.
+    """
+
     started: bool = False
 
     @property
@@ -337,8 +356,9 @@ class Delegation:
 
         `specialist` is the definition of a specialist the model invented at run
         time, and `None` for every configured delegate and inline specialist - the
-        journal resolves it by name, so the announcement of a dynamic delegation
-        carries the only legible copy of what nothing else keeps.
+        journal resolves it through :meth:`DelegationJournal._definition_for`, so the
+        announcement of a dynamic delegation carries the only legible copy of what
+        nothing else keeps.
         """
         if self.started:
             return
@@ -408,15 +428,24 @@ class DelegationJournal:
     _dynamic_definitions: dict[str, SpecialistDefinition] = field(
         default_factory=dict, init=False, repr=False
     )
-    """What each specialist the model invented was built from, keyed by its name.
+    """What each *kept* specialist the model invented was built from, keyed by name.
 
-    Filled by `_specialist_factory` the moment `create_agent` or `delegate` builds
-    one - both go through the factory - and read by :meth:`dynamic_definition` when
-    the delegation to it opens, so the opening frame can carry the definition. This
-    is the streamed half of what :meth:`record_created_specialists` snapshots for a
-    park: the registry keeps the kept ones across an approval, this keeps every
-    invented one legible to the surface for the length of the turn. Thrown away with
-    the journal when the turn ends, because a dynamic specialist is not persisted.
+    Only the specialists a `task` reaches by name: one a `create_agent` registered
+    this turn, and one re-registered from the stash on a resume. Both are addressed
+    by name and the registry holds one per name, so a name key is exactly right - the
+    `task` that delegates to one carries no definition of its own, so this is the only
+    place its opening frame can read one from.
+
+    A one-shot `delegate` is deliberately *not* here: it owns its definition on the
+    delegation itself (:attr:`Delegation.specialist`), because two `delegate` calls in
+    one turn may share a name and a name-keyed store would let one overwrite the
+    other's (agenticos#292). :meth:`_definition_for` reads the delegation's own copy
+    first and falls back to this.
+
+    This is the streamed half of what :meth:`record_created_specialists` snapshots for
+    a park: the registry keeps the kept ones across an approval, this keeps them
+    legible to the surface for the length of the turn. Thrown away with the journal
+    when the turn ends, because a dynamic specialist is not persisted.
     """
 
     def in_background(self) -> bool:
@@ -476,6 +505,7 @@ class DelegationJournal:
         prompt: str,
         tool_args: dict[str, Any],
         tool_call_id: str | None,
+        specialist: SpecialistDefinition | None = None,
     ) -> Delegation:
         """Open a delegation, deciding the one thing the model does not get to.
 
@@ -499,6 +529,11 @@ class DelegationJournal:
         continuation would be the whole of the delegation's recorded cost;
         `carried_started_at` is the same fact for the clock, so the row does not
         begin at the resume.
+
+        `specialist` is set only by the one-shot `delegate` entry point, which reads
+        the whole definition off the call's own arguments and hands it here so the
+        delegation owns its copy rather than sharing a name-keyed store with any
+        same-named sibling (agenticos#292); see :attr:`Delegation.specialist`.
         """
         self._running += 1
         enclosing = _CURRENT.get()
@@ -514,6 +549,7 @@ class DelegationJournal:
             carried=self.runtime.stash.already_spent(tool_call_id),
             carried_started_at=self.runtime.stash.already_started(tool_call_id),
             stable_id=None if resumed is None else resumed.task_id,
+            specialist=specialist,
             agent_id=delegate.agent_id if delegate is not None else None,
             agent_version_id=delegate.agent_version_id if delegate is not None else None,
         )
@@ -660,29 +696,38 @@ class DelegationJournal:
     def record_dynamic_definition(
         self, *, name: str, description: str, instructions: str, model: str
     ) -> None:
-        """Remember what a model just invented, so the delegation to it can carry it.
+        """Remember a *kept* specialist, so a `task` that reaches it by name can carry it.
 
-        Called from `_specialist_factory` the moment the library builds a specialist
-        the model wrote - `create_agent` and `delegate` both build through that
-        factory, so both are captured. The definition then rides the opening
-        `SubagentStarted` frame (see :meth:`dynamic_definition` and
-        :meth:`Delegation.ensure_started`), which is the only moment a surface can
-        read it: nothing persists a dynamic specialist past the turn.
+        Called for the two specialists a `task` addresses by name: one a
+        `create_agent` just registered (`DelegatingToolset.call_tool`), and one
+        re-registered from the stash on a resume (`_seeded_registry`). A one-shot
+        `delegate` records nothing here - it owns its definition on the delegation
+        (:attr:`Delegation.specialist`), for the collision agenticos#292 describes.
+
+        The definition then rides the opening `SubagentStarted` frame (see
+        :meth:`_definition_for` and :meth:`Delegation.ensure_started`), which is the
+        only moment a surface can read it: nothing persists a dynamic specialist past
+        the turn.
         """
         self._dynamic_definitions[name] = SpecialistDefinition(
             description=description, instructions=instructions, model=model
         )
 
-    def dynamic_definition(self, name: str) -> SpecialistDefinition | None:
-        """The definition of the named specialist, if the model invented it this run.
+    def _definition_for(self, delegation: Delegation) -> SpecialistDefinition | None:
+        """The definition to announce with this delegation, wherever it is kept.
 
-        `None` for a configured delegate or an inline specialist, which the factory
-        never built and so never recorded - and that `None` is exactly what tells a
+        A one-shot `delegate` owns its copy on the delegation itself, so a same-name
+        sibling in the same turn cannot overwrite it (agenticos#292); a `task` to a
+        `create_agent` specialist, and one re-registered on a resume, carry none of
+        their own and are resolved by name from :attr:`_dynamic_definitions`. Prefer
+        the delegation's own, fall back to the name.
+
+        `None` for a configured delegate or an inline specialist, which own no
+        definition and were never recorded - and that `None` is exactly what tells a
         surface the delegation is to something already keepable, needing no promote
-        offer. Read when a delegation opens, where the name is the one handle both
-        this and the streamed frame share.
+        offer.
         """
-        return self._dynamic_definitions.get(name)
+        return delegation.specialist or self._dynamic_definitions.get(delegation.name)
 
     def resuming(self) -> ResumedDelegation | None:
         """The place this delegation is being continued from, if it is being continued.
@@ -766,7 +811,7 @@ class DelegationJournal:
         if sink is None:
             return
         public = delegation.stable_id or task_id
-        await delegation.ensure_started(public, sink, self.dynamic_definition(delegation.name))
+        await delegation.ensure_started(public, sink, self._definition_for(delegation))
         await sink(
             SubagentAwaitingApproval(
                 task_id=public, subagent=delegation.name, depth=delegation.depth
@@ -904,7 +949,7 @@ class DelegationJournal:
             )
         )
         if sink is not None:
-            await delegation.ensure_started(public, sink, self.dynamic_definition(delegation.name))
+            await delegation.ensure_started(public, sink, self._definition_for(delegation))
             await sink(
                 SubagentFinished(
                     task_id=public,
@@ -953,7 +998,7 @@ class DelegationJournal:
         async def stream(
             _ctx: RunContext[AgentDeps], events: AsyncIterable[AgentStreamEvent]
         ) -> None:
-            await delegation.ensure_started(public, sink, self.dynamic_definition(delegation.name))
+            await delegation.ensure_started(public, sink, self._definition_for(delegation))
             async for event in events:
                 frame = frame_for(event, labels)
                 if frame is not None:
