@@ -32,6 +32,14 @@ repeating their commands, and `tests/test_ci_parity.py` fails if a gating job
 grows a step `make check` does not run. It has drifted four times — see
 [Commands](commands.md#before-a-pull-request) for what `check` leaves out and why.
 
+**CI may run fewer jobs than `check` does, and that is not drift.** `test`,
+`test-frontend` and `e2e` are skipped on a pull request whose changed paths cannot
+affect them — a docs-only change runs none of the three, a backend-only change runs
+no frontend suite. What decides is `scripts/ci_changed_scope.py`, it errs towards
+running, and [Branches](branching.md#a-required-check-may-legitimately-report-skipped)
+has the rule and why a `skipped` required check still lets a merge through. Locally
+there is no equivalent: `check` runs everything.
+
 `make test-fast` skips coverage, which makes it the wrong last word before a push:
 the gate is most of what these commands are for. `pytest` without `uv run` picks up
 whatever interpreter is on the path rather than the pinned 3.12.
