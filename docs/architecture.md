@@ -15,6 +15,16 @@ HTTP Request → API Route → Service → Repository → Database
 Routes never contain direct database calls. All data access goes through
 services, which in turn delegate to repositories.
 
+**That is a test rather than a convention.**
+`backend/tests/test_route_layering.py` fails if any module under
+`app/api/routes/` imports from `app.repositories`, and fails just as loudly if its
+allowlist keeps an exemption that no longer applies. The rule had drifted in five
+modules before anything read for it — none of them a leak, because each handler
+passed the scope it happened to know. That is the cost: a scope a route owns is a
+scope no service test can see, and the next reader of the entity has to know to pass
+the same thing. The single exemption is a `Literal` of sort orders, imported as a
+type rather than as data access.
+
 ## Directory Structure (`backend/app/`)
 
 | Directory / File | Purpose |
@@ -29,7 +39,8 @@ services, which in turn delegate to repositories.
 | ↳ `file_storage.py` | File storage abstraction (local / S3) |
 | ↳ `rag_document.py` | RAG document lifecycle |
 | ↳ `rag_sync.py` | Remote-source sync orchestration |
-| ↳ `sync_source.py` | Sync-source CRUD |
+| ↳ `sync_source.py` | Sync-source CRUD, and one source's run history |
+| ↳ `audit.py` | Reading the audit trail of the caller's own organization |
 | **`repositories/`** | **Data access layer, database queries** |
 | ↳ `user.py` | User queries |
 | ↳ `conversation.py` | Conversation queries |

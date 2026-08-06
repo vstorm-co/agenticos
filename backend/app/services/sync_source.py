@@ -14,6 +14,7 @@ from app.db.models.sync_source import SyncSource
 from app.services.rag.connectors import CONNECTOR_REGISTRY
 from app.repositories import sync_log as sync_log_repo
 from app.repositories import sync_source as sync_source_repo
+from app.schemas.rag import RAGSyncLogItem, RAGSyncLogList
 from app.schemas.sync_source import (
     ConnectorConfigField,
     ConnectorInfo,
@@ -128,6 +129,38 @@ class SyncSourceService:
                 details={"source_id": source_id},
             )
         return source
+
+    async def list_logs(self, source_id: UUID, *, limit: int = 20) -> RAGSyncLogList:
+        """One source's run history, newest first.
+
+        Both surfaces that show a source's history - a knowledge base's sync row
+        and an org integration - read it here rather than each holding its own
+        query and its own copy of this mapping. Whoever calls it has already
+        decided the caller may see this source: an org integration resolves it
+        through `CollectionAccessService`, and a KB route resolves it against the
+        base in the path. Scope is not this method's to add, which is why it takes
+        an id that has been through one of those.
+        """
+        logs = await sync_log_repo.get_all(self.db, sync_source_id=source_id, limit=limit)
+        items = [
+            RAGSyncLogItem(
+                id=str(log.id),
+                source=log.source,
+                collection_name=log.collection_name,
+                status=log.status,
+                mode=log.mode,
+                total_files=log.total_files,
+                ingested=log.ingested,
+                updated=log.updated,
+                skipped=log.skipped,
+                failed=log.failed,
+                error_message=log.error_message,
+                started_at=log.started_at,
+                completed_at=log.completed_at,
+            )
+            for log in logs
+        ]
+        return RAGSyncLogList(items=items, total=len(items))
 
     async def create_source(
         self, data: SyncSourceCreate, organization_id: UUID | None = None
