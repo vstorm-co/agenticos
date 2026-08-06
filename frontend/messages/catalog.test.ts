@@ -102,6 +102,20 @@ function entries(catalog: unknown, prefix = ""): [string, string][] {
   );
 }
 
+/**
+ * Both catalogues, and they are not equal evidence.
+ *
+ * **`en.json` is what proves the fix.** All 166 bad values were in it, and
+ * reverting it alone fails these three with 18 class lists, 150 source fragments
+ * and 8 `{noun}` messages named.
+ *
+ * **`pl.json` is a forward guard and passes on `main` too.** It holds 330 keys,
+ * every one of them a translation somebody wrote by hand, and it never held any
+ * of the three shapes - so the same three assertions over it assert nothing
+ * about this change. They are here because the next locale is added by copying
+ * `en.json` and translating downwards, which is exactly how a class list would
+ * arrive in a second file having been fixed in the first.
+ */
 describe.each([
   ["en.json", en],
   ["pl.json", pl],

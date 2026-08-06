@@ -44,7 +44,7 @@ one is fine" is the sentence that turns a gate into a rubber stamp.
 **A false positive takes an exemption. It never takes a key.** Answering one by
 moving the offending text into `messages/en.json` silences the guard and hands a
 translator something nobody reads: the migration that first ran this script did
-exactly that 142 times, filing 18 Tailwind class lists and 124 fragments of
+exactly that 166 times, filing 18 Tailwind class lists and 148 fragments of
 JavaScript source under keys with names like `caseStatsReturn` (#348).
 `frontend/messages/catalog.test.ts` now refuses both shapes, because neither the
 offence sweep nor `missing_keys` can see them - a class list reaching `cn()`

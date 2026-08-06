@@ -15,6 +15,10 @@ The list is the weakness of the mechanism rather than a bug in it - which is the
 argument #395 records for replacing the whole script with a parser that reads a
 prop's *value* instead of trusting its name. Until then, the list has to be
 correct, and something has to check that it is.
+
+**Which of these prove the fix:** the two refusal tests. Both pass only with
+`noun` and `term` in `READABLE_ATTRS`, and both fail without them. The other two
+are forward guards and each says so - they pass on `main` as well.
 """
 
 from __future__ import annotations
@@ -47,18 +51,27 @@ def test_a_term_passed_as_an_english_word_is_refused(tmp_path: Path) -> None:
 
 
 def test_the_same_props_read_from_the_catalog_pass(tmp_path: Path) -> None:
-    # The remedy must not trip the rule that demanded it, so the values that
-    # replaced both are checked here rather than assumed.
+    """A forward guard, and it passes on `main` too - deliberately.
+
+    `ATTR` only matches a double-quoted literal, so a braced value was invisible
+    before `term` joined the list and is invisible after: this asserts nothing
+    about the change that added it. It is here so that a future rule widened to
+    read braced values - the obvious next step, and what #395's parser would do
+    by default - cannot land while refusing the remedy this one demanded.
+    """
     source = '<Fact term={t("chunking")}>{t("chunkingSummary", { size })}</Fact>\n'
     assert _offences(tmp_path, source) == []
 
 
-def test_every_readable_attr_is_actually_read_by_the_rule(tmp_path: Path) -> None:
-    """`READABLE_ATTRS` and the regex built from it cannot drift apart.
+def test_every_readable_attr_can_actually_be_matched(tmp_path: Path) -> None:
+    """Every name in the tuple survives being compiled into `ATTR`.
 
-    `ATTR` is compiled by joining the tuple into an alternation, so a name added
-    to one and not the other is a name nothing checks - and the failure is a
-    green build, which is the failure mode this whole file exists for.
+    Not a drift check between two lists - there is only one, and `ATTR` is built
+    from it on the same line, so they cannot disagree. What can go wrong is a
+    name that the alternation cannot match once it is in there: a regex
+    metacharacter interpolated raw, or a leading character `\\b` cannot anchor
+    against. Either way the name reads as covered and matches nothing, and the
+    failure is a green build.
     """
     for name in check_i18n.READABLE_ATTRS:
         found = _offences(tmp_path, f'<Thing {name}="Save changes" />\n')
