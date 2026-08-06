@@ -236,6 +236,17 @@ Set `EMBEDDING_MODEL` to change the model.
 Vectors are stored in **pgvector** using the existing PostgreSQL database.
 No additional services needed.
 
+**One table per collection, created at runtime.** The store issues `CREATE TABLE IF
+NOT EXISTS rag_<collection>` the first time a collection is written to, so those
+tables exist in the database and in nothing else — no model declares them and no
+migration creates them, because a deployment holds as many as somebody has made
+knowledge bases. Alembic does not own them, and `alembic/env.py` says so through
+`include_name`: without that, `make db-check` read every one as a table the models
+had dropped and failed on any database that had ever ingested a document. The
+predicate lives in `app/db/vector_tables.py`, and it is narrower than the prefix on
+purpose — `rag_documents` *is* a model table, and excluding it would have turned the
+gate off for the one table ingestion writes through.
+
 ### RAG is Global
 
 Collections are shared across **all users**:

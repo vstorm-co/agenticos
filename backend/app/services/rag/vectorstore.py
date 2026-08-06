@@ -3,6 +3,7 @@ import re
 from abc import ABC, abstractmethod
 from typing import Any
 
+from app.db.vector_tables import VECTOR_TABLE_PREFIX
 from app.schemas.rag import RAGDocumentItem, RAGDocumentList
 from app.services.rag.models import (
     CollectionInfo,
@@ -216,8 +217,13 @@ class PgVectorStore(BaseVectorStore):
         await self.engine.dispose()
 
     def _table(self, name: str) -> str:
-        """Get validated table name for a collection."""
-        return f"rag_{_validate_collection_name(name)}"
+        """Get validated table name for a collection.
+
+        The prefix comes from `app/db/vector_tables.py` because `alembic/env.py` has
+        to recognise these names to keep them out of `alembic check` - a table created
+        here exists in no model and no migration, and read as a table to drop (#288).
+        """
+        return f"{VECTOR_TABLE_PREFIX}{_validate_collection_name(name)}"
 
     async def _for_collection(self, name: str) -> tuple[EmbeddingService, int]:
         """The embedder and vector width this one collection uses.
@@ -461,9 +467,11 @@ class PgVectorStore(BaseVectorStore):
         async with self.async_session() as session:
             result = await session.execute(
                 text(
-                    "SELECT table_name FROM information_schema.tables WHERE table_name LIKE 'rag_%' AND table_schema = 'public'"
-                )
+                    "SELECT table_name FROM information_schema.tables "
+                    "WHERE table_name LIKE :prefix AND table_schema = 'public'"
+                ),
+                {"prefix": f"{VECTOR_TABLE_PREFIX}%"},
             )
-            # removeprefix (Python 3.9+) strips only the leading "rag_" occurrence,
-            # unlike str.replace which would also hit inner occurrences.
-            return [row[0].removeprefix("rag_") for row in result.fetchall()]
+            # removeprefix strips the leading occurrence only, unlike str.replace,
+            # which would also hit the prefix inside a collection's own name.
+            return [row[0].removeprefix(VECTOR_TABLE_PREFIX) for row in result.fetchall()]
