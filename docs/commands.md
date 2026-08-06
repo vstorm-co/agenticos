@@ -141,6 +141,18 @@ uv run agenticos server run --port 9000  # Custom port
 uv run agenticos server routes           # Show all registered routes
 ```
 
+`--reload` runs uvicorn's reloader under a supervisor of our own
+(`backend/cli/reload_supervisor.py`), because uvicorn's is a file watcher and
+nothing more: when the kernel kills the worker — an out-of-memory kill is the
+realistic way — it neither reaps it nor replaces it, so the reloader carries on
+watching while no port is listening. Under the supervisor a worker killed by a
+signal is replaced within about five seconds, and one that exited on its own
+still waits for the edit that fixes it, which is what `--reload` is for.
+
+`server run` also selects the `websockets-sansio` implementation in both modes.
+uvicorn's `auto` picks the legacy one, which fails the handshake against
+websockets >=14 with an HTTP 500 — and the dashboard chat is a WebSocket.
+
 
 ### Database Commands
 
