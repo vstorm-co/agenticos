@@ -95,6 +95,17 @@ const SOURCE = new RegExp(
 /** A `{noun}` parameter, with or without an ICU format after it. */
 const NOUN = /\{\s*noun\s*[},]/;
 
+/**
+ * The punctuation a sentence never opens on, and so the signature of half of one.
+ *
+ * The cheapest of the three rules and the only one that finds a split sentence
+ * without reading any JSX, which is the part #141 shows is hard: a value starting
+ * `.`, `,`, `:` or `;` is the tail of something whose head is somewhere else, and
+ * the head is almost always still hardcoded. A `…` opener is fine - `… and 3 more`
+ * is a whole message.
+ */
+const TAIL = /^[.,:;](?!\w)/;
+
 function entries(catalog: unknown, prefix = ""): [string, string][] {
   if (typeof catalog === "string") return [[prefix.replace(/\.$/, ""), catalog]];
   return Object.entries(catalog as Record<string, unknown>).flatMap(([key, value]) =>
@@ -147,6 +158,18 @@ describe.each([
     // each locale writes the form it needs (#362).
     expect(offenders).toEqual([]);
   });
+
+  it("holds no value that opens on punctuation", () => {
+    const offenders = all.filter(([, value]) => TAIL.test(value)).map(([key]) => key);
+
+    // No sentence begins with a full stop, so a value that does is the second
+    // half of one - and the first half is still in the JSX, in English, under
+    // every locale. Eleven were: `. Pick one it does, …` beside `This connection
+    // no longer allows`, `, so the label carries the same classes.`,
+    // `, error:`. The whole sentence is one message with a tag in it, read with
+    // `t.rich` (#425).
+    expect(offenders).toEqual([]);
+  });
 });
 
 describe("the rules themselves", () => {
@@ -173,5 +196,14 @@ describe("the rules themselves", () => {
     expect(SOURCE.test(". Pick one it does, or the agent fails on its first tool call.")).toBe(
       false,
     );
+  });
+
+  it("tells the tail of a sentence from a whole one", () => {
+    expect(TAIL.test(". Pick one it does, or the agent fails on its first tool call.")).toBe(true);
+    expect(TAIL.test(", so the label carries the same classes.")).toBe(true);
+    expect(TAIL.test(", error:")).toBe(true);
+    expect(TAIL.test("Custom (minutes):")).toBe(false);
+    expect(TAIL.test("…and {count} more")).toBe(false);
+    expect(TAIL.test(".env is never committed")).toBe(false);
   });
 });
