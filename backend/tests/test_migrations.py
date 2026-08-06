@@ -96,7 +96,7 @@ def _why_the_server_did_not_answer(url: str) -> str | None:
     try:
         with engine.connect():
             return None
-    except Exception as exc:  # noqa: BLE001 - any failure to connect is the answer
+    except Exception as exc:  # any failure to connect is the answer
         return str(exc).strip()
     finally:
         engine.dispose()
