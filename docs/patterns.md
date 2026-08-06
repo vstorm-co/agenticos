@@ -54,7 +54,10 @@ All current services follow this pattern: `UserService`, `ConversationService`,
 ## Repository Layer Pattern
 
 Repositories handle data access only. They contain **no** business logic and
-always use `flush()` instead of `commit()` so the caller controls transactions:
+always use `flush()` instead of `commit()`, because the request's session owns
+the transaction and commits it once — after the route returns and *before* the
+response is written, which is what makes a 2xx mean the write is readable. See
+[the request's transaction](architecture.md#the-requests-transaction).
 
 ```python
 class ConversationRepository:

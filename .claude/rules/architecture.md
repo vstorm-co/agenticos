@@ -41,7 +41,7 @@ async def delete(db: AsyncSession, entity_id: UUID) -> Entity | None:
 ```
 
 Rules:
-- ALWAYS `db.flush()` + `db.refresh()`, NEVER `db.commit()` — session auto-commits in `get_db_session`
+- ALWAYS `db.flush()` + `db.refresh()`, NEVER `db.commit()` — the request's session commits once, after the route returns and *before* the response is written (`docs/architecture.md#the-requests-transaction`)
 - Use keyword-only args after `db`: `create(db, *, email: str, name: str)`
 - Return the entity (or None for get/delete), never return IDs or dicts
 - Functions are async (PostgreSQL via asyncpg)
@@ -108,12 +108,18 @@ Rules for thick subpackages:
 Use `Annotated` type aliases — never raw `Depends()` in route signatures:
 
 ```python
-DBSession = Annotated[AsyncSession, Depends(get_db_session)]
+DBSession = Annotated[AsyncSession, Depends(get_db_session, scope="function")]
 UserSvc = Annotated[UserService, Depends(get_user_service)]
 CurrentUser = Annotated[User, Depends(get_current_user)]
 CurrentAppAdmin = Annotated[User, Depends(_require_app_admin)]
 Auth = Annotated[AuthContext, Depends(get_auth_context)]
 ```
+
+`scope="function"` on `DBSession` is load-bearing. It is what commits the
+transaction *before* the response is written, so a 2xx means the write is
+readable; FastAPI's default for a dependency with `yield` puts the commit after
+the answer has gone out, which is #353. A bare `Depends(get_db_session)`
+anywhere reintroduces it, and `tests/api/test_db_session_scope.py` fails on one.
 
 Service factories take `DBSession` and return service instances:
 
