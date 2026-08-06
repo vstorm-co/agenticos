@@ -644,6 +644,9 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 <Label>{t("model")}</Label>
                 <ModelProfilePicker
                   allowAdd
+                  // The Builder is where an organization's models are managed,
+                  // so it is the one panel that also takes one away.
+                  allowRemove
                   profiles={profiles}
                   value={spec.model_profile_id ?? null}
                   onChange={(model_profile_id) => update({ model_profile_id })}
