@@ -59,10 +59,11 @@ being made about it.
 Taking this alias costs a second session, because FastAPI's dependency cache
 keys on the computed scope: the export endpoint holds this one *and* the
 function-scoped one its authentication resolves through, on two pool
-connections, in two transactions. That is tolerable for a read - the two see
-consistent data under `READ COMMITTED` either way - and unavoidable while
-authentication reads the database. Do not build on it: a *write* split across
-the two would be two transactions that can half-commit.
+connections, in two transactions. Unavoidable while authentication reads the
+database, and free for a read - under `READ COMMITTED` every statement takes a
+fresh snapshot anyway, so one transaction guarantees these two reads no more
+than two do. Do not build on it: a *write* split across the two is two
+transactions that can half-commit.
 """
 from uuid import UUID
 
