@@ -38,6 +38,68 @@ single aggregating `All Checks Passed` job, so that adding a CI job stops meanin
 "remember to edit a ruleset" — a required-check list that drifts from the
 workflow is how a build ends up passing on nothing.
 
+### A required check may legitimately report `skipped`
+
+Three of those six do not run on every pull request. `test`, `test-frontend` and
+`e2e` are 8.2, 5.3 and 5.1 billed minutes each, and a `changes` job decides which
+of them a change set can provably not affect — `scripts/ci_changed_scope.py`, so
+the rule is testable rather than a glob in a YAML file
+([#317](https://github.com/vstorm-co/agenticos/issues/317)).
+
+This is legal because GitHub satisfies a required status check with **`success`,
+`skipped` or `neutral`**. It is why the gate is a job-level `if:` and **not** a
+`paths:` filter on the workflow: a filtered-out workflow never posts its checks at
+all, so the ruleset waits for six contexts that will never arrive and the merge
+button stays grey forever.
+
+The classifier is written the timid way round — **a job is skipped only when every
+changed path is provably irrelevant to it**, so an unrecognised path runs
+everything. The permissive spelling of the same idea would let a new directory
+silently stop a suite from running, which is not a red build but a green one with a
+gate missing from it, and this repository has already paid for that twice (#143,
+#165). Only two exemptions exist, both checked rather than assumed: `docs/**`,
+`mkdocs.yml` and a top-level `*.md` (no test reads any of them), and the opposite
+half of the tree for each of the two unit suites. `e2e` is exempted from neither
+half. `lint` is never gated at all, because `make lint-spelling` is the only thing
+that reads every tracked file.
+
+Two details the timid direction needs in order to actually hold, both of which the
+first version of this got wrong:
+
+- Each gated job carries `!cancelled()` alongside the output check. Without it, a
+  `changes` job that **failed** — a 502 from the API, a rate limit — would skip all
+  three suites without their conditions ever being read, and since `changes` is not
+  itself a required context, the merge button would go green over a branch where no
+  suite ran.
+- The job feeds `previous_filename` in as well as `filename`. A rename reports only
+  the path it arrived at, so a module moved out of `backend/` would otherwise be one
+  frontend path and skip the backend suite for a change that deleted a backend
+  module.
+
+What a change set skips is printed in the `changes` job's log. Locally nothing is
+skipped: `make check` runs the whole set.
+
+### One run per branch
+
+`ci.yml` carries a concurrency group keyed on `github.ref`, so pushing again to a
+branch cancels its previous run. That matters because `CLAUDE.md` asks for a commit
+and a push per finished piece: with nothing cancelling, 75 of the 369 runs in the
+first six days of August were superseded while still in flight — about 1,800 billed
+minutes answering questions about commits nobody was waiting on.
+
+**A push to `main` is exempt, and the way it is exempted is the interesting part.**
+The merge's own run is what makes the history and the badge mean anything, so a
+`main` run must neither be cancelled nor queued. `cancel-in-progress: false` gives
+only the first of those: `false` means *queue*, and GitHub cancels any previously
+**pending** run in a group when a newer one is queued. With a single group for
+`main`, merge A running and B pending, C landing would cancel B outright and B's
+commit would get no CI at all — at fourteen releases in six days against a ~10
+minute `main` run, two merges inside one window is not a rare shape.
+
+So the group carries `github.run_id` on a push, which is unique per run: every
+merge gets a group of its own and collides with nothing. Pull requests all resolve
+to the same suffix and go on cancelling each other per `github.ref`.
+
 ## Squash, and why the pull request title matters
 
 `main` keeps one commit per pull request, built from the **pull request title and

@@ -154,7 +154,9 @@ class TestEmbeddingCredential:
         """
         store = PgVectorStore.__new__(PgVectorStore)
         store.dim = 1536
-        store._resolver = None
+        # No knowledge base claims this name, which is the resolver's `None`
+        # and the store's deployment defaults.
+        store._resolver = AsyncMock(return_value=None)
         store.embedder = MagicMock()
         store._collection_exists = AsyncMock(return_value=False)
         # A session that would raise if it were opened at all: reporting the

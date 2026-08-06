@@ -44,7 +44,7 @@ class ConversationService:
     async def get_or_raise(self, id: UUID) -> Conversation:
         conv = await self.repo.get_by_id(self.db, id)
         if not conv:
-            raise NotFoundError(message="Conversation not found", details={"id": str(id)})
+            raise NotFoundError(message="Conversation not found", details={"id": id})
         return conv
 ```
 
@@ -90,7 +90,7 @@ from app.core.exceptions import NotFoundError, AlreadyExistsError, ValidationErr
 if not conversation:
     raise NotFoundError(
         message="Conversation not found",
-        details={"id": str(id)}
+        details={"id": id}
     )
 
 if await self.repo.exists_by_email(self.db, email):
@@ -99,7 +99,12 @@ if await self.repo.exists_by_email(self.db, email):
     )
 ```
 
-Exception handlers convert to HTTP responses automatically.
+Exception handlers convert to HTTP responses automatically, and `details` is
+encoded with `jsonable_encoder` - the same encoder `response_model` uses - so the
+raiser passes the value it has rather than a string of it. A `UUID` arrives as its
+string form, a `datetime` in ISO 8601, an `Enum` as its value. Money is the
+exception worth knowing: a `Decimal` encodes to a float, so a cost or a cap is
+stringified by the code that raises.
 
 ## Schema Patterns
 

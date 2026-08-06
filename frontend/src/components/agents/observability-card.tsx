@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui";
 import { InlineSecret } from "@/components/vault/inline-secret";
+import { ProviderRow } from "@/components/vault/provider-row";
 import { useSecrets } from "@/hooks";
 import type { ObservabilitySpec } from "@/types/agents";
 import { useTranslations } from "next-intl";
@@ -90,8 +91,12 @@ export function ObservabilityCard({
             <SelectContent>
               <SelectItem value={NONE}>{t("deploymentSProject")}</SelectItem>
               {tokens.map((secret) => (
-                <SelectItem key={secret.id} value={secret.id}>
-                  {secret.name} <span className="font-mono">····{secret.hint}</span>
+                <SelectItem key={secret.id} value={secret.id} textValue={secret.name}>
+                  {/* Every token here is a Logfire token by construction - that
+                      is the filter above - so the mark is the constant, not a
+                      lookup. Logfire has no mark compiled in; the monogram is
+                      the floor, and the row still reads like the others. */}
+                  <ProviderRow provider={TOKEN_PURPOSE} name={secret.name} hint={secret.hint} />
                 </SelectItem>
               ))}
             </SelectContent>

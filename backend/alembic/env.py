@@ -8,6 +8,7 @@ from sqlalchemy import engine_from_config, pool
 
 from app.core.config import settings
 from app.db.base import Base
+from app.db.vector_tables import is_runtime_vector_table
 
 # Import all models here to ensure they are registered with metadata
 from app.db.models.user import User  # noqa: F401
@@ -51,6 +52,24 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
+def include_name(name: str | None, type_: str, parent_names: dict[str, str | None]) -> bool:
+    """Keep the vector store's runtime tables out of the comparison.
+
+    `alembic check` and `--autogenerate` compare the whole database against the
+    models, so every `rag_<collection>` table the store created at runtime read as a
+    table to drop, and `check` exited non-zero on any database that had ever ingested
+    a document. What it is meant to catch is a model change with no migration; what it
+    caught was somebody having used the product (#288).
+
+    The test is narrow on purpose - `rag_documents` is a model table, and excluding it
+    would silence real drift in the one table this project ingests through.
+    `app/db/vector_tables.py` explains why both halves of that test are needed.
+    """
+    if type_ == "table" and name is not None:
+        return not is_runtime_vector_table(name, metadata=target_metadata)
+    return True
+
+
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode."""
     configuration = config.get_section(config.config_ini_section) or {}
@@ -66,6 +85,7 @@ def run_migrations_online() -> None:
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
+            include_name=include_name,
         )
 
         with context.begin_transaction():
