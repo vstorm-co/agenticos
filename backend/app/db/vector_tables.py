@@ -18,6 +18,11 @@ recognise one. Sharing a string is the easy half. The hard half is
 `is_runtime_vector_table` below, because **`rag_documents` is a real model table** -
 so "starts with `rag_`" is not a safe test, and an exclusion that got it wrong would
 silence real drift in the one table this project ingests through.
+
+Both sides of that ask it now. `alembic/env.py` asks which tables it must not
+compare; `PgVectorStore.list_collections` asks which are collections, and until it
+did, the prefix alone had it reporting `rag_documents` as a collection called
+`documents` (#339). One question, one answer, whichever direction it is read from.
 """
 
 from __future__ import annotations
@@ -41,9 +46,11 @@ def is_runtime_vector_table(name: str, *, metadata: MetaData) -> bool:
 
     Args:
         name: A table name as reflected from the database.
-        metadata: The metadata autogenerate is comparing against - passed in rather
-            than imported, so this cannot answer differently depending on which
-            models happen to have been imported yet.
+        metadata: The metadata to judge against - what autogenerate is comparing to,
+            or `Base.metadata` for a caller outside alembic. Passed in rather than
+            imported, so this cannot answer differently depending on which models
+            happen to have been imported yet; a caller that imports it is
+            responsible for having imported the models too.
 
     Example:
         ```python
