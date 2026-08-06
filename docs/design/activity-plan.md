@@ -185,7 +185,7 @@ fact that decides the answer, and it belongs beside the tool name rather than a 
 | 2 | Cost rendered without its caveat | **Already shipped** — `components/runs/run-table.tsx:65` marks `cost_is_partial`. Remaining work is honesty of presentation: a bare `+` in a `title=` attribute is invisible to a screen reader and easy to miss. Becomes a visible marker with text — and a run whose every model was unpriced reads *not priced*, never `≥ $0.00` |
 | 3 | An approval has no context | **Half shipped** — `tool_args` is rendered in full (`runs/page.tsx:158`), and #200 adds the **delegate** that asked (§2a). Missing is the agent and the triggering user; `ApprovalRead` carries neither. Backend change, not UI |
 | 4 | Filtering is agent-only | **Do it.** `agent_run_repo.list_runs` accepts only `agent_id` |
-| 5 | Pagination | **Do it.** The figure it hides is already fixed by #200 (`total`, top-level only, captioned) — what remains here is **#198**, filed: the count reads *all time* while the spend beside it reads one calendar month, so the two invite a comparison that is wrong by however old the organization is. Each figure names its own window, and this work closes #198 |
+| 5 | Pagination | **Do it.** The figure it hides is already fixed by #200 (`total`, top-level only, captioned) — what remains here is **#198**, filed: the count reads *all time* while the spend beside it reads one calendar month, so the two invite a comparison that is wrong by however old the organization is. Each figure names its own window, and this work closes #198 — through `/stats/usage`'s windowed `total_runs`, on the same window Spend uses. §8a.2 |
 | 6 | `failed` and `budget_exceeded` look alike | **Already shipped** — different tone and the label "stopped by budget" (`components/agents/status-badge.tsx:53`). No work |
 
 ## 4. Who sees this page — all seven identities, answered from `ROLE_PERMS`
@@ -342,7 +342,10 @@ the two pages read as one product:
 - **The version strip — the builder's feedback loop, where the builder already
   lands.** `?agent=` is the hand-off from the agent page, so when the runs tab is
   narrowed to an agent, a strip of per-version chips renders above the table: runs,
-  success rate, p50, cost per run, the current version marked. Clicking a chip filters
+  the completed share, p50, cost per run, the current version marked — `completed` over
+  *every* status, nothing excluded, which is §8a.4 and is what keeps this strip and the
+  dashboard's Outcomes donut from reporting two different numbers under one word.
+  Clicking a chip filters
   the table to the runs behind the number — the summary and its evidence on one
   screen, which is what "did v4 actually behave better than v3" needs to be
   answerable rather than arguable. Fed by #37's `group_by=version` (§5's one
@@ -521,6 +524,114 @@ A second find — "Spend by agent" listing model labels because `CostByAgent` ca
 name (`runs/page.tsx:276`) — started here, but the mockup shows it fixed and the change
 is one join, so it moved into scope: §7 prices it.
 
+## 8a. Four questions review left open, and how they were settled
+
+Each was raised on #202 and none was settled by argument here: three are settled by
+**precedent on `feat/dashboard-page-demo`**, the twin artifact that went through the
+same review, and the fourth by there being no precedent to point at. Written down with
+the evidence rather than the conclusion, because a decision whose grounds are not on
+the page is one nobody can overturn — and one of these four should be overturned if the
+grounds turn out to be wrong.
+
+### 1. `nav` versus `exclude_docs` — `exclude_docs` stays
+
+Review asked for both design files listed in `nav`. The sibling branch ships
+`exclude_docs: | design/` with a comment giving the reason, and **`dashboard-demo`
+appears in `nav` zero times** — the only occurrence of `design` anywhere in its
+`mkdocs.yml` is inside the exclusion.
+
+What makes that precedent rather than coincidence: that branch ships **two** files,
+`docs/design/dashboard-demo.html` *and* `docs/design/dashboard-demo.md`. The markdown
+one is a perfectly ordinary nav page, and it was excluded anyway. So the decision there
+was not "an HTML mockup cannot be a nav entry"; it was "review artifacts are not site
+pages". Listed, they would build and publish as pages nothing links to, which is how a
+page goes stale without anybody noticing.
+
+Two branches independently reaching the same answer is the argument. **"Both files in
+`nav`" comes off the stage-2 checklist** — recorded here rather than quietly dropped.
+
+*What would overturn it:* deciding that `docs/` is a published record of design
+decisions rather than of behaviour. That is a real position, but it is one to take for
+the whole site, not for this branch — and taking it means the sibling branch's block
+goes too, in the same change.
+
+### 2. `Closes #198` — yes, and the mechanism already exists
+
+#198 is that the Runs figure counts *all time* while the spend beside it counts one
+calendar month, so the two invite a comparison that is wrong by however old the
+organization is.
+
+The dashboard solved exactly this class: every figure is windowed by one `period`,
+`total_runs` arrives from `/stats/usage` with `from`/`to`, and `previous_total_runs`
+gives the delta. `app/schemas/stats.py` states the invariant that makes it hold — the
+`by_status` counts sum to `total_runs` "because they are the same rows counted twice".
+So the fix in Activity is to consume that same endpoint with the same window, rather
+than `runs.length` or a `total` since the beginning of time.
+
+**The condition is one thing, and it is the whole of it: the Runs figure must share its
+window with Spend.** If stage 2 does that, `Closes #198` is honest; if the two figures
+end up on different windows again, it is not, whatever the code does.
+
+*What would overturn it:* wanting an all-time count on this page on purpose — "how much
+has this organization ever run" is a real question. It is a different figure with a
+different name, and it does not sit beside a monthly spend figure.
+
+### 3. Step timestamps in the detail view — run-level yes, per step deferred
+
+There is no precedent, and the absence is informative. `focused-run.tsx` on `main` is
+**72 lines with no timestamp of any kind** — it is the surface a delegation panel's link
+lands on, not a transcript view. The dashboard has no detail view at all.
+
+Run-level duration is free and already on the stage-2 list (**#210**): `agent_runs`
+carries `started_at` and `ended_at`, and `AgentRunRead` already sends both.
+
+Per-step timestamps need `created_at` off `messages` and `tool_calls`. Those become
+reachable as a side effect of `messages.run_id` — the column links the rows, and the
+rows have always carried their own timestamps — so this is cheap *later* rather than
+blocked. It is deferred as a nice-to-have, not omitted: a step list with no times is a
+worse transcript, but it is not a wrong one, and nothing on this page reads as a defect
+without them.
+
+*What would overturn it:* a run whose steps are minutes apart, where "which step was
+slow" is the question being asked. That is a latency view, and if it is wanted it should
+be designed as one rather than arrived at by adding a column of times.
+
+### 4. The version strip's denominator — nothing is excluded
+
+The question asked whether `budget_exceeded` should join `cancelled` in being excluded
+from the strip's success rate. **The answer goes the other way: neither is excluded.**
+
+`widgets/outcomes.tsx` on the sibling branch is the precedent, and it is explicit —
+five segments over all six statuses, so they always sum to the window's total:
+
+| | |
+|---|---|
+| `completed` | its own segment |
+| `failed` | its own segment |
+| `budget_exceeded` | **its own segment**, in the warning tone — not folded into `failed` |
+| `awaiting_approval` | its own segment |
+| `running` + `cancelled` | one neutral *"Running or cancelled"* |
+
+`attention = failed + budget_exceeded`, and the centre reads `completed / total` with
+every status in the denominator. Its label is worth reading: the copy says
+**"completed"**, not "success rate". The dashboard does not claim a success rate at all;
+it states a proportion and names exactly which one.
+
+So the rule for this plan: **`completed / total`, no exclusions, `budget_exceeded`
+counted separately from `failed`.** Both pages read `by_status` from the same
+`/stats/usage`, so agreement costs nothing and disagreement is the class of defect
+where two screens stop being believable — a reader who finds 94% here and 91% there has
+no way to learn which is right, and stops trusting both.
+
+**And the naming half is the part that generalises:** a figure that needs a different
+denominator needs a **different name**. "Success rate excluding cancellations" is a
+defensible number; calling it the same words as a different calculation is not.
+
+*What would overturn it:* an operator arguing that a cancelled run is not a failed
+attempt and drags the number down for no reason. That is a fair point, and the answer
+under this rule is a second figure that says what it excludes — not a quiet change to
+the denominator of the first.
+
 ## 9. What stage 2 is verified by
 
 - a test that mocks a 502 per tab and asserts the **error** state, not the empty one
@@ -537,6 +648,13 @@ is one join, so it moved into scope: §7 prices it.
   delegation twice; and no environment-narrowed query silently loses a delegated row —
   the two views that include delegations on purpose say on screen that a delegated run has
   no environment
+- the version strip's completed share proven to be `completed / total` with nothing
+  excluded (§8a.4): a window holding one `cancelled` and one `budget_exceeded` run
+  produces the same figure here as the dashboard's Outcomes donut over the same rows —
+  the two read one `by_status`, and a test is the only thing that keeps them from
+  drifting apart under one word
+- the Runs figure and the Spend figure proven to be on the **same** window (§8a.2),
+  which is the condition under which this branch closes #198
 - the approvals queue names the delegate — `ApprovalDelegate` still renders and its
   integration test still passes after the tab is rebuilt as three components
 - the decided view proven: a decided approval renders its decider and is refused a
