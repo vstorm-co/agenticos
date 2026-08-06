@@ -67,6 +67,11 @@ function started(current: Delegation[], frame: SubagentStartFrame): Delegation[]
       mode: frame.mode,
       prompt: frame.prompt,
       parentTaskId: parentIn(current, frame.parent_task_id),
+      // Set only for a specialist the model invented, and the only moment it is
+      // sent: the panel keeps it so the promote action has it while the run is up.
+      // Coerced to null when absent - an older backend, mid-deploy, sends no such
+      // field, and `undefined` would read as "promotable" and draw the offer.
+      specialist: frame.specialist ?? null,
       status: "running" as DelegationStatus,
       text: "",
       thinking: "",

@@ -80,6 +80,7 @@ function mount() {
       binding={BINDING}
       catalog={[DELEGATION]}
       parentCapabilities={[BINDING]}
+      parentModelProfileId={null}
       subagents={[]}
       onChange={vi.fn()}
       onSubagentsChange={vi.fn()}

@@ -19,7 +19,12 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock("@/hooks", () => ({
-  useAgents: () => ({ agents: state.agents, total: state.agents.length, isLoading: false }),
+  useAgents: () => ({
+    agents: state.agents,
+    total: state.agents.length,
+    isLoading: false,
+    promote: { mutate: vi.fn(), isPending: false },
+  }),
   usePermissions: () => ({
     can: (permission: Permission) => state.permissions.includes(permission),
     isLoading: false,
@@ -145,6 +150,7 @@ function mount({
       binding={bound ?? undefined}
       catalog={catalog}
       parentCapabilities={parentCapabilities}
+      parentModelProfileId={null}
       subagents={subagents}
       onChange={onChange}
       onSubagentsChange={onSubagentsChange}

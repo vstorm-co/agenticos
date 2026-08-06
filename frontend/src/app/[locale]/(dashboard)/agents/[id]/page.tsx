@@ -692,6 +692,9 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 // is handed that slice as well as the binding.
                 subagents={spec.subagents ?? []}
                 onSubagentsChange={(subagents) => update({ subagents })}
+                // So promoting a specialist that runs on the parent's model can
+                // resolve one for the standalone agent it becomes.
+                modelProfileId={spec.model_profile_id ?? null}
                 disabled={!canEdit}
               />
             </CardContent>
