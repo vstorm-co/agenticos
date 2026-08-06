@@ -3,6 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AddModel } from "./add-model";
+import { Perm } from "@/types/permissions";
+import type { Permission } from "@/types/permissions";
 import type { SecretPurpose } from "@/types/secrets";
 
 /**
@@ -39,6 +41,7 @@ const state = {
   source: "live" as "live" | "curated" | null,
   loadingModels: false,
   createProfile: { mutateAsync: vi.fn(), isPending: false },
+  permissions: [] as Permission[],
 };
 
 const onCreatedSecret = { handler: undefined as ((id: string) => void) | undefined };
@@ -51,6 +54,9 @@ vi.mock("@/hooks", () => ({
     models: state.models,
     source: state.source,
     isLoading: state.loadingModels,
+  }),
+  usePermissions: () => ({
+    can: (permission: Permission) => state.permissions.includes(permission),
   }),
 }));
 
@@ -117,6 +123,10 @@ beforeEach(() => {
   state.source = "live";
   state.loadingModels = false;
   state.createProfile = { mutateAsync: vi.fn().mockResolvedValue({ id: "p-1" }), isPending: false };
+  // The form only exists for a caller holding `connections:manage`, and most of
+  // what is asserted below is about the form rather than about the vault - so
+  // the default caller may also store a key, and the tests that care say so.
+  state.permissions = [Perm.secretsEdit];
   onCreatedSecret.handler = undefined;
 });
 
@@ -423,6 +433,69 @@ describe("the add-model form", () => {
     await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
 
     expect(screen.getByRole("button", { name: "Add model" })).toBeDisabled();
+  });
+});
+
+describe("storing the key the model runs on", () => {
+  /**
+   * `POST /secrets` is `secrets:edit`, and this form exists for somebody holding
+   * `connections:manage` - two different permissions, so a member may legitimately
+   * be allowed to define a model profile and not to write the credential it runs
+   * on. A control the caller may not use is not rendered, rather than rendered
+   * and then refused with a 403.
+   */
+
+  it("offers the form to a caller who may write to the vault", async () => {
+    mount();
+    await pickProvider("OpenAI");
+
+    expect(screen.getByRole("button", { name: "Store a key" })).toBeInTheDocument();
+  });
+
+  it("offers no such form without secrets:edit", async () => {
+    state.permissions = [];
+    mount();
+    await pickProvider("OpenAI");
+
+    expect(screen.queryByRole("button", { name: "Store a key" })).toBeNull();
+  });
+
+  it("still says why the model cannot be added, rather than going quiet", async () => {
+    // Dropping the form and nothing else leaves a disabled submit with no
+    // explanation anywhere on the panel.
+    state.permissions = [];
+    mount();
+    await pickProvider("OpenAI");
+
+    expect(screen.getByText(/No OpenAI key in the vault yet/)).toBeInTheDocument();
+    expect(screen.getByText(/permission you do not hold/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add model" })).toBeDisabled();
+  });
+
+  it("says nothing about permissions to somebody who has them", async () => {
+    mount();
+    await pickProvider("OpenAI");
+
+    expect(screen.queryByText(/permission you do not hold/)).toBeNull();
+  });
+
+  it("leaves a keyless provider submittable without secrets:edit", async () => {
+    // The gate is about writing to the vault, not about the form: an Ollama
+    // profile needs no key at all, and refusing it here would take away
+    // something `connections:manage` really does allow.
+    state.permissions = [];
+    state.purposes = [...state.purposes, purpose("ollama", "Ollama")];
+    state.catalog = [
+      ...state.catalog,
+      capabilities("ollama", "Ollama", { supports_base_url: true, keyless: true }),
+    ];
+    mount();
+    await pickProvider("Ollama");
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.type(screen.getByLabelText("Endpoint"), "http://localhost:11434/v1");
+
+    expect(screen.getByRole("button", { name: "Add model" })).toBeEnabled();
   });
 });
 

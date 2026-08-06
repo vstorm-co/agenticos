@@ -643,10 +643,16 @@ export default function AgentBuilderPage({ params }: PageProps) {
               <div className="space-y-2">
                 <Label>{t("model")}</Label>
                 <ModelProfilePicker
-                  allowAdd
+                  // A model profile is `connections:manage`, which somebody who
+                  // may edit this agent need not hold - and both halves of this
+                  // panel write one: the form posts `/providers/model-profiles`
+                  // and the bin deletes one from under every agent pointed at
+                  // it. Ungated, they were a 403 dressed as a control, the same
+                  // way Connect server below would be without its own gate.
+                  allowAdd={can(Perm.connectionsManage)}
                   // The Builder is where an organization's models are managed,
                   // so it is the one panel that also takes one away.
-                  allowRemove
+                  allowRemove={can(Perm.connectionsManage)}
                   profiles={profiles}
                   value={spec.model_profile_id ?? null}
                   onChange={(model_profile_id) => update({ model_profile_id })}
