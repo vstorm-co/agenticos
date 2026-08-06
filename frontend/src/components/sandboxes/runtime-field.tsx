@@ -94,10 +94,16 @@ export function RuntimeField({
           <SelectContent className="max-w-[min(30rem,90vw)]">
             <SelectItem value={SERVICE_DEFAULT}>{t("serviceDefault")}</SelectItem>
             {options.map((runtime) => (
-              <SelectItem key={runtime.alias} value={runtime.alias}>
-                <span className="flex min-w-0 flex-col">
-                  <span className="flex items-center gap-2">
-                    <span className="font-mono text-xs">{runtime.alias}</span>
+              <SelectItem
+                key={runtime.alias}
+                value={runtime.alias}
+                // Both badges say something about this option *against the
+                // others* - one image builds, one is missing from the host that
+                // answered. Radix draws an item's `ItemText` in the closed
+                // trigger, where there is nothing left to compare them with and
+                // "not on this host" reads as a claim about the selection.
+                trailing={
+                  <span className="ml-auto flex shrink-0 items-center gap-2 pl-3">
                     {runtime.builds && (
                       <span className="text-muted-foreground text-[10px] uppercase">
                         {t("builds")}
@@ -109,6 +115,10 @@ export function RuntimeField({
                       </span>
                     )}
                   </span>
+                }
+              >
+                <span className="flex min-w-0 flex-col">
+                  <span className="font-mono text-xs">{runtime.alias}</span>
                   {runtime.description !== "" && (
                     <span className="text-muted-foreground truncate text-xs">
                       {runtime.description}

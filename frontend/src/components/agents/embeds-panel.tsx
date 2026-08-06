@@ -176,22 +176,30 @@ export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
                   <SelectTrigger id="embed-auth">
                     <SelectValue />
                   </SelectTrigger>
+                  {/* Each option's second line exists to tell it from the other
+                      one, so it belongs in `trailing`: an item's `ItemText` is
+                      what Radix draws in the closed trigger, where the sentence
+                      distinguishing two modes is left describing one. */}
                   <SelectContent>
-                    <SelectItem value="public">
-                      <span className="flex flex-col">
-                        <span>{t("anyoneThoseSites")}</span>
-                        <span className="text-muted-foreground text-xs">
+                    <SelectItem
+                      value="public"
+                      trailing={
+                        <span className="text-muted-foreground ml-auto max-w-64 pl-3 text-xs">
                           {t("noSignMarketingPage")}
                         </span>
-                      </span>
+                      }
+                    >
+                      {t("anyoneThoseSites")}
                     </SelectItem>
-                    <SelectItem value="jwt">
-                      <span className="flex flex-col">
-                        <span>{t("signedUsersOnly")}</span>
-                        <span className="text-muted-foreground text-xs">
+                    <SelectItem
+                      value="jwt"
+                      trailing={
+                        <span className="text-muted-foreground ml-auto max-w-64 pl-3 text-xs">
                           {t("yourBackendSignsToken")}
                         </span>
-                      </span>
+                      }
+                    >
+                      {t("signedUsersOnly")}
                     </SelectItem>
                   </SelectContent>
                 </Select>

@@ -237,9 +237,23 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
                   </SelectTrigger>
                   <SelectContent>
                     {available.map((target) => (
-                      <SelectItem key={target.id} value={target.id}>
+                      <SelectItem
+                        key={target.id}
+                        value={target.id}
+                        // A bot's state is worth knowing while choosing between
+                        // bots and says nothing in the closed trigger, which
+                        // draws whatever the selected item's `ItemText` drew.
+                        // It was also the one string in this file that never
+                        // reached `next-intl`.
+                        trailing={
+                          !target.is_active && (
+                            <span className="text-muted-foreground ml-auto shrink-0 pl-3 text-xs">
+                              {t("inactive")}
+                            </span>
+                          )
+                        }
+                      >
                         {SURFACE_LABEL[target.platform]} - {target.name}
-                        {!target.is_active && " (inactive)"}
                       </SelectItem>
                     ))}
                   </SelectContent>

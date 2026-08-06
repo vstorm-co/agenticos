@@ -109,13 +109,22 @@ export function MembersTable({
                     </SelectTrigger>
                     <SelectContent>
                       {assignable.map((role) => (
-                        <SelectItem key={role} value={role}>
-                          <span className="flex flex-col">
-                            <span className="capitalize">{role}</span>
-                            <span className="text-muted-foreground text-xs">
+                        <SelectItem
+                          key={role}
+                          value={role}
+                          // The blurb answers "which of these lets them build
+                          // but not publish", which is a question about the
+                          // options as a set. Radix draws an item's `ItemText`
+                          // in the closed trigger, so in `children` it became a
+                          // second line inside `h-7 w-36` explaining a role
+                          // nobody is choosing any more.
+                          trailing={
+                            <span className="text-muted-foreground ml-auto max-w-64 pl-3 text-xs">
                               {t(roleBlurb[role])}
                             </span>
-                          </span>
+                          }
+                        >
+                          <span className="capitalize">{role}</span>
                         </SelectItem>
                       ))}
                     </SelectContent>
