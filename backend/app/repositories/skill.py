@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill, SkillResource
+from app.repositories._search import contains_ci
 
 # How a listing may be ordered: by name, or by when a skill last changed.
 SkillSort = Literal["name", "updated"]
@@ -93,11 +94,10 @@ async def list_visible(
             )
         )
     if search:
-        safe = search.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
         where.append(
             or_(
-                Skill.name.ilike(f"%{safe}%", escape="\\"),
-                Skill.description.ilike(f"%{safe}%", escape="\\"),
+                contains_ci(Skill.name, search),
+                contains_ci(Skill.description, search),
             )
         )
     if categories:

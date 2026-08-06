@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.conversation import Conversation
 from app.db.models.user import User
+from app.repositories._search import contains_ci
 
 
 async def get_by_id(db: AsyncSession, user_id: UUID) -> User | None:
@@ -163,7 +164,7 @@ async def admin_list_with_counts(
     count_query = select(func.count()).select_from(User)
 
     if search:
-        condition = User.email.ilike(f"%{search}%") | User.full_name.ilike(f"%{search}%")
+        condition = contains_ci(User.email, search) | contains_ci(User.full_name, search)
         query = query.where(condition)
         count_query = count_query.where(condition)
 

@@ -14,6 +14,7 @@ from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.user import User
+from app.repositories._search import contains_ci
 
 
 async def agents_in_conversations(
@@ -248,8 +249,9 @@ async def admin_list_with_users(
     count_query = select(func.count()).select_from(Conversation)
 
     if search:
-        query = query.where(Conversation.title.ilike(f"%{search}%"))
-        count_query = count_query.where(Conversation.title.ilike(f"%{search}%"))
+        title_matches = contains_ci(Conversation.title, search)
+        query = query.where(title_matches)
+        count_query = count_query.where(title_matches)
     if user_id is not None:
         query = query.where(Conversation.user_id == user_id)
         count_query = count_query.where(Conversation.user_id == user_id)
