@@ -200,10 +200,17 @@ export function InlineSecret({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
+        {/* `disabled` again, not only on the button that opened this. A caller
+            passes it when its own surface may no longer be written to - a dialog
+            mid-save, a panel somebody may only read - and gating only the way in
+            left a form already open with a live Save, storing an
+            organization-wide secret out from under the surface that had just
+            said no. Same rule as the permission above: the check belongs on the
+            write. */}
         <Button
           type="button"
           size="sm"
-          disabled={create.isPending || !name.trim() || !value.trim()}
+          disabled={disabled || create.isPending || !name.trim() || !value.trim()}
           onClick={submit}
         >
           {t("saveKey")}
