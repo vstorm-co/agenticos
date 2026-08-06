@@ -203,8 +203,9 @@ class PdfParser(BaseModel):
 # `--collection`, aimed the quickstart at `rag_documents` and failed creating an
 # index on a column that table does not have (#345). A name is now refused when the
 # models declare its table, and a default that is refused is not a default, so this
-# moved rather than the refusal being softened. `RAGSettings` also carried a
-# `collection_name` field spelling the same value a fourth time; nothing read it.
+# moved rather than the refusal being softened. `RAGSettings` carried a
+# `collection_name` field spelling the same value once more; nothing read it, so it
+# is gone rather than moved here.
 #
 # `tests/test_reserved_collection_names.py` asserts this never names a model table
 # again, which is the only guard that survives somebody editing the line.

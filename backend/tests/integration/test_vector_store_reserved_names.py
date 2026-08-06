@@ -41,7 +41,7 @@ def _store_on(engine: AsyncEngine) -> PgVectorStore:
     store = PgVectorStore.__new__(PgVectorStore)
     store.async_session = async_sessionmaker(engine, expire_on_commit=False)
     store._resolver = None
-    store.embedder = None  # ty: ignore[invalid-assignment] - unused without a resolver
+    store.embedder = None
     store.dim = 8
     return store
 
