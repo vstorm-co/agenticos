@@ -19,6 +19,25 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.40] - 2026-08-06
+
+### Fixed
+
+- When the kernel killed the reloader's worker in the local stack — an OOM kill
+  being the realistic way — nothing reaped it and nothing replaced it. PID 1
+  stayed alive, so the container reported `Up`, Docker's restart policy never
+  fired, and every request timed out with no log line because the process that
+  would have written it was gone. A supervisor now replaces a worker that dies,
+  the way uvicorn already does on the `--workers` path (#308).
+
+### Added
+
+- `backend/cli/reload_supervisor.py`, a dedicated entrypoint. It deliberately
+  does not import the application: routing PID 1 through `cli.commands` cost
+  464 MB against 28 MB, which is the whole application inside the one process
+  whose job is to survive an OOM kill.
+
+
 ## [0.0.39] - 2026-08-06
 
 ### Fixed
