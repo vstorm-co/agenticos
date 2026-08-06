@@ -186,11 +186,18 @@ Useful for breakpoints and IDE debugging - the services stay in Docker, the API
 does not.
 
 ```bash
-make install                                    # uv sync + pre-commit
+make install                                    # uv sync + bun install + pre-commit
 docker compose -f docker-compose.yml up -d db redis
 make db-upgrade                                 # apply migrations
 make run                                        # uvicorn --reload, supervised
 ```
+
+`make install` is the whole setup path, both halves of it: `uv sync` for the
+backend, `bun install --frozen-lockfile` for `frontend/node_modules`, and the
+pre-commit hooks. The frontend half is not optional even when you only ever
+touch Python - `make check` runs eslint, prettier, tsc, vitest and `next build`,
+all of which live in `node_modules` and nowhere else. It is per-checkout and not
+shared between worktrees, so this is owed on every clone.
 
 !!! note "The reloader is supervised"
 
