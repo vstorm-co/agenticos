@@ -1956,7 +1956,8 @@
       "upload": "Upload",
       "uploading": "Uploading…",
       "uploading2": "Uploading…",
-      "vectorCount": "{count, plural, =1 {1 vector} other {# vectors}}"
+      "vectorCount": "{count, plural, =1 {1 vector} other {# vectors}}",
+      "vectorCountLoaded": "{count, plural, =1 {1 vector} other {# vectors}} in the documents loaded"
     },
     "legal": {},
     "mcp-servers": {
