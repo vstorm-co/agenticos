@@ -17,7 +17,7 @@ import {
   Textarea,
 } from "@/components/ui";
 import { InlineSecret } from "@/components/vault/inline-secret";
-import { useModelProviders, useSecrets } from "@/hooks";
+import { useModelProviders, usePermissions, useSecrets } from "@/hooks";
 import {
   CHUNKING_STRATEGIES,
   DEFAULT_IMAGE_PROMPT,
@@ -37,6 +37,7 @@ import type {
   PdfParser,
   ThinkingEffort,
 } from "@/types";
+import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
 
 export interface IngestionSettingsProps {
@@ -519,11 +520,17 @@ export function IngestionSettings({
 const NOT_REQUESTED = "not-requested";
 
 /**
- * Which of the organization's models reads the images.
+ * Which model reads the images: provider, model id and the key that pays for it.
  *
  * Its own component so the vault is only read where something on screen can use
  * it - the same reason the Builder's secret picker reads it itself. `/providers/
- * model-profiles` is not a request every collection form should be making.
+ * model-profiles` is not a request every collection form should be making, and
+ * this one is rendered only once image description is switched on.
+ *
+ * The full picker, not the list. Choosing a model here is the same act it is in
+ * the Builder, and a list of profiles somebody else created answers it only on a
+ * deployment that already has one - on a fresh one it was a dashed box saying
+ * the organization has no models, in a dialog offering no way to make one.
  */
 function ImageModelField({
   value,
@@ -536,14 +543,26 @@ function ImageModelField({
 }) {
   const t = useTranslations("kb");
   const { profiles } = useModelProviders();
+  const { can } = usePermissions();
 
   return (
     <div className="space-y-2">
       <Label htmlFor="image-description-model">{t("model2")}</Label>
-      {/* The picker is a radiogroup rather than a labelled control, so the label
-          above names the group and this id exists for it to point at. */}
+      {/* Several controls rather than one labelled field, so the label above
+          names the group and this id exists for it to point at. */}
       <div id="image-description-model">
+        {/* The same control the Builder uses, minus the bin. A collection being
+            created is a fine place to define the model that will read its
+            images and to store the key that pays for it. It is not a place to
+            delete a model every agent in the organization may be pointed at,
+            which is why `allowRemove` is not passed with it.
+
+            And only for somebody who may create one: a model profile is
+            `connections:manage`, which a collection editor need not hold. The
+            form would otherwise be a 403 dressed as a control - the list of
+            what already exists is what is left, and it is the honest answer. */}
         <ModelProfilePicker
+          allowAdd={can(Perm.connectionsManage)}
           profiles={profiles}
           value={value}
           onChange={onChange}
