@@ -49,8 +49,8 @@ import {
  * off the reply to sending it (it is emailed, the inviter's screen deliberately
  * never prints it, and a test has no inbox).
  *
- * **Every step asserts through the API, not by finding the new row on screen**,
- * and that line is the whole of #132. A step whose job is "the fixture exists"
+ * **A step asserts through the API, not by finding the new row on screen**, and
+ * that line is the whole of #132. A step whose job is "the fixture exists"
  * used to prove it by waiting for the row to appear in a list — which fails when
  * the list has not caught up, and a failure here skips every product spec behind
  * it, so a browser-side staleness bug arrived on pull requests looking like a
@@ -63,7 +63,11 @@ import {
  * was answered, not that the write is readable. The commit runs in a dependency
  * FastAPI unwinds after the response has gone out (#353), so the next read can
  * arrive at a database the write has not been applied to — measured at 21.7ms
- * on one acceptance. So every check is a poll (`nowThere`), never a read.
+ * on one acceptance. So a check that follows a write is a poll (`nowThere`),
+ * never a single read. The `alreadyThere` guard at the head of each step is one
+ * read on purpose: it runs *before* the write, and the worst a stale answer
+ * costs there is doing work that was already done. `a draft agent exists` is the
+ * remaining exception in either direction — it waits on the Builder's heading.
  *
  * Whether the row *renders* is a product claim and belongs to a product spec —
  * `vault.spec.ts` and `skills.spec.ts` assert exactly that against the rows this
@@ -249,8 +253,8 @@ setup("the organization has connected an MCP server", async ({ page }) => {
 
 setup("a colleague is a member of the organization", async ({ page, browser }) => {
   const organizationId = await activeOrganizationId(page.request);
-  const members = `/api/orgs/${organizationId}/members`;
-  if (await alreadyThere(page.request, members, "email", COLLEAGUE_EMAIL)) return;
+  const membersPath = `/api/orgs/${organizationId}/members`;
+  if (await alreadyThere(page.request, membersPath, "email", COLLEAGUE_EMAIL)) return;
 
   await registerColleague(page.request);
   const token = await ensurePendingInvitation(page, organizationId);
@@ -265,7 +269,7 @@ setup("a colleague is a member of the organization", async ({ page, browser }) =
   // in the file that did: #222 converted four call sites to `nowThere` and did
   // not reach this one, which is why this is the step that turns a fixture
   // project red and takes all eighty-seven product specs with it (#335).
-  await nowThere(page, members, "email", COLLEAGUE_EMAIL);
+  await nowThere(page, membersPath, "email", COLLEAGUE_EMAIL);
 });
 
 /** One field of every row in a collection — what both checks below look at. */
@@ -307,7 +311,8 @@ async function alreadyThere(
  * **Polled because the API is answered before the write is durable**, which is
  * not a courtesy about ordering but a measured property of this backend. A
  * dependency with `yield` has its exit code unwound by FastAPI *after*
- * `await response(...)` (`fastapi/routing.py`, `request_response`), and
+ * `await response(...)` (`fastapi/routing.py`, `request_response`, read at
+ * 0.141.1 — the teardown has moved relative to the send before), and
  * `get_db_session` is where the commit lives — so a 2xx reaches the client with
  * the transaction still open, and the client's next request can read a database
  * the write has not been applied to. Measured against this backend: an
