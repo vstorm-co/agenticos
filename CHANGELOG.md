@@ -19,6 +19,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.32] - 2026-08-06
+
+### Fixed
+
+- **A dynamic specialist's definition is now owned per delegation, not keyed by name**
+  ([#292](https://github.com/vstorm-co/agenticos/issues/292)). What each specialist a model
+  invented was built from rode a single per-run store keyed by the specialist's name, and the build
+  factory overwrote it on a repeat. Two `delegate` calls in one turn with the same name but
+  different instructions — which Pydantic AI may run concurrently — both wrote that one entry, so
+  whichever delegation opened its panel later stamped the *other* specialist's definition onto its
+  `SubagentStarted` frame, and the chat's "Promote to a draft agent" control ([#177](https://github.com/vstorm-co/agenticos/issues/177))
+  then carried someone else's instructions and model. Each `delegate` now owns its own copy; the
+  name-keyed store is kept only for the `create_agent` specialists a `task` reaches by name, which
+  are one-per-name and cannot collide. Narrow and self-inflicted — no cross-tenant or permission
+  impact.
+
 ## [0.0.31] - 2026-08-06
 
 ### Changed
@@ -1093,7 +1109,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.31...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.32...HEAD
+[0.0.32]: https://github.com/vstorm-co/agenticos/compare/v0.0.31...v0.0.32
 [0.0.31]: https://github.com/vstorm-co/agenticos/compare/v0.0.30...v0.0.31
 [0.0.30]: https://github.com/vstorm-co/agenticos/compare/v0.0.29...v0.0.30
 [0.0.29]: https://github.com/vstorm-co/agenticos/compare/v0.0.28...v0.0.29
