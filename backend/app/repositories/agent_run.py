@@ -1,5 +1,6 @@
 """Agent run and approval repositories (PostgreSQL async)."""
 
+import enum
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
@@ -220,6 +221,10 @@ class RunFilters:
             playground and the API.
         agent_version_id: The frozen spec that answered. The version strip's
             "show me the runs behind this number".
+        took_over_ms: Only runs that took longer than this. A run with no
+            `ended_at` is excluded rather than treated as zero - it has no
+            duration yet, and calling that "fast" is the wrong answer to
+            "show me the slow ones".
     """
 
     statuses: Sequence[str] | None = None
@@ -230,6 +235,7 @@ class RunFilters:
     environment_id: UUID | None = None
     exposure_id: UUID | None = None
     agent_version_id: UUID | None = None
+    took_over_ms: int | None = None
 
     def conditions(self) -> list[ColumnElement[bool]]:
         """One `WHERE` clause per filter that was actually set.
@@ -254,7 +260,38 @@ class RunFilters:
             clauses.append(AgentRun.exposure_id == self.exposure_id)
         if self.agent_version_id is not None:
             clauses.append(AgentRun.agent_version_id == self.agent_version_id)
+        if self.took_over_ms is not None:
+            clauses.append(_duration_ms() > self.took_over_ms)
         return clauses
+
+
+def _duration_ms() -> ColumnElement[float]:
+    """How long a run took, in milliseconds, computed in SQL.
+
+    In SQL rather than in Python because sorting one page of twenty-five by
+    duration is sorting the wrong set: the slowest run in a month is not
+    reachable by ordering whichever rows the newest-first page happened to
+    return. That is the gap between "p95 is 14.8s" on the dashboard and *those
+    runs*.
+
+    Null for a run with no `ended_at` - one still going, or parked on an
+    approval. A null is not zero and must not be ordered as one; a still-running
+    run's *age* is a different question, and one this column deliberately does
+    not answer.
+    """
+    return func.extract("epoch", AgentRun.ended_at - AgentRun.started_at) * 1000
+
+
+class RunOrder(enum.StrEnum):
+    """What run history is sorted by.
+
+    Two, not an arbitrary column name: an `order_by` built from a query string
+    is an injection surface, and these are the two orders the page has a reason
+    to offer. Newest-first is the default because run history is read as a feed.
+    """
+
+    STARTED_AT = "started_at"
+    DURATION = "duration"
 
 
 async def list_runs(
@@ -265,6 +302,8 @@ async def list_runs(
     parent_run_id: UUID | None = None,
     include_delegations: bool = False,
     filters: RunFilters | None = None,
+    order_by: RunOrder = RunOrder.STARTED_AT,
+    descending: bool = True,
     skip: int = 0,
     limit: int = 50,
 ) -> tuple[list[AgentRun], int]:
@@ -295,6 +334,12 @@ async def list_runs(
     reconcilable with a spend figure beside it: without a window, one reads all
     time and the other one calendar month, and the obvious comparison between
     them is wrong by however old the organization is.
+
+    `order_by` sorts in SQL, over the whole narrowed set rather than over a page.
+    Both orders put nulls last in both directions, which is a decision rather
+    than a default: a run with no `ended_at` has no duration and a run with no
+    `started_at` has no place on a timeline, and either of them sorting as zero
+    would put unfinished work at the top of "the slowest runs".
     """
     query = select(AgentRun).where(AgentRun.organization_id == organization_id)
     count_query = select(func.count(AgentRun.id)).where(AgentRun.organization_id == organization_id)
@@ -311,7 +356,9 @@ async def list_runs(
         query = query.where(clause)
         count_query = count_query.where(clause)
 
-    query = query.order_by(AgentRun.started_at.desc().nullslast()).offset(skip).limit(limit)
+    column = _duration_ms() if order_by is RunOrder.DURATION else AgentRun.started_at
+    ordering = column.desc() if descending else column.asc()
+    query = query.order_by(ordering.nullslast()).offset(skip).limit(limit)
     items = list((await db.execute(query)).scalars().all())
     total = (await db.execute(count_query)).scalar() or 0
     return items, total

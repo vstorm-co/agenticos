@@ -123,7 +123,7 @@ from app.repositories import (
     agent_run_repo,
     knowledge_base_repo,
 )
-from app.repositories.agent_run import RunFilters
+from app.repositories.agent_run import RunFilters, RunOrder
 from app.services.agent_registry import (
     DEFAULT_GRANTED_SCOPES,
     DELEGATION_CAPABILITY_ID,
@@ -2879,6 +2879,8 @@ class AgentRunnerService:
         parent_run_id: UUID | None = None,
         include_delegations: bool = False,
         filters: RunFilters | None = None,
+        order_by: RunOrder = RunOrder.STARTED_AT,
+        descending: bool = True,
         skip: int = 0,
         limit: int = 50,
     ) -> tuple[list[AgentRun], int]:
@@ -2904,6 +2906,8 @@ class AgentRunnerService:
             parent_run_id=parent_run_id,
             include_delegations=include_delegations,
             filters=filters,
+            order_by=order_by,
+            descending=descending,
             skip=skip,
             limit=limit,
         )

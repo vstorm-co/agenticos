@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, Query
 from app.api.deps import AgentRunnerSvc, ApprovalSvc, Auth, require
 from app.core.permissions import Perm
 from app.db.models.agent_run import RunStatus, RunSurface
-from app.repositories.agent_run import RunFilters
+from app.repositories.agent_run import RunFilters, RunOrder
 from app.schemas.agent import AgentRunResult
 from app.schemas.agent_run import (
     AgentRunList,
@@ -53,6 +53,11 @@ async def list_runs(
     ),
     exposure_id: UUID | None = Query(None, description="Runs admitted through this binding"),
     agent_version_id: UUID | None = Query(None, description="Runs that executed this frozen spec"),
+    took_over_ms: int | None = Query(
+        None, ge=0, description="Only runs slower than this. A run still going has no duration"
+    ),
+    order_by: RunOrder = Query(RunOrder.STARTED_AT, description="Sort by start time or duration"),
+    descending: bool = Query(True, description="Newest or slowest first"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
@@ -69,6 +74,12 @@ async def list_runs(
     reconciled with a spend figure. Without a window the count reads all time
     while the money reads one calendar month, and the obvious comparison between
     the two is wrong by however old the organization is (#198).
+
+    `order_by=duration` sorts on `ended_at - started_at`, computed in SQL over
+    the whole narrowed set - which is what gets from "p95 is 14.8s" on the
+    dashboard to *those runs*. Sorting a page of twenty-five would sort the wrong
+    set. Unfinished runs have no duration and sort last in both directions rather
+    than as zero.
 
     Every filter narrows both the page and `total`, so the number always
     describes the rows under it.
@@ -87,7 +98,10 @@ async def list_runs(
             environment_id=environment_id,
             exposure_id=exposure_id,
             agent_version_id=agent_version_id,
+            took_over_ms=took_over_ms,
         ),
+        order_by=order_by,
+        descending=descending,
         skip=skip,
         limit=limit,
     )

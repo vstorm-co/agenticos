@@ -98,6 +98,45 @@ class TestTheFiltersReachTheService:
         assert filters.started_to.isoformat() == "2026-08-06T23:59:59+00:00"
 
 
+class TestSortingIsChosenFromTwoOrdersAndNotFromAColumnName:
+    """An `order_by` built from a query string is an injection surface, and these
+    are the two orders the page has a reason to offer."""
+
+    async def test_the_slowest_first(self):
+        service = _service()
+        async with _client(service) as client:
+            response = await client.get("/api/v1/runs?order_by=duration&descending=true")
+
+        assert response.status_code == 200
+        assert service.list_runs.await_args.kwargs["order_by"].value == "duration"
+        assert service.list_runs.await_args.kwargs["descending"] is True
+
+    async def test_a_column_name_is_not_an_order(self):
+        async with _client(_service()) as client:
+            response = await client.get("/api/v1/runs?order_by=cost_usd")
+
+        assert response.status_code == 422
+
+    async def test_the_default_is_the_feed(self):
+        service = _service()
+        async with _client(service) as client:
+            await client.get("/api/v1/runs")
+
+        assert service.list_runs.await_args.kwargs["order_by"].value == "started_at"
+        assert service.list_runs.await_args.kwargs["descending"] is True
+
+    async def test_a_duration_threshold_reaches_the_filters(self):
+        filters = await _filters_for("?took_over_ms=30000")
+
+        assert filters.took_over_ms == 30_000
+
+    async def test_a_negative_threshold_is_refused(self):
+        async with _client(_service()) as client:
+            response = await client.get("/api/v1/runs?took_over_ms=-1")
+
+        assert response.status_code == 422
+
+
 class TestWhatIsRefusedRatherThanMatchedAgainstNothing:
     @pytest.mark.parametrize(
         "query",

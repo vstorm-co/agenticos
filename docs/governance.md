@@ -220,6 +220,8 @@ nesting belongs in that rather than in one bespoke run table.
 | `environment_id` | Runs on the version that environment pins. **Never a delegated run:** a delegate's version comes from a pin, so the column is deliberately never written on one, and narrowing to `production` drops every delegation. A surface that includes delegations has to say so |
 | `exposure_id` | Runs admitted through one binding. Null for the dashboard, the playground and the API |
 | `agent_version_id` | Runs that executed one frozen spec — the version strip's "show me the rows behind this number" |
+| `took_over_ms` | Only runs slower than this. A run that has not finished has no duration and is excluded, not counted as zero |
+| `order_by`, `descending` | `started_at` (the default, newest first) or `duration` |
 
 **Every filter narrows the count as well as the page**, so `total` always
 describes the rows under it. The list and the count are two queries, and a filter
@@ -234,7 +236,17 @@ on one screen share one window, or they say which window each is.
 A value outside its type is refused with a 422 rather than matched against
 nothing: `status` and `surface` are string columns, so `?status=complete` would
 otherwise answer with an empty page — and an empty page reads as *nothing went
-wrong this week*.
+wrong this week*. `order_by` takes one of two orders rather than a column name,
+for the same reason plus one more: an `ORDER BY` assembled from a query string is
+an injection surface.
+
+**Duration is computed in SQL, over the whole narrowed set.** That is what gets
+from *"p95 is 14.8s"* on the dashboard to **those runs** — sorting one page of
+twenty-five sorts the wrong set, because the slowest run of a month is not in
+whichever rows a newest-first page happened to return. A run with no `ended_at`
+sorts **last in both directions**: it has no duration, and it is not the fastest
+run either. How long a *still-running* run has been going is a different question
+and this column deliberately does not answer it.
 
 Activity's three figures above the tabs stay the organization's, including the run
 count, even when the table below is narrowed to one agent. A per-agent count beside

@@ -30,7 +30,7 @@ from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
-from app.repositories.agent_run import RunFilters
+from app.repositories.agent_run import RunFilters, RunOrder
 from app.services.agent_runner import AgentRunnerService
 
 pytestmark = pytest.mark.anyio
@@ -276,6 +276,78 @@ class TestNarrowingByWhatRan:
         )
 
         assert (rows, total) == ([str(parent.id)], 1)
+
+
+class TestSortingByHowLongItTook:
+    """#210. The dashboard says p95 is 14.8s and nothing reaches *those runs*.
+
+    Computed in SQL over the whole narrowed set, because sorting one page of
+    twenty-five sorts the wrong set - the slowest run of a month is not in
+    whichever rows the newest-first page happened to return.
+    """
+
+    async def test_the_slowest_completed_run_comes_first(self, db) -> None:
+        org, user = await _org(db)
+        agent = await _agent(db, org)
+        quick = await _run(db, org, agent, started_at=_NOW, ended_at=_NOW + timedelta(seconds=1))
+        slow = await _run(db, org, agent, started_at=_NOW, ended_at=_NOW + timedelta(seconds=30))
+        middling = await _run(db, org, agent, started_at=_NOW, ended_at=_NOW + timedelta(seconds=8))
+
+        rows, _ = await _listed(db, org, user, order_by=RunOrder.DURATION)
+
+        assert rows == [str(slow.id), str(middling.id), str(quick.id)]
+
+    async def test_a_run_still_going_does_not_compete_for_the_top(self, db) -> None:
+        """It has no duration, and treating a null as zero would put it at one end
+        of the sort by accident. Its *age* is a different question, and the one an
+        operator actually asks about a stuck run."""
+        org, user = await _org(db)
+        agent = await _agent(db, org)
+        slow = await _run(db, org, agent, started_at=_NOW, ended_at=_NOW + timedelta(seconds=30))
+        running = await _run(
+            db, org, agent, status=RunStatus.RUNNING.value, started_at=_NOW, ended_at=None
+        )
+
+        slowest_first, _ = await _listed(db, org, user, order_by=RunOrder.DURATION)
+        quickest_first, _ = await _listed(
+            db, org, user, order_by=RunOrder.DURATION, descending=False
+        )
+
+        assert slowest_first == [str(slow.id), str(running.id)]
+        # Last in *both* directions - not "the fastest run" either.
+        assert quickest_first == [str(slow.id), str(running.id)]
+
+    async def test_the_default_order_is_still_the_feed(self, db) -> None:
+        org, user = await _org(db)
+        agent = await _agent(db, org)
+        older = await _run(db, org, agent, started_at=_NOW - timedelta(hours=2))
+        newer = await _run(db, org, agent, started_at=_NOW)
+
+        rows, _ = await _listed(db, org, user)
+
+        assert rows == [str(newer.id), str(older.id)]
+
+
+class TestNarrowingByHowLongItTook:
+    async def test_only_runs_over_the_threshold(self, db) -> None:
+        org, user = await _org(db)
+        agent = await _agent(db, org)
+        slow = await _run(db, org, agent, started_at=_NOW, ended_at=_NOW + timedelta(seconds=31))
+        await _run(db, org, agent, started_at=_NOW, ended_at=_NOW + timedelta(seconds=2))
+
+        rows, total = await _listed(db, org, user, filters=RunFilters(took_over_ms=30_000))
+
+        assert (rows, total) == ([str(slow.id)], 1)
+
+    async def test_a_run_with_no_end_is_excluded_rather_than_counted_as_zero(self, db) -> None:
+        """ "Everything slower than 30 seconds" must not answer with the runs that
+        have not finished - they may well be slower, and the question is about what
+        is measurable."""
+        org, user = await _org(db)
+        agent = await _agent(db, org)
+        await _run(db, org, agent, status=RunStatus.RUNNING.value, started_at=_NOW, ended_at=None)
+
+        assert (await _listed(db, org, user, filters=RunFilters(took_over_ms=1)))[1] == 0
 
 
 class TestFiltersAndTheTenantBoundary:
