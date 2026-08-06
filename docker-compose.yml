@@ -53,11 +53,15 @@ services:
     # nothing is listening. `cli/reload_supervisor.py` is the same reloader with
     # a worker the kernel killed replaced within about five seconds.
     #
+    # It, and not `cli.commands server run --reload`, because that entrypoint
+    # imports `app.main` and would put the whole application - 464 MB against
+    # 28 MB - inside a reloader that never serves a request.
+    #
     # The websockets implementation moved in there too: uvicorn's `auto` picks
     # the legacy one, broken with websockets >=14 (handshake → HTTP 500), and
     # the chat WS needs the sansio one. The other two compose files still pass
     # `--ws websockets-sansio` explicitly, because neither runs with `--reload`.
-    command: python -m cli.commands server run --host 0.0.0.0 --port 8000 --reload
+    command: python -m cli.reload_supervisor --host 0.0.0.0 --port 8000
     networks:
       - backend
     depends_on:

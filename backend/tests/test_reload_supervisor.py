@@ -8,6 +8,8 @@ edit that fixes it - and that the local stack actually runs the supervisor.
 """
 
 import logging
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -127,20 +129,43 @@ def test_the_development_server_keeps_the_sansio_websocket_implementation(
     assert captured[0].should_reload
 
 
-def test_the_local_stack_does_not_run_uvicorns_unsupervised_reloader() -> None:
-    """The whole of #308 is that `uvicorn --reload` is PID 1 of this container."""
+def test_the_entrypoint_does_not_drag_the_application_into_the_reloader() -> None:
+    """The reloader serves no request, so it should hold no application.
+
+    Importing `cli.commands` peaks at 464 MB in `agenticos_backend:dev` against
+    28 MB for uvicorn alone, and this process exists to survive an
+    out-of-memory kill. A convenience import of anything under `app.` in
+    `cli/reload_supervisor.py` would quietly undo that.
+    """
+    probe = "import cli.reload_supervisor, sys; print(any(m == 'app' or m.startswith('app.') for m in sys.modules))"
+    loaded = subprocess.run(
+        [sys.executable, "-c", probe],
+        cwd=REPO_ROOT / "backend",
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    assert loaded.stdout.strip() == "False"
+
+
+def test_the_local_stack_runs_the_supervisor_and_not_uvicorns_own_reloader() -> None:
+    """The whole of #308 is that `uvicorn --reload` was PID 1 of this container.
+
+    `cli.reload_supervisor` and not `cli.commands server run --reload`: the
+    latter imports `app.main`, which would carry the entire application inside
+    a reloader that never serves a request - on a fix about surviving an
+    out-of-memory kill.
+    """
     compose: dict[str, Any] = yaml.safe_load(LOCAL_COMPOSE.read_text())
     command = compose["services"]["app"]["command"]
 
     assert command.split() == [
         "python",
         "-m",
-        "cli.commands",
-        "server",
-        "run",
+        "cli.reload_supervisor",
         "--host",
         "0.0.0.0",
         "--port",
         "8000",
-        "--reload",
     ]

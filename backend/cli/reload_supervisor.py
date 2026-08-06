@@ -25,14 +25,27 @@ need:
   reason `--reload` exists.
 
 Either way the process is reaped, so the zombies are gone in both cases.
+
+**This module is its own entrypoint** - `python -m cli.reload_supervisor` - and
+imports nothing but uvicorn on purpose. Reaching it through `cli.commands`
+instead would pull `app.main` into the reloader, and the reloader never serves a
+request: measured in `agenticos_backend:dev`, importing `cli.commands` peaks at
+464 MB against 28 MB for uvicorn alone. Handing the process that exists to
+survive an out-of-memory kill another 436 MB to be killed for would be an odd
+way to fix this.
 """
 
 import logging
+from collections.abc import Callable
 from pathlib import Path
 from socket import socket
 from typing import Final
 
+import click
 from uvicorn import Config, Server
+
+# The reload supervisor uvicorn's own `main.run` uses: `WatchFilesReload`, or
+# `StatReload` where watchfiles is missing. `uvicorn[standard]` ships watchfiles.
 from uvicorn.supervisors import ChangeReload
 
 # uvicorn's `auto` picks the legacy websockets implementation, which fails the
@@ -57,7 +70,12 @@ class SupervisedReload(ChangeReload):
     failed health checks - ninety seconds - that a container restart would take.
     """
 
-    def __init__(self, config: Config, target: object, sockets: list[socket]) -> None:
+    def __init__(
+        self,
+        config: Config,
+        target: Callable[[list[socket] | None], None],
+        sockets: list[socket],
+    ) -> None:
         super().__init__(config, target, sockets)
         # The pid whose ordinary exit has already been reported, so the "waiting
         # for a change" line is written once rather than on every poll.
@@ -112,3 +130,15 @@ def run_reload_server(*, host: str, port: int) -> None:
     config = Config(APP, host=host, port=port, reload=True, ws=WS_PROTOCOL)
     server = Server(config=config)
     SupervisedReload(config, target=server.run, sockets=[config.bind_socket()]).run()
+
+
+@click.command()
+@click.option("--host", default="0.0.0.0", help="Host to bind to")
+@click.option("--port", default=8000, type=int, help="Port to bind to")
+def main(host: str, port: int) -> None:
+    """Run the development server with a supervised reloader."""
+    run_reload_server(host=host, port=port)
+
+
+if __name__ == "__main__":
+    main()
