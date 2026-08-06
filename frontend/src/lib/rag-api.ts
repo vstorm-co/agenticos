@@ -93,7 +93,8 @@ export interface RAGTrackedDocument {
   filename: string;
   filesize: number;
   filetype: string;
-  status: "processing" | "done" | "error";
+  /** Read through `ragStatus` in `./rag-status`, which is what knows the tokens. */
+  status: string;
   error_message: string | null;
   vector_document_id: string | null;
   chunk_count: number;

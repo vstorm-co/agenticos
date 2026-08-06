@@ -366,5 +366,12 @@
       "title": "Polityka Cookies",
       "summary": "Co przechowujemy w Twojej przeglądarce, po co i jak to wyłączyć."
     }
+  },
+  "ragStatus": {
+    "processing": "Przetwarzanie",
+    "running": "W toku",
+    "done": "Gotowe",
+    "error": "Niepowodzenie",
+    "cancelled": "Anulowano"
   }
 }

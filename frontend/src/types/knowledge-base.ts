@@ -156,7 +156,16 @@ export interface KBDocument {
   filename: string;
   filetype: string | null;
   filesize: number | null;
-  status: "pending" | "processing" | "completed" | "failed" | string;
+  /**
+   * `rag_documents.status`, as the worker wrote it - `processing`, `done` or
+   * `error`. Read it through `ragStatus` in `@/lib/rag-status`.
+   *
+   * Not narrowed to those three, because the column is a free `String(20)` and
+   * nothing constrains it to them. This used to claim `pending | completed |
+   * failed`, three words the backend has never written, and the badge built on
+   * that union drew every finished document as its raw token (#356).
+   */
+  status: string;
   error_message: string | null;
   vector_document_id: string | null;
   chunk_count: number;

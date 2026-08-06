@@ -1986,10 +1986,6 @@
       "showLess": "Show less",
       "showingOfTotal": "Showing {loaded} of {total, plural, =1 {1 document} other {# documents}} · drag files anywhere to add",
       "status2": "Status",
-      "statusFailed": "Failed",
-      "statusPending": "Pending",
-      "statusProcessing": "Processing",
-      "statusReady": "Ready",
       "storedCount": "{count, plural, =1 {1 knowledge base} other {# knowledge bases}}",
       "syncSources": "Sync sources",
       "triggerSyncNow": "Trigger sync now",
@@ -2485,6 +2481,13 @@
     "stepSchedule": "Schedule",
     "cadenceManual": "Manual",
     "cadenceDaily": "Daily"
+  },
+  "ragStatus": {
+    "processing": "Processing",
+    "running": "Running",
+    "done": "Done",
+    "error": "Failed",
+    "cancelled": "Cancelled"
   },
   "sandboxes": {
     "agentsNameNoConnection": "Agents that name no connection run here. Only one can hold this.",
