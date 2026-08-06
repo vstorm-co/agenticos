@@ -184,7 +184,22 @@ quickstart: dev
 # - and `check` runs the backend half first, so it says so four minutes in.
 # `node_modules` is per-checkout and not shared between worktrees, which is why
 # this is owed on every clone rather than once a laptop.
+#
+# `backend/.env` is the third thing a fresh checkout is missing. It is not
+# tracked - it holds credentials - and everything that runs on the *host* reads
+# it: `db-check`, `db-upgrade`, `run`, and pytest through `app.core.config`.
+# Without one `POSTGRES_PASSWORD` defaults to empty and `alembic check` is
+# refused with `fe_sendauth: no password supplied`, four minutes into `check`.
+# Copied from the example rather than generated, so there is one definition of
+# the defaults, and never overwritten: the file that exists holds somebody's
+# keys.
 install:
+	@if [ -f backend/.env ]; then \
+		echo "backend/.env already exists - leaving it alone"; \
+	else \
+		cp backend/.env.example backend/.env; \
+		echo "▶ Created backend/.env from backend/.env.example"; \
+	fi
 	uv sync --directory backend --dev
 	cd frontend && bun install --frozen-lockfile
 	@if git rev-parse --git-dir > /dev/null 2>&1; then \
@@ -201,7 +216,8 @@ install:
 	@echo "  • make db-upgrade       # Apply migrations"
 	@echo "  • make run              # Start development server"
 	@echo ""
-	@echo "Note: backend/.env is pre-configured for development"
+	@echo "Note: backend/.env now holds the development defaults - edit it to"
+	@echo "      point at another database or to add a provider key on the host."
 
 # === Template upgrade — removed ===
 # `.fastapi-fullstack.json` held the generator state these targets merged

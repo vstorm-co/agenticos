@@ -35,8 +35,10 @@ Generated once and left alone afterwards; regenerating it would orphan every
 workspace the service is holding.
 
 If you want to change anything - a provider key on the host, a different
-database name - copy `backend/.env.example` to `backend/.env` and edit it. The
-generated token is appended to whatever is there.
+database name - edit `backend/.env`, which `make install` creates from
+`backend/.env.example` when there is none. It is never overwritten afterwards, so
+the file holding your keys survives every re-run, and the generated token is
+appended to whatever is there.
 
 ### 2. Start the backend stack
 
@@ -165,18 +167,27 @@ Useful for breakpoints and IDE debugging - the services stay in Docker, the API
 does not.
 
 ```bash
-make install                                    # uv sync + bun install + pre-commit
+make install                                    # .env + uv sync + bun install + pre-commit
 docker compose -f docker-compose.yml up -d db redis
 make db-upgrade                                 # apply migrations
 make run                                        # uvicorn --reload
 ```
 
-`make install` is the whole setup path, both halves of it: `uv sync` for the
-backend, `bun install --frozen-lockfile` for `frontend/node_modules`, and the
-pre-commit hooks. The frontend half is not optional even when you only ever
-touch Python - `make check` runs eslint, prettier, tsc, vitest and `next build`,
-all of which live in `node_modules` and nowhere else. It is per-checkout and not
-shared between worktrees, so this is owed on every clone.
+`make install` is the whole setup path: `backend/.env` from the example if there
+is none, `uv sync` for the backend, `bun install --frozen-lockfile` for
+`frontend/node_modules`, and the pre-commit hooks. None of the three is optional,
+and each was missing at some point:
+
+- **`backend/.env`** is what everything running on the host reads - `db-check`,
+  `db-upgrade`, `run` and pytest, all through `app.core.config`. Without one
+  `POSTGRES_PASSWORD` is empty and `alembic check` is refused with
+  `fe_sendauth: no password supplied`. It is created once and never overwritten.
+- **`frontend/node_modules`** holds eslint, prettier, tsc, vitest and next, so
+  the frontend half is owed even when you only ever touch Python: `make check`
+  runs all five.
+
+Both are per-checkout and shared between no two worktrees, so this is owed on
+every clone rather than once a laptop.
 
 !!! note "Python is pinned to 3.12"
 
