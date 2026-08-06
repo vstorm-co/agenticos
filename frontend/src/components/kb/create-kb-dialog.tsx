@@ -76,9 +76,12 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
   // so it never goes stale while a dialog is open.
   //
   // `isError` is read because the section has three states and used to draw
-  // two: with `staleTime: Infinity` a refused request stays refused for as long
-  // as the dialog is open - reopening re-mounts against the same cached
-  // rejection - so "still loading" was a sentence that never came true.
+  // two. `staleTime` governs staleness, not failure, so it is the retry count
+  // that decides how long refused lasts: the client retries once, and after
+  // that the query is settled in error for the life of the dialog. Reopening
+  // does refetch - `retryOnMount` defaults to true - so this is a message about
+  // one dialog rather than a permanent state, and it is still a message
+  // "Loading models…" was never going to become.
   const { data: embeddingModels, isError: modelsUnreadable } = useQuery({
     queryKey: ["rag", "embedding-models"],
     queryFn: () => apiClient.get<EmbeddingModels>("/rag/embedding-models"),

@@ -179,8 +179,14 @@ export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
                   {/* Each option's second line exists to tell it from the other
                       one, so it belongs in `trailing`: an item's `ItemText` is
                       what Radix draws in the closed trigger, where the sentence
-                      distinguishing two modes is left describing one. */}
-                  <SelectContent>
+                      distinguishing two modes is left describing one.
+
+                      The cap is what that costs. Stacked, the two lines were
+                      about 30 characters wide; side by side they are one row of
+                      about 60, and a popper sized to `max-content` overflowed a
+                      narrow viewport. `runtime-field.tsx` caps its content for
+                      the same reason. */}
+                  <SelectContent className="max-w-[min(26rem,90vw)]">
                     <SelectItem
                       value="public"
                       trailing={

@@ -207,10 +207,10 @@ describe("the embedding model picker", () => {
  * Three states, not two.
  *
  * The section said "Loading models…" whether the request was in flight or had
- * been refused, and `staleTime: Infinity` plus the client's single retry means
- * refused is where it stays: closing and reopening the dialog re-mounts against
- * the same cached rejection. The model is frozen at creation - the vector column
- * is made at its width - so this is the one choice here nobody can revisit.
+ * been refused. After the client's one retry the query is settled in error for
+ * the life of the dialog, so that sentence described something that was not
+ * going to happen - and the model is frozen at creation, the vector column
+ * being made at its width, so it is the one choice here nobody can revisit.
  */
 describe("when the embedding model list cannot be read", () => {
   beforeEach(() => {

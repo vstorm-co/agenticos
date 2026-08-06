@@ -2593,6 +2593,7 @@
       "notOnThisHost": "not on this host",
       "pickFromList": "Pick from the list",
       "placeholder": "the service's own",
+      "selectedNotOnThisHost": "This host did not name the runtime selected. Pick one it did, or an agent taking this default fails on its first tool call.",
       "serviceDefault": "Whatever the service defaults to",
       "shipped": "These are the runtimes the sandbox library ships. Test the connection to see which ones this host allows.",
       "test": "Test and check this host",

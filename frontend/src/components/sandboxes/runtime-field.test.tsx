@@ -201,6 +201,31 @@ describe("the default runtime", () => {
     expect(within(chosen).getByText("not on this host")).toBeVisible();
   });
 
+  it("says in words that the host refused the runtime actually selected", async () => {
+    // The badge left the trigger, and this is where what it was worth went.
+    // `connection-dialog.tsx` saves `default_runtime` without checking it
+    // against the allowlist, so without this the one case that matters - the
+    // alias about to be stored is one the host named nothing about - would be
+    // visible only while the list happened to be open.
+    field({ value: "coding", allowed: [allowed("node-minimal")] });
+
+    expect(screen.getByText(/This host did not name the runtime selected/)).toBeVisible();
+  });
+
+  it("says nothing when the host did name the runtime selected", async () => {
+    field({ value: "coding", allowed: [allowed("coding")] });
+
+    expect(screen.queryByText(/This host did not name/)).toBeNull();
+  });
+
+  it("says nothing about a host that has not been asked yet", async () => {
+    // `allowed === null` is "nobody has checked", which is not the same claim
+    // and must not be drawn as one.
+    field({ value: "coding" });
+
+    expect(screen.queryByText(/This host did not name/)).toBeNull();
+  });
+
   it("keeps the runtime's own description on the trigger, which does describe it", async () => {
     // The line under the alias says what the image is for, which is true of the
     // option wherever it is drawn - so it stays in `children` and the trigger

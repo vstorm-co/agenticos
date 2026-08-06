@@ -14,6 +14,14 @@ import type { ConnectorInfo } from "@/lib/rag-api";
  * Radix draws the selected item's `ItemText` in the closed trigger: in
  * `children` it followed the choice out of the list, where it disambiguated
  * a set of one.
+ *
+ * **Nothing in the product reaches this control yet, and that is #434.** The
+ * picker needs `defaultCollection` absent and `collections` non-empty; all
+ * three call sites pass a truthy `defaultCollection` or an empty list, and none
+ * passes `label` at all. So this file mounts the wizard the way none of them
+ * do. The fix under test is correct and currently latent - when #434 is decided
+ * (delete the control, or reach it and pass `label: kb.name`), this file is
+ * what changes with it.
  */
 
 const CONNECTOR: ConnectorInfo = {
