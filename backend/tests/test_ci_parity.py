@@ -243,6 +243,35 @@ class TestInstallPreparesWhatTheChecksNeed:
             "without it."
         )
 
+    def test_install_creates_the_env_file_the_host_checks_read(
+        self, recipes: dict[str, str]
+    ) -> None:
+        """CI needs no `backend/.env`; a laptop cannot run `db-check` without one.
+
+        The runner sets `POSTGRES_*` on the job, so nothing in the workflow says
+        this out loud and the parity rule above cannot see it. On a laptop the
+        settings come from the file, `POSTGRES_PASSWORD` defaults to empty, and
+        `alembic check` is refused with `fe_sendauth: no password supplied` (#299).
+        """
+        recipe = recipes["install"]
+        assert "backend/.env.example" in recipe and "backend/.env" in recipe, (
+            "`make install` does not create `backend/.env`, so `make check` stops at "
+            "`db-check` in a fresh checkout with a psycopg2 traceback."
+        )
+
+    def test_install_does_not_overwrite_an_env_file_that_exists(
+        self, recipes: dict[str, str]
+    ) -> None:
+        """The file that exists holds somebody's keys, and `install` is re-run often.
+
+        `docs/install.md` calls every step idempotent, and this is the one where
+        idempotent and destructive are one character apart.
+        """
+        assert "[ -f backend/.env ]" in recipes["install"], (
+            "the copy has to be guarded on the file's absence - `cp` over an existing "
+            "`backend/.env` destroys the credentials in it"
+        )
+
 
 class TestCheckRunsNothingCIDoesNot:
     """The reverse direction, which is how `check_i18n.py` was missed for months.
