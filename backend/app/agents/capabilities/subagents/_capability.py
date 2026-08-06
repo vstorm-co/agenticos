@@ -875,6 +875,17 @@ def _seeded_registry(
                 extra={"subagent": specialist.name, "model": specialist.model},
             )
             continue
+        # Recorded here as well as in `_specialist_factory`, because a specialist
+        # kept across an approval park is re-registered through this path rather
+        # than the factory - and a `task` to it *after* the resume would otherwise
+        # open a panel carrying no definition, hiding the promote offer on the one
+        # kind of specialist the offer exists for, while it is visibly working.
+        journal.record_dynamic_definition(
+            name=specialist.name,
+            description=specialist.description,
+            instructions=specialist.instructions,
+            model=specialist.model,
+        )
         config = SubAgentConfig(
             name=specialist.name,
             description=specialist.description,
@@ -977,6 +988,17 @@ def _specialist_factory(dynamic: DynamicSpecialists, journal: DelegationJournal)
             # that named no model, and one of `dynamic.allowed_models` because
             # `subagents_pydantic_ai.dynamic_agent.validate_model` checked it
             # against exactly that list before this factory was reached.
+            model=str(config["model"]),
+        )
+        # Both entry points that invent a specialist - `create_agent` and
+        # `delegate` - build through this factory, so this is the one place that
+        # sees every dynamic specialist's definition. Recorded here so the opening
+        # frame of the delegation to it carries it, the only window a surface has to
+        # offer promoting a specialist nothing else keeps.
+        journal.record_dynamic_definition(
+            name=config["name"],
+            description=config["description"],
+            instructions=config["instructions"],
             model=str(config["model"]),
         )
         return _LazyAgent(

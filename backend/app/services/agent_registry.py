@@ -525,6 +525,48 @@ class AgentRegistryService:
         )
         return clone
 
+    async def promote_specialist(
+        self,
+        ctx: AuthContext,
+        specialist: SpecialistSpec,
+        *,
+        fallback_model_profile_id: UUID | None,
+    ) -> Agent:
+        """Turn a specialist into a draft agent, owned by whoever promoted it.
+
+        The only honest way to keep a specialist. A delegate is published and an
+        inline specialist lives in its parent, but a dynamic one - written by a model
+        mid-run - is persisted nowhere, deliberately, because keeping a specialist
+        means publishing an agent and that is a person's action. Without this the
+        workaround is retyping instructions out of a chat log, which produces an
+        agent whose provenance nobody can see; this is the exit that keeps
+        "nothing is persisted" a design rather than an obstacle.
+
+        It creates a draft and stops there - `SpecialistSpec.to_agent_spec` reaching
+        a `create` rather than the `build_agent` a delegation uses. It does not
+        publish, does not pin the new agent as a delegate of any parent, and does not
+        touch the specialist it came from: each of those is a separate decision the
+        author makes next, with the normal validation in front of it.
+
+        Creating needs the role that may create, so the route gates on
+        `AGENTS_EDIT` exactly as `create` does - a specialist a model invented inside
+        someone else's run does not become the promoter's agent for free, and does
+        not become anyone's without that permission. The draft is owned by
+        `ctx.user_id`, because `create` is.
+        """
+        spec = specialist.to_agent_spec(fallback_model_profile_id=fallback_model_profile_id)
+        agent = await self.create(ctx, spec)
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="agent.promoted_from_specialist",
+            target_type="agent",
+            target_id=str(agent.id),
+            details={"slug": agent.slug, "specialist": specialist.name},
+        )
+        return agent
+
     async def _free_copy_name(self, ctx: AuthContext, base: str) -> str:
         """A "(copy)" name whose handle nobody has taken yet.
 

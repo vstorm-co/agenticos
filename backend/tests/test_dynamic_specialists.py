@@ -807,6 +807,25 @@ class TestADynamicDelegationIsAccountedForLikeAnyOther:
         assert {frame.subagent for frame in sink.frames} == {"summariser"}
         assert "subagent_start" in [frame.kind for frame in sink.frames]
 
+    async def test_its_definition_rides_the_opening_frame_so_a_surface_can_keep_it(self):
+        """A dynamic specialist is persisted nowhere, so its one legible copy is the
+        frame that announces the delegation to it. Everything the model wrote and the
+        model it named, carried so a surface can offer to promote it to a draft agent
+        while the run is still on screen - the only window there is."""
+        sink = Sink()
+        ledger = SpendLedger()
+        budget = _RunBudget(guard=BudgetGuard(ledger=ledger, provider="openai"))
+        runtime = a_runtime(dynamic=dynamic(specialist_builder(budget)), ledger=ledger)
+        args = delegate_args()
+
+        await call_tool(a_capability(runtime), a_context(sink), "delegate", args)
+
+        (started,) = [frame for frame in sink.frames if frame.kind == "subagent_start"]
+        assert started.specialist is not None
+        assert started.specialist.description == args["description"]
+        assert started.specialist.instructions == args["instructions"]
+        assert started.specialist.model == PROFILE
+
     async def test_a_specialist_kept_for_the_run_is_addressed_through_task(self):
         """`create_agent` registers it and `task` reaches it,
         which is what puts it back under the mode, the ceiling and the recording
@@ -924,6 +943,43 @@ class TestAKeptSpecialistSurvivesTheParkThatCreatedIt:
 
         assert "the specialist answered" in answer
         assert [entry.input_tokens for entry in ledger.entries] == [SPECIALIST_TOKENS]
+
+    async def test_a_delegation_to_a_resumed_specialist_still_carries_its_definition(self):
+        """The promote offer must survive the park too. A `task` after the resume is a
+        fresh delegation streaming a fresh `SubagentStarted`, and it is re-registered
+        through `_seeded_registry` rather than the factory - so without recording the
+        definition there, the panel that opens after an approval would hide the offer
+        on the very specialist it exists to rescue, while it is visibly working."""
+        kept = [
+            RegisteredSpecialist(
+                name="summariser",
+                description="Summarises a document in three bullets",
+                instructions="You summarise.",
+                model=PROFILE,
+            )
+        ]
+        ledger = SpendLedger()
+        budget = _RunBudget()
+        resumed = a_runtime(
+            dynamic=dynamic(specialist_builder(budget)),
+            ledger=ledger,
+            stash=DelegationStash(to_register={None: kept}),
+        )
+        capability = a_capability(resumed)
+        budget.guard = BudgetGuard(ledger=ledger, provider="openai")
+        sink = Sink()
+
+        await call_tool(
+            capability,
+            a_context(sink),
+            "task",
+            {"description": "summarise it", "subagent_type": "summariser"},
+        )
+
+        (started,) = [frame for frame in sink.frames if frame.kind == "subagent_start"]
+        assert started.specialist is not None
+        assert started.specialist.instructions == "You summarise."
+        assert started.specialist.model == PROFILE
 
     async def test_a_specialist_whose_model_is_gone_is_skipped_not_raised(self):
         """A profile can be deleted between the park and the resume. That one

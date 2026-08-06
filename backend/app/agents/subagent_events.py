@@ -55,6 +55,37 @@ class _SubagentFrame(BaseModel):
     )
 
 
+class SpecialistDefinition(BaseModel):
+    """The whole of a specialist a model invented mid-run, carried so it can be kept.
+
+    A dynamic specialist is the one kind of specialist nothing persists: a delegate
+    is published and an inline specialist lives in its parent's spec, but one a model
+    writes at run time lives no longer than the run, because keeping it means
+    publishing an agent and that is a person's action (see `DynamicSpecialists`). The
+    cost of that rule with no exit is a person retyping instructions out of a chat
+    log, which produces an agent whose provenance nobody can see. So the opening
+    frame of a *dynamic* delegation carries its definition, and a surface can offer to
+    promote it to a draft agent while the run is still on screen.
+
+    It is everything such a specialist has and no more: the model writes instructions
+    and names a model, and one gets no capabilities, knowledge or delegates of its
+    own. Its counterpart at rest is
+    :class:`~app.agents.subagent_runtime.RegisteredSpecialist`, the same fields a park
+    carries in `paused_state`; this is the streamed copy, and the only place the
+    definition is legible after the tool call that wrote it and before the turn ends.
+    Absent on every configured delegate and inline specialist - the field being set on
+    :class:`SubagentStarted` *is* the signal "this one is not persisted anywhere".
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    description: str = Field(description="What the parent's model read before delegating here")
+    instructions: str = Field(description="The specialist's system prompt, as the model wrote it")
+    model: str = Field(
+        description="The label of the model profile the specialist named, to resolve on promotion"
+    )
+
+
 class SubagentStarted(_SubagentFrame):
     """A delegation began.
 
@@ -70,6 +101,10 @@ class SubagentStarted(_SubagentFrame):
     up" - which is wrong whenever two delegations at that depth are running,
     which is the ordinary fan-out case: a researcher's own helper was drawn
     inside the writer's panel, and the researcher showed no children.
+
+    It carries `specialist` only for a delegation to a specialist the model invented
+    at run time - the one kind nothing else can keep. See
+    :class:`SpecialistDefinition`.
     """
 
     kind: Literal["subagent_start"] = "subagent_start"
@@ -82,6 +117,15 @@ class SubagentStarted(_SubagentFrame):
             "for one the run's own agent started - which is every delegation at "
             "depth 0. Read where the delegation opens, because that is the only "
             "moment both it and the enclosing one exist."
+        ),
+    )
+    specialist: SpecialistDefinition | None = Field(
+        default=None,
+        description=(
+            "The definition of a specialist the model invented at run time, set only "
+            "for a dynamic delegation and `None` for every configured delegate and "
+            "inline specialist. Present so a surface can offer to keep an otherwise "
+            "unpersisted specialist while the run is still on screen."
         ),
     )
 

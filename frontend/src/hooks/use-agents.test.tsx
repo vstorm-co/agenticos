@@ -282,6 +282,33 @@ describe("useAgents mutations", () => {
     expect(toast.error).toHaveBeenCalledWith("nope");
   });
 
+  it("sends the specialist and its model fallback when promoting", async () => {
+    // The specialist whole, and the model a null profile falls back to - the
+    // surface handles the toast, so the hook only carries the request.
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "a2", name: "invoice-parser" });
+    const specialist = {
+      name: "invoice-parser",
+      description: "Pulls line items out of an invoice",
+      instructions: "Read the invoice.",
+      model_profile_id: null,
+      model_settings: {},
+      capabilities: [],
+      collection_ids: [],
+      skill_ids: [],
+      max_steps: null,
+      preferred_mode: null,
+    };
+    const { result } = renderHook(() => useAgents(), { wrapper });
+
+    await result.current.promote.mutateAsync({ specialist, fallbackModelProfileId: "m1" });
+
+    expect(apiClient.post).toHaveBeenCalledWith("/agents/promote", {
+      specialist,
+      fallback_model_profile_id: "m1",
+    });
+  });
+
   it("says archiving keeps the history", async () => {
     // The one thing somebody hesitating over the button wants to know.
     vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
