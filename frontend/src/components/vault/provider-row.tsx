@@ -1,7 +1,6 @@
 "use client";
 
 import { ProviderIcon } from "@/components/vault/provider-icon";
-import { cn } from "@/lib/utils";
 
 interface ProviderRowProps {
   /**
@@ -23,7 +22,6 @@ interface ProviderRowProps {
    * vault shows one.
    */
   hint?: string;
-  className?: string;
 }
 
 /**
@@ -41,15 +39,19 @@ interface ProviderRowProps {
  * meaning "this provider already has a key": in a trigger, next to nothing to
  * compare it with, it reads as "selected". `SelectItem` takes it as `trailing`
  * instead, where it stays in the list.
+ *
+ * **Inside a `SelectItem`, pass `textValue={name}`.** A `SelectItem` with no
+ * `textValue` takes its type-to-search key from the item's `textContent`, and a
+ * mark contributes to that: lobehub titles its SVGs, so a row for
+ * `text-embedding-3-large` answers to `openroutertext-embedding-3-large` and
+ * typing `t` finds nothing. `provider-row.test.tsx` holds the case.
  */
-export function ProviderRow({ provider, name, hint, className }: ProviderRowProps) {
+export function ProviderRow({ provider, name, hint }: ProviderRowProps) {
   return (
-    <span className={cn("flex min-w-0 items-center gap-2", className)}>
+    <span className="flex min-w-0 items-center gap-2">
       <ProviderIcon provider={provider} />
       <span className="truncate">{name}</span>
-      {hint !== undefined && (
-        <span className="text-muted-foreground shrink-0 font-mono">····{hint}</span>
-      )}
+      {hint && <span className="text-muted-foreground shrink-0 font-mono">····{hint}</span>}
     </span>
   );
 }
