@@ -314,7 +314,7 @@ export default function AdminRatingsPage() {
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
           <span className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
-            Page {page + 1} of {totalPages} · {ratings?.total.toLocaleString()} total
+            {t("pageOfTotal", { page: page + 1, totalPages, total: ratings?.total ?? 0 })}
           </span>
           <div className="flex gap-2">
             <Button

@@ -161,7 +161,7 @@ export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
         <p className="text-muted-foreground text-xs">
           {files.owner_label}
           {files.backend === "state" && files.bytes_total > 0 && (
-            <> · {size(files.bytes_total)} stored</>
+            <> {t("bytesStored", { size: size(files.bytes_total) })}</>
           )}
         </p>
       )}
@@ -176,7 +176,7 @@ export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
       {searching ? (
         matches.length === 0 ? (
           <p className="text-muted-foreground py-8 text-center text-sm">
-            Nothing in this workspace matches “{query.trim()}”.
+            {t("noMatches", { query: query.trim() })}
           </p>
         ) : (
           <FileList source={source} files={matches} onOpen={setOpened} showFullPath />

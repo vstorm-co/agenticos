@@ -61,7 +61,7 @@ export function QuestionPrompt({ questions, disabled = false, onComplete }: Ques
       <div className="flex items-center justify-between gap-3 px-4 pt-2.5 pb-0.5">
         {total > 1 ? (
           <span className="text-muted-foreground font-mono text-[10px] tracking-wider uppercase">
-            Question {step + 1} of {total}
+            {t("questionStep", { step: step + 1, total })}
           </span>
         ) : (
           <span />

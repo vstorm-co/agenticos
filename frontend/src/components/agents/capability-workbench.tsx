@@ -146,7 +146,7 @@ export function CapabilityWorkbench({
         <div className="min-h-0 space-y-4 lg:flex-1 lg:overflow-y-auto lg:pr-1">
           {categories.length === 0 && (
             <p className="text-muted-foreground px-1 py-6 text-sm">
-              No capability or tool matches “{query}”.
+              {t("noCapabilityOrToolMatches", { query })}
             </p>
           )}
           {categories.map((category) => (

@@ -122,7 +122,7 @@ export default function SystemHealthPage() {
             aria-hidden
             className={cn("h-1.5 w-1.5 rounded-full", auto ? "bg-chart" : "bg-muted-foreground")}
           />
-          Auto-refresh {auto ? "on" : "off"}
+          {t(auto ? "autoRefreshOn" : "autoRefreshOff")}
         </Button>
         <Button size="sm" variant="outline" onClick={load}>
           <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
@@ -157,7 +157,7 @@ export default function SystemHealthPage() {
             </div>
             {health && (
               <span className="text-muted-foreground text-xs">
-                Checked {new Date(health.checked_at).toLocaleTimeString()}
+                {t("checkedAt", { time: new Date(health.checked_at).toLocaleTimeString() })}
               </span>
             )}
           </div>
@@ -218,7 +218,7 @@ export default function SystemHealthPage() {
                     </div>
                     {check.latency_ms !== null && (
                       <span className="text-muted-foreground text-[11px] tabular-nums">
-                        {check.latency_ms} ms
+                        {t("latencyMs", { ms: check.latency_ms })}
                       </span>
                     )}
                   </div>
