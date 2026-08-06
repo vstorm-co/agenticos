@@ -1097,6 +1097,7 @@
     "maximumPages": "Maximum pages",
     "model": "Model",
     "model2": "Model",
+    "modelsUnreadable": "The list of models could not be read. This collection will be created on the deployment's default.",
     "name": "Name",
     "nameCopy": "Name for the copy",
     "noParsedContentShow": "No parsed content to show",

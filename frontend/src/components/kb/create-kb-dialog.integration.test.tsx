@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -62,11 +62,20 @@ async function openParsing() {
   await userEvent.click(screen.getByText("How documents are parsed"));
 }
 
-beforeEach(() => {
-  vi.clearAllMocks();
+/**
+ * Answer every request the dialog makes.
+ *
+ * `embeddingModels: "refused"` is the third state the Embeddings section has to
+ * draw: with `staleTime: Infinity` the rejection is cached for as long as the
+ * dialog lives, so it is not a slow success that eventually arrives.
+ */
+function serve(embeddingModels: typeof EMBEDDING_MODELS | "refused" = EMBEDDING_MODELS) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
     if (path === "/secrets") return SECRETS;
-    if (path === "/rag/embedding-models") return EMBEDDING_MODELS;
+    if (path === "/rag/embedding-models") {
+      if (embeddingModels === "refused") throw new Error("502 Bad Gateway");
+      return embeddingModels;
+    }
     // The images section reads the caller's permissions, the provider catalog
     // and what each provider publishes. Answering a list shape at
     // `/me/permissions` is not "no permissions", it is a `TypeError`.
@@ -111,6 +120,11 @@ beforeEach(() => {
     return { items: [], total: 0 };
   });
   render(<CreateKBDialog open onOpenChange={vi.fn()} />, { wrapper });
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  serve();
 });
 
 describe("the embedding key picker", () => {
@@ -186,6 +200,49 @@ describe("the embedding model picker", () => {
 
     const preselected = await screen.findByRole("option", { name: /text-embedding-3-large/ });
     expect(preselected).toHaveTextContent("deployment default");
+  });
+});
+
+/**
+ * Three states, not two.
+ *
+ * The section said "Loading models…" whether the request was in flight or had
+ * been refused, and `staleTime: Infinity` plus the client's single retry means
+ * refused is where it stays: closing and reopening the dialog re-mounts against
+ * the same cached rejection. The model is frozen at creation - the vector column
+ * is made at its width - so this is the one choice here nobody can revisit.
+ */
+describe("when the embedding model list cannot be read", () => {
+  beforeEach(() => {
+    // The suite-wide `beforeEach` has already mounted a dialog answering
+    // everything; this describes the same dialog against a refused list.
+    cleanup();
+    vi.clearAllMocks();
+    serve("refused");
+  });
+
+  it("says the list was refused rather than that it is still coming", async () => {
+    await openEmbeddings();
+
+    expect(await screen.findByText(/The list of models could not be read/)).toBeInTheDocument();
+    expect(screen.queryByText("Loading models…")).toBeNull();
+  });
+
+  it("says which model the collection gets anyway, since it is created either way", async () => {
+    // Create still works and still produces a collection - on the deployment's
+    // default. Being told that is the difference between a choice not offered
+    // and a choice silently made.
+    await openEmbeddings();
+
+    expect(await screen.findByText(/created on the deployment's default/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create" })).toBeInTheDocument();
+  });
+
+  it("offers no model picker to choose from a list it does not have", async () => {
+    await openEmbeddings();
+    await screen.findByText(/could not be read/);
+
+    expect(screen.queryByLabelText("Model")).toBeNull();
   });
 });
 
