@@ -296,8 +296,13 @@ All RAG commands are custom commands invoked via `cmd`:
 
 #### Document Ingestion
 
+The default collection is `default`. A name whose vector table the models already
+declare — `documents`, which prefixed is the ingestion tracking table — is refused
+with a 400 rather than aliased onto it; see
+[File processing](file-processing.md#vector-storage).
+
 ```bash
-# Ingest a single file
+# Ingest a single file into the default collection
 uv run agenticos cmd rag-ingest ./docs/guide.pdf
 
 # Ingest a directory
