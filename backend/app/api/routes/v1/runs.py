@@ -9,10 +9,8 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 
-from app.api.deps import AgentRunnerSvc, ApprovalSvc, Auth, DBSession, require
-from app.core.exceptions import NotFoundError
+from app.api.deps import AgentRunnerSvc, ApprovalSvc, Auth, require
 from app.core.permissions import Perm
-from app.repositories import agent_run_repo
 from app.schemas.agent import AgentRunResult
 from app.schemas.agent_run import (
     AgentRunList,
@@ -31,15 +29,30 @@ router = APIRouter()
 
 @router.get("/runs", response_model=AgentRunList, dependencies=[Depends(require(Perm.RUNS_VIEW))])
 async def list_runs(
-    db: DBSession,
+    service: AgentRunnerSvc,
     ctx: Auth,
     agent_id: UUID | None = Query(None),
+    parent_run_id: UUID | None = Query(
+        None, description="List one run's delegations instead of the top level"
+    ),
+    include_delegations: bool = Query(
+        False, description="Include delegated runs - what one agent itself did"
+    ),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
-    """Runs for the organization, newest first, optionally for one agent."""
-    items, total = await agent_run_repo.list_runs(
-        db, organization_id=ctx.organization_id, agent_id=agent_id, skip=skip, limit=limit
+    """Runs for the organization, newest first, optionally for one agent.
+
+    Top-level runs only by default - see the service for why a delegated row
+    and a run somebody started are never summed down one column.
+    """
+    items, total = await service.list_runs(
+        ctx,
+        agent_id=agent_id,
+        parent_run_id=parent_run_id,
+        include_delegations=include_delegations,
+        skip=skip,
+        limit=limit,
     )
     return AgentRunList(items=items, total=total)
 
@@ -47,12 +60,9 @@ async def list_runs(
 @router.get(
     "/runs/{run_id}", response_model=AgentRunRead, dependencies=[Depends(require(Perm.RUNS_VIEW))]
 )
-async def get_run(run_id: UUID, db: DBSession, ctx: Auth) -> Any:
+async def get_run(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
     """One run. The step-by-step trace lives in Logfire under its trace id."""
-    run = await agent_run_repo.get_run(db, run_id, organization_id=ctx.organization_id)
-    if run is None:
-        raise NotFoundError(message="Run not found", details={"run_id": str(run_id)})
-    return run
+    return await service.get_run(ctx, run_id)
 
 
 @router.post(

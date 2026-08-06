@@ -12,6 +12,10 @@ vi.mock("./markdown-content", () => ({
     <div data-testid="markdown">{content}</div>
   ),
 }));
+// Panels are what this file is about, not who may open a run. The link that
+// permission gates is proved through the real hook in
+// `delegation-panel.integration.test.tsx`.
+vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can: () => true }) }));
 
 function delegation(overrides: Partial<Delegation> = {}): Delegation {
   return {
@@ -152,6 +156,16 @@ describe("DelegationPanels - how a delegation ended", () => {
     render(<DelegationPanels delegations={[delegation({ status: "cancelled" })]} />);
 
     expect(screen.getByText("stopped")).toBeInTheDocument();
+  });
+
+  it("shows a delegate that stopped for a person as waiting, not working", () => {
+    // The bug this state exists to fix: a parked delegate must not read "working…"
+    // for the length of the wait. The panel mounts closed, like any non-running one.
+    render(<DelegationPanels delegations={[delegation({ status: "awaiting_approval" })]} />);
+
+    expect(screen.getByText("waiting for approval")).toBeInTheDocument();
+    expect(screen.queryByText("working…")).toBeNull();
+    expect(screen.getByRole("button")).toHaveAttribute("aria-expanded", "false");
   });
 
   it("reports the tokens behind the cost, and zero for a run that measured none", () => {

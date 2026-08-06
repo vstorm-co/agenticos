@@ -51,7 +51,9 @@ A run can contain another agent's whole conversation - see
 [delegate vs inline specialist](concepts.md#delegate-vs-inline-specialist). One run
 has **one spend ledger**, and every delegate records into it. That is what makes
 the parent's cap see a delegation's spend before its next model request, at
-precisely the moment delegation multiplies what a turn can cost.
+precisely the moment delegation multiplies what a turn can cost. Each entry is
+stamped with the delegation that booked it, which is how one ledger still answers
+"what did *this* delegate cost" - see below.
 
 It follows that **the caps that bind inside a delegation are the parent's**. A
 delegate's own `budget.monthly_usd` is not enforced mid-parent-run: two guards
@@ -79,27 +81,73 @@ and its reviewers read, so a caller cannot widen it.
 
 A delegation to a **published** agent gets an `agent_runs` row of its own, carrying
 `parent_run_id` and the delegation's task id. An **inline specialist** gets none: it
-has no agent to attribute one to, so its cost is the parent's and the tool call in
+has no agent to attribute one to, so its cost is the *run's* and the tool call in
 the transcript is the record.
 
-!!! important "The parent's row is the authority; a child's share is indicative"
+!!! warning "A delegate's own inline specialist — [#228](https://github.com/vstorm-co/agenticos/issues/228)"
 
-    A delegate spends into the shared ledger, so the only honest description of what
-    one delegation cost is *what the shared total grew by while it ran*. That is
-    exact for a `sync` delegation, which holds the parent's run loop - nothing else
-    in the run could have spent. Two background delegations overlap, and each then
-    reports a window that contains some of the other's spend.
+    The run's, not the delegating agent's, and below the top level that is a gap
+    rather than a decision. A specialist's requests are stamped to the specialist,
+    which gets no row, and the innermost stamp wins - so they are not in its
+    delegator's share either. A published delegate that uses an inline specialist
+    therefore under-reports its own month by what the specialist spent. The
+    organization's total is unaffected: the top-level row is the whole ledger.
 
-    Splitting it exactly would need a ledger per agent, which is the design that
-    stops the parent's cap binding at all. So the approximation is stated rather
-    than hidden.
+!!! important "The parent's row is the authority; a child's row is its share of it"
 
-**A delegation that parked on an approval is more than one window.** Its turns ran
-in different processes against different ledgers, so what the child row records is
+    A delegate spends into the shared ledger, and **every entry in that ledger
+    carries the delegation that made it**. A delegation's cost is the sum of its own
+    entries - the requests its own agent issued, priced once, by the same lookup the
+    run's total uses. It is exact in both modes and at every depth, and it does not
+    depend on when the delegation happened to be settled.
+
+    It used to depend on exactly that, and it was two defects. The number was the
+    *growth* of the shared total across the delegation, so a background delegation -
+    settled when it is next polled, which may be after the parent has answered -
+    absorbed everything the parent spent in between: a delegate that spent $0.01 was
+    recorded at $0.51 if the parent then spent $0.50. And a delegate that delegates
+    further had its own delegates' spend inside its window, which their rows record
+    again, so its monthly total counted its grandchildren.
+
+    Splitting it with a ledger *per agent* is still the design to avoid - that is
+    what stops the parent's cap binding at all. One ledger, attributed, keeps both
+    properties: the parent's cap sees every request before the next one, and each
+    delegated row says what that one agent spent - with the inline-specialist gap
+    above.
+
+    The parent's row remains the authority for the run. Its `cost_usd` is the whole
+    ledger, delegates included, which is what the organization is billed; the child
+    rows divide that same money by agent and never add to it. `cost_is_partial` is
+    per row too: a parent on a model `genai-prices` does not know makes the parent's
+    total a floor, and says nothing about a delegate that ran on a priced one.
+
+    A delegated row's `started_at` and `ended_at` are the delegation's **own** span,
+    read off the task handle the library stamps when the delegate starts and when it
+    ends - not the moment the row was settled. Off the settlement, a background
+    delegation read as a zero-duration run at the wrong time, ordered after work that
+    finished before it; two that genuinely overlapped were recorded at the same
+    instant with nothing to say they had. A terminal handle with an end but no start -
+    a delegate cancelled or failed before it began executing - records a zero-length
+    span at that end, never a null; and where the library refuses before a handle
+    exists at all - an unknown `chat_trace_id` - no delegated row is written. A
+    delegation that parked on an approval spans every turn it ran in: its earliest
+    start is carried across the park the way its cost is (below), so the row begins
+    when the delegate first began and ends when it finally did - not at the resume
+    that settled it. The two are not summed the way the cost is; the honest answer
+    is the first segment's start and the last segment's end.
+
+**A delegation that parked on an approval is more than one share.** Its turns ran
+in different processes against different ledgers, and a resumed turn's ledger is a
+fresh object holding nothing from before the park - so what the child row records is
 every segment added together: the parked state keeps what the delegation had cost
-when it stopped, and the turn that finishes it adds its own. One row is written,
-once, by the turn where the delegation ends - a delegate that parked twice leaves
-three segments and one row.
+when it stopped, and the turn that finishes it adds its own share. One row is
+written, once, by the turn where the delegation ends - a delegate that parked twice
+leaves three segments and one row.
+
+`cost_is_partial` is carried the same way, and for a reason the money does not
+share: it is per row now rather than per run, so a delegate that made an unpriced
+request *before* the approval and resumed onto a priced model would otherwise have
+its row claim an exact cost. The flag is true if it was true of any segment.
 
 That is worth stating because the failure it replaces was invisible. The row used to
 hold only what the delegate spent *after* the last resume, which on the ordinary
@@ -113,7 +161,7 @@ opposite arithmetic:
 | The question | Child rows |
 |---|---|
 | **What does the organization owe?** | **excluded** - the parent's row already contains these tokens, so counting both bills the organization twice for one request |
-| **What did *this agent* cost this month?** | **included** - a delegate's rows are the only place its own spend is recorded |
+| **What did *this agent* cost this month?** | **included** - a delegate's rows are the only place its own spend is recorded, and each one holds that agent's own requests rather than its delegates' as well ([#228](https://github.com/vstorm-co/agenticos/issues/228) for what it currently leaves out) |
 
 The second is what makes "the researcher cost $40 this month" answerable, and it is
 what a per-agent usage report or a budget alert on that agent fires on. The
@@ -128,6 +176,48 @@ usage email reports that same total rather than a sum of one of them. Only a
 question asked *about one agent* includes them. Three of these five queries shipped
 without the distinction and each reported $1.40 for $1.00 of work; if a new one is
 added, the default is the safe one.
+
+### What run history shows
+
+**`GET /runs` lists top-level runs only, and its `total` counts those.** The same
+default as the organization's monthly sum, and for the same reason: interleaved,
+the two kinds of row cannot be read down one cost column. A fan-out of three
+delegations is one run costing $1.00 on the page and $1.00 on the bill; listed
+together it was four rows reading $1.00 + $0.40 + $0.40 + $0.40 next to a
+month-to-date figure of $1.00, and both halves were right about a different
+question.
+
+The list takes the same two-sided arithmetic as the sums above, for the same
+reason — so a surface narrowed to one agent shows what *that agent* did, delegate
+work included:
+
+| Ask | Answer |
+|---|---|
+| `GET /runs` | Runs somebody started. `parent_run_id IS NULL` |
+| `GET /runs?agent_id=<id>&include_delegations=true` | One agent's own history. What the Builder's Recent runs panel and Activity's `?agent=` ask, because a delegate's rows are the only record of what it itself did |
+| `GET /runs?parent_run_id=<id>` | What that run delegated — the query `agent_runs_parent_run_id_idx` exists for. Takes precedence over `include_delegations` |
+| `GET /runs/<id>` | One run, delegated or not. Where a link from a transcript lands |
+
+The last two are `?run=<id>` on the Activity page: one run, the delegations under
+it each badged with the task id its `subagent_*` frames carried, and a link up to
+the run a delegation was charged to. A delegation panel in a chat links there with
+the `run_id` its terminal frame carries — which is why the frame carries one.
+Nesting delegated rows inside the top-level table is deliberately *not* done here;
+a table primitive shared by the whole product is
+[proposed separately](https://github.com/vstorm-co/agenticos/issues/139), and
+nesting belongs in that rather than in one bespoke run table.
+
+Activity's three figures above the tabs stay the organization's, including the run
+count, even when the table below is narrowed to one agent. A per-agent count beside
+the organization's month would be two questions under one label — and the per-agent
+count is the one that includes delegations.
+
+**An orphaned delegation is reported without its handle.** `parent_run_id` is
+`ON DELETE SET NULL`, so deleting the parent leaves a row that correctly starts
+counting toward the bill - but a foreign key can only null its own column, and the
+stored `subagent_task_id` then names a transcript that went with the parent.
+`AgentRunRead` withholds it whenever `parent_run_id` is null, so no surface offers
+a delegation handle that reaches nothing.
 
 ### A pinned delegate does not move on its own
 
@@ -172,14 +262,26 @@ Resolution is most-specific-first:
 The Builder states the outcome in words rather than describing the rule, because a
 rule the reader has to run in their head is a setting nobody dares touch.
 
-Three properties worth knowing:
+Four properties worth knowing:
 
 - **A parked run is resumable.** Its message history is stored, so the decision is
   applied to the conversation it belongs to rather than starting again.
+- **It stays resumable if continuing it fails.** A run is continued on the version
+  it parked on, and that version's spec may have stopped building since - a secret
+  a binding names deleted, a model profile removed, a capability dropped in a
+  deploy, an MCP connection unshared. The spec is assembled before the run leaves
+  the approval queue, so a refusal there refuses the *attempt*: the decision
+  stands and resuming works again once the spec does.
 - **A decided approval cannot be decided twice.** The second decision is refused.
 - **`required` works on any capability**, not only side-effecting ones. "This only
   reads, but in my organization somebody approves it anyway" is a real decision
   and is expressible.
+- **One model step can park several calls.** A model that answers with two
+  side-effecting calls at once - "email the customer and the account manager" -
+  parks both, each its own approval row decided on its own. The rows are written
+  when the run parks rather than as each call is gated, because the calls run
+  concurrently and the run's database session is not concurrency-safe
+  ([#169](https://github.com/vstorm-co/agenticos/issues/169)).
 
 ### An approval inside a delegation
 
@@ -192,6 +294,13 @@ without saying whether the agent somebody is talking to or a specialist called
 `researcher` is sending it, which is a queue people approve blind - and in a
 delegation the thing being approved is often more consequential than the agent the
 reviewer thinks they are dealing with.
+
+Deleting that delegate does not erase the record of what it was authorised to do:
+the row keeps the delegate's name and drops only the link to its now-gone agent.
+This holds even when the delete lands while the run is still parked, before the
+approval row has been written - the deferred write ([#169](https://github.com/vstorm-co/agenticos/issues/169))
+resolves the delegates still present and writes a null id for one that vanished,
+exactly what deleting it after the row existed would have done.
 
 What the parent's run does is park, rather than be handed something that looks like
 a finished delegation. That is worth stating because it used to be otherwise: every

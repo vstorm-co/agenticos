@@ -19,6 +19,7 @@ Once, before pushing — `make check` runs all of it, in this order:
 ```bash
 make lint               # ruff, ruff format, ty, eslint, prettier, tsc, and the two guards
 make test               # the suite plus the 100% gate on the platform layer
+make db-check           # alembic check — a model change with no migration fails here
 make test-frontend-cov  # the frontend suite plus its own gate
 make build-frontend     # next build — the route tree, which tsc and vitest do not see
 make docs-build         # mkdocs --strict — a dead link is a failure
@@ -118,9 +119,21 @@ bun run test:e2e --headed                                  # ...with a browser t
 97.5% branches over `src/{app/api,lib,stores,hooks}` and most of `src/components`.
 
 Playwright starts what the suite needs: the frontend, and an OpenAI-compatible
-**stub model server** (`frontend/e2e/stub-model-server.ts`) on `127.0.0.1:4010`.
-The backend and its database have to be up already — the seeded owner, model
-profile and published agent come from `agenticos cmd bootstrap`.
+**stub model server** (`frontend/e2e/stub-model-server.ts`) on `127.0.0.1:4010`
+by default. The backend and its database have to be up already — the seeded
+owner, model profile and published agent come from `agenticos cmd bootstrap`.
+
+Both ports are configurable, so the suite runs beside another checkout that
+already holds the defaults — a `bun run dev` left up on 3000, or a second
+worktree. `E2E_PORT` moves the frontend, `E2E_STUB_MODEL_PORT` the stub, and
+`playwright.config.ts` derives `baseURL`, both `webServer.url`s and the servers'
+`PORT`/`E2E_STUB_MODEL_PORT` from them — so nothing is told a port twice.
+`make test-e2e` reads all three (with `E2E_BACKEND`) and prints them before it
+starts:
+
+```bash
+E2E_PORT=3100 make test-e2e          # frontend on 3100, stub on its default
+```
 
 The stub is what lets `journey.spec.ts` run an agent end to end without a
 provider key: it serves the Chat Completions API, streaming included, and a model
@@ -129,6 +142,55 @@ agent's instructions tell it to say — which is the assertion, since nothing el
 could put that token in the reply — and returns usage, so the run is priced and
 the journey's last assertion has a cost to find. It authenticates nothing and
 calls no tools; what it does not prove is that a real provider answers.
+
+The stub binds loopback, and the backend dials it at `127.0.0.1:<port>` through
+that stored profile — so the backend has to share the host's loopback. That is
+the host-uvicorn path CI runs; a backend in a container cannot reach the host's
+`127.0.0.1`, and moving the port does not change that.
+
+### A red `e2e` is often the fixture, not the product
+
+`setup` and `seed` are Playwright *project dependencies*, so a failure in either
+one stops the projects that depend on it from running at all. The summary then
+reads `1 failed`, `7 passed` and `17 did not run`, which on a pull request looks
+exactly like a broken feature — and is not: **no product spec ran.** Three
+branches each paid a diagnosis for that in one day
+([#132](https://github.com/vstorm-co/agenticos/issues/132)), so
+`frontend/e2e/fixture-reporter.ts` now prints a banner saying so, and under CI a
+GitHub error annotation that shows on the checks page without opening a log.
+
+### Waiting for a row is not waiting for the write
+
+A spec that creates something through a dialog **must not** click submit and then
+assert the new row is on screen. That shape sat at six sites and was seen to flake
+at four. Two reasons, and the second is the expensive one:
+
+- The window between the mutation resolving and the list rendering is real, and a
+  longer `expect` timeout only makes a race slower to fail.
+- **An open Radix dialog takes the rest of the page out of the accessibility
+  tree.** While one is on screen, `getByRole("main")`, `getByRole("row")` and
+  every locator built on them resolve to *nothing*, so the assertion times out
+  with `element(s) not found` whether or not the row exists — naming the one
+  thing that cannot be the cause. A refused create looked identical to a slow
+  refetch for four separate occurrences.
+
+`submitDialog` in `frontend/e2e/helpers.ts` is the way through: it waits for the
+write's own response and asserts its status (so a refusal reads
+`409 … already exists`, in milliseconds), then waits for the dialog to close —
+which is the app saying it has finished everything it does around the write.
+
+What it deliberately does not promise is that the row is now rendered, because
+that is not currently true: the list's refetch is sometimes answered with the
+pre-write list even though the row is committed and both server layers return it
+([#230](https://github.com/vstorm-co/agenticos/issues/230), about one run in
+eight). So:
+
+- **A fixture step asks the API.** Every step of `seed.setup.ts` asserts through
+  `/api/…`, because its job is that the fixture exists — and a fixture step that
+  fails takes every product spec with it.
+- **A product spec that is about the rendering says so**, and reloads first if it
+  needs a list it can trust. `vault.spec.ts` has three `page.reload()` calls
+  marked `#230`; when that issue closes, they come out.
 
 ## Test Database
 

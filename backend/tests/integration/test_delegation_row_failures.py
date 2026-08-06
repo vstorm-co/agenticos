@@ -128,8 +128,11 @@ def _prepared(run: AgentRun, agent: Agent, delegations: list[RecordedDelegation]
         run=run,
         agent=agent,
         spec=MagicMock(),
+        # An empty channel: this run parked no approvals, so `finish` has none to
+        # write. A bare `MagicMock` would make `_write_approvals` try to iterate a
+        # mock and fail before the delegation write under test ran.
         built=MagicMock(ledger=ledger),
-        approvals=MagicMock(),
+        approvals=MagicMock(requested=[]),
         delegations=delegations,
     )
 

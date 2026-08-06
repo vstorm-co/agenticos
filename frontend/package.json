@@ -1,13 +1,13 @@
 {
   "name": "agenticos-frontend",
-  "version": "0.0.7",
+  "version": "0.0.27",
   "private": true,
   "license": "Apache-2.0",
   "scripts": {
-    "dev": "next dev -p 3000",
+    "dev": "next dev",
     "build": "next build",
     "analyze": "ANALYZE=true next build",
-    "start": "next start -p 3000",
+    "start": "next start",
     "start:standalone": "cp -r public .next/standalone/public 2>/dev/null; cp -r .next/static .next/standalone/.next/static 2>/dev/null; node .next/standalone/server.js",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix",

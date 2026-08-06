@@ -361,7 +361,9 @@ export default function AdminConversationsPage() {
         </Select>
       </div>
 
-      <div className="text-muted-foreground text-xs">{conversationsTotal} total</div>
+      <div className="text-muted-foreground text-xs">
+        {t("total", { count: conversationsTotal })}
+      </div>
 
       <DataTable<Conversation>
         columns={columns}

@@ -132,6 +132,7 @@ make check                                        # every CI job but e2e — bef
 | `make test-frontend` / `make test-frontend-cov` | vitest / vitest with the gate CI applies |
 | `make test-e2e` | Playwright — needs a backend and its seed |
 | `make test-migrations` | the whole chain forwards and back |
+| `make db-check` | `alembic check` — a model change with no migration fails here (in `make check`) |
 | `make db-migrate` / `make db-upgrade` | autogenerate / apply |
 | `make docs` / `make docs-build` | serve on :8001 (`DOCS_PORT=` to move it) / `--strict` |
 | `uv run agenticos cmd doctor` | can this deployment actually run an agent? |
@@ -415,6 +416,13 @@ times has been asked the same question seven times.
 If the reviewer is wrong — and it is, sometimes; it does not always know what a
 file's surrounding code already does — say so in the commit body or the pull
 request, with the reason, rather than churning the code to silence it.
+
+`github-code-quality[bot]` opens threads on the same ruleset and cannot be
+filtered. Three of its findings are **already adjudicated** in
+`docs/code-review.md` — a bare `await <task>`, `...` as a `Protocol` body, and a
+`pytest.fail` fall-through. Resolve those with a pointer to that section; do not
+write a fresh essay per thread, and do not rewrite the cancellation idiom to
+satisfy a query that does not model `await`.
 
 ### A bug you find is a bug you file
 

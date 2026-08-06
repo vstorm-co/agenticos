@@ -76,12 +76,8 @@ export interface ToolCall {
    */
 }
 
-export type MessagePartType = "thinking" | "text" | "tool" | "research";
-
-export interface ResearchReplay {
-  todos: ResearchTodo[];
-  subagents: SubagentStatus[];
-}
+/** The three kinds of segment a turn is built from, live and replayed alike. */
+export type MessagePartType = "thinking" | "text" | "tool";
 
 /** One ordered segment of an assistant turn. */
 export interface MessagePart {
@@ -91,7 +87,6 @@ export interface MessagePart {
   content?: string;
   /** Tool invocation for "tool" parts. */
   toolCall?: ToolCall;
-  research?: ResearchReplay;
 }
 
 export type ChartType = "line" | "bar" | "pie" | "area" | "scatter";
@@ -122,26 +117,49 @@ export interface ChartSpec {
   style: ChartStyle;
 }
 
+/**
+ * Every frame the dashboard chat WebSocket sends, and nothing else.
+ *
+ * One member per `send_event(...)` in `backend/app/services/agent_session.py` plus one
+ * per literal in `app/agents/subagent_events.py`. That is an exact set rather than a
+ * best guess: `agent_session.py` decides every frame this socket sends, and it is held
+ * at 100% coverage and type-checked in the gate.
+ *
+ * Grouped by whether `use-chat.ts` reads a frame, because the flat list could not say.
+ * `llm_started`, `llm_completed`, `todo_event`, `context_usage` and `context_compacted`
+ * sat in it naming frames no surface has ever emitted - two of them with a live-looking
+ * `case` arm and a test asserting it behaved - so the union read as "the frames that
+ * exist" while being part contract and part wish, and the next person adding one could
+ * not tell which. That is the note under the delegation frames below, from the other
+ * side: the same union carried the warning it was violating.
+ */
 export type WSEventType =
-  | "user_prompt"
-  | "user_prompt_processed"
+  // Read by `use-chat.ts`.
+  | "conversation_created"
+  | "message_saved"
   | "model_request_start"
-  | "part_start"
   | "text_delta"
   | "thinking_delta"
-  | "tool_call_delta"
-  | "call_tools_start"
   | "tool_call"
   | "tool_result"
-  | "final_result_start"
   | "final_result"
   | "complete"
   | "error"
-  | "conversation_created"
-  | "message_saved"
   | "tool_approval_required"
   | "ask_user"
-  | "todo_event"
+  // Sent on every turn and deliberately unread, because each only announces a step
+  // the frame after it already carries: `model_request_start` opens the assistant
+  // message, so `user_prompt`, `user_prompt_processed` and `part_start` have nothing
+  // left to do, and `text_delta`/`tool_call` carry the content that `tool_call_delta`,
+  // `call_tools_start` and `final_result_start` merely precede. Named anyway - they
+  // are on the wire, and a union that omitted them would be as misleading in the
+  // other direction. A run timeline is the surface that would read them.
+  | "user_prompt"
+  | "user_prompt_processed"
+  | "part_start"
+  | "call_tools_start"
+  | "tool_call_delta"
+  | "final_result_start"
   // One per literal in `app/agents/subagent_events.py`. They replace
   // `subagent_status` / `subagent_message`, which nothing ever emitted and
   // nothing ever handled - two vocabularies for one subsystem is how a client
@@ -151,11 +169,8 @@ export type WSEventType =
   | "subagent_thinking_delta"
   | "subagent_tool_call"
   | "subagent_tool_result"
-  | "subagent_complete"
-  | "context_usage"
-  | "context_compacted"
-  | "llm_started"
-  | "llm_completed";
+  | "subagent_awaiting_approval"
+  | "subagent_complete";
 
 /**
  * What one turn cost, and how full the workspace behind it is.
@@ -187,42 +202,20 @@ export interface WSEvent {
   timestamp?: string;
 }
 
-export interface TextDeltaEvent {
-  type: "text_delta";
-  data: {
-    delta: string;
-  };
-}
+/* `TextDeltaEvent`, `ToolCallEvent`, `ToolResultEvent` and `FinalResultEvent` stood
+   here, one per-frame envelope apiece, and every one of them was wrong about the wire:
+   `TextDeltaEvent` declared `data.delta` where `agent_session.py` has always sent
+   `content`, and `ToolResultEvent` declared `tool_name` and `result` where it sends
+   `tool_call_id` and `content`. Nothing imported any of the four, so nothing ever
+   disagreed with them - `use-chat.ts` narrows each payload inline at the `case` that
+   reads it, which is the only place that knows the shape. A type that misdescribes a
+   frame and has no reader is the same defect as a `case` arm for a frame nobody sends:
+   it makes the boundary look documented. `ChatState` went with them, unread since
+   `stores/chat-store.ts` declared its own.
 
-export interface ToolCallEvent {
-  type: "tool_call";
-  data: {
-    tool_name: string;
-    args: Record<string, unknown>;
-  };
-}
-
-export interface ToolResultEvent {
-  type: "tool_result";
-  data: {
-    tool_name: string;
-    result: unknown;
-  };
-}
-
-export interface FinalResultEvent {
-  type: "final_result";
-  data: {
-    output: string;
-    tool_events: ToolCall[];
-  };
-}
-
-export interface ChatState {
-  messages: ChatMessage[];
-  isConnected: boolean;
-  isProcessing: boolean;
-}
+   Making `WSEvent` a discriminated union over correct payloads is still the honest
+   version of this and still a different change - it rewrites every branch in the
+   handler. Deleting four wrong ones is not that refactor. */
 
 export interface ActionRequest {
   /** The `approvals` row. What a decision is recorded against. */
@@ -259,14 +252,6 @@ export interface Decision {
   };
 }
 
-export interface ToolApprovalRequiredEvent {
-  type: "tool_approval_required";
-  data: {
-    action_requests: ActionRequest[];
-    review_configs: ReviewConfig[];
-  };
-}
-
 export interface AskUserQuestion {
   question: string;
   options: string[];
@@ -279,59 +264,23 @@ export interface AskUserAnswer {
   skipped: boolean;
 }
 
-export interface AskUserEvent {
-  type: "ask_user";
-  data: {
-    questions: { question: string; options: string[]; allow_custom: boolean }[];
-  };
-}
-
-export type ResearchTodoStatus = "pending" | "in_progress" | "completed" | "blocked";
-
-export interface ResearchTodo {
-  id: string;
-  content: string;
-  status: ResearchTodoStatus;
-  active_form: string;
-  parent_id: string | null;
-  depends_on: string[];
-}
-
-export interface TodoEventFrame {
-  type: "todo_event";
-  data: {
-    event_type: "created" | "updated" | "status_changed" | "completed" | "deleted";
-    todo: ResearchTodo;
-    previous: ResearchTodo | null;
-    ts: string | null;
-  };
-}
-
-export type SubagentTaskStatus =
-  "pending" | "running" | "waiting_for_answer" | "completed" | "failed" | "cancelled" | "retrying";
-
-export interface SubagentStatus {
-  task_id: string;
-  subagent_name: string;
-  description: string;
-  status: SubagentTaskStatus;
-  error: string | null;
-  /** The subagent's returned findings (shown in the detailed research view). */
-  result?: string | null;
-}
-
 /* `SubagentMessage` and `SubagentMessageType` stood here, the payload of the
    `subagent_message` event that this file used to declare. Nothing ever emitted it
    and nothing ever handled it, so removing that name from `WSEventType` left these
    two with no reader at all - and a second delegation vocabulary sitting beside the
    real one is precisely how a client ends up listening for a frame the server never
-   sends. `SubagentStatus` above stays: `ResearchReplay` still references it. */
+   sends.
 
-export interface ContextUsage {
-  pct: number;
-  current: number;
-  max: number;
-}
+   The rest of that vocabulary has now followed, for the same reason one frame at a
+   time: `TodoEventFrame` was the payload of `todo_event`, and no backend surface has
+   ever sent one - there is no todo subsystem in `backend/app/`, so `ResearchTodo` and
+   `ResearchTodoStatus` described a wire that does not exist. `SubagentStatus` and
+   `SubagentTaskStatus` outlived it only through `ResearchReplay`, which only
+   `MessagePart.research` read, which nothing ever constructed: `conversation-to-chat.ts`
+   builds `thinking`, `tool` and `text` parts and `message-item.tsx` renders those
+   three. `ContextUsage` was the payload of `context_usage`, which nothing sends either.
+   A delegation is `Delegation` and `SubagentFrame` below - that is the one vocabulary,
+   and it is the one the backend actually speaks. */
 
 /* ------------------------------------------------------------------------- *
  * Delegation - a second agent's whole conversation inside one turn of this one.
@@ -341,12 +290,12 @@ export interface ContextUsage {
  * backend's is: a surface has to switch on it. A text delta appends, a tool call
  * opens a row, the terminal frame closes the panel and writes the cost.
  *
- * `WSEvent` above is left as `{ type; data?: unknown }` on purpose. Making the
- * whole envelope a union means rewriting all twenty-odd branches in `use-chat.ts`
- * and deleting the dead per-event interfaces beside it - `TextDeltaEvent` declares
- * `data.delta` where the wire has always sent `content` - which is a refactor worth
- * doing and not this one. So the union stops at the delegation payload: every frame
- * carries `kind` inside `data` as well as in the envelope's `type`, so
+ * `WSEvent` above is left as `{ type; data?: unknown }` on purpose. Making the whole
+ * envelope a union means rewriting all twenty-odd branches in `use-chat.ts`, which is
+ * a refactor worth doing and not this one. (The dead per-event interfaces that used to
+ * sit beside it, each declaring a payload the wire does not send, have gone - see the
+ * note above `ActionRequest`.) So the union stops at the delegation payload: every
+ * frame carries `kind` inside `data` as well as in the envelope's `type`, so
  * `data as SubagentFrame` narrows honestly from there.
  * ------------------------------------------------------------------------- */
 
@@ -400,6 +349,19 @@ export interface SubagentToolResultFrame extends SubagentFrameBase {
   ok: boolean;
 }
 
+export interface SubagentAwaitingApprovalFrame extends SubagentFrameBase {
+  /**
+   * A sync delegate stopped for a person; the answer is still coming.
+   *
+   * Not a `subagent_complete`: nothing is recorded and no cost is known yet - the
+   * continuation writes the outcome when the person decides. It closes the panel
+   * with a "waiting for a person" state so it stops reading "working", and carries
+   * no cost or run id because there is none. See `SubagentAwaitingApproval` in
+   * `backend/app/agents/subagent_events.py`.
+   */
+  kind: "subagent_awaiting_approval";
+}
+
 export interface SubagentCompleteFrame extends SubagentFrameBase {
   kind: "subagent_complete";
   status: "completed" | "failed" | "cancelled";
@@ -418,10 +380,19 @@ export type SubagentFrame =
   | SubagentThinkingDeltaFrame
   | SubagentToolCallFrame
   | SubagentToolResultFrame
+  | SubagentAwaitingApprovalFrame
   | SubagentCompleteFrame;
 
-/** `running` is this surface's own: no frame says it, the absence of a terminal one does. */
-export type DelegationStatus = "running" | "completed" | "failed" | "cancelled";
+/**
+ * `running` is this surface's own: no frame says it, the absence of a terminal one does.
+ *
+ * `awaiting_approval` is not terminal - the delegate stopped for a person and the
+ * run can still resume it - but it closes the panel all the same, because a panel
+ * reading "working" through a wait that may never end is the bug the state exists
+ * to fix (agenticos#173).
+ */
+export type DelegationStatus =
+  "running" | "completed" | "failed" | "cancelled" | "awaiting_approval";
 
 /**
  * One of the delegate's own tool calls.

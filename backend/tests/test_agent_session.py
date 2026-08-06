@@ -731,6 +731,75 @@ class TestAskingTheUser:
 
         assert await asking == [{"answer": "eu"}]
 
+    async def test_a_delegates_single_question_is_put_to_the_client_and_answered(self):
+        """`_ask_one` is what a delegate's `ask_parent` reaches - one question in, one
+        answer string out, over the same batch channel a whole form uses."""
+        session = _session()
+        asked = _next_frame(session)
+
+        asking = asyncio.create_task(session._ask_one("Which region?", ["eu", "us"]))
+        await _wait(asked)
+
+        assert _sent_events(session) == [
+            (
+                "ask_user",
+                {
+                    "questions": [
+                        {"question": "Which region?", "options": ["eu", "us"], "allow_custom": True}
+                    ]
+                },
+            )
+        ]
+
+        await session.handle_frame(
+            {"type": "ask_user_response", "answers": [{"answer": "eu", "skipped": False}]}
+        )
+
+        assert await asking == "eu"
+
+    async def test_a_delegates_question_left_unanswered_reads_as_no_answer(self):
+        """An empty answers payload releases the delegate with "(no answer)" rather
+        than hanging it: the delegate goes on with what it already had."""
+        session = _session()
+        asked = _next_frame(session)
+
+        asking = asyncio.create_task(session._ask_one("Which region?", []))
+        await _wait(asked)
+
+        await session.handle_frame({"type": "ask_user_response", "answers": None})
+
+        assert await asking == "(no answer)"
+
+    async def test_two_delegates_asking_at_once_are_served_one_at_a_time(self):
+        """A fan-out of sync delegates can reach `ask_parent` concurrently.
+
+        The channel holds one question on the wire at a time — a single
+        `_ask_user_future` and a response frame with no correlation — so without
+        serialisation the second question would overwrite the first's future and
+        strand that delegate for the whole ask timeout, hanging the turn. Under the
+        lock the second waits for the first's answer, and each delegate gets its own.
+        """
+        session = _session()
+
+        first_out = _next_frame(session)
+        ask1 = asyncio.create_task(session._ask_one("Region?", []))
+        ask2 = asyncio.create_task(session._ask_one("Currency?", []))
+        await _wait(first_out)
+
+        # Only the first round is on the wire; the second is queued behind the lock.
+        assert _frame_types(session) == ["ask_user"]
+        assert _sent_events(session)[0][1]["questions"][0]["question"] == "Region?"
+
+        second_out = _next_frame(session)
+        await session.handle_frame({"type": "ask_user_response", "answers": [{"answer": "eu"}]})
+        assert await ask1 == "eu"
+
+        # Answering the first releases the lock and lets the second question out.
+        await _wait(second_out)
+        assert _sent_events(session)[-1][1]["questions"][0]["question"] == "Currency?"
+        await session.handle_frame({"type": "ask_user_response", "answers": [{"answer": "usd"}]})
+        assert await ask2 == "usd"
+
 
 class TestAttachedFiles:
     async def test_a_frame_carrying_only_a_file_is_not_an_empty_message(self):
@@ -1265,19 +1334,21 @@ def _spending_delegate(ledger: SpendLedger, spent: asyncio.Event) -> ResolvedSub
     """A specialist that bills the run's shared ledger and then works on forever.
 
     The billing stands in for the budget guard, which is what records a real
-    request. It happens *before* the sleep, and `spent` is what a test waits on
-    rather than a delay: the assertion is about what a cancelled run reports
-    having spent, so the money has to be on the ledger before the stop arrives.
+    request - through `book`, as the guard does, because that is where the entry is
+    stamped with the delegation that made it. It happens *before* the sleep, and
+    `spent` is what a test waits on rather than a delay: the assertion is about
+    what a cancelled run reports having spent, so the money has to be on the
+    ledger before the stop arrives.
     """
 
     async def respond(_messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
-        ledger.entries.append(_DELEGATE_REQUEST)
+        ledger.book(_DELEGATE_REQUEST)
         spent.set()
         await anyio.sleep(30)
         return ModelResponse(parts=[TextPart("too late")])
 
     async def stream(_messages: list[ModelMessage], _info: AgentInfo) -> AsyncIterator[str]:
-        ledger.entries.append(_DELEGATE_REQUEST)
+        ledger.book(_DELEGATE_REQUEST)
         spent.set()
         await anyio.sleep(30)
         yield "too late"

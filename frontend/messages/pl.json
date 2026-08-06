@@ -382,6 +382,8 @@
     }
   },
   "rag": {
+    "orgIntegrationsLoadFailed": "Nie udało się wczytać istniejących integracji przestrzeni; nadal możesz utworzyć nowe źródło.",
+    "connectorLoadFailed": "Nie udało się wczytać listy konektorów. Zamknij okno i spróbuj ponownie.",
     "search": {
       "placeholder": "Przeszukaj swoje bazy wiedzy...",
       "scopeLabel": "Zakres wyszukiwania",

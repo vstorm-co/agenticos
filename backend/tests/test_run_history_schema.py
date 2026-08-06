@@ -60,3 +60,18 @@ def test_a_run_somebody_started_reports_no_parent() -> None:
 
     assert read.parent_run_id is None
     assert read.subagent_task_id is None
+
+
+def test_an_orphaned_delegation_reports_no_task_id() -> None:
+    """Deleting the parent must not leave a handle pointing at nothing.
+
+    The foreign key is `ON DELETE SET NULL` and can only null its own column,
+    so the stored row keeps `subagent_task_id` and becomes a top-level run
+    carrying a delegation handle whose transcript went with the parent. Every
+    surface reads this schema, so the handle is withheld here once rather than
+    guarded by each reader - or by a trigger on the hottest insert table.
+    """
+    read = AgentRunRead.model_validate(_row(parent_run_id=None, subagent_task_id="9abbab49"))
+
+    assert read.parent_run_id is None
+    assert read.subagent_task_id is None

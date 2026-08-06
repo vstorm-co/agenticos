@@ -39,7 +39,7 @@ than repeating their commands, and `backend/tests/test_ci_parity.py` fails if a
 gating job grows a step `check` does not run — or the reverse.
 
 ```bash
-make check   # lint, test, test-frontend-cov, build-frontend, docs-build, audit
+make check   # lint, test, db-check, test-frontend-cov, build-frontend, docs-build, audit
 ```
 
 About five minutes, serial, on a warm cache. What it deliberately leaves out:
@@ -64,6 +64,7 @@ first if the change is anywhere near the database.
 | `make db-init` | Start PostgreSQL + create initial migration + apply |
 | `make db-migrate` | Create new migration (prompts for message) |
 | `make db-upgrade` | Apply pending migrations |
+| `make db-check` | `alembic check` — fail if a model change has no migration. Non-destructive (it never downgrades), so unlike `test-migrations` it runs inside `make check`; needs a database at head, and skips rather than fails when none answers on 5432 |
 | `make db-downgrade` | Rollback last migration |
 | `make db-current` | Show current migration revision |
 | `make db-history` | Show full migration history |
@@ -211,6 +212,17 @@ uv run agenticos cmd bootstrap --org "Acme"
 # included, because `/healthz` is unauthenticated and answers for a service
 # holding the wrong token.
 uv run agenticos cmd doctor
+
+# Find published agents that lend a skill their publisher could not reach. The
+# publish-time check on skill_ids only guards new publishes; this is the offline
+# half, naming versions frozen before it that still hand a private skill to a run.
+# It sweeps every version a run can load, not only the current one: each named
+# environment's pinned version, each version a non-terminal run (running, or parked
+# awaiting approval) still reloads, and each delegate a spec pins - the last only as
+# deep as max_depth lets a run reach, so a grandchild past the ceiling is not flagged.
+# Report-only - a spec is exported into a client's own git, so unbinding is a person's
+# call. Exits non-zero when it finds one, so a cron can gate on it.
+uv run agenticos cmd audit-skill-bindings
 
 # Install the bundled skills (refund-policy, code-review, incident-report)
 uv run agenticos cmd seed-skills

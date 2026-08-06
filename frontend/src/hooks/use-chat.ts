@@ -21,7 +21,12 @@ import type {
   WSEvent,
 } from "@/types";
 import type { ResumedRun } from "@/types/runs";
-import { applyDelegationFrame, closeOpenDelegations } from "@/lib/delegations";
+import {
+  applyDelegationFrame,
+  closeOpenDelegations,
+  resolveAwaitingOnResume,
+  resumeFailureStatus,
+} from "@/lib/delegations";
 import { WS_URL } from "@/lib/constants";
 import { toast } from "sonner";
 
@@ -228,12 +233,6 @@ export function useChat(options: UseChatOptions = {}) {
           break;
         }
 
-        case "llm_started":
-        case "llm_completed": {
-          // LLM lifecycle events - optionally show status
-          break;
-        }
-
         case "tool_call": {
           // Add tool call to current message
           if (currentMessageIdRef.current) {
@@ -296,10 +295,11 @@ export function useChat(options: UseChatOptions = {}) {
         case "subagent_thinking_delta":
         case "subagent_tool_call":
         case "subagent_tool_result":
+        case "subagent_awaiting_approval":
         case "subagent_complete": {
-          // One branch for six frames: the envelope's `type` is the frame's own
+          // One branch for every frame: the envelope's `type` is the frame's own
           // `kind` (see `AgentSession._subagent_event`), so the payload narrows
-          // itself and the six cases share one reducer instead of six copies of
+          // itself and the cases share one reducer instead of one copy each of
           // "find the task, change one field".
           setDelegations((current) => applyDelegationFrame(current, wsEvent.data as SubagentFrame));
           break;
@@ -662,6 +662,13 @@ export function useChat(options: UseChatOptions = {}) {
         // parked, and resuming per decision would start it while calls it has
         // not been told about are still waiting.
         const resumed = await resumeRun(parked.runId);
+        // Close whatever delegate parked here. The resume ran over HTTP and its
+        // frames went nowhere this socket can see, so a delegation panel left
+        // `awaiting_approval` never got its `subagent_complete` and would read
+        // "waiting for approval" forever - the answer above it, the panel below it
+        // frozen. The resumed run's own status is the outcome those panels take;
+        // a resume that parks again leaves them waiting. See `resolveAwaitingOnResume`.
+        setDelegations((current) => resolveAwaitingOnResume(current, resumed.status));
         // **The answer is shown, not discarded.** `resume_run` runs the agent and
         // returns what it said, but it returns it *here* - over HTTP, to the caller
         // - and not over the socket this conversation is streaming. So the reply
@@ -685,9 +692,22 @@ export function useChat(options: UseChatOptions = {}) {
           });
         }
       } catch (error) {
-        // Put it back rather than swallowing it. A decision that failed to
-        // record is a run still parked, and a panel that vanished is a person
-        // believing they unblocked it.
+        const terminalStatus = resumeFailureStatus(error);
+        if (terminalStatus !== null) {
+          // The continuation itself failed. The backend recorded the run terminal
+          // and committed it before re-raising, so the run is no longer parked and
+          // this resume cannot be retried - restoring the approval would only offer
+          // a button that 400s. Close the delegate panels to that outcome instead,
+          // the closing the resume answer would have carried had it returned, and
+          // still surface the failure (agenticos#262).
+          setDelegations((current) => resolveAwaitingOnResume(current, terminalStatus));
+          toast.error(getErrorMessage(error));
+          return;
+        }
+        // The decision failed to record, or the resume could not be built (a secret
+        // deleted since the park): the run is still parked, so put the approval back
+        // rather than swallowing it - a panel that vanished is a person believing
+        // they unblocked it, and the retry can now succeed.
         setPendingApproval(parked);
         toast.error(getErrorMessage(error));
       }

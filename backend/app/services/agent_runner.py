@@ -52,6 +52,7 @@ agent already resolved, and a recorder that writes one row.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
@@ -104,11 +105,12 @@ from app.agents.subagent_runtime import (
     DynamicSpecialistBuilder,
     DynamicSpecialists,
     ParkedDelegation,
+    RegisteredSpecialist,
     ResolvedSubagent,
     ResumedDelegation,
     SubagentRuntime,
 )
-from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.exceptions import BadRequestError, NotFoundError, RunExecutionError
 from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import StorableSecret
 from app.db.models.agent import Agent, AgentStatus
@@ -321,9 +323,49 @@ class DelegationFrame(BaseModel):
     )
     input_tokens: int = Field(default=0, description="The same, in input tokens")
     output_tokens: int = Field(default=0, description="The same, in output tokens")
+    cost_is_partial: bool = Field(
+        default=False,
+        description=(
+            "Whether a request before the stop went unpriced, making `cost_usd` a "
+            "floor. Carried because `cost_is_partial` on the child's run row is read "
+            "per delegation now, so the turn that resumes cannot re-derive it"
+        ),
+    )
+    started_at: datetime | None = Field(
+        default=None,
+        description=(
+            "When this delegation's delegate first began, so the row written when it "
+            "ends begins at its first segment rather than at the resume. The earliest "
+            "start across every segment so far; null when none was ever stamped"
+        ),
+    )
     delegations: list[DelegationFrame] = Field(
         default_factory=list, description="Delegations this delegate had itself parked on"
     )
+
+
+class DynamicSpecialistFrame(BaseModel):
+    """One specialist the run's own agent kept with `create_agent`, stored across a park.
+
+    The library holds a `create_agent` registration in a registry it builds per
+    *built* agent, and a resume is a fresh build - so without this a specialist kept
+    before an approval park was gone after it, while the replayed transcript still
+    said it had been created and `task` answered "unknown subagent" (agenticos#175).
+    The four fields are the whole of what `create_agent` was given, which is exactly
+    what a resume needs to build the specialist again on the run's shared budget.
+
+    The run's own agent's specialists only: a nested delegate's registry is its own,
+    and carrying one across a park would have to hang off that delegate's
+    :class:`DelegationFrame` the way its conversation does. See
+    :class:`app.agents.subagent_runtime.RegisteredSpecialist`.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(description="How the model addresses it in `task`")
+    description: str = Field(description="What it is for, one line")
+    instructions: str = Field(description="Its system prompt - the whole of its behaviour")
+    model: str = Field(description="The organization model profile label it runs on")
 
 
 class PausedRunState(BaseModel):
@@ -358,16 +400,31 @@ class PausedRunState(BaseModel):
     delegations: list[DelegationFrame] = Field(
         default_factory=list, description="The delegations this run parked inside"
     )
+    dynamic_specialists: list[DynamicSpecialistFrame] = Field(
+        default_factory=list,
+        description=(
+            "The specialists the run's own agent kept with `create_agent`, so a "
+            "park does not lose them. Empty for a run that kept none, and for one "
+            "parked before this existed"
+        ),
+    )
 
 
 @dataclass(frozen=True)
 class ParkedApproval:
-    """One tool call waiting for a person.
+    """One tool call waiting for a person, and everything its row will hold.
 
     Carries the `approvals` row id rather than the model's `tool_call_id`: the
     decision is recorded against that row, and it is the row the approvals queue
     and the notification email point at. A surface that invented its own
     identifier would be a second way to approve the same call.
+
+    The id is allocated when the call is parked rather than by the database,
+    because the row is not written until the run reaches its terminal write - see
+    :meth:`ApprovalChannel.__call__`. This is the same shape, and the same reason,
+    as :class:`RecordedDelegation`: a description the run collects while it runs
+    and :meth:`AgentRunnerService._write_approvals` turns into rows once, off the
+    shared session, when nothing is racing it.
     """
 
     approval_id: UUID
@@ -381,6 +438,12 @@ class ParkedApproval:
 
     subagent: str | None = None
     """Which delegate asked, or `None` for the run's own agent."""
+
+    subagent_agent_id: UUID | None = None
+    """That delegate's own agent, or `None` for the run's own agent or an inline
+    specialist, which has no agent of its own. Read from the delegation in flight
+    when the call is parked and carried here, because the row that names it is
+    written after the run ends, when the contextvar is long gone."""
 
     task_id: str | None = None
     """The delegation the ask came from, or `None` for the run's own agent.
@@ -403,9 +466,21 @@ class ApprovalChannel:
     Decisions are consumed on use. If the model calls the same tool a second
     time after being approved once, that is a second act on the world and needs
     its own approval - reusing the first would let one "yes" authorise a loop.
+
+    **Parking a call touches no database.** The row is *described* here and written
+    once by :meth:`AgentRunnerService._write_approvals` from the run's terminal
+    write. This is not tidiness - it is what makes the channel concurrency-safe.
+    Pydantic AI runs the tool calls from one model response concurrently, and
+    `parallel_tool_calls` is unset by default, so that is the provider's decision,
+    not the author's - a model that answers "email the customer and email the
+    account manager" in one step drives two gated calls into this channel at once.
+    Both would `await` a write on the request's `AsyncSession`, which the whole run
+    shares and which is not concurrency-safe; two inserts on it at once do not
+    produce a slow query, they corrupt the session and take the parent run row and
+    the conversation with it (agenticos#169). With the write deferred, `__call__`
+    never awaits, so the two calls cannot interleave inside it.
     """
 
-    approvals: ApprovalService
     organization_id: UUID
     agent_id: UUID
     run_id: UUID
@@ -413,11 +488,12 @@ class ApprovalChannel:
     parked: dict[str, str] = field(default_factory=dict)
 
     requested: list[ParkedApproval] = field(default_factory=list)
-    """What was parked, in enough detail for a surface to put it to somebody.
+    """What was parked, in enough detail for a surface to put it to somebody and
+    for :meth:`AgentRunnerService._write_approvals` to write the row.
 
-    Kept here rather than read back from the rows afterwards, because this is where
-    the row was created - re-reading it would be a query per parked call to recover
-    what this object had in hand.
+    Kept here rather than read back from the rows afterwards for two reasons: the
+    rows do not exist yet while the run is going, and re-reading them would be a
+    query per parked call to recover what this object already had in hand.
     """
 
     async def __call__(self, request: ApprovalRequest) -> ApprovalDecision:
@@ -433,28 +509,23 @@ class ApprovalChannel:
         # sent, and the parked state, which has to know which agent's replay this
         # call belongs to.
         delegate = acting_delegate()
-        approval = await self.approvals.request(
-            organization_id=self.organization_id,
-            run_id=self.run_id,
-            agent_id=self.agent_id,
-            # The tool the model called, not the capability that owns it: the
-            # approver is looking at "send_email", not at "email".
-            tool_id=request.tool_name,
-            tool_args=request.tool_args,
-            subagent_name=None if delegate is None else delegate.name,
-            # The delegate's own agent, which is *not* `self.agent_id`: that one is
-            # the agent whose run this is, and it is what the row is scoped by.
-            # Null for an inline specialist, which has no agent of its own.
-            subagent_agent_id=None if delegate is None else delegate.agent_id,
-        )
-        self.parked[str(approval.id)] = request.tool_call_id
+        # Allocated here, not by the database, because the row is written after the
+        # run ends. Everything below is synchronous - a `uuid4`, a dict set and a
+        # list append, each atomic under the GIL - so with no `await` in the body
+        # two concurrent gated calls cannot interleave and race the shared session.
+        approval_id = uuid4()
+        self.parked[str(approval_id)] = request.tool_call_id
         self.requested.append(
             ParkedApproval(
-                approval_id=approval.id,
+                approval_id=approval_id,
                 tool_call_id=request.tool_call_id,
                 tool_name=request.tool_name,
                 tool_args=request.tool_args,
                 subagent=None if delegate is None else delegate.name,
+                # The delegate's own agent, which is *not* `self.agent_id`: that one
+                # is the agent whose run this is and what the row is scoped by. Null
+                # for an inline specialist, which has no agent of its own.
+                subagent_agent_id=None if delegate is None else delegate.agent_id,
                 task_id=None if delegate is None else delegate.task_id,
             )
         )
@@ -492,6 +563,8 @@ def _delegation_frames(parked: Sequence[ParkedDelegation]) -> list[DelegationFra
                 cost_usd=entry.spent.cost_usd,
                 input_tokens=entry.spent.input_tokens,
                 output_tokens=entry.spent.output_tokens,
+                cost_is_partial=entry.spent.has_unpriced_models,
+                started_at=entry.started_at,
                 delegations=frames(by_parent.get(entry.task_id, [])),
             )
             for entry in entries
@@ -527,6 +600,15 @@ class _ResumePlan:
     the only place that money is attributed to the delegate's own agent.
     """
 
+    started: dict[str, datetime | None]
+    """When each delegation in the tree first began, on the same key.
+
+    The clock's companion to :attr:`spent`, and filled for every frame the same
+    way: when the delegate first ran is a fact whether or not its place was kept,
+    and the row written when the delegation ends must begin there rather than at
+    the resume that settled it.
+    """
+
 
 def _resume_plan(state: PausedRunState, decided_args: Mapping[str, dict[str, Any]]) -> _ResumePlan:
     """Split a parked run's verdicts across the agents that were waiting on them.
@@ -546,6 +628,7 @@ def _resume_plan(state: PausedRunState, decided_args: Mapping[str, dict[str, Any
 
     resuming: dict[str, ResumedDelegation] = {}
     spent: dict[str, DelegationSpend] = {}
+    started: dict[str, datetime | None] = {}
 
     def level(frames: list[DelegationFrame], own: list[str]) -> DeferredToolResults:
         results = DeferredToolResults()
@@ -555,15 +638,18 @@ def _resume_plan(state: PausedRunState, decided_args: Mapping[str, dict[str, Any
             )
         for frame in frames:
             results.approvals[frame.tool_call_id] = ToolApproved()
-            # Before the `continue` below, because what a delegation has spent is
-            # not conditional on its place having been kept: a delegation re-run
-            # from the start still spent it, and the row written when it ends is
-            # where that money reaches the delegate's own agent.
+            # Before the `continue` below, because neither what a delegation has
+            # spent nor when it first began is conditional on its place having been
+            # kept: a delegation re-run from the start still spent it and still
+            # began when it began, and the row written when it ends is where both
+            # reach the delegate's own agent.
             spent[frame.tool_call_id] = DelegationSpend(
                 cost_usd=frame.cost_usd,
                 input_tokens=frame.input_tokens,
                 output_tokens=frame.output_tokens,
+                has_unpriced_models=frame.cost_is_partial,
             )
+            started[frame.tool_call_id] = frame.started_at
             if not frame.messages:
                 # The delegate's place was not kept, so there is nothing to
                 # continue. The `task` call is still answered above - a parked call
@@ -571,6 +657,7 @@ def _resume_plan(state: PausedRunState, decided_args: Mapping[str, dict[str, Any
                 # delegation runs again from the start.
                 continue
             resuming[frame.tool_call_id] = ResumedDelegation(
+                task_id=frame.task_id,
                 messages=ModelMessagesTypeAdapter.validate_python(frame.messages),
                 results=level(frame.delegations, by_delegation.get(frame.task_id, [])),
             )
@@ -580,6 +667,7 @@ def _resume_plan(state: PausedRunState, decided_args: Mapping[str, dict[str, Any
         results=level(state.delegations, by_delegation.get(None, [])),
         delegations=resuming,
         spent=spent,
+        started=started,
     )
 
 
@@ -1039,6 +1127,7 @@ class AgentRunnerService:
             decided={},
             resuming={},
             already_spent={},
+            already_started={},
             version_id=version_id,
             environment_id=effective_environment_id,
         )
@@ -1059,6 +1148,8 @@ class AgentRunnerService:
         decided: dict[str, ApprovalDecision],
         resuming: dict[str, ResumedDelegation],
         already_spent: dict[str, DelegationSpend],
+        already_started: dict[str, datetime | None],
+        specialists: Sequence[RegisteredSpecialist] = (),
         model_profile_id: UUID | None = None,
         version_id: UUID | None = None,
         environment_id: UUID | None = None,
@@ -1078,10 +1169,18 @@ class AgentRunnerService:
         into the assembly rather than into the run call: a verdict is answered by
         the approval gate of whichever agent asked, and a stashed delegate is
         continued by the delegation capability of whichever agent delegated - so
-        both have to be in place before anything is built. `already_spent` travels
-        with them because it is read at the same moment: the delegation is opened by
-        the replayed `task` call, and what it cost before the park has to be in the
-        stash by then or the row it eventually writes holds only this turn's spend.
+        both have to be in place before anything is built. `already_spent` and
+        `already_started` travel with them because all three are read at the same
+        moment: the delegation is opened by the replayed `task` call, and what it
+        cost before the park - and when it first began - have to be in the stash by
+        then or the row it eventually writes holds only this turn's spend and begins
+        at the resume.
+
+        `specialists` is the same kind of thing for `create_agent`: the specialists
+        the run's own agent kept, empty on a fresh run and filled from
+        `PausedRunState` on a resume, re-registered by the depth-0 delegation
+        capability before the replay so a kept specialist is reachable after the
+        park that created it (agenticos#175).
         """
         # A caller's override wins over the spec's choice. Only the model is
         # replaced - instructions, tools, budgets and the approval gate are the
@@ -1189,7 +1288,6 @@ class AgentRunnerService:
             started_with = await workspace_snapshot(workspace.backend)
 
         channel = ApprovalChannel(
-            approvals=self.approvals,
             organization_id=ctx.organization_id,
             agent_id=agent.id,
             run_id=run.id,
@@ -1203,7 +1301,12 @@ class AgentRunnerService:
         run_budget = _RunBudget()
         runtimes: list[SubagentRuntime] = []
         delegations: list[RecordedDelegation] = []
-        stash = DelegationStash(resuming=resuming, spent=already_spent)
+        stash = DelegationStash(
+            resuming=resuming,
+            spent=already_spent,
+            started=already_started,
+            to_register=list(specialists),
+        )
         runtime = await self._delegation_runtime(
             ctx,
             spec=spec,
@@ -1331,9 +1434,7 @@ class AgentRunnerService:
             user_name=user_name,
             approvals=approvals,
             budget=budget,
-            record=self._delegation_recorder(
-                run=run, budget=budget, attribution=attribution, queued=delegations
-            ),
+            record=self._delegation_recorder(run=run, attribution=attribution, queued=delegations),
             queued=delegations,
             attribution=attribution,
             runtimes=runtimes,
@@ -1781,7 +1882,6 @@ class AgentRunnerService:
     def _delegation_recorder(
         *,
         run: AgentRun,
-        budget: _RunBudget,
         attribution: Mapping[UUID, ModelRequestSpec],
         queued: list[RecordedDelegation],
     ) -> DelegationRecorder:
@@ -1817,10 +1917,21 @@ class AgentRunnerService:
         row already contains these tokens, because a run has one ledger - and
         `agent_run_repo.sum_cost_since` is where that division lives.
 
-        The timing is honest about what it knows: a `DelegationOutcome` carries no
-        start, so both ends are the moment the delegation was reported. Queueing
-        does not make that worse - it is measured here, not at the write - and the
-        parent's row remains the authority on the run's real span.
+        The span is the delegation's own, off the task handle: `started_at` when
+        the delegate started and `ended_at` when it reached a terminal status,
+        carried through :class:`DelegationOutcome`. Neither is the settlement
+        instant, which for a background delegation is the poll that collected it -
+        arbitrarily later than the delegate finished, and what once gave every
+        background row a duration of zero ordered after work that preceded it
+        (agenticos#191). A delegation that parked on an approval and resumed spans
+        both turns: `started_at` is the first segment's, carried across the park the
+        way its cost is, and `ended_at` the last (agenticos#245). A terminal handle
+        that ended without a start - a delegate cancelled or failed before executing
+        - falls back to that end, and a handle carrying neither falls back to `now`:
+        both columns are non-null and a delegation with no recorded span still has
+        to write one. (A refusal *before* a handle exists writes no row at all -
+        :meth:`DelegationJournal.settle` returns first.) The parent's row remains the
+        authority on the run's real span.
         """
 
         async def record(outcome: DelegationOutcome) -> UUID | None:
@@ -1838,8 +1949,14 @@ class AgentRunnerService:
                 )
                 return None
 
-            ledger = None if budget.guard is None else budget.guard.ledger
+            # The delegation's own span, off the handle. `now` only when the handle
+            # carried none - a delegation the library refused before it started a
+            # task never ran, and both columns are non-null. `ended_at` falls back
+            # to the start rather than to `now`, so a handle missing its end reads
+            # as a zero-duration run at the right time, never a negative span.
             now = datetime.now(UTC)
+            started_at = outcome.started_at or outcome.ended_at or now
+            ended_at = outcome.ended_at or started_at
             delegated = RecordedDelegation(
                 id=uuid4(),
                 agent_id=outcome.agent_id,
@@ -1852,11 +1969,13 @@ class AgentRunnerService:
                 input_tokens=outcome.input_tokens,
                 output_tokens=outcome.output_tokens,
                 cost_usd=outcome.cost_usd,
-                # The delta is measured off the run's ledger, so if any model in
-                # the run was unpriced this share is a floor too.
-                cost_is_partial=ledger is not None and ledger.has_unpriced_models,
-                started_at=now,
-                ended_at=now,
+                # Whether *this delegation's* own requests were priced, not the
+                # run's. A parent on a model `genai-prices` does not know makes the
+                # parent's row a floor and says nothing about a delegate that ran
+                # on a priced one.
+                cost_is_partial=outcome.cost_is_partial,
+                started_at=started_at,
+                ended_at=ended_at,
                 error=outcome.error,
             )
             # `append` is atomic under the GIL and this coroutine never awaits, so
@@ -1933,6 +2052,64 @@ class AgentRunnerService:
                     "delegation_row_not_written",
                     extra={"run_id": str(parent.id), "delegation_id": str(delegation.id)},
                 )
+
+    async def _write_approvals(self, prepared: PreparedRun) -> None:
+        """Write the approval rows the run parked, once, off the shared session.
+
+        The rows are *described* while the run runs and written here, from the
+        run's terminal write - the one point at which the session is certainly not
+        being shared with a concurrent tool call. Parking a call on the channel
+        touches no database precisely so that two gated calls in one model step
+        cannot race two inserts on the request's `AsyncSession` (agenticos#169);
+        this is where that deferral is paid back. The loop is sequential, so the
+        writes it makes do not race each other either.
+
+        Unlike :meth:`_write_delegations`, a failure here is not swallowed. A
+        delegation row is attribution - the money is on the parent's row whether or
+        not the child row lands - but an approval row is what a resume reads to
+        learn a call is waiting and what it was asked to approve. A parked run
+        missing one of its rows cannot be continued for that call, so a write that
+        fails has to fail the run rather than strand it awaiting a decision nothing
+        recorded.
+
+        The one failure that must *not* strand the run is a delegate deleted since
+        its call was parked. `subagent_agent_id` is a `SET NULL` foreign key -
+        deleting the delegate is meant to leave the record of what it was authorised
+        to do, not take it down - but that only fires for a delete that lands after
+        the row exists. Deferring the write widened the window to the whole run, so
+        a delete that lands *before* it would instead make the insert violate the
+        key and roll the parked run back. So the delegates still present are
+        resolved and locked first (:func:`agent_repo.existing_ids_locked`), and an
+        id whose agent is gone is written null - exactly what `SET NULL` would have
+        done - keeping the row, the delegate's name and the resumable run.
+
+        Each row is written with the id allocated when the call was parked, so it
+        matches the `paused_state` that names it and the :class:`ParkedApproval` a
+        surface already drew a card from. An unparked run leaves `requested` empty
+        and this does nothing.
+        """
+        channel = prepared.approvals
+        named = {p.subagent_agent_id for p in channel.requested if p.subagent_agent_id is not None}
+        present = await agent_repo.existing_ids_locked(
+            self.db, named, organization_id=channel.organization_id
+        )
+        for parked in channel.requested:
+            await self.approvals.request(
+                approval_id=parked.approval_id,
+                organization_id=channel.organization_id,
+                run_id=channel.run_id,
+                agent_id=channel.agent_id,
+                # The tool the model called, not the capability that owns it: the
+                # approver is looking at "send_email", not at "email".
+                tool_id=parked.tool_name,
+                tool_args=parked.tool_args,
+                subagent_name=parked.subagent,
+                # Null when the delegate's agent was deleted after the call was
+                # parked: the record of what it was authorised to do outlives it.
+                subagent_agent_id=(
+                    parked.subagent_agent_id if parked.subagent_agent_id in present else None
+                ),
+            )
 
     @staticmethod
     async def _collect_outbound(prepared: PreparedRun) -> None:
@@ -2018,6 +2195,13 @@ class AgentRunnerService:
         # using it. `close` never raises; it logs.
         await self.workspaces.close(prepared.workspace)
 
+        # The approval rows the run parked, written here rather than while it ran:
+        # parking on the channel is deferred off the shared session so two gated
+        # calls in one model step cannot race two inserts (agenticos#169), and this
+        # is where the deferral is paid back. Before the parent's terminal write,
+        # so the rows the `paused_state` names exist by the time it is stored.
+        await self._write_approvals(prepared)
+
         parked = None if paused_state is None else self._parked_tree(prepared, paused_state)
         ledger = prepared.built.ledger
         finished = await agent_run_repo.finish_run(
@@ -2069,6 +2253,11 @@ class AgentRunnerService:
         surfaces that park a run are the two that would have to agree about it
         forever. One of them would eventually not, and the failure is a resumed run
         that delegates again from nothing and answers a question nobody asked.
+
+        The kept specialists come from the same stash, snapshotted by the delegation
+        capability's `wrap_run` when the run ended - empty unless the run's own
+        agent invented one it kept, and carried forward so the resume can register
+        it again (agenticos#175).
         """
         return paused_state.model_copy(
             update={
@@ -2078,6 +2267,15 @@ class AgentRunnerService:
                     if parked.task_id is not None
                 },
                 "delegations": _delegation_frames(prepared.stash.parked),
+                "dynamic_specialists": [
+                    DynamicSpecialistFrame(
+                        name=specialist.name,
+                        description=specialist.description,
+                        instructions=specialist.instructions,
+                        model=specialist.model,
+                    )
+                    for specialist in prepared.stash.registered
+                ],
             }
         )
 
@@ -2213,11 +2411,18 @@ class AgentRunnerService:
         handed an approval naming a tool call it never asks about, and the model
         would be free to call something else.
 
+        A continuation that cannot be built leaves the run parked. The version's
+        spec is fetched and assembled *before* the row leaves the queue, so a
+        secret deleted since the park, a removed model profile or a capability
+        dropped in a deploy refuses this attempt rather than the run: the
+        decision stands, and resuming works again once the spec does.
+
         Raises:
             NotFoundError: If the run is not in this organization.
             BadRequestError: If the run is not parked, has no stored state, or
                 still has a decision outstanding. All three mean the caller is
-                about to replay something it should not.
+                about to replay something it should not. Also if the spec it was
+                parked on can no longer be built - see above.
         """
         run = await agent_run_repo.claim_parked_run(
             self.db, run_id, organization_id=ctx.organization_id
@@ -2237,10 +2442,6 @@ class AgentRunnerService:
         state = PausedRunState.model_validate(run.paused_state)
 
         decided, plan = await self._decisions(ctx, run=run, state=state)
-        # Out of the queue before anything is replayed: the row lock above only
-        # holds until this transaction commits, and what makes a second resume
-        # refuse afterwards is the status it finds.
-        await agent_run_repo.mark_running(self.db, run=run)
 
         agent, spec = await self._parked_spec(ctx, run)
         # The continuation traces where the original did: the environment that
@@ -2264,17 +2465,69 @@ class AgentRunnerService:
             decided=decided,
             resuming=plan.delegations,
             already_spent=plan.spent,
+            already_started=plan.started,
+            # The specialists the run's own agent kept before it parked, rebuilt
+            # into a fresh registry before the replay so `task` reaches them again.
+            specialists=[
+                RegisteredSpecialist(
+                    name=frame.name,
+                    description=frame.description,
+                    instructions=frame.instructions,
+                    model=frame.model,
+                )
+                for frame in state.dynamic_specialists
+            ],
         )
-        prepared.built.ledger.entries.append(_spend_already_booked(run))
+        prepared.built.ledger.book(_spend_already_booked(run))
 
-        return await self._run(
-            prepared,
-            # No new prompt: the conversation resumes at the tool call it stopped
-            # on, and inventing a user turn here would put words in their mouth.
-            user_prompt=None,
-            message_history=ModelMessagesTypeAdapter.validate_python(state.messages),
-            deferred_tool_results=plan.results,
-        )
+        # Out of the queue once the build has succeeded, and before anything is
+        # replayed. Two different things keep two different resumes out, which is
+        # why this line sits between the build and the run rather than at either
+        # end:
+        #
+        # A resume arriving *while this one is still building* waits at
+        # `claim_parked_run` - the row lock is held for the whole transaction -
+        # and then reads the status written here, so building first widens no
+        # window. A resume arriving *after this transaction commits* has no lock
+        # to wait on, and what refuses it is finding the run no longer parked; so
+        # the status has to change before the tool call is replayed, not after.
+        #
+        # It is written last because a build refuses for reasons that have
+        # nothing to do with this run: a secret a binding names deleted since the
+        # park, a model profile removed, a capability dropped in a deploy, an
+        # MCP connection unshared. Flipping the row first left every one of those
+        # with a run stuck in `running`, which `claim_parked_run` never hands out
+        # again - a decision a person made, recorded against work that cannot
+        # continue. Nothing above has touched the row, so the run is still parked
+        # and still resumable, and no failure path can commit a status that was
+        # never written.
+        await agent_run_repo.mark_running(self.db, run=run)
+
+        try:
+            return await self._run(
+                prepared,
+                # No new prompt: the conversation resumes at the tool call it stopped
+                # on, and inventing a user turn here would put words in their mouth.
+                user_prompt=None,
+                message_history=ModelMessagesTypeAdapter.validate_python(state.messages),
+                deferred_tool_results=plan.results,
+            )
+        except Exception as exc:
+            # The continuation raised. `_run` has recorded the run terminal and
+            # committed before re-raising, so this re-raise carries the failure to
+            # the caller rather than swallowing it - but it also carries the
+            # recorded status, which the raising path used to throw away. The resume
+            # answer is where a web-chat surface learns a delegate's outcome (the
+            # continuation ran over HTTP, not the socket the conversation streams);
+            # without the status the surface leaves an `awaiting_approval` panel
+            # waiting on a decision already spent, and the run cannot be resumed
+            # again because it is now terminal (agenticos#262). A build refusal
+            # raised *before* `_run` leaves the run parked and is retryable, so it
+            # is deliberately outside this `try` - it must keep surfacing as itself.
+            # `CancelledError` is a `BaseException` and not caught: over HTTP it
+            # means the request itself went away, so there is nobody to hand a
+            # status to, and catching it would break the cancellation it signals.
+            raise RunExecutionError(details={"run_id": str(run.id), "status": run.status}) from exc
 
     async def _decisions(
         self, ctx: AuthContext, *, run: AgentRun, state: PausedRunState
@@ -2388,8 +2641,22 @@ class AgentRunnerService:
     ) -> tuple[str, AgentRun]:
         """Execute the agent and account for it, however it ends.
 
-        The one place a run is executed, so a parked call, a budget stop and a
-        crash are all recorded the same way whether the run is new or resumed.
+        The one place a run is executed, so a parked call, a budget stop, a
+        cancellation and a crash are all recorded the same way whether the run is
+        new or resumed.
+
+        **A cancellation is one of those endings, and it needs both halves.**
+        `asyncio.CancelledError` is a `BaseException`, so it reaches neither
+        handler below on its own: the status stayed at its initial `FAILED` with
+        no error text, which sends an operator filtering run history for problems
+        through runs that were working correctly and were stopped - exactly what
+        `BUDGET_EXCEEDED` was given its own status to avoid. And the commit is not
+        optional either. `get_db_session` commits on a clean exit, and a
+        propagating `BaseException` is not one, so the terminal write was rolled
+        back and the row stayed `RUNNING` for ever - taking the delegation rows
+        :meth:`finish` queues with it, which is how a delegate that spent real
+        money came to be recorded nowhere. Committing here is what makes the row
+        survive; re-raising is what lets whoever cancelled see it happen.
         """
         status = RunStatus.FAILED
         error: str | None = None
@@ -2422,6 +2689,13 @@ class AgentRunnerService:
             else:
                 output = result.output
                 status = RunStatus.COMPLETED
+        except asyncio.CancelledError:
+            # The caller went away, or a delegation this run sits under was
+            # stopped. Cancelled is not failed, and the tokens spent up to here
+            # were still spent.
+            status = RunStatus.CANCELLED
+            logger.info("Run %s cancelled", prepared.run.id)
+            raise
         except BudgetExceeded as exc:
             # Not a malfunction - the platform working. Recorded separately so
             # an operator filtering for problems does not wade through it.
@@ -2441,8 +2715,58 @@ class AgentRunnerService:
                 paused_state=paused,
                 budget_scope=budget_scope,
             )
+            # Committed here rather than left to the session context: that exit
+            # rolls back on any exception, and cancellation never reaches it at
+            # all, since `CancelledError` is not an `Exception`. A run that
+            # failed, was stopped or ran out of budget still spent money, and a
+            # run missing from history is a run nobody is accountable for.
+            await self.db.commit()
 
         return output, prepared.run
+
+    async def list_runs(
+        self,
+        ctx: AuthContext,
+        *,
+        agent_id: UUID | None = None,
+        parent_run_id: UUID | None = None,
+        include_delegations: bool = False,
+        skip: int = 0,
+        limit: int = 50,
+    ) -> tuple[list[AgentRun], int]:
+        """Runs for the organization, newest first, optionally for one agent.
+
+        Scoped to the caller's organization here rather than in the route, so
+        run history is read through the same tenant boundary the rest of this
+        service enforces - there is no second place a listing could widen.
+
+        Top-level runs only by default: a delegated row and a run somebody
+        started are never summed down one column, because a parent's cost
+        already contains its children's. `parent_run_id` lists one run's own
+        delegations; `include_delegations` keeps them in an agent's own history.
+        """
+        return await agent_run_repo.list_runs(
+            self.db,
+            organization_id=ctx.organization_id,
+            agent_id=agent_id,
+            parent_run_id=parent_run_id,
+            include_delegations=include_delegations,
+            skip=skip,
+            limit=limit,
+        )
+
+    async def get_run(self, ctx: AuthContext, run_id: UUID) -> AgentRun:
+        """One run in the caller's organization.
+
+        A run belonging to another organization reads as absent, not forbidden:
+        the repository filters on `organization_id`, so a foreign id returns no
+        row and this raises the same `NotFoundError` an unknown id would - a
+        tenant cannot tell a neighbour's run from one that never existed.
+        """
+        run = await agent_run_repo.get_run(self.db, run_id, organization_id=ctx.organization_id)
+        if run is None:
+            raise NotFoundError(message="Run not found", details={"run_id": str(run_id)})
+        return run
 
     async def monthly_spend(self, ctx: AuthContext, *, agent_id: UUID | None = None) -> Decimal:
         """Spend so far this calendar month, for the org or one agent.

@@ -250,9 +250,15 @@ deps-upgrade-all:
 # "ruff + ty + eslint + tsc" described a command that ran half of that.
 lint: lint-backend lint-frontend lint-spelling
 
+# `ruff check .` from `backend/` reads every tracked tree there - app, tests, cli
+# and alembic - rather than the three named paths it used to, which left the nine
+# migrations and this repo's guard scripts linted by nothing (#229). `../scripts`
+# is the repository-root `scripts/` (the guards that gate every PR), which lives
+# outside `backend/` and so is a fourth path rather than a second invocation; its
+# relaxations are declared in `pyproject.toml` under `../scripts/**`.
 lint-backend:
-	uv run --directory backend ruff check app tests cli
-	uv run --directory backend ruff format app tests cli --check
+	uv run --directory backend ruff check . ../scripts
+	uv run --directory backend ruff format . ../scripts --check
 	uv run --directory backend ty check
 	python3 scripts/check_backticks.py
 	python3 scripts/check_i18n.py
@@ -285,8 +291,8 @@ lint-spelling:
 # applying it, so without the second line here the only way to fix a formatting
 # failure would be to let the pre-commit hook rewrite the file for you.
 format:
-	uv run --directory backend ruff format app tests cli
-	uv run --directory backend ruff check app tests cli --fix
+	uv run --directory backend ruff format . ../scripts
+	uv run --directory backend ruff check . ../scripts --fix
 	cd frontend && bunx prettier --write "src/**/*.{ts,tsx}" "e2e/**/*.ts"
 
 # === Testing ===
@@ -342,7 +348,16 @@ audit:
 # Playwright starts the frontend itself; the backend and its seed are on you.
 # Checked rather than assumed: against a backend that is not there the suite
 # fails in fifty places at once, none of which say what is actually wrong.
+#
+# All three addresses are overridable so the suite can run beside another
+# checkout holding the defaults: E2E_PORT moves the frontend, E2E_STUB_MODEL_PORT
+# the stub model server, E2E_BACKEND the API the health check dials. They are
+# passed into the recipe's environment so Playwright and its specs read the same
+# values, and printed first because a suite that fails on a busy port should say
+# which one it wanted.
 E2E_BACKEND ?= http://localhost:8000
+E2E_PORT ?= 3000
+E2E_STUB_MODEL_PORT ?= 4010
 
 test-e2e:
 	@if ! curl -sf $(E2E_BACKEND)/api/v1/health > /dev/null; then \
@@ -350,7 +365,8 @@ test-e2e:
 		echo "  make dev && make platform-bootstrap"; \
 		exit 1; \
 	fi
-	cd frontend && bun run test:e2e
+	@echo "▶ frontend :$(E2E_PORT)  ·  stub model :$(E2E_STUB_MODEL_PORT)  ·  backend $(E2E_BACKEND)"
+	cd frontend && E2E_PORT=$(E2E_PORT) E2E_STUB_MODEL_PORT=$(E2E_STUB_MODEL_PORT) bun run test:e2e
 
 # Every CI job, in the order the workflow declares them, with the exceptions
 # named below. This is the one claim in this file that has to be exactly true:
@@ -381,7 +397,7 @@ test-e2e:
 #     laptop is the database with your own work in it.
 CHECK_DB_PORT ?= 5432
 
-check: lint test test-frontend-cov build-frontend docs-build audit
+check: lint test db-check test-frontend-cov build-frontend docs-build audit
 	@echo ""
 	@echo "All checks passed — every CI job except e2e."
 	@if ! python3 -c 'import socket; socket.create_connection(("127.0.0.1", $(CHECK_DB_PORT)), 1).close()' 2>/dev/null; then \
@@ -414,6 +430,26 @@ test-migrations:
 	uv run --directory backend alembic downgrade base
 	uv run --directory backend alembic upgrade head
 	@echo "Migration chain applies and rolls back cleanly."
+
+# Do the models and the migrations still agree? `alembic check` autogenerates
+# against the database and fails if anything is left over - the gate that catches
+# "somebody edited a model and forgot the migration", the one question
+# `test-migrations` (which only proves the chain applies and rolls back) does not
+# answer.
+#
+# Unlike `test-migrations` this belongs in `make check`: it reflects the schema
+# and diffs it, it never downgrades, so it cannot empty a laptop's working
+# database. It does need one at head - `make dev` keeps it there - and is skipped
+# rather than failed when none is reachable, the same bargain `check` strikes for
+# the integration suite. CI always has a database, so there it runs for real,
+# after `test-migrations` has left it at head.
+db-check:
+	@if python3 -c 'import socket; socket.create_connection(("127.0.0.1", $(CHECK_DB_PORT)), 1).close()' 2>/dev/null; then \
+		uv run --directory backend alembic check; \
+	else \
+		echo "⚠  No database on 127.0.0.1:$(CHECK_DB_PORT), so 'alembic check' was skipped"; \
+		echo "   — and CI's test job has one, so it did not. 'make docker-db' closes that gap."; \
+	fi
 
 
 # === Database ===

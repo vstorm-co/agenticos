@@ -84,6 +84,25 @@ class SubagentsConfig(BaseModel):
             "nobody left holding the run. Keep that work on sync."
         ),
     )
+    allow_questions: bool = Field(
+        default=False,
+        description=(
+            "Whether a delegate may ask the person waiting on this agent a question "
+            "instead of guessing - 'which currency?' rather than an assumption "
+            "buried in the answer. Off by default: a specialist works autonomously "
+            "and says so when it could not, and one that stops to ask holds this "
+            "agent's turn open on a person. The author's decision, not the model's - "
+            "the question wears a name the parent published, so whether it may be "
+            "asked at all is the author's to make. It reaches the same channel this "
+            "agent's own run uses to ask, and it is not the approval gate: a "
+            "question is not an authorisation and cannot grant one. Takes effect "
+            "only for a delegation that blocks (sync) - a background one has already "
+            "handed back a task id with nobody left to answer, and auto may become "
+            "one, so both still work autonomously however this is set. It governs "
+            "the specialists this agent was given, pinned or inline; a specialist "
+            "the model invents always works autonomously, whatever this says."
+        ),
+    )
     allow_dynamic: bool = Field(
         default=False,
         description=(
@@ -201,6 +220,7 @@ def _build(ctx: CapabilityBuildContext) -> Delegation | None:
     return build_delegation(
         runtime=runtime,
         mode=config.mode,
+        allow_questions=config.allow_questions,
         max_fanout=config.max_fanout,
         max_result_chars=config.max_result_chars,
         # How far in this run's delegations already are, which is what a surface
