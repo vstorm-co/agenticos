@@ -8,7 +8,10 @@ name reached the browser as "Request failed" and a 422 reached it as the string
 form of a list of dicts.
 
 The tests here pin the envelope itself rather than any one endpoint, because the
-value of a single shape is entirely in it being the only one.
+value of a single shape is entirely in it being the only one. The last class pins
+the other half of that claim: a shape the caller never receives is not a shape.
+Its vehicle is `GET /users/avatar/{user_id}`, the one route that reaches a
+service without authenticating first - the handler it exercises is global.
 """
 
 from __future__ import annotations
