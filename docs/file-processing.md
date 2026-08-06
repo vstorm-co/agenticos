@@ -314,7 +314,7 @@ Ingested documents are tracked in the SQL database via the `RAGDocument` model:
 | `filesize` | File size in bytes |
 | `filetype` | File extension (without dot) |
 | `status` | `processing`, `done`, or `error` |
-| `error_message` | Error details (if status is `error`) |
+| `error_message` | What failed, if `status` is `error` — see below |
 | `vector_document_id` | ID in the vector store |
 | `chunk_count` | Number of chunks created |
 | `storage_path` | Path to original file (for re-ingestion/download) |
@@ -322,6 +322,41 @@ Ingested documents are tracked in the SQL database via the `RAGDocument` model:
 | `completed_at` | Ingestion completion time |
 
 Failed ingestions can be retried via `POST /rag/documents/{id}/retry`.
+
+### What a failed ingest says
+
+`error_message` is a stored column, rendered on the documents page and in a
+source's sync history to everyone who can see the collection. So it carries a
+summary rather than whatever the client that failed happened to say:
+
+```
+The document could not be indexed (AuthenticationError) - check the
+collection's embedding credential, then retry the upload. The worker log has
+the full error.
+```
+
+Three parts, and each is there for a reason. **The stage** — parsing, indexing,
+recording the outcome, or a whole sync — is the one thing the reader cannot
+work out afterwards, and it separates a file this collection's parser does not
+read from a credential the provider refused. **The exception's type** is kept
+because a class name is a symbol: it says the credential was refused or the
+upstream timed out without naming the host that said so. **The advice** is what
+the reader can actually do.
+
+A refusal this platform raised itself is passed through whole instead, because
+its message is written here and is the most useful thing to show: *"No embedding
+credential is configured for this collection"*, *"Organization monthly budget
+exhausted: $40.15 spent of $40.00 limit"*.
+
+What is **not** stored is the failing client's own text. A provider SDK, `httpx`,
+`boto3` and the Google Drive client all put the request they were making into
+their exception message, which routinely means an endpoint, an internal host, a
+bucket, or a URL with a key in its query string — and unlike an HTTP error body,
+a column is read again weeks later by anyone who opens the failed document. That
+text is not lost: every one of these call sites logs it with `logger.exception`,
+so the worker log has the message and the traceback, and a Prefect flow that
+re-raises has both in its run. `app/services/rag/failures.py` is where the two
+are separated; `PiiRedactionFilter` scrubs the log on the way out.
 
 
 ### Sync Operations
