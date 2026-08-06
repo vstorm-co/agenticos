@@ -12,6 +12,14 @@ is a second query that has to agree with the page.
 The three searchable listings are here together on purpose: they now share one
 helper, and a regression in it would otherwise be found by whichever of the
 three happened to have a test.
+
+Two mutations are covered, and they are not the same one. Removing the escaping
+entirely - the #372 bug - fails nine of the twelve tests here. Keeping an
+escape but forgetting to escape the escape character, which is the mistake a
+hand-written version makes second, fails only the two forward-slash tests and
+passes the rest; the docstring on the first of them records the mutation it was
+checked against. A test that cannot fail is worth as little here as anywhere,
+so both directions were run rather than assumed.
 """
 
 from __future__ import annotations
@@ -113,6 +121,43 @@ class TestSearchingUsers:
         rows, total = await user_repo.admin_list_with_counts(db, search="DOMAIN\\user")
 
         assert [user.full_name for user, _ in rows] == ["DOMAIN\\user"]
+        assert total == 1
+
+    async def test_a_forward_slash_is_matched_literally(self, db) -> None:
+        """The trap a hand-written escape falls into, which is a different one
+        from the bug above.
+
+        This test does *not* fail on unescaped `LIKE` - `/` is inert in a
+        pattern until something declares it as the escape character, and #372
+        declared nothing. It fails on the next mistake instead: SQLAlchemy's
+        `autoescape` declares `ESCAPE '/'`, so `/` becomes both an ordinary
+        character somebody types (a date, a path, a department) and the one
+        character the pattern gives a second meaning to. An escape that
+        handles `%` and `_` and forgets to double the escape character itself
+        turns a search for `q1/2026` into a search for `q12026` - which finds
+        the wrong row rather than none, and so looks like it works.
+
+        Verified by mutation: replacing the helper's body with
+        `term.replace("%", "/%").replace("_", "/_")` and `escape="/"` fails
+        this test and the one below, and passes every other test in the file.
+        """
+        await _user(db, email="slash@example.com", full_name="q1/2026")
+        await _user(db, email="plain@example.com", full_name="q12026")
+
+        rows, total = await user_repo.admin_list_with_counts(db, search="q1/2026")
+
+        assert [user.full_name for user, _ in rows] == ["q1/2026"]
+        assert total == 1
+
+    async def test_a_term_that_is_only_escape_characters_matches_literally(self, db) -> None:
+        """The doubling has to survive being the whole term, not just part of
+        one - two slashes escape to four and must still mean two."""
+        await _user(db, email="double@example.com", full_name="a//b")
+        await _user(db, email="single@example.com", full_name="a/b")
+
+        rows, total = await user_repo.admin_list_with_counts(db, search="//")
+
+        assert [user.full_name for user, _ in rows] == ["a//b"]
         assert total == 1
 
     async def test_an_ordinary_term_still_matches_both_columns(self, db) -> None:

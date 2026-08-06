@@ -27,5 +27,14 @@ def contains_ci(column: SearchableColumn, term: str) -> ColumnElement[bool]:
     term. Every `%`, `_` and escape character inside `term` itself is matched
     literally, so searching for `100%` finds the row that says `100%` rather
     than all of them.
+
+    The escape character is SQLAlchemy's, and it is the **forward slash** -
+    `ESCAPE '/'`, not the backslash Postgres uses by default. That matters
+    twice over. A `/` in the search term is an ordinary character somebody
+    types (a date, a path, a department) *and* the one character the pattern
+    gives a second meaning to, so it is doubled in the operand and read back
+    as one; and a backslash, which a hand-rolled escape has to escape, is left
+    alone here and matched literally. Both are pinned in
+    `tests/integration/test_search_wildcards.py`.
     """
     return column.icontains(term, autoescape=True)
