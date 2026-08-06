@@ -12,8 +12,8 @@ through `DBSession` - a bare `Depends(get_db_session)`, or a new alias that
 forgets the scope. That is what this walks the routing table for.
 """
 
-from collections.abc import Iterator
-from typing import Any, Protocol, cast
+from collections.abc import Callable, Iterator
+from typing import Protocol
 
 from fastapi.dependencies.models import Dependant
 from fastapi.routing import APIRoute, APIWebSocketRoute
@@ -38,17 +38,27 @@ _STREAMING_ENDPOINTS = {
 _A_ROUTING_TABLE = 100
 
 
-class _RouteGroup(Protocol):
-    """A mounted `include_router`, which since FastAPI 0.141 nests its routes.
+class _MountedEndpoint(Protocol):
+    """One endpoint as FastAPI's router resolves it, with its path already joined.
 
-    `app.routes` no longer holds a flat list of `APIRoute`: `include_router`
-    leaves one `_IncludedRouter` behind and the routes hang off it, reachable
-    only through this method. It is unversioned surface, so the walk below is
-    written to notice when it stops answering rather than to quietly return
-    nothing - which is what `_A_ROUTING_TABLE` is for.
+    Structural, because the class behind it is `fastapi.routing.
+    _EffectiveRouteContext` and private. `dependant` is optional: a plain
+    Starlette route mounted on the router - a redirect, a static mount - has no
+    dependency tree.
     """
 
-    def effective_route_contexts(self) -> Iterator[Any]: ...
+    path: str
+    methods: set[str] | None
+    dependant: Dependant | None
+
+
+# How a mounted `include_router` hands over its routes. Since FastAPI 0.141
+# `app.routes` no longer holds a flat list of `APIRoute`: `include_router` leaves
+# one `_IncludedRouter` behind and the routes hang off it, reachable only through
+# this method. Unversioned surface, so the walk below is written to notice when
+# it stops answering rather than to quietly return nothing - which is what
+# `_A_ROUTING_TABLE` is for.
+_RouteGroup = Callable[[], Iterator[_MountedEndpoint]]
 
 
 def _every_dependant(dependant: Dependant) -> Iterator[Dependant]:
@@ -64,15 +74,13 @@ def _session_scopes(dependant: Dependant) -> list[str | None]:
 def _endpoints() -> Iterator[tuple[str, str, Dependant]]:
     """Every mounted endpoint as (method, full path, its dependency tree)."""
     for route in app.routes:
-        group = getattr(route, "effective_route_contexts", None)
+        group: _RouteGroup | None = getattr(route, "effective_route_contexts", None)
         if group is not None:
-            for context in cast(_RouteGroup, route).effective_route_contexts():
-                # A plain Starlette route mounted on the router - a redirect, a
-                # static mount - has no dependency tree to walk.
-                if context.dependant is None:
+            for endpoint in group():
+                if endpoint.dependant is None:
                     continue
-                for method in sorted(context.methods or ["WEBSOCKET"]):
-                    yield method, context.path, context.dependant
+                for method in sorted(endpoint.methods or ["WEBSOCKET"]):
+                    yield method, endpoint.path, endpoint.dependant
         elif isinstance(route, APIRoute):
             for method in sorted(route.methods):
                 yield method, route.path, route.dependant
