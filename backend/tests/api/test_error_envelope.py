@@ -13,13 +13,20 @@ value of a single shape is entirely in it being the only one.
 
 from __future__ import annotations
 
+import json
+from datetime import UTC, datetime
 from decimal import Decimal
+from pathlib import Path
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi.exceptions import RequestValidationError
 from httpx import AsyncClient
 
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
+from app.api import deps
 from app.api.exception_handlers import (
     _field_path,
     _summarize,
@@ -27,6 +34,10 @@ from app.api.exception_handlers import (
     validation_exception_handler,
 )
 from app.core.config import settings
+from app.core.exceptions import NotFoundError
+from app.main import app
+from app.repositories import user_repo
+from app.schemas.message_rating import RatingValue
 
 
 class TestFieldPath:
@@ -174,3 +185,142 @@ class TestValidationEnvelope:
 
         exc = RequestValidationError([{"type": "missing", "loc": ("body", "x"), "msg": "Required"}])
         assert await validation_exception_handler(_Connection(), exc) is None  # ty: ignore[invalid-argument-type]
+
+
+class TestDetailsSurviveSerialization:
+    """A refusal that cannot be serialized is a refusal nobody is told about.
+
+    `details` is where a service puts the thing it is refusing over - the id it
+    could not find, the moment a token expired, the cap that was spent. The
+    handler used to hand that dictionary to `json.dumps`, which raises on a
+    `UUID`, so the handler died on the way out and the caller got a bodiless 500
+    for what the log had already recorded as a clean 404 (#307).
+    """
+
+    @pytest.mark.anyio
+    async def test_a_missing_user_is_a_404_carrying_the_id_it_could_not_find(
+        self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+    ):
+        """The everyday reproduction: a session kept across a database reset.
+
+        Whole-stack on purpose - route, service and handler - because the defect
+        was not in what the service raised but in what happened to it afterwards.
+        """
+        monkeypatch.setattr(user_repo, "get_by_id", AsyncMock(return_value=None))
+        user_id = uuid4()
+
+        response = await client.get(f"{settings.API_V1_STR}/users/avatar/{user_id}")
+
+        assert response.status_code == 404
+        assert response.json() == {
+            "error": {
+                "code": "NOT_FOUND",
+                "message": "User not found",
+                "details": {"user_id": str(user_id)},
+            }
+        }
+
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [
+            pytest.param(
+                UUID("0e2e0f04-2a99-4c5b-8b3f-96f1a2a1b0d1"),
+                "0e2e0f04-2a99-4c5b-8b3f-96f1a2a1b0d1",
+                id="uuid",
+            ),
+            pytest.param(
+                datetime(2026, 8, 6, 12, 30, tzinfo=UTC), "2026-08-06T12:30:00+00:00", id="datetime"
+            ),
+            # Lossy, and the reason the budget handler stringifies money itself
+            # before it ever reaches here.
+            pytest.param(Decimal("41.50"), 41.5, id="decimal"),
+            pytest.param(RatingValue.DISLIKE, -1, id="enum"),
+            pytest.param(Path("/workspace/report.pdf"), "/workspace/report.pdf", id="path"),
+            pytest.param(
+                {"rows": [{"id": UUID("11111111-1111-1111-1111-111111111111")}]},
+                {"rows": [{"id": "11111111-1111-1111-1111-111111111111"}]},
+                id="nested",
+            ),
+        ],
+    )
+    @pytest.mark.anyio
+    async def test_details_carry_what_a_service_naturally_holds(
+        self, client: AsyncClient, value: Any, expected: Any
+    ):
+        """Not only `UUID`: the encoder's reach is the whole point of fixing it once."""
+        service = MagicMock()
+        service.get_by_id = AsyncMock(
+            side_effect=NotFoundError(message="User not found", details={"value": value})
+        )
+        app.dependency_overrides[deps.get_user_service] = lambda: service
+
+        response = await client.get(f"{settings.API_V1_STR}/users/avatar/{uuid4()}")
+
+        assert response.status_code == 404
+        assert response.json()["error"]["details"] == {"value": expected}
+
+    @pytest.mark.anyio
+    async def test_a_set_of_scopes_arrives_as_a_list(self, client: AsyncClient):
+        """`json.dumps` refuses a set as flatly as it refuses a `UUID`."""
+        service = MagicMock()
+        service.get_by_id = AsyncMock(
+            side_effect=NotFoundError(
+                message="User not found", details={"scopes": {"agents:edit", "agents:read"}}
+            )
+        )
+        app.dependency_overrides[deps.get_user_service] = lambda: service
+
+        response = await client.get(f"{settings.API_V1_STR}/users/avatar/{uuid4()}")
+
+        assert response.status_code == 404
+        assert sorted(response.json()["error"]["details"]["scopes"]) == [
+            "agents:edit",
+            "agents:read",
+        ]
+
+    @pytest.mark.anyio
+    async def test_an_unencodable_value_fails_here_rather_than_on_the_wire(
+        self, client: AsyncClient
+    ):
+        """No silent fallback: a payload nothing can encode is a bug in the raiser.
+
+        Answering with the field quietly dropped would hide it in exactly the
+        place a person goes looking for the reason something was refused.
+        """
+        service = MagicMock()
+        service.get_by_id = AsyncMock(
+            side_effect=NotFoundError(message="User not found", details={"open": object()})
+        )
+        app.dependency_overrides[deps.get_user_service] = lambda: service
+
+        with pytest.raises(ValueError):
+            await client.get(f"{settings.API_V1_STR}/users/avatar/{uuid4()}")
+
+    @pytest.mark.anyio
+    async def test_a_budget_refusal_keeps_its_money_exact(self):
+        """`jsonable_encoder` answers a `Decimal` with a float; a cap is not a
+        thing to round on the way out, so the handler stringifies it first."""
+
+        class _Connection:
+            scope = {"type": "http"}
+            method = "POST"
+
+            class url:
+                path = "/api/v1/rag/documents"
+
+        response = await budget_exceeded_handler(
+            _Connection(),  # ty: ignore[invalid-argument-type]
+            BudgetExceeded(
+                limit_usd=Decimal("40.10"),
+                spent_usd=Decimal("40.15"),
+                scope=BudgetScope.ORGANIZATION,
+            ),
+        )
+
+        assert response is not None
+        details = json.loads(response.body)["error"]["details"]
+        assert details == {
+            "scope": "organization",
+            "limit_usd": "40.10",
+            "spent_usd": "40.15",
+        }

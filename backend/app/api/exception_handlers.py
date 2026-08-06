@@ -13,6 +13,11 @@ including schema validation, which FastAPI would otherwise answer in its own
 `{"detail": [...]}` format. Two shapes on the wire means every caller either
 handles both or silently mishandles one, and the one it mishandles is the one
 that carries the field names a form needs.
+
+Every response is built by `_envelope`, which encodes `details` the way
+`response_model` encodes a body. `JSONResponse` on its own serializes with
+plain `json.dumps`, and a domain exception carries whatever the service that
+raised it had to hand - most often the `UUID` it could not find.
 """
 
 import logging
@@ -20,6 +25,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from fastapi import FastAPI
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.requests import HTTPConnection
@@ -32,6 +38,49 @@ logger = logging.getLogger(__name__)
 # Where a validation error came from, as Pydantic reports it in the first
 # element of `loc`. Nothing a form can act on, so it is dropped from the path.
 _LOCATIONS = frozenset({"body", "query", "path", "header", "cookie"})
+
+
+def _envelope(
+    *,
+    status_code: int,
+    code: str,
+    message: str,
+    details: Any,
+    headers: dict[str, str] | None = None,
+) -> JSONResponse:
+    """The one response shape, with `details` encoded rather than dumped.
+
+    `JSONResponse` serializes with `json.dumps`, which raises `TypeError` on a
+    `UUID` - and `details` is where a service puts the id it could not find, the
+    timestamp a token expired at, the money a budget was short by. Around twenty
+    call sites pass a raw `UUID` today. When the handler raises, the refusal it
+    was reporting never reaches the caller: the log says `NOT_FOUND` and the wire
+    says 500 with no body, so a stale session is indistinguishable from a broken
+    server (agenticos#307).
+
+    Stringifying at each call site would be twenty edits enforceable only by
+    review, and the twenty-first is written next month. `jsonable_encoder` is
+    what `response_model` already uses, so `details` reaches the wire the same
+    way every other field of every other response does - a `UUID` as its string,
+    a `datetime` in ISO 8601, an `Enum` as its value - and a call site is free to
+    pass what it actually has.
+
+    Encoding is deliberately not wrapped in a `try`: a value `jsonable_encoder`
+    cannot reach - a live client, an open file - is a bug in the raising code and
+    has no business in an error payload. It should fail loudly here rather than
+    reach a caller as a plausible-looking refusal with a field quietly missing.
+    """
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "error": {
+                "code": code,
+                "message": message,
+                "details": jsonable_encoder(details),
+            }
+        },
+        headers=headers,
+    )
 
 
 def _connection_meta(conn: HTTPConnection) -> dict[str, Any]:
@@ -76,15 +125,11 @@ async def app_exception_handler(request: HTTPConnection, exc: AppException) -> J
     if exc.status_code == 401:
         headers["WWW-Authenticate"] = "Bearer"
 
-    return JSONResponse(
+    return _envelope(
         status_code=exc.status_code,
-        content={
-            "error": {
-                "code": exc.code,
-                "message": exc.message,
-                "details": exc.details,
-            }
-        },
+        code=exc.code,
+        message=exc.message,
+        details=exc.details,
         headers=headers,
     )
 
@@ -148,18 +193,16 @@ async def budget_exceeded_handler(
         logger.warning("BUDGET_EXCEEDED: %s", exc, extra=_connection_meta(request))
         return None
 
-    return JSONResponse(
+    return _envelope(
         status_code=402,
-        content={
-            "error": {
-                "code": "BUDGET_EXCEEDED",
-                "message": str(exc),
-                "details": {
-                    "scope": exc.scope,
-                    "limit_usd": str(exc.limit_usd),
-                    "spent_usd": str(exc.spent_usd),
-                },
-            }
+        code="BUDGET_EXCEEDED",
+        message=str(exc),
+        details={
+            "scope": exc.scope,
+            # Money stays a string: `jsonable_encoder` would answer a `Decimal`
+            # with a float, and a cap is not a thing to round on the way out.
+            "limit_usd": str(exc.limit_usd),
+            "spent_usd": str(exc.spent_usd),
         },
     )
 
@@ -177,15 +220,11 @@ async def unhandled_exception_handler(
     if _is_websocket(request):
         return None
 
-    return JSONResponse(
+    return _envelope(
         status_code=500,
-        content={
-            "error": {
-                "code": "INTERNAL_ERROR",
-                "message": "An unexpected error occurred",
-                "details": None,
-            }
-        },
+        code="INTERNAL_ERROR",
+        message="An unexpected error occurred",
+        details=None,
     )
 
 

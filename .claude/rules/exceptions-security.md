@@ -10,16 +10,24 @@ globs: ["backend/app/core/**/*.py", "backend/app/services/**/*.py"]
 All extend `AppException`. Always pass `message` and `details`:
 
 ```python
-raise NotFoundError(message="User not found", details={"user_id": str(user_id)})
+raise NotFoundError(message="User not found", details={"user_id": user_id})
 raise AlreadyExistsError(message="Email already registered", details={"email": email})
 raise AuthenticationError(message="Invalid or expired token")
 raise AuthorizationError(message="Role 'admin' required for this action")
 ```
 
+**Put the value in `details`, not a string of it.** The handler encodes with
+`jsonable_encoder`, the same one `response_model` uses, so a `UUID`, `datetime`,
+`Enum` or nested structure reaches the wire the way it does everywhere else. This
+example used to say `str(user_id)` while the code said `user_id`, and the code was
+right: stringifying is a rule only review can enforce, and the call site that forgets
+turns a clean 404 into a bodiless 500 (#307). Money is the one exception - a `Decimal`
+encodes to a float, so a cost or a cap is stringified deliberately by the raiser.
+
 Exception handlers in `api/exception_handlers.py` automatically:
 - Map to HTTP status codes
 - Log with structured context (path, method, error code)
-- Return consistent JSON error format
+- Return consistent JSON error format, `details` included
 - Add `WWW-Authenticate: Bearer` header on 401
 
 ## Security Patterns

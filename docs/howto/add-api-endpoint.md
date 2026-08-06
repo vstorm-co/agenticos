@@ -120,7 +120,7 @@ class NotificationService:
         if not notification:
             raise NotFoundError(
                 message="Notification not found",
-                details={"id": str(notification_id)},
+                details={"id": notification_id},
             )
         return notification
 
