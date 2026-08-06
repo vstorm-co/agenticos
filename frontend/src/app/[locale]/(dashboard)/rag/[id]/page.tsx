@@ -501,32 +501,27 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
           )}
         </div>
 
+        {/* Its own line rather than a branch of the states below, because a failed
+            connector list is orthogonal to whether any sources loaded: it is what
+            hides the Connect button above, and hiding a capability without saying
+            why reads as the product not having it. */}
+        {sectionFailures.connectors && (
+          <div className="mb-3">
+            <ErrorState
+              title={t("connectorsFailedTitle")}
+              description={t("connectorsFailedDescription")}
+              cta={{ label: t("retry"), onClick: () => refresh() }}
+            />
+          </div>
+        )}
+
         {sectionFailures.syncSources ? (
           <ErrorState
             title={t("syncSourcesFailedTitle")}
             description={t("syncSourcesFailedDescription")}
             cta={{ label: t("retry"), onClick: () => refresh() }}
           />
-        ) : syncSources.length === 0 && sectionFailures.connectors ? (
-          <ErrorState
-            title={t("connectorsFailedTitle")}
-            description={t("connectorsFailedDescription")}
-            cta={{ label: t("retry"), onClick: () => refresh() }}
-          />
-        ) : syncSources.length === 0 ? (
-          <EmptyState
-            icon={Plug}
-            title={connectors.length > 0 ? t("noSourcesConnected") : t("noConnectorsConfigured")}
-            description={
-              connectors.length > 0 ? t("addOneKeepKnowledge") : t("configureConnectorsAtWorkspace")
-            }
-            cta={
-              mayEdit && connectors.length > 0
-                ? { label: t("connectSource"), onClick: () => setWizardOpen(true) }
-                : undefined
-            }
-          />
-        ) : (
+        ) : syncSources.length > 0 ? (
           <>
             <ul className="border-border bg-card divide-border divide-y overflow-hidden rounded-xl border">
               {(syncSourcesExpanded ? syncSources : syncSources.slice(0, SYNC_SOURCES_VISIBLE)).map(
@@ -555,6 +550,22 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
               </div>
             )}
           </>
+        ) : sectionFailures.connectors ? null : (
+          // No sources, and the connector list did load: "none connected" and
+          // "none configured" are both facts here, and the notice above has
+          // already spoken for the case where neither is established.
+          <EmptyState
+            icon={Plug}
+            title={connectors.length > 0 ? t("noSourcesConnected") : t("noConnectorsConfigured")}
+            description={
+              connectors.length > 0 ? t("addOneKeepKnowledge") : t("configureConnectorsAtWorkspace")
+            }
+            cta={
+              mayEdit && connectors.length > 0
+                ? { label: t("connectSource"), onClick: () => setWizardOpen(true) }
+                : undefined
+            }
+          />
         )}
       </section>
 

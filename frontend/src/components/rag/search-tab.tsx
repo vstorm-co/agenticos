@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Database, FileText, Search } from "lucide-react";
@@ -67,11 +67,19 @@ export function SearchTab({ kbs }: SearchTabProps) {
   const baseFor = (collection: unknown): KnowledgeBase | undefined =>
     kbs.find((kb) => kb.collection_name === collection);
 
+  // Guarded here rather than on each way in, so the button, Enter and whatever
+  // calls it next are all covered. A ref rather than `status`, because two
+  // keydowns can land before a re-render commits - and with only one request
+  // ever in flight, a slow answer to an earlier query cannot paint over a
+  // later one.
+  const searching = useRef(false);
+
   const runSearch = async () => {
     const trimmed = query.trim();
     const names = collectionNames(scope);
-    if (!trimmed || names.length === 0) return;
+    if (!trimmed || names.length === 0 || searching.current) return;
     const startedIn = orgId;
+    searching.current = true;
     setStatus("searching");
     const startedAt = performance.now();
     try {
@@ -90,6 +98,10 @@ export function SearchTab({ kbs }: SearchTabProps) {
       if ((useOrgStore.getState().activeOrgId ?? "") !== startedIn) return;
       setResults([]);
       setStatus("error");
+    } finally {
+      // Including the tenant-switch returns above, which would otherwise leave
+      // the flag raised and the search dead for the rest of the session.
+      searching.current = false;
     }
   };
 

@@ -130,7 +130,20 @@ export default function RAGPage() {
       </div>
 
       {tab === "search" ? (
-        <SearchTab kbs={sorted} />
+        // The scope selector is built from the base list, so a failed list is a
+        // failed search tab: handing it an empty array would have it say there is
+        // nothing to search, which is the list's own error wearing a fact's face.
+        loading ? (
+          <Skeleton className="h-48 w-full rounded-xl" />
+        ) : listError ? (
+          <ErrorState
+            title={t("listFailedTitle")}
+            description={t("listFailedDescription")}
+            cta={{ label: t("retry"), onClick: () => fetchKBs() }}
+          />
+        ) : (
+          <SearchTab kbs={sorted} />
+        )
       ) : (
         <>
           <BasesCard count={loading || listError ? null : kbs.length}>

@@ -224,10 +224,7 @@ export function SyncSourceWizard({
           {orgIntegrationsFailed && step === "source" && (
             // Unsaid, a failed org-integrations request is indistinguishable from
             // an organization that has none: the "Use existing" toggle never appears.
-            <p className="text-destructive mt-2 text-xs">
-              Existing workspace integrations could not be loaded; you can still create a new
-              source.
-            </p>
+            <p className="text-destructive mt-2 text-xs">{t("orgIntegrationsLoadFailed")}</p>
           )}
 
           {/* Step indicator - only for new mode */}
@@ -479,7 +476,7 @@ function ConnectorStep({
           // "No connectors enabled" is a statement about the deployment; a failed
           // request has not made it.
           <p className="border-destructive/30 text-destructive rounded-xl border px-4 py-3 text-sm">
-            The connector list could not be loaded. Close the dialog and try again.
+            {t("connectorLoadFailed")}
           </p>
         ) : connectors.length === 0 ? (
           <p className="border-foreground/10 bg-foreground/[0.03] text-foreground/65 rounded-xl border px-4 py-3 text-sm">

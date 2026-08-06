@@ -80,9 +80,11 @@ const DOC: KBDocument = {
 function mockApi({
   failing,
   documents = [],
+  syncSources = [],
 }: {
   failing?: "sync-sources" | "connectors" | "documents";
   documents?: KBDocument[];
+  syncSources?: { id: string; name: string }[];
 } = {}) {
   vi.mocked(apiClient.get).mockImplementation((endpoint: string) => {
     if (endpoint === `/kb/${KB_ID}`) return Promise.resolve(KB);
@@ -102,7 +104,7 @@ function mockApi({
     if (endpoint === `/kb/${KB_ID}/sync-sources`) {
       return failing === "sync-sources"
         ? Promise.reject(new Error("Bad gateway"))
-        : Promise.resolve({ items: [], total: 0 });
+        : Promise.resolve({ items: syncSources, total: syncSources.length });
     }
     return Promise.resolve({ items: [], total: 0 });
   });
@@ -161,6 +163,20 @@ describe("a failed section renders an error, not its empty state (#32)", () => {
       expect(screen.getByText("pages.kb.connectorsFailedTitle")).toBeInTheDocument(),
     );
     expect(screen.queryByText("pages.kb.noConnectorsConfigured")).not.toBeInTheDocument();
+  });
+
+  it("a 502 on the connectors is still reported when sources already exist", async () => {
+    mockApi({ failing: "connectors", syncSources: [{ id: "src-1", name: "Drive folder" }] });
+
+    await renderPage();
+
+    // The failure used to be reported only on the empty branch, so a base with
+    // sources lost both the notice and - because the list is empty - the Connect
+    // button, which reads as the product not offering connectors at all.
+    await waitFor(() =>
+      expect(screen.getByText("pages.kb.connectorsFailedTitle")).toBeInTheDocument(),
+    );
+    expect(screen.getByText("Drive folder")).toBeInTheDocument();
   });
 
   it("an actually empty answer still renders the empty state", async () => {

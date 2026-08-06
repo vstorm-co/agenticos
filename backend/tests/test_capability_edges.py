@@ -34,12 +34,77 @@ from app.core.exceptions import ConfigurationError, ExternalServiceError
 from app.core.secret_kinds import ApiKeySecret
 from app.services.mcp_catalog import CatalogAuth, get_entry
 from app.services.rag.embeddings import EmbeddingService, OpenAIEmbeddingProvider
+from app.services.rag.models import SearchResult
+from app.services.rag.retrieval import RetrievalService
 from app.services.rag.vectorstore import PgVectorStore
 
 
 @pytest.fixture(autouse=True)
 def _builtins_loaded():
     load_builtins()
+
+
+def _retrieval_over(store: MagicMock) -> RetrievalService:
+    settings = MagicMock()
+    settings.enable_hybrid_search = False
+    return RetrievalService(vector_store=store, settings=settings)
+
+
+class TestSearchingSeveralCollections:
+    """What a multi-collection search may and may not quietly leave out."""
+
+    @pytest.mark.anyio
+    async def test_a_collection_that_fails_fails_the_whole_search(self):
+        """A partial answer presented as a complete one is the worse failure.
+
+        The caller is asking whether something is in the organization's
+        knowledge; a shortfall reads as "no". This used to log the exception and
+        carry on, so a broken collection answered 200 with whatever the others
+        held and nothing on any screen said so.
+        """
+        store = MagicMock()
+        store.search = AsyncMock(
+            side_effect=[
+                [SearchResult(content="from the healthy one", score=0.9)],
+                RuntimeError("pgvector is having a day"),
+            ]
+        )
+
+        with pytest.raises(RuntimeError):
+            await _retrieval_over(store).retrieve_multi(
+                query="anything", collection_names=["healthy", "broken"]
+            )
+
+    @pytest.mark.anyio
+    async def test_an_empty_collection_is_not_a_failure(self):
+        """The store reports an absent table as no results, so it merges as none."""
+        store = MagicMock()
+        store.search = AsyncMock(
+            side_effect=[[SearchResult(content="found", score=0.9)], []],
+        )
+
+        results = await _retrieval_over(store).retrieve_multi(
+            query="anything", collection_names=["populated", "never_ingested"]
+        )
+
+        assert [r.content for r in results] == ["found"]
+
+    @pytest.mark.anyio
+    async def test_every_result_names_the_collection_it_came_from(self):
+        """Provenance on one collection too, not only when several are searched.
+
+        The UI offers to say which knowledge base answered, and the tagging used
+        to live in `retrieve_multi` alone - so narrowing the scope to one base
+        silently dropped the attribution from every result.
+        """
+        store = MagicMock()
+        store.search = AsyncMock(return_value=[SearchResult(content="chunk", score=0.5)])
+
+        results = await _retrieval_over(store).retrieve(
+            query="anything", collection_name="handbook"
+        )
+
+        assert [r.metadata["collection"] for r in results] == ["handbook"]
 
 
 class TestKnowledgeSearchGuards:
@@ -164,6 +229,25 @@ class TestEmbeddingCredential:
         info = asyncio.run(store.get_collection_info("never_ingested"))
 
         assert (info.name, info.total_vectors, info.dim) == ("never_ingested", 0, 1536)
+
+    def test_searching_a_collection_nobody_has_uploaded_to_finds_nothing(self):
+        """Same absent table, reached from the search path rather than the count.
+
+        `get_collection_info` learned this and `search` did not, so the knowledge
+        page's own search - the first surface that lets somebody query a base
+        with no documents in it - answered 500 on a base created a minute
+        earlier. The embedder must not be reached either: an empty collection is
+        not worth an embedding call, and paying for one would be metered.
+        """
+        store = PgVectorStore.__new__(PgVectorStore)
+        store.dim = 1536
+        store._resolver = None
+        store.embedder = MagicMock()
+        store._collection_exists = AsyncMock(return_value=False)
+        store._for_collection = AsyncMock(side_effect=AssertionError("should not embed"))
+        store.async_session = MagicMock(side_effect=AssertionError("should not query"))
+
+        assert asyncio.run(store.search("never_ingested", "anything")) == []
 
     def test_the_service_builds_on_a_deployment_with_no_key(self, monkeypatch):
         """`get_embedding_service` is a FastAPI dependency of every RAG route.

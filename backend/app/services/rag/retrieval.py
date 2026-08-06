@@ -191,6 +191,13 @@ class RetrievalService(BaseRetrievalService):
 
         final_results = deduped_results[:limit]
 
+        # Which collection answered, on every result rather than only when several
+        # were searched. A caller cannot derive it - one search may span bases and
+        # two bases may share a collection - and a chunk whose origin is unknown
+        # cannot be cited, which is the whole job of a retrieval result.
+        for r in final_results:
+            r.metadata["collection"] = collection_name
+
         total_time = time.time() - start_time
         logger.info(
             "[RETRIEVAL] Total retrieval time: %.3fs, returning %d results",
@@ -207,21 +214,27 @@ class RetrievalService(BaseRetrievalService):
         limit: int = 5,
         min_score: float = 0.0,
     ) -> list[SearchResult]:
+        """Search several collections and merge what they return.
+
+        A collection that fails takes the whole search with it. Skipping it would
+        answer 200 with the collections that happened to work, and a partial
+        answer presented as a complete one is the same untruth as an empty state
+        standing in for an error - worse here, because the caller is asking "is
+        this in our knowledge" and would read a shortfall as "no".
+
+        A collection nobody has ingested into is not a failure: its table does
+        not exist yet, and the store reports that as no results.
+        """
         all_results: list[SearchResult] = []
         for name in collection_names:
-            try:
-                results = await self.retrieve(
+            all_results.extend(
+                await self.retrieve(
                     query=query,
                     collection_name=name,
                     limit=limit,
                     min_score=min_score,
                 )
-                # Tag results with collection name in metadata
-                for r in results:
-                    r.metadata["collection"] = name
-                all_results.extend(results)
-            except Exception:
-                logger.exception("[RETRIEVAL] Failed to search collection '%s'", name)
+            )
 
         all_results.sort(key=lambda r: r.score, reverse=True)
 

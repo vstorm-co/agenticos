@@ -142,6 +142,19 @@ describe("a failed list renders an error, not an empty state (#32)", () => {
     await waitFor(() => expect(screen.getByText("pages.kb.listFailedTitle")).toBeInTheDocument());
     expect(screen.queryByText("pages.kb.noKnowledgeBasesYet")).not.toBeInTheDocument();
   });
+
+  it("the search tab says the list failed rather than that there is nothing to search", async () => {
+    mockApi(new Error("Bad gateway"));
+    window.history.replaceState({}, "", "/rag?tab=search");
+
+    render(<RAGPage />, { wrapper });
+
+    // The scope selector is built from the bases, so an empty array reads as
+    // "you have none" - a claim the failed request never made.
+    await waitFor(() => expect(screen.getByText("pages.kb.listFailedTitle")).toBeInTheDocument());
+    expect(screen.queryByText("rag.search.noBases")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "pages.kb.retry" })).toBeInTheDocument();
+  });
 });
 
 describe("search", () => {
@@ -167,6 +180,29 @@ describe("search", () => {
         limit: 10,
       }),
     );
+  });
+
+  it("holding Enter does not fire a second search over the first", async () => {
+    mockApi([kb("kb-1", "Handbook", "handbook")]);
+    let release: (v: { results: [] }) => void = () => {};
+    vi.mocked(searchDocuments).mockReturnValue(
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+    );
+
+    render(<RAGPage />, { wrapper });
+    await waitFor(() => expect(screen.getByText("Handbook")).toBeInTheDocument());
+    const user = await openSearchTab();
+
+    const input = screen.getByPlaceholderText("rag.search.placeholder");
+    await user.type(input, "onboarding");
+    // The button disables itself while a search is in flight; Enter did not, so
+    // a second press raced the first and the slower answer painted last.
+    await user.type(input, "{Enter}{Enter}");
+
+    expect(searchDocuments).toHaveBeenCalledTimes(1);
+    release({ results: [] });
   });
 
   it("a failed search renders the error state, not the no-results state", async () => {
