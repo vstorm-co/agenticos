@@ -31,6 +31,7 @@ import { PlatformWidget } from "./platform";
 import { PlatformRatingsWidget } from "./platform-ratings";
 import { RecentFailuresWidget } from "./recent-failures";
 import { RunsWidget } from "./runs";
+import { SandboxCapacityWidget } from "./sandbox-capacity";
 import { SharedWithYouWidget } from "./shared-with-you";
 import { SpendWidget } from "./spend";
 import { SurfacesWidget } from "./surfaces";
@@ -66,6 +67,7 @@ export const WIDGET_COMPONENTS: Record<WidgetId, ComponentType<DashboardWidgetPr
   "my-top-agents": MyTopAgentsWidget,
   "my-quality": MyQualityWidget,
   "shared-with-you": SharedWithYouWidget,
+  "sandbox-capacity": SandboxCapacityWidget,
 };
 
 export type { DashboardWidgetProps } from "./types";

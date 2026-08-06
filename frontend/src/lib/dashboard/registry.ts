@@ -46,7 +46,8 @@ export type WidgetId =
   | "my-activity"
   | "my-top-agents"
   | "my-quality"
-  | "shared-with-you";
+  | "shared-with-you"
+  | "sandbox-capacity";
 
 /** The closed set of card widths the grid supports (12 columns). */
 export type Span = "s3" | "s4" | "s5" | "s6" | "s7" | "s8" | "s12";
@@ -150,6 +151,16 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     id: "shared-with-you",
     gate: holds(Perm.agentsView),
     defaultSpan: "s4",
+  },
+  // The sandbox cards are read-only views of a host, and `connections:manage`
+  // is the permission that already gates every route behind them - there is no
+  // narrower "watch a connection" scope, so this is the honest gate rather than
+  // the ideal one.
+  "sandbox-capacity": {
+    id: "sandbox-capacity",
+    gate: holds(Perm.connectionsManage),
+    defaultSpan: "s5",
+    seeAll: ROUTES.SANDBOXES,
   },
 };
 

@@ -1221,6 +1221,17 @@
           "title": "Nothing shared yet",
           "description": "When somebody shares an agent, a collection or a skill, it counts here."
         }
+      },
+      "sandbox-capacity": {
+        "title": "Sandbox capacity",
+        "openOfTenantLimit": "{used} of {limit}",
+        "openUncapped": "{count, plural, =1 {1 open} other {# open}}",
+        "elsewhere": "Runs on Daytona - those sandboxes are counted in that account, not here.",
+        "subline": "Open sandboxes against the ceiling that applies to this organization - the one a 429 comes from. The host's own ceilings are under Sandbox runtimes.",
+        "empty": {
+          "title": "No sandbox host registered",
+          "description": "Register one and the room left for agents to run code lands here."
+        }
       }
     }
   },
