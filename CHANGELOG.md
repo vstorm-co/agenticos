@@ -19,6 +19,28 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.46] - 2026-08-06
+
+### Changed
+
+- A knowledge base is deleted from its own page, not from the card in the list.
+  The only control used to be a hover-revealed trash icon sitting on top of a
+  whole-card link — the most destructive action on the resource, one mis-aimed
+  click away from opening it, on the surface that shows least about what is
+  about to be destroyed. It is now in the detail page's actions menu, behind
+  `collections:edit`, behind a confirmation naming the collection and its real
+  document count, and it is not offered for the default collection, which the
+  server refuses (#303).
+- The three `window.confirm` calls in the knowledge-base pages are proper
+  confirmation dialogs with translated copy. A raw `confirm()` argument is
+  hardcoded English the i18n guard cannot see.
+
+### Fixed
+
+- Both delete dialogs now disable while the request is in flight. A double-click
+  sent a second DELETE and toasted a 404 over a removal that had worked.
+
+
 ## [0.0.45] - 2026-08-06
 
 ### Fixed
