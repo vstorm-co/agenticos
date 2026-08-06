@@ -1,7 +1,7 @@
 """Message rating repository for database operations."""
 
 from collections.abc import Sequence
-from datetime import UTC, datetime, timedelta
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -179,10 +179,18 @@ async def list_ratings(
 async def get_rating_summary(
     db: AsyncSession,
     *,
-    days: int = 30,
+    start: datetime,
+    end: datetime,
 ) -> dict[str, Any]:
-    """Get aggregated rating statistics."""
-    cutoff_date = datetime.now(UTC) - timedelta(days=days)
+    """Aggregated rating statistics across every organization.
+
+    A half-open window rather than a trailing day count, because the question
+    the dashboard asks is often about a period that has already ended - "last
+    month" cannot be said as a number of days back from now. Days bucket in
+    UTC, as they do in `get_rating_summary_scoped`, so the deployment-wide
+    chart and an organization's chart put the same rating on the same day.
+    """
+    conditions = [MessageRating.created_at >= start, MessageRating.created_at < end]
 
     counts_query = select(
         func.count().label("total"),
@@ -192,26 +200,26 @@ async def get_rating_summary(
         func.sum(
             case((and_(MessageRating.comment.isnot(None), MessageRating.comment != ""), 1), else_=0)
         ).label("with_comments"),
-    ).where(MessageRating.created_at >= cutoff_date)
+    ).where(*conditions)
 
     result = await db.execute(counts_query)
     row = result.one()
 
+    day = func.date(func.timezone("UTC", MessageRating.created_at))
     daily_query = (
         select(
-            func.date(MessageRating.created_at).label("date"),
+            day.label("date"),
             func.sum(case((MessageRating.rating == 1, 1), else_=0)).label("likes"),
             func.sum(case((MessageRating.rating == -1, 1), else_=0)).label("dislikes"),
         )
-        .where(MessageRating.created_at >= cutoff_date)
-        .group_by(func.date(MessageRating.created_at))
-        .order_by(func.date(MessageRating.created_at))
+        .where(*conditions)
+        .group_by(day)
+        .order_by(day)
     )
 
-    daily_result = await db.execute(daily_query)
     ratings_by_day = [
-        {"date": str(row.date), "likes": row.likes or 0, "dislikes": row.dislikes or 0}
-        for row in daily_result
+        {"date": str(entry.date), "likes": entry.likes or 0, "dislikes": entry.dislikes or 0}
+        for entry in await db.execute(daily_query)
     ]
 
     return {

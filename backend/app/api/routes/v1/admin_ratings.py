@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Any, Literal
 
 from fastapi import APIRouter, Query
@@ -32,10 +33,16 @@ async def list_ratings_admin(
 async def get_rating_summary(
     rating_service: MessageRatingSvc,
     _: CurrentAppAdmin,
-    days: int = Query(30, ge=1, le=365, description="Number of days to include"),
+    from_: date | None = Query(None, alias="from", description="First day, inclusive (UTC)"),
+    to: date | None = Query(None, description="Last day, inclusive (UTC)"),
 ) -> Any:
-    """Get aggregated rating statistics (admin only)."""
-    return await rating_service.get_summary(days=days)
+    """Get aggregated rating statistics (admin only).
+
+    The window is spelled the way `GET /stats/ratings/summary` spells it, so
+    the dashboard's period filter reaches the deployment-wide card as well as
+    the organization's. Omitting both dates means the last thirty days.
+    """
+    return await rating_service.get_summary(from_date=from_, to_date=to)
 
 
 @router.get("/export", response_model=None)

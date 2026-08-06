@@ -224,13 +224,19 @@ describe("what the admin screens filter on", () => {
     expect(forwarded()).toContain("with_comments_only=true");
   });
 
-  it("defaults the summary window rather than asking for all of history", async () => {
+  it("leaves the summary window to the backend when none was asked for", async () => {
     await ratingsSummary(request("http://localhost:3000/api/admin/ratings/summary"));
-    expect(forwarded()).toBe("/api/v1/admin/ratings/summary?days=30");
+    expect(forwarded()).toBe("/api/v1/admin/ratings/summary");
+  });
 
-    vi.mocked(backendFetch).mockClear();
-    await ratingsSummary(request("http://localhost:3000/api/admin/ratings/summary?days=7"));
-    expect(forwarded()).toBe("/api/v1/admin/ratings/summary?days=7");
+  it("forwards the dashboard's window to the summary", async () => {
+    // The proxy read only `days` and always sent one, so the dashboard's
+    // period reached the backend as a trailing thirty days whatever was
+    // picked - a card that could not answer a question about last month.
+    await ratingsSummary(
+      request("http://localhost:3000/api/admin/ratings/summary?from=2026-07-01&to=2026-07-31"),
+    );
+    expect(forwarded()).toBe("/api/v1/admin/ratings/summary?from=2026-07-01&to=2026-07-31");
   });
 
   it("passes the organization search through as it stands", async () => {

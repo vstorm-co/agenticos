@@ -6,6 +6,7 @@ import { DASHBOARD_FRESHNESS } from "@/lib/query-freshness";
 import { qk } from "@/lib/query-keys";
 import { listSyncSources } from "@/lib/rag-api";
 import { useOrgStore } from "@/stores";
+import type { UsagePeriod } from "./use-usage-stats";
 import type { AdminOrganization, AdminStats, SystemHealth } from "@/types/admin";
 import type { Conversation, RatingSummary } from "@/types/conversation";
 import type { AgentRunList } from "@/types/runs";
@@ -125,12 +126,20 @@ export function useAdminOrganizations(limit = 5, options?: { enabled?: boolean }
   return { organizations: data?.items ?? [], isLoading, error, refetch };
 }
 
-/** Deployment-wide answer quality - the app admin's ratings card. */
-export function useAdminRatingsSummary(options?: { enabled?: boolean }) {
+/**
+ * Deployment-wide answer quality - the app admin's ratings card.
+ *
+ * Windowed by the page's period like every other card that plots days. The
+ * window is in the query key, so picking a different one refetches rather
+ * than re-rendering the previous month's chart.
+ */
+export function useAdminRatingsSummary(period: UsagePeriod, options?: { enabled?: boolean }) {
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: qk.admin.ratings("summary"),
+    queryKey: qk.admin.ratings({ summary: true, from: period.from, to: period.to }),
     queryFn: () =>
-      apiClient.get<RatingSummary>("/admin/ratings/summary", { params: { days: "30" } }),
+      apiClient.get<RatingSummary>("/admin/ratings/summary", {
+        params: { from: period.from, to: period.to },
+      }),
     enabled: options?.enabled ?? true,
     ...DASHBOARD_FRESHNESS,
   });

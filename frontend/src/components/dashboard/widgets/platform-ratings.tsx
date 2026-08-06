@@ -8,10 +8,10 @@ import { WidgetFrame } from "../widget-frame";
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
 import type { DashboardWidgetProps } from "./types";
 
-/** Answer quality across every organization - deployment-wide, last 30 days. */
-export function PlatformRatingsWidget({ title, seeAll }: DashboardWidgetProps) {
+/** Answer quality across every organization, over the page's period. */
+export function PlatformRatingsWidget({ title, period, seeAll }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.platform-ratings");
-  const { summary, isLoading, error, refetch } = useAdminRatingsSummary();
+  const { summary, isLoading, error, refetch } = useAdminRatingsSummary(period);
 
   return (
     <WidgetFrame title={title} seeAll={seeAll}>

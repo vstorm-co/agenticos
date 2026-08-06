@@ -28,6 +28,8 @@ function wrapper({ children }: { children: ReactNode }) {
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 
+const PERIOD = { from: "2026-07-06", to: "2026-08-04" };
+
 describe("useRecentFailures", () => {
   beforeEach(() => vi.clearAllMocks());
 
@@ -159,15 +161,34 @@ describe("the deployment strip's hooks", () => {
     expect(result.current.organizations).toHaveLength(1);
   });
 
-  it("useAdminRatingsSummary reads the deployment-wide split", async () => {
+  it("useAdminRatingsSummary reads the deployment-wide split for the period", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ total_ratings: 1204 });
-    const { result } = renderHook(() => useAdminRatingsSummary(), { wrapper });
+    const { result } = renderHook(() => useAdminRatingsSummary(PERIOD), { wrapper });
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(apiClient.get).toHaveBeenCalledWith("/admin/ratings/summary", {
-      params: { days: "30" },
+      params: { from: PERIOD.from, to: PERIOD.to },
     });
     expect(result.current.summary).toEqual({ total_ratings: 1204 });
+  });
+
+  it("useAdminRatingsSummary asks again when the period changes", async () => {
+    // The window is the card's whole question, so it has to be in the query
+    // key: without it a second period is answered from the first one's cache
+    // and the chart never moves.
+    vi.mocked(apiClient.get).mockResolvedValue({ total_ratings: 1 });
+    const { rerender } = renderHook(({ period }) => useAdminRatingsSummary(period), {
+      wrapper,
+      initialProps: { period: PERIOD },
+    });
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(1));
+
+    rerender({ period: { from: "2026-06-01", to: "2026-06-30" } });
+
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(2));
+    expect(apiClient.get).toHaveBeenLastCalledWith("/admin/ratings/summary", {
+      params: { from: "2026-06-01", to: "2026-06-30" },
+    });
   });
 
   it("none of them fetch for a caller who is not the app admin", () => {
@@ -176,7 +197,7 @@ describe("the deployment strip's hooks", () => {
         useAdminStats({ enabled: false });
         useSystemHealth({ enabled: false });
         useAdminOrganizations(5, { enabled: false });
-        useAdminRatingsSummary({ enabled: false });
+        useAdminRatingsSummary(PERIOD, { enabled: false });
       },
       { wrapper },
     );
