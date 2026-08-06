@@ -39,6 +39,13 @@ name: AI review
 #            back, whatever the model is talked into.
 #   publish  posts the result. Never sees the key.
 #
+# `review` **fails when it did not review**, and that is the whole of the
+# lesson in #311: for eleven pull requests it concluded `success` on a reviewer
+# that had been dead since 2026-08-05, because a green job and a quiet one look
+# identical from the pull request page. What decides whether `publish` runs is
+# `review`'s `status` output rather than its result, so the job can go red and
+# the pull request still gets the comment explaining why.
+#
 # There is deliberately no `issue_comment` trigger, and it is a security
 # property rather than a simplification. `issue_comment` is privileged: it runs
 # from the default branch **with secrets**, for a comment on any pull request
@@ -173,6 +180,12 @@ jobs:
     # scope, so it is reachable from exactly one job in exactly one workflow.
     # A repository secret is reachable from any workflow anybody later adds.
     environment: ai-review
+    # `reviewed`, `declined` or `broken` - see `Normalize the result`. Empty
+    # when this job never got as far as deciding, which is also the signal
+    # `publish` reads to know whether a findings artifact exists at all. A
+    # failed job still carries the outputs its steps managed to set.
+    outputs:
+      status: ${{ steps.result.outputs.status }}
     env:
       BASE_REF: ${{ needs.context.outputs.base_ref }}
       HEAD_SHA: ${{ needs.context.outputs.head_sha }}
@@ -194,11 +207,11 @@ jobs:
         #   diff falls through to `status=ok` and the cap silently stops
         #   existing.
         #
-        # This reports rather than exits: a job that fails here skips `publish`
-        # too, and the pull request would sit with no comment at all, which is
-        # the one outcome the rest of this workflow refuses to produce. The
-        # summary says what is wrong; the `::error::` annotation makes the run
-        # loud without hiding it.
+        # This reports rather than exits, because exiting here would skip
+        # `Normalize the result` and leave the pull request with no comment at
+        # all - the one outcome the rest of this workflow refuses to produce.
+        # The job still ends red: an unconfigured reviewer normalizes to
+        # `broken` and the last step of this job fails on that.
         run: |
           set -euo pipefail
           problems=()
@@ -355,11 +368,16 @@ jobs:
           BASE_SHA: ${{ steps.diff.outputs.base_sha }}
 
       - name: Review the diff
+        id: codex
         if: steps.diff.outputs.status == 'ok'
         # A reviewer that failed says so on the pull request, where somebody is
-        # looking, rather than only as a red mark in the Actions tab. The next
-        # step turns a missing result into that message; failing the job here
-        # would skip it and leave the pull request with nothing at all.
+        # looking, and not only as a red mark in the Actions tab. Failing the job
+        # *here* would skip the two steps that produce the message and leave the
+        # pull request with nothing at all, so the failure is carried forward
+        # instead: `steps.codex.outcome` is the pre-`continue-on-error` result,
+        # the next step turns it into `broken`, and the last step of this job
+        # fails on that. Do not read `steps.codex.conclusion` - it is `success`
+        # by construction here, which is how #311 stayed invisible.
         continue-on-error: true
         uses: openai/codex-action@52fe01ec70a42f454c9d2ebd47598f9fd6893d56 # v1.11
         with:
@@ -383,12 +401,24 @@ jobs:
         # A model that returns something other than the schema is a bug worth
         # seeing rather than a silent no-op, so its raw output is carried
         # through into the summary.
+        #
+        # It also classifies, into exactly three, because before #311 the
+        # comment rendered all of them as one sentence and a reader could not
+        # tell a clean diff from a dead reviewer:
+        #
+        #   reviewed  the reviewer read the diff and answered. Zero findings is
+        #             a real answer and the most common one.
+        #   declined  a decision this workflow made - nothing to review, or a
+        #             diff over the line cap. Working as intended.
+        #   broken    the reviewer could not run. Nothing was reviewed, the
+        #             comment says so in those words, and the job fails.
         env:
           CONFIG_STATUS: ${{ steps.config.outputs.status }}
           CONFIG_PROBLEMS: ${{ steps.config.outputs.problems }}
           STANDARD_STATUS: ${{ steps.standard.outputs.status }}
           DIFF_STATUS: ${{ steps.diff.outputs.status }}
           CHANGED_LINES: ${{ steps.diff.outputs.changed_lines }}
+          CODEX_OUTCOME: ${{ steps.codex.outcome }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -405,37 +435,58 @@ jobs:
           config = os.environ["CONFIG_STATUS"]
           standard = os.environ.get("STANDARD_STATUS", "")
           diff_status = os.environ.get("DIFF_STATUS", "")
+          codex = os.environ.get("CODEX_OUTCOME", "")
           changed = os.environ.get("CHANGED_LINES", "0")
           limit = os.environ.get("MAX_CHANGED_LINES", "")
 
-          def write(summary: str) -> None:
+          def write(status: str, summary: str) -> str:
               out.write_text(json.dumps({"summary": summary, "findings": []}))
+              return status
 
           if config == "unconfigured":
-              write(
-                  "No review: the reviewer is misconfigured - "
+              status = write(
+                  "broken",
+                  "**The reviewer did not run: it is misconfigured.** "
                   f"{os.environ['CONFIG_PROBLEMS']}. Its settings are repository "
-                  "variables, listed in `docs/code-review.md`. Nothing was read and "
-                  "nothing was charged."
+                  "variables, listed in `docs/code-review.md`. Nothing in this pull "
+                  "request was read, and nothing was charged.",
               )
           elif standard == "no-standard":
-              write(
-                  f"No review: `{base_ref}` has no `.github/codex/review-prompt.md`. "
-                  "The reviewer reads its instructions from the base branch so that a "
-                  "pull request cannot edit them, which means they have to land there "
-                  "first."
+              status = write(
+                  "broken",
+                  f"**The reviewer did not run:** `{base_ref}` has no "
+                  "`.github/codex/review-prompt.md`. The reviewer reads its "
+                  "instructions from the base branch so that a pull request cannot "
+                  "edit them, which means they have to land there first.",
               )
           elif diff_status == "empty":
-              write("No review: this pull request changes nothing outside the excluded paths.")
+              status = write(
+                  "declined",
+                  "No review: this pull request changes nothing outside the excluded paths.",
+              )
           elif diff_status == "too-large":
-              write(
+              status = write(
+                  "declined",
                   f"No review: {changed} changed lines, over the {limit} line limit. "
                   "A truncated pass costs as much as a real one and finds less. Split "
                   "the pull request, or raise `AI_REVIEW_MAX_CHANGED_LINES` if a diff "
-                  "this size is genuinely one change."
+                  "this size is genuinely one change.",
+              )
+          elif codex != "success":
+              status = write(
+                  "broken",
+                  f"**The reviewer failed** - the Codex step ended `{codex}`. Nothing "
+                  "in this pull request was reviewed, so this comment says nothing "
+                  "about the diff. What Codex printed is below; the usual causes are "
+                  "an expired or rate-limited OpenAI key, a project spend limit, and "
+                  "a model slug the installed CLI does not carry.",
               )
           elif not out.exists():
-              write("No review: the reviewer did not produce a result. See the workflow run.")
+              status = write(
+                  "broken",
+                  "**The reviewer failed:** Codex exited cleanly and wrote no result "
+                  "file. See the workflow run.",
+              )
           else:
               raw = out.read_text()
               try:
@@ -443,10 +494,16 @@ jobs:
                   if not isinstance(parsed, dict) or "findings" not in parsed:
                       raise ValueError("not the review schema")
               except (json.JSONDecodeError, ValueError) as exc:
-                  write(
-                      f"The reviewer returned output that is not the review schema ({exc}). "
-                      "Raw output:\n\n```\n" + raw[:4000] + "\n```"
+                  status = write(
+                      "broken",
+                      "**The reviewer failed:** it returned output that is not the "
+                      f"review schema ({exc}). Raw output:\n\n```\n" + raw[:4000] + "\n```",
                   )
+              else:
+                  status = "reviewed"
+
+          with pathlib.Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as handle:
+              handle.write(f"status={status}\n")
           PY
 
       - name: Upload the findings
@@ -457,14 +514,38 @@ jobs:
           path: ${{ runner.temp }}/ai-review/findings.json
           retention-days: 7
 
+      - name: Fail when the reviewer did not review
+        # Last, so that the comment is written and uploaded before this job goes
+        # red. #311 is the reason it exists: `success` on a reviewer that had
+        # produced nothing for a day is a gate reading green because the thing
+        # is not in it, which is #143 and #165 applied to the reviewer.
+        #
+        # Failing rather than `core.setNeutral` - the check is advisory and not
+        # required, so red costs nobody a merge; it only makes the outage
+        # visible on the page where somebody is already looking. A neutral
+        # conclusion renders as a grey tick, which is what we are trying to stop
+        # this from looking like.
+        if: steps.result.outputs.status == 'broken'
+        run: |
+          echo "::error::The reviewer produced no review. The summary comment on the pull request says which stage failed and what it printed."
+          exit 1
+
   publish:
     name: Publish the review
     needs: [context, review]
-    if: always() && needs.review.result == 'success'
+    # Gated on there being something to publish, not on `review` having gone
+    # green - since #311 that job deliberately fails when the reviewer did not
+    # review, and that is precisely the run whose comment matters most. The
+    # output is empty only when `review` never reached `Normalize the result`,
+    # which is also when no artifact exists to download.
+    if: always() && needs.review.outputs.status != ''
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       pull-requests: write
+      # For this run's own job log, below. It is read in the job that holds no
+      # API key, and only after `review` has finished.
+      actions: read
     steps:
       - name: Download the findings
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -472,11 +553,81 @@ jobs:
           name: ai-review-findings
           path: findings
 
+      - name: Collect what the reviewer printed
+        id: diagnosis
+        if: needs.review.outputs.status == 'broken'
+        # A diagnosis that cannot be fetched must not cost the comment: this is
+        # a nicety on top of a message that already says the reviewer failed,
+        # and the comment is the thing #311 is about.
+        continue-on-error: true
+        # The reason #311 went a day unnoticed. Codex writes its own diagnosis
+        # to stderr - for the whole outage, `Your project has reached its
+        # configured enforced spend limit` - and a `uses:` step's stderr goes
+        # nowhere but the runner log, under a Node stack trace, at the bottom of
+        # eleven hundred lines of a job that concluded green. So the log is read
+        # back through the API and its complaints travel into the comment.
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        with:
+          github-token: ${{ github.token }}
+          # Without this the step's own return value is JSON-encoded, and the
+          # comment would carry a quoted one-line string with `\n` in it.
+          result-encoding: string
+          script: |
+            const { owner, repo } = context.repo;
+            const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRunAttempt, {
+              owner, repo,
+              run_id: context.runId,
+              attempt_number: Number(process.env.RUN_ATTEMPT),
+              per_page: 100,
+            });
+            const job = jobs.find((candidate) => candidate.name === 'Run the reviewer');
+            if (!job) {
+              core.warning('No job named "Run the reviewer" in this attempt; no output to collect.');
+              return '';
+            }
+
+            const log = await github.request('GET /repos/{owner}/{repo}/actions/jobs/{job_id}/logs', {
+              owner, repo, job_id: job.id,
+            });
+            // Octokit decodes a text content type to a string and anything else
+            // to an ArrayBuffer, and the redirect this ends at has been served
+            // as both.
+            const text = typeof log.data === 'string' ? log.data : Buffer.from(log.data).toString('utf8');
+
+            // This publishes log text into a comment, and the repository is
+            // public - but so are its Actions logs, and GitHub masks registered
+            // secrets before serving either, so nothing reaches a reader here
+            // that a link to the run did not already reach them.
+            //
+            // What is left is a thousand lines of runner bookkeeping around a
+            // handful of complaints, so only the complaints are kept -
+            // timestamps and colour codes stripped, consecutive repeats
+            // collapsed (Codex prints its reconnect attempts one per line), the
+            // last few of them, and a cap because a comment is not a log viewer.
+            const complaints = [];
+            for (const raw of text.split('\n')) {
+              const line = raw
+                .replace(/^\S+Z /, '')
+                .replace(/\x1b\[[0-9;]*m/g, '')
+                .trimEnd();
+              if (!/^(ERROR|Error|error)\b|^##\[error\]/.test(line)) continue;
+              if (line !== complaints[complaints.length - 1]) complaints.push(line);
+            }
+            if (!complaints.length) {
+              core.warning('The reviewer failed and printed nothing this step recognises as an error.');
+              return '';
+            }
+            return complaints.slice(-12).join('\n').slice(-2000);
+
       - name: Post the findings
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           PR_NUMBER: ${{ needs.context.outputs.pr_number }}
           HEAD_SHA: ${{ needs.context.outputs.head_sha }}
+          REVIEW_STATUS: ${{ needs.review.outputs.status }}
+          REVIEWER_OUTPUT: ${{ steps.diagnosis.outputs.result }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         with:
           github-token: ${{ github.token }}
@@ -495,6 +646,10 @@ jobs:
 
             const review = JSON.parse(fs.readFileSync('findings/findings.json', 'utf8'));
             const findings = Array.isArray(review.findings) ? review.findings : [];
+            // `reviewed`, `declined` or `broken`, decided in `Normalize the
+            // result`. The heading, the deletion of the previous run's inline
+            // comments and the "no findings" line all turn on it.
+            const status = process.env.REVIEW_STATUS;
 
             // GitHub rejects a review comment whose line is not part of the
             // diff, and models get line numbers wrong regularly. Rather than
@@ -545,13 +700,19 @@ jobs:
               return parts.join('\n');
             };
 
-            // A re-run replaces its predecessor instead of stacking on it.
-            const previous = await github.paginate(github.rest.pulls.listReviewComments, {
-              owner, repo, pull_number, per_page: 100,
-            });
-            for (const comment of previous) {
-              if (comment.body?.startsWith(FINDING_MARKER)) {
-                await github.rest.pulls.deleteReviewComment({ owner, repo, comment_id: comment.id });
+            // A re-run replaces its predecessor instead of stacking on it - but
+            // only a re-run that actually reviewed. A broken or declined run
+            // has nothing to replace the previous findings *with*, and deleting
+            // them would turn a reviewer outage into the deletion of real
+            // findings somebody had not finished acting on.
+            if (status === 'reviewed') {
+              const previous = await github.paginate(github.rest.pulls.listReviewComments, {
+                owner, repo, pull_number, per_page: 100,
+              });
+              for (const comment of previous) {
+                if (comment.body?.startsWith(FINDING_MARKER)) {
+                  await github.rest.pulls.deleteReviewComment({ owner, repo, comment_id: comment.id });
+                }
               }
             }
 
@@ -587,7 +748,38 @@ jobs:
               listed.push([finding, `over the ${MAX_INLINE} inline comment limit`]);
             }
 
-            const summary = [SUMMARY_MARKER, '## AI review', '', review.summary ?? ''];
+            // The heading, not the body text, is what somebody skimming the
+            // pull request reads - so it carries the one distinction #311 was
+            // about: a reviewer that answered, and a reviewer that never ran.
+            const heading = {
+              reviewed: '## AI review',
+              declined: '## AI review — declined',
+              broken: '## AI review — the reviewer failed',
+            }[status];
+            const summary = [SUMMARY_MARKER, heading, '', review.summary ?? ''];
+            if (status === 'broken') {
+              summary.push(
+                '',
+                '**Nothing here was reviewed.** This comment is about the reviewer, ' +
+                  'not about the diff — a clean diff and a dead reviewer used to read ' +
+                  'the same, which is [#311](https://github.com/vstorm-co/agenticos/issues/311).',
+              );
+              if (process.env.REVIEWER_OUTPUT) {
+                summary.push(
+                  '',
+                  '<details><summary>What the reviewer printed</summary>',
+                  '',
+                  '```text',
+                  process.env.REVIEWER_OUTPUT,
+                  '```',
+                  '',
+                  '</details>',
+                );
+              }
+            }
+            if (status === 'reviewed' && !findings.length) {
+              summary.push('', 'No findings — the reviewer read the diff and had nothing to report.');
+            }
             if (posted.length) {
               summary.push('', `${posted.length} finding(s) posted inline.`);
             }
@@ -600,10 +792,15 @@ jobs:
                 );
               }
             }
+            // Not "add the `ai-review` label": #313 removed the `pull_request`
+            // trigger, so the label does nothing until it is restored, and a
+            // footer telling somebody to add it is a second thing on this page
+            // quietly not working.
             summary.push(
               '',
               '---',
-              `Add the \`ai-review\` label to re-run. [Run](${process.env.RUN_URL}).`,
+              `Re-run with \`gh workflow run ai-review.yml -f pr_number=${pull_number}\`. ` +
+                `[Run](${process.env.RUN_URL}).`,
               'Advisory only — this is not a required check.',
             );
 
