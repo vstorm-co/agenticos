@@ -11,6 +11,7 @@ import boto3
 from botocore.config import Config
 
 from app.core.config import settings
+from app.services.rag.remote_names import destination_within
 from app.services.rag.sources.base import BaseDocumentSource, SourceFile
 
 logger = logging.getLogger(__name__)
@@ -85,9 +86,11 @@ class S3Source(BaseDocumentSource):
 
         Returns:
             Path to the downloaded file.
+
+        Raises:
+            BadRequestError: the key does not name a file inside `dest_dir`.
         """
-        name = Path(file_id).name
-        dest_path = dest_dir / name
+        dest_path = destination_within(dest_dir, file_id)
         self.client.download_file(self.bucket, file_id, str(dest_path))
         logger.info(
             "Downloaded s3://%s/%s (%d bytes)", self.bucket, file_id, dest_path.stat().st_size

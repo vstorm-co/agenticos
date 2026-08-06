@@ -339,6 +339,42 @@ same set of rows: a source repointed at another base keeps its earlier runs unde
 the collection name it had then, and those used to be dropped from the page after
 `limit` had already cut it.
 
+### What a sync source is not allowed to decide
+
+A source's contents are not the deployment's to trust, and on a Drive folder
+shared outside the organization they are not even the tenant's: sharing is what
+folder sharing is *for*, so whoever can drop a file in one chooses the string
+the next sync handles. Two of those strings used to be taken at face value, and
+`app/services/rag/remote_names.py` is where both are now refused.
+
+**A file name is a label, not a path component.** `../../../../home/app/.ssh/authorized_keys`
+is a legal Drive file name, and the connector wrote `dest_dir / file.name`
+verbatim — outside the temporary directory the worker had made, wherever its uid
+could write, and then ingested from there. The name is now reduced to its final
+component and the result *resolved and confirmed* to be a child of the sync
+directory, so `..`, its encodings, its lookalikes and a symlink already sitting
+in the directory are one question rather than a list of spellings to keep up
+with. A name that is no component at all — `..`, `.`, `/` — is refused; anything
+else lands inside as one file. **The destination is `BaseSyncConnector`'s
+answer, not a connector's**: an implementation is handed a path and writes to it
+(`_fetch`), which is what makes a connector added later inherit the refusal
+rather than have to remember it.
+
+**A folder id reaches a query language.** The Drive query wraps a parent id in
+single quotes, so `x' in parents or name contains 'salary` is a well-formed,
+wider query. A folder id is now checked against what Google can issue — letters,
+digits, `-` and `_` — where the query is built, which is the one funnel both the
+configured folder and every sub-folder id pass through. `validate_config`
+asks the same question, so a hostile value is answered by the route that
+accepted it rather than by a sync log an hour later.
+
+**A Google Drive source runs on its own credential or not at all.** The
+connector used to fall back to `GOOGLE_DRIVE_CREDENTIALS_FILE` whenever
+`service_account_json` was absent, which meant a tenant's folder id chose what
+was listed under the *operator's* service account and whatever that account had
+been shared. The fallback is gone; the setting now serves only the
+`rag-sync-gdrive` CLI command, which an operator runs from their own shell.
+
 ### Image Description
 
 When processing documents that contain images, the system can optionally

@@ -128,21 +128,16 @@ class S3Connector(BaseSyncConnector):
 
         return await asyncio.to_thread(_list)
 
-    async def download_file(
-        self, file: RemoteFile, dest_dir: Path, config: dict | None = None
-    ) -> Path:
-        """Download a file from S3."""
-        cfg = config or {}
+    async def _fetch(self, file: RemoteFile, dest_path: Path, config: dict) -> None:
+        """Download a file from S3 to the path the base class chose."""
         parts = file.source_path.replace("s3://", "").split("/", 1)
         bucket = parts[0]
 
-        def _download():
-            client = self._get_s3_client(cfg)
-            dest_path = dest_dir / file.name
+        def _download() -> None:
+            client = self._get_s3_client(config)
             client.download_file(bucket, file.id, str(dest_path))
             logger.info(
                 "Downloaded s3://%s/%s (%d bytes)", bucket, file.id, dest_path.stat().st_size
             )
-            return dest_path
 
-        return await asyncio.to_thread(_download)
+        await asyncio.to_thread(_download)

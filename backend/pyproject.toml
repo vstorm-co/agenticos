@@ -372,6 +372,11 @@ include = [
     "app/services/mcp_connection.py",
     "app/services/model_profile.py",
     "app/services/organization_secret.py",
+    # The rest of `app/services/rag/` came with the template and is reported
+    # rather than gated. This module is ours and is only refusals - where a
+    # remote file may be written, and what may reach a Drive query - so the
+    # branch that is never taken in normal operation is the whole point of it.
+    "app/services/rag/remote_names.py",
     "app/services/sharing.py",
     "app/services/skills.py",
     "app/services/spend.py",
@@ -510,6 +515,11 @@ include = [
     "app/services/mcp_connection.py",
     "app/services/model_profile.py",
     "app/services/organization_secret.py",
+    # The rest of `app/services/rag/` came with the template and is reported
+    # rather than gated. This module is ours and is only refusals - where a
+    # remote file may be written, and what may reach a Drive query - so the
+    # branch that is never taken in normal operation is the whole point of it.
+    "app/services/rag/remote_names.py",
     "app/services/sharing.py",
     "app/services/skills.py",
     "app/services/spend.py",
