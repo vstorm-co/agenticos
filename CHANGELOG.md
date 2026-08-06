@@ -19,6 +19,26 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.58] - 2026-08-06
+
+### Fixed
+
+- `make install` did not create `backend/.env`, the third thing a fresh checkout
+  is missing. Everything running on the host reads it — `db-check`, `db-upgrade`,
+  `run`, and pytest through `app.core.config` — so without one
+  `POSTGRES_PASSWORD` is empty and `alembic check` is refused with
+  `fe_sendauth: no password supplied`, four minutes into `make check`. It is
+  copied from the example, once, and an existing file is never overwritten (#299).
+- `REDIS_PASSWORD` carried a live placeholder in the example. Copied into a dev
+  `.env` it made every request fail against a local redis that has no
+  `requirepass`, and in a deployed stack it let `change-me-in-production` be
+  inherited from an example file. It is commented out in both directions now,
+  and the deployed compose files already refuse to start without a real one.
+- The empty `SANDBOXD_TOKEN=` in the example did not match the `^SANDBOXD_TOKEN=.`
+  that `make dev` greps for, so a fresh checkout ended up with the key twice and
+  worked only by last-wins. The assignment is gone; the comment stays.
+
+
 ## [0.0.57] - 2026-08-06
 
 ### Fixed
