@@ -51,16 +51,19 @@ def test_the_alembic_subprocesses_are_pointed_at_that_database() -> None:
 def test_a_server_that_answers_is_neither_skipped_nor_refused(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(test_migrations, "_server_answers", lambda url: True)
+    monkeypatch.setattr(test_migrations, "_why_the_server_did_not_answer", lambda url: None)
     test_migrations._demand_a_server("postgresql://nowhere/postgres")
 
 
 def test_no_server_on_a_laptop_skips(monkeypatch: pytest.MonkeyPatch) -> None:
     """`make test` on a machine without Docker still runs everything else."""
-    monkeypatch.setattr(test_migrations, "_server_answers", lambda url: False)
+    monkeypatch.setattr(
+        test_migrations, "_why_the_server_did_not_answer", lambda url: "connection refused"
+    )
     monkeypatch.delenv("CI", raising=False)
-    with pytest.raises(pytest.skip.Exception, match="make docker-db"):
+    with pytest.raises(pytest.skip.Exception, match="make docker-db") as raised:
         test_migrations._demand_a_server("postgresql://nowhere/postgres")
+    assert "connection refused" in str(raised.value)
 
 
 def test_no_server_in_ci_fails_rather_than_skipping(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -71,7 +74,13 @@ def test_no_server_in_ci_fails_rather_than_skipping(monkeypatch: pytest.MonkeyPa
     then reports a green build over a chain nobody applied, and looks identical in
     the log to the laptop case above.
     """
-    monkeypatch.setattr(test_migrations, "_server_answers", lambda url: False)
+    monkeypatch.setattr(
+        test_migrations, "_why_the_server_did_not_answer", lambda url: "connection refused"
+    )
     monkeypatch.setenv("CI", "true")
-    with pytest.raises(RuntimeError, match="refusing to skip the migration suite"):
+    with pytest.raises(RuntimeError, match="Refusing to skip the migration suite") as raised:
         test_migrations._demand_a_server("postgresql://nowhere/postgres")
+    # The reason travels with it: a server that is up and refusing us is a third
+    # case, and reporting it as a container that never started sends the reader
+    # to the wrong file.
+    assert "connection refused" in str(raised.value)

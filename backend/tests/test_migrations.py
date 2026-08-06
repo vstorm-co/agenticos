@@ -84,13 +84,20 @@ def _alembic(*args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-def _server_answers(url: str) -> bool:
+def _why_the_server_did_not_answer(url: str) -> str | None:
+    """`None` when the server answers, otherwise the reason it did not.
+
+    The reason is carried out rather than flattened to a bool because a server
+    that is up and refusing - a wrong password, a database still in recovery -
+    is a third case, and reporting it as the two below sends the reader to the
+    wrong place. Telling those apart is the whole job of `_demand_a_server`.
+    """
     engine = create_engine(url)
     try:
         with engine.connect():
-            return True
-    except Exception:
-        return False
+            return None
+    except Exception as exc:  # noqa: BLE001 - any failure to connect is the answer
+        return str(exc).strip()
     finally:
         engine.dispose()
 
@@ -118,15 +125,16 @@ def _demand_a_server(url: str) -> None:
     over a migration chain nobody applied, which is exactly the failure this
     module was already reporting silently.
     """
-    if _server_answers(url):
+    reason = _why_the_server_did_not_answer(url)
+    if reason is None:
         return
     if os.getenv("CI"):
         raise RuntimeError(
-            f"No database reachable at {url} but CI is set. The Postgres service "
-            "container did not come up; refusing to skip the migration suite and "
-            "report a green build."
+            f"No database reachable at {url} but CI is set, so the Postgres "
+            f"service container did not come up or is refusing us: {reason}. "
+            "Refusing to skip the migration suite and report a green build."
         )
-    pytest.skip("No database reachable - start one with `make docker-db`")
+    pytest.skip(f"No database reachable ({reason}) - start one with `make docker-db`")
 
 
 @pytest.fixture(scope="module", autouse=True)
