@@ -19,6 +19,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.51] - 2026-08-06
+
+### Fixed
+
+- `scripts/check_i18n.py` walked past two shapes of hardcoded copy: a sentence
+  that begins with a word before its interpolation, and a count built with a
+  lambda rather than an ICU plural. Both render in English under any locale, and
+  `make lint` reported clean over them (#249).
+
+
 ## [0.0.50] - 2026-08-06
 
 ### Fixed
