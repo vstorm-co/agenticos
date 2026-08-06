@@ -19,6 +19,26 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.50] - 2026-08-06
+
+### Fixed
+
+- The embedding Model select in Create knowledge base never showed its value —
+  it said "Loading models…" for as long as the dialog was open, while the list
+  below it was populated. Radix writes the new value onto a hidden native select
+  and dispatches `change` before the items have registered their options, so the
+  value read back was empty and clobbered the state. This is the one choice in
+  the dialog that cannot be revisited, since a collection's embedding width is
+  frozen at creation (#328).
+- The agent builder offered the add-model form to anyone who could open it,
+  though submitting needs `connections:manage`, and the store-a-key form inside
+  it never checked `secrets:edit`. A control the caller may not use is not
+  rendered (#329).
+- Two buttons in the same dialog were both called "Add a key" while writing
+  different secrets. By accessible name they were indistinguishable, so a screen
+  reader heard the same button twice (#331).
+
+
 ## [0.0.49] - 2026-08-06
 
 ### Changed
