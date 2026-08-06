@@ -12,6 +12,8 @@ from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, ToolApproval
+from app.db.models.conversation import Message
+from app.db.models.message_rating import MessageRating
 from app.db.models.organization_secret import OrganizationSecret
 
 
@@ -192,6 +194,22 @@ async def mark_running(db: AsyncSession, *, run: AgentRun) -> AgentRun:
     return run
 
 
+class RunRating(enum.StrEnum):
+    """Which way a run's answer was rated, as run history asks about it.
+
+    `DOWN` is the reason this exists: `message_ratings` holds a thumb and an
+    optional comment per assistant message, and it is the highest-signal
+    debugging queue the platform will ever have - the answers real people said
+    were wrong, in their own words. Nothing below the app admin could reach any
+    of it, which is what makes "quality fell four points" a number nobody can
+    act on. `UP` is here because it costs one comparison and "what did people
+    like" is the same question from the other side.
+    """
+
+    UP = "up"
+    DOWN = "down"
+
+
 @dataclass(frozen=True)
 class RunFilters:
     """How run history is narrowed, as one value rather than nine parameters.
@@ -225,6 +243,10 @@ class RunFilters:
             `ended_at` is excluded rather than treated as zero - it has no
             duration yet, and calling that "fast" is the wrong answer to
             "show me the slow ones".
+        rated: Only runs somebody rated that way. `down` is the highest-signal
+            queue this platform has - the answers real people said were wrong -
+            and until `messages.run_id` existed there was no way to ask a run
+            whether it earned one.
     """
 
     statuses: Sequence[str] | None = None
@@ -236,6 +258,7 @@ class RunFilters:
     exposure_id: UUID | None = None
     agent_version_id: UUID | None = None
     took_over_ms: int | None = None
+    rated: RunRating | None = None
 
     def conditions(self) -> list[ColumnElement[bool]]:
         """One `WHERE` clause per filter that was actually set.
@@ -262,7 +285,33 @@ class RunFilters:
             clauses.append(AgentRun.agent_version_id == self.agent_version_id)
         if self.took_over_ms is not None:
             clauses.append(_duration_ms() > self.took_over_ms)
+        if self.rated is not None:
+            clauses.append(_was_rated(self.rated))
         return clauses
+
+
+def _was_rated(rated: RunRating) -> ColumnElement[bool]:
+    """Whether anybody rated a message this run produced that way.
+
+    An `EXISTS` rather than a join, so a run whose answer three people disliked
+    is one row here and not three - a join would multiply the page and the count
+    by however many people happened to press the button.
+
+    "Anybody", deliberately: a run one person liked and another disliked matches
+    both filters, because both are true of it. Collapsing that into a single
+    verdict per run would be inventing a consensus the rows do not record.
+
+    This is what `messages.run_id` bought. A rating hangs off a message, and
+    until a message named its run there was no way to ask a run whether it
+    earned one.
+    """
+    sign = MessageRating.rating > 0 if rated is RunRating.UP else MessageRating.rating < 0
+    return (
+        select(MessageRating.id)
+        .join(Message, Message.id == MessageRating.message_id)
+        .where(Message.run_id == AgentRun.id, sign)
+        .exists()
+    )
 
 
 def _duration_ms() -> ColumnElement[float]:

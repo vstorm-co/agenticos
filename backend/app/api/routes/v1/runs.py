@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, Query
 from app.api.deps import AgentRunnerSvc, ApprovalSvc, Auth, require
 from app.core.permissions import Perm
 from app.db.models.agent_run import RunStatus, RunSurface
-from app.repositories.agent_run import RunFilters, RunOrder
+from app.repositories.agent_run import RunFilters, RunOrder, RunRating
 from app.schemas.agent import AgentRunResult
 from app.schemas.agent_run import (
     AgentRunList,
@@ -56,6 +56,7 @@ async def list_runs(
     took_over_ms: int | None = Query(
         None, ge=0, description="Only runs slower than this. A run still going has no duration"
     ),
+    rated: RunRating | None = Query(None, description="Only runs somebody rated this way"),
     order_by: RunOrder = Query(RunOrder.STARTED_AT, description="Sort by start time or duration"),
     descending: bool = Query(True, description="Newest or slowest first"),
     skip: int = Query(0, ge=0),
@@ -81,6 +82,11 @@ async def list_runs(
     set. Unfinished runs have no duration and sort last in both directions rather
     than as zero.
 
+    `rated=down` is the highest-signal queue here: the answers real people said
+    were wrong. A run matches if *anybody* rated a message it produced that way,
+    so a run one person liked and another disliked matches both - collapsing that
+    into one verdict per run would invent a consensus the rows do not record.
+
     Every filter narrows both the page and `total`, so the number always
     describes the rows under it.
     """
@@ -99,6 +105,7 @@ async def list_runs(
             exposure_id=exposure_id,
             agent_version_id=agent_version_id,
             took_over_ms=took_over_ms,
+            rated=rated,
         ),
         order_by=order_by,
         descending=descending,

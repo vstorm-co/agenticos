@@ -28,9 +28,11 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
+from app.db.models.conversation import Conversation, Message
+from app.db.models.message_rating import MessageRating
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
-from app.repositories.agent_run import RunFilters, RunOrder
+from app.repositories.agent_run import RunFilters, RunOrder, RunRating
 from app.services.agent_runner import AgentRunnerService
 
 pytestmark = pytest.mark.anyio
@@ -348,6 +350,98 @@ class TestNarrowingByHowLongItTook:
         await _run(db, org, agent, status=RunStatus.RUNNING.value, started_at=_NOW, ended_at=None)
 
         assert (await _listed(db, org, user, filters=RunFilters(took_over_ms=1)))[1] == 0
+
+
+class TestNarrowingByWhatPeopleThoughtOfIt:
+    """#209, and the reason `messages.run_id` had to land first.
+
+    A rating hangs off a message. Until a message named its run there was no way
+    to ask a run whether it earned a thumb down - so the highest-signal debugging
+    queue the platform has, the answers real people said were wrong, was
+    reachable only by the app admin over the whole deployment.
+    """
+
+    @staticmethod
+    async def _rated(db, run: AgentRun, *, by: User, rating: int) -> None:
+        conversation = Conversation(
+            id=uuid.uuid4(), organization_id=run.organization_id, user_id=by.id
+        )
+        db.add(conversation)
+        await db.flush()
+        message = Message(
+            id=uuid.uuid4(),
+            conversation_id=conversation.id,
+            run_id=run.id,
+            role="assistant",
+            content="the refund window is 30 days",
+        )
+        db.add(message)
+        await db.flush()
+        db.add(MessageRating(id=uuid.uuid4(), message_id=message.id, user_id=by.id, rating=rating))
+        await db.flush()
+
+    async def test_only_the_runs_somebody_said_were_wrong(self, db) -> None:
+        org, user = await _org(db)
+        agent = await _agent(db, org)
+        disliked = await _run(db, org, agent)
+        liked = await _run(db, org, agent)
+        await _run(db, org, agent)
+        await self._rated(db, disliked, by=user, rating=-1)
+        await self._rated(db, liked, by=user, rating=1)
+
+        rows, total = await _listed(db, org, user, filters=RunFilters(rated=RunRating.DOWN))
+
+        assert (rows, total) == ([str(disliked.id)], 1)
+
+    async def test_the_same_question_from_the_other_side(self, db) -> None:
+        org, user = await _org(db)
+        agent = await _agent(db, org)
+        liked = await _run(db, org, agent)
+        await self._rated(db, liked, by=user, rating=1)
+
+        rows, total = await _listed(db, org, user, filters=RunFilters(rated=RunRating.UP))
+
+        assert (rows, total) == ([str(liked.id)], 1)
+
+    async def test_a_run_several_people_disliked_is_one_row_and_not_three(self, db) -> None:
+        """An `EXISTS`, not a join. A join would multiply the page and the count by
+        however many people happened to press the button, and the count is what a
+        reader uses to decide whether the list is worth reading."""
+        org, user = await _org(db)
+        agent = await _agent(db, org)
+        disliked = await _run(db, org, agent)
+        for _ in range(3):
+            await self._rated(db, disliked, by=await _user(db), rating=-1)
+
+        rows, total = await _listed(db, org, user, filters=RunFilters(rated=RunRating.DOWN))
+
+        assert (rows, total) == ([str(disliked.id)], 1)
+
+    async def test_a_run_one_person_liked_and_another_did_not_matches_both(self, db) -> None:
+        """Both are true of it. Reducing it to one verdict would invent a consensus
+        the rows do not record - and the disliked half is the half worth reading."""
+        org, user = await _org(db)
+        agent = await _agent(db, org)
+        divisive = await _run(db, org, agent)
+        await self._rated(db, divisive, by=user, rating=1)
+        await self._rated(db, divisive, by=await _user(db), rating=-1)
+
+        assert (await _listed(db, org, user, filters=RunFilters(rated=RunRating.DOWN)))[1] == 1
+        assert (await _listed(db, org, user, filters=RunFilters(rated=RunRating.UP)))[1] == 1
+
+    async def test_a_rating_on_another_runs_message_does_not_pull_this_one_in(self, db) -> None:
+        """The join is through `messages.run_id`, so two runs in one conversation
+        keep their own ratings - which is the whole reason the column exists rather
+        than a time window over the thread."""
+        org, user = await _org(db)
+        agent = await _agent(db, org)
+        blameless = await _run(db, org, agent)
+        disliked = await _run(db, org, agent)
+        await self._rated(db, disliked, by=user, rating=-1)
+
+        rows, _ = await _listed(db, org, user, filters=RunFilters(rated=RunRating.DOWN))
+
+        assert str(blameless.id) not in rows
 
 
 class TestFiltersAndTheTenantBoundary:

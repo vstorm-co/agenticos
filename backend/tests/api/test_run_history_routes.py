@@ -137,6 +137,22 @@ class TestSortingIsChosenFromTwoOrdersAndNotFromAColumnName:
         assert response.status_code == 422
 
 
+class TestAskingWhatPeopleThoughtOfIt:
+    async def test_the_runs_somebody_said_were_wrong(self):
+        filters = await _filters_for("?rated=down")
+
+        assert filters.rated.value == "down"
+
+    async def test_a_third_verdict_is_refused(self):
+        """There are two, and a run either has one or does not. `?rated=meh` must
+        not answer with an empty page - the queue this filter exists for is the one
+        an operator is reading to find real complaints."""
+        async with _client(_service()) as client:
+            response = await client.get("/api/v1/runs?rated=meh")
+
+        assert response.status_code == 422
+
+
 class TestWhatIsRefusedRatherThanMatchedAgainstNothing:
     @pytest.mark.parametrize(
         "query",

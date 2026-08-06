@@ -221,6 +221,7 @@ nesting belongs in that rather than in one bespoke run table.
 | `exposure_id` | Runs admitted through one binding. Null for the dashboard, the playground and the API |
 | `agent_version_id` | Runs that executed one frozen spec — the version strip's "show me the rows behind this number" |
 | `took_over_ms` | Only runs slower than this. A run that has not finished has no duration and is excluded, not counted as zero |
+| `rated` | `down` or `up` — runs where somebody rated a message the run produced |
 | `order_by`, `descending` | `started_at` (the default, newest first) or `duration` |
 
 **Every filter narrows the count as well as the page**, so `total` always
@@ -247,6 +248,15 @@ whichever rows a newest-first page happened to return. A run with no `ended_at`
 sorts **last in both directions**: it has no duration, and it is not the fastest
 run either. How long a *still-running* run has been going is a different question
 and this column deliberately does not answer it.
+
+**`rated=down` is the highest-signal queue here** — the answers real people said
+were wrong, in their own words. A rating hangs off a message, so this join runs
+through `messages.run_id`: two runs in one conversation keep their own ratings,
+which is why that column exists rather than a time window over the thread. It is
+an `EXISTS`, so a run three people disliked is one row and not three; and a run
+one person liked while another disliked matches **both** `up` and `down`, because
+both are true of it. Reducing that to one verdict per run would invent a consensus
+the rows do not record.
 
 Activity's three figures above the tabs stay the organization's, including the run
 count, even when the table below is narrowed to one agent. A per-agent count beside
