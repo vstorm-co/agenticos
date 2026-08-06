@@ -1232,6 +1232,41 @@
           "title": "No sandbox host registered",
           "description": "Register one and the room left for agents to run code lands here."
         }
+      },
+      "sandbox-sessions": {
+        "title": "Open sandboxes",
+        "runningOn": "on {name}",
+        "sampleUsage": "Memory",
+        "sampleUsageHint": "Sample memory and CPU - one round trip to the host per sandbox",
+        "nothingRunning": "Nothing is running. A sandbox opens the first time an agent runs code.",
+        "unattributed": "No agent recorded",
+        "memoryOfLimit": "{used} of {limit}",
+        "activityOf": "Show what was done in sandbox {id}",
+        "showActivity": "Activity",
+        "hideActivity": "Hide",
+        "noActivity": "Nothing recorded for this sandbox yet.",
+        "tookMs": "{ms}ms",
+        "scope": {
+          "run": "one run only",
+          "agent": "shared across the whole agent",
+          "conversation": "shared in one conversation",
+          "channel": "shared in one channel",
+          "user": "shared by one person",
+          "unknown": "a scope this version does not recognise"
+        },
+        "idle": {
+          "seconds": "{count}s idle",
+          "minutes": "{count}m idle",
+          "hours": "{count}h idle"
+        },
+        "empty": {
+          "title": "No sandbox host registered",
+          "description": "Register one and the sandboxes your agents open land here."
+        },
+        "elsewhere": {
+          "title": "Sandboxes run on Daytona",
+          "description": "Sessions opened there appear in that account's own dashboard, not here."
+        }
       }
     }
   },

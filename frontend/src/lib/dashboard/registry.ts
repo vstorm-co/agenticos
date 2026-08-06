@@ -47,7 +47,8 @@ export type WidgetId =
   | "my-top-agents"
   | "my-quality"
   | "shared-with-you"
-  | "sandbox-capacity";
+  | "sandbox-capacity"
+  | "sandbox-sessions";
 
 /** The closed set of card widths the grid supports (12 columns). */
 export type Span = "s3" | "s4" | "s5" | "s6" | "s7" | "s8" | "s12";
@@ -160,6 +161,12 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     id: "sandbox-capacity",
     gate: holds(Perm.connectionsManage),
     defaultSpan: "s5",
+    seeAll: ROUTES.SANDBOXES,
+  },
+  "sandbox-sessions": {
+    id: "sandbox-sessions",
+    gate: holds(Perm.connectionsManage),
+    defaultSpan: "s12",
     seeAll: ROUTES.SANDBOXES,
   },
 };

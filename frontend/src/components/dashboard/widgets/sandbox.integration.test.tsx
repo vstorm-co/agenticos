@@ -1,12 +1,15 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render as renderBare, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SandboxCapacityWidget } from "./sandbox-capacity";
+import { SandboxSessionsWidget } from "./sandbox-sessions";
 import { ApiError, apiClient } from "@/lib/api-client";
 import type { Period } from "@/lib/dashboard/period";
 import type {
   SandboxConnectionRecord,
+  SandboxEvent,
   SandboxSession,
   SandboxSessionList,
 } from "@/lib/sandbox-connections-api";
@@ -66,12 +69,36 @@ function session(overrides: Partial<SandboxSession> = {}): SandboxSession {
   };
 }
 
+function event(overrides: Partial<SandboxEvent> = {}): SandboxEvent {
+  return {
+    seq: 1,
+    at: 1_760_000_050,
+    op: "write_file",
+    target: "/workspace/report.py",
+    ok: true,
+    detail: "",
+    duration_ms: 18.4,
+    ...overrides,
+  };
+}
+
 interface HostFixture {
   connection: SandboxConnectionRecord;
   listing?: Partial<SandboxSessionList>;
   /** The sentence a host answers with instead of a listing. */
   fails?: string;
+  /** Per session id: the log it answers with, or the sentence it fails with. */
+  logs?: Record<string, SandboxEvent[] | string>;
 }
+
+/**
+ * The agents this caller can read - where a session row's name comes from.
+ * Reset per test, so one can drop the row a session points at.
+ */
+let agentRows: { id: string; name: string }[] = [];
+
+const SESSIONS = /^\/sandbox-connections\/([^/]+)\/sessions\?/;
+const EVENTS = /^\/sandbox-connections\/([^/]+)\/sessions\/([^/?]+)\/events/;
 
 /** A deployment's registered hosts, each answering for itself. */
 function deployment(...hosts: HostFixture[]) {
@@ -79,17 +106,33 @@ function deployment(...hosts: HostFixture[]) {
     if (path === "/sandbox-connections") {
       return { items: hosts.map((host) => host.connection), total: hosts.length };
     }
-    const asked = /^\/sandbox-connections\/([^/]+)\/sessions/.exec(path);
+    if (path === "/agents") {
+      return { items: agentRows, total: agentRows.length };
+    }
+    const log = EVENTS.exec(path);
+    if (log !== null) {
+      const answer = hosts.find((candidate) => candidate.connection.id === log[1])?.logs?.[
+        log[2] as string
+      ];
+      if (typeof answer === "string") throw new ApiError(502, answer);
+      return { events: answer ?? [], latest_seq: answer?.at(-1)?.seq ?? 0 };
+    }
+    const asked = SESSIONS.exec(path);
     if (asked !== null) {
       const host = hosts.find((candidate) => candidate.connection.id === asked[1]);
       if (host?.fails !== undefined) throw new ApiError(502, host.fails);
-      return {
-        sessions: [],
+      const answer = {
+        sessions: [] as SandboxSession[],
         limit: null,
         open_limit: null,
         tenant_limit: null,
         ...host?.listing,
       };
+      // The service samples memory and CPU only when asked to, so neither does
+      // this: a fixture that always carried a usage block would let a card pass
+      // that reads memory without ever paying for it.
+      if (path.endsWith("usage=true")) return answer;
+      return { ...answer, sessions: answer.sessions.map((row) => ({ ...row, usage: null })) };
     }
     throw new ApiError(404, `nothing serves ${path}`);
   });
@@ -99,8 +142,16 @@ function deployment(...hosts: HostFixture[]) {
 function sessionsAskedFor(): string[] {
   return vi
     .mocked(apiClient.get)
-    .mock.calls.map(([path]) => /^\/sandbox-connections\/([^/]+)\/sessions/.exec(path)?.[1])
+    .mock.calls.map(([path]) => SESSIONS.exec(path)?.[1])
     .filter((id): id is string => id !== undefined);
+}
+
+/** Whether the card ever paid for a usage sample, and how often. */
+function sampledUsage(): string[] {
+  return vi
+    .mocked(apiClient.get)
+    .mock.calls.map(([path]) => path)
+    .filter((path) => SESSIONS.test(path) && path.endsWith("usage=true"));
 }
 
 function tracks(container: HTMLElement): string[] {
@@ -111,6 +162,7 @@ function tracks(container: HTMLElement): string[] {
 
 beforeEach(() => {
   vi.mocked(apiClient.get).mockReset();
+  agentRows = [{ id: "a-1", name: "Support triage" }];
 });
 
 describe("the sandbox capacity card", () => {
@@ -238,5 +290,241 @@ describe("the sandbox capacity card", () => {
     screen.getByRole("button", { name: "Retry" }).click();
 
     expect(await screen.findByText("Back up")).toBeInTheDocument();
+  });
+});
+
+describe("the open-sandboxes card", () => {
+  function card() {
+    return <SandboxSessionsWidget title="Open sandboxes" period={PERIOD} />;
+  }
+
+  it("names the agent, what shares the sandbox, its runtime, state and idle time", async () => {
+    deployment({
+      connection: connection({ name: "sandboxd-eu" }),
+      listing: { sessions: [session()] },
+    });
+
+    render(card());
+
+    expect(await screen.findByText("Support triage")).toBeInTheDocument();
+    expect(screen.getByText("shared in one conversation")).toBeInTheDocument();
+    expect(screen.getByText("python")).toBeInTheDocument();
+    expect(screen.getByText("running")).toBeInTheDocument();
+    expect(screen.getByText("12s idle")).toBeInTheDocument();
+    expect(screen.getByText("on sandboxd-eu")).toBeInTheDocument();
+  });
+
+  it("does not sample memory on load, and does once asked", async () => {
+    // The whole reason usage is a switch: the service pays a daemon round trip
+    // per sandbox for it, and this listing refetches every ten seconds.
+    deployment({
+      connection: connection(),
+      listing: {
+        sessions: [
+          session({
+            usage: { memory_bytes: 64 * 1024 * 1024, memory_limit_bytes: 512 * 1024 * 1024 },
+          }),
+        ],
+      },
+    });
+
+    render(card());
+    await screen.findByText("Support triage");
+    expect(sampledUsage()).toEqual([]);
+    expect(screen.queryByText("64.0 MB of 512.0 MB")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("switch"));
+
+    expect(await screen.findByText("64.0 MB of 512.0 MB")).toBeInTheDocument();
+    expect(sampledUsage().length).toBeGreaterThan(0);
+  });
+
+  it("reads memory alone when the host set that sandbox no ceiling", async () => {
+    deployment({
+      connection: connection(),
+      listing: { sessions: [session({ usage: { memory_bytes: 2048, memory_limit_bytes: null } })] },
+    });
+
+    render(card());
+    await screen.findByText("Support triage");
+    await userEvent.click(screen.getByRole("switch"));
+
+    expect(await screen.findByText("2.0 KB")).toBeInTheDocument();
+  });
+
+  it("says no agent was recorded for a run-scoped sandbox rather than guessing one", async () => {
+    // A `run` scope has no `agent_workspaces` row by design, so there is nothing
+    // to have joined - and the session id is not decoded to invent one.
+    deployment({
+      connection: connection(),
+      listing: { sessions: [session({ agent_id: null, conversation_id: null, scope: null })] },
+    });
+
+    render(card());
+
+    expect(await screen.findByText("No agent recorded")).toBeInTheDocument();
+    expect(screen.getByText("one run only")).toBeInTheDocument();
+  });
+
+  it("says no agent was recorded when the row points at one this caller cannot read", async () => {
+    agentRows = [];
+    deployment({ connection: connection(), listing: { sessions: [session()] } });
+
+    render(card());
+
+    expect(await screen.findByText("No agent recorded")).toBeInTheDocument();
+  });
+
+  it("shows a hibernated sandbox as itself - stopped to free a slot, not gone", async () => {
+    deployment({
+      connection: connection(),
+      listing: { sessions: [session({ alive: false, state: "hibernated" })] },
+    });
+
+    render(card());
+
+    expect(await screen.findByText("hibernated")).toBeInTheDocument();
+  });
+
+  it.each([
+    [90, "2m idle"],
+    [7_200, "2h idle"],
+  ])("reads %ss of idleness as %s", async (idle_seconds, expected) => {
+    deployment({ connection: connection(), listing: { sessions: [session({ idle_seconds })] } });
+
+    render(card());
+
+    expect(await screen.findByText(expected)).toBeInTheDocument();
+  });
+
+  it("opens one sandbox's activity log, and closes it again", async () => {
+    deployment({
+      connection: connection(),
+      listing: { sessions: [session({ session_id: "cc-1" })] },
+      logs: { "cc-1": [event({ target: "/workspace/report.py" })] },
+    });
+
+    render(card());
+    await userEvent.click(await screen.findByRole("button", { name: /Show what was done/ }));
+
+    expect(await screen.findByText("/workspace/report.py")).toBeInTheDocument();
+    expect(screen.getByText("write_file")).toBeInTheDocument();
+    expect(screen.getByText("18ms")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /Show what was done/ }));
+
+    expect(screen.queryByText("/workspace/report.py")).not.toBeInTheDocument();
+  });
+
+  it("marks an operation that failed inside the sandbox", async () => {
+    deployment({
+      connection: connection(),
+      listing: { sessions: [session({ session_id: "cc-1" })] },
+      logs: { "cc-1": [event({ seq: 1 }), event({ seq: 2, op: "run", ok: false })] },
+    });
+
+    const { container } = render(card());
+    await userEvent.click(await screen.findByRole("button", { name: /Show what was done/ }));
+    await screen.findByText("run");
+
+    const failed = container.querySelectorAll("li.text-destructive");
+    expect(failed).toHaveLength(1);
+  });
+
+  it("says a log that could not be read failed, rather than showing it as empty", async () => {
+    deployment({
+      connection: connection(),
+      listing: { sessions: [session({ session_id: "cc-1" })] },
+      logs: { "cc-1": "That activity log could not be read: 502" },
+    });
+
+    render(card());
+    await userEvent.click(await screen.findByRole("button", { name: /Show what was done/ }));
+
+    expect(await screen.findByText(/could not be read/)).toBeInTheDocument();
+    expect(screen.queryByText("Nothing recorded for this sandbox yet.")).not.toBeInTheDocument();
+  });
+
+  it("says nothing has been recorded for a sandbox that has done nothing", async () => {
+    deployment({
+      connection: connection(),
+      listing: { sessions: [session({ session_id: "cc-1" })] },
+    });
+
+    render(card());
+    await userEvent.click(await screen.findByRole("button", { name: /Show what was done/ }));
+
+    expect(await screen.findByText("Nothing recorded for this sandbox yet.")).toBeInTheDocument();
+  });
+
+  it("says the host is unreachable instead of saying nothing is running", async () => {
+    deployment({
+      connection: connection(),
+      fails: "The sandbox service did not answer: connection refused",
+    });
+
+    render(card());
+
+    expect(await screen.findByText(/connection refused/)).toBeInTheDocument();
+    expect(
+      screen.queryByText("Nothing is running. A sandbox opens the first time an agent runs code."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("says nothing is running when the host answers with an empty listing", async () => {
+    deployment({ connection: connection() });
+
+    render(card());
+
+    expect(
+      await screen.findByText(
+        "Nothing is running. A sandbox opens the first time an agent runs code.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("reads only the default host, since capacity is the card covering them all", async () => {
+    deployment(
+      { connection: connection({ id: "other", name: "Other", is_default: false }) },
+      {
+        connection: connection({ id: "chosen", name: "Chosen", is_default: true }),
+        listing: { sessions: [session()] },
+      },
+    );
+
+    render(card());
+
+    await screen.findByText("Support triage");
+    expect(sessionsAskedFor()).toEqual(["chosen"]);
+  });
+
+  it("says a Daytona host keeps its sessions elsewhere, and asks it nothing", async () => {
+    deployment({ connection: connection({ kind: "daytona", base_url: null }) });
+
+    render(card());
+
+    expect(await screen.findByText("Sandboxes run on Daytona")).toBeInTheDocument();
+    expect(sessionsAskedFor()).toEqual([]);
+  });
+
+  it("says no host is registered rather than listing nothing", async () => {
+    deployment();
+
+    render(card());
+
+    expect(await screen.findByText("No sandbox host registered")).toBeInTheDocument();
+  });
+
+  it("says the connection listing failed, and asks again when told to", async () => {
+    vi.mocked(apiClient.get).mockRejectedValue(new ApiError(502, "Bad Gateway"));
+
+    render(card());
+
+    expect(await screen.findByText("Couldn't load this")).toBeInTheDocument();
+
+    deployment({ connection: connection(), listing: { sessions: [session()] } });
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(await screen.findByText("Support triage")).toBeInTheDocument();
   });
 });
