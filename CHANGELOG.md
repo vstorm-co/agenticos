@@ -19,6 +19,28 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.48] - 2026-08-06
+
+### Fixed
+
+- The **Describe images** model control in Create knowledge base was the agent
+  builder's picker rendered in its lesser branch: a bare radio list, with no
+  provider/model/key form, no way to say whether the chosen profile can
+  authenticate at all, and — on a deployment with no saved profiles — a dead end
+  offering no way out of itself (#305).
+
+### Changed
+
+- `ModelProfilePicker`'s `allowAdd` meant two things at once: show the form, and
+  offer the bin on every saved row. They are now `allowAdd` and `allowRemove`.
+  The knowledge-base dialog gets the first only, so it can create a model and a
+  key but cannot destroy an organization-wide profile that agents point at. The
+  current-model line, which is what says a profile has no key, renders in both
+  shapes.
+- The add-model form in that dialog is gated on `connections:manage`; it posts a
+  model profile, and a control the caller may not use is not rendered.
+
+
 ## [0.0.47] - 2026-08-06
 
 ### Fixed
