@@ -45,7 +45,17 @@ export function SandboxCapacityWidget({ title, seeAll }: DashboardWidgetProps) {
               <HostCapacity key={host.id} connection={host} />
             ))}
           </ul>
-          <p className="text-muted-foreground text-xs">{t("subline")}</p>
+          <div className="space-y-1">
+            <p className="text-muted-foreground text-xs">{t("subline")}</p>
+            {/* On screen, not only in a docstring. A reader who is refused a
+                sandbox while this card shows room to spare would otherwise have
+                no way to learn that the missing figure is missing rather than
+                zero - which is the same failure as an unreachable host reading
+                as idle, one level up. */}
+            <p className="text-muted-foreground/80 text-[11px] leading-snug">
+              {t("hostUncounted")}
+            </p>
+          </div>
         </div>
       )}
     </WidgetFrame>

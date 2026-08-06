@@ -238,8 +238,29 @@ describe("the sandbox capacity card", () => {
     expect(await screen.findByText("2 open")).toBeInTheDocument();
     expect(screen.queryByText("2 of 40")).not.toBeInTheDocument();
     expect(screen.queryByText("2 of 20")).not.toBeInTheDocument();
+    // Neither ceiling reaches the card at all, in any wording: this asserts on
+    // the rendered text rather than on two guessed phrasings, because the
+    // failure being guarded is a plausible-looking ratio and there are several
+    // ways to write one.
+    expect(container.textContent).not.toContain("40");
+    expect(container.textContent).not.toContain("20");
     // And no bar either: a track needs a denominator this response cannot give.
     expect(tracks(container)).toEqual([]);
+  });
+
+  it("says on screen that how full the host is cannot be shown, and what that means", async () => {
+    // The figure a reader needs is absent, and absence is not self-explaining.
+    // Without this sentence, being refused a sandbox while the card shows room
+    // to spare reads as the card being wrong.
+    deployment({
+      connection: connection(),
+      listing: { sessions: [session()], tenant_limit: 8 },
+    });
+
+    render(<SandboxCapacityWidget title="Sandbox capacity" period={PERIOD} />);
+
+    expect(await screen.findByText(/How full a host itself is cannot be shown here/)).toBeVisible();
+    expect(screen.getByText(/somebody else filled the host/)).toBeVisible();
   });
 
   it("says one sandbox is open rather than building the plural from English", async () => {
