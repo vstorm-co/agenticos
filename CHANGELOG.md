@@ -19,6 +19,27 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.45] - 2026-08-06
+
+### Fixed
+
+- A collection could be named after a model table. `_table("documents")` derives
+  `rag_documents`, which is the table tracking every organization's ingested
+  documents, so `GET /rag/collections/documents/info` returned every
+  organization's document count and the delete path issued a `DROP TABLE`
+  against it. Nothing refused the name, and `documents` was the *default*
+  collection name, so the collision sat on the documented first-run path. Both
+  the store and `KnowledgeBaseService.create` now refuse a name that collides
+  with a declared model table (#345).
+
+### Changed
+
+- The default collection name is now `default`, one constant shared by the four
+  `rag-*` commands and two schemas, pinned by a test that fails if it is ever
+  set to a model table's name. `RAGSettings.collection_name` was read nowhere
+  and is deleted.
+
+
 ## [0.0.44] - 2026-08-06
 
 ### Fixed
