@@ -176,7 +176,10 @@ async def admin_list_with_counts(
     }
     sort_col = sort_columns.get(sort_by, User.created_at)
     sort_col = sort_col.desc() if sort_dir == "desc" else sort_col.asc()
-    query = query.order_by(sort_col).offset(skip).limit(limit)
+    # `full_name` is nullable and Postgres sorts NULL first on a descending
+    # order, so sorting by name put every account that never filled one in
+    # ahead of the alphabet. A row with no name sorts last either way.
+    query = query.order_by(sort_col.nulls_last()).offset(skip).limit(limit)
 
     total = await db.scalar(count_query) or 0
     rows = (await db.execute(query)).all()
