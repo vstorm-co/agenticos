@@ -73,6 +73,16 @@ def _envelope(
     cannot reach - a live client, an open file - is a bug in the raising code and
     has no business in an error payload. It should fail loudly here rather than
     reach a caller as a plausible-looking refusal with a field quietly missing.
+
+    What this asks of a call site, and what the rule in
+    `.claude/rules/exceptions-security.md` now says: a value, not a row.
+    `jsonable_encoder` reaches an unrecognised object through `vars()`, so
+    `details={"user": user}` would serialize `hashed_password` where
+    `details={"user_id": user.id}` serializes an id. No call site does that today
+    and there is no guard against one that starts - a runtime type check here
+    would be a branch guarding a caller that does not exist, and the review that
+    would catch it is the same review that catches a plaintext secret anywhere
+    else.
     """
     return JSONResponse(
         status_code=status_code,
@@ -203,8 +213,10 @@ async def budget_exceeded_handler(
         message=str(exc),
         details={
             "scope": exc.scope,
-            # Money stays a string: `jsonable_encoder` would answer a `Decimal`
-            # with a float, and a cap is not a thing to round on the way out.
+            # Money stays a string: `jsonable_encoder` answers a `Decimal` with
+            # a float (an int when the exponent is not negative), so `40.10`
+            # would leave as `40.1` and a cap is not a thing to reshape on the
+            # way out.
             "limit_usd": str(exc.limit_usd),
             "spent_usd": str(exc.spent_usd),
         },
