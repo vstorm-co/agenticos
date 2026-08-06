@@ -70,10 +70,10 @@ Three properties of that choice are the reason for it:
   wedged worker blocks until Docker's grace period runs out.
 - **A frozen host is not a wedged worker.** `docker pause`, a frozen cgroup and
   a Docker Desktop VM resuming after the host slept all advance the monotonic
-  clock while *nothing* runs, worker and supervisor alike. So the supervisor
-  measures the gap in its own polling too, and a poll that is itself late by
-  more than the threshold forgives the worker a window rather than killing it
-  for the host's nap.
+  clock while *nothing* runs, worker and supervisor alike, so the first poll
+  after one reads a stale beat that says nothing about the worker. Two
+  consecutive silent polls are therefore needed rather than one: by the second,
+  a healthy worker has beaten again and the verdict clears.
 
 **What this does not cover**, deliberately:
 
@@ -139,10 +139,23 @@ BEAT_INTERVAL: Final = 1
 # laptop, and replacing a healthy one early drops in-flight requests. Fifteen
 # seconds of an event loop not turning is not load - a loaded loop still runs a
 # timer callback in milliseconds - it is blocked, stopped or deadlocked. The
-# supervisor notices within `WEDGED_AFTER` plus one poll, so about twenty
-# seconds, against the ninety a container health check takes to reach a verdict
-# nothing acts on.
+# supervisor notices within `WEDGED_AFTER` plus the two polls
+# `POLLS_BEFORE_WEDGED` costs, so about twenty-five seconds, against the ninety a
+# container health check takes to reach a verdict nothing acts on.
 WEDGED_AFTER: Final = 15.0
+
+# Consecutive silent polls before the worker is replaced. Two, not one, because
+# `docker pause`, a frozen cgroup and a Docker Desktop VM resuming after the host
+# slept all advance the monotonic clock while *nothing* runs - supervisor
+# included - and the first poll after one of those reads a stale beat that says
+# nothing about the worker. By the next poll a healthy worker has beaten again,
+# about a second having passed, and the verdict clears; a wedged one fails both.
+# The reprieve costs one poll of detection, and it is deliberately not measured
+# as a gap in the supervisor's own polling: watchfiles ticks every five seconds
+# or so, so any threshold below that would have compared a poll gap against a
+# smaller number, judged every poll a freeze, and switched the check off in
+# silence.
+POLLS_BEFORE_WEDGED: Final = 2
 
 # Seconds without a beat before a worker is replaced, `0` or below to switch the
 # check off - which is what somebody sitting on a breakpoint wants, a stopped
@@ -210,9 +223,9 @@ class SupervisedReload(ChangeReload):
         self._reported_pid: int | None = None
         self._beat = beat
         self._wedged_after = wedged_after
-        # When the previous poll ran, so a gap in the *supervisor's* own clock
-        # can be told from a gap in the worker's.
-        self._polled_at = time.monotonic()
+        # Consecutive polls that have found the worker silent. One is not a
+        # verdict; `POLLS_BEFORE_WEDGED` explains why.
+        self._silent_polls = 0
 
     def should_restart(self) -> list[Path] | None:
         # `if changes`, not `is not None`: a change to a file the reload filter
@@ -224,8 +237,7 @@ class SupervisedReload(ChangeReload):
         if changes:
             return changes
         self._replace_a_dead_worker()
-        if not self._everything_was_frozen():
-            self._replace_a_wedged_worker()
+        self._replace_a_wedged_worker()
         return None
 
     def restart(self) -> None:
@@ -264,26 +276,6 @@ class SupervisedReload(ChangeReload):
             )
             self.process.kill()
         super().shutdown()
-
-    def _everything_was_frozen(self) -> bool:
-        """Was the *supervisor* stopped too since the last poll, rather than only the worker?
-
-        `docker pause`, a frozen cgroup and a Docker Desktop VM resuming after
-        the host slept all advance the monotonic clock while nothing runs. The
-        worker's silence then says nothing about the worker, so the beat is
-        stamped as though it had just arrived and the worker gets a full window
-        to prove itself - which a healthy one does within a second, and a wedged
-        one fails on the next poll.
-        """
-        if self._wedged_after <= 0:
-            return False
-        now = time.monotonic()
-        since_the_last_poll = now - self._polled_at
-        self._polled_at = now
-        if since_the_last_poll <= self._wedged_after:
-            return False
-        self._beat.value = now
-        return True
 
     def _replace_a_dead_worker(self) -> None:
         """Reap a worker that is gone, and replace it if a signal took it.
@@ -350,6 +342,11 @@ class SupervisedReload(ChangeReload):
 
         silent_for = self._silent_for()
         if silent_for is None:
+            self._silent_polls = 0
+            return
+
+        self._silent_polls += 1
+        if self._silent_polls < POLLS_BEFORE_WEDGED:
             return
 
         logger.error(

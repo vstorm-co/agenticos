@@ -37,6 +37,7 @@ from cli.reload_supervisor import (
     APP,
     BEAT_INTERVAL,
     NOT_YET_BEATEN,
+    POLLS_BEFORE_WEDGED,
     WEDGED_AFTER,
     WEDGED_AFTER_ENV_VAR,
     WS_PROTOCOL,
@@ -347,9 +348,47 @@ def test_a_worker_whose_event_loop_stopped_turning_is_replaced(
     wedged = FakeWorker(None)
     supervisor.process = wedged
 
-    assert supervisor.should_restart() is None
+    for _ in range(POLLS_BEFORE_WEDGED):
+        assert supervisor.should_restart() is None
+
     assert supervisor.replacements == 1
     assert wedged.killed, "SIGTERM never reaches a wedged worker; the replacement would hang"
+
+
+def test_one_silent_poll_is_not_a_verdict(
+    supervisor: RecordingReload, beat: ctypes.c_double
+) -> None:
+    """`docker pause`, a frozen cgroup, a Docker Desktop VM after the host slept.
+
+    All of them advance the monotonic clock while the supervisor is not running
+    either, so the first poll afterwards reads a stale beat that says nothing
+    about the worker. A healthy one has beaten again by the next poll.
+    """
+    beat.value = time.monotonic() - A_SHORT_WEDGE - 1
+    supervisor.process = FakeWorker(None)
+
+    assert supervisor.should_restart() is None
+    assert supervisor.replacements == 0
+
+    beat.value = time.monotonic()
+
+    assert supervisor.should_restart() is None
+    assert supervisor.replacements == 0
+
+
+def test_the_silent_polls_have_to_be_consecutive(
+    supervisor: RecordingReload, beat: ctypes.c_double
+) -> None:
+    """A worker that beats between two silences is a slow worker, not a wedged one."""
+    supervisor.process = FakeWorker(None)
+
+    for _ in range(POLLS_BEFORE_WEDGED * 3):
+        beat.value = time.monotonic() - A_SHORT_WEDGE - 1
+        supervisor.should_restart()
+        beat.value = time.monotonic()
+        supervisor.should_restart()
+
+    assert supervisor.replacements == 0
 
 
 def test_a_worker_still_beating_is_left_alone(
@@ -387,7 +426,9 @@ def test_a_worker_that_exited_on_its_own_is_not_killed_for_its_stale_beat(
     beat.value = time.monotonic() - A_SHORT_WEDGE - 1
     supervisor.process = FakeWorker(1)
 
-    assert supervisor.should_restart() is None
+    for _ in range(POLLS_BEFORE_WEDGED):
+        assert supervisor.should_restart() is None
+
     assert supervisor.replacements == 0
 
 
@@ -398,8 +439,8 @@ def test_a_replacement_is_not_judged_on_the_beat_of_the_worker_it_replaced(
     beat.value = time.monotonic() - A_SHORT_WEDGE - 1
     supervisor.process = FakeWorker(None)
 
-    supervisor.should_restart()
-    supervisor.should_restart()
+    for _ in range(POLLS_BEFORE_WEDGED * 2):
+        supervisor.should_restart()
 
     assert supervisor.replacements == 1
     assert beat.value == NOT_YET_BEATEN
@@ -413,7 +454,9 @@ def test_a_worker_wedging_during_shutdown_is_not_replaced(
     beat.value = time.monotonic() - A_SHORT_WEDGE - 1
     supervisor.process = FakeWorker(None)
 
-    assert supervisor.should_restart() is None
+    for _ in range(POLLS_BEFORE_WEDGED):
+        assert supervisor.should_restart() is None
+
     assert supervisor.replacements == 0
 
 
@@ -476,39 +519,6 @@ def test_shutting_down_leaves_a_healthy_worker_to_drain(
     assert not healthy.killed
 
 
-def test_a_worker_is_not_judged_on_a_poll_the_supervisor_itself_slept_through(
-    supervisor: RecordingReload, beat: ctypes.c_double
-) -> None:
-    """`docker pause`, a frozen cgroup, a Docker Desktop VM after the host slept.
-
-    Monotonic time advances for the supervisor as well, so the worker's silence
-    says nothing about the worker. It gets a full window to prove itself, and a
-    healthy one takes about a second over it.
-    """
-    supervisor.process = FakeWorker(None)
-    supervisor._polled_at = time.monotonic() - A_SHORT_WEDGE - 1
-    beat.value = time.monotonic() - A_SHORT_WEDGE - 1
-
-    assert supervisor.should_restart() is None
-    assert supervisor.replacements == 0
-    assert beat.value == pytest.approx(time.monotonic(), abs=1)
-
-
-def test_a_worker_still_wedged_after_the_host_wakes_is_replaced(
-    supervisor: RecordingReload, beat: ctypes.c_double
-) -> None:
-    """Forgiving the frozen window is a reprieve, not an exemption."""
-    supervisor.process = FakeWorker(None)
-    supervisor._polled_at = time.monotonic() - A_SHORT_WEDGE - 1
-    beat.value = time.monotonic() - A_SHORT_WEDGE - 1
-    supervisor.should_restart()
-
-    beat.value = time.monotonic() - A_SHORT_WEDGE - 1
-
-    assert supervisor.should_restart() is None
-    assert supervisor.replacements == 1
-
-
 def test_the_wedge_check_can_be_switched_off(
     monkeypatch: pytest.MonkeyPatch, beat: ctypes.c_double
 ) -> None:
@@ -519,7 +529,9 @@ def test_the_wedge_check_can_be_switched_off(
     off.process = FakeWorker(None)
     beat.value = time.monotonic() - A_SHORT_WEDGE - 1
 
-    assert off.should_restart() is None
+    for _ in range(POLLS_BEFORE_WEDGED):
+        assert off.should_restart() is None
+
     assert off.replacements == 0
 
 
@@ -630,6 +642,12 @@ def test_a_worker_stopped_mid_flight_is_killed_and_replaced() -> None:
         _wait_until_beating(beat)
         os.kill(wedged.pid, signal.SIGSTOP)
         time.sleep(A_SHORT_WEDGE * 2)
+
+        # The first silent poll is a reprieve rather than a verdict, so it is
+        # the second that has to survive the thread's deadline below.
+        for _ in range(POLLS_BEFORE_WEDGED - 1):
+            supervisor._replace_a_wedged_worker()
+            assert supervisor.process is wedged
 
         replacing.start()
         replacing.join(timeout=A_PATIENT_WAIT)

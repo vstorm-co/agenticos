@@ -152,8 +152,11 @@ still waits for the edit that fixes it, which is what `--reload` is for.
 It also replaces a worker that is **wedged** — alive, but with an event loop
 that has stopped turning, which has no exit code and so looks healthy to every
 other recovery path. The worker reports its loop through uvicorn's
-`callback_notify` hook once a second, and a worker silent for fifteen seconds is
-killed and replaced, so about twenty seconds from deadlock to serving again.
+`callback_notify` hook once a second, and a worker silent for fifteen seconds
+across two consecutive polls is killed and replaced — about twenty-five seconds
+from deadlock to serving again. Two polls rather than one because `docker pause`
+and a laptop waking from sleep stop the supervisor as well as the worker, and the
+first poll afterwards reads a stale beat that says nothing.
 That is liveness and not readiness on purpose: the beat is a timer callback, not
 a request, so a slow database cannot make a healthy server look wedged.
 
