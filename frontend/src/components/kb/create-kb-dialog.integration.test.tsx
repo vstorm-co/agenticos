@@ -57,11 +57,57 @@ async function openEmbeddings() {
   await userEvent.click(screen.getByText("Embeddings"));
 }
 
+/** Open the disclosure the parser options and the images model live behind. */
+async function openParsing() {
+  await userEvent.click(screen.getByText("How documents are parsed"));
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
     if (path === "/secrets") return SECRETS;
     if (path === "/rag/embedding-models") return EMBEDDING_MODELS;
+    // The images section reads the caller's permissions, the provider catalog
+    // and what each provider publishes. Answering a list shape at
+    // `/me/permissions` is not "no permissions", it is a `TypeError`.
+    if (path === "/me/permissions")
+      return {
+        organization_id: "org-1",
+        role: "builder",
+        is_app_admin: false,
+        permissions: [
+          { permission: "connections:manage", scope: "all" },
+          { permission: "secrets:edit", scope: "all" },
+        ],
+      };
+    if (path === "/providers/catalog")
+      return {
+        items: [
+          {
+            id: "openai",
+            name: "OpenAI",
+            secret_kind: "api_key",
+            supports_base_url: false,
+            keyless: false,
+          },
+        ],
+        total: 1,
+      };
+    if (path === "/secrets/purposes")
+      return {
+        items: [
+          {
+            id: "openai",
+            label: "OpenAI",
+            category: "model_provider",
+            kind: "api_key",
+            help_url: null,
+            description: "OpenAI keys",
+          },
+        ],
+        total: 1,
+      };
+    if (path === "/providers/openai/models") return { items: [], total: 0, source: null };
     return { items: [], total: 0 };
   });
   render(<CreateKBDialog open onOpenChange={vi.fn()} />, { wrapper });
@@ -140,5 +186,30 @@ describe("the embedding model picker", () => {
 
     const preselected = await screen.findByRole("option", { name: /text-embedding-3-large/ });
     expect(preselected).toHaveTextContent("deployment default");
+  });
+});
+
+describe("the two keys this dialog can store", () => {
+  /**
+   * On a fresh deployment both offers appear at once - an embedding key in the
+   * Embeddings section and a model-provider key in the describing-model form,
+   * four inches apart, writing different secrets under different purposes. Both
+   * were labelled "Add a key", so a screen reader heard the same button twice
+   * and a test could only tell them apart by DOM position.
+   */
+
+  it("names each of them, so neither of them is just 'a key'", async () => {
+    await openEmbeddings();
+    await openParsing();
+    await userEvent.click(screen.getByLabelText("Describe images"));
+    await userEvent.click(await screen.findByLabelText("Provider"));
+    await userEvent.click(screen.getByRole("option", { name: /OpenAI/ }));
+
+    // Two offers, and the accessible name is what tells them apart - not the
+    // section each happens to sit in.
+    expect(
+      screen.getByRole("button", { name: "Add a key: OpenRouter (embeddings)" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add a key: OpenAI" })).toBeInTheDocument();
   });
 });

@@ -159,7 +159,7 @@ describe("the model that describes the images", () => {
     await userEvent.click(screen.getByRole("option", { name: /OpenAI/ }));
 
     expect(screen.getByText(/No OpenAI key in the vault yet/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Add a key" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add a key: OpenAI" })).toBeInTheDocument();
   });
 
   it("offers no such form to a caller who may not write to the vault", async () => {
@@ -173,7 +173,7 @@ describe("the model that describes the images", () => {
     await userEvent.click(await screen.findByLabelText("Provider"));
     await userEvent.click(screen.getByRole("option", { name: /OpenAI/ }));
 
-    expect(screen.queryByRole("button", { name: "Add a key" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add a key: OpenAI" })).toBeNull();
     expect(screen.getByText(/permission you do not hold/)).toBeInTheDocument();
   });
 
@@ -187,7 +187,7 @@ describe("the model that describes the images", () => {
     await userEvent.click(await screen.findByLabelText("Provider"));
     await userEvent.click(screen.getByRole("option", { name: /OpenAI/ }));
 
-    expect(screen.getByRole("button", { name: "Add a key" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Add a key: OpenAI" })).toBeDisabled();
   });
 
   it("says the chosen model has no key, which is what decides whether ingestion runs", async () => {

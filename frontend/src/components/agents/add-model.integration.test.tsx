@@ -462,6 +462,10 @@ describe("storing the key the model runs on", () => {
     mount();
     await pickProvider("OpenAI");
 
+    // Paired with a positive assertion on purpose: the whole no-key block
+    // rendering nothing would satisfy the `toBeNull` on its own, and that is a
+    // different bug rather than this fix.
+    expect(screen.getByText(/No OpenAI key in the vault yet/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Store a key" })).toBeNull();
   });
 
