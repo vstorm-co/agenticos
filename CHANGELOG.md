@@ -19,6 +19,27 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.30] - 2026-08-06
+
+### Added
+
+- **Promote a specialist to a draft agent — the honest way to keep one**
+  ([#177](https://github.com/vstorm-co/agenticos/issues/177)). A dynamic specialist is
+  never persisted (keeping one means publishing an agent, a person's action), and an inline
+  specialist lives only in its parent's spec — so the only way to keep either was to copy
+  its instructions out of a chat log, producing an agent whose provenance nobody can see.
+  A **Promote to a draft agent** action now sits on an inline specialist in the Builder's
+  delegation section and on a dynamic specialist in the chat delegation panel while the run
+  that created it is still on screen. It creates an ordinary **draft** from the specialist's
+  instructions, model profile, capabilities, collections and skills, through the same
+  `SpecialistSpec.to_agent_spec()` conversion — and stops there: it does not publish, does
+  not pin the new agent as a delegate of its parent, and does not remove the inline
+  specialist, each of which stays a decision the author makes next with the usual validation
+  in front of it. The draft is owned by **the person who promoted it** and subject to the
+  usual `AGENTS_EDIT` check — a specialist created inside someone else's run does not become
+  their agent. A promoted dynamic specialist publishes without further editing and answers,
+  when run, what it answered inside the run it came from.
+
 ## [0.0.29] - 2026-08-06
 
 ### Fixed
@@ -1059,7 +1080,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.29...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.30...HEAD
+[0.0.30]: https://github.com/vstorm-co/agenticos/compare/v0.0.29...v0.0.30
 [0.0.29]: https://github.com/vstorm-co/agenticos/compare/v0.0.28...v0.0.29
 [0.0.28]: https://github.com/vstorm-co/agenticos/compare/v0.0.27...v0.0.28
 [0.0.27]: https://github.com/vstorm-co/agenticos/compare/v0.0.26...v0.0.27
