@@ -284,18 +284,26 @@ out of, so **one function decides whether it is usable** —
 | Refused | Because |
 |---|---|
 | Not a bare identifier — `foo-bar`, `2024_reports`, anything with a space or a quote | The store interpolates the name into DDL unquoted. A leading digit only *looks* safe: the `rag_` prefix supplies the letter the name is missing. |
+| Any upper case — `Handbook` | Postgres folds an unquoted identifier, so `Handbook` and `handbook` are one table. Nothing above the database can see it: names are compared as whole strings everywhere else, so the two are two rows the platform believes are two collections. Refused rather than lower-cased — storing a name the caller did not type is exactly the reinterpretation this rule exists to avoid. |
 | Longer than 45 characters | Postgres keeps 63 bytes of an identifier and truncates the rest silently. `rag_<name>` fits at 59, but `rag_<name>_embedding_idx` does not, and the bound is the longest identifier — not the shortest. |
 | `all` | Reserved. |
 | A table the models own — `documents` | See below. |
 
-The length bound is the one that reads as pedantry and is not. Two collections
+Two of these are the same failure reached differently, and both are worth a
+sentence. The length bound is the one that reads as pedantry and is not. Two collections
 agreeing up to the truncation point are **one object**: one table if the name was
 too long, so either organization's `DROP` destroys the other's vectors and every
 search crosses between them; and one index if only the index name was, which is
 quieter — `CREATE INDEX IF NOT EXISTS` finds the first collection's index already
 there and builds nothing, leaving the second unindexed at whatever width the first
 was built at. Nothing above the database can see either, because a collection name
-is compared as a whole string everywhere else.
+is compared as a whole string everywhere else — which is also why case matters: a
+spelling is a shorter road to the same shared table, and refusing upper case
+closes a second one with it. `_collection_exists` compared `rag_Handbook` against
+`information_schema.tables`, which stores the folded name, so it never matched and
+`search`, `get_documents` and `get_document_chunks` answered **empty** for any
+collection with a capital in it. That path is gone rather than fixed: such a name
+is now refused where the table name is built, before anything can ask.
 
 **A collection may not be named after a table the models own**, which is the
 runtime-table predicate read a third way — asked of a name before its table exists.
@@ -326,29 +334,15 @@ can be ingested into it — delete it and create one under another name. Nothing
 lost in doing so: an ingest into that collection has never succeeded, because
 building the vector index on a table with no `embedding` column fails.
 
-### Who reaches a collection
+### RAG is Global
 
-A collection name is a string; the `knowledge_bases` row behind it is the thing
-that has an owner, so **the row decides**. Every `/rag` and `/kb` route resolves
-the name through `CollectionAccessService`, and a name belonging to another
-organization is indistinguishable from one that was never created.
+Collections are shared across **all users**:
 
-- **Reading** — `collections:view`, and then the row: an `app`-scoped base is
-  deployment-wide by design, a `personal` one belongs to its owner, and an `org`
-  one takes the caller's scope against the row's owner and visibility, widened by
-  an explicit grant. `POST /rag/search` resolves *every* collection it was given
-  before reading a vector, and refuses the whole search rather than dropping the
-  one it cannot reach.
-- **Writing** — `collections:edit` reaching the row, by the same rules. Only a
-  platform admin writes to an `app`-scoped base.
-- **The one exception** is `POST /rag/sync/local`, which still takes the platform
-  admin role: its `path` names a directory on the server rather than anything a
-  tenant owns.
-
-This page used to say the opposite — that any authenticated user could search any
-collection and that "only admins" could manage them. That was true of a version
-where the gate was the platform-admin role, which kept ordinary members out of RAG
-entirely while letting any platform admin read every tenant's collections.
+- Any authenticated user can search any collection via `POST /rag/search` or
+  through the AI agent's RAG tool.
+- Only admins can manage collections, upload documents, configure sync sources,
+  and view ingestion logs.
+- There is no per-user document isolation.
 
 ### Document Tracking
 
