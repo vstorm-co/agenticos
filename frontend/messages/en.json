@@ -1267,6 +1267,26 @@
           "title": "Sandboxes run on Daytona",
           "description": "Sessions opened there appear in that account's own dashboard, not here."
         }
+      },
+      "sandbox-policy": {
+        "title": "Sandbox runtimes",
+        "ceilings": {
+          "perOrganization": "This organization",
+          "hostResident": "Resident, host-wide",
+          "hostOpen": "Open, host-wide"
+        },
+        "default": "default",
+        "noMemoryCeiling": "no ceiling",
+        "noRuntime": "This service allows no runtime, so no agent can run code on it.",
+        "subline": "Ceilings, not counts - the host-wide two are shared with every organization on it. All of this is the service's own environment, set where it starts.",
+        "empty": {
+          "title": "No sandbox host registered",
+          "description": "Register one and the runtimes it allows land here."
+        },
+        "elsewhere": {
+          "title": "Sandboxes run on Daytona",
+          "description": "Daytona publishes no allowlist of its own - what it permits is a setting on that account."
+        }
       }
     }
   },

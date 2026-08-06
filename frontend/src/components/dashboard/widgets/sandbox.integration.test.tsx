@@ -4,12 +4,15 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SandboxCapacityWidget } from "./sandbox-capacity";
+import { SandboxPolicyWidget } from "./sandbox-policy";
 import { SandboxSessionsWidget } from "./sandbox-sessions";
 import { ApiError, apiClient } from "@/lib/api-client";
 import type { Period } from "@/lib/dashboard/period";
 import type {
   SandboxConnectionRecord,
   SandboxEvent,
+  SandboxPolicy,
+  SandboxRuntime,
   SandboxSession,
   SandboxSessionList,
 } from "@/lib/sandbox-connections-api";
@@ -82,6 +85,19 @@ function event(overrides: Partial<SandboxEvent> = {}): SandboxEvent {
   };
 }
 
+function runtime(overrides: Partial<SandboxRuntime> = {}): SandboxRuntime {
+  return {
+    alias: "python",
+    image: "python:3.12-slim",
+    description: "Python with the standard library",
+    builds: false,
+    mem_limit: "512m",
+    cpus: 1,
+    network_mode: "none",
+    ...overrides,
+  };
+}
+
 interface HostFixture {
   connection: SandboxConnectionRecord;
   listing?: Partial<SandboxSessionList>;
@@ -89,6 +105,8 @@ interface HostFixture {
   fails?: string;
   /** Per session id: the log it answers with, or the sentence it fails with. */
   logs?: Record<string, SandboxEvent[] | string>;
+  /** What it allows, or the sentence it fails the policy call with. */
+  allows?: Partial<SandboxPolicy> | string;
 }
 
 /**
@@ -99,6 +117,7 @@ let agentRows: { id: string; name: string }[] = [];
 
 const SESSIONS = /^\/sandbox-connections\/([^/]+)\/sessions\?/;
 const EVENTS = /^\/sandbox-connections\/([^/]+)\/sessions\/([^/?]+)\/events/;
+const POLICY = /^\/sandbox-connections\/([^/]+)\/policy$/;
 
 /** A deployment's registered hosts, each answering for itself. */
 function deployment(...hosts: HostFixture[]) {
@@ -108,6 +127,23 @@ function deployment(...hosts: HostFixture[]) {
     }
     if (path === "/agents") {
       return { items: agentRows, total: agentRows.length };
+    }
+    const allowed = POLICY.exec(path);
+    if (allowed !== null) {
+      const answer = hosts.find((candidate) => candidate.connection.id === allowed[1])?.allows;
+      if (typeof answer === "string") throw new ApiError(502, answer);
+      return {
+        kind: "docker",
+        runtimes: [],
+        default_runtime: null,
+        max_sessions: null,
+        max_open_sessions: null,
+        max_sessions_per_tenant: null,
+        idle_timeout: null,
+        workspace_root: null,
+        persist_containers: null,
+        ...answer,
+      };
     }
     const log = EVENTS.exec(path);
     if (log !== null) {
@@ -143,6 +179,14 @@ function sessionsAskedFor(): string[] {
   return vi
     .mocked(apiClient.get)
     .mock.calls.map(([path]) => SESSIONS.exec(path)?.[1])
+    .filter((id): id is string => id !== undefined);
+}
+
+/** Which hosts were asked what they allow. */
+function policiesAskedFor(): string[] {
+  return vi
+    .mocked(apiClient.get)
+    .mock.calls.map(([path]) => POLICY.exec(path)?.[1])
     .filter((id): id is string => id !== undefined);
 }
 
@@ -526,5 +570,128 @@ describe("the open-sandboxes card", () => {
     await userEvent.click(screen.getByRole("button", { name: "Retry" }));
 
     expect(await screen.findByText("Support triage")).toBeInTheDocument();
+  });
+});
+
+describe("the sandbox runtimes card", () => {
+  function card() {
+    return <SandboxPolicyWidget title="Sandbox runtimes" period={PERIOD} />;
+  }
+
+  it("names the host's ceilings as ceilings, never as a fraction", async () => {
+    // This is where `max_sessions` and `max_open_sessions` belong: they are the
+    // whole host's, so there is no count of ours to divide them by.
+    deployment({
+      connection: connection(),
+      allows: {
+        runtimes: [runtime()],
+        max_sessions_per_tenant: 8,
+        max_sessions: 40,
+        max_open_sessions: 20,
+      },
+    });
+
+    render(card());
+
+    expect(await screen.findByText("Resident, host-wide")).toBeInTheDocument();
+    expect(screen.getByText("Open, host-wide")).toBeInTheDocument();
+    expect(screen.getByText("This organization")).toBeInTheDocument();
+    expect(screen.getByText("40")).toBeInTheDocument();
+    expect(screen.queryByText("0 of 40")).not.toBeInTheDocument();
+  });
+
+  it("names only the ceilings the service publishes", async () => {
+    deployment({ connection: connection(), allows: { runtimes: [runtime()] } });
+
+    render(card());
+
+    await screen.findByText("python");
+    expect(screen.queryByText("Resident, host-wide")).not.toBeInTheDocument();
+    expect(screen.queryByText("This organization")).not.toBeInTheDocument();
+  });
+
+  it("lists each allowed runtime with the memory ceiling behind it", async () => {
+    deployment({
+      connection: connection(),
+      allows: {
+        runtimes: [runtime(), runtime({ alias: "node", mem_limit: "1g" })],
+        default_runtime: "python",
+      },
+    });
+
+    render(card());
+
+    expect(await screen.findByText("python")).toBeInTheDocument();
+    expect(screen.getByText("512m")).toBeInTheDocument();
+    expect(screen.getByText("node")).toBeInTheDocument();
+    expect(screen.getByText("1g")).toBeInTheDocument();
+    expect(screen.getByText("default")).toBeInTheDocument();
+  });
+
+  it("says a runtime the host caps nothing on has no ceiling", async () => {
+    deployment({ connection: connection(), allows: { runtimes: [runtime({ mem_limit: null })] } });
+
+    render(card());
+
+    expect(await screen.findByText("no ceiling")).toBeInTheDocument();
+  });
+
+  it("treats a service allowing no runtime as a fault, not as an empty card", async () => {
+    // Nothing can run code on it at all, which is not the same news as "no
+    // sandbox host is registered".
+    deployment({ connection: connection(), allows: { runtimes: [] } });
+
+    render(card());
+
+    expect(
+      await screen.findByText("This service allows no runtime, so no agent can run code on it."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("No sandbox host registered")).not.toBeInTheDocument();
+  });
+
+  it("says the allowlist could not be read, and asks the host again when told to", async () => {
+    // Nothing polls this one, so the Retry is the only way back - which is why
+    // `useSandboxPolicy` exposes a refetch at all.
+    deployment({ connection: connection(), allows: "The sandbox service did not answer" });
+
+    render(card());
+    expect(await screen.findByText("Couldn't load this")).toBeInTheDocument();
+
+    deployment({ connection: connection(), allows: { runtimes: [runtime({ alias: "ruby" })] } });
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(await screen.findByText("ruby")).toBeInTheDocument();
+  });
+
+  it("does not ask Daytona for an allowlist it does not publish", async () => {
+    deployment({ connection: connection({ kind: "daytona", base_url: null }) });
+
+    render(card());
+
+    expect(await screen.findByText("Sandboxes run on Daytona")).toBeInTheDocument();
+    expect(policiesAskedFor()).toEqual([]);
+  });
+
+  it("says no host is registered rather than showing an empty allowlist", async () => {
+    deployment();
+
+    render(card());
+
+    expect(await screen.findByText("No sandbox host registered")).toBeInTheDocument();
+    expect(policiesAskedFor()).toEqual([]);
+  });
+
+  it("says the connection listing failed rather than blaming the host", async () => {
+    vi.mocked(apiClient.get).mockRejectedValue(new ApiError(502, "Bad Gateway"));
+
+    render(card());
+
+    expect(await screen.findByText("Couldn't load this")).toBeInTheDocument();
+    expect(screen.queryByText("No sandbox host registered")).not.toBeInTheDocument();
+
+    deployment({ connection: connection(), allows: { runtimes: [runtime({ alias: "go" })] } });
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(await screen.findByText("go")).toBeInTheDocument();
   });
 });

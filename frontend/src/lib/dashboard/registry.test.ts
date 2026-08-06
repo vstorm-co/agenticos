@@ -43,11 +43,12 @@ const GATE_TABLE: Record<WidgetId, Permission | "app_admin"> = {
   "shared-with-you": Perm.agentsView,
   "sandbox-capacity": Perm.connectionsManage,
   "sandbox-sessions": Perm.connectionsManage,
+  "sandbox-policy": Perm.connectionsManage,
 };
 
 describe("the widget catalog", () => {
-  it("holds all twenty-nine widgets", () => {
-    expect(WIDGET_IDS).toHaveLength(29);
+  it("holds all thirty widgets", () => {
+    expect(WIDGET_IDS).toHaveLength(30);
   });
 
   it.each(WIDGET_IDS)("%s opens on exactly its own permission", (id) => {
