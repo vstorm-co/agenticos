@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatModelPicker } from "./chat-model-picker";
 import type { ProviderModel } from "@/hooks/use-model-providers";
+import { Perm } from "@/types/permissions";
+import type { Permission } from "@/types/permissions";
 import type { SecretPurpose } from "@/types/secrets";
 import type { ModelProfile } from "@/types/providers";
 
@@ -11,6 +13,12 @@ const listedProfiles = vi.fn<() => ModelProfile[]>(() => []);
 const listedSecrets = vi.fn<() => { id: string; purpose: string }[]>(() => []);
 const listedModels = vi.fn<() => ProviderModel[]>(() => []);
 const mutateAsync = vi.fn();
+/**
+ * Two permissions, and this picker needs both to be fully usable: choosing a
+ * model creates an organization-wide profile (`connections:manage`), and the key
+ * it runs on is a vault write (`secrets:edit`).
+ */
+const held: { permissions: Permission[] } = { permissions: [] };
 
 vi.mock("@/hooks", () => ({
   useModelProviders: () => ({
@@ -20,6 +28,9 @@ vi.mock("@/hooks", () => ({
   useProviderModels: () => ({ models: listedModels(), source: "curated", isLoading: false }),
   useSecretPurposes: () => ({ purposes: PURPOSES, isLoading: false }),
   useSecrets: () => ({ secrets: listedSecrets(), create: { mutate: vi.fn(), isPending: false } }),
+  usePermissions: () => ({
+    can: (permission: Permission) => held.permissions.includes(permission),
+  }),
 }));
 
 const purpose = (
@@ -62,6 +73,7 @@ beforeEach(() => {
   listedProfiles.mockReturnValue([]);
   listedSecrets.mockReturnValue([]);
   listedModels.mockReturnValue([]);
+  held.permissions = [Perm.connectionsManage, Perm.secretsEdit];
 });
 
 describe("the chat's two-step model picker", () => {
@@ -199,5 +211,33 @@ describe("the chat's two-step model picker", () => {
 
     expect(screen.getByText("Team gpt-5")).toBeInTheDocument();
     expect(screen.getByText("openai · gpt-5")).toBeInTheDocument();
+  });
+});
+
+describe("storing the key the chosen model runs on", () => {
+  /**
+   * `POST /secrets` is `secrets:edit`, which is not what lets somebody open this
+   * popover - so a member who may run an agent was offered the form and refused
+   * after pasting a key in (#361).
+   */
+
+  it("offers the key form to a caller who may write to the vault", async () => {
+    render(<ChatModelPicker value={null} onChange={vi.fn()} />);
+    await pickProvider("OpenAI");
+
+    expect(screen.getByRole("button", { name: "Add a key: OpenAI" })).toBeInTheDocument();
+  });
+
+  it("keeps the model form and drops only the key form without secrets:edit", async () => {
+    // The two are separable: `connections:manage` really does allow defining a
+    // profile on a key somebody else stored, and taking the whole picker away
+    // for want of `secrets:edit` would refuse something they hold.
+    held.permissions = [Perm.connectionsManage];
+    render(<ChatModelPicker value={null} onChange={vi.fn()} />);
+    await pickProvider("OpenAI");
+
+    expect(screen.getByRole("button", { name: "Run on this model" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add a key: OpenAI" })).toBeNull();
+    expect(screen.getByText(/permission you do not hold/)).toBeInTheDocument();
   });
 });
