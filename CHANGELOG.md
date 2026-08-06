@@ -19,6 +19,20 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.53] - 2026-08-06
+
+### Fixed
+
+- The double-backtick guard skipped every directory called `worktrees`, which was
+  the wrong rule twice over: it silently stopped reading a `docs/worktrees/` that
+  is only a directory with a name, and it still walked a git worktree placed
+  anywhere else. It now detects a nested checkout — a `.git` file or directory —
+  and declines to descend into it, which is what the rule always meant (#225).
+- The self-exemption matched one absolute path, so every copy of the script under
+  a worktree was reported as three findings on a line nobody had edited. It
+  matches the file's name now, and `--fix` is safe on a copy for the same reason.
+
+
 ## [0.0.52] - 2026-08-06
 
 ### Fixed
