@@ -540,6 +540,37 @@ A second find — "Spend by agent" listing model labels because `CostByAgent` ca
 name (`runs/page.tsx:276`) — started here, but the mockup shows it fixed and the change
 is one join, so it moved into scope: §7 prices it.
 
+## 7a. The table Activity is built on, and why it is not #139
+
+**#139 proposes a table primitive for the whole product, and this page does not wait
+for it.** That issue is `effort:xl`, assigned, and unstarted; the map in #168 puts it
+before Activity's frontend. Blocking on somebody else's extra-large piece is not a
+risk to manage, it is a decision to ship nothing — so this is written down as a
+choice rather than left to read as an oversight.
+
+What Activity does instead is **put its table pieces in `ui/` from the beginning**, so
+#139 absorbs them rather than replacing them:
+
+- **`SortButton`** was a local component inside `admin/conversations/page.tsx`. It
+  moved to `ui/` at the moment a second page needed it — which is the honest trigger
+  for sharing something, and it means the primitive has two users on the day it
+  appears rather than one and a hope. Three states, not two: a column that *can* sort
+  looks different from one that *is* sorting, and the accessible name carries that
+  difference for anybody not looking at the arrow.
+- **`DataTable` grew an `error` prop.** It had `loading` and `empty`, so a query that
+  answered 502 was drawn as a collection with nothing in it — which is
+  [#32](https://github.com/vstorm-co/agenticos/issues/32) on `/rag`, live. A failure
+  now wins over emptiness, including when a failed *refetch* leaves the previous
+  page's rows in place: drawing those with no warning tells a reader they are looking
+  at current data. It is a separate prop rather than something a caller folds into
+  `empty` for the reason that keeps recurring on this branch — a caller that has to
+  remember is a caller that will not.
+
+Nothing about Activity is inside either: sorting and filtering are props, and the
+tab decides what the next order is. That is the whole test of whether this can be
+pulled out later, and it is why `admin/conversations` could adopt `SortButton`
+unchanged in the same commit.
+
 ## 8a. Four questions review left open, and how they were settled
 
 Each was raised on #202 and none was settled by argument here: three are settled by

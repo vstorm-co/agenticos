@@ -2933,6 +2933,9 @@
     "skip": "Skip",
     "somethingElse": "Something else",
     "somethingWentWrong": "Something went wrong",
+    "sortBy": "Sort by this column",
+    "sortedAscending": "Sorted ascending — click to reverse",
+    "sortedDescending": "Sorted descending — click to reverse",
     "source": "Source",
     "typeYourAnswer": "Type your answer…",
     "useProviderDefault": "Use provider default"

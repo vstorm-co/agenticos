@@ -3,15 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import {
-  ArrowDown,
-  ArrowUp,
-  ArrowUpDown,
-  ChevronLeft,
-  ChevronRight,
-  ExternalLink,
-  Search,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, ExternalLink, Search } from "lucide-react";
 
 import {
   Avatar,
@@ -27,12 +19,13 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SortButton,
 } from "@/components/ui";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { ConversationAgents } from "@/components/agents/conversation-agents";
 import { useAdminConversations, useAgents } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
-import { cn, formatDate } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 import { useChanged } from "@/hooks/use-changed";
 
 const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
@@ -66,33 +59,6 @@ function UserAvatar({
       {userId && <AvatarImage src={`/api/users/avatar/${userId}`} alt={label} />}
       <AvatarFallback>{getInitials(label)}</AvatarFallback>
     </Avatar>
-  );
-}
-
-function SortButton({
-  active,
-  dir,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  dir: SortDir;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  const Icon = !active ? ArrowUpDown : dir === "asc" ? ArrowUp : ArrowDown;
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "hover:text-foreground inline-flex items-center gap-1 text-left uppercase transition-colors",
-        active && "text-foreground",
-      )}
-    >
-      {children}
-      <Icon className={cn("h-3 w-3", !active && "opacity-40")} aria-hidden />
-    </button>
   );
 }
 
@@ -175,7 +141,7 @@ export default function AdminConversationsPage() {
         header: (
           <SortButton
             active={sort.by === "title"}
-            dir={sort.dir}
+            direction={sort.dir}
             onClick={() => toggleSort("title")}
           >
             {t("title")}
@@ -191,7 +157,7 @@ export default function AdminConversationsPage() {
         header: (
           <SortButton
             active={sort.by === "owner"}
-            dir={sort.dir}
+            direction={sort.dir}
             onClick={() => toggleSort("owner")}
           >
             {t("owner")}
@@ -227,7 +193,7 @@ export default function AdminConversationsPage() {
         header: (
           <SortButton
             active={sort.by === "messages"}
-            dir={sort.dir}
+            direction={sort.dir}
             onClick={() => toggleSort("messages")}
           >
             {t("messages")}
@@ -241,7 +207,7 @@ export default function AdminConversationsPage() {
         header: (
           <SortButton
             active={sort.by === "created_at"}
-            dir={sort.dir}
+            direction={sort.dir}
             onClick={() => toggleSort("created_at")}
           >
             {t("created")}
