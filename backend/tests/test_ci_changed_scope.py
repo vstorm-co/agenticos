@@ -11,7 +11,13 @@ quietly rather than loudly:
   - **The concurrency group.** Nothing checks that it exists, so deleting it costs
     ~1,800 billed minutes per six days and produces no signal at all. Its `main`
     exemption is load-bearing in the other direction: cancel a merge's run and the
-    commit's CI never finishes.
+    commit's CI never finishes - and `cancel-in-progress: false` does not deliver
+    that exemption, which is the mistake the first version of this made.
+
+Three of the assertions here are about the *shape* of `ci.yml` rather than about the
+classifier, and they are the ones that matter most: a perfect classifier wired to a
+gate that skips on failure, or fed only half of a rename, saves minutes by not
+testing things.
 
 The same shape as `test_ci_parity.py` and `test_coverage_gate.py` - a gate whose
 failure mode is a green build needs something checking the checker.
@@ -76,6 +82,18 @@ class TestNothingUnrecognisedIsEverSkipped:
         """`tests/test_ci_parity.py` reads `ci.yml`, so the backend suite cares."""
         assert ci_changed_scope.scope([".github/workflows/ci.yml"])["backend"] is True
 
+    def test_a_rename_across_the_halves_requires_both_suites(self) -> None:
+        """Given both ends of a rename, neither half is skipped.
+
+        The other end of `test_a_rename_is_fed_in_from_both_ends`: this is what the
+        answer looks like once the caller supplies `previous_filename`, and the
+        reason supplying it matters.
+        """
+        decided = ci_changed_scope.scope(
+            ["frontend/src/lib/moved.ts", "backend/app/services/moved.py"]
+        )
+        assert decided == {"backend": True, "frontend": True, "e2e": True}
+
 
 class TestWhatMayBeSkipped:
     def test_a_documentation_only_change_skips_all_three(self) -> None:
@@ -135,16 +153,33 @@ class TestTheWorkflowActuallyUsesIt:
             "and every gated job runs - expensive, but at least not silent"
         )
 
+    def test_a_rename_is_fed_in_from_both_ends(self, workflow: dict[str, Any]) -> None:
+        """`filename` is the new path, so a rename hides the path it left.
+
+        Renaming `backend/app/services/foo.py` to `frontend/src/foo.ts` reports one
+        path under `frontend/`, and the classifier - correctly, on what it was given -
+        skips the backend suite for a change that deleted a backend module. The
+        classifier cannot detect the omission, so the assertion has to live on the jq.
+        """
+        commands = " ".join(step.get("run", "") for step in workflow["jobs"]["changes"]["steps"])
+        assert "previous_filename" in commands, (
+            "the `changes` job must pass `previous_filename` through as well, or a "
+            "rename out of a directory is invisible to the suite that owned it"
+        )
+
     @pytest.mark.parametrize(("job", "output"), sorted(GATED_JOBS.items()))
     def test_each_gated_job_reads_its_own_output(
         self, workflow: dict[str, Any], job: str, output: str
     ) -> None:
         definition = workflow["jobs"][job]
         assert "changes" in definition["needs"], f"`{job}` does not depend on `changes`"
-        assert definition["if"] == f"needs.changes.outputs.{output} != 'false'", (
-            f"`{job}` must gate on `needs.changes.outputs.{output} != 'false'`. "
+        expected = f"${{{{ !cancelled() && needs.changes.outputs.{output} != 'false' }}}}"
+        assert definition["if"] == expected, (
+            f"`{job}` must gate on `{expected}`, and both halves earn their place. "
             "`== 'true'` would skip it on a push to `main`, where the classifier does "
-            "not run and the output is empty."
+            "not run and the output is empty; and without `!cancelled()` a *failed* "
+            "`changes` job skips this suite without reading the condition at all, "
+            "which a required status check accepts as a pass."
         )
 
     def test_every_output_the_script_emits_is_declared(self, workflow: dict[str, Any]) -> None:
@@ -171,6 +206,17 @@ class TestTheConcurrencyGroup:
     def test_it_is_keyed_per_ref(self, workflow: dict[str, Any]) -> None:
         """A shared group would have one branch cancelling another's run."""
         assert "github.ref" in workflow["concurrency"]["group"]
+
+    def test_a_push_gets_a_group_of_its_own(self, workflow: dict[str, Any]) -> None:
+        """`cancel-in-progress: false` is not how `main` is protected.
+
+        `false` means *queue*, and GitHub cancels any previously **pending** run in
+        the group when a newer one is queued - so with one group for `main`, a third
+        merge arriving cancels the second outright and that commit gets no CI at all.
+        `github.run_id` is unique per run, which keeps every push out of every other
+        push's group rather than merely out of the cancelling.
+        """
+        assert "github.run_id" in workflow["concurrency"]["group"]
 
     def test_a_push_to_main_is_never_cancelled(self, workflow: dict[str, Any]) -> None:
         """The merge's own run is what makes the history and the badge mean anything."""

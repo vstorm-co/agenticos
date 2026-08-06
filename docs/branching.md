@@ -63,6 +63,19 @@ half of the tree for each of the two unit suites. `e2e` is exempted from neither
 half. `lint` is never gated at all, because `make lint-spelling` is the only thing
 that reads every tracked file.
 
+Two details the timid direction needs in order to actually hold, both of which the
+first version of this got wrong:
+
+- Each gated job carries `!cancelled()` alongside the output check. Without it, a
+  `changes` job that **failed** — a 502 from the API, a rate limit — would skip all
+  three suites without their conditions ever being read, and since `changes` is not
+  itself a required context, the merge button would go green over a branch where no
+  suite ran.
+- The job feeds `previous_filename` in as well as `filename`. A rename reports only
+  the path it arrived at, so a module moved out of `backend/` would otherwise be one
+  frontend path and skip the backend suite for a change that deleted a backend
+  module.
+
 What a change set skips is printed in the `changes` job's log. Locally nothing is
 skipped: `make check` runs the whole set.
 
@@ -74,9 +87,18 @@ and a push per finished piece: with nothing cancelling, 75 of the 369 runs in th
 first six days of August were superseded while still in flight — about 1,800 billed
 minutes answering questions about commits nobody was waiting on.
 
-A push to `main` is deliberately exempt. The merge's own run is what makes the
-history and the badge mean anything, and a cancelled one leaves a commit whose CI
-never finished.
+**A push to `main` is exempt, and the way it is exempted is the interesting part.**
+The merge's own run is what makes the history and the badge mean anything, so a
+`main` run must neither be cancelled nor queued. `cancel-in-progress: false` gives
+only the first of those: `false` means *queue*, and GitHub cancels any previously
+**pending** run in a group when a newer one is queued. With a single group for
+`main`, merge A running and B pending, C landing would cancel B outright and B's
+commit would get no CI at all — at fourteen releases in six days against a ~10
+minute `main` run, two merges inside one window is not a rare shape.
+
+So the group carries `github.run_id` on a push, which is unique per run: every
+merge gets a group of its own and collides with nothing. Pull requests all resolve
+to the same suffix and go on cancelling each other per `github.ref`.
 
 ## Squash, and why the pull request title matters
 

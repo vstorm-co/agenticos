@@ -28,6 +28,14 @@ Everything else runs everything, `.github/**` and `Makefile` emphatically
 included: `tests/test_ci_parity.py` reads both, so a workflow edit is a change
 the backend suite has an opinion about - this very file's arrival among them.
 
+**A rename is two paths, and the caller owes both.** The proof this makes is over
+every path a change touched, and GitHub's `pulls/{n}/files` reports only the *new*
+one in `filename` - so a module renamed out of `backend/` into `frontend/` would
+arrive as a single frontend path and skip the backend suite for a change that
+deleted a backend module. The `changes` job therefore feeds `previous_filename`
+through as well; `tests/test_ci_changed_scope.py` asserts that it still does,
+because nothing here can detect its absence.
+
 Usage, from the `changes` job:
 
     python3 scripts/ci_changed_scope.py changed-files.txt >> "$GITHUB_OUTPUT"
@@ -85,8 +93,11 @@ def main(argv: list[str]) -> int:
         print(f"{job}={'true' if required else 'false'}")
 
     skipped = sorted(job for job, required in decided.items() if not required)
+    # Counted the way `scope` counts, so the number names what was decided on rather
+    # than how many lines the file happened to have.
+    counted = sum(1 for path in paths if path)
     print(
-        f"{len(paths)} changed path(s); skipping {', '.join(skipped) if skipped else 'nothing'}",
+        f"{counted} changed path(s); skipping {', '.join(skipped) if skipped else 'nothing'}",
         file=sys.stderr,
     )
     return 0
