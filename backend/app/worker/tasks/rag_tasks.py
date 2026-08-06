@@ -33,6 +33,7 @@ from app.services.rag.connectors import CONNECTOR_REGISTRY
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.ingestion import IngestionService
 from app.services.rag.models import IngestionStatus
+from app.services.rag.vectorstore import EmbeddingResolver
 from app.services.rag.vectorstore import PgVectorStore as VectorStore
 from app.services.spend import assert_organization_within_budget
 from app.services.sync_source import SyncSourceService
@@ -55,8 +56,8 @@ def _say_in_flow_log(message: str) -> None:
         logger.warning(message)
 
 
-async def _resolve_embeddings_in_flow(collection_name: str) -> ResolvedEmbeddings | None:
-    """`embeddings_for_collection`, with a degraded credential said out loud.
+def _announcing_resolver() -> EmbeddingResolver:
+    """`embeddings_for_collection`, saying a degraded credential out loud once.
 
     The resolver falls back to the deployment key on three paths - the chosen
     secret deleted, unsealable, or not an API key - each a `logger.warning` in
@@ -65,14 +66,29 @@ async def _resolve_embeddings_in_flow(collection_name: str) -> ResolvedEmbedding
     about a deployment variable, or succeeded while billing the deployment's
     account, and in both cases nothing said which of the three had happened.
 
-    A collection that simply chose no key is not reported: that is the
-    documented normal path, and a line per document about it would bury the
-    three that matter.
+    Two things it does not say. A collection that simply chose no key: that is
+    the documented normal path. And the same collection twice - the store
+    resolves per operation rather than per cache miss, so indexing one document
+    asks twice (once to create the table, once to embed), and a sync of two
+    hundred files would otherwise print four hundred copies of the line it
+    exists to make noticeable. The set is per ingestion service, so it is per
+    flow run rather than per process; a credential fixed between runs is
+    reported again on the next one.
     """
-    resolved = await embeddings_for_collection(collection_name)
-    if resolved is not None and resolved.key_source.is_degraded:
-        _say_in_flow_log(f"Embedding {resolved.describe(collection_name)}.")
-    return resolved
+    announced: set[str] = set()
+
+    async def resolve(collection_name: str) -> ResolvedEmbeddings | None:
+        resolved = await embeddings_for_collection(collection_name)
+        if (
+            resolved is not None
+            and resolved.key_source.is_degraded
+            and collection_name not in announced
+        ):
+            announced.add(collection_name)
+            _say_in_flow_log(f"Embedding {resolved.describe(collection_name)}.")
+        return resolved
+
+    return resolve
 
 
 async def _ingestion_service_for(
@@ -110,7 +126,7 @@ async def _ingestion_service_for(
     vector_store = VectorStore(
         settings=rag_settings,
         embedding_service=embed_service,
-        resolver=_resolve_embeddings_in_flow,
+        resolver=_announcing_resolver(),
     )
     processor = await IngestionConfigService(db).build_processor(organization_id, config)
     return IngestionService(processor=processor, vector_store=vector_store)

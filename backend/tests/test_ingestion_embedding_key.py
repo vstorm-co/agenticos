@@ -1,9 +1,9 @@
 """The worker embeds with the collection's key, not the deployment's (#306).
 
 `app/worker/tasks/rag_tasks.py` built its vector store with no `resolver=`,
-which is the one construction of five that did. `PgVectorStore._for_collection`
-short-circuits to the deployment embedder when it has no resolver, so a
-collection's `embedding_secret_id` and `embedding_model` were read by every
+the one construction of six that did not. `PgVectorStore._for_collection`
+short-circuited to the deployment embedder whenever the resolver was None, so
+a collection's `embedding_secret_id` and `embedding_model` were read by every
 path except the one every uploaded document actually takes.
 
 Two failures, and the quiet one is the worse:
@@ -38,8 +38,8 @@ from app.services.rag.config import RAGSettings
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.vectorstore import PgVectorStore
 from app.worker.tasks.rag_tasks import (
+    _announcing_resolver,
     _ingestion_service_for,
-    _resolve_embeddings_in_flow,
     _say_in_flow_log,
 )
 
@@ -319,7 +319,7 @@ class TestWhatTheFlowLogSays:
             ),
             patch("app.worker.tasks.rag_tasks._say_in_flow_log") as said,
         ):
-            answer = await _resolve_embeddings_in_flow("handbook")
+            answer = await _announcing_resolver()("handbook")
         return answer, said
 
     async def test_a_degraded_credential_is_announced_with_the_reason(self):
@@ -348,9 +348,55 @@ class TestWhatTheFlowLogSays:
             ),
             patch("app.worker.tasks.rag_tasks._say_in_flow_log") as said,
         ):
-            assert await _resolve_embeddings_in_flow("unclaimed") is None
+            assert await _announcing_resolver()("unclaimed") is None
 
         said.assert_not_called()
+
+    async def test_one_collection_is_announced_once_however_often_it_resolves(self):
+        """Indexing one document resolves twice - once to create the table,
+        once to embed - and a sync of two hundred files would otherwise print
+        four hundred copies of the line that exists to be noticed. Each
+        collection still gets its own."""
+        resolutions = {
+            name: ResolvedEmbeddings(
+                model=_MODEL, dim=_DIM, api_key="", key_source=EmbeddingKeySource.SECRET_MISSING
+            )
+            for name in ("handbook", "policies")
+        }
+        with (
+            patch(
+                "app.worker.tasks.rag_tasks.embeddings_for_collection",
+                new=AsyncMock(side_effect=lambda name: resolutions[name]),
+            ),
+            patch("app.worker.tasks.rag_tasks._say_in_flow_log") as said,
+        ):
+            resolve = _announcing_resolver()
+            for name in ("handbook", "handbook", "policies", "handbook"):
+                await resolve(name)
+
+        assert [call.args[0].split("'")[1] for call in said.call_args_list] == [
+            "handbook",
+            "policies",
+        ]
+
+    async def test_a_second_flow_run_reports_a_credential_that_is_still_broken(self):
+        """The set lives on the resolver, which lives on the ingestion service,
+        which is built per flow run - so silence never outlasts the run that
+        earned it."""
+        resolved = ResolvedEmbeddings(
+            model=_MODEL, dim=_DIM, api_key="", key_source=EmbeddingKeySource.SECRET_UNUSABLE
+        )
+        with (
+            patch(
+                "app.worker.tasks.rag_tasks.embeddings_for_collection",
+                new=AsyncMock(return_value=resolved),
+            ),
+            patch("app.worker.tasks.rag_tasks._say_in_flow_log") as said,
+        ):
+            await _announcing_resolver()("handbook")
+            await _announcing_resolver()("handbook")
+
+        assert said.call_count == 2
 
     def test_the_line_goes_to_the_prefect_run_when_there_is_one(self):
         with patch("app.worker.tasks.rag_tasks.get_run_logger") as run_logger:
@@ -359,7 +405,7 @@ class TestWhatTheFlowLogSays:
         run_logger.return_value.warning.assert_called_once_with("the collection's key is gone")
 
     def test_outside_a_run_it_still_logs_rather_than_raising(self, caplog):
-        """`_resolve_embeddings_in_flow` is a plain function: a CLI ingest and
+        """The resolver is a plain callable: a CLI ingest and
         a test both reach it with no Prefect context, and a log line must never
         be what takes an ingestion down."""
         with caplog.at_level("WARNING"):

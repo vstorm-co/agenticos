@@ -231,8 +231,13 @@ class PgVectorStore(BaseVectorStore):
         per page of a PDF. The collection is in the key because the service
         carries a `key_origin` naming it - two collections on the same key
         would otherwise share a client whose refusal names whichever of them
-        embedded first. The recorded width wins over the catalog's: the table
-        was created at that number.
+        embedded first. That bounds a long-lived store's cache by the number
+        of collections it has embedded for rather than by the number of
+        distinct credentials; each entry builds its `OpenAI` client lazily, so
+        a collection only ever read costs an object and no socket.
+
+        The recorded width wins over the catalog's: the table was created at
+        that number.
         """
         resolved = await self._resolver(name)
         if resolved is None:
