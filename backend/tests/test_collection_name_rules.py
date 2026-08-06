@@ -70,7 +70,28 @@ class TestTheShapeRule:
         """
         assert _refuse(name).details == {"collection": name}
 
-    @pytest.mark.parametrize("name", ["handbook", "Handbook", "h", "a_1_b_2", "documents_archive"])
+    @pytest.mark.parametrize("name", ["Handbook", "handBook", "HANDBOOK", "Documents_Archive"])
+    def test_a_name_with_any_upper_case_is_refused(self, name: str) -> None:
+        """Postgres folds an unquoted identifier, so `Handbook` *is* `handbook`.
+
+        Nothing above the database can see that. `claim` compares whole strings,
+        so one organization's `handbook` and another's `Handbook` are two rows
+        the platform believes are two collections, sharing one table's vectors -
+        #368's collision reached by spelling instead of by length, and the length
+        bound does not touch it.
+
+        The first version of this branch accepted `Handbook` and asserted it as
+        an ordinary name, which would have shipped the hole with a test holding
+        it open. What made that visible is that the code already knew: the
+        reserved check and `collides_with_model_table` both folded, so
+        `Documents` was refused while `Handbook` was not.
+
+        Refused rather than lower-cased on the way in - storing a name the caller
+        did not type is the reinterpretation this whole rule exists to avoid.
+        """
+        assert _refuse(name).details == {"collection": name}
+
+    @pytest.mark.parametrize("name", ["handbook", "h", "a_1_b_2", "documents_archive"])
     def test_an_ordinary_name_is_accepted(self, name: str) -> None:
         validate_collection_name(name, metadata=Base.metadata)
 
@@ -117,7 +138,14 @@ class TestTheLengthBound:
 class TestTheReservedSet:
     @pytest.mark.parametrize("name", ["all", "ALL", "All"])
     def test_a_reserved_name_is_refused_however_it_is_spelled(self, name: str) -> None:
-        """Postgres folds an unquoted identifier, so the spellings are one name."""
+        """Every spelling is refused; only the lower-case one gets this far.
+
+        `ALL` and `All` are refused by the shape rule before the reserved set is
+        consulted, which is why that set no longer folds. Both spellings are
+        asserted anyway: what a caller needs is that the name does not work, and
+        pinning it here means a future relaxation of the shape rule fails a test
+        rather than quietly reopening `ALL`.
+        """
         assert _refuse(name).details == {"collection": name}
 
     def test_a_name_that_merely_contains_a_reserved_one_is_fine(self) -> None:

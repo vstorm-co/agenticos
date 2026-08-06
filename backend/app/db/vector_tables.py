@@ -78,17 +78,35 @@ collection's index already there and builds nothing, so the second searches
 unindexed at whatever width the first was built at (#368).
 """
 
-_COLLECTION_NAME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9_]*$")
+_COLLECTION_NAME_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 """A name the store can interpolate into DDL unquoted, which is how it does it.
 
-Leading letter included: an identifier starting with a digit has to be quoted,
-and `rag_2024_reports` only looks safe because the prefix supplies the letter.
-The store's two regexes disagreed on exactly this, and the one that admitted it
-was the one on every path.
+Leading letter: an identifier starting with a digit has to be quoted, and
+`rag_2024_reports` only looks safe because the prefix supplies the letter. The
+store's two regexes disagreed on exactly this, and the one that admitted it was
+the one on every path.
+
+**Lower case, because Postgres folds an unquoted identifier.** `Handbook` and
+`handbook` are one table, `rag_handbook`, and nothing above the database can see
+that: `claim` compares whole strings, so they are two rows the platform believes
+are two collections - in two organizations, sharing one table's vectors. That is
+#368's collision reached by spelling rather than by length, and the length bound
+does not touch it.
+
+Refused rather than folded on the way in. Normalising would silently store a
+name the caller did not type, and this module's whole argument is that a name
+that cannot be used is refused rather than reinterpreted - the same reason
+`collides_with_model_table` compares folded but never rewrites.
+
+The rules after this one may therefore assume lower case, and do.
 """
 
 _RESERVED_COLLECTION_NAMES = frozenset({"all"})
-"""Names that mean something other than a collection, and so cannot be one."""
+"""Names that mean something other than a collection, and so cannot be one.
+
+Lower case only: :data:`_COLLECTION_NAME_RE` has already refused every other
+spelling by the time this is consulted.
+"""
 
 
 def is_runtime_vector_table(name: str, *, metadata: MetaData) -> bool:
@@ -172,11 +190,18 @@ def validate_collection_name(collection: str, *, metadata: MetaData) -> None:
 
     The four refusals, in the order a name meets them:
 
-    * **Shape.** Anything the store could not interpolate into DDL unquoted.
+    * **Shape.** Anything the store could not interpolate into DDL unquoted -
+      including any upper case, because Postgres folds it and `Handbook` is
+      `handbook`'s table. See :data:`_COLLECTION_NAME_RE`.
     * **Length.** See :data:`MAX_COLLECTION_NAME_LENGTH`; Postgres truncates
       silently, so this is the difference between two collections and one.
     * **Reserved.** :data:`_RESERVED_COLLECTION_NAMES`.
     * **A table the models own.** :func:`collides_with_model_table`.
+
+    The order is what lets the last three compare plainly rather than folding:
+    only lower case reaches them. Two of the three folded anyway before the
+    shape rule did, which is how `Documents` was refused while `Handbook` was
+    not - the collision check knew Postgres folds and the ordinary path did not.
 
     All four raise `BadRequestError` rather than `ValueError`. Two of them used
     to raise `ValueError`, which no handler maps, so a name the server
@@ -208,7 +233,7 @@ def validate_collection_name(collection: str, *, metadata: MetaData) -> None:
             ),
             details={"collection": collection, "max_length": MAX_COLLECTION_NAME_LENGTH},
         )
-    if collection.lower() in _RESERVED_COLLECTION_NAMES:
+    if collection in _RESERVED_COLLECTION_NAMES:
         raise BadRequestError(
             message=f"'{collection}' is a reserved collection name",
             details={"collection": collection},
