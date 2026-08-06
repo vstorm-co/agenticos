@@ -1,11 +1,13 @@
 """Agent run and approval repositories (PostgreSQL async)."""
 
+from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, ToolApproval
@@ -189,6 +191,72 @@ async def mark_running(db: AsyncSession, *, run: AgentRun) -> AgentRun:
     return run
 
 
+@dataclass(frozen=True)
+class RunFilters:
+    """How run history is narrowed, as one value rather than nine parameters.
+
+    Grouped because these travel together the whole way - a route builds them
+    from query parameters, a service passes them through, the repository turns
+    each into a `WHERE` - and threading nine optional arguments through three
+    layers is how one of them ends up applied to the page and not to the count.
+    That is not hypothetical: the count and the list are two queries here, and
+    every filter has to reach both or `total` describes a different set from the
+    rows under it.
+
+    Attributes:
+        statuses: Any of these, not all - `failed` and `budget_exceeded`
+            together is the "show me the problems" query, and they are separate
+            statuses on purpose.
+        surface: Where the run came from.
+        user_id: Who it ran as, which is not always who asked - a widget's runs
+            carry the widget owner's id, because the visitor is anonymous.
+        started_from: Inclusive lower bound on `started_at`.
+        started_to: Inclusive upper bound on `started_at`.
+        environment_id: Which named environment resolved the version. A
+            delegated run never has one - its version comes from a pin - so a
+            list narrowed to an environment cannot contain delegations, which is
+            why the surface has to say so rather than leave a reader to notice.
+        exposure_id: Which binding admitted the run. Null for the dashboard, the
+            playground and the API.
+        agent_version_id: The frozen spec that answered. The version strip's
+            "show me the runs behind this number".
+    """
+
+    statuses: Sequence[str] | None = None
+    surface: str | None = None
+    user_id: UUID | None = None
+    started_from: datetime | None = None
+    started_to: datetime | None = None
+    environment_id: UUID | None = None
+    exposure_id: UUID | None = None
+    agent_version_id: UUID | None = None
+
+    def conditions(self) -> list[ColumnElement[bool]]:
+        """One `WHERE` clause per filter that was actually set.
+
+        Returned as a list rather than applied here, so the same set reaches the
+        page query and the count query and cannot diverge between them.
+        """
+        clauses: list[ColumnElement[bool]] = []
+        if self.statuses:
+            clauses.append(AgentRun.status.in_(list(self.statuses)))
+        if self.surface is not None:
+            clauses.append(AgentRun.surface == self.surface)
+        if self.user_id is not None:
+            clauses.append(AgentRun.user_id == self.user_id)
+        if self.started_from is not None:
+            clauses.append(AgentRun.started_at >= self.started_from)
+        if self.started_to is not None:
+            clauses.append(AgentRun.started_at <= self.started_to)
+        if self.environment_id is not None:
+            clauses.append(AgentRun.environment_id == self.environment_id)
+        if self.exposure_id is not None:
+            clauses.append(AgentRun.exposure_id == self.exposure_id)
+        if self.agent_version_id is not None:
+            clauses.append(AgentRun.agent_version_id == self.agent_version_id)
+        return clauses
+
+
 async def list_runs(
     db: AsyncSession,
     *,
@@ -196,6 +264,7 @@ async def list_runs(
     agent_id: UUID | None = None,
     parent_run_id: UUID | None = None,
     include_delegations: bool = False,
+    filters: RunFilters | None = None,
     skip: int = 0,
     limit: int = 50,
 ) -> tuple[list[AgentRun], int]:
@@ -219,6 +288,13 @@ async def list_runs(
     both: those rows are the delegations of one named run, so a surface can say
     whose they are rather than leaving a reader to guess which of four rows a
     person started.
+
+    `filters` narrows both queries by the same conditions - see `RunFilters`,
+    which exists so that "narrowed the page but not the count" is not a shape
+    this function can be written in. `started_from` is also what makes the count
+    reconcilable with a spend figure beside it: without a window, one reads all
+    time and the other one calendar month, and the obvious comparison between
+    them is wrong by however old the organization is.
     """
     query = select(AgentRun).where(AgentRun.organization_id == organization_id)
     count_query = select(func.count(AgentRun.id)).where(AgentRun.organization_id == organization_id)
@@ -231,6 +307,9 @@ async def list_runs(
     elif not include_delegations:
         query = query.where(AgentRun.parent_run_id.is_(None))
         count_query = count_query.where(AgentRun.parent_run_id.is_(None))
+    for clause in (filters or RunFilters()).conditions():
+        query = query.where(clause)
+        count_query = count_query.where(clause)
 
     query = query.order_by(AgentRun.started_at.desc().nullslast()).offset(skip).limit(limit)
     items = list((await db.execute(query)).scalars().all())

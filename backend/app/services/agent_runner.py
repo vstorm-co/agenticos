@@ -123,6 +123,7 @@ from app.repositories import (
     agent_run_repo,
     knowledge_base_repo,
 )
+from app.repositories.agent_run import RunFilters
 from app.services.agent_registry import (
     DEFAULT_GRANTED_SCOPES,
     DELEGATION_CAPABILITY_ID,
@@ -2877,6 +2878,7 @@ class AgentRunnerService:
         agent_id: UUID | None = None,
         parent_run_id: UUID | None = None,
         include_delegations: bool = False,
+        filters: RunFilters | None = None,
         skip: int = 0,
         limit: int = 50,
     ) -> tuple[list[AgentRun], int]:
@@ -2890,6 +2892,10 @@ class AgentRunnerService:
         started are never summed down one column, because a parent's cost
         already contains its children's. `parent_run_id` lists one run's own
         delegations; `include_delegations` keeps them in an agent's own history.
+
+        `filters` is the caller's narrowing, and the tenant clause is applied
+        here regardless of it: a filter can only ever shrink what this returns,
+        never reach outside the organization.
         """
         return await agent_run_repo.list_runs(
             self.db,
@@ -2897,6 +2903,7 @@ class AgentRunnerService:
             agent_id=agent_id,
             parent_run_id=parent_run_id,
             include_delegations=include_delegations,
+            filters=filters,
             skip=skip,
             limit=limit,
         )

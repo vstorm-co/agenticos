@@ -209,6 +209,33 @@ a table primitive shared by the whole product is
 [proposed separately](https://github.com/vstorm-co/agenticos/issues/139), and
 nesting belongs in that rather than in one bespoke run table.
 
+### Narrowing it
+
+| Parameter | |
+|---|---|
+| `status` | Repeats. `?status=failed&status=budget_exceeded` is the show-me-the-problems query, and the two are separate statuses precisely so that asking for one is not asking for the other |
+| `surface` | Where the run came from |
+| `user_id` | Who the run ran **as**, which is not always who asked — a widget's runs carry the widget owner's identity, because the visitor is anonymous |
+| `started_from`, `started_to` | Inclusive both ends, because a range picker hands over whole days |
+| `environment_id` | Runs on the version that environment pins. **Never a delegated run:** a delegate's version comes from a pin, so the column is deliberately never written on one, and narrowing to `production` drops every delegation. A surface that includes delegations has to say so |
+| `exposure_id` | Runs admitted through one binding. Null for the dashboard, the playground and the API |
+| `agent_version_id` | Runs that executed one frozen spec — the version strip's "show me the rows behind this number" |
+
+**Every filter narrows the count as well as the page**, so `total` always
+describes the rows under it. The list and the count are two queries, and a filter
+reaching only one of them reads as a paging bug rather than as a missing clause.
+
+`started_from` is also what makes that count reconcilable with the money beside
+it. Unwindowed it reads *all time* while a spend figure reads one calendar month,
+so an organization three years old showed "8,412 runs" next to "$31.20" and the
+obvious reading of the pair was wrong by three years. A figure and a spend figure
+on one screen share one window, or they say which window each is.
+
+A value outside its type is refused with a 422 rather than matched against
+nothing: `status` and `surface` are string columns, so `?status=complete` would
+otherwise answer with an empty page — and an empty page reads as *nothing went
+wrong this week*.
+
 Activity's three figures above the tabs stay the organization's, including the run
 count, even when the table below is narrowed to one agent. A per-agent count beside
 the organization's month would be two questions under one label — and the per-agent
