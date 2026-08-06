@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   CheckCircle2,
@@ -10,6 +11,7 @@ import {
   FileText,
   Loader2,
   Lock,
+  MoreHorizontal,
   Plug,
   Plus,
   RefreshCw,
@@ -24,7 +26,19 @@ import type { LucideIcon } from "lucide-react";
 
 import { ROUTES } from "@/lib/constants";
 import { PageHeader } from "@/components/dashboard/page-header";
-import { Badge, Button, DataTable, Progress, Skeleton, type Column } from "@/components/ui";
+import {
+  Badge,
+  Button,
+  ConfirmDialog,
+  DataTable,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Progress,
+  Skeleton,
+  type Column,
+} from "@/components/ui";
 import { EmptyState } from "@/components/states";
 import { SyncSourceWizard } from "@/components/rag/sync-source-wizard";
 import { SyncSourceLogs } from "@/components/rag/sync-source-logs";
@@ -59,6 +73,7 @@ interface KBDetailPageProps {
 
 export default function KBDetailPage({ params }: KBDetailPageProps) {
   const t = useTranslations("pages.kb");
+  const router = useRouter();
   const { id } = use(params);
   const {
     kb,
@@ -78,6 +93,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
     updateIngestion,
     uploadDocument,
     deleteDocument,
+    deleteCollection,
     createSyncSource,
     cloneSyncSource,
     triggerSyncSource,
@@ -98,6 +114,20 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [ingestionOpen, setIngestionOpen] = useState(false);
   const [overrideOpen, setOverrideOpen] = useState(false);
+  /**
+   * What a destructive control has asked for and not yet been granted.
+   *
+   * Three of them, each held on the page rather than beside its button: the
+   * document one is raised from a `DataTable` cell and the sync-source one from
+   * a row component, and a dialog rendered inside either is a dialog inside a
+   * subtree that re-renders on every poll. These were `window.confirm` calls
+   * carrying hardcoded English, which is copy no locale and no `check_i18n.py`
+   * sweep can reach.
+   */
+  const [deletingCollection, setDeletingCollection] = useState(false);
+  const [collectionDeleteInFlight, setCollectionDeleteInFlight] = useState(false);
+  const [removingDocument, setRemovingDocument] = useState<KBDocument | null>(null);
+  const [disconnectingSource, setDisconnectingSource] = useState<SyncSourceRead | null>(null);
   /**
    * How the next files added here are to be read, where that is not how the
    * collection reads them.
@@ -227,10 +257,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
                   variant="ghost"
                   size="sm"
                   className="text-muted-foreground hover:text-destructive h-8 w-8 p-0"
-                  onClick={() => {
-                    if (confirm(`Remove "${doc.filename}" from this knowledge base?`))
-                      deleteDocument(doc.id);
-                  }}
+                  onClick={() => setRemovingDocument(doc)}
                   title={t("removeDocument")}
                   aria-label={t("removeDocument2")}
                 >
@@ -242,7 +269,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
         },
       },
     ],
-    [deleteDocument, downloadingId, handleDownload, setViewerDoc, mayEdit],
+    [downloadingId, handleDownload, setViewerDoc, mayEdit],
   );
 
   if (isLoading && !kb) return <KBDetailSkeleton />;
@@ -339,6 +366,26 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
                   )}
                   {isUploading ? t("uploading") : t("upload")}
                 </Button>
+                {/* Behind a menu, not beside Refresh: destroying the collection
+                    and everything in it is not a same-weight sibling of
+                    re-reading it. It lives here rather than on the card in the
+                    list because this is the page that says what is inside. */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" aria-label={t("moreActions")}>
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      onSelect={() => setDeletingCollection(true)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      {t("deleteKnowledgeBase")}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </>
             )}
           </>
@@ -493,7 +540,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
                     source={source}
                     kbId={id}
                     onTrigger={mayEdit ? () => triggerSyncSource(source.id) : undefined}
-                    onDelete={mayEdit ? () => deleteSyncSource(source.id) : undefined}
+                    onDelete={mayEdit ? () => setDisconnectingSource(source) : undefined}
                   />
                 ),
               )}
@@ -514,6 +561,61 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
           </>
         )}
       </section>
+
+      {/* The count is the collection's, not the table's. Documents page in
+          twenty at a time, so `documents.length` would promise to destroy far
+          less than the confirm button actually does. */}
+      <ConfirmDialog
+        open={deletingCollection}
+        onOpenChange={setDeletingCollection}
+        title={t("deleteCollectionTitle", { name: kb.name })}
+        description={t("deleteCollectionWarning", { count: documentsTotal })}
+        confirmLabel={t("delete")}
+        destructive
+        loading={collectionDeleteInFlight}
+        onConfirm={async () => {
+          setCollectionDeleteInFlight(true);
+          try {
+            await deleteCollection();
+          } catch {
+            // The hook has already said why. The collection is still there, so
+            // this page is still the right one to be on.
+            setCollectionDeleteInFlight(false);
+            return;
+          }
+          router.push(ROUTES.KB);
+        }}
+      />
+
+      {removingDocument && (
+        <ConfirmDialog
+          open
+          onOpenChange={() => setRemovingDocument(null)}
+          title={t("removeDocumentTitle", { filename: removingDocument.filename })}
+          description={t("removeDocumentWarning")}
+          confirmLabel={t("remove")}
+          destructive
+          onConfirm={async () => {
+            await deleteDocument(removingDocument.id);
+            setRemovingDocument(null);
+          }}
+        />
+      )}
+
+      {disconnectingSource && (
+        <ConfirmDialog
+          open
+          onOpenChange={() => setDisconnectingSource(null)}
+          title={t("disconnectSourceTitle", { name: disconnectingSource.name })}
+          description={t("disconnectSourceWarning")}
+          confirmLabel={t("disconnect")}
+          destructive
+          onConfirm={async () => {
+            await deleteSyncSource(disconnectingSource.id);
+            setDisconnectingSource(null);
+          }}
+        />
+      )}
 
       <FileViewer
         kbId={id}
@@ -615,6 +717,7 @@ function SyncSourceRow({
   kbId: string;
   /** Absent when the caller may not write - the buttons are then not drawn. */
   onTrigger?: () => void;
+  /** Asks for the disconnection; the page owns the confirmation and the call. */
   onDelete?: () => void;
 }) {
   const t = useTranslations("pages.kb");
@@ -664,9 +767,7 @@ function SyncSourceRow({
             variant="ghost"
             size="sm"
             className="text-muted-foreground hover:text-destructive h-8 w-8 p-0"
-            onClick={() => {
-              if (confirm(`Disconnect "${source.name}"?`)) onDelete();
-            }}
+            onClick={onDelete}
             title={t("removeSource")}
             aria-label={t("removeSource2")}
           >

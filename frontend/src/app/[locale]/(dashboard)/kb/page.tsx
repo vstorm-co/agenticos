@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { ArrowUpRight, Database, Lock, Plus, Sparkles, Trash2, Users } from "lucide-react";
+import { ArrowUpRight, Database, Lock, Plus, Sparkles, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { CreateKBDialog, ReusableIntegrations } from "@/components/kb";
@@ -57,7 +57,7 @@ function BasesCard({ count, children }: { count: number | null; children: ReactN
 
 export default function KBPage() {
   const t = useTranslations("pages.kb");
-  const { kbs, isLoading, fetchKBs, deleteKB } = useKnowledgeBases();
+  const { kbs, isLoading, fetchKBs } = useKnowledgeBases();
   const [createOpen, setCreateOpen] = useState(false);
   // Presentation, never enforcement - the server refuses regardless. A Viewer
   // holds `collections:view` only, and offering them a create button is
@@ -132,7 +132,7 @@ export default function KBPage() {
         ) : (
           <div className="grid auto-rows-fr gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {sorted.map((kb) => (
-              <KBCard key={kb.id} kb={kb} onDelete={mayEdit ? () => deleteKB(kb.id) : undefined} />
+              <KBCard key={kb.id} kb={kb} />
             ))}
           </div>
         )}
@@ -147,36 +147,20 @@ export default function KBPage() {
   );
 }
 
-function KBCard({ kb, onDelete }: { kb: KnowledgeBase; onDelete?: () => void }) {
+function KBCard({ kb }: { kb: KnowledgeBase }) {
   const t = useTranslations("pages.kb");
   const meta = SCOPE_META[kb.scope];
 
   return (
     <div className={cn(t("groupBorderBorderBg2"))}>
-      {/* Whole-card link, stacked below the interactive controls and above
-          nothing else.
-
-          The z-indexes here are load-bearing and were wrong in both
-          directions, so they are worth stating. Originally the link sat at
-          `z-10` under content at `z-20`: every click hit the card body and the
-          link was unreachable despite carrying the right `href`. Swapping them
-          put the link over the delete button, whose `pointer-events-auto`
-          could not help it from a lower layer.
-
-          What works, verified with `elementFromPoint` rather than by reasoning
-          about it: the content wrapper carries **no** z-index, so it creates no
-          stacking context and the delete button's own `z-30` is measured
-          against the link's `z-20` instead of being trapped beneath it. The
-          wrapper stays `pointer-events-none` so clicks over dead space fall
-          through to the link, and the button re-enables them for itself.
-
-          A `z-index` on that wrapper - which is what it had - silently wins
-          over any value a child sets, which is why the obvious fix of raising
-          the button did nothing. */}
+      {/* The card is a link and nothing else, so the layering is a link over
+          content that declines the click rather than the three-way z-index
+          argument this used to be. Deleting a collection now lives on the
+          collection's own page, which is where you can see what it holds. */}
       <Link
         href={ROUTES.KB_DETAIL(kb.id)}
-        className="focus-visible:ring-ring absolute inset-0 z-20 rounded-[inherit] focus-visible:ring-2 focus-visible:outline-none"
-        aria-label={`Open ${kb.name}`}
+        className="focus-visible:ring-ring absolute inset-0 rounded-[inherit] focus-visible:ring-2 focus-visible:outline-none"
+        aria-label={t("openCollection", { name: kb.name })}
       />
 
       <div className="pointer-events-none flex h-full flex-col p-5">
@@ -185,33 +169,11 @@ function KBCard({ kb, onDelete }: { kb: KnowledgeBase; onDelete?: () => void }) 
             <meta.icon className="h-4 w-4" />
           </span>
 
-          <div className="flex items-center gap-1.5">
-            {kb.is_default && (
-              <Badge variant="outline" className="border-border text-muted-foreground font-normal">
-                {t("default")}
-              </Badge>
-            )}
-            {!kb.is_default && onDelete && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  if (
-                    confirm(
-                      `Delete "${kb.name}"? This will remove the knowledge base and all its documents.`,
-                    )
-                  ) {
-                    onDelete();
-                  }
-                }}
-                className="text-muted-foreground hover:bg-accent hover:text-destructive pointer-events-auto relative z-30 inline-flex h-8 w-8 items-center justify-center rounded-lg opacity-0 transition-colors group-hover:opacity-100 focus-visible:opacity-100"
-                aria-label={t("deleteKnowledgeBase")}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            )}
-          </div>
+          {kb.is_default && (
+            <Badge variant="outline" className="border-border text-muted-foreground font-normal">
+              {t("default")}
+            </Badge>
+          )}
         </div>
 
         <div className="mt-4 flex-1">
