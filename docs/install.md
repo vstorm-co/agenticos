@@ -124,20 +124,23 @@ part is missing rather than that something failed.
 
 ### The health column is worth reading
 
-Every service in every compose file carries its own healthcheck, so
-`docker compose ps` is a first diagnosis rather than decoration:
+Every backend service has a probe, so `docker compose ps` is a first diagnosis
+rather than decoration:
 
 | Service | `healthy` means |
 |---|---|
 | `app` | `GET /api/v1/health` answered 200 — uvicorn is serving |
 | `prefect-runner` | it polled the Prefect API within the last 20 seconds |
 | `db` · `redis` · `prefect-server` | `pg_isready` · `PING` · `GET /api/health` |
+| `sandboxd` | `GET /healthz` — its own image's probe, not one of ours |
 
 The runner's probe is Prefect's own runner webserver, bound to `127.0.0.1:8080`
 inside the container and reachable from nowhere else. A runner whose process is
-alive but no longer polling turns `unhealthy` in about 45 seconds; it used to be
-`unhealthy` from the second it started, because it inherited the API's HTTP probe
-from the image the two services share. `backend/Dockerfile` now carries no
+alive but no longer polling turns `unhealthy` inside a minute — up to 20 seconds
+before `/health` starts answering 503, then three failed probes 15 seconds apart;
+42 seconds when it was measured. It used to be `unhealthy` from the second it
+started, because it inherited the API's HTTP probe from the image the two
+services share. `backend/Dockerfile` now carries no
 `HEALTHCHECK` at all — see [Configuration](configuration.md#background-work-prefect).
 
 ## The database must be pgvector

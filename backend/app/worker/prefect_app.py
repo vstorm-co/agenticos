@@ -11,9 +11,11 @@ At most PREFECT_RUNNER_LIMIT runs execute at once; the rest queue.  Each run is 
 separate process that imports the whole application, so an uncapped runner meeting
 a backlog is an out-of-memory kill rather than a slow afternoon.
 
-The runner also serves its own health endpoint, on 127.0.0.1:8080 inside its
-container, so that a container orchestrator can tell a runner that is polling from
-one that has stopped.  See `main` for why it is not optional.
+The runner also serves its own health endpoint, so that a container orchestrator
+can tell a runner that is polling from one that has stopped.  Where it listens is
+Prefect's decision, not this module's - PREFECT_RUNNER_SERVER_HOST and
+PREFECT_RUNNER_SERVER_PORT, `localhost:8080` unless something sets them, which
+every compose file here does.  See `main` for why it is not optional.
 """
 
 import asyncio
