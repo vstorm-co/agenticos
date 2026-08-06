@@ -19,6 +19,23 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.37] - 2026-08-06
+
+### Fixed
+
+- The `ai-review` workflow concluded `success` when it had produced no review at
+  all, and posted "the reviewer did not produce a result" — a sentence that reads
+  like a verdict on the diff. Eleven pull requests merged unreviewed before anyone
+  noticed. A run is now classified `reviewed`, `declined` or `broken`; `broken`
+  fails the job and the comment says the reviewer failed, carrying what Codex
+  printed. A cancelled run no longer reports the reviewer as dead, and a broken
+  re-run no longer deletes the previous run's inline findings (#311).
+
+The cause of the Codex failure itself is an enforced spend limit on the OpenAI
+project, recorded on #311. The `pull_request` trigger stays off until that is
+lifted.
+
+
 ## [0.0.36] - 2026-08-06
 
 ### Fixed
