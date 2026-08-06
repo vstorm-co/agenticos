@@ -19,6 +19,26 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.39] - 2026-08-06
+
+### Fixed
+
+- `prefect-runner` had never once passed a health check and never could. It runs
+  the backend image, which carried a `HEALTHCHECK` written for the API, and the
+  runner serves no HTTP. A status that is red unconditionally is not a status: a
+  dead runner looked exactly like a live one, and nothing could depend on it
+  becoming healthy. The runner now serves Prefect's own `/health` on 8080 and is
+  probed against it (#310).
+- The API's own probe passed on a 500 — it fetched the health endpoint and
+  ignored the status. It now raises for status, with a 30s start period.
+
+### Changed
+
+- The `HEALTHCHECK` moved out of `backend/Dockerfile` and into the `app` and
+  `prefect-runner` service definitions in all three compose files. An image with
+  two consumers should not assert what only one of them can satisfy.
+
+
 ## [0.0.38] - 2026-08-06
 
 ### Fixed
