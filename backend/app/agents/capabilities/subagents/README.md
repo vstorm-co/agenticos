@@ -144,6 +144,15 @@ So a parked run is a tree, and three pieces carry it:
   Pydantic AI refuses a resume whose results name a call the replayed response does
   not contain, so one flat set for the whole tree fails the continuation.
 
+The same tree carries a fourth thing when a level binds `allow_dynamic`: the
+specialists it kept with `create_agent`. They ride on that level's own
+`DelegationFrame`, keyed by the `task` call it was delegated from — the run's own
+agent's on the flat `PausedRunState.dynamic_specialists` — so a nested `create_agent`
+survives the park its own delegate caused, not only the run's own agent's
+(agenticos#254). `record_created_specialists` snapshots each level's registry under
+that key when its `wrap_run` ends, and `build_delegation` re-seeds each level's fresh
+registry from the same key on resume.
+
 Everything in the stash is plain data, and that is a constraint rather than a
 preference: it outlives the tool call it was made in and is written to a JSONB
 column, while `request_approval` closes over a service holding the request's
@@ -379,14 +388,21 @@ delegate does is gated by the delegate's own reviewed spec; there is no reviewed
 spec here, so the specialist itself is the thing worth a person's eye. An author
 who wants an agent to run unattended clears it with `tool_approval`.
 
-**Nothing is persisted, and a kept one lasts less long than "the run".** The
+**Nothing is persisted across turns, but a kept one survives a park.** The
 registry `create_agent` writes into belongs to the *built agent*, and a run that
-parks on an approval is built again when it is continued — so a specialist
-created before the park is unknown after it, while the transcript still carries
-the library's "created successfully". `create_agent`'s description says so and
-`task` answers "unknown subagent", which makes it recoverable rather than
-surprising; making the tool mean what its name says is agenticos#175. Keeping one
-properly means publishing an agent, which is a person's action.
+parks on an approval is built again when it is continued — so without help a
+specialist created before the park would be unknown after it, while the transcript
+still carried the library's "created successfully". The capability snapshots each
+level's registrations when the run ends and the runner carries them in
+`PausedRunState`, so a resume re-registers each one into that level's fresh registry
+through the same build path — at the run's own agent (agenticos#175) and inside a
+nested delegate (agenticos#254) alike. The carry is keyed by the `task` call each
+level was delegated from, which is how a nested delegate's ride on its own
+`DelegationFrame` the way its conversation does, rather than on the flat run-level
+list. What still does *not* survive is a conversation *turn*: each turn is its own
+build with no paused state, so a name created in one reply is unknown in the next,
+and `create_agent`'s description tells the model to create it again if `task` says
+so. Keeping one properly means publishing an agent, which is a person's action.
 
 `MAX_DYNAMIC_SPECIALISTS` bounds how many one run may **keep**, which is the
 registry's ceiling and nothing else: a `delegate` call registers nothing, so

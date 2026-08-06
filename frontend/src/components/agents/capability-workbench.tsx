@@ -27,6 +27,11 @@ interface CapabilityWorkbenchProps {
    */
   subagents: SubagentRef[];
   onSubagentsChange: (subagents: SubagentRef[]) => void;
+  /**
+   * The agent's own model profile, handed to the delegation panel so promoting a
+   * specialist that runs on "the same model as its parent" can resolve one.
+   */
+  modelProfileId: string | null;
   disabled?: boolean;
 }
 
@@ -80,6 +85,7 @@ export function CapabilityWorkbench({
   onChange,
   subagents,
   onSubagentsChange,
+  modelProfileId,
   disabled,
 }: CapabilityWorkbenchProps) {
   const t = useTranslations("agents");
@@ -245,6 +251,7 @@ export function CapabilityWorkbench({
                 binding={bound}
                 catalog={catalog}
                 parentCapabilities={selected}
+                parentModelProfileId={modelProfileId}
                 subagents={subagents}
                 onChange={onChange}
                 onSubagentsChange={onSubagentsChange}

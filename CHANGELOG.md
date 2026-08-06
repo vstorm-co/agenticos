@@ -19,6 +19,61 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.30] - 2026-08-06
+
+### Added
+
+- **Promote a specialist to a draft agent — the honest way to keep one**
+  ([#177](https://github.com/vstorm-co/agenticos/issues/177)). A dynamic specialist is
+  never persisted (keeping one means publishing an agent, a person's action), and an inline
+  specialist lives only in its parent's spec — so the only way to keep either was to copy
+  its instructions out of a chat log, producing an agent whose provenance nobody can see.
+  A **Promote to a draft agent** action now sits on an inline specialist in the Builder's
+  delegation section and on a dynamic specialist in the chat delegation panel while the run
+  that created it is still on screen. It creates an ordinary **draft** from the specialist's
+  instructions, model profile, capabilities, collections and skills, through the same
+  `SpecialistSpec.to_agent_spec()` conversion — and stops there: it does not publish, does
+  not pin the new agent as a delegate of its parent, and does not remove the inline
+  specialist, each of which stays a decision the author makes next with the usual validation
+  in front of it. The draft is owned by **the person who promoted it** and subject to the
+  usual `AGENTS_EDIT` check — a specialist created inside someone else's run does not become
+  their agent. A promoted dynamic specialist publishes without further editing and answers,
+  when run, what it answered inside the run it came from.
+
+## [0.0.29] - 2026-08-06
+
+### Fixed
+
+- **An inline specialist's spend under a published delegate now reaches an agent's month**
+  ([#228](https://github.com/vstorm-co/agenticos/issues/228)). Spend attribution (0.0.7,
+  #192) stamps every `SpendEntry` with the delegation that booked it and reads a
+  delegation's cost as its share of the ledger — but an inline specialist gets no
+  `agent_runs` row, only published delegates do. So an inline `fact-checker` under a
+  published `researcher` booked its spend to its own key, which is in no run row, and the
+  innermost stamp meant it was not in the researcher's share either: on a $0.75 run the
+  researcher's row read $0.50, and $0.25 reached no agent's month. The organisation total
+  was always right (the top-level row is the whole ledger), which is why nothing failed.
+  An entry now carries a second attribution — *who spent it* (for the delegation panel's
+  own-share `cost_usd`) and *which agent row it bills to* (for the month): an inline
+  specialist bills to its nearest published ancestor, so that row is whole again while the
+  panel still shows the specialist's own share, with nothing double-counted. Holds through
+  an inline specialist nested under another inline specialist, too.
+
+## [0.0.28] - 2026-08-06
+
+### Fixed
+
+- **A `create_agent` specialist created by a nested delegate survives an approval park**
+  ([#254](https://github.com/vstorm-co/agenticos/issues/254)). 0.0.20 (#175) carried a
+  top-level dynamic specialist across a park — its definition serialised into `paused_state`
+  and re-seeded on resume through the same factory — but only at the root. A specialist a
+  delegate *one level down* created was still lost when a nested delegation parked and
+  resumed: the nested level's registry was rebuilt empty, so `task` answered "unknown
+  subagent" for it. The specialist carry now descends the parked tree, so a kept specialist
+  at any depth is re-seeded on resume and reachable by name, metered on the run's shared
+  ledger exactly as it was the first time. `max_agents` still bounds each level, so a resume
+  cannot exceed it by rebuilding.
+
 ## [0.0.27] - 2026-08-05
 
 ### Fixed
@@ -1025,7 +1080,10 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.27...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v0.0.30...HEAD
+[0.0.30]: https://github.com/vstorm-co/agenticos/compare/v0.0.29...v0.0.30
+[0.0.29]: https://github.com/vstorm-co/agenticos/compare/v0.0.28...v0.0.29
+[0.0.28]: https://github.com/vstorm-co/agenticos/compare/v0.0.27...v0.0.28
 [0.0.27]: https://github.com/vstorm-co/agenticos/compare/v0.0.26...v0.0.27
 [0.0.26]: https://github.com/vstorm-co/agenticos/compare/v0.0.25...v0.0.26
 [0.0.25]: https://github.com/vstorm-co/agenticos/compare/v0.0.24...v0.0.25

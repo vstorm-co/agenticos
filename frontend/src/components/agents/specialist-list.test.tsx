@@ -1,6 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { toast } from "sonner";
 
 import { SpecialistList } from "./specialist-list";
 import { newSpecialist } from "@/lib/agent-spec";
@@ -12,6 +13,8 @@ const state = vi.hoisted(() => ({
   profiles: [] as ModelProfile[],
   collections: [] as KnowledgeBase[],
   skills: [] as SkillSummary[],
+  promote: { mutate: vi.fn(), isPending: false },
+  canEdit: true,
 }));
 
 // The editor reads three catalogs the Builder around it has already fetched.
@@ -29,7 +32,11 @@ vi.mock("@/hooks", () => ({
   useSecrets: () => ({ secrets: [], isLoading: false, listError: null }),
   useProviderModels: () => ({ models: [], source: null, isLoading: false }),
   useSecretPurposes: () => ({ purposes: [], isLoading: false }),
+  useAgents: () => ({ promote: state.promote }),
+  usePermissions: () => ({ can: () => state.canEdit }),
 }));
+
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const CHARTS: CapabilityCatalogEntry = {
   id: "charts",
@@ -81,12 +88,14 @@ function mount({
   specialists = [] as SpecialistSpec[],
   catalog = [CHARTS],
   clashes = new Set<string>(),
+  parentModelProfileId = null as string | null,
   disabled = false,
   onChange = vi.fn(),
 }: {
   specialists?: SpecialistSpec[];
   catalog?: CapabilityCatalogEntry[];
   clashes?: Set<string>;
+  parentModelProfileId?: string | null;
   disabled?: boolean;
   onChange?: (specialists: SpecialistSpec[]) => void;
 } = {}) {
@@ -96,6 +105,7 @@ function mount({
       onChange={onChange}
       catalog={catalog}
       clashes={clashes}
+      parentModelProfileId={parentModelProfileId}
       disabled={disabled}
     />,
   );
@@ -117,6 +127,8 @@ beforeEach(() => {
   ];
   state.collections = [];
   state.skills = [];
+  state.promote = { mutate: vi.fn(), isPending: false };
+  state.canEdit = true;
 });
 
 describe("SpecialistList", () => {
@@ -381,5 +393,44 @@ describe("the rest of a specialist's own settings", () => {
     expect(screen.getByLabelText("Instructions")).toBeDisabled();
     expect(screen.getByRole("switch", { name: "Give this specialist Charts" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Remove this specialist" })).toBeDisabled();
+  });
+
+  it("promotes a specialist with the parent's model as the fallback", async () => {
+    // A specialist on "the same model as its parent" (null model_profile_id) needs
+    // a concrete one as a standalone agent, and the parent's is it.
+    const spec = specialist({ instructions: "Summarise in three bullets." });
+    // The mutate stand-in reports success, so the panel's own toast runs.
+    state.promote.mutate.mockImplementation((_input, opts) => opts.onSuccess({ name: spec.name }));
+    mount({ specialists: [spec], parentModelProfileId: "m1" });
+
+    await userEvent.click(screen.getByRole("button", { name: "Promote to a draft agent" }));
+
+    expect(state.promote.mutate).toHaveBeenCalledWith(
+      { specialist: spec, fallbackModelProfileId: "m1" },
+      expect.anything(),
+    );
+    expect(toast.success).toHaveBeenCalledWith("Promoted researcher to a draft agent");
+  });
+
+  it("surfaces the reason a promotion was refused", async () => {
+    // The name derives the new agent's handle, which can already be taken - the
+    // server says which, and the author needs to read it.
+    state.promote.mutate.mockImplementation((_input, opts) =>
+      opts.onError(new Error("The handle @researcher is already taken.")),
+    );
+    mount({ specialists: [specialist()], parentModelProfileId: null });
+
+    await userEvent.click(screen.getByRole("button", { name: "Promote to a draft agent" }));
+
+    expect(toast.error).toHaveBeenCalledWith("The handle @researcher is already taken.");
+  });
+
+  it("does not offer to promote to somebody who may not create an agent", () => {
+    // Not rendered, rather than rendered and then refused: promoting creates an
+    // agent, which takes agents:edit.
+    state.canEdit = false;
+    mount({ specialists: [specialist()] });
+
+    expect(screen.queryByRole("button", { name: "Promote to a draft agent" })).toBeNull();
   });
 });

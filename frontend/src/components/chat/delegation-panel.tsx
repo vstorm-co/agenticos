@@ -3,15 +3,18 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { ChevronDown, Users } from "lucide-react";
+import { ChevronDown, CopyPlus, Users } from "lucide-react";
+import { toast } from "sonner";
 
-import { usePermissions } from "@/hooks";
+import { useAgents, useModelProviders, usePermissions } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
-import { cn } from "@/lib/utils";
+import { newSpecialist } from "@/lib/agent-spec";
+import { cn, getErrorMessage } from "@/lib/utils";
 import { childrenOf, rootsOf } from "@/lib/delegations";
 import { toolStep } from "@/lib/tool-steps";
+import { Button } from "@/components/ui";
 import { Perm } from "@/types/permissions";
-import type { Delegation, DelegationStatus } from "@/types";
+import type { Delegation, DelegationStatus, SpecialistDefinition } from "@/types";
 import { AgentStep } from "./agent-step";
 import { MarkdownContent } from "./markdown-content";
 
@@ -217,6 +220,18 @@ function DelegationPanel({ delegation, all }: { delegation: Delegation; all: Del
             </Link>
           )}
 
+          {/* A specialist the model invented is persisted nowhere, so keeping it is
+              a decision that can only be made while the run is still on screen -
+              this is that window. Shown only when the frame carried a definition (a
+              dynamic specialist, not a delegate or inline one) and only to a caller
+              who may create an agent, which is what promoting does. */}
+          {delegation.specialist !== null && can(Perm.agentsEdit) && (
+            <PromoteDynamicSpecialist
+              name={delegation.subagent}
+              definition={delegation.specialist}
+            />
+          )}
+
           {/* Nested under the work that produced them: a specialist delegates
               partway through, so its own delegates belong after what it had said by
               then rather than above it. */}
@@ -225,6 +240,61 @@ function DelegationPanel({ delegation, all }: { delegation: Delegation; all: Del
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Keep a specialist the model invented, by promoting it to a draft agent.
+ *
+ * Mounted only for a dynamic delegation whose definition the frame carried, so the
+ * model-profile query runs for those panels alone rather than every one. The
+ * specialist named its model by the label an author sees; a standalone agent is
+ * keyed by the profile's id, so it is resolved here - and a label that no longer
+ * resolves (a profile deleted since) promotes with no model, leaving the draft to
+ * ask for one before it can publish rather than failing the promote.
+ */
+function PromoteDynamicSpecialist({
+  name,
+  definition,
+}: {
+  name: string;
+  definition: SpecialistDefinition;
+}) {
+  const t = useTranslations("chat.delegation");
+  const { profiles } = useModelProviders();
+  const { promote } = useAgents();
+  const modelProfileId = profiles.find((profile) => profile.label === definition.model)?.id ?? null;
+
+  const onPromote = () =>
+    promote.mutate(
+      {
+        specialist: {
+          ...newSpecialist(),
+          name,
+          description: definition.description,
+          instructions: definition.instructions,
+          model_profile_id: modelProfileId,
+        },
+        // A dynamic specialist always names its own model, so there is no parent
+        // model to fall back to.
+        fallbackModelProfileId: null,
+      },
+      {
+        onSuccess: (agent) => toast.success(t("specialistPromoted", { name: agent.name })),
+        onError: (error) => toast.error(getErrorMessage(error)),
+      },
+    );
+
+  return (
+    <div>
+      <Button variant="outline" size="sm" disabled={promote.isPending} onClick={onPromote}>
+        <CopyPlus className="h-3.5 w-3.5" />
+        {t("promoteSpecialist")}
+      </Button>
+      <p className="text-muted-foreground mt-1 text-[12px] leading-relaxed">
+        {t("promoteSpecialistDetail")}
+      </p>
     </div>
   );
 }

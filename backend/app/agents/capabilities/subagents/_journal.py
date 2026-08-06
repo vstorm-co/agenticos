@@ -82,6 +82,7 @@ from app.agents.capabilities.subagents._events import FrameLabels, frame_for
 from app.agents.deps import AgentDeps
 from app.agents.spec import DelegationMode
 from app.agents.subagent_events import (
+    SpecialistDefinition,
     SubagentAwaitingApproval,
     SubagentEventSink,
     SubagentFinished,
@@ -208,6 +209,20 @@ def acting_delegate() -> ActingDelegate | None:
     )
 
 
+def enclosing_tool_call_id() -> str | None:
+    """The `task` call the delegation now executing was made from, or `None` at the top.
+
+    This is the key a level's kept specialists ride on across a park - the same key
+    its conversation, spend and start already use. A nested delegate is built and its
+    run wrapped from *inside* the enclosing `delegating` block, so the enclosing
+    delegation is the current one at both the moment its registry is seeded
+    (`build_delegation`) and the moment it is snapshotted (`record_created_specialists`).
+    `None` is the run's own agent, delegated from nowhere and keyed as such.
+    """
+    delegation = _CURRENT.get()
+    return None if delegation is None else delegation.tool_call_id
+
+
 @dataclass
 class Delegation:
     """One delegation, from the tool call that opened it to the outcome recorded for it.
@@ -306,7 +321,12 @@ class Delegation:
         """
         return self.stable_id or self.task_id
 
-    async def ensure_started(self, task_id: str, sink: SubagentEventSink) -> None:
+    async def ensure_started(
+        self,
+        task_id: str,
+        sink: SubagentEventSink,
+        specialist: SpecialistDefinition | None = None,
+    ) -> None:
         """Announce this delegation, at most once.
 
         Called both from the stream - where the first event is the earliest
@@ -314,6 +334,11 @@ class Delegation:
         so a delegation that produced no events at all still opens its panel
         before closing it. A `subagent_complete` for a panel that was never
         opened is a delegation a reader never learns about.
+
+        `specialist` is the definition of a specialist the model invented at run
+        time, and `None` for every configured delegate and inline specialist - the
+        journal resolves it by name, so the announcement of a dynamic delegation
+        carries the only legible copy of what nothing else keeps.
         """
         if self.started:
             return
@@ -329,6 +354,7 @@ class Delegation:
                 # panel instead of guessing which one it belongs under. `None` for
                 # a delegation the run's own agent started.
                 parent_task_id=self.parent_task_id,
+                specialist=specialist,
             )
         )
 
@@ -373,11 +399,25 @@ class DelegationJournal:
     creates the registry, hands it to the library capability so `create_agent`
     writes into the one this journal can read, and assigns it here. That is what
     lets :meth:`record_created_specialists` snapshot it when the run ends, so a
-    kept specialist survives an approval park (agenticos#175).
+    kept specialist survives an approval park - at the run's own agent (agenticos#175)
+    and at a nested delegate (agenticos#254) alike.
     """
 
     _running: int = field(default=0, init=False)
     _background: dict[str, Delegation] = field(default_factory=dict, init=False)
+    _dynamic_definitions: dict[str, SpecialistDefinition] = field(
+        default_factory=dict, init=False, repr=False
+    )
+    """What each specialist the model invented was built from, keyed by its name.
+
+    Filled by `_specialist_factory` the moment `create_agent` or `delegate` builds
+    one - both go through the factory - and read by :meth:`dynamic_definition` when
+    the delegation to it opens, so the opening frame can carry the definition. This
+    is the streamed half of what :meth:`record_created_specialists` snapshots for a
+    park: the registry keeps the kept ones across an approval, this keeps every
+    invented one legible to the surface for the length of the turn. Thrown away with
+    the journal when the turn ends, because a dynamic specialist is not persisted.
+    """
 
     def in_background(self) -> bool:
         """Whether the delegation executing in this task was started in the background.
@@ -550,33 +590,64 @@ class DelegationJournal:
                 # resume so that a history the runner cannot serialise fails while
                 # there is still a run to attribute the failure to.
                 messages=[] if history is None else list(json.loads(history)),
-                spent=self._spent(delegation),
+                spent=self._carried_for_park(delegation),
                 started_at=self._span_start(delegation, handle),
             )
         )
 
-    def record_created_specialists(self) -> None:
-        """Snapshot the kept specialists into the stash, so an approval park keeps them.
+    def _carried_for_park(self, delegation: Delegation) -> DelegationSpend:
+        """Everything this delegation has spent so far, both attributions, for the resume.
 
-        Called from `wrap_run` on the way out of the run's own agent, and a no-op
-        otherwise: a nested delegate (`depth != 0`), or an agent that may not invent
-        one at all (`registry is None`, no `create_agent` offered). The library holds
-        each `create_agent` registration in a registry it builds per *built* agent, so
-        a resume - a fresh build - starts with an empty one; writing what the registry
-        holds now into the stash is what lets the runner carry it into
-        `PausedRunState` and re-register it on the replay. See
+        One :class:`DelegationSpend` carrying both numbers the two ends of a park
+        read: the panel spend (:meth:`_spent`) the streamed frame keeps, and the
+        billed spend (:meth:`_billed`) the row is owed. Kept together because a
+        published delegate that parks with an inline specialist below it has to
+        resume with both intact - the panel short by the specialist's own pre-park
+        spend was agenticos#245, the row short by it is agenticos#228, and a park
+        that carried only one would reintroduce whichever it dropped.
+        """
+        spent = self._spent(delegation)
+        billed = self._billed(delegation)
+        return DelegationSpend(
+            cost_usd=spent.cost_usd,
+            input_tokens=spent.input_tokens,
+            output_tokens=spent.output_tokens,
+            has_unpriced_models=spent.has_unpriced_models,
+            billed_cost_usd=billed.cost_usd,
+            billed_input_tokens=billed.input_tokens,
+            billed_output_tokens=billed.output_tokens,
+            billed_has_unpriced_models=billed.has_unpriced_models,
+        )
+
+    def record_created_specialists(self) -> None:
+        """Snapshot this level's kept specialists into the stash, so an approval park keeps them.
+
+        Called from `wrap_run` on the way out of *every* level that may invent one,
+        and a no-op for an agent that may not (`registry is None`, no `create_agent`
+        offered). The library holds each `create_agent` registration in a registry it
+        builds per *built* agent, so a resume - a fresh build - starts with an empty
+        one; writing what the registry holds now into the stash is what lets the runner
+        carry it into `PausedRunState` and re-register it on the replay. See
         :func:`~app.agents.capabilities.subagents._capability.build_delegation`.
+
+        Keyed by the `task` call this level was delegated from - `None` for the run's
+        own agent, a nested level's enclosing call otherwise, read off the current
+        delegation, which is still the enclosing one here because a nested run is
+        wrapped from inside the enclosing `delegating` block. That is the same key the
+        level's conversation, spend and start already ride on, and it is what lets a
+        nested delegate's kept specialists hang off its own `DelegationFrame` rather
+        than being lost with the run's own agent's flat list (agenticos#254).
 
         The whole registry, not this turn's new registrations only: a resume seeds the
         registry *before* the replay, so what it holds at the end is the seeded ones
         plus any the model added this turn, which is exactly what a second park must
-        keep. Assigned rather than appended, because the stash is built fresh each turn
-        and this is its one writer - a run that ends without parking simply throws the
-        snapshot away with the stash.
+        keep. One writer per key, and the stash is built fresh each turn - a run that
+        ends without parking simply throws the snapshot away with the stash.
         """
-        if self.registry is None or self.depth != 0:
+        if self.registry is None:
             return
-        self.runtime.stash.registered[:] = [
+        key = None if self.depth == 0 else enclosing_tool_call_id()
+        self.runtime.stash.registered[key] = [
             RegisteredSpecialist(
                 name=config["name"],
                 description=config["description"],
@@ -585,6 +656,33 @@ class DelegationJournal:
             )
             for config in self.registry.list_configs()
         ]
+
+    def record_dynamic_definition(
+        self, *, name: str, description: str, instructions: str, model: str
+    ) -> None:
+        """Remember what a model just invented, so the delegation to it can carry it.
+
+        Called from `_specialist_factory` the moment the library builds a specialist
+        the model wrote - `create_agent` and `delegate` both build through that
+        factory, so both are captured. The definition then rides the opening
+        `SubagentStarted` frame (see :meth:`dynamic_definition` and
+        :meth:`Delegation.ensure_started`), which is the only moment a surface can
+        read it: nothing persists a dynamic specialist past the turn.
+        """
+        self._dynamic_definitions[name] = SpecialistDefinition(
+            description=description, instructions=instructions, model=model
+        )
+
+    def dynamic_definition(self, name: str) -> SpecialistDefinition | None:
+        """The definition of the named specialist, if the model invented it this run.
+
+        `None` for a configured delegate or an inline specialist, which the factory
+        never built and so never recorded - and that `None` is exactly what tells a
+        surface the delegation is to something already keepable, needing no promote
+        offer. Read when a delegation opens, where the name is the one handle both
+        this and the streamed frame share.
+        """
+        return self._dynamic_definitions.get(name)
 
     def resuming(self) -> ResumedDelegation | None:
         """The place this delegation is being continued from, if it is being continued.
@@ -668,7 +766,7 @@ class DelegationJournal:
         if sink is None:
             return
         public = delegation.stable_id or task_id
-        await delegation.ensure_started(public, sink)
+        await delegation.ensure_started(public, sink, self.dynamic_definition(delegation.name))
         await sink(
             SubagentAwaitingApproval(
                 task_id=public, subagent=delegation.name, depth=delegation.depth
@@ -777,15 +875,21 @@ class DelegationJournal:
         # which a continuation allocates fresh; see `Delegation.public_id`.
         public = delegation.stable_id or task_id
         spent = self._spent(delegation)
+        # The row carries the *billed* share - a published delegate's own spend plus
+        # its inline specialists', which the panel below keeps separate (agenticos#228).
+        # The two are equal for a delegation with no inline specialist under it, and
+        # for an inline specialist the recorder writes no row at all, so its billed
+        # number (zero, since it bills to its ancestor) never reaches one.
+        billed = self._billed(delegation)
         run_id = await self._record(
             DelegationOutcome(
                 subagent=delegation.name,
                 task_id=public,
                 status=status,
-                cost_usd=spent.cost_usd,
-                input_tokens=spent.input_tokens,
-                output_tokens=spent.output_tokens,
-                cost_is_partial=spent.has_unpriced_models,
+                cost_usd=billed.cost_usd,
+                input_tokens=billed.input_tokens,
+                output_tokens=billed.output_tokens,
+                cost_is_partial=billed.has_unpriced_models,
                 agent_id=delegation.agent_id,
                 agent_version_id=delegation.agent_version_id,
                 error=handle.error,
@@ -800,7 +904,7 @@ class DelegationJournal:
             )
         )
         if sink is not None:
-            await delegation.ensure_started(public, sink)
+            await delegation.ensure_started(public, sink, self.dynamic_definition(delegation.name))
             await sink(
                 SubagentFinished(
                     task_id=public,
@@ -849,7 +953,7 @@ class DelegationJournal:
         async def stream(
             _ctx: RunContext[AgentDeps], events: AsyncIterable[AgentStreamEvent]
         ) -> None:
-            await delegation.ensure_started(public, sink)
+            await delegation.ensure_started(public, sink, self.dynamic_definition(delegation.name))
             async for event in events:
                 frame = frame_for(event, labels)
                 if frame is not None:
@@ -873,7 +977,11 @@ class DelegationJournal:
         """
         token = _CURRENT.set(delegation)
         try:
-            with booked_to(delegation.ledger_key):
+            # A published delegate has an `agent_runs` row and bills to itself; an
+            # inline specialist (`agent_id is None`) has none, so its spend bills to
+            # its nearest published ancestor - which is what `has_own_row=False`
+            # tells `booked_to` to keep pointing at (agenticos#228).
+            with booked_to(delegation.ledger_key, has_own_row=delegation.agent_id is not None):
                 yield
         finally:
             _CURRENT.reset(token)
@@ -958,6 +1066,31 @@ class DelegationJournal:
             return carried
         return min(carried, this_segment)
 
+    def _billed(self, delegation: Delegation) -> SpendShare:
+        """What this delegation's row is owed: its own spend and its inline specialists'.
+
+        The counterpart to :meth:`_spent`, and read at the one place a *row* is
+        written rather than a panel: :meth:`settle` hands this to the recorder as
+        :class:`DelegationOutcome`, while :meth:`_spent` still fills the streamed
+        frame. For a published delegate with no inline specialist below it the two
+        are identical; they diverge only where an inline specialist's spend, stamped
+        to the specialist for its panel, has to reach a month through its published
+        ancestor (agenticos#228).
+
+        The carried half is the ancestor's, kept across a park the way the panel
+        spend is - a published delegate that parked with an inline specialist
+        mid-flight resumes with its row's pre-park spend intact rather than short by
+        what the specialist had already cost.
+        """
+        share = self._billed_share(delegation)
+        carried = delegation.carried
+        return SpendShare(
+            cost_usd=carried.billed_cost_usd + share.cost_usd,
+            input_tokens=carried.billed_input_tokens + share.input_tokens,
+            output_tokens=carried.billed_output_tokens + share.output_tokens,
+            has_unpriced_models=carried.billed_has_unpriced_models or share.has_unpriced_models,
+        )
+
     def _share(self, delegation: Delegation) -> SpendShare:
         """What this delegation booked into the run's ledger, or zeros if nothing meters.
 
@@ -969,6 +1102,19 @@ class DelegationJournal:
         if ledger is None:
             return SpendShare()
         return ledger.share_of(delegation.ledger_key)
+
+    def _billed_share(self, delegation: Delegation) -> SpendShare:
+        """What bills to this delegation's row this turn, or zeros if nothing meters.
+
+        The billed counterpart to :meth:`_share`: the same `None`-ledger fallback,
+        read off :meth:`~app.agents.capabilities.budget.SpendLedger.billed_share_of`
+        so an inline specialist's spend is inside its published ancestor's number
+        rather than lost between the two (agenticos#228).
+        """
+        ledger = self.runtime.ledger
+        if ledger is None:
+            return SpendShare()
+        return ledger.billed_share_of(delegation.ledger_key)
 
 
 def _characteristics(tool_args: dict[str, Any]) -> TaskCharacteristics:

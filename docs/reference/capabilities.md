@@ -443,6 +443,17 @@ no delegates of its own, and nothing is persisted across runs — keeping a spec
 means publishing an agent, which is a person's action. `MAX_DYNAMIC_SPECIALISTS`
 bounds how many one run may keep.
 
+That a specialist is not persisted is a design, and it has an exit rather than a
+dead end: a person can **promote** one to a draft agent. Its definition rides the
+opening `SubagentStarted` frame — the one place it is legible after the model wrote
+it and before the turn ends — so the chat delegation panel can offer to keep it
+while the run is still on screen, and the Builder offers the same on an inline
+specialist. Promotion creates a draft owned by whoever promoted it, gated on
+`agents:edit`, and stops there: it does not publish, does not pin the new agent as a
+delegate, and does not remove the specialist it came from. See
+[Concepts](../concepts.md#delegate-vs-inline-specialist) for why the persistence rule
+is the reason the exit exists rather than a limitation it works around.
+
 A kept one lasts the whole run it was invented in, an approval park included: the
 registration lives in a registry the delegation library builds per *built* agent,
 and a run that parks is built again when it is continued, so it was lost across the

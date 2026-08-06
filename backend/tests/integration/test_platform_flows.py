@@ -13,6 +13,7 @@ does - not what a stub was told to return.
 
 from __future__ import annotations
 
+import copy
 import uuid
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
@@ -29,7 +30,7 @@ from sqlalchemy import select, text
 
 from app.agents.capabilities.approval import approval_required_tools
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
-from app.agents.spec import AgentSpec
+from app.agents.spec import AgentSpec, CapabilityBindingSpec, SpecialistSpec
 from app.api import deps
 from app.core.config import settings
 from app.core.exceptions import (
@@ -1803,6 +1804,113 @@ class TestPublishAndRollback:
 
         with pytest.raises(BadRequestError):
             await registry.get_runnable_spec(tenant.ctx, agent.id)
+
+
+class TestPromotingASpecialist:
+    """Keeping a specialist without losing where it came from (agenticos#177).
+
+    A specialist that earned its own version has one honest exit: become a draft
+    agent, owned by whoever promoted it, checked and published like any other. These
+    prove the exit does exactly that and no more - it does not publish, does not pin,
+    and does not touch what it came from.
+    """
+
+    async def test_a_dynamic_specialist_publishes_unedited_and_runs_as_it_did(self, db) -> None:
+        """The acceptance criterion for the chat half: a specialist a model invented
+        becomes a draft that publishes with no further editing, and the published
+        agent carries its instructions and its model - so it answers as it did."""
+        tenant = await _tenant(db, name="Promoter")
+        profile = await _keyed_model_profile(db, tenant)
+        registry = AgentRegistryService(db)
+        # As a model invents one: instructions and a model, and nothing else.
+        specialist = SpecialistSpec(
+            name="invoice-parser",
+            description="Pulls the line items out of an invoice",
+            instructions="Read the invoice and return its line items as JSON.",
+            model_profile_id=profile.id,
+        )
+
+        draft = await registry.promote_specialist(
+            tenant.ctx, specialist, fallback_model_profile_id=None
+        )
+        # Publishes without a single further edit - the whole claim of the issue.
+        await registry.publish(tenant.ctx, draft.id)
+        _, runnable, _ = await registry.get_runnable_spec(tenant.ctx, draft.id)
+
+        assert draft.owner_user_id == tenant.user.id
+        assert runnable.instructions == specialist.instructions
+        assert runnable.model_profile_id == profile.id
+        # A dynamic specialist has none, and promotion invents none for it.
+        assert runnable.capabilities == []
+        prepared = await AgentRunnerService(db).prepare(tenant.ctx, draft.id)
+        assert await _answer(prepared) == "thirty days"
+
+    async def test_promoting_an_inline_specialist_leaves_the_parent_untouched(self, db) -> None:
+        """The acceptance criterion for the Builder half: the parent is unchanged -
+        the specialist is not removed from it and the new agent is not pinned back
+        onto it. A specialist on 'the same model as its parent' takes the parent's
+        model as a standalone agent, which is what the fallback is for."""
+        tenant = await _tenant(db, name="Parent owner")
+        model = await _default_model(db, tenant)
+        registry = AgentRegistryService(db)
+        specialist = SpecialistSpec(
+            name="summariser",
+            description="Summarises in three bullets",
+            instructions="Summarise the input in three bullets.",
+        )
+        parent = await registry.create(
+            tenant.ctx,
+            AgentSpec(
+                name="Desk",
+                model_profile_id=model.id,
+                capabilities=[
+                    CapabilityBindingSpec(
+                        id="subagents",
+                        config={"inline": [specialist.model_dump(mode="json")]},
+                    )
+                ],
+            ),
+        )
+        before = copy.deepcopy(parent.draft_spec)
+
+        promoted = await registry.promote_specialist(
+            tenant.ctx, specialist, fallback_model_profile_id=model.id
+        )
+
+        refreshed = await registry.get(tenant.ctx, parent.id)
+        # Parent unchanged: the inline specialist is still there and nothing was
+        # pinned onto it.
+        assert refreshed.draft_spec == before
+        assert promoted.id != parent.id
+        assert promoted.owner_user_id == tenant.user.id
+        assert promoted.draft_spec["instructions"] == specialist.instructions
+        # "Same model as its parent" resolved to a concrete model on the standalone,
+        # and no delegates pinned onto the new agent.
+        assert promoted.draft_spec["model_profile_id"] == str(model.id)
+        assert promoted.draft_spec["subagents"] == []
+
+    async def test_it_is_owned_by_whoever_promoted_it_not_whoever_ran_it(self, db) -> None:
+        """The security-shaped criterion. A specialist a model invented inside one
+        member's run does not become that member's agent - it becomes the agent of
+        whoever kept it. `create` stamps the promoter as owner; the `agents:edit`
+        gate a run's audience does not clear is proven at the route in
+        tests/api/test_platform_routes.py."""
+        tenant = await _tenant(db, name="Org")
+        profile = await _keyed_model_profile(db, tenant)
+        keeper = await _join(db, tenant, OrgRoleName.MEMBER)
+        specialist = SpecialistSpec(
+            name="researcher",
+            description="Finds and cites sources",
+            instructions="Research the topic and cite your sources.",
+            model_profile_id=profile.id,
+        )
+
+        draft = await AgentRegistryService(db).promote_specialist(
+            keeper, specialist, fallback_model_profile_id=None
+        )
+
+        assert draft.owner_user_id == keeper.user_id
+        assert draft.owner_user_id != tenant.user.id
 
 
 class TestRenamingAToolOnAPublishedAgent:

@@ -91,14 +91,16 @@ A delegation to a **published** agent gets an `agent_runs` row of its own, carry
 has no agent to attribute one to, so its cost is the *run's* and the tool call in
 the transcript is the record.
 
-!!! warning "A delegate's own inline specialist — [#228](https://github.com/vstorm-co/agenticos/issues/228)"
-
-    The run's, not the delegating agent's, and below the top level that is a gap
-    rather than a decision. A specialist's requests are stamped to the specialist,
-    which gets no row, and the innermost stamp wins - so they are not in its
-    delegator's share either. A published delegate that uses an inline specialist
-    therefore under-reports its own month by what the specialist spent. The
-    organization's total is unaffected: the top-level row is the whole ledger.
+Which run's, though, is the question [#228](https://github.com/vstorm-co/agenticos/issues/228)
+answered. A specialist directly under the run's own agent bills to the top-level
+row, which is the whole ledger anyway. A specialist under a **published delegate**
+bills to *that delegate's* row, not the top-level one - so the delegate's month
+includes what its specialist spent, which is the only place it could honestly land.
+Each ledger entry therefore carries two attributions: the delegation that made it,
+for the panel, and the nearest agent-row it bills to, for the month. The two are
+equal for every request a published delegate makes on its own account and diverge
+only under an inline specialist - whose panel keeps its own share while its spend
+reaches its ancestor's row.
 
 !!! important "The parent's row is the authority; a child's row is its share of it"
 
@@ -119,8 +121,8 @@ the transcript is the record.
     Splitting it with a ledger *per agent* is still the design to avoid - that is
     what stops the parent's cap binding at all. One ledger, attributed, keeps both
     properties: the parent's cap sees every request before the next one, and each
-    delegated row says what that one agent spent - with the inline-specialist gap
-    above.
+    delegated row says what that one agent spent, its own inline specialists
+    included and its published delegates excluded.
 
     The parent's row remains the authority for the run. Its `cost_usd` is the whole
     ledger, delegates included, which is what the organization is billed; the child
@@ -168,7 +170,7 @@ opposite arithmetic:
 | The question | Child rows |
 |---|---|
 | **What does the organization owe?** | **excluded** - the parent's row already contains these tokens, so counting both bills the organization twice for one request |
-| **What did *this agent* cost this month?** | **included** - a delegate's rows are the only place its own spend is recorded, and each one holds that agent's own requests rather than its delegates' as well ([#228](https://github.com/vstorm-co/agenticos/issues/228) for what it currently leaves out) |
+| **What did *this agent* cost this month?** | **included** - a delegate's rows are the only place its own spend is recorded, and each one holds that agent's own requests and its inline specialists' ([#228](https://github.com/vstorm-co/agenticos/issues/228)) but not its published delegates', which have rows of their own |
 
 The second is what makes "the researcher cost $40 this month" answerable, and it is
 what a per-agent usage report or a budget alert on that agent fires on. The

@@ -134,13 +134,15 @@ class DynamicSpecialists:
     in.
 
     Within that run it does now survive an approval park, which it did not before
-    (agenticos#175). The delegation library holds a `create_agent` registration in a
-    registry it creates per *built* agent, and a run that parks on an approval is
-    built again when it is continued - so the registration was lost across the park
-    while the replayed transcript still carried the library's "created successfully",
-    and `task` then answered "unknown subagent". The fix carries the registrations
-    forward in `PausedRunState` and re-registers them on resume through the same
-    build path, so a specialist created before a park is reachable after it. See
+    (agenticos#175, agenticos#254). The delegation library holds a `create_agent`
+    registration in a registry it creates per *built* agent, and a run that parks on
+    an approval is built again when it is continued - so the registration was lost
+    across the park while the replayed transcript still carried the library's "created
+    successfully", and `task` then answered "unknown subagent". The fix carries the
+    registrations forward in `PausedRunState` and re-registers them on resume through
+    the same build path, so a specialist created before a park is reachable after it -
+    at every level of the delegation tree, because the parked state is a tree and each
+    level's kept specialists ride on its own frame the way its conversation does. See
     :class:`RegisteredSpecialist` and
     `app.agents.capabilities.subagents._capability.build_delegation`.
 
@@ -182,10 +184,11 @@ class RegisteredSpecialist:
 
     Plain scalars, for the reason everything on :class:`ParkedDelegation` is: this
     is written into `agent_runs.paused_state` as JSON and read back in another
-    process. The registrations of the *run's own agent* only - a specialist a
-    nested delegate kept is out of scope here, the same way a nested delegate's
-    conversation is carried per level on :class:`ParkedDelegation` rather than
-    flat here.
+    process. One of these describes a specialist at *any* level of the tree: the
+    run's own agent's are carried flat on `PausedRunState.dynamic_specialists`, and
+    a nested delegate's hang off that delegate's `DelegationFrame` the way its
+    conversation does - so a specialist a nested delegate kept survives a park too
+    (agenticos#254), not only one the run's own agent kept (agenticos#175).
     """
 
     name: str
@@ -199,13 +202,23 @@ class DelegationOutcome:
     """What one delegation cost and how it ended.
 
     Reported to the runner so it can write the child's run row. The numbers are
-    this delegation's **share of the run's one shared ledger**: the requests its
-    own agent made, and only those. There is still one ledger per run - a delegate
-    records into the parent's by construction, which is what makes the parent's
-    budget see a delegate's spend before the next request - but every entry in it
-    carries the delegation that booked it, so the share is filtered out of the
-    ledger rather than inferred from it. See
+    this delegation's **billed share of the run's one shared ledger**: the requests
+    its own agent made, plus any its inline specialists made below it. There is
+    still one ledger per run - a delegate records into the parent's by construction,
+    which is what makes the parent's budget see a delegate's spend before the next
+    request - but every entry in it carries two attributions, so a share is filtered
+    out of the ledger rather than inferred from it. See
     :func:`app.agents.capabilities.budget.booked_to`.
+
+    Why the *billed* share and not the delegation's own: an inline specialist has no
+    row of its own, so the money it spends has to land in some agent's month, and
+    the honest one is its nearest published ancestor's - which is this row when the
+    delegation is that ancestor. The specialist's *panel* still shows only its own
+    share; that is the other attribution, on the streamed
+    :class:`~app.agents.subagent_events.SubagentFinished` rather than here, so the
+    two answer "what did this specialist cost" and "what does this agent owe"
+    without one distorting the other (agenticos#228). For a published delegate with
+    no inline specialist under it the two shares are identical.
 
     Exact in both modes and at every depth, which the arithmetic that came before
     it was not (agenticos#180). It measured the *growth* of the shared total across
@@ -313,6 +326,28 @@ class DelegationSpend:
     approval and resumed onto a priced model would otherwise have its row claim an
     exact cost for money nobody priced - the one number on a delegated row nothing
     downstream can re-derive.
+    """
+
+    billed_cost_usd: Decimal = Decimal(0)
+    billed_input_tokens: int = 0
+    billed_output_tokens: int = 0
+    billed_has_unpriced_models: bool = False
+    """The same four numbers again, but for what this delegation's *row* is owed
+    rather than what its *panel* shows (agenticos#228).
+
+    The fields above are a delegation's own spend - its panel, and what a delegate
+    with no inline specialists also bills to its row. These are what bills to the
+    row: a published delegate's own spend plus every inline specialist below it,
+    since an inline specialist has no row and its spend has to reach some month. The
+    two are equal for a delegation with no inline specialist under it, and the
+    journal keeps them apart only where they diverge (`_spent` reads the first four,
+    `_billed` these).
+
+    Carried across a park exactly as the panel spend is - a published delegate that
+    parked with an inline specialist mid-flight would otherwise resume with a row
+    short by the specialist's pre-park spend, the same silent under-report the panel
+    spend was (agenticos#245). Zero on an inline specialist's own carry: it bills to
+    nobody's row but its ancestor's, and that ancestor carries it here instead.
     """
 
 
@@ -429,12 +464,15 @@ class DelegationStash:
     that never delegated - and in each case nothing parks and nothing resumes.
 
     `registered` and `to_register` are the same two directions for the specialists
-    a model kept with `create_agent`, and both hold the *run's own agent's* only -
-    the delegation capability writes and reads them at depth 0. A nested delegate
-    has its own registry that a nested `create_agent` writes into, and carrying one
-    of those across a park would have to hang off the delegate's own frame the way
-    its conversation does; that is not done here, so a specialist a nested delegate
-    kept is still lost across a park.
+    a model kept with `create_agent`, at *every* level of the tree. Each is keyed by
+    the `task` call the level was delegated from - `None` for the run's own agent,
+    which was delegated from nowhere - so a nested delegate's kept specialists ride
+    on the same key its conversation, spend and start already do (:attr:`resuming`,
+    :attr:`spent`, :attr:`started`). That is what lets a specialist a nested delegate
+    kept survive a park (agenticos#254), where before only the run's own agent's did
+    (agenticos#175): the capability snapshots each level's registry under its
+    enclosing `task` call when the run ends, and seeds each level's fresh registry
+    from the same key on the resume.
     """
 
     parked: list[ParkedDelegation] = field(default_factory=list)
@@ -447,23 +485,26 @@ class DelegationStash:
     """Keyed by the `task` call the delegation was made from, which is the only
     thing the toolset knows about a delegation before it starts one."""
 
-    registered: list[RegisteredSpecialist] = field(default_factory=list)
-    """The run's own agent's kept specialists, snapshotted when the run ends.
+    registered: dict[str | None, list[RegisteredSpecialist]] = field(default_factory=dict)
+    """Each level's kept specialists, snapshotted when the run ends.
 
-    Written by the delegation capability's `wrap_run` at depth 0, from the library
-    registry it owns, and read once by the runner to fill `PausedRunState` when the
-    run parks. Empty for a run that kept none, and for every nested level - a
-    snapshot at depth 0 is the whole of what a resume can put back, because that is
-    the only registry `to_register` seeds."""
+    Written by the delegation capability's `wrap_run`, one entry per level that may
+    invent one, from the library registry that level owns. Keyed by the `task` call
+    the level was delegated from - `None` for the run's own agent - so the runner can
+    put the run's own agent's on `PausedRunState.dynamic_specialists` and hang each
+    nested level's off its own `DelegationFrame`. Empty for a run that kept none at
+    any level."""
 
-    to_register: list[RegisteredSpecialist] = field(default_factory=list)
-    """The kept specialists a resume re-registers before the replay, or empty.
+    to_register: dict[str | None, list[RegisteredSpecialist]] = field(default_factory=dict)
+    """The kept specialists a resume re-registers before the replay, keyed as
+    :attr:`registered` is.
 
     The other direction of `registered`: the runner fills it from
-    `PausedRunState.dynamic_specialists`, and the depth-0 delegation capability
-    rebuilds each one into a fresh registry through the run's own build path, so a
+    `PausedRunState.dynamic_specialists` (under `None`) and from each parked
+    `DelegationFrame` (under its `task` call), and each level's delegation capability
+    rebuilds its own key into a fresh registry through the run's own build path, so a
     resumed specialist meters against the run's shared budget exactly as it did
-    before the park. Never non-empty on a fresh run, and read only at depth 0."""
+    before the park. Empty on a fresh run."""
 
     spent: dict[str, DelegationSpend] = field(default_factory=dict)
     """What each delegation being continued had already cost, on the same key.
@@ -520,6 +561,16 @@ class DelegationStash:
         if tool_call_id is None:
             return DelegationSpend()
         return self.spent.get(tool_call_id, DelegationSpend())
+
+    def specialists_to_register(self, tool_call_id: str | None) -> list[RegisteredSpecialist]:
+        """The kept specialists a resume re-registers for the level delegated from this call.
+
+        `None` is the run's own agent, which was delegated from nowhere; a `task`
+        call names a nested level. Empty for a level that kept none, and for every
+        level on a run that was never parked - which is why a fresh run seeds no
+        registry from here.
+        """
+        return self.to_register.get(tool_call_id, [])
 
 
 @dataclass

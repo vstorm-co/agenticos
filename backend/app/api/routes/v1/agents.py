@@ -50,6 +50,7 @@ from app.schemas.agent import (
     CapabilityToolContract,
     McpCatalog,
     McpCatalogEntry,
+    SpecialistPromote,
 )
 from app.services.capability_contracts import tool_contracts
 from app.services.mcp_catalog import CATALOG
@@ -149,6 +150,25 @@ async def list_agents(
 async def create_agent(data: AgentCreate, service: AgentRegistrySvc, ctx: Auth) -> Any:
     """Create an agent in draft. It cannot run until published."""
     return await service.create(ctx, data.spec)
+
+
+@router.post(
+    "/promote",
+    response_model=AgentRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require(Perm.AGENTS_EDIT))],
+)
+async def promote_specialist(data: SpecialistPromote, service: AgentRegistrySvc, ctx: Auth) -> Any:
+    """Promote a specialist into a draft agent the caller owns.
+
+    A collection route, gated like `create`: promoting creates an agent, and a
+    specialist a model invented inside somebody else's run must not become the
+    caller's agent without the permission to add one. It does not publish, pin or
+    remove anything - each of those is the author's next, separate decision.
+    """
+    return await service.promote_specialist(
+        ctx, data.specialist, fallback_model_profile_id=data.fallback_model_profile_id
+    )
 
 
 @router.get("/{agent_id}", response_model=AgentDetail)

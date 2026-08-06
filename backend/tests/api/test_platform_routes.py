@@ -211,6 +211,22 @@ CALLS: tuple[Call, ...] = (
     Call("GET", "/agents/mcp-catalog", Perm.AGENTS_VIEW),
     Call("GET", "/agents", Perm.AGENTS_VIEW),
     Call("POST", "/agents", Perm.AGENTS_EDIT, body={"spec": _SPEC}),
+    # Promoting a specialist creates an agent, so it is gated like `create` - and
+    # this is where "a specialist created inside someone else's run does not become
+    # their agent" is enforced: a caller without `agents:edit` is refused before the
+    # conversion runs.
+    Call(
+        "POST",
+        "/agents/promote",
+        Perm.AGENTS_EDIT,
+        body={
+            "specialist": {
+                "name": "invoice-parser",
+                "description": "Pulls line items out of an invoice",
+                "instructions": "Read the invoice and return its line items.",
+            }
+        },
+    ),
     Call("GET", "/runs", Perm.RUNS_VIEW),
     Call("GET", "/runs/{run_id}", Perm.RUNS_VIEW),
     Call("POST", "/runs/{run_id}/resume", Perm.APPROVALS_DECIDE),

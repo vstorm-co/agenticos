@@ -87,7 +87,7 @@ from app.agents.capabilities.subagents._toolset import DelegatingToolset
 from app.agents.deps import AgentDeps
 from app.agents.factory import DEFAULT_MAX_STEPS
 from app.agents.spec import AgentSpec, CapabilityBindingSpec, DelegationMode
-from app.agents.subagent_events import SubagentEvent
+from app.agents.subagent_events import SubagentEvent, SubagentFinished
 from app.agents.subagent_runtime import (
     SUBAGENT_RUNTIME_RESOURCE,
     DelegationOutcome,
@@ -169,6 +169,37 @@ def handing_on(to: str, *, ledger: SpendLedger) -> FunctionModel:
         )
 
     return FunctionModel(respond)
+
+
+def streaming_handing_on(to: str, *, ledger: SpendLedger) -> FunctionModel:
+    """A `handing_on` that also narrates, for a tree observed through a surface.
+
+    Same two requests booked to whichever delegation is running - a delegate's own
+    two, then its own delegate's third - but with a `stream_function`, because a run
+    with a sink is driven through `iter` and a `FunctionModel` with no stream raises
+    there. Needed where the assertion is on the *panel* a surface shows, which only
+    exists when the delegation is streamed.
+    """
+    args = {"description": "check the claim", "subagent_type": to}
+
+    def respond(messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
+        ledger.book(ENTRY)
+        returned = _tool_results(messages)
+        if returned:
+            return ModelResponse(parts=[TextPart(" ".join(returned))])
+        return ModelResponse(parts=[ToolCallPart("task", args)])
+
+    async def stream(
+        messages: list[ModelMessage], _info: AgentInfo
+    ) -> AsyncIterator[str | DeltaToolCalls]:
+        ledger.book(ENTRY)
+        returned = _tool_results(messages)
+        if returned:
+            yield " ".join(returned)
+        else:
+            yield {0: DeltaToolCall(name="task", json_args=json.dumps(args))}
+
+    return FunctionModel(respond, stream_function=stream)
 
 
 def asking(question: str, *, prefix: str = "answer: ") -> FunctionModel:
@@ -924,12 +955,23 @@ class TestRecording:
         assert outcome.error is None
 
     async def test_what_the_parent_spent_before_delegating_is_not_the_delegates(self):
-        """The share, not the total: the parent has already spent before it delegates."""
+        """The share, not the total: the parent has already spent before it delegates.
+
+        A published delegate, so the number under test is the row it writes: the
+        billed share reads the same as the delegate's own here, because it has no
+        inline specialist below it (agenticos#228).
+        """
         ledger = SpendLedger()
         ledger.book(ENTRY)
         recorder = Recorder()
         capability = a_capability(
-            a_runtime(a_delegate(model=answering(ledger=ledger)), ledger=ledger, record=recorder)
+            a_runtime(
+                a_delegate(
+                    model=answering(ledger=ledger), agent_id=uuid4(), agent_version_id=uuid4()
+                ),
+                ledger=ledger,
+                record=recorder,
+            )
         )
 
         await delegate_to(capability, a_context())
@@ -1152,7 +1194,13 @@ class TestBackgroundDelegations:
         ledger = SpendLedger()
         recorder = Recorder()
         capability = a_capability(
-            a_runtime(a_delegate(model=answering(ledger=ledger)), ledger=ledger, record=recorder),
+            a_runtime(
+                a_delegate(
+                    model=answering(ledger=ledger), agent_id=uuid4(), agent_version_id=uuid4()
+                ),
+                ledger=ledger,
+                record=recorder,
+            ),
             {"mode": "async"},
         )
         ctx = a_context()
@@ -1222,7 +1270,13 @@ class TestBackgroundDelegations:
         ledger = SpendLedger()
         recorder = Recorder()
         capability = a_capability(
-            a_runtime(a_delegate(model=answering(ledger=ledger)), ledger=ledger, record=recorder),
+            a_runtime(
+                a_delegate(
+                    model=answering(ledger=ledger), agent_id=uuid4(), agent_version_id=uuid4()
+                ),
+                ledger=ledger,
+                record=recorder,
+            ),
             {"mode": "async"},
         )
         ctx = a_context()
@@ -1463,6 +1517,82 @@ class TestADelegateThatDelegates:
         # relies on to answer one agent's month.
         assert ledger.total_usd == ENTRY.cost_usd * 3
         assert sum(outcome.cost_usd for outcome in recorder.outcomes) == ledger.total_usd
+
+    @staticmethod
+    def _tree_with_inline_specialist(
+        ledger: SpendLedger, recorder: Recorder
+    ) -> tuple[Delegation, UUID]:
+        """A published researcher that delegates to an *inline* fact-checker.
+
+        The one shape agenticos#228 was filed for: the fact-checker has no
+        `agent_id`, so it gets no run row of its own, and before the fix its spend
+        was stamped to itself - a key nothing per-agent reads - and so was in no
+        row at all. The researcher is published and streams (`streaming_handing_on`)
+        so the panel a surface shows can be asserted beside the row a month sums.
+        """
+        checker = ResolvedSubagent(
+            name="fact-checker",
+            description="Checks one claim.",
+            build=delegate_agent(answering("checked", ledger=ledger)),
+        )
+        inner = a_capability(
+            a_runtime(checker, ledger=ledger, record=recorder, depth_remaining=0, depth=1)
+        )
+        researcher_id, researcher_version = uuid4(), uuid4()
+        researcher = ResolvedSubagent(
+            name="researcher",
+            description="Researches a topic and cites its sources.",
+            build=lambda: PydanticAgent(
+                streaming_handing_on("fact-checker", ledger=ledger),
+                output_type=[str, DeferredToolRequests],
+                capabilities=[inner],
+            ),
+            agent_id=researcher_id,
+            agent_version_id=researcher_version,
+        )
+        outer = a_capability(a_runtime(researcher, ledger=ledger, record=recorder))
+        return outer, researcher_id
+
+    async def test_a_published_delegates_row_takes_in_its_inline_specialists_spend(self):
+        """The row is whole again and the panel is untouched - the shape of agenticos#228.
+
+        Three requests at $0.25: two the researcher's, one the inline fact-checker's.
+        Before the fix the researcher's row read $0.50 and the fact-checker's $0.25
+        went to no month at all. Now the researcher's row is the full $0.75 while its
+        fact-checker's *panel* still shows only its own $0.25 - what did this
+        specialist cost, and what does this agent owe, kept apart.
+        """
+        ledger = SpendLedger()
+        recorder = Recorder()
+        sink = Sink()
+        capability, researcher_id = self._tree_with_inline_specialist(ledger, recorder)
+
+        assert "checked" in await delegate_to(capability, a_context(sink))
+
+        outcomes = {outcome.subagent: outcome for outcome in recorder.outcomes}
+        # The row: the published researcher's month is its own two requests plus the
+        # one its inline specialist made - the whole run, not two-thirds of it.
+        assert outcomes["researcher"].cost_usd == ENTRY.cost_usd * 3
+        assert outcomes["researcher"].agent_id == researcher_id
+        # The inline specialist bills nothing to a row of its own: it has none, and
+        # its spend is already inside the researcher's. The runner drops this outcome
+        # for want of an `agent_id`; the number it would carry is zero regardless.
+        assert outcomes["fact-checker"].cost_usd == Decimal(0)
+        assert outcomes["fact-checker"].agent_id is None
+
+        # The panel: each still shows only what its own requests cost, so a surface
+        # nests the fact-checker's $0.25 inside the researcher's own $0.50.
+        finished = {
+            frame.subagent: frame for frame in sink.frames if isinstance(frame, SubagentFinished)
+        }
+        assert finished["researcher"].cost_usd == ENTRY.cost_usd * 2
+        assert finished["fact-checker"].cost_usd == ENTRY.cost_usd
+
+        # The organization's bill is the whole ledger, once, and no dollar is under a
+        # delegated row twice: the only row with a month here is the researcher's.
+        assert ledger.total_usd == ENTRY.cost_usd * 3
+        billed = sum(o.cost_usd for o in recorder.outcomes if o.agent_id is not None)
+        assert billed == ledger.total_usd
 
 
 class TestTaskLifecycle:
@@ -2005,6 +2135,9 @@ class TestNarration:
         assert len({frame.task_id for frame in sink.frames}) == 1
         assert {frame.depth for frame in sink.frames} == {0}
         assert sink.frames[-1].run_id == recorder.run_id
+        # A configured delegate is already keepable, so its opening frame carries no
+        # definition to promote - `specialist` is the signal for a dynamic one alone.
+        assert sink.frames[0].specialist is None
 
     async def test_a_nested_delegation_names_the_delegation_it_was_made_inside(self):
         """Depth says which level; only this says which panel.

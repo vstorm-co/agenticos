@@ -159,6 +159,25 @@ So a specialist is for the work that should not require publishing an agent -
 "summarise this in three bullets" - and a delegate is for a capability the
 organization owns and reuses.
 
+A third kind sits below the inline one: a **dynamic specialist**, invented by the
+model at run time under [`allow_dynamic`](reference/capabilities.md#delegation). It
+is a specialist that is not even written down in a parent's spec - persisted
+nowhere, because keeping one would mean publishing an agent, and publishing is a
+person's action. That rule is a design, not a limitation, and the thing that makes
+it one is the exit: a person can **promote** a specialist to a draft agent. It
+works on an inline specialist in the Builder, and on a dynamic one from the chat
+delegation panel while the run that created it is still on screen - the only window
+a dynamic specialist's definition is legible, since it rides the delegation's
+opening frame and nothing stores it after the turn. Promotion creates an ordinary
+draft from the specialist's instructions, model, capabilities, collections and
+skills, owned by whoever promoted it and subject to the usual `agents:edit` check.
+It stops there: it does not publish, does not pin the new agent as a delegate of its
+parent, and does not remove the specialist it came from - each of those is the next
+decision, with the normal validation in front of it. Without this exit the only way
+to keep a good specialist was to copy its instructions out of a chat log, which
+produces an agent whose provenance nobody can see - exactly the untracked-agent
+outcome the persistence rule exists to prevent.
+
 !!! important "One notion of 'agent', used recursively"
 
     The risk this shape exists to contain is a *second*, parallel notion of agent

@@ -26,6 +26,7 @@ function delegation(overrides: Partial<Delegation> = {}): Delegation {
     prompt: "find three papers on retrieval",
     parentTaskId: null,
     status: "running",
+    specialist: null,
     text: "",
     thinking: "",
     steps: [],

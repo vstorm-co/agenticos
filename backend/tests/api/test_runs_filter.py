@@ -32,6 +32,9 @@ async def _client() -> AsyncIterator[AsyncClient]:
     """A caller holding runs:view, with the database stubbed out."""
     ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role="owner")
     app.dependency_overrides[deps.get_auth_context] = lambda: ctx
+    # The lambda is load-bearing: FastAPI reads an override's signature, and
+    # `AsyncMock`'s is (*args, **kwargs), which it turns into two required
+    # query parameters. Passing the class directly answers 422.
     app.dependency_overrides[deps.get_db_session] = lambda: AsyncMock()
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:

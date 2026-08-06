@@ -16,7 +16,16 @@ import type {
   AgentVersionDetail,
   AgentVersionList,
   CapabilityCatalog,
+  SpecialistSpec,
 } from "@/types/agents";
+
+/** What promoting a specialist sends: the specialist whole, plus the model a null
+ * `model_profile_id` falls back to - the parent's, since a standalone agent has no
+ * parent. Mirrors the backend `SpecialistPromote`. */
+export interface PromoteSpecialist {
+  specialist: SpecialistSpec;
+  fallbackModelProfileId: string | null;
+}
 
 /**
  * The agent registry.
@@ -72,6 +81,26 @@ export function useAgents({ includeArchived = false }: { includeArchived?: boole
     onError: (error) => toast.error(getErrorMessage(error)),
   });
 
+  /**
+   * Keep a specialist by making it a draft agent owned by whoever promoted it.
+   *
+   * The one honest exit for a specialist that earned its own version - a dynamic
+   * one, which is persisted nowhere, or an inline one that should be its own agent.
+   * It creates a draft and stops: no publish, no pinning it back onto a parent, no
+   * removing the inline specialist it came from. The name can collide with an
+   * existing handle, so the caller handles failure rather than the hook.
+   */
+  const promote = useMutation({
+    mutationFn: ({ specialist, fallbackModelProfileId }: PromoteSpecialist) =>
+      apiClient.post<Agent>("/agents/promote", {
+        specialist,
+        fallback_model_profile_id: fallbackModelProfileId,
+      }),
+    onSuccess: async () => {
+      await invalidate();
+    },
+  });
+
   const archive = useMutation({
     mutationFn: (id: string) => apiClient.post<Agent>(`/agents/${id}/archive`, {}),
     onSuccess: async () => {
@@ -115,6 +144,7 @@ export function useAgents({ includeArchived = false }: { includeArchived?: boole
     isFetching,
     create,
     clone,
+    promote,
     archive,
     unarchive,
     remove,

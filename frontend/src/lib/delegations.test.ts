@@ -9,7 +9,7 @@ import {
   rootsOf,
 } from "./delegations";
 import { ApiError } from "@/lib/api-error";
-import type { Delegation, SubagentFrame } from "@/types";
+import type { Delegation, SpecialistDefinition, SubagentFrame } from "@/types";
 
 /** A `subagent_start`, which is the only frame that can create a panel. */
 function start(
@@ -20,6 +20,7 @@ function start(
     mode?: "sync" | "async";
     prompt?: string;
     parent?: string | null;
+    specialist?: SpecialistDefinition | null;
   } = {},
 ): SubagentFrame {
   return {
@@ -30,6 +31,7 @@ function start(
     mode: options.mode ?? "sync",
     prompt: options.prompt ?? "find three papers",
     parent_task_id: options.parent ?? null,
+    specialist: options.specialist ?? null,
   };
 }
 
@@ -78,6 +80,25 @@ describe("applyDelegationFrame - keeping concurrent specialists apart", () => {
       "writer",
       "critic",
     ]);
+  });
+
+  it("keeps a dynamic specialist's definition on its panel, and null for anything else", () => {
+    // The definition is sent once, on the opening frame, and it is the only copy
+    // a surface gets - so the panel has to keep it for the promote action to read.
+    const invented: SpecialistDefinition = {
+      description: "Pulls line items out of an invoice",
+      instructions: "Read the invoice and return its line items.",
+      model: "GPT-4.1 (prod)",
+    };
+    const delegations = fold([
+      start("t1", { subagent: "invoice-parser", specialist: invented }),
+      start("t2", { subagent: "researcher" }),
+    ]);
+
+    expect(named(delegations, "t1").specialist).toEqual(invented);
+    // A configured delegate carries none - the field is the signal for the one
+    // kind nothing else keeps.
+    expect(named(delegations, "t2").specialist).toBeNull();
   });
 
   it("routes each delta to the delegation that produced it", () => {

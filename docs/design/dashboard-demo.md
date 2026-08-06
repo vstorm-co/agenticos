@@ -215,8 +215,19 @@ card. It is product UI, not demo chrome:
 - **Period** — a date-range button opening a picker: presets on the left
   (Today, Last 7 / 30 / 90 days, This month, Last month) and a two-month
   calendar for a custom range, future days disabled. Presets are UI sugar —
-  either way the page queries `?from=&to=` on `/stats/usage` and `/spend`,
-  and every card re-renders against the same slice.
+  either way the page queries `?from=&to=` on `/stats/usage`, and every card
+  reading it re-renders against the same slice.
+
+    **`/spend` is not one of them, and cannot be.** It takes `days: int`, a
+    rolling window that always ends now, so a range that ended two weeks ago
+    is unrepresentable — and its headline is `month_to_date_usd`, which is
+    calendar-aligned on purpose so it reconciles against an invoice. Rather
+    than widen it, the period total moved to the `cost` block on
+    `/stats/usage` and `/spend` stays untouched. The one figure that still
+    comes from it is the month-to-date line on the Spend card, which says in
+    its own copy that it is a calendar month and deliberately outside the
+    filter. A card opting out of the filter bar silently is what this
+    arrangement exists to avoid.
 - **Sections** — one toggle per titled section of the caller's layout, so
   the page can be narrowed to "just what needs attention" during a review.
   With a single visible section (member, viewer) the control disappears.
