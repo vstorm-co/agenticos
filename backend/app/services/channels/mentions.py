@@ -66,6 +66,7 @@ _MENTION = re.compile(r"^\s*@([a-z0-9][a-z0-9-]{0,63})\b[:,]?\s*(.*)$", re.DOTAL
 _SURFACES: dict[str, RunSurface] = {
     "slack": RunSurface.SLACK,
     "telegram": RunSurface.TELEGRAM,
+    "mattermost": RunSurface.MATTERMOST,
 }
 
 # Said to anyone whose channel identity has no account behind it. Deliberately

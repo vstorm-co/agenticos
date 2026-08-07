@@ -38,7 +38,7 @@ export interface PromoteSpecialist {
 export function useAgents({ includeArchived = false }: { includeArchived?: boolean } = {}) {
   const queryClient = useQueryClient();
 
-  const { data, isLoading, isFetching } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: qk.agents.list(includeArchived),
     queryFn: () =>
       apiClient.get<AgentList>(
@@ -137,6 +137,8 @@ export function useAgents({ includeArchived = false }: { includeArchived?: boole
     agents: data?.items ?? [],
     total: data?.total ?? 0,
     isLoading,
+    error,
+    refetch,
     // Stale data is served while a refetch is in flight, so "this agent is not
     // in the list" can mean "not yet". Anything that would act on an absence
     // has to know the difference - see the chat's agent picker.

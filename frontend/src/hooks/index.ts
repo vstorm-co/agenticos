@@ -37,6 +37,24 @@ export {
 export { useSecrets, useSecretPurposes, kindInfo } from "./use-secrets";
 export { useApprovals, useDelegatedRuns, useRun, useRuns, useSpend } from "./use-runs";
 export {
+  usePeopleUsage,
+  useRatingsSummary,
+  useUsageStats,
+  useVersionUsage,
+  type UsagePeriod,
+} from "./use-usage-stats";
+export {
+  useAdminOrganizations,
+  useAdminRatingsSummary,
+  useAdminStats,
+  useRecentConversations,
+  useRecentFailures,
+  useSharedWithMeCounts,
+  useSyncSources,
+  useSystemHealth,
+  type SharedWithMeCounts,
+} from "./use-dashboard-data";
+export {
   useAllWorkspaceFiles,
   useSandboxWorkspaces,
   useWorkspaceFiles,

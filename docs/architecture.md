@@ -310,13 +310,21 @@ async def create_agent(...): ...
 # A permission on one row, resolved in the service.
 if not await resolve_access(db, ctx, agent, Perm.AGENTS_EDIT, resource_type=AGENT):
     raise AuthorizationError(...)
+
+# A permission decided by a parameter, resolved in the service: scope=org
+# demands runs:view, scope=own only a signed-in caller. See Permissions,
+# "Where the gates go".
+return await service.usage(ctx, scope=scope, ...)
 ```
 
 !!! note "`require(...)` does not belong on a per-resource route"
 
     A role gate cannot see the grants on a row, so it would refuse a Viewer
     holding an explicit `edit` grant before `resolve_access` ever widened their
-    access. `tests/api/test_platform_routes.py` enforces both halves.
+    access. The same shape applies when a *parameter* decides the question -
+    `GET /stats/usage?scope=own` must be reachable by a plain member, so its
+    gate lives in the service. `tests/api/test_platform_routes.py` enforces
+    all of it.
 
 `UserRole`, `User.has_role()`, `RoleChecker`, `CurrentAdmin` and
 `CurrentSuperuser` were the template's model and are gone, along with the

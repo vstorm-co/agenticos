@@ -237,11 +237,13 @@ const ORG_SCOPED_BACKEND_PREFIXES = [
   "/api/v1/org/integrations",
   "/api/v1/providers",
   "/api/v1/rag",
+  "/api/v1/ratings",
   "/api/v1/roles",
   "/api/v1/runs",
   "/api/v1/secrets",
   "/api/v1/skills",
   "/api/v1/spend",
+  "/api/v1/stats",
 ];
 
 /** Backend paths a route file forwards to, taken from its source. */

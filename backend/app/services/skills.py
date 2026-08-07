@@ -140,6 +140,7 @@ class SkillService:
         self,
         ctx: AuthContext,
         *,
+        shared_with_me: bool = False,
         search: str | None = None,
         categories: Sequence[str] | None = None,
         sort: SkillSort = "name",
@@ -151,7 +152,9 @@ class SkillService:
         Scoped like every shared resource: a role that reaches the whole
         organization lists everything, anyone else lists their own skills, the
         org-visible ones and those explicitly shared with them - the same set
-        :func:`resolve_access` would admit one row at a time.
+        :func:`resolve_access` would admit one row at a time. `shared_with_me`
+        narrows to what was deliberately shared with the caller - org-visible
+        or explicitly granted, and not their own.
         """
         # `None` is `visible_resource_ids` saying the role already reaches every
         # skill, which is exactly what `see_all` tells the query - so both come
@@ -160,12 +163,25 @@ class SkillService:
         shared = await visible_resource_ids(
             self.db, ctx, resource_type=SKILL, perm=Perm.SKILLS_VIEW
         )
+        grant_ids = [] if shared is None else shared
+        if shared_with_me and shared is None:
+            # A role that reaches everything never looks its grants up - but
+            # "shared with me" is a question about grants and visibility, not
+            # reach, and without them the answer would degenerate into "the
+            # whole organization minus mine".
+            grant_ids = await resource_grant_repo.list_shared_ids(
+                self.db,
+                organization_id=ctx.organization_id,
+                subject_user_id=ctx.subject_id,
+                resource_type=SKILL.key,
+            )
         return await skill_repo.list_visible(
             self.db,
             organization_id=ctx.organization_id,
             user_id=ctx.subject_id,
             see_all=shared is None,
-            shared_ids=[] if shared is None else shared,
+            shared_ids=grant_ids,
+            shared_with_me=shared_with_me,
             search=search,
             categories=categories,
             sort=sort,
@@ -177,6 +193,7 @@ class SkillService:
         self,
         ctx: AuthContext,
         *,
+        shared_with_me: bool = False,
         search: str | None = None,
         categories: Sequence[str] | None = None,
         sort: SkillSort = "name",
@@ -191,9 +208,19 @@ class SkillService:
         filter chip that vanished with the page it filtered would strand
         whoever pressed it. `suggested_categories` is the shipped list, for an
         organization that has not invented its own yet.
+
+        `categories` stays the organization's under `shared_with_me` too: the
+        chips describe what can be filtered to, and narrowing them to the
+        shared subset would make the filter disappear as soon as it was used.
         """
         items, total = await self.list_skills(
-            ctx, search=search, categories=categories, sort=sort, skip=skip, limit=limit
+            ctx,
+            shared_with_me=shared_with_me,
+            search=search,
+            categories=categories,
+            sort=sort,
+            skip=skip,
+            limit=limit,
         )
         bundled_names = frozenset(entry.name for entry in skill_library.library())
         return SkillList(

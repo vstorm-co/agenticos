@@ -164,6 +164,15 @@ filtering needed") and an **empty list** for a context with no subject. Those ar
 opposites, so confusing them would widen a listing to the whole organization at
 exactly the moment it should be narrowed to nothing.
 
+The agents, skills and kb listings also take `?shared_with_me=true`: only rows
+deliberately shared with the caller - org-visible or explicitly granted, and
+never their own. The narrowing applies whatever the role's scope, which needs
+one care: a role that reaches everything never looks its grants up for a plain
+listing, so the filter fetches them anyway - without that, a Builder's "shared
+with me" would degenerate into "the whole organization minus mine". For kb it
+also excludes personal rows (the caller's by construction) and app-scope rows
+(the deployment's - never shared *with* anybody).
+
 ## Where the gates go
 
 !!! danger "`require(...)` belongs on collection routes, not per-resource ones"
@@ -177,6 +186,28 @@ exactly the moment it should be narrowed to nothing.
     routes hand the decision to a service that calls `resolve_access`.
 
     `tests/api/test_platform_routes.py` enforces both halves.
+
+There is a third placement, for a route whose *parameter* decides the question.
+`GET /stats/usage` and `GET /ratings/summary` serve two askers behind one path:
+`scope=org` reads everybody's rows and demands `runs:view`, while `scope=own`
+reads only the caller's own and demands nothing beyond a signed-in membership. A
+route-level `require(runs:view)` would refuse a member's `scope=own` before the
+parameter was ever read, so the route carries no gate and `StatsService` makes
+the decision - the same principle as per-resource routes (the layer that can
+see the deciding fact decides), where the fact is the scope parameter rather
+than a grant on a row. The route sweep recognizes such a service the same way
+it recognizes the grant-aware ones, and
+`tests/api/test_platform_routes.py::TestStatsScopeIsDecidedInTheService` proves
+the refusals.
+
+The shape that makes this worth spelling out is `?group_by=user`, which answers
+with names, emails and what each person's runs cost. It is the same scope rule
+and no additional permission: `runs:view` is what reveals it, which means
+builder and operator see it as well as owner and admin. That is a deliberate
+call rather than an oversight - the dashboard card carrying these rows says so
+in its own copy, because a permission that is wider than its subjects expect is
+only defensible if they can find that out. A narrower answer would be a
+permission of its own, not a quieter route.
 
 ## Delegation is not a privilege boundary
 

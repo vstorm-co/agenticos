@@ -123,13 +123,20 @@ async def list_mcp_catalog() -> Any:
 async def list_agents(
     service: AgentRegistrySvc,
     ctx: Auth,
+    shared_with_me: bool = Query(
+        False, description="Only what was shared with the caller - never their own rows"
+    ),
     include_archived: bool = Query(False),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
     """Agents this member can see - their own, plus what was shared with them."""
     items, total = await service.list_agents(
-        ctx, include_archived=include_archived, skip=skip, limit=limit
+        ctx,
+        shared_with_me=shared_with_me,
+        include_archived=include_archived,
+        skip=skip,
+        limit=limit,
     )
     return AgentList(items=items, total=total)
 

@@ -60,7 +60,7 @@ export default function AdminRatingsPage() {
     refetch: refetchSummary,
   } = useQuery({
     queryKey: qk.admin.ratings({ summary: 30 }),
-    queryFn: () => apiClient.get<RatingSummary>("/admin/ratings/summary?days=30"),
+    queryFn: () => apiClient.get<RatingSummary>("/admin/ratings/summary"),
   });
 
   const {

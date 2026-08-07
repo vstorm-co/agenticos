@@ -52,10 +52,12 @@ Navigate to **Admin → Response Ratings** (or `/admin/ratings`) to access the a
 
 #### Ratings Chart
 
-A bar chart shows ratings over time (default: last 30 days).
-Green bars represent likes, red bars represent dislikes.
+A bar chart shows ratings over the last 30 days. Green bars represent likes,
+red bars represent dislikes.
 
-Use the **Days** dropdown to adjust the time window (7, 30, 90, or 365 days).
+This page's window is fixed. To read the same numbers over a period you choose,
+use the dashboard's **Answer quality, deployment-wide** card, which follows the
+period filter at the top of the page.
 
 ### Filtering Ratings
 
@@ -125,7 +127,7 @@ For programmatic access to ratings data, use the admin API endpoints:
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/admin/ratings` | GET | List ratings with pagination and filters |
-| `/admin/ratings/summary` | GET | Aggregate statistics |
+| `/admin/ratings/summary` | GET | Aggregate statistics over `from`/`to` (inclusive UTC dates, defaulting to the last 30 days) |
 | `/admin/ratings/export` | GET | Export ratings (JSON/CSV) |
 | `/admin/conversations` | GET | List all conversations |
 

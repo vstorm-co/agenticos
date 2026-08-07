@@ -8,7 +8,7 @@ predicate pieces the access layer resolved rather than re-deriving them here.
 from collections.abc import Collection, Sequence
 from uuid import UUID
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import Float, and_, false, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
@@ -79,6 +79,7 @@ async def list_visible(
     user_id: UUID,
     see_all: bool,
     shared_ids: list[UUID],
+    shared_with_me: bool = False,
     include_archived: bool = False,
     skip: int = 0,
     limit: int = 50,
@@ -89,6 +90,11 @@ async def list_visible(
         see_all: True when the role reaches the whole organization; the
             ownership predicate is then skipped entirely.
         shared_ids: Agent ids explicitly shared with this member.
+        shared_with_me: Narrow to rows deliberately shared with the caller -
+            org-visible or explicitly granted, and not their own. Applied
+            whatever the role's scope: for a role that already sees
+            everything, "shared with me" is still a question about grants
+            and visibility, not reach.
     """
     query = select(Agent).where(Agent.organization_id == organization_id)
     count_query = select(func.count(Agent.id)).where(Agent.organization_id == organization_id)
@@ -97,7 +103,18 @@ async def list_visible(
         query = query.where(Agent.status != AgentStatus.ARCHIVED.value)
         count_query = count_query.where(Agent.status != AgentStatus.ARCHIVED.value)
 
-    if not see_all:
+    if shared_with_me:
+        shared = and_(
+            or_(
+                Agent.visibility == Visibility.ORG.value,
+                Agent.id.in_(shared_ids) if shared_ids else false(),
+            ),
+            # IS DISTINCT FROM, not !=: an ownerless row is not the caller's.
+            Agent.owner_user_id.is_distinct_from(user_id),
+        )
+        query = query.where(shared)
+        count_query = count_query.where(shared)
+    elif not see_all:
         visible = or_(
             Agent.owner_user_id == user_id,
             Agent.visibility == Visibility.ORG.value,
@@ -110,6 +127,25 @@ async def list_visible(
     items = list((await db.execute(query)).scalars().all())
     total = (await db.execute(count_query)).scalar() or 0
     return items, total
+
+
+async def published_budget_caps(
+    db: AsyncSession, *, version_ids: Sequence[UUID]
+) -> dict[UUID, float | None]:
+    """Each version's monthly cap, read off the frozen spec's JSONB.
+
+    One path extraction per row rather than loading whole specs: the listing
+    needs one float from documents that can carry kilobytes of instructions.
+    Keyed by version id - the caller joins them back onto its agents. A
+    version whose spec has no budget block answers null, same as no cap.
+    """
+    if not version_ids:
+        return {}
+    cap = AgentVersion.spec["budget"]["monthly_usd"].astext.cast(Float)
+    result = await db.execute(
+        select(AgentVersion.id, cap).where(AgentVersion.id.in_(list(version_ids)))
+    )
+    return {row[0]: row[1] for row in result.all()}
 
 
 async def list_all_published(db: AsyncSession) -> list[Agent]:
