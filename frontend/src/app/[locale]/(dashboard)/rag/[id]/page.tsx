@@ -10,31 +10,19 @@ import {
   Eye,
   FileText,
   Loader2,
-  Lock,
-  MoreHorizontal,
   Plug,
   Plus,
-  RefreshCw,
   RotateCw,
-  SlidersHorizontal,
-  Sparkles,
   Trash2,
   Upload,
-  Users,
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 
 import { ROUTES } from "@/lib/constants";
-import { PageHeader } from "@/components/dashboard/page-header";
 import {
   Badge,
   Button,
   ConfirmDialog,
   DataTable,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
   type Column,
   Alert,
   AlertDescription,
@@ -44,6 +32,8 @@ import { EmptyState, ErrorState } from "@/components/states";
 import { SyncSourceWizard } from "@/components/rag/sync-source-wizard";
 import { SyncSourceLogs } from "@/components/rag/sync-source-logs";
 import { KBDetailSkeleton } from "@/components/rag/kb-detail-skeleton";
+import { KBDetailHeader } from "@/components/rag/kb-detail-header";
+import { KBStatsStrip } from "@/components/rag/kb-stats-strip";
 import { FileDropZone } from "@/components/rag/file-drop-zone";
 import { UploadProgressList } from "@/components/rag/upload-progress-list";
 import { BrandIcon, connectorBrand } from "@/components/icons/brand-icon";
@@ -56,23 +46,9 @@ import { cn, formatBytes, formatDateTime } from "@/lib/utils";
 import { overrideSize } from "@/lib/ingestion-config";
 import { downloadKBDocument } from "@/lib/rag-api";
 import type { SyncSourceRead } from "@/lib/rag-api";
-import type { IngestionOverride, KBDocument, KBScope } from "@/types";
+import type { IngestionOverride, KBDocument } from "@/types";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
-
-/**
- * How each scope is drawn: an icon, and the key to the word for it.
- *
- * A key rather than the word, because a table at module scope has no
- * translator to call - the component reads `t(labelKey)` at the point of use.
- * Spelled out here, these were three one-word strings, which is under
- * `check_i18n.py`'s two-word threshold and so rendered in English under `pl`.
- */
-const SCOPE_META: Record<KBScope, { labelKey: string; icon: LucideIcon }> = {
-  personal: { labelKey: "scopePersonal", icon: Lock },
-  org: { labelKey: "scopeOrg", icon: Users },
-  app: { labelKey: "scopeApp", icon: Sparkles },
-};
 
 // Sync sources have no server-side pagination (the backend returns every source
 // for the KB's collection). They're typically few, so collapse past this count
@@ -304,8 +280,6 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
   }
   if (!kb) return null;
 
-  const scopeMeta = SCOPE_META[kb.scope];
-
   return (
     <FileDropZone collectionName={kb.name} onFiles={handleFiles}>
       <input
@@ -317,107 +291,24 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
         disabled={isUploading}
       />
 
-      <PageHeader
-        breadcrumbs={[{ label: t("knowledgeBases"), href: ROUTES.RAG }, { label: kb.name }]}
-        title={kb.name}
-        description={
-          kb.description || <span className="font-mono text-xs">{kb.collection_name}</span>
-        }
-        actions={
-          <>
-            <Button variant="outline" size="sm" onClick={() => refresh()} disabled={isLoading}>
-              <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
-              {t("refresh")}
-            </Button>
-            {mayEdit && (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setOverrideOpen(true)}
-                  disabled={isUploading}
-                >
-                  <SlidersHorizontal className="h-4 w-4" />
-                  {t("parseOptions")}
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isUploading}
-                >
-                  {isUploading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Upload className="h-4 w-4" />
-                  )}
-                  {isUploading ? t("uploading") : t("upload")}
-                </Button>
-                {/* Behind a menu, not beside Refresh: destroying the collection
-                    and everything in it is not a same-weight sibling of
-                    re-reading it. It lives here rather than on the card in the
-                    list because this is the page that says what is inside.
-
-                    Not drawn at all for the default collection, which
-                    `KnowledgeBaseService.delete` refuses outright - offering it
-                    would be offering an action that can only answer 400. The
-                    card in the list hid it for the same reason. */}
-                {!kb.is_default && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-8 px-0"
-                        aria-label={t("moreActions")}
-                      >
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        className="text-destructive focus:text-destructive"
-                        onSelect={() => setDeletingCollection(true)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        {t("deleteKnowledgeBase")}
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
-              </>
-            )}
-          </>
-        }
+      <KBDetailHeader
+        kb={kb}
+        mayEdit={mayEdit}
+        isLoading={isLoading}
+        isUploading={isUploading}
+        onRefresh={() => refresh()}
+        onEditParseOptions={() => setOverrideOpen(true)}
+        onChooseFiles={() => fileInputRef.current?.click()}
+        onDelete={() => setDeletingCollection(true)}
       />
 
-      {/* What the collection holds, not what the table has fetched.
-
-          `documents` is one page of twenty, so this strip used to say "20
-          documents" over a collection of fifty-seven and then climb every time
-          Load more was pressed - which reads as ingestion happening rather than
-          as the page correcting itself. `documentsTotal` is the documents
-          query's own total; `kb.document_count` is not an alternative, because
-          the single-row `GET /kb/{id}` leaves all three counts at zero.
-
-          The vector count has no such total in any response this page makes, so
-          it says which it is. Once every document is loaded the sum *is* the
-          collection's, and it says so plainly; until then it names its own
-          scope rather than passing a partial sum off as the whole. */}
-      <div className="text-muted-foreground mb-6 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-        <span className="inline-flex items-center gap-1.5">
-          <scopeMeta.icon className="h-3.5 w-3.5" />
-          {t(scopeMeta.labelKey)}
-          {kb.is_default && ` · ${t("default")}`}
-        </span>
-        <span>·</span>
-        <span>{t("documentCount", { count: documentsTotal })}</span>
-        <span>·</span>
-        <span>
-          {hasMoreDocuments
-            ? t("vectorCountLoaded", { count: loadedVectors })
-            : t("vectorCount", { count: loadedVectors })}
-        </span>
-      </div>
+      <KBStatsStrip
+        scope={kb.scope}
+        isDefault={kb.is_default}
+        documentsTotal={documentsTotal}
+        loadedVectors={loadedVectors}
+        hasMoreDocuments={hasMoreDocuments}
+      />
 
       {/* Reached only with a `kb` in hand, so this is a refresh that failed, with
           the sections below still showing the last good answer. */}
