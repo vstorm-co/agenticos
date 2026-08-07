@@ -443,15 +443,21 @@ answers the same three questions in its own section, for a caller holding
 `connections:manage`; memory is behind a switch there for the same reason it is on
 the screen, because the service samples each sandbox individually for it.
 
-**`SANDBOXD_MAX_SESSIONS_PER_TENANT` is the only one of the three ceilings anything
-renders as a fraction**, and that is a property of the answer rather than a choice
-about the view. The session listing is filtered to the caller's organization but
-carries `SANDBOXD_MAX_SESSIONS` and `SANDBOXD_MAX_OPEN_SESSIONS` through from the
-service untouched, so those two count every tenant on the host while the rows count
-one. There is no host-wide resident or open *count* in any response, so nothing puts
-a bar against them; they are named as host-wide ceilings beside the per-organization
-figure instead. If an agent is refused a session while that figure is short of its
-ceiling, the host is full of somebody else's work.
+**All three ceilings now divide.** The session listing is filtered to the caller's
+organization but carries `SANDBOXD_MAX_SESSIONS` and `SANDBOXD_MAX_OPEN_SESSIONS`
+through from the service untouched, so those two count every tenant on the host while
+the rows count one - `len(sessions)` divides only against `SANDBOXD_MAX_SESSIONS_PER_TENANT`.
+The response carries two host-wide numerators for the other pair, taken from the
+unfiltered list before the filter narrows it: `host_session_count`, the resident
+sandboxes the service marks `state == "running"`, against `limit`; and
+`host_open_count`, every session that exists resident or hibernated, against
+`open_limit`. Now the capacity card can say why a session was refused while this
+organization is short of its own ceiling: the host itself is full of somebody else's
+work. That the two are host-wide is a deliberate, narrow disclosure - two aggregate
+integers naming nothing, a long way from the session rows the filter withholds, and
+the listing is gated on `connections:view`, the authority to watch a host rather than
+any member's. They are `None` on a Daytona connection, which enforces no ceilings of
+ours to divide.
 
 That listing is **filtered, not forwarded**. One `sandboxd` answers for every
 organization that registered a connection at its address, so passing its response

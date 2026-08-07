@@ -36,6 +36,7 @@ from app.schemas.sandbox_connection import (
     SandboxConnectionCreate,
     SandboxConnectionUpdate,
     SandboxProbeRequest,
+    SandboxSessionList,
 )
 from app.services.sandbox_connection import (
     LOCAL_TOKEN_SECRET_NAME,
@@ -794,7 +795,7 @@ class TestReadingTheSessions:
         )
         _serve(monkeypatch, _Response(200, {"sessions": [{"session_id": "stray"}]}))
 
-        assert await service.sessions(_ctx(), row.id) == {"sessions": [], "kind": "docker"}
+        assert (await service.sessions(_ctx(), row.id))["sessions"] == []
 
     async def test_a_session_is_named_by_the_row_rather_than_by_decoding_its_id(self, monkeypatch):
         """Parsing the scope key back out would make its format a schema, and the
@@ -878,6 +879,94 @@ class TestReadingTheSessions:
             await service.sessions(_ctx(), row.id)
 
         assert "did not answer" in refused.value.message
+
+    async def test_the_host_wide_total_counts_rows_the_org_view_filters_out(self, monkeypatch):
+        """The point of the two counts: an operator whose own view is short of its
+        ceiling can still see the host is full of another tenant's work. Taken
+        before the filter, so they count every tenant while the rows count one."""
+        row = _row()
+        service = _service(monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok")))
+        monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
+        monkeypatch.setattr(
+            agent_workspace_repo, "list_for_organization", AsyncMock(return_value=[])
+        )
+        ctx = _ctx()
+        _serve(
+            monkeypatch,
+            _Response(
+                200,
+                {
+                    "sessions": [
+                        {
+                            "session_id": "mine",
+                            "tenant": str(ctx.organization_id),
+                            "state": "running",
+                        },
+                        {"session_id": "theirs-1", "tenant": str(uuid.uuid4()), "state": "running"},
+                        {"session_id": "theirs-2", "tenant": str(uuid.uuid4()), "state": "running"},
+                    ],
+                    "limit": 40,
+                    "open_limit": 100,
+                },
+            ),
+        )
+
+        listing = await service.sessions(ctx, row.id)
+
+        assert [entry["session_id"] for entry in listing["sessions"]] == ["mine"]
+        assert listing["host_session_count"] == 3
+        assert listing["host_open_count"] == 3
+
+    async def test_open_counts_every_session_but_resident_counts_only_the_running_ones(
+        self, monkeypatch
+    ):
+        """`open_limit` bounds every session that exists, so `host_open_count` is
+        the whole list; `limit` bounds only the resident ones, which the service
+        marks `state == "running"`. A hibernated session frees its slot, and a
+        crashed session keeps its resident slot until it is reaped and so still
+        reads `running` while `alive` is false - `state`, not `alive`, is what the
+        resident ceiling counts, or a full host would look like it had room."""
+        row = _row()
+        service = _service(monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok")))
+        monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
+        monkeypatch.setattr(
+            agent_workspace_repo, "list_for_organization", AsyncMock(return_value=[])
+        )
+        _serve(
+            monkeypatch,
+            _Response(
+                200,
+                {
+                    "sessions": [
+                        {"session_id": "running", "state": "running", "alive": True},
+                        {"session_id": "hibernated", "state": "hibernated", "alive": False},
+                        {"session_id": "crashed", "state": "running", "alive": False},
+                    ],
+                    "limit": 40,
+                    "open_limit": 100,
+                },
+            ),
+        )
+
+        listing = await service.sessions(_ctx(), row.id)
+
+        assert listing["host_open_count"] == 3
+        assert listing["host_session_count"] == 2
+
+    async def test_daytona_has_no_host_wide_totals_to_divide(self, monkeypatch):
+        """It enforces no ceilings of ours, so there is nothing to be a numerator
+        for; both counts default to `None` the way the ceilings already do."""
+        row = _row(kind="daytona", base_url=None)
+        service = _service(monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok")))
+        monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
+
+        listing = await service.sessions(_ctx(), row.id)
+
+        assert "host_session_count" not in listing
+        assert "host_open_count" not in listing
+        built = SandboxSessionList(**listing)
+        assert built.host_session_count is None
+        assert built.host_open_count is None
 
 
 class TestSamplingOneSandbox:
