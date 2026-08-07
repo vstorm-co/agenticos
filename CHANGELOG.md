@@ -19,6 +19,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.76] - 2026-08-07
+
+### Security
+
+- `InlineSecret` offered a vault write at seven call sites and only one checked
+  `secrets:edit`, so six of them showed the form and let the API answer 403. The
+  permission is now checked inside the component, because every call site posts
+  the same endpoint — a per-caller gate is one condition written seven times and
+  forgotten six of them (#361).
+
+### Fixed
+
+- Two test fixtures answered `/me/permissions` with a list, which is a `TypeError`
+  inside `usePermissions` rather than "no permissions" — so those specs had been
+  passing for the wrong reason.
+
 ## [0.0.75] - 2026-08-07
 
 ### Fixed
