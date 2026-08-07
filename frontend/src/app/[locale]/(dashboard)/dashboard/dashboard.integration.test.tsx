@@ -375,8 +375,17 @@ describe("the steward's dashboard", () => {
 });
 
 describe("the sandbox section", () => {
-  it("is there for a caller holding connections:manage, and asks the host about itself", async () => {
-    auth.can = holds("connections:manage");
+  it("is there for an operator, who holds connections:view, and asks the host about itself", async () => {
+    // The audience #129 wrote the cards for: an operator watches where agents
+    // run without the manage authority to point a host somewhere.
+    auth.role = "operator";
+    auth.can = holds(
+      "agents:view",
+      "agents:run",
+      "approvals:decide",
+      "runs:view",
+      "connections:view",
+    );
 
     render(<DashboardPage />, { wrapper });
 
@@ -384,9 +393,10 @@ describe("the sandbox section", () => {
     await waitFor(() => expect(callsTo("/sandbox-connections").length).toBeGreaterThan(0));
   });
 
-  it("is absent without it, and the browser never asks where agents run code", async () => {
-    // Not rendered, not rendered-then-403: an operator holds every other
-    // org-wide permission and still does not hold this one (`ROLE_PERMS`).
+  it("is absent without connections:view, and the browser never asks where agents run code", async () => {
+    // Not rendered, not rendered-then-403: the operator layout lists the
+    // section, so this proves the per-widget gate withholds it when the read is
+    // missing rather than the layout simply omitting it.
     auth.role = "operator";
     auth.can = holds("agents:view", "agents:run", "approvals:decide", "runs:view");
 

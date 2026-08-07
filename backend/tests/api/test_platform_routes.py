@@ -332,12 +332,16 @@ CALLS: tuple[Call, ...] = (
             "value": {"kind": "api_key", "api_key": "not-a-real-key"},
         },
     ),
-    # Where sandboxes run. `connections:manage`, the same permission the vault
-    # carries, because whoever edits these decides which host an agent's shell
-    # runs on and the credential behind one can start containers there. Every
-    # route including the per-resource ones: a connection has no grants, so a
-    # gate here cannot refuse somebody a grant would have admitted.
-    Call("GET", "/sandbox-connections", Perm.CONNECTIONS_MANAGE),
+    # Where sandboxes run, split across two gates. The reads carry
+    # `connections:view` - a session list, an activity log and a host's ceilings
+    # are what an operator watches when an agent keeps hitting a memory limit, and
+    # that authority reaches no credential. The writes stay `connections:manage`,
+    # the same permission the vault carries, because registering a host decides
+    # which one an agent's shell runs on and attaches the secret that starts
+    # containers there. Every route including the per-resource ones: a connection
+    # has no grants, so a gate here cannot refuse somebody a grant would have
+    # admitted.
+    Call("GET", "/sandbox-connections", Perm.CONNECTIONS_VIEW),
     Call(
         "POST",
         "/sandbox-connections",
@@ -346,11 +350,12 @@ CALLS: tuple[Call, ...] = (
     ),
     # Asking what this deployment can already see, and testing an address before a
     # row exists for it, are the same authority as registering one: both reach a
-    # host, and the second unseals a credential to do it.
+    # host, and the second unseals a credential to do it. `manage`, not `view`.
     Call("GET", "/sandbox-connections/local", Perm.CONNECTIONS_MANAGE),
-    # The runtime catalog contacts nothing, but it is read by the same form and
-    # names what this deployment's images are built from.
-    Call("GET", "/sandbox-connections/runtimes", Perm.CONNECTIONS_MANAGE),
+    # The runtime catalog contacts nothing and names what this deployment's images
+    # are built from - a read the connection form needs before an operator can
+    # even see which runtimes a host allows, so it rides on `connections:view`.
+    Call("GET", "/sandbox-connections/runtimes", Perm.CONNECTIONS_VIEW),
     Call("POST", "/sandbox-connections/local/credential", Perm.CONNECTIONS_MANAGE),
     Call(
         "POST",
@@ -360,12 +365,12 @@ CALLS: tuple[Call, ...] = (
     ),
     Call("PATCH", "/sandbox-connections/{connection_id}", Perm.CONNECTIONS_MANAGE, body={}),
     Call("DELETE", "/sandbox-connections/{connection_id}", Perm.CONNECTIONS_MANAGE),
-    Call("GET", "/sandbox-connections/{connection_id}/policy", Perm.CONNECTIONS_MANAGE),
-    Call("GET", "/sandbox-connections/{connection_id}/sessions", Perm.CONNECTIONS_MANAGE),
+    Call("GET", "/sandbox-connections/{connection_id}/policy", Perm.CONNECTIONS_VIEW),
+    Call("GET", "/sandbox-connections/{connection_id}/sessions", Perm.CONNECTIONS_VIEW),
     Call(
         "GET",
         "/sandbox-connections/{connection_id}/sessions/{session_id}/events",
-        Perm.CONNECTIONS_MANAGE,
+        Perm.CONNECTIONS_VIEW,
     ),
     # `raw` is the download and the image preview. Ungated for the same reason as
     # the rest of the workspace routes - the service scopes it, and a download must
@@ -446,6 +451,99 @@ class TestViewersCannotWrite:
             )
 
         assert response.status_code == 403
+
+
+# The sandbox-connections reads an operator was written for, and the writes that
+# stay closed to them. Real roles, not synthetic ones - this is the shipped
+# configuration the issue is about, so a regression in `ROLE_PERMS` fails here
+# rather than only in the synthetic-role gate sweep above.
+_OPERATOR_MAY_READ: tuple[Call, ...] = (
+    Call("GET", "/sandbox-connections", Perm.CONNECTIONS_VIEW),
+    Call("GET", "/sandbox-connections/runtimes", Perm.CONNECTIONS_VIEW),
+    Call("GET", "/sandbox-connections/{connection_id}/policy", Perm.CONNECTIONS_VIEW),
+    Call("GET", "/sandbox-connections/{connection_id}/sessions", Perm.CONNECTIONS_VIEW),
+    Call(
+        "GET",
+        "/sandbox-connections/{connection_id}/sessions/{session_id}/events",
+        Perm.CONNECTIONS_VIEW,
+    ),
+)
+
+_OPERATOR_MAY_NOT_WRITE: tuple[Call, ...] = (
+    Call(
+        "POST",
+        "/sandbox-connections",
+        Perm.CONNECTIONS_MANAGE,
+        body={"name": "Local Docker", "kind": "docker", "base_url": "http://sandboxd:8080"},
+    ),
+    Call("PATCH", "/sandbox-connections/{connection_id}", Perm.CONNECTIONS_MANAGE, body={}),
+    Call("DELETE", "/sandbox-connections/{connection_id}", Perm.CONNECTIONS_MANAGE),
+    Call("POST", "/sandbox-connections/local/credential", Perm.CONNECTIONS_MANAGE),
+    Call(
+        "POST",
+        "/sandbox-connections/probe",
+        Perm.CONNECTIONS_MANAGE,
+        body={"base_url": "http://sandboxd:8080"},
+    ),
+    # Reading what this deployment can already see unseals its own service token,
+    # so it is a manage authority despite being a GET.
+    Call("GET", "/sandbox-connections/local", Perm.CONNECTIONS_MANAGE),
+)
+
+
+class TestOperatorCanWatchSandboxesButNotManageThem:
+    """The split, at the route layer and in the shipped `operator` role.
+
+    An operator holds `connections:view` and not `connections:manage`, so the
+    session list, the activity log and a host's ceilings answer while every route
+    that points a host somewhere or unseals its credential refuses - which is the
+    whole reason the permission was split rather than granted whole.
+    """
+
+    @pytest.mark.parametrize("call", _OPERATOR_MAY_READ, ids=str)
+    async def test_an_operator_reaches_the_read(self, call: Call, as_role: ClientFactory) -> None:
+        """Past the gate the service is stubbed, so anything but 403/422 is a pass."""
+        async with as_role(OrgRoleName.OPERATOR) as client:
+            response = await client.request(
+                call.method, _url(call.path, call.query), json=call.body
+            )
+
+        assert response.status_code not in (403, 422), (
+            f"{call} refused an operator holding connections:view"
+        )
+
+    @pytest.mark.parametrize("call", _OPERATOR_MAY_NOT_WRITE, ids=str)
+    async def test_an_operator_is_refused_the_write(
+        self, call: Call, as_role: ClientFactory
+    ) -> None:
+        async with as_role(OrgRoleName.OPERATOR) as client:
+            response = await client.request(
+                call.method, _url(call.path, call.query), json=call.body
+            )
+
+        assert response.status_code == 403, (
+            f"{call} admitted an operator holding only connections:view"
+        )
+
+
+class TestBuilderStillReachesEverySandboxRoute:
+    """The split must not narrow a role that managed connections before it.
+
+    Builder held `connections:manage` and reached every sandbox route; giving it
+    `connections:view` alongside keeps the reads it used to get through the one
+    permission, and it must lose none of the writes either.
+    """
+
+    @pytest.mark.parametrize("call", _OPERATOR_MAY_READ + _OPERATOR_MAY_NOT_WRITE, ids=str)
+    async def test_a_builder_reaches_it(self, call: Call, as_role: ClientFactory) -> None:
+        async with as_role(OrgRoleName.BUILDER) as client:
+            response = await client.request(
+                call.method, _url(call.path, call.query), json=call.body
+            )
+
+        assert response.status_code not in (403, 422), (
+            f"{call} refused a builder after the connections split"
+        )
 
 
 class TestPermissionIntrospectionIsOpenToEveryMember:

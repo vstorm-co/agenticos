@@ -112,12 +112,14 @@ export const NAV_GROUPS: NavGroup[] = [
         permission: Perm.agentsView,
       },
       {
-        // Gated on what the backend gates every route on: whoever edits these
-        // decides which host an agent's shell runs on.
+        // Gated on what the backend gates reading these on. Watching where
+        // sandboxes run - the session list, a host's ceilings - is an operator's
+        // job and rides on connections:view; only the add-and-edit controls on
+        // the page itself need connections:manage.
         labelKey: "sandboxes",
         href: ROUTES.SANDBOXES,
         icon: Boxes,
-        permission: Perm.connectionsManage,
+        permission: Perm.connectionsView,
       },
       {
         // Deliberately ungated, unlike Sandboxes above. These are the files an
