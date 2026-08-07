@@ -98,6 +98,13 @@ class Settings(BaseSettings):
 
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30  # 30 minutes
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
+    # How long a parked tool call waits before the sweep denies it by timeout.
+    # Three days spans a weekend, which is the gap an approval most often falls
+    # into: the one that arrives on Friday afternoon is the one nobody decides,
+    # and expiring it on Saturday would be expiring it for being asked at the
+    # wrong hour. Long enough that a decision is never taken away from someone
+    # who was going to make it; short enough that the queue has a ceiling.
+    APPROVAL_EXPIRY_HOURS: int = 72
     ALGORITHM: str = "HS256"
     FRONTEND_URL: str = "http://localhost:3000"
     PUBLIC_BASE_URL: str = "http://localhost:8000"
