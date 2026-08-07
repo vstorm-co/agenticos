@@ -6,6 +6,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CreateKBDialog } from "./create-kb-dialog";
 import { apiClient } from "@/lib/api-client";
+import { Perm } from "@/types/permissions";
+import type { Permission } from "@/types/permissions";
 
 /**
  * The Embeddings section of Create knowledge base, as somebody reading it sees it.
@@ -62,8 +64,17 @@ async function openParsing() {
   await userEvent.click(screen.getByText("How documents are parsed"));
 }
 
+/** What the caller may do, which decides whether either key can be stored here. */
+const state = { permissions: [] as Permission[] };
+
+/** Mount the dialog. Called by each test, so a test can set the caller up first. */
+function show() {
+  render(<CreateKBDialog open onOpenChange={vi.fn()} />, { wrapper });
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
+  state.permissions = [Perm.connectionsManage, Perm.secretsEdit];
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
     if (path === "/secrets") return SECRETS;
     if (path === "/rag/embedding-models") return EMBEDDING_MODELS;
@@ -75,10 +86,7 @@ beforeEach(() => {
         organization_id: "org-1",
         role: "builder",
         is_app_admin: false,
-        permissions: [
-          { permission: "connections:manage", scope: "all" },
-          { permission: "secrets:edit", scope: "all" },
-        ],
+        permissions: state.permissions.map((permission) => ({ permission, scope: "all" })),
       };
     if (path === "/providers/catalog")
       return {
@@ -110,11 +118,11 @@ beforeEach(() => {
     if (path === "/providers/openai/models") return { items: [], total: 0, source: null };
     return { items: [], total: 0 };
   });
-  render(<CreateKBDialog open onOpenChange={vi.fn()} />, { wrapper });
 });
 
 describe("the embedding key picker", () => {
   it("draws the mark for every key it offers, and its masked tail", async () => {
+    show();
     await openEmbeddings();
     await userEvent.click(screen.getByLabelText("Key"));
 
@@ -127,6 +135,7 @@ describe("the embedding key picker", () => {
     // `EmbeddingService` sends every embedding request to openrouter.ai, on the
     // deployment's key when a collection names none - so the two rows are the
     // same service and reading as two different things was the bug.
+    show();
     await openEmbeddings();
     await userEvent.click(screen.getByLabelText("Key"));
 
@@ -136,6 +145,7 @@ describe("the embedding key picker", () => {
   });
 
   it("offers no key that cannot pay for embeddings", async () => {
+    show();
     await openEmbeddings();
     await userEvent.click(screen.getByLabelText("Key"));
 
@@ -143,6 +153,7 @@ describe("the embedding key picker", () => {
   });
 
   it("shows the selected key's mark on the closed trigger", async () => {
+    show();
     await openEmbeddings();
 
     expect(markIn(screen.getByLabelText("Key"))).toBe("OpenRouter");
@@ -157,6 +168,7 @@ describe("the embedding model picker", () => {
     // Radix select before its options exist writes the value onto a hidden
     // native `<select>` with no matching `<option>`, reads `""` back out of the
     // change event, and hands that to `onValueChange`, which is `setState`.
+    show();
     await openEmbeddings();
 
     expect(await screen.findByLabelText("Model")).toHaveTextContent("text-embedding-3-large");
@@ -167,11 +179,14 @@ describe("the embedding model picker", () => {
     // Asserted before the query resolves, which is the state the placeholder is
     // for: no select at all, because one whose value arrives after its options
     // is the bug above.
+    show();
+
     expect(screen.getByText("Loading models…")).toBeInTheDocument();
     expect(screen.queryByLabelText("Model")).toBeNull();
   });
 
   it("draws the mark of the key that pays, beside every model id", async () => {
+    show();
     await openEmbeddings();
     await userEvent.click(screen.getByLabelText("Model"));
 
@@ -181,6 +196,7 @@ describe("the embedding model picker", () => {
   });
 
   it("says which model an untouched deployment would use, in the list", async () => {
+    show();
     await openEmbeddings();
     await userEvent.click(screen.getByLabelText("Model"));
 
@@ -199,6 +215,7 @@ describe("the two keys this dialog can store", () => {
    */
 
   it("names each of them, so neither of them is just 'a key'", async () => {
+    show();
     await openEmbeddings();
     await openParsing();
     await userEvent.click(screen.getByLabelText("Describe images"));
@@ -211,5 +228,25 @@ describe("the two keys this dialog can store", () => {
       screen.getByRole("button", { name: "Add a key: OpenRouter (embeddings)" }),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add a key: OpenAI" })).toBeInTheDocument();
+  });
+
+  it("offers neither to a caller who may not write to the vault", async () => {
+    // `collections:edit` is what opens this dialog; storing the embedding key is
+    // `secrets:edit`, and a member holding the first and not the second was shown
+    // both forms and refused by `POST /secrets` after pasting a key in (#361).
+    state.permissions = [Perm.connectionsManage];
+    show();
+    await openEmbeddings();
+    await openParsing();
+    await userEvent.click(screen.getByLabelText("Describe images"));
+    await userEvent.click(await screen.findByLabelText("Provider"));
+    await userEvent.click(screen.getByRole("option", { name: /OpenAI/ }));
+
+    expect(screen.queryByRole("button", { name: "Add a key: OpenRouter (embeddings)" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add a key: OpenAI" })).toBeNull();
+    // Two sentences, not silence, one per offer: the inline form says it here,
+    // and the model panel says it in its own words because a disabled Add model
+    // with nothing beside it explains nothing.
+    expect(screen.getAllByText(/permission you do not hold/)).toHaveLength(2);
   });
 });
