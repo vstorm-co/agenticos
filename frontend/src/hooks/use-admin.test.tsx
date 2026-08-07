@@ -239,7 +239,11 @@ describe("useAdminConversations", () => {
     expect(result.current.error).toBe("Failed to load conversations");
   });
 
-  it("lists the users who own conversations, with their own filters", async () => {
+  it("builds the owner filter from the deployment's user list", async () => {
+    // `/admin/users`, not a list of its own. The endpoint this used to ask for -
+    // `/admin/conversations/users` - has never existed: it matches
+    // `/admin/conversations/{conversation_id}`, fails to parse "users" as a
+    // UUID, and answers 422, so the Owner dropdown was permanently empty.
     const { result } = renderHook(() => useAdminConversations());
 
     await act(() =>
@@ -252,9 +256,7 @@ describe("useAdminConversations", () => {
       }),
     );
 
-    expect(path()).toBe(
-      "/admin/conversations/users?skip=10&limit=5&search=kacper&sort_by=email&sort_dir=desc",
-    );
+    expect(path()).toBe("/admin/users?skip=10&limit=5&search=kacper&sort_by=email&sort_dir=desc");
   });
 
   it("sends no filters for the unfiltered user list", async () => {
@@ -262,7 +264,7 @@ describe("useAdminConversations", () => {
 
     await act(() => result.current.fetchUsers());
 
-    expect(path()).toBe("/admin/conversations/users?");
+    expect(path()).toBe("/admin/users?");
   });
 
   it("holds the users and their count", async () => {

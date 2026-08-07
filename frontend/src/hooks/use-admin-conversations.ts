@@ -71,6 +71,16 @@ export function useAdminConversations() {
     [],
   );
 
+  /**
+   * The deployment's users, for the Owner filter.
+   *
+   * `/admin/users` - the same list the users screen reads. There used to be a
+   * proxy of its own at `/admin/conversations/users`, forwarding to a backend
+   * route that has never existed: it matched `GET /admin/conversations/
+   * {conversation_id}` instead, failed UUID parsing, and answered 422 for every
+   * one of these calls, which left the Owner filter with nothing in it but
+   * "All owners".
+   */
   const fetchUsers = useCallback(
     async (params?: {
       skip?: number;
@@ -90,7 +100,7 @@ export function useAdminConversations() {
         if (params?.sort_dir) query.set("sort_dir", params.sort_dir);
 
         const response = await apiClient.get<AdminUserListResponse>(
-          `/admin/conversations/users?${query.toString()}`,
+          `/admin/users?${query.toString()}`,
         );
         setUsers(response.items);
         setUsersTotal(response.total);

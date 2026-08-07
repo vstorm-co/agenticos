@@ -110,6 +110,16 @@ class TestWhatMayBeSkipped:
         decided = ci_changed_scope.scope(["frontend/src/lib/api-client.ts"])
         assert decided == {"backend": False, "frontend": True, "e2e": True}
 
+    def test_a_change_to_a_bff_proxy_runs_the_backend_suite(self) -> None:
+        """`frontend/src/app/api/**` is the one directory both suites read.
+
+        `tests/api/test_bff_forwarded_paths.py` checks the paths those handlers
+        hard-code against the backend's route table, and skipping it for a change
+        to a handler would be a gate that never runs when it matters.
+        """
+        decided = ci_changed_scope.scope(["frontend/src/app/api/admin/users/route.ts"])
+        assert decided == {"backend": True, "frontend": True, "e2e": True}
+
     def test_a_change_to_both_halves_skips_nothing(self) -> None:
         decided = ci_changed_scope.scope(
             ["backend/app/api/routes/v1/agents.py", "frontend/src/hooks/use-agents.ts"]
