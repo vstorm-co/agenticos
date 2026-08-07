@@ -19,6 +19,33 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.79] - 2026-08-07
+
+### Fixed
+
+- A failed sync source was drawn exactly like a successful one. `SyncStatusBadge`
+  tested `status === "failed"`, which the worker never writes — it writes `done`
+  and `error` — so every finished and every failed sync fell through to the same
+  grey token (#356).
+- The document badge twenty lines above it was wrong the same way, and worse:
+  three of its four keys (`completed`, `pending`, `failed`) are names nothing
+  writes, against the service's `processing`/`done`/`error`. It had been "fixed"
+  onto that wrong vocabulary once already.
+- `/rag`'s status icon drew anything it did not recognise as a spinner, so a
+  cancelled sync spun for the life of the page.
+- The sync wizard's target-collection picker could not be reached from any of its
+  three call sites, so "Add source" on `/rag` — where the tab lists the whole
+  organization's sources — filed against whichever collection the sidebar
+  happened to have selected, invisibly (#434).
+- Creating a collection on `/rag` reported every refusal as "Failed to create
+  collection", discarding the server's own message — which is what made 0.0.66's
+  better 400 invisible on the only screen that creates one by name (#436).
+
+### Added
+
+- `frontend/src/lib/rag-status.ts` — one source for the vocabulary, naming the
+  three columns that share it and what writes each.
+
 ## [0.0.78] - 2026-08-07
 
 ### Fixed
