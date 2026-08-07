@@ -59,6 +59,18 @@ describe("DataTable", () => {
     expect(screen.getByRole("alert")).toBeInTheDocument();
   });
 
+  // The shape a failed query actually leaves behind: not an empty array but no
+  // array at all, because the hook's `data` is null. `showEmpty` requires rows to
+  // be one, so a caller who folded the refusal into `empty` rendered *neither* -
+  // a header row over nothing at all, which is how the ratings page reported a
+  // 502 and why this is a prop rather than something a caller remembers.
+  it("shows the failure when the request left no rows behind at all", () => {
+    renderTable({ rows: undefined, empty: "No ratings found", error: "Could not load ratings" });
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Could not load ratings");
+    expect(screen.queryByText("No ratings found")).not.toBeInTheDocument();
+  });
+
   it("says neither while it is still loading", () => {
     renderTable({ rows: undefined, loading: true, empty: "No runs yet", error: "Failed" });
 
