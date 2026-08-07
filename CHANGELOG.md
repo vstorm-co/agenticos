@@ -19,6 +19,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.61] - 2026-08-07
+
+### Security
+
+- `h2` bumped past CVE-2026-71554.
+
+
 ## [0.0.60] - 2026-08-07
 
 ### Fixed
