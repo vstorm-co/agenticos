@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -67,17 +67,20 @@ async function openParsing() {
 /** What the caller may do, which decides whether either key can be stored here. */
 const state = { permissions: [] as Permission[] };
 
-/** Mount the dialog. Called by each test, so a test can set the caller up first. */
-function show() {
-  render(<CreateKBDialog open onOpenChange={vi.fn()} />, { wrapper });
-}
-
-beforeEach(() => {
-  vi.clearAllMocks();
-  state.permissions = [Perm.connectionsManage, Perm.secretsEdit];
+/**
+ * Answer every request the dialog makes.
+ *
+ * `embeddingModels: "refused"` is the third state the Embeddings section has to
+ * draw: with `staleTime: Infinity` the rejection is cached for as long as the
+ * dialog lives, so it is not a slow success that eventually arrives.
+ */
+function serve(embeddingModels: typeof EMBEDDING_MODELS | "refused" = EMBEDDING_MODELS) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
     if (path === "/secrets") return SECRETS;
-    if (path === "/rag/embedding-models") return EMBEDDING_MODELS;
+    if (path === "/rag/embedding-models") {
+      if (embeddingModels === "refused") throw new Error("502 Bad Gateway");
+      return embeddingModels;
+    }
     // The images section reads the caller's permissions, the provider catalog
     // and what each provider publishes. Answering a list shape at
     // `/me/permissions` is not "no permissions", it is a `TypeError`.
@@ -118,6 +121,17 @@ beforeEach(() => {
     if (path === "/providers/openai/models") return { items: [], total: 0, source: null };
     return { items: [], total: 0 };
   });
+}
+
+/** Mount the dialog. Called by each test, so a test can set the caller up first. */
+function show() {
+  render(<CreateKBDialog open onOpenChange={vi.fn()} />, { wrapper });
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  state.permissions = [Perm.connectionsManage, Perm.secretsEdit];
+  serve();
 });
 
 describe("the embedding key picker", () => {
@@ -202,6 +216,53 @@ describe("the embedding model picker", () => {
 
     const preselected = await screen.findByRole("option", { name: /text-embedding-3-large/ });
     expect(preselected).toHaveTextContent("deployment default");
+  });
+});
+
+/**
+ * Three states, not two.
+ *
+ * The section said "Loading models…" whether the request was in flight or had
+ * been refused. After the client's one retry the query is settled in error for
+ * the life of the dialog, so that sentence described something that was not
+ * going to happen - and the model is frozen at creation, the vector column
+ * being made at its width, so it is the one choice here nobody can revisit.
+ */
+describe("when the embedding model list cannot be read", () => {
+  beforeEach(() => {
+    // The same dialog against a refused list. `serve` is called again because
+    // the suite-wide `beforeEach` has already answered everything; `show` is
+    // called here rather than per test, since every test in this block wants
+    // the same refused mount.
+    cleanup();
+    vi.clearAllMocks();
+    state.permissions = [Perm.connectionsManage, Perm.secretsEdit];
+    serve("refused");
+    show();
+  });
+
+  it("says the list was refused rather than that it is still coming", async () => {
+    await openEmbeddings();
+
+    expect(await screen.findByText(/The list of models could not be read/)).toBeInTheDocument();
+    expect(screen.queryByText("Loading models…")).toBeNull();
+  });
+
+  it("says which model the collection gets anyway, since it is created either way", async () => {
+    // Create still works and still produces a collection - on the deployment's
+    // default. Being told that is the difference between a choice not offered
+    // and a choice silently made.
+    await openEmbeddings();
+
+    expect(await screen.findByText(/created on the deployment's default/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create" })).toBeInTheDocument();
+  });
+
+  it("offers no model picker to choose from a list it does not have", async () => {
+    await openEmbeddings();
+    await screen.findByText(/could not be read/);
+
+    expect(screen.queryByLabelText("Model")).toBeNull();
   });
 });
 

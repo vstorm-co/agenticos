@@ -74,7 +74,15 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
   const embeddingKeys = secrets.filter((secret) => secret.purpose === EMBEDDING_KEY_PURPOSE);
   // Which models this build can index with. A build property, not tenant data,
   // so it never goes stale while a dialog is open.
-  const { data: embeddingModels } = useQuery({
+  //
+  // `isError` is read because the section has three states and used to draw
+  // two. `staleTime` governs staleness, not failure, so it is the retry count
+  // that decides how long refused lasts: the client retries once, and after
+  // that the query is settled in error for the life of the dialog. Reopening
+  // does refetch - `retryOnMount` defaults to true - so this is a message about
+  // one dialog rather than a permanent state, and it is still a message
+  // "Loading models…" was never going to become.
+  const { data: embeddingModels, isError: modelsUnreadable } = useQuery({
     queryKey: ["rag", "embedding-models"],
     queryFn: () => apiClient.get<EmbeddingModels>("/rag/embedding-models"),
     staleTime: Infinity,
@@ -220,7 +228,19 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                     `usePrevious` seeds itself with the current one.
                   */}
                   {embeddingModels === undefined ? (
-                    <p className="text-muted-foreground text-sm">{t("loadingModels")}</p>
+                    // In flight and refused are not the same sentence. The
+                    // model is frozen at creation - the vector column is made
+                    // at its width - so this is the one choice in the dialog
+                    // nobody can revisit, and a failure that silently removes
+                    // it is worth more than a spinner. Either way the
+                    // collection is created on the deployment's default, which
+                    // is what the message says rather than leaving somebody to
+                    // find out afterwards.
+                    modelsUnreadable ? (
+                      <p className="text-destructive text-sm">{t("modelsUnreadable")}</p>
+                    ) : (
+                      <p className="text-muted-foreground text-sm">{t("loadingModels")}</p>
+                    )
                   ) : (
                     <Select
                       value={embeddingModel ?? embeddingModels.default}
