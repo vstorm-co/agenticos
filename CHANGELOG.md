@@ -19,6 +19,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.74] - 2026-08-07
+
+### Fixed
+
+- A tool call nobody decided parked its run for ever. Approvals still pending
+  after their window are now swept to `expired` — recorded as a decision nobody
+  made (`decided_by_user_id IS NULL`) rather than as a denial somebody issued,
+  so the audit trail says what actually happened (#178).
+
 ## [0.0.73] - 2026-08-07
 
 ### Fixed
