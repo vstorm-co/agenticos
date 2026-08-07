@@ -19,6 +19,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.62] - 2026-08-07
+
+### Fixed
+
+- None of the ten cases around `mask_generics` in the i18n guard's test file
+  tested it: stub the function to `return text` and all ten still passed, while
+  the guard then reported three false positives over the real tree. It was
+  load-bearing and untested, so a refactor could have broken it with only a
+  tree-wide `make lint` to notice. One case now fails without it.
+
+
 ## [0.0.61] - 2026-08-07
 
 ### Security
