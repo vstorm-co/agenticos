@@ -368,7 +368,18 @@ class PgVectorStore(BaseVectorStore):
     async def search(
         self, collection_name: str, query: str, limit: int = 4, filter_expr: str = ""
     ) -> list[SearchResult]:
+        """Nearest chunks in a collection, reporting an absent one as empty.
+
+        A collection's table is created by its first ingest, so "no table" and
+        "nothing indexed yet" are one state here - the same reasoning
+        `get_collection_info` documents below. Without the check, searching a
+        knowledge base nobody has uploaded to yet turned asyncpg's
+        `UndefinedTableError` into a 500, and it is checked before embedding so
+        an empty collection costs no embedding call either.
+        """
         table = self._table(collection_name)
+        if not await self._collection_exists(collection_name):
+            return []
         embedder, dim = await self._for_collection(collection_name)
         query_vector = embedder.embed_query(query)
 

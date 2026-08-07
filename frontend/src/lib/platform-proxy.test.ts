@@ -392,7 +392,7 @@ describe("every endpoint the client calls is proxied", () => {
 
     expect(paths.size).toBeGreaterThan(20);
     expect(paths).toContain("/api/agents");
-    expect(paths).toContain("/api/rag/collections");
+    expect(paths).toContain("/api/rag/search");
     expect(paths).toContain("/api/kb");
   });
 

@@ -219,7 +219,7 @@ export function CommandPalette() {
                 key={kb.id}
                 icon={Database}
                 label={kb.name}
-                onSelect={() => go(ROUTES.KB_DETAIL(kb.id))}
+                onSelect={() => go(ROUTES.RAG_DETAIL(kb.id))}
               />
             ))}
           </Group>

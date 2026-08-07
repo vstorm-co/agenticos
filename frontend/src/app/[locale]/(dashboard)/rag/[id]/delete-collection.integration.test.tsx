@@ -39,7 +39,7 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 const push = vi.fn();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push, replace: vi.fn(), prefetch: vi.fn(), back: vi.fn() }),
-  usePathname: () => "/kb/kb-1",
+  usePathname: () => "/rag/kb-1",
   useSearchParams: () => new URLSearchParams(),
   useParams: () => ({ id: "kb-1" }),
 }));
@@ -187,7 +187,7 @@ describe("deleting a collection from its own page", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Delete" }));
 
     await waitFor(() => expect(apiClient.delete).toHaveBeenCalledWith("/kb/kb-1"));
-    await waitFor(() => expect(push).toHaveBeenCalledWith("/kb"));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/rag"));
   });
 
   it("keeps the reader on a collection the server refused to delete", async () => {

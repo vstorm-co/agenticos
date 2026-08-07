@@ -206,7 +206,7 @@ died in a worker as "Unsupported file type".
 
 ### Parser Selection (RAG)
 
-Per collection, on `/kb`, and overridable per upload — not an environment
+Per collection, on `/rag`, and overridable per upload — not an environment
 variable. Stored on `knowledge_bases.ingestion_config`.
 
 | Parser | Best For |

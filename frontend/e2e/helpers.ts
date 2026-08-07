@@ -44,7 +44,7 @@ export const SEEDED_SKILL_NAME = "e2e-refund-policy";
 export const SEEDED_SKILL_DESCRIPTION = "How refunds and their exceptions are handled.";
 export const SEEDED_SKILL_CONTENT = "## When a customer asks for a refund\n\nCheck the order date.";
 
-/** A knowledge base, so /kb has a row rather than only an empty state. */
+/** A knowledge base, so /rag has a row rather than only an empty state. */
 export const SEEDED_KB_NAME = "E2E Handbook";
 
 /** A draft agent: the only thing that can prove an unpublished agent will not run. */
