@@ -599,7 +599,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
           matched={list.matched}
           total={list.total}
           onPage={list.setPage}
-          noun="servers"
+          counted={t("serverCount", { count: list.total })}
         />
       </ServersCard>
 

@@ -34,14 +34,6 @@ interface SharingPanelProps {
   canManage: boolean;
 }
 
-/** What to call the thing being shared, so the copy reads as English. */
-const NOUN: Record<SharingResourceType, string> = {
-  agent: "agent",
-  skill: "skill",
-  collection: "collection",
-  secret: "secret",
-};
-
 /**
  * The two answers this product actually has.
  *
@@ -133,7 +125,6 @@ export function SharingPanel({ resourceType, resourceId, canManage }: SharingPan
       </div>
     );
 
-  const noun = NOUN[resourceType];
   const shared = new Set(sharing.grants.map((grant) => grant.subject_user_id));
   // The owner already has full access, and a grant to someone who is not a
   // member is refused by the server - so neither belongs in the picker.
@@ -152,7 +143,7 @@ export function SharingPanel({ resourceType, resourceId, canManage }: SharingPan
       <Card>
         <CardHeader>
           <CardTitle>{t("visibility")}</CardTitle>
-          <CardDescription>{t("visibilityReaches", { noun })}</CardDescription>
+          <CardDescription>{t("visibilityReaches", { resource: resourceType })}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
           {[...VISIBILITY_OPTIONS, ...(sharing.visibility === "team" ? [LEGACY_TEAM] : [])].map(
@@ -172,7 +163,7 @@ export function SharingPanel({ resourceType, resourceId, canManage }: SharingPan
                   <div className="space-y-1">
                     <Label htmlFor={id}>{t(option.words)}</Label>
                     <p className="text-muted-foreground text-sm">
-                      {t(`${option.words}Reaches`, { noun })}
+                      {t(`${option.words}Reaches`, { resource: resourceType })}
                     </p>
                   </div>
                 </div>
@@ -185,7 +176,7 @@ export function SharingPanel({ resourceType, resourceId, canManage }: SharingPan
       <Card>
         <CardHeader>
           <CardTitle>{t("people")}</CardTitle>
-          <CardDescription>{t("peopleReaches", { noun })}</CardDescription>
+          <CardDescription>{t("peopleReaches", { resource: resourceType })}</CardDescription>
           {RUNTIME_NOTE[resourceType] && (
             <p className="text-muted-foreground border-border mt-2 border-l-2 pl-3 text-sm">
               {t(RUNTIME_NOTE[resourceType]!)}

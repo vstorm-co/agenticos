@@ -556,8 +556,17 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
                 {isLoadingMoreDocs ? t("loading") : t("loadMore")}
               </Button>
             )}
+            {/* The count is for everybody; the hint beside it is an instruction
+                to do something a Viewer cannot, so it is gated like every other
+                write affordance on this page rather than rendered and refused. */}
             <p className="text-muted-foreground text-center text-xs">
               {t("showingOfTotal", { loaded: documents.length, total: documentsTotal })}
+              {mayEdit && (
+                <>
+                  {" · "}
+                  {t("dragFilesToAdd")}
+                </>
+              )}
             </p>
           </div>
         )}

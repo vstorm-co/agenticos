@@ -152,7 +152,7 @@ export function McpServerPicker({
         matched={list.matched}
         total={list.total}
         onPage={list.setPage}
-        noun="servers"
+        counted={t("serverCount", { count: list.total })}
       />
 
       <OrphanedIds ids={orphaned} />
@@ -248,7 +248,7 @@ function ServerCard({
       disabled={disabled}
       onClick={() => onToggle(connection.id)}
       className={cn(
-        t("flexItemsStartGap2"),
+        "flex items-start gap-3 rounded-xl border p-4 text-left transition-colors",
         isOn ? "border-brand bg-brand/5" : "hover:border-foreground/20",
         disabled && "cursor-not-allowed opacity-60",
       )}

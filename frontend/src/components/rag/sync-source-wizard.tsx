@@ -232,7 +232,7 @@ export function SyncSourceWizard({
                   <li key={s.id} className="flex flex-1 items-center gap-2">
                     <div
                       className={cn(
-                        t("flexH6W"),
+                        "flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-colors",
                         done && "bg-foreground text-background",
                         active && "bg-brand text-brand-foreground",
                         !done && !active && "bg-foreground/8 text-foreground/55",
@@ -242,7 +242,7 @@ export function SyncSourceWizard({
                     </div>
                     <span
                       className={cn(
-                        t("hiddenFontMonoText"),
+                        "hidden font-mono text-[10px] tracking-wider uppercase sm:inline",
                         active || done ? "text-foreground" : "text-foreground/45",
                       )}
                     >
@@ -368,7 +368,7 @@ function CloneStep({
                 type="button"
                 onClick={() => setCloneSourceId(src.id)}
                 className={cn(
-                  t("flexWFullItems"),
+                  "flex w-full items-center gap-3 rounded-xl border p-3.5 text-left transition-colors",
                   isSelected
                     ? "border-brand bg-brand/[0.06]"
                     : "border-foreground/10 bg-card hover:border-foreground/30",
@@ -376,7 +376,7 @@ function CloneStep({
               >
                 <span
                   className={cn(
-                    t("flexH9W"),
+                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
                     isSelected
                       ? "bg-brand text-brand-foreground"
                       : "bg-foreground/8 text-foreground",
@@ -470,7 +470,7 @@ function ConnectorStep({
                   type="button"
                   onClick={() => setForm((f) => ({ ...f, connector_type: conn.type, config: {} }))}
                   className={cn(
-                    t("flexItemsCenterGap2"),
+                    "flex items-center gap-3 rounded-xl border p-3.5 text-left transition-colors",
                     isSelected
                       ? "border-brand bg-brand/[0.06]"
                       : "border-foreground/10 bg-card hover:border-foreground/30",
@@ -478,7 +478,7 @@ function ConnectorStep({
                 >
                   <span
                     className={cn(
-                      t("flexH9W2"),
+                      "flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
                       isSelected
                         ? "bg-brand text-brand-foreground"
                         : "bg-foreground/8 text-foreground",

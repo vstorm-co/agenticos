@@ -99,7 +99,7 @@ export function CollectionPicker({
               disabled={disabled}
               onClick={() => onToggle(collection.id)}
               className={cn(
-                t("flexItemsStartGap"),
+                "flex items-start gap-3 rounded-xl border p-4 text-left transition-colors",
                 isOn ? "border-brand bg-brand/5" : "hover:border-foreground/20",
                 disabled && "cursor-not-allowed opacity-60",
               )}
@@ -166,7 +166,7 @@ export function CollectionPicker({
         matched={list.matched}
         total={list.total}
         onPage={list.setPage}
-        noun="collections"
+        counted={t("collectionCount", { count: list.total })}
       />
 
       {orphaned.length > 0 && (
