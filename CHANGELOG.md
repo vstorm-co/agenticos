@@ -19,6 +19,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.71] - 2026-08-07
+
+### Fixed
+
+- Ingestion and sync flows were spawned before the transaction that wrote the row
+  they read had committed, so a flow could start, look for its own document row
+  and not find it — an upload answered `processing` that stayed that way.
+  `spawn_after_commit` queues the work on the session and `_managed_session`
+  starts it two statements after `commit()` (#417).
+- `rag-source-sync` cancelled the sync it had just reported starting: `asyncio.run`
+  kills pending tasks on the way out (#439).
+- `POST /rag/documents/{id}/retry` queued nothing and cleared the error message,
+  so a retry was a one-way trip into permanent `processing`. A bare `ValueError`
+  on a decided refusal is now a 400 rather than a 500 (#441).
+
+
 ## [0.0.70] - 2026-08-07
 
 ### Fixed
