@@ -21,14 +21,15 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
 
 import pytest
 from fastapi.exceptions import RequestValidationError
-from httpx import AsyncClient
+from httpx import AsyncClient, Response
 
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
+from app.agents.capabilities.knowledge._search import search_knowledge_base
 from app.api import deps
 from app.api.exception_handlers import (
     _field_path,
@@ -37,10 +38,18 @@ from app.api.exception_handlers import (
     validation_exception_handler,
 )
 from app.core.config import settings
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import (
+    AppException,
+    BadRequestError,
+    ExternalServiceError,
+    NotFoundError,
+)
 from app.main import app
 from app.repositories import user_repo
 from app.schemas.message_rating import RatingValue
+from app.services.email import templates
+from app.services.email.exceptions import EmailTemplateError
+from app.services.model_profile import validate_endpoint_url
 
 
 class TestFieldPath:
@@ -327,3 +336,147 @@ class TestDetailsSurviveSerialization:
             "limit_usd": "40.10",
             "spent_usd": "40.15",
         }
+
+
+class TestDetailsDescribeTheRefusalNotTheServer:
+    """What `details` carries is a decision now, so it is asserted like one.
+
+    Making the envelope reliable (#307) also made it reliable at carrying the
+    wrong thing: two call sites put an upstream client's exception text and a
+    container's absolute paths into a body a caller reads (#342). A refusal
+    names what the reader can act on; where the server looked and what a vendor
+    SDK's `__str__` said belong in the log.
+
+    Each refusal is raised by the real call site and then carried through the
+    app, because what a service put in `details` and what a caller can read are
+    two assertions and only the second one is the defect. The vehicle is the
+    class above's - `GET /users/avatar/{user_id}` with the service mocked to
+    raise it - so none of these travels its own route; the handler is global,
+    and it is the handler that decides what reaches the wire.
+    """
+
+    @staticmethod
+    async def _refusal_on_the_wire(client: AsyncClient, exc: AppException) -> Response:
+        service = MagicMock()
+        service.get_by_id = AsyncMock(side_effect=exc)
+        app.dependency_overrides[deps.get_user_service] = lambda: service
+        return await client.get(f"{settings.API_V1_STR}/users/avatar/{uuid4()}")
+
+    @pytest.mark.anyio
+    async def test_a_failed_knowledge_search_names_the_collections_not_the_upstream(
+        self, client: AsyncClient
+    ):
+        """A provider SDK puts the failing request in its message, key and all.
+
+        `str(e)` on an embedding client is not a controlled string, and the 503
+        it was pasted into is readable by anyone who can talk to an agent.
+        """
+        upstream = RuntimeError(
+            "Error code: 401 - authentication failed for "
+            "https://openrouter.ai/api/v1/embeddings?api-key=sk-live-9f3ca2"
+        )
+        service = MagicMock()
+        service.retrieve = AsyncMock(side_effect=upstream)
+        with (
+            patch(
+                "app.agents.capabilities.knowledge._search.get_retrieval_service",
+                return_value=service,
+            ),
+            pytest.raises(ExternalServiceError) as refusal,
+        ):
+            await search_knowledge_base(query="our refund policy", kb_collection_names=["kb_ops"])
+
+        response = await self._refusal_on_the_wire(client, refusal.value)
+
+        assert response.status_code == 503
+        assert response.json()["error"]["details"] == {
+            "collections": ["kb_ops"],
+            "operation": "retrieve",
+        }
+        assert "sk-live-9f3ca2" not in response.text
+        assert "openrouter.ai" not in response.text
+
+    @pytest.mark.anyio
+    async def test_a_search_over_several_collections_names_the_operation_it_used(
+        self, client: AsyncClient
+    ):
+        """Which path was taken is the operator's first question and is free to answer."""
+        service = MagicMock()
+        service.retrieve_multi = AsyncMock(side_effect=RuntimeError("pgvector: no such table"))
+        with (
+            patch(
+                "app.agents.capabilities.knowledge._search.get_retrieval_service",
+                return_value=service,
+            ),
+            pytest.raises(ExternalServiceError) as refusal,
+        ):
+            await search_knowledge_base(query="x", kb_collection_names=["kb_ops", "kb_hr"])
+
+        response = await self._refusal_on_the_wire(client, refusal.value)
+
+        assert response.json()["error"]["details"] == {
+            "collections": ["kb_ops", "kb_hr"],
+            "operation": "retrieve_multi",
+        }
+        assert "pgvector" not in response.text
+
+    @pytest.mark.anyio
+    async def test_a_missing_email_template_names_the_template_not_the_container_path(
+        self, client: AsyncClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        """`EmailTemplateError` is an `AppException`, so its `details` is a 500 body.
+
+        It used to hold the absolute path the container looked at, which tells a
+        caller where the deployment keeps its files and tells them nothing about
+        the email that did not send.
+        """
+        (tmp_path / "srv" / "emails" / "compiled").mkdir(parents=True)
+        monkeypatch.setattr(templates, "_SEARCH_ORIGIN", tmp_path / "srv" / "pkg" / "templates.py")
+
+        with pytest.raises(EmailTemplateError) as refusal:
+            templates.render_email("password_reset", {})
+
+        response = await self._refusal_on_the_wire(client, refusal.value)
+
+        assert response.status_code == 500
+        assert response.json()["error"]["details"] == {
+            "template": "password_reset",
+            "format": "html",
+        }
+        assert str(tmp_path) not in response.text
+
+    @pytest.mark.anyio
+    async def test_a_missing_template_directory_does_not_say_where_it_looked(
+        self, client: AsyncClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        """The other half of the same leak: the search origin is an install path."""
+        monkeypatch.setattr(templates, "_SEARCH_ORIGIN", tmp_path / "nowhere" / "templates.py")
+
+        with pytest.raises(EmailTemplateError) as refusal:
+            templates._compiled_dir()
+
+        response = await self._refusal_on_the_wire(client, refusal.value)
+
+        assert response.json()["error"]["details"] == {
+            "directory": str(templates._COMPILED_RELATIVE)
+        }
+        assert str(tmp_path) not in response.text
+
+    @pytest.mark.anyio
+    async def test_an_endpoint_with_a_password_in_it_is_refused_without_repeating_it(
+        self, client: AsyncClient
+    ):
+        """The refusal is *about* the credential in the URL, so echoing it back
+        would write it into the response and into the handler's log line.
+
+        The substring assertion is not a restatement of the one above it: the
+        envelope carries `message` as well as `details`, and a refusal that
+        named the endpoint in prose would leak the same password.
+        """
+        with pytest.raises(BadRequestError) as refusal:
+            await validate_endpoint_url("https://svc:hunter2@models.internal/v1")
+
+        response = await self._refusal_on_the_wire(client, refusal.value)
+
+        assert response.json()["error"]["details"] == {"field": "base_url"}
+        assert "hunter2" not in response.text

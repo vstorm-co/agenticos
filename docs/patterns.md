@@ -109,6 +109,32 @@ string form, a `datetime` in ISO 8601, an `Enum` as its value. Money is the
 exception worth knowing: a `Decimal` encodes to a float, so a cost or a cap is
 stringified by the code that raises.
 
+**A refusal describes the refusal, not the server.** Everything in `details` is
+read by whoever was refused, so it names the field, the id or the resource they
+can act on - never a filesystem path, an upstream client's exception text, or a
+setting whose value describes the deployment rather than a limit the caller is
+being held to (`max_mb` and `seats_limit` are exactly what a caller can act on;
+where the container keeps its templates is not). The diagnosis is not deleted, it
+moves: the path the loader searched and the vendor SDK's message go in the log
+line beside the raise, where an operator reads them and a caller does not.
+
+```python
+except Exception as exc:
+    logger.exception("Knowledge base search failed")   # the upstream text stays here
+    raise ExternalServiceError(
+        message="Knowledge base search failed",
+        details={"collections": names, "operation": "retrieve"},
+    ) from exc
+```
+
+`message` is held to the same bar - the envelope carries it and the handler logs
+it on the same line, so a sentence naming the endpoint leaks whatever the field
+was refused for carrying. A URL the refusal is *about* is named by its field:
+`{"field": "base_url"}`, never the endpoint with the password still in it.
+
+The same applies to an audit entry, which is `details` with a longer life: record
+*which* fields an administrator changed, not the values they submitted.
+
 ## Schema Patterns
 
 Separate schemas for different operations:
@@ -187,8 +213,9 @@ class SharePointConnector(BaseSyncConnector):
         # Return metadata for available files
         ...
 
-    async def download_file(self, file: RemoteFile, dest_dir: Path) -> Path:
-        # Download file to dest_dir, return local Path
+    async def _fetch(self, file: RemoteFile, dest_path: Path, config: dict) -> None:
+        # Write the bytes to dest_path. The base class chose it and confirmed
+        # it is inside the sync directory - never build a path from file.name.
         ...
 
 # Register so the sync service can discover it

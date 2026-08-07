@@ -45,11 +45,25 @@ const WITH_BODY = new Set(["POST", "PUT", "PATCH"]);
  * Response headers that describe the body and must survive the hop.
  *
  * A proxy forwards what the origin said rather than inventing a policy of its
- * own: `Content-Disposition` is how a download gets its filename, and caching a
- * response the backend never marked cacheable is the backend's decision to make,
- * not this file's.
+ * own: `Content-Disposition` is how a download gets its filename, and a
+ * `Cache-Control` the backend chose - the catalog icons, an embed bundle - is
+ * the backend's decision to make.
  */
 const DESCRIBES_THE_BODY = ["content-type", "content-disposition", "cache-control"];
+
+/**
+ * What a response gets when the backend named no policy at all.
+ *
+ * Silence is not the same as "do not cache". A 200 with no `Cache-Control`, no
+ * `ETag` and no `Last-Modified` is a response the browser may reuse on its own
+ * judgement, and every mutable collection on this surface arrived that way - so a
+ * list refetched immediately after a write could be answered without the server
+ * being asked, and the page went on rendering the row it had just created as
+ * absent (#230). Nothing here is cacheable by default anyway: every answer
+ * depends on the caller's cookie, their permissions and the organization header,
+ * which is the same reason the outbound `fetch` below is `no-store`.
+ */
+const NO_POLICY_MEANS = "no-store";
 
 type Handler = (request: NextRequest) => Promise<Response>;
 
@@ -70,6 +84,7 @@ function describingHeaders(source: Headers): Headers {
     if (value) headers.set(name, value);
   }
   if (!headers.has("content-type")) headers.set("content-type", "application/json");
+  if (!headers.has("cache-control")) headers.set("cache-control", NO_POLICY_MEANS);
   return headers;
 }
 

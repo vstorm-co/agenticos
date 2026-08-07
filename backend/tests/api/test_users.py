@@ -230,3 +230,27 @@ async def test_delete_user_by_id_not_found(
 
     response = await superuser_client.delete(f"{settings.API_V1_STR}/users/{uuid4()}")
     assert response.status_code == 404
+
+
+@pytest.mark.anyio
+async def test_an_admin_password_change_is_audited_by_field_not_by_value(
+    superuser_client: AsyncClient,
+    mock_user: MockUser,
+    mock_db_session,
+):
+    """The trail records what an administrator changed, never what they typed.
+
+    `UserUpdate` carries `password`, and the audit entry used to be the request
+    body dumped whole - so resetting a password for somebody wrote their new
+    plaintext into `app_admin_audit_logs.details`, a JSONB column that outlives
+    the session and is readable by anything that can read the trail (#342).
+    """
+    response = await superuser_client.patch(
+        f"{settings.API_V1_STR}/admin/users/{mock_user.id}",
+        json={"password": "correct-horse-battery", "full_name": "Renamed"},
+    )
+
+    assert response.status_code == 200
+    entry = mock_db_session.add.call_args.args[0]
+    assert entry.action == "admin.user.update"
+    assert entry.details == {"fields": ["full_name", "password"]}

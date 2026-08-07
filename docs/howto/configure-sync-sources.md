@@ -151,13 +151,16 @@ Without a background task system, only manual triggers (CLI or API) work.
    like `name@project.iam.gserviceaccount.com`).
 3. Grant at least **Viewer** access.
 
-### 3. Configure the environment
+### 3. Give the source the key
 
-Add the path to the credentials file in your `.env`:
+Paste the contents of the JSON key file into the source's **Service Account
+JSON** field. A `gdrive` source runs on the credential its own configuration
+carries and on nothing else — there is no deployment-wide fallback, because one
+would let a source's `folder_id` decide what is listed under the operator's
+service account.
 
-```bash
-GOOGLE_DRIVE_CREDENTIALS_FILE=/path/to/service-account-credentials.json
-```
+`GOOGLE_DRIVE_CREDENTIALS_FILE` in `.env` is for the `rag-sync-gdrive` CLI
+command only.
 
 ### 4. Get the folder ID
 
@@ -173,11 +176,19 @@ https://drive.google.com/drive/folders/1abc123def456ghi
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
+| `service_account_json` | textarea | Yes | -- | The full contents of the service account JSON key file |
 | `folder_id` | string | Yes | -- | Google Drive folder ID from the URL |
 | `include_subfolders` | boolean | No | `true` | Recursively include files from subfolders |
 
+A `folder_id` may hold only what Google issues — letters, digits, `-` and `_`.
+Anything else is refused when the source is created, because the id is
+interpolated into the Drive query and a single quote in it widens what the query
+lists.
+
 Google Docs, Sheets, and Slides are automatically exported to portable
-formats (PDF, XLSX, PPTX) during download.
+formats (PDF, XLSX, PPTX) during download. A file whose Drive name contains path
+separators is written as one file inside the sync directory, never at the path
+its name spells.
 
 ---
 
@@ -208,8 +219,11 @@ For MinIO, the endpoint is typically `http://minio:9000` (Docker) or
 
 ## API Reference
 
-All sync source endpoints live under `/api/v1/rag/sync/`. They require
-admin-level authentication when JWT auth is enabled.
+All sync source endpoints live under `/api/v1/rag/sync/`. Listing takes
+`collections:view` and everything that changes a source takes `collections:edit`,
+in both cases reaching the collection the source belongs to — there is no admin
+role in it. See
+[who may reach a collection](../file-processing.md#who-may-reach-a-collection).
 
 ### Sync Sources CRUD
 
@@ -333,8 +347,7 @@ The short version:
 
 1. Create a class inheriting `BaseSyncConnector` in
    `app/rag/connectors/`.
-2. Implement `list_files()`, `download_file()`, and optionally
-   `validate_config()`.
+2. Implement `list_files()`, `_fetch()`, and optionally `validate_config()`.
 3. Define a `CONFIG_SCHEMA` for the connector's settings.
 4. Register it in `CONNECTOR_REGISTRY` in
    `app/rag/connectors/__init__.py`.
@@ -358,10 +371,16 @@ available types with `rag-sources` or `GET /api/v1/rag/sync/connectors`.
 Google Drive (`gdrive`) is available.
 S3 (`s3`) is available.
 
-### Google Drive: "credentials file not found"
+### Google Drive: "no service account credential"
 
-Set `GOOGLE_DRIVE_CREDENTIALS_FILE` in `.env` to the absolute path of
-your service account JSON key file.
+The source's `service_account_json` field is empty. Paste the contents of the
+service account JSON key file into it — `GOOGLE_DRIVE_CREDENTIALS_FILE` does not
+stand in for it, and only the `rag-sync-gdrive` CLI command reads that setting.
+
+### Google Drive: "folder ID may contain only letters, digits, '-' and '_'"
+
+The value is not a Drive folder id. Take it from the folder URL: it is the last
+segment, and nothing else in that URL belongs in the field.
 
 ### Google Drive: "Cannot access folder"
 

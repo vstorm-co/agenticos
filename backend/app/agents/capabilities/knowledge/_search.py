@@ -86,8 +86,9 @@ async def search_knowledge_base(
         return "No active knowledge bases selected for this conversation."
 
     service: Any = get_retrieval_service()
+    one_collection = len(resolved) == 1
     try:
-        if len(resolved) == 1:
+        if one_collection:
             results = await service.retrieve(query=query, collection_name=resolved[0], limit=top_k)
         else:
             results = await service.retrieve_multi(
@@ -99,10 +100,19 @@ async def search_knowledge_base(
         # it as "search failed" would replace that with a symptom.
         raise
     except Exception as e:
+        # The upstream text stays here and goes no further. `details` is
+        # serialized into the response body, and `str(e)` on an embedding or
+        # vector-store client is not a controlled string: provider SDKs put the
+        # failing request URL in the message, and a URL carries a key in its
+        # query string. What the caller can act on is which collections were
+        # searched and how, so that is what the refusal carries (agenticos#342).
         logger.exception("Knowledge base search failed")
         raise ExternalServiceError(
             message="Knowledge base search failed",
-            details={"query": query, "error": str(e)},
+            details={
+                "collections": resolved,
+                "operation": "retrieve" if one_collection else "retrieve_multi",
+            },
         ) from e
 
     return _format_results(results)
