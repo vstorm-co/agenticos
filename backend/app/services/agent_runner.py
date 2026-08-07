@@ -2882,6 +2882,7 @@ class AgentRunnerService:
         ctx: AuthContext,
         *,
         agent_id: UUID | None = None,
+        statuses: Sequence[str] | None = None,
         parent_run_id: UUID | None = None,
         include_delegations: bool = False,
         skip: int = 0,
@@ -2897,11 +2898,17 @@ class AgentRunnerService:
         started are never summed down one column, because a parent's cost
         already contains its children's. `parent_run_id` lists one run's own
         delegations; `include_delegations` keeps them in an agent's own history.
+
+        `statuses` narrows to a set of outcomes and composes with all three.
+        The route validates the words against `RunStatus` before they reach
+        here, so an unknown one is a 422 naming the vocabulary rather than a
+        filter that silently matches nothing.
         """
         return await agent_run_repo.list_runs(
             self.db,
             organization_id=ctx.organization_id,
             agent_id=agent_id,
+            statuses=statuses,
             parent_run_id=parent_run_id,
             include_delegations=include_delegations,
             skip=skip,

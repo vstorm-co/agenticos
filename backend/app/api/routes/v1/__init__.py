@@ -25,6 +25,7 @@ from app.api.routes.v1 import agents as agent_registry
 from app.api.routes.v1 import model_providers
 from app.api.routes.v1 import secrets
 from app.api.routes.v1 import runs as agent_runs
+from app.api.routes.v1 import stats
 from app.api.routes.v1 import skill_changes
 from app.api.routes.v1 import workspaces as agent_workspaces
 from app.api.routes.v1 import skills as agent_skills
@@ -61,6 +62,7 @@ v1_router.include_router(agent_exposures.router, prefix="/agents", tags=["agents
 v1_router.include_router(agent_embeds.router, prefix="/agents", tags=["agents:embeds"])
 v1_router.include_router(embed_widget.router, prefix="/embed", tags=["embed"])
 v1_router.include_router(agent_runs.router, tags=["runs"])
+v1_router.include_router(stats.router, tags=["stats"])
 v1_router.include_router(agent_skills.router, prefix="/skills", tags=["skills"])
 v1_router.include_router(skill_changes.router, prefix="/skill-changes", tags=["skills:changes"])
 v1_router.include_router(

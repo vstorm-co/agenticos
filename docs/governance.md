@@ -32,6 +32,13 @@ is present at its own number whatever the spec asks for, and an agent's spend is
 part of the organization's - so a $100 agent under a $10 organization is stopped
 at $10.
 
+Both caps are readable where their spend is: the organization's on its own row
+(`GET /orgs/{org_id}`), and each agent's as `budget_monthly_usd` on the agent
+listing - the *published* version's number, since that is the one the runner
+enforces, not whatever the draft currently promises. The dashboard's headroom
+card joins these against `GET /spend`, so a cap can be seen approaching before
+`budget_exceeded` starts appearing in run history.
+
 ### Enforcement is before the request
 
 Checked *before* each model request, not after. Checking afterwards means the
@@ -212,6 +219,34 @@ work included:
 | `GET /runs?agent_id=<id>&include_delegations=true` | One agent's own history. What the Builder's Recent runs panel and Activity's `?agent=` ask, because a delegate's rows are the only record of what it itself did |
 | `GET /runs?parent_run_id=<id>` | What that run delegated — the query `agent_runs_parent_run_id_idx` exists for. Takes precedence over `include_delegations` |
 | `GET /runs/<id>` | One run, delegated or not. Where a link from a transcript lands |
+
+### What the dashboard's aggregates show
+
+`GET /stats/usage` takes the same two sides, and the same default. The composed
+response is the organization's question, so every block in it counts top-level
+rows only: the period cost and its split by provider (the double bill above),
+but also the run total, the day series, the outcomes split, the surfaces, the
+latency percentiles, the active-people count and the per-person table. Beyond
+cost, a delegated row *copies* its parent's `user_id` and `surface`, so counting
+it would additionally invent a second person and a second arrival on a channel
+somebody used once.
+
+Two aggregates take the other side, and both are asked about one agent:
+
+| Ask | Child rows |
+|---|---|
+| `by_agent` — the adoption card | **included.** Excluded, an agent that runs four hundred times a day as somebody's delegate has no row, and the card names every published agent without one as forgotten and offers to archive it. Its bars can therefore exceed the run total beside them; nothing sums them |
+| `?group_by=version` — the version-compare card | **included.** A specialist that only ever executes as a delegate would otherwise have nothing to compare across its versions |
+
+The invariant that survives either way: the outcomes donut's segments still sum
+to `total_runs`, and its `awaiting_approval` segment still counts the same
+parked runs as the approvals card, because those three come from the same side
+of the switch.
+
+The one query with no delegation filter at all is the count of the caller's
+runs parked on a decision. A parked child is a stuck parent, and that card
+answers "why is my agent not finishing"; today it changes nothing, because a
+delegation is written to the database already finished and so never parks.
 
 The last two are `?run=<id>` on the Activity page: one run, the delegations under
 it each badged with the task id its `subagent_*` frames carried, and a link up to

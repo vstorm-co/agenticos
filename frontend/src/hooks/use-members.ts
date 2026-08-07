@@ -18,7 +18,7 @@ export function useMembers(orgId: string) {
   // React Query owns the list: cached per-org, deduped, no refetch storms.
   // We cache the full list response so `total` survives alongside `members`,
   // and mutations patch the cache directly to keep the UI instant.
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.organizations.members(orgId),
     queryFn: () => apiClient.get<OrganizationMemberList>(`/orgs/${orgId}/members`),
     enabled: !!orgId,
@@ -78,5 +78,5 @@ export function useMembers(orgId: string) {
     [orgId, writeCache, t],
   );
 
-  return { members, total, isLoading, fetchMembers, changeRole, removeMember };
+  return { members, total, isLoading, error, refetch, fetchMembers, changeRole, removeMember };
 }

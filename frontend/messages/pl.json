@@ -283,6 +283,363 @@
       "summary": "Co przechowujemy w Twojej przeglądarce, po co i jak to wyłączyć."
     }
   },
+  "dashboard": {
+    "title": "Panel",
+    "seeAll": "Zobacz wszystko",
+    "subtitles": {
+      "app_admin": "Najpierw cała instalacja, potem Twoja organizacja - ta sama strona, więcej odpowiedzi.",
+      "steward": "Adopcja, koszty i to, co czeka na decyzję.",
+      "builder": "Czy agenci, których budujesz, są naprawdę używani - i czy są zdrowi?",
+      "operator": "Czy wszystko działa i co czeka na Ciebie?",
+      "member": "Wróć tam, gdzie skończyłeś.",
+      "viewer": "To, co Ci udostępniono."
+    },
+    "period": {
+      "label": "Okres",
+      "1d": "Dzisiaj",
+      "7d": "Ostatnie 7 dni",
+      "30d": "Ostatnie 30 dni",
+      "90d": "Ostatnie 90 dni",
+      "tm": "Ten miesiąc",
+      "lm": "Poprzedni miesiąc",
+      "custom": "Własny zakres"
+    },
+    "sectionsFilter": {
+      "label": "Sekcje",
+      "all": "Wszystkie sekcje"
+    },
+    "sections": {
+      "deployment": "Instalacja",
+      "attention": "Wymaga uwagi",
+      "usage": "Użycie i koszty",
+      "people": "Ludzie i jakość",
+      "workspace": "Twoja przestrzeń",
+      "build": "Twoi agenci",
+      "adoption": "Jak zachowują się Twoje wdrożenia",
+      "health": "Zdrowie"
+    },
+    "actions": {
+      "newChat": "Nowy czat",
+      "createAgent": "Utwórz agenta",
+      "reviewApprovals": "Przejrzyj zatwierdzenia",
+      "invite": "Zaproś współpracownika"
+    },
+    "orgDivider": {
+      "label": "Organizacja",
+      "note": "Wszystko poniżej dotyczy tej organizacji"
+    },
+    "states": {
+      "loading": "Ładowanie"
+    },
+    "errors": {
+      "title": "Nie udało się załadować",
+      "description": "Żądanie nie powiodło się. Reszta strony działa - każda karta zawodzi osobno.",
+      "retry": "Ponów"
+    },
+    "widgets": {
+      "platform": {
+        "title": "Platforma w skrócie",
+        "organizations": "Organizacje",
+        "users": "Użytkownicy",
+        "agents": "Agenci",
+        "conversations": "Rozmowy",
+        "active24h": "{count} aktywnych w 24 h",
+        "empty": {
+          "title": "Jeszcze nic tu nie ma",
+          "description": "Świeża instalacja: brak organizacji poza startową, brak uruchomień."
+        }
+      },
+      "health": {
+        "title": "Zdrowie usług",
+        "status": {
+          "healthy": "ok",
+          "unhealthy": "awaria",
+          "unconfigured": "nieskonfigurowane",
+          "not_checked": "niesprawdzone"
+        },
+        "empty": {
+          "title": "Brak raportu usług",
+          "description": "Sonda zdrowia jeszcze nie odpowiedziała."
+        }
+      },
+      "top-orgs": {
+        "title": "Największe organizacje",
+        "organization": "Organizacja",
+        "members": "Członkowie",
+        "agents": "Agenci",
+        "empty": {
+          "title": "Brak organizacji",
+          "description": "Istnieje tylko organizacja startowa."
+        }
+      },
+      "platform-ratings": {
+        "title": "Jakość odpowiedzi w całej instalacji",
+        "subline": "ocenionych pozytywnie - {count} ocen we wszystkich organizacjach",
+        "empty": {
+          "title": "Brak ocen",
+          "description": "Nikt jeszcze nie ocenił żadnej odpowiedzi w tej instalacji."
+        }
+      },
+      "runs": {
+        "title": "Uruchomienia w czasie",
+        "unit": "uruchomień",
+        "delta": "vs poprzedni okres",
+        "empty": {
+          "title": "Brak uruchomień w tym okresie",
+          "description": "Opublikuj agenta i daj mu kanał - adopcja pojawi się tutaj."
+        }
+      },
+      "outcomes": {
+        "title": "Wyniki",
+        "completed": "ukończone",
+        "attention": "1 na {n} uruchomień wymagało uwagi w tym okresie",
+        "status": {
+          "completed": "Ukończone",
+          "failed": "Nieudane",
+          "budget_exceeded": "Przekroczony budżet",
+          "awaiting_approval": "Czeka na zatwierdzenie",
+          "other": "W toku lub anulowane"
+        },
+        "empty": {
+          "title": "Brak uruchomień w tym okresie",
+          "description": "Podział wyników pojawi się z pierwszym uruchomieniem."
+        }
+      },
+      "surfaces": {
+        "title": "Skąd pochodzą uruchomienia",
+        "names": {
+          "playground": "Playground",
+          "web": "Czat web",
+          "embed": "Widget",
+          "api": "HTTP API",
+          "slack": "Slack",
+          "telegram": "Telegram",
+          "mattermost": "Mattermost",
+          "schedule": "Harmonogram"
+        },
+        "empty": {
+          "title": "Brak uruchomień w tym okresie",
+          "description": "Playground, czat web, API, Slack, Telegram, Mattermost i widget lądują tutaj."
+        }
+      },
+      "agents": {
+        "title": "Agenci: używani i zapomniani",
+        "idle": "Opublikowane, ale bezczynne w tym okresie:",
+        "empty": {
+          "title": "Brak opublikowanych agentów",
+          "description": "W tej organizacji nic jeszcze nie opublikowano."
+        }
+      },
+      "latency": {
+        "title": "Opóźnienie",
+        "p50": "Mediana (p50)",
+        "p95": "Najwolniejsze 5% (p95)",
+        "subline": "Od startu do końca, dla każdego uruchomienia w okresie.",
+        "empty": {
+          "title": "Brak ukończonych uruchomień",
+          "description": "Opóźnienie wymaga co najmniej jednego zakończonego uruchomienia."
+        }
+      },
+      "active-users": {
+        "title": "Aktywne osoby",
+        "headline": "{active} z {total} członków",
+        "subline": "uruchomiło agenta w tym okresie - to nagłówek; nazwiska są w tabeli poniżej",
+        "empty": {
+          "title": "Nikt nic nie uruchomił",
+          "description": "Adopcja zaczyna się od pierwszego uruchomienia pierwszej osoby."
+        }
+      },
+      "top-people": {
+        "title": "Kto z tego korzysta",
+        "columns": {
+          "person": "Osoba",
+          "runs": "Uruchomienia",
+          "cost": "Koszt",
+          "lastRun": "Ostatnie"
+        },
+        "others": "{count, plural, =1 {1 kolejna osoba uruchomiła co najmniej jednego agenta} few {# kolejne osoby uruchomiły co najmniej jednego agenta} many {# kolejnych osób uruchomiło co najmniej jednego agenta} other {# kolejnych osób uruchomiło co najmniej jednego agenta}}",
+        "disclosure": "Widzi to każdy z uprawnieniem runs:view - także budowniczowie i operatorzy, nie tylko właściciele i administratorzy.",
+        "empty": {
+          "title": "Nikt nic nie uruchomił",
+          "description": "Pierwsze uruchomienie pierwszej osoby wpisze tu nazwisko."
+        }
+      },
+      "spend": {
+        "title": "Wydatki",
+        "unit": "w tym okresie",
+        "delta": "vs poprzedni okres",
+        "notRecorded": "nie zarejestrowano",
+        "monthToDate": "W tym miesiącu do dziś: {amount} - miesiąc kalendarzowy, zgadza się z fakturą; celowo poza filtrem okresu.",
+        "empty": {
+          "title": "Jeszcze nic nie wydano",
+          "description": "Koszt modeli ląduje tutaj uruchomienie po uruchomieniu."
+        }
+      },
+      "model-mix": {
+        "title": "Modele za uruchomieniami",
+        "notRecorded": "nie zarejestrowano",
+        "subline": "Tak, jak zapisano na każdym uruchomieniu (model_label).",
+        "empty": {
+          "title": "Brak uruchomień w tym okresie",
+          "description": "Podział modeli pojawi się z pierwszym uruchomieniem."
+        }
+      },
+      "version-compare": {
+        "title": "Wersja do wersji",
+        "subline": "{agent} - {current} (bieżąca) vs {previous}, tylko uruchomienia danej wersji",
+        "metric": {
+          "runs": "Uruchomienia",
+          "completed": "Skuteczność",
+          "p95": "Opóźnienie p95",
+          "cost": "Koszt uruchomienia",
+          "ratings": "Oceny pozytywne"
+        },
+        "empty": {
+          "title": "Działała tylko jedna wersja",
+          "description": "Opublikuj nową wersję - porównanie pojawi się, gdy obie będą miały uruchomienia w okresie."
+        }
+      },
+      "approvals": {
+        "title": "Czeka na decyzję",
+        "wants": "chce wywołać {tool}",
+        "waiting": "czeka {ago}",
+        "review": "Przejrzyj",
+        "more": "{count} więcej w kolejce",
+        "empty": {
+          "title": "Nic nie czeka",
+          "description": "Każde zatwierdzenie zostało rozstrzygnięte. Ta karta zasługuje na miejsce, będąc pustą."
+        }
+      },
+      "recent-failures": {
+        "title": "Ostatnie niepowodzenia",
+        "unknownAgent": "Nieznany agent",
+        "budgetExceeded": "budżet przekroczony w trakcie",
+        "failed": "nieudane",
+        "open": "Otwórz uruchomienia",
+        "empty": {
+          "title": "Brak niepowodzeń",
+          "description": "Każde uruchomienie w tym okresie zakończyło się czysto."
+        }
+      },
+      "budget-headroom": {
+        "title": "Zapas budżetu",
+        "headline": "miesięcznego limitu {cap} - zostało {left}",
+        "cause": "Agenci z własnymi limitami - budget_exceeded na wykresie to objaw; to jest przyczyna.",
+        "empty": {
+          "title": "Brak miesięcznego limitu",
+          "description": "Ustaw limit organizacji - zapas pokaże się tu, zanim pojawi się budget_exceeded."
+        }
+      },
+      "mcp-health": {
+        "title": "Integracje",
+        "downSince": "nie działa od {ago}",
+        "down": "nie działa",
+        "checked": "sprawdzono {ago}",
+        "unchecked": "jeszcze nie sprawdzono",
+        "subline": "Serwer, który po cichu przestaje odpowiadać, zabiera narzędzia każdemu agentowi, który z niego korzysta.",
+        "empty": {
+          "title": "Brak podłączonych serwerów MCP",
+          "description": "Podłącz serwer z katalogu - jego zdrowie wyląduje tutaj."
+        }
+      },
+      "knowledge-freshness": {
+        "title": "Synchronizacja wiedzy",
+        "synced": "zsynchronizowano {ago}",
+        "neverSynced": "nigdy nie synchronizowano",
+        "failing": "awaria",
+        "fresh": "aktualne",
+        "empty": {
+          "title": "Brak źródeł synchronizacji",
+          "description": "Kolekcje synchronizowane z Drive lub S3 raportują tu swoją świeżość."
+        }
+      },
+      "members": {
+        "title": "Członkowie",
+        "view": "Zobacz członków",
+        "roles": {
+          "owner": "Właściciel",
+          "admin": "Administrator",
+          "builder": "Builder",
+          "operator": "Operator",
+          "member": "Członek",
+          "viewer": "Obserwator"
+        },
+        "empty": {
+          "title": "Tylko Ty",
+          "description": "Zaproś kogoś - adopcja potrzebuje ludzi."
+        }
+      },
+      "org-ratings": {
+        "title": "Jakość odpowiedzi",
+        "subline": "z {count} ocenionych odpowiedzi było pozytywnych w tym okresie",
+        "empty": {
+          "title": "Brak ocen",
+          "description": "Kciuki przy odpowiedziach lądują tutaj."
+        }
+      },
+      "my-agents": {
+        "title": "Twoi agenci",
+        "sharedTitle": "Agenci udostępnieni Tobie",
+        "yours": "twój",
+        "shared": "udostępniony",
+        "runs": "{count} uruchomień",
+        "openChat": "Otwórz czat",
+        "empty": {
+          "title": "Brak agentów",
+          "description": "Nic Ci jeszcze nie udostępniono - poproś buildera albo stwórz własnego."
+        }
+      },
+      "conversations": {
+        "title": "Kontynuuj, gdzie skończyłeś",
+        "untitled": "Rozmowa bez tytułu",
+        "continue": "Kontynuuj",
+        "empty": {
+          "title": "Brak rozmów",
+          "description": "Zacznij rozmowę z karty agenta - będzie tu na Ciebie czekać."
+        }
+      },
+      "my-activity": {
+        "title": "Twoja aktywność",
+        "unit": "Twoich uruchomień w tym okresie",
+        "pending": "{count} Twoich uruchomień czeka na czyjąś decyzję",
+        "empty": {
+          "title": "Brak Twoich uruchomień",
+          "description": "Uruchom dowolnego agenta - Twoja historia pokaże się tutaj, tylko Tobie."
+        }
+      },
+      "my-top-agents": {
+        "title": "Agenci, których używasz najczęściej",
+        "subline": "Twoje własne uruchomienia w tym okresie - niczyje inne.",
+        "empty": {
+          "title": "Brak Twoich uruchomień",
+          "description": "Uruchom dowolnego agenta - Twoi ulubieńcy pojawią się tutaj."
+        }
+      },
+      "my-quality": {
+        "title": "Jakość odpowiedzi w Twoich czatach",
+        "subline": "z {count} ocenionych odpowiedzi w Twoich rozmowach",
+        "empty": {
+          "title": "Brak ocenionych odpowiedzi",
+          "description": "Oceniaj odpowiedzi kciukiem w górę lub w dół - Twój trend wyląduje tutaj."
+        }
+      },
+      "shared-with-you": {
+        "title": "Udostępnione Tobie",
+        "agents": "Agenci",
+        "collections": "Kolekcje",
+        "skills": "Umiejętności",
+        "subline": "Wszystko, co ktoś Ci udostępnił - przeglądaj z paska bocznego.",
+        "empty": {
+          "title": "Jeszcze nic nie udostępniono",
+          "description": "Gdy ktoś udostępni agenta, kolekcję albo umiejętność, policzy się tutaj."
+        }
+      }
+    }
+  },
+  "ui": {
+    "nextMonths": "Następne miesiące",
+    "previousMonths": "Poprzednie miesiące"
+  },
   "ragStatus": {
     "processing": "Przetwarzanie",
     "running": "W toku",

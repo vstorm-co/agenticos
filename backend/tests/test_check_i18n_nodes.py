@@ -150,6 +150,8 @@ def test_a_message_call_broken_across_lines_is_not_read_as_copy(tmp_path: Path) 
     """The remedy has to pass once the lines are joined, or the rule forbids its own fix."""
     source = '<p>\n  {t("savedModelCount", {\n    count: profiles.length,\n  })}\n</p>\n'
     assert _offences(tmp_path, source) == []
+
+
 def test_masking_a_generic_is_what_keeps_a_whole_file_quiet(tmp_path: Path) -> None:
     """The one case that fails when `mask_generics` stops working.
 

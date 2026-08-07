@@ -84,6 +84,34 @@ def test_a_key_held_in_a_table_is_read(tmp_path: Path) -> None:
     assert check_i18n.unread_keys(catalog, sources) == []
 
 
+def test_a_key_a_table_holds_relative_to_its_namespace_is_read(tmp_path: Path) -> None:
+    """The table writes down what the component's translator will resolve, not the key.
+
+    A dashboard layout entry is `{ titleKey: "widgets.my-agents.sharedTitle" }` beside a
+    `useTranslations("dashboard")`, so neither the whole key nor its last segment is
+    spelled anywhere. Two separate things had to hold for this to count as read, and
+    each was false: a segment may be kebab-case - 101 keys here are filed under an id
+    like `my-agents` - and any dot-suffix counts, not only the last segment. The other
+    hundred kebab keys were passing on the accident that `title` is spelled somewhere.
+    """
+    catalog = {"dashboard": {"widgets": {"my-agents": {"sharedTitle": "Shared with you"}}}}
+    sources = _sources(
+        tmp_path,
+        layouts__ts='export const L = [{ titleKey: "widgets.my-agents.sharedTitle" }];\n',
+        grid__tsx='const t = useTranslations("dashboard");\n{t(card.titleKey)}\n',
+    )
+
+    assert check_i18n.unread_keys(catalog, sources) == []
+
+
+def test_a_kebab_case_key_nothing_holds_is_still_reported(tmp_path: Path) -> None:
+    """The companion to the rule above: reading kebab-case is not waving it through."""
+    catalog = {"dashboard": {"widgets": {"top-orgs": {"gone": "Gone"}}}}
+    sources = _sources(tmp_path, grid__tsx='const t = useTranslations("dashboard");\n')
+
+    assert check_i18n.unread_keys(catalog, sources) == ["dashboard.widgets.top-orgs.gone"]
+
+
 def test_a_translator_bound_to_another_name_still_reads_its_keys(tmp_path: Path) -> None:
     """`tc`, `ts` and `tAgents` are all in this tree, and `t(` alone would miss them."""
     catalog = {"common": {"cancel": "Cancel"}}

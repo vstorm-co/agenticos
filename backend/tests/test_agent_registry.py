@@ -255,6 +255,57 @@ class TestList:
         )
 
     @pytest.mark.anyio
+    async def test_shared_with_me_for_a_wide_role_still_looks_up_grants(self):
+        """ "Shared with me" is a question about grants and visibility, not reach.
+
+        A role that sees everything skips the grant lookup for a plain listing;
+        skipping it here would degenerate the answer into "the whole
+        organization minus mine".
+        """
+        ctx = _ctx(OrgRoleName.OWNER)
+        granted = uuid.uuid4()
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.resource_grant_repo.list_shared_ids",
+                new=AsyncMock(return_value=[granted]),
+            ) as shared_ids,
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.list_visible",
+                new=AsyncMock(return_value=([], 0)),
+            ) as list_visible,
+        ):
+            await AgentRegistryService(_db()).list_agents(ctx, shared_with_me=True)
+
+        assert shared_ids.await_count == 1
+        assert list_visible.call_args.kwargs["see_all"] is True
+        assert list_visible.call_args.kwargs["shared_with_me"] is True
+        assert list_visible.call_args.kwargs["shared_ids"] == [granted]
+
+    @pytest.mark.anyio
+    async def test_shared_with_me_for_a_narrow_role_reuses_its_grant_lookup(self):
+        """One grants query per listing, not two."""
+        ctx = _ctx(OrgRoleName.MEMBER)
+        granted = uuid.uuid4()
+
+        with (
+            patch(
+                "app.services.access.resource_grant_repo.list_shared_ids",
+                new=AsyncMock(return_value=[granted]),
+            ) as shared_ids,
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.list_visible",
+                new=AsyncMock(return_value=([], 0)),
+            ) as list_visible,
+        ):
+            await AgentRegistryService(_db()).list_agents(ctx, shared_with_me=True)
+
+        assert shared_ids.await_count == 1
+        assert list_visible.call_args.kwargs["see_all"] is False
+        assert list_visible.call_args.kwargs["shared_with_me"] is True
+        assert list_visible.call_args.kwargs["shared_ids"] == [granted]
+
+    @pytest.mark.anyio
     async def test_a_listed_agent_says_who_reaches_it_and_where_it_answers(self):
         """The gallery card reads 'shared with 3, on Slack' straight off the row.
 
@@ -286,6 +337,39 @@ class TestList:
         assert (rows[1].shared_user_count, rows[1].channels) == (0, [])
         assert counts.call_args.kwargs["resource_ids"] == [listed.id, lonely.id]
         assert surfaces.call_args.kwargs["agent_ids"] == [listed.id, lonely.id]
+
+    @pytest.mark.anyio
+    async def test_a_published_agents_cap_rides_the_listing_and_a_drafts_does_not(self):
+        """The headroom card needs the enforced cap - the published version's,
+        not the draft's promise of one."""
+        ctx = _ctx(OrgRoleName.OWNER)
+        version_id = uuid.uuid4()
+        published = _agent(ctx, current_version_id=version_id)
+        draft = _agent(ctx)
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.list_visible",
+                new=AsyncMock(return_value=([published, draft], 2)),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.resource_grant_repo.count_for_resources",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_exposure_repo.active_surfaces_for_agents",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_budget_caps",
+                new=AsyncMock(return_value={version_id: 60.0}),
+            ) as caps,
+        ):
+            rows, _total = await AgentRegistryService(_db()).list_agents(ctx)
+
+        assert caps.call_args.kwargs["version_ids"] == [version_id]
+        assert rows[0].budget_monthly_usd == 60.0
+        assert rows[1].budget_monthly_usd is None
 
     @pytest.mark.anyio
     async def test_the_listing_returns_the_page_and_the_total(self):

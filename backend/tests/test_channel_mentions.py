@@ -434,6 +434,7 @@ class TestAnswer:
         [
             ("slack", RunSurface.SLACK),
             ("telegram", RunSurface.TELEGRAM),
+            ("mattermost", RunSurface.MATTERMOST),
             ("something-new", RunSurface.API),
         ],
     )

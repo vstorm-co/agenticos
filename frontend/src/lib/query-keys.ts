@@ -80,6 +80,27 @@ export const qk = {
     delegations: (parentRunId: string) => ["runs", "list", "delegations", parentRunId] as const,
     approvals: () => ["runs", "approvals"] as const,
     spend: (days: number) => ["runs", "spend", days] as const,
+    /** Failed or out-of-budget runs, for the dashboard's recent-failures card. */
+    failures: (limit: number) => ["runs", "failures", limit] as const,
+  },
+  stats: {
+    all: () => ["stats"] as const,
+    // The window is part of the key: several widgets asking the same window
+    // dedupe into one request, which is the composed response's whole point.
+    usage: (scope: string, from: string, to: string) =>
+      ["stats", "usage", scope, from, to] as const,
+    usageByVersion: (agentId: string, from: string, to: string) =>
+      ["stats", "usage", "version", agentId, from, to] as const,
+    usageByUser: (scope: string, from: string, to: string, limit: number) =>
+      ["stats", "usage", "user", scope, from, to, limit] as const,
+  },
+  ratings: {
+    summary: (scope: string, from: string, to: string) =>
+      ["ratings", "summary", scope, from, to] as const,
+  },
+  dashboard: {
+    /** One card, one query: the three shared_with_me counts travel together. */
+    sharedWithMe: () => ["dashboard", "shared-with-me"] as const,
   },
   sharing: {
     all: () => ["sharing"] as const,
@@ -239,5 +260,6 @@ export const qk = {
     conversations: (params?: unknown) => ["admin", "conversations", params] as const,
     system: () => ["admin", "system"] as const,
     ratings: (params?: unknown) => ["admin", "ratings", params] as const,
+    organizations: () => ["admin", "organizations"] as const,
   },
 } as const;

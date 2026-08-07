@@ -377,11 +377,16 @@ class AgentRegistryService:
         self,
         ctx: AuthContext,
         *,
+        shared_with_me: bool = False,
         include_archived: bool = False,
         skip: int = 0,
         limit: int = 50,
     ) -> tuple[list[AgentRead], int]:
-        """Agents visible to the caller under their role scope and grants."""
+        """Agents visible to the caller under their role scope and grants.
+
+        `shared_with_me` narrows to what was deliberately shared with them -
+        org-visible or explicitly granted, and not their own.
+        """
         # `None` is `visible_resource_ids` saying the role already reaches every
         # agent, which is exactly what `see_all` tells the query - so both come
         # from the one call rather than from the scope being read twice and the
@@ -389,12 +394,25 @@ class AgentRegistryService:
         shared = await visible_resource_ids(
             self.db, ctx, resource_type=AGENT, perm=Perm.AGENTS_VIEW
         )
+        grant_ids = [] if shared is None else shared
+        if shared_with_me and shared is None:
+            # A role that reaches everything never looks its grants up - but
+            # "shared with me" is a question about grants and visibility, not
+            # reach, and without them a Builder's answer would degenerate into
+            # "the whole organization minus mine".
+            grant_ids = await resource_grant_repo.list_shared_ids(
+                self.db,
+                organization_id=ctx.organization_id,
+                subject_user_id=ctx.subject_id,
+                resource_type=AGENT.key,
+            )
         agents, total = await agent_repo.list_visible(
             self.db,
             organization_id=ctx.organization_id,
             user_id=ctx.subject_id,
             see_all=shared is None,
-            shared_ids=[] if shared is None else shared,
+            shared_ids=grant_ids,
+            shared_with_me=shared_with_me,
             include_archived=include_archived,
             skip=skip,
             limit=limit,
@@ -412,6 +430,10 @@ class AgentRegistryService:
         surfaces = await agent_exposure_repo.active_surfaces_for_agents(
             self.db, organization_id=ctx.organization_id, agent_ids=agent_ids
         )
+        budget_caps = await agent_repo.published_budget_caps(
+            self.db,
+            version_ids=[agent.current_version_id for agent in agents if agent.current_version_id],
+        )
         rows = [
             AgentRead(
                 id=agent.id,
@@ -425,6 +447,9 @@ class AgentRegistryService:
                 has_avatar=agent.has_avatar,
                 shared_user_count=shared_counts.get(agent.id, 0),
                 channels=surfaces.get(agent.id, []),
+                budget_monthly_usd=(
+                    budget_caps.get(agent.current_version_id) if agent.current_version_id else None
+                ),
                 created_at=agent.created_at,
                 updated_at=agent.updated_at,
             )
