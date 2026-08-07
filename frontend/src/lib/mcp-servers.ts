@@ -35,12 +35,25 @@ export const MCP_AUTH_LABEL: Record<McpAuthKind, string> = {
   oauth: "OAuth",
 };
 
+/**
+ * What state a connection is in, as a key in the `mcp` namespace.
+ *
+ * A module cannot call a translator, so it holds the key and the component
+ * translates at the point of use. It held the English word instead, while
+ * `mcp.connected` and `mcp.notConnected` sat in the catalog with nothing reading
+ * them - the state on every row of the MCP list and of the builder's picker was
+ * English under every locale (#425).
+ *
+ * `MCP_AUTH_LABEL` above is still a word rather than a key, as is `SCOPE_LABEL`
+ * in `mcp-server-list.tsx`: no catalog message holds either, so they are part of
+ * the copy the guard has never read at all rather than part of this defect.
+ */
 export const MCP_STATE_LABEL: Record<McpConnectionState, string> = {
-  "not-connected": "Not connected",
-  "needs-authorization": "Needs authorization",
-  disabled: "Disabled",
-  error: "Unreachable",
-  connected: "Connected",
+  "not-connected": "notConnected",
+  "needs-authorization": "needsAuthorization",
+  disabled: "stateDisabled",
+  error: "unreachable",
+  connected: "connected",
 };
 
 /** Trailing slashes and case are not a difference between two server URLs. */

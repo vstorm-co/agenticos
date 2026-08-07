@@ -54,6 +54,17 @@ There is no `(marketing)` route group.
   together, so `{used} of {max} used` is caught with neither `>` nor `<` on its line.
   A *plain* node broken across lines is still missed - that is #141, and it is 70 more
   nodes.
+- **A key nothing reads is not a translation, and a sentence is one message.** The
+  guard asks the catalog both questions now: `check_i18n.py` refuses a key no component
+  reads, and a message whose words are also written out in the source. Both are anchored
+  on the catalog rather than on the source, which is what lets them reach a `.ts` file -
+  the offence sweep walks `*.tsx` alone, so `src/hooks/**` had never been read by it at
+  all and nineteen toasts sat there in English beside the keys holding them. 141 keys
+  were unread, 82 of them translated into Polish for nobody (#425).
+  `messages/catalog.test.ts` adds the third and cheapest: **a value opening on `.`, `,`,
+  `:` or `;` is half a sentence** - the other half is still in the JSX. A sentence with
+  emphasis or a link in it is *one* message with a tag, read with `t.rich`
+  (`Sign in to <em>your workspace.</em>`), never a head, a `<span>` and a tail.
 - **The catalog holds copy, and only copy.** A false positive from the guard takes an
   `i18n-exempt`; it never takes a key. Answering one by moving the offending text into
   `en.json` silences the guard and hands a translator something nobody reads - which is

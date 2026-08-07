@@ -2,6 +2,7 @@
 
 import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
@@ -9,6 +10,10 @@ import type { OrganizationMember, OrganizationMemberList, OrgRole } from "@/type
 
 export function useMembers(orgId: string) {
   const queryClient = useQueryClient();
+  // A toast is as user-facing as anything on screen, and the catalog already
+  // held every one of these four - `scripts/check_i18n.py` walked `*.tsx` alone,
+  // so no hook in this directory had ever been read by it (#425).
+  const t = useTranslations("members");
 
   // React Query owns the list: cached per-org, deduped, no refetch storms.
   // We cache the full list response so `total` survives alongside `members`,
@@ -49,12 +54,12 @@ export function useMembers(orgId: string) {
           ...prev,
           items: prev.items.map((m) => (m.user_id === userId ? updated : m)),
         }));
-        toast.success("Role updated");
+        toast.success(t("roleUpdated"));
       } catch {
-        toast.error("Failed to update role");
+        toast.error(t("failedRole"));
       }
     },
-    [orgId, writeCache],
+    [orgId, writeCache, t],
   );
 
   const removeMember = useCallback(
@@ -65,12 +70,12 @@ export function useMembers(orgId: string) {
           items: prev.items.filter((m) => m.user_id !== userId),
           total: prev.total - 1,
         }));
-        toast.success("Member removed");
+        toast.success(t("memberRemoved"));
       } catch {
-        toast.error("Failed to remove member");
+        toast.error(t("failedRemove"));
       }
     },
-    [orgId, writeCache],
+    [orgId, writeCache, t],
   );
 
   return { members, total, isLoading, fetchMembers, changeRole, removeMember };

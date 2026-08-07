@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
@@ -84,6 +85,10 @@ export function preferredOrg(
 
 export function useOrganizations() {
   const queryClient = useQueryClient();
+  // The three success toasts below were already in the catalog, read by nothing
+  // (#425). The three failure toasts are not, and stay English until the copy no
+  // catalog message covers is migrated - see the note on `MCP_STATE_LABEL`.
+  const t = useTranslations("organizations");
   const activeOrgId = useOrgStore((s) => s.activeOrgId);
   const setActiveOrgId = useOrgStore((s) => s.setActiveOrgId);
   const refusedOrgIds = useOrgStore((s) => s.refusedOrgIds);
@@ -130,10 +135,10 @@ export function useOrganizations() {
     async (input: CreateOrganizationInput): Promise<Organization> => {
       const org = await apiClient.post<Organization>("/orgs", input);
       writeCache((prev) => [...prev, org]);
-      toast.success("Organization created");
+      toast.success(t("created"));
       return org;
     },
-    [writeCache],
+    [writeCache, t],
   );
 
   const patchOrg = useCallback(
@@ -141,14 +146,14 @@ export function useOrganizations() {
       try {
         const updated = await apiClient.patch<Organization>(`/orgs/${id}`, patch);
         writeCache((prev) => prev.map((o) => (o.id === id ? updated : o)));
-        toast.success("Organization updated");
+        toast.success(t("updated"));
         return updated;
       } catch {
         toast.error("Failed to update organization");
         return null;
       }
     },
-    [writeCache],
+    [writeCache, t],
   );
 
   /**
@@ -184,12 +189,12 @@ export function useOrganizations() {
         if (useOrgStore.getState().activeOrgId === id) {
           setActiveOrgId(null);
         }
-        toast.success("Organization deleted");
+        toast.success(t("deleted"));
       } catch {
         toast.error("Failed to delete organization");
       }
     },
-    [writeCache, setActiveOrgId],
+    [writeCache, setActiveOrgId, t],
   );
 
   const switchOrg = useCallback(

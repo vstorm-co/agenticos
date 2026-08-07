@@ -12,9 +12,9 @@ import { ROUTES } from "@/lib/constants";
  * pages as jump targets and would otherwise restate them.
  */
 export const ADMIN_TABS: readonly PageTab[] = [
-  { label: "Overview", href: ROUTES.ADMIN, icon: LayoutDashboard, exact: true },
-  { label: "Users", href: ROUTES.ADMIN_USERS, icon: Users },
-  { label: "Conversations", href: ROUTES.ADMIN_CONVERSATIONS, icon: MessageSquare },
-  { label: "Ratings", href: ROUTES.ADMIN_RATINGS, icon: Star },
-  { label: "System", href: ROUTES.ADMIN_SYSTEM, icon: Activity },
+  { labelKey: "overview", href: ROUTES.ADMIN, icon: LayoutDashboard, exact: true },
+  { labelKey: "users", href: ROUTES.ADMIN_USERS, icon: Users },
+  { labelKey: "conversations", href: ROUTES.ADMIN_CONVERSATIONS, icon: MessageSquare },
+  { labelKey: "ratings", href: ROUTES.ADMIN_RATINGS, icon: Star },
+  { labelKey: "system", href: ROUTES.ADMIN_SYSTEM, icon: Activity },
 ];

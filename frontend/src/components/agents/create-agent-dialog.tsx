@@ -119,9 +119,10 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
             error={errors.name}
             description={
               <>
-                It will be mentioned as{" "}
-                <span className="font-mono">@{deriveHandle(name || "your agent")}</span>
-                {t("whichFixedOnceCreated")}
+                {t.rich("handleDescription", {
+                  handle: deriveHandle(name || t("handlePlaceholder")),
+                  at: (chunks) => <span className="font-mono">@{chunks}</span>,
+                })}
               </>
             }
           >
