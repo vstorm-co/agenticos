@@ -78,14 +78,22 @@ export function useDelegatedRuns(parentRunId: string) {
  * Polled rather than pushed: a parked run is waiting on a person who may not
  * have the page open, and a thirty-second refresh is enough for a queue whose
  * items are minutes old.
+ *
+ * `enabled` is how a caller without `approvals:decide` opts out, and it is not a
+ * cosmetic choice: reading the queue takes the same permission as deciding one,
+ * so a refused caller would answer 403 every thirty seconds for as long as the
+ * page stayed open. It matters more that an empty list is then unambiguous -
+ * with the query disabled there is no `[]` from a refusal for the queue to draw
+ * as "nothing waiting".
  */
-export function useApprovals() {
+export function useApprovals(options?: { enabled?: boolean }) {
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
     queryKey: qk.runs.approvals(),
     queryFn: () => apiClient.get<ApprovalList>("/approvals"),
     refetchInterval: 30_000,
+    enabled: options?.enabled ?? true,
   });
 
   const decide = useMutation({

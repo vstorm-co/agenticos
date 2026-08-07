@@ -67,11 +67,15 @@ export default function RunsPage() {
   // by three years (#198). Two figures on one row share one window, or each says
   // which window it is - and these two share.
   const { total: organizationRuns } = useRuns(undefined, { startedFrom: monthStart() });
-  const { approvals, decide } = useApprovals();
-  const { spend } = useSpend(30);
   const { can } = usePermissions();
-
+  // Reading the queue takes the same permission as deciding one - both routes
+  // carry `require(Perm.APPROVALS_DECIDE)` - so for a caller without it there is
+  // no queue to show, not an empty one. Asked anyway, the 403 arrived as `[]` and
+  // the tab drew "Nothing waiting": a refusal rendered as reassurance, on the one
+  // page whose job is to distinguish those.
   const canDecide = can(Perm.approvalsDecide);
+  const { approvals, decide } = useApprovals({ enabled: canDecide });
+  const { spend } = useSpend(30);
 
   if (isLoading) {
     return (
@@ -97,7 +101,7 @@ export default function RunsPage() {
     <div className="space-y-6">
       <PageHeader title={t("activity2")} description={t("whatYourAgentsDid2")} />
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className={canDecide ? "grid gap-3 sm:grid-cols-3" : "grid gap-3 sm:grid-cols-2"}>
         <Card>
           <CardContent className="space-y-1 p-5">
             <p className="text-muted-foreground text-xs tracking-wide uppercase">
@@ -121,63 +125,67 @@ export default function RunsPage() {
             <p className="text-muted-foreground text-xs">{t("delegationsCountedInTheir")}</p>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="space-y-1 p-5">
-            <p className="text-muted-foreground text-xs tracking-wide uppercase">
-              {t("waitingPerson")}
-            </p>
-            <p className="font-mono text-2xl">{approvals.length}</p>
-          </CardContent>
-        </Card>
+        {canDecide && (
+          <Card>
+            <CardContent className="space-y-1 p-5">
+              <p className="text-muted-foreground text-xs tracking-wide uppercase">
+                {t("waitingPerson")}
+              </p>
+              <p className="font-mono text-2xl">{approvals.length}</p>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
-      <Tabs defaultValue="approvals">
+      <Tabs defaultValue={canDecide ? "approvals" : "runs"}>
         <TabsList>
-          <TabsTrigger value="approvals">
-            Approvals
-            {approvals.length > 0 && (
-              <Badge variant="secondary" className="ml-2">
-                {approvals.length}
-              </Badge>
-            )}
-          </TabsTrigger>
+          {canDecide && (
+            <TabsTrigger value="approvals">
+              {t("approvals")}
+              {approvals.length > 0 && (
+                <Badge variant="secondary" className="ml-2">
+                  {approvals.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+          )}
           <TabsTrigger value="runs">{t("runs2")}</TabsTrigger>
           <TabsTrigger value="spend">{t("spend")}</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="approvals">
-          <Card>
-            <CardHeader>
-              <CardTitle>{t("waitingDecision")}</CardTitle>
-              <CardDescription>{t("argumentsAreShownFull")}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {approvals.length === 0 ? (
-                <EmptyState
-                  icon={CheckCircle2}
-                  title={t("nothingWaiting")}
-                  description={t("agentsAreRunningWithout")}
-                />
-              ) : (
-                approvals.map((approval) => (
-                  <div key={approval.id} className="space-y-3 rounded-md border p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      {/* The tool and its actor together. Two rows queued from two
+        {canDecide && (
+          <TabsContent value="approvals">
+            <Card>
+              <CardHeader>
+                <CardTitle>{t("waitingDecision")}</CardTitle>
+                <CardDescription>{t("argumentsAreShownFull")}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {approvals.length === 0 ? (
+                  <EmptyState
+                    icon={CheckCircle2}
+                    title={t("nothingWaiting")}
+                    description={t("agentsAreRunningWithout")}
+                  />
+                ) : (
+                  approvals.map((approval) => (
+                    <div key={approval.id} className="space-y-3 rounded-md border p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        {/* The tool and its actor together. Two rows queued from two
                           different delegates are the same tool name twice, so the
                           delegate is what tells them apart - and it is the fact that
                           decides the answer, not a detail a click away. */}
-                      <div className="min-w-0 space-y-1">
-                        <span className="block font-mono text-sm">{approval.tool_id}</span>
-                        <ApprovalDelegate approval={approval} />
+                        <div className="min-w-0 space-y-1">
+                          <span className="block font-mono text-sm">{approval.tool_id}</span>
+                          <ApprovalDelegate approval={approval} />
+                        </div>
+                        <span className="text-muted-foreground shrink-0 text-xs">
+                          {approval.created_at ? formatDate(approval.created_at) : ""}
+                        </span>
                       </div>
-                      <span className="text-muted-foreground shrink-0 text-xs">
-                        {approval.created_at ? formatDate(approval.created_at) : ""}
-                      </span>
-                    </div>
-                    <pre className="bg-muted/40 overflow-x-auto rounded p-3 text-xs">
-                      {JSON.stringify(approval.tool_args, null, 2)}
-                    </pre>
-                    {canDecide && (
+                      <pre className="bg-muted/40 overflow-x-auto rounded p-3 text-xs">
+                        {JSON.stringify(approval.tool_args, null, 2)}
+                      </pre>
                       <div className="flex gap-2">
                         <Button
                           size="sm"
@@ -195,13 +203,13 @@ export default function RunsPage() {
                           {t("reject")}
                         </Button>
                       </div>
-                    )}
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
 
         <TabsContent value="runs">
           <Card>

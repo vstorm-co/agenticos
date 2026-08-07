@@ -2205,6 +2205,7 @@
       "activity": "Activity",
       "activity2": "Activity",
       "agentsAreRunningWithout": "Agents are running without needing you.",
+      "approvals": "Approvals",
       "approve": "Approve",
       "argumentsAreShownFull": "The arguments are shown in full. Approving a tool name without seeing what it will do is a rubber stamp, not approval.",
       "askedBy": "Asked by {name}",
