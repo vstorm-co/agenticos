@@ -81,4 +81,13 @@ describe("the Runs figure and the Spend figure", () => {
       expect(screen.getByText(messages.pages.runs.delegationsCountedInTheir)).toBeInTheDocument(),
     );
   });
+
+  it("shows the count the server reports, not the length of the page it returned", async () => {
+    // The mock answers `{ items: [], total: 8412 }` on purpose: the two cannot be
+    // confused for each other, so a figure reading `items.length` renders 0 here.
+    // It used to read a page of fifty and call it the organization's history.
+    renderPage();
+
+    await waitFor(() => expect(screen.getByText("8412")).toBeInTheDocument());
+  });
 });
