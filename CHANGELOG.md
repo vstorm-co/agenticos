@@ -19,6 +19,29 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.63] - 2026-08-07
+
+### Fixed
+
+- A stacked pull request ran no CI at all, and its checks list was empty rather
+  than red. `ci.yml` triggered on `pull_request: branches: [main, master]`, which
+  matches on the **base**, so a branch opened against another branch matched no
+  trigger — and an empty check list reads as "still running" rather than "nobody
+  looked". Four pull requests merged that way in one day, each verified only
+  locally. The trigger no longer filters on the base (#359).
+- `docs/file-processing.md` described a platform-admin RAG model this project
+  replaced: "any authenticated user can search any collection", "only admins can
+  manage them". All three claims were false, and the same paragraph sat under its
+  own heading in `docs/architecture.md`, which a search for "only admins" misses
+  because that copy reads `Only **admins**` (#354).
+
+### Changed
+
+- Every CI job now carries a `timeout-minutes`, each several times its measured
+  runtime. Only `changes` had one, so a hung job ran to the platform default
+  rather than to a number somebody chose (#364).
+
+
 ## [0.0.62] - 2026-08-07
 
 ### Fixed
