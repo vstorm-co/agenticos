@@ -177,6 +177,30 @@ describe("platformProxy", () => {
     expect(response.status).toBe(204);
     expect(await response.text()).toBe("");
   });
+
+  it("refuses to let a list be cached when the backend named no policy", async () => {
+    // Silence is not "do not cache". A 200 with no `Cache-Control`, no `ETag` and
+    // no `Last-Modified` is one the browser may reuse on its own judgement - so a
+    // list refetched right after a write could be answered without the server
+    // being asked, and the page kept rendering the row it had just created as
+    // absent (#230). Every answer here depends on a cookie, a permission set and
+    // an organization header, so there is nothing to cache in the first place.
+    backendReplies('{"items":[],"total":0}');
+
+    const response = await platformProxy().GET(request("/api/secrets"));
+
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+  });
+
+  it("still lets the backend choose a policy where it has one", async () => {
+    // The catalog icons and the embed bundle are cacheable and say so. A proxy
+    // that overrode them would be inventing a policy rather than forwarding one.
+    backendReplies("{}", { headers: { "cache-control": "public, max-age=86400, immutable" } });
+
+    const response = await platformProxy().GET(request("/api/catalog/icons/github.svg"));
+
+    expect(response.headers.get("Cache-Control")).toBe("public, max-age=86400, immutable");
+  });
 });
 
 // -- the sweeps ---------------------------------------------------------------
