@@ -66,9 +66,15 @@ export function ApprovalsTab() {
               <pre className="bg-muted/40 overflow-x-auto rounded p-3 text-xs">
                 {JSON.stringify(approval.tool_args, null, 2)}
               </pre>
+              {/* Disabled while any decision is settling. The mutation is one
+                  instance shared across the queue, so a second click - on this
+                  row or another - before the first POST returns would decide
+                  twice; the backend refuses the second, but not sending it is
+                  better than surfacing that refusal as a toast. */}
               <div className="flex gap-2">
                 <Button
                   size="sm"
+                  disabled={decide.isPending}
                   onClick={() => decide.mutate({ id: approval.id, approved: true })}
                 >
                   <CheckCircle2 className="h-4 w-4" />
@@ -77,6 +83,7 @@ export function ApprovalsTab() {
                 <Button
                   size="sm"
                   variant="outline"
+                  disabled={decide.isPending}
                   onClick={() => decide.mutate({ id: approval.id, approved: false })}
                 >
                   <XCircle className="h-4 w-4" />

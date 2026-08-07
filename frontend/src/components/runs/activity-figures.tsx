@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 
 import { LoadingState } from "@/components/states";
@@ -41,11 +42,13 @@ function monthStart(): string {
  */
 export function ActivityFigures({ canDecide }: { canDecide: boolean }) {
   const t = useTranslations("pages.runs");
-  const { spend, isLoading: spendLoading } = useSpend(30);
-  const { total: organizationRuns, isLoading: runsLoading } = useRuns(undefined, {
-    startedFrom: monthStart(),
-  });
-  const { approvals } = useApprovals({ enabled: canDecide });
+  const { spend, isLoading: spendLoading, error: spendError } = useSpend(30);
+  const {
+    total: organizationRuns,
+    isLoading: runsLoading,
+    error: runsError,
+  } = useRuns(undefined, { startedFrom: monthStart() });
+  const { approvals, error: approvalsError } = useApprovals({ enabled: canDecide });
 
   if (spendLoading || runsLoading) {
     return (
@@ -59,35 +62,70 @@ export function ActivityFigures({ canDecide }: { canDecide: boolean }) {
 
   return (
     <div className={canDecide ? "grid gap-3 sm:grid-cols-3" : "grid gap-3 sm:grid-cols-2"}>
-      <Card>
-        <CardContent className="space-y-1 p-5">
-          <p className="text-muted-foreground text-xs tracking-wide uppercase">{t("spendMonth")}</p>
-          <p className="font-mono text-2xl">${Number(spend?.month_to_date_usd ?? 0).toFixed(2)}</p>
-          <p className="text-muted-foreground text-xs">{t("calendarMonthSoReconciles")}</p>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardContent className="space-y-1 p-5">
-          <p className="text-muted-foreground text-xs tracking-wide uppercase">{t("runs")}</p>
-          {/* The count the server reports, not the length of one page of fifty -
-              top-level runs only, and over the same calendar month, which
-              together are what make it agree with the figure beside it. A
-              fan-out turn is one run here and one run in that total; it used to
-              be four and one, over all time against one month. */}
-          <p className="font-mono text-2xl">{organizationRuns}</p>
-          <p className="text-muted-foreground text-xs">{t("delegationsCountedInTheir")}</p>
-        </CardContent>
-      </Card>
+      <Figure
+        label={t("spendMonth")}
+        caption={t("calendarMonthSoReconciles")}
+        failed={!!spendError}
+      >
+        ${Number(spend?.month_to_date_usd ?? 0).toFixed(2)}
+      </Figure>
+      {/* The count the server reports, not the length of one page of fifty -
+          top-level runs only, and over the same calendar month, which together
+          are what make it agree with the figure beside it. A fan-out turn is one
+          run here and one run in that total; it used to be four and one, over
+          all time against one month. */}
+      <Figure label={t("runs")} caption={t("delegationsCountedInTheir")} failed={!!runsError}>
+        {organizationRuns}
+      </Figure>
       {canDecide && (
-        <Card>
-          <CardContent className="space-y-1 p-5">
-            <p className="text-muted-foreground text-xs tracking-wide uppercase">
-              {t("waitingPerson")}
-            </p>
-            <p className="font-mono text-2xl">{approvals.length}</p>
-          </CardContent>
-        </Card>
+        <Figure label={t("waitingPerson")} failed={!!approvalsError}>
+          {approvals.length}
+        </Figure>
       )}
     </div>
+  );
+}
+
+/**
+ * One stat card - or, when its own query failed, the fact that it did.
+ *
+ * `failed` renders "—" and a "couldn't load" caption in place of the number,
+ * because a figure has no honest zero to fall back to: "$0.00" and "0 runs" are
+ * what a working, empty deployment looks like, and drawing that for a request
+ * that never answered tells the reader something false about their money and
+ * their agents. The three figures fetch separately, so one failing must not
+ * blank the other two.
+ */
+function Figure({
+  label,
+  caption,
+  failed,
+  children,
+}: {
+  label: string;
+  caption?: string;
+  failed: boolean;
+  children: ReactNode;
+}) {
+  const t = useTranslations("pages.runs");
+  return (
+    <Card>
+      <CardContent className="space-y-1 p-5">
+        <p className="text-muted-foreground text-xs tracking-wide uppercase">{label}</p>
+        {failed ? (
+          <>
+            <p className="text-muted-foreground font-mono text-2xl" role="alert">
+              —
+            </p>
+            <p className="text-destructive text-xs">{t("figureCouldNotLoad")}</p>
+          </>
+        ) : (
+          <>
+            <p className="font-mono text-2xl">{children}</p>
+            {caption && <p className="text-muted-foreground text-xs">{caption}</p>}
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 }

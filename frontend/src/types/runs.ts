@@ -150,6 +150,11 @@ export interface CostSummary {
   period_days: number;
   /** Calendar-aligned, so it can be reconciled against an invoice. */
   month_to_date_usd: string;
+  /**
+   * How many of the window's runs ran on a model with no price. The breakdowns
+   * are a floor by exactly this many, and the Spend tab says so once at the top.
+   */
+  partial_run_count: number;
   by_agent: CostByAgent[];
   /** What each vendor was paid - the question an invoice arrives with. */
   by_provider: CostByProvider[];

@@ -99,4 +99,29 @@ describe("deciding a parked call", () => {
 
     expect(await screen.findByText("Nothing waiting")).toBeVisible();
   });
+
+  it("disables both buttons while a decision is in flight, so a double-click sends one POST", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [PARKED], total: 1 });
+    // A decision that never settles, so the in-flight state is observable.
+    let settle: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.post).mockReturnValue(
+      new Promise((resolve) => {
+        settle = resolve;
+      }) as ReturnType<typeof apiClient.post>,
+    );
+
+    render(<ApprovalsTab />, { wrapper });
+    const approve = await screen.findByRole("button", { name: "Approve" });
+    await userEvent.click(approve);
+
+    // Both buttons disable the moment the mutation is pending, and a second click
+    // on the disabled button does nothing - so the backend never sees a second
+    // decision to refuse.
+    await waitFor(() => expect(approve).toBeDisabled());
+    expect(screen.getByRole("button", { name: "Reject" })).toBeDisabled();
+    await userEvent.click(approve);
+    expect(apiClient.post).toHaveBeenCalledTimes(1);
+
+    settle({ ...PARKED, status: "approved" });
+  });
 });

@@ -33,6 +33,7 @@ function serve(spend: Partial<CostSummary>) {
   vi.mocked(apiClient.get).mockResolvedValue({
     period_days: 30,
     month_to_date_usd: "0.00",
+    partial_run_count: 0,
     by_agent: [],
     by_provider: [],
     by_key: [],
@@ -114,6 +115,28 @@ describe("the spend breakdown by vendor and by key", () => {
     // covers the difference between them.
     expect(await screen.findByText("By provider")).toBeVisible();
     expect(screen.getAllByText("Nothing spent yet.")).toHaveLength(3);
+  });
+});
+
+describe("the unpriced-runs caveat over the whole window", () => {
+  it("says how many of the window's runs could not be priced", async () => {
+    // The one caveat that governs every figure below: the breakdowns are a floor
+    // by exactly this many, and saying so once at the top is what stops a reader
+    // treating the totals as exact.
+    serve({ partial_run_count: 3, month_to_date_usd: "31.20" });
+
+    render(<SpendTab />, { wrapper });
+
+    expect(await screen.findByText(/3 runs in this window could not be priced/)).toBeVisible();
+  });
+
+  it("says nothing when every run in the window was priced", async () => {
+    serve({ partial_run_count: 0 });
+
+    render(<SpendTab />, { wrapper });
+
+    expect(await screen.findByText("By provider")).toBeVisible();
+    expect(screen.queryByText(/could not be priced/)).toBeNull();
   });
 });
 

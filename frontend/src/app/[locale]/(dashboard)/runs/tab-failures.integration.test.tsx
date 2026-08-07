@@ -153,3 +153,37 @@ describe("a tab whose request failed", () => {
     expect(await screen.findByText("$12.40")).toBeVisible();
   });
 });
+
+describe("a header figure whose own request failed", () => {
+  it("shows a failure marker for spend, not a fabricated $0.00", async () => {
+    // `$0.00` is what a working, empty deployment looks like. Drawing it for a
+    // request that never answered tells the reader something false about their
+    // money - the exact per-tab bug, one row up.
+    backend("/spend");
+
+    render(<RunsPage />, { wrapper });
+
+    await waitFor(() => expect(screen.getAllByText("Couldn't load").length).toBeGreaterThan(0));
+    expect(screen.queryByText("$0.00")).toBeNull();
+  });
+
+  it("shows a failure marker for the run count, not a fabricated 0", async () => {
+    // `/runs` is what the count reads; a failed one must not read as "0 runs".
+    backend("/runs");
+
+    render(<RunsPage />, { wrapper });
+
+    await waitFor(() => expect(screen.getAllByText("Couldn't load").length).toBeGreaterThan(0));
+  });
+
+  it("blanks only the figure whose request failed", async () => {
+    // Spend fails; the run count and the queue come from their own requests, so
+    // exactly one figure carries the marker and the other two render real
+    // numbers - one failing query must not blank the row.
+    backend("/spend");
+
+    render(<RunsPage />, { wrapper });
+
+    await waitFor(() => expect(screen.getAllByText("Couldn't load")).toHaveLength(1));
+  });
+});

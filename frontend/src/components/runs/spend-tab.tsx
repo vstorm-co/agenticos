@@ -37,6 +37,17 @@ export function SpendTab() {
 
   return (
     <div className="space-y-4">
+      {/* The one caveat that governs every figure below: how many of the
+          window's runs ran on a model with no price. The breakdowns are a floor
+          by exactly that many, and saying so once at the top is what stops a
+          reader treating the totals as exact. Summed server-side from the same
+          rows, so the caveat and the breakdown cannot disagree about the count. */}
+      {spend != null && spend.partial_run_count > 0 && (
+        <p className="text-muted-foreground text-sm" role="note">
+          {t("someRunsCouldNotBePriced", { count: spend.partial_run_count })}
+        </p>
+      )}
+
       <div className="grid gap-4 md:grid-cols-2">
         <SpendBreakdown
           title={t("byProvider")}
@@ -71,11 +82,9 @@ export function SpendTab() {
           {!spend || spend.by_agent.length === 0 ? (
             <p className="text-muted-foreground text-sm">{t("nothingSpentYet")}</p>
           ) : (
-            // Keyed and labelled by the agent, which is what the row is. It used
-            // to render `model_label` - null on every row this endpoint returns,
-            // so the column read "-" all the way down, and before the backend
-            // grouped by agent it listed *model labels* where a reader expects
-            // an agent, splitting one agent across two models into two rows.
+            // Labelled by the agent, which is what the row is. `model_label` is
+            // on the type but null on every row this endpoint returns - it is the
+            // usage email's per-model field, not this screen's.
             spend.by_agent.map((entry) => (
               <div
                 key={entry.agent_id}
