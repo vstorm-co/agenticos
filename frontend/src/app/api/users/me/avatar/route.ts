@@ -18,6 +18,9 @@ export async function POST(request: NextRequest) {
     });
 
     if (!response.ok) {
+      // The `detail` the client shows when the backend answered with something
+      // that is not JSON at all.
+      // i18n-exempt: a route handler has no locale to resolve a message in
       const error = await response.json().catch(() => ({ detail: "Upload failed" }));
       return NextResponse.json(error, { status: response.status });
     }

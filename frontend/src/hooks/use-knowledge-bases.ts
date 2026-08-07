@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { parseErrorMessage } from "@/lib/api-error";
@@ -28,6 +29,9 @@ import type {
 
 export function useKnowledgeBases() {
   const queryClient = useQueryClient();
+  // Every toast the catalog already held. It walked `*.tsx` alone, so this
+  // directory had never been read by the guard at all (#425).
+  const t = useTranslations("knowledgeBases");
   const listOrgId = useTenantId();
   const stillSameTenant = useTenantGuard();
 
@@ -73,10 +77,10 @@ export function useKnowledgeBases() {
       const startedIn = listOrgId;
       const kb = await apiClient.post<KnowledgeBase>("/kb", input);
       writeCache((prev) => [kb, ...prev], startedIn);
-      toast.success("Knowledge base created");
+      toast.success(t("created"));
       return kb;
     },
-    [writeCache, listOrgId],
+    [writeCache, listOrgId, t],
   );
 
   const patchKB = useCallback(
@@ -85,14 +89,14 @@ export function useKnowledgeBases() {
       try {
         const updated = await apiClient.patch<KnowledgeBase>(`/kb/${id}`, patch);
         writeCache((prev) => prev.map((k) => (k.id === id ? updated : k)), startedIn);
-        toast.success("Knowledge base updated");
+        toast.success(t("updated"));
         return updated;
       } catch {
         toast.error("Failed to update knowledge base");
         return null;
       }
     },
-    [writeCache, listOrgId],
+    [writeCache, listOrgId, t],
   );
 
   // There is deliberately no delete here. A collection is deleted from its own
@@ -121,6 +125,7 @@ export interface UploadProgress {
 
 export function useKBDetail(id: string | null) {
   const queryClient = useQueryClient();
+  const t = useTranslations("knowledgeBases");
   const [kb, setKb] = useState<KnowledgeBase | null>(null);
   const [documents, setDocuments] = useState<KBDocument[]>([]);
   const [documentsTotal, setDocumentsTotal] = useState(0);
@@ -334,23 +339,23 @@ export function useKBDetail(id: string | null) {
               } catch {
                 /* non-JSON error body */
               }
-              reject(new ApiError(xhr.status, parseErrorMessage(body, "Upload failed"), body));
+              reject(new ApiError(xhr.status, parseErrorMessage(body, t("uploadFailed")), body));
             }
           };
-          xhr.onerror = () => reject(new ApiError(0, "Upload failed"));
+          xhr.onerror = () => reject(new ApiError(0, t("uploadFailed")));
           xhr.send(formData);
         });
         toast.success(`Uploaded ${file.name}`);
         await refresh();
       } catch (e) {
-        const msg = e instanceof Error ? e.message : "Upload failed";
+        const msg = e instanceof Error ? e.message : t("uploadFailed");
         toast.error(msg);
         throw e;
       } finally {
         clear();
       }
     },
-    [id, refresh, activeOrgId],
+    [id, refresh, activeOrgId, t],
   );
 
   const deleteDocument = useCallback(
@@ -388,12 +393,12 @@ export function useKBDetail(id: string | null) {
     try {
       await apiClient.delete(`/kb/${id}`);
       queryClient.invalidateQueries({ queryKey: qk.kb.list() });
-      toast.success("Knowledge base deleted");
+      toast.success(t("deleted"));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to delete knowledge base");
       throw e;
     }
-  }, [id, queryClient]);
+  }, [id, queryClient, t]);
 
   const createSyncSource = useCallback(
     async (data: SyncSourceCreate) => {
@@ -446,10 +451,10 @@ export function useKBDetail(id: string | null) {
         // Refresh later to pick up new docs that the worker pulls in.
         setTimeout(() => refresh(), 2000);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Failed to trigger sync");
+        toast.error(e instanceof Error ? e.message : t("failedTriggerSync"));
       }
     },
-    [id, refresh],
+    [id, refresh, t],
   );
 
   const deleteSyncSource = useCallback(
