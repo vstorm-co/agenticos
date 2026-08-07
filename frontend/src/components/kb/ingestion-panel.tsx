@@ -54,7 +54,7 @@ export function IngestionPanel({ kb, onEdit }: IngestionPanelProps) {
       </div>
 
       <dl className="divide-border divide-y">
-        <Fact term="PDF parser">
+        <Fact term={t("pdfParser")}>
           {labelOf(PDF_PARSERS, config.pdf_parser)}
           {config.pdf_parser === "llamaparse" &&
             ` · ${labelOf(LLAMAPARSE_TIERS, config.llamaparse_tier)}`}
@@ -63,7 +63,7 @@ export function IngestionPanel({ kb, onEdit }: IngestionPanelProps) {
 
         <Fact term={t("scannedPages")}>{config.ocr ? t("readAsImages") : t("notRead")}</Fact>
 
-        <Fact term="Chunking">
+        <Fact term={t("chunking")}>
           {t("chunkingSummary", {
             size: config.chunk_size,
             overlap: config.chunk_overlap,
@@ -71,7 +71,7 @@ export function IngestionPanel({ kb, onEdit }: IngestionPanelProps) {
           })}
         </Fact>
 
-        <Fact term="Images">
+        <Fact term={t("images")}>
           {config.describe_images ? t("describedByModelIndexed") : t("notDescribedPictureTable")}
         </Fact>
 
@@ -81,7 +81,7 @@ export function IngestionPanel({ kb, onEdit }: IngestionPanelProps) {
           collection is made; two models of the same width write into different
           spaces that search would go on comparing and go on answering from.
         */}
-        <Fact term="Embeddings" note={t("ingestionRecordedNote")}>
+        <Fact term={t("embeddings")} note={t("ingestionRecordedNote")}>
           <span className="inline-flex items-center gap-1.5">
             <Lock className="text-muted-foreground h-3 w-3 shrink-0" aria-hidden />
             <span className="font-mono text-xs">{kb.embedding_model}</span>

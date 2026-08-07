@@ -349,7 +349,7 @@ export default function SkillsPage() {
                 matched={total}
                 total={total}
                 onPage={setPage}
-                noun="skills"
+                counted={t("skillCount", { count: total })}
               />
             </>
           )}

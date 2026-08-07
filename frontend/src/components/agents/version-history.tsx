@@ -125,7 +125,7 @@ export function VersionHistory({
           <li
             key={version.id}
             className={cn(
-              t("flexFlexWrapItems"),
+              "flex flex-wrap items-center gap-3 p-3 text-sm",
               // The live row is the one fact somebody scans this list for.
               version.id === currentVersionId && "bg-brand-subtle/40",
             )}
